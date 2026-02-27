@@ -241,7 +241,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
         userId,
       );
       setAiScriptResult(result);
-      setTitle((prev) => prev || aiTopic.trim());
+      setTitle(aiTopic.trim());
       setScript([result.hook, ...result.body_lines, result.cta].filter(Boolean).join('\n'));
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Failed to generate AI script.');
@@ -445,13 +445,64 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           </div>
           <div>
             <p className="mb-1 text-sm font-semibold text-text">Voice</p>
-            <Dropdown value={voice} onChange={(event) => setVoice(event.target.value)}>
-              {voiceOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Dropdown>
+            <div className="flex flex-wrap gap-2">
+              <Badge>Indian voices</Badge>
+              <Badge>Natural tone</Badge>
+              <Badge>Script synced</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {voiceOptions.map((option) => {
+            const active = option === voice;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setVoice(option)}
+                className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-3 text-left transition ${
+                  active
+                    ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                    : 'border-border bg-bg hover:bg-elevated'
+                }`}
+              >
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.18)] text-text">
+                  <UserRound className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-text">{option}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {voiceProfiles[option]?.tone ?? 'Balanced'} • {voiceProfiles[option]?.language ?? 'Hindi + English'}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <Dropdown value={voice} onChange={(event) => setVoice(event.target.value)}>
+            {voiceOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Dropdown>
+          <Button variant="secondary" type="button" onClick={previewVoice} className="gap-2">
+            <Mic2 className="h-4 w-4" />
+            {voicePreviewing ? 'Stop preview' : 'Preview voice'}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <span>{selectedVoiceProfile?.language ?? 'Hindi + English'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <span>{selectedVoiceProfile?.tone ?? 'Balanced'}</span>
           </div>
         </div>
 
@@ -693,64 +744,6 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           value={script}
           onChange={(event) => setScript(event.target.value)}
         />
-      </Card>
-
-      <Card>
-        <p className="text-sm font-semibold text-text">Voice</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Badge>Indian voices</Badge>
-          <Badge>Natural tone</Badge>
-          <Badge>Script synced</Badge>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {voiceOptions.map((option) => {
-            const active = option === voice;
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setVoice(option)}
-                className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-3 text-left transition ${
-                  active
-                    ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                    : 'border-border bg-bg hover:bg-elevated'
-                }`}
-              >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.18)] text-text">
-                  <UserRound className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-text">{option}</span>
-                  <span className="block truncate text-xs text-muted">{voiceProfiles[option]?.tone ?? 'Balanced'} • {voiceProfiles[option]?.language ?? 'Hindi + English'}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-          <Dropdown value={voice} onChange={(event) => setVoice(event.target.value)}>
-            {voiceOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </Dropdown>
-          <Button variant="secondary" type="button" onClick={previewVoice} className="gap-2">
-            <Mic2 className="h-4 w-4" />
-            {voicePreviewing ? 'Stop preview' : 'Preview voice'}
-          </Button>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-            <span>{selectedVoiceProfile?.language ?? 'Hindi + English'}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-            <span>{selectedVoiceProfile?.tone ?? 'Balanced'}</span>
-          </div>
-        </div>
       </Card>
 
       <Card>

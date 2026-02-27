@@ -7,9 +7,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.repositories.video_repository import VideoRepository
-from app.core.config import get_settings
 from app.models.entities import Video, VideoStatus
-from app.services.ai_video_service import AIVideoOrchestrator
 from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
@@ -137,8 +135,6 @@ def process_video(video_id: str) -> None:
     db = SessionLocal()
     repo = VideoRepository(db)
     pipeline = VideoPipelineService()
-    orchestrator = AIVideoOrchestrator(get_settings())
-
     try:
         repo.set_progress(video_id, 15, VideoStatus.processing)
         video = repo.get_by_id(video_id)
@@ -156,45 +152,26 @@ def process_video(video_id: str) -> None:
             reference_images = []
 
         repo.set_progress(video_id, 45, VideoStatus.processing)
+        pipeline.render_video_from_assets(
+            video_id=video_id,
+            title=video.title,
+            script=video.script,
+            voice_name=video.voice,
+            image_urls=image_urls,
+            aspect_ratio=video.aspect_ratio or '9:16',
+            resolution=video.resolution or '1080p',
+            duration_mode=video.duration_mode or 'auto',
+            duration_seconds=video.duration_seconds,
+            captions_enabled=True if video.captions_enabled is None else bool(video.captions_enabled),
+            music_mode=video.music_mode,
+            music_track_id=video.music_track_id,
+            music_file_url=video.music_file_url,
+            music_volume=video.music_volume,
+            duck_music=video.duck_music,
+        )
+        repo.set_progress(video_id, 85, VideoStatus.processing)
         output_url = f'/static/renders/{video_id}.mp4'
         thumb_url = f'/static/renders/{video_id}.jpg'
-
-        if video.selected_model:
-            ai_result = orchestrator.generate(
-                {
-                    'templateId': video.title or 'Custom',
-                    'topic': video.title or video.script[:80] or 'AI Video',
-                    'tone': 'Cinematic',
-                    'language': 'English',
-                    'selectedModel': video.selected_model,
-                    'voice': video.voice,
-                    'referenceImages': [*reference_images, *image_urls],
-                }
-            )
-            output_url = ai_result.video_url
-            if output_url.startswith('/static/renders/'):
-                thumb_url = output_url.replace('.mp4', '.jpg')
-            else:
-                thumb_url = video.thumbnail_url or f'/static/renders/{video_id}.jpg'
-        else:
-            pipeline.render_video_from_assets(
-                video_id=video_id,
-                title=video.title,
-                script=video.script,
-                voice_name=video.voice,
-                image_urls=image_urls,
-                aspect_ratio=video.aspect_ratio or '9:16',
-                resolution=video.resolution or '1080p',
-                duration_mode=video.duration_mode or 'auto',
-                duration_seconds=video.duration_seconds,
-                captions_enabled=True if video.captions_enabled is None else bool(video.captions_enabled),
-                music_mode=video.music_mode,
-                music_track_id=video.music_track_id,
-                music_file_url=video.music_file_url,
-                music_volume=video.music_volume,
-                duck_music=video.duck_music,
-            )
-        repo.set_progress(video_id, 85, VideoStatus.processing)
         repo.complete(video_id, output_url=output_url, thumbnail_url=thumb_url)
         logger.info('video_job_completed', extra={'render_id': video_id})
     except Exception as exc:
