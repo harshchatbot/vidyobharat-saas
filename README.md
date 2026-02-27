@@ -50,6 +50,7 @@ Frontend:
 ## API Endpoints (MVP)
 
 - `GET /health`
+- `POST /auth/mock-signup`
 - `POST /auth/mock-login`
 - `POST /projects`
 - `PATCH /projects/{id}`
@@ -62,11 +63,12 @@ Frontend:
 
 ## Demo Flow
 
-1. Mock login from `/projects`
-2. Create a project
-3. Open editor and click `Generate`
-4. Watch render progress auto-update
-5. Open final video URL when status becomes `completed`
+1. Sign up from `/signup` (first time)
+2. Login from `/login`
+3. Open `/projects` and create a project
+4. Open editor and click `Generate`
+5. Watch render progress auto-update
+6. Open final video URL when status becomes `completed`
 
 ## Notes
 

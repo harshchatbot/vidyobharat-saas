@@ -11,3 +11,8 @@ export async function setUserIdCookie(userId: string): Promise<void> {
   const store = await cookies();
   store.set(USER_COOKIE, userId, { httpOnly: false, sameSite: 'lax', path: '/' });
 }
+
+export async function clearUserIdCookie(): Promise<void> {
+  const store = await cookies();
+  store.delete(USER_COOKIE);
+}

@@ -11,7 +11,18 @@ body {
 
 body {
   @apply bg-bg text-text antialiased;
+  font-family: 'Avenir Next', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   background-image: radial-gradient(circle at top right, hsl(var(--color-accent) / 0.15), transparent 45%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Avenir Next', 'SF Pro Display', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 * {

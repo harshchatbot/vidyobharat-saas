@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.entities import User
@@ -16,3 +17,7 @@ class UserRepository:
 
     def get(self, user_id: str) -> User | None:
         return self.db.get(User, user_id)
+
+    def get_by_email(self, email: str) -> User | None:
+        stmt = select(User).where(User.email == email)
+        return self.db.scalar(stmt)

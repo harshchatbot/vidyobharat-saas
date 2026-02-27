@@ -36,6 +36,12 @@ export const api = {
       body: JSON.stringify({ email }),
     });
   },
+  mockSignup(email: string) {
+    return request<{ user_id: string }>('/auth/mock-signup', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
   createProject(payload: {
     user_id: string;
     title: string;

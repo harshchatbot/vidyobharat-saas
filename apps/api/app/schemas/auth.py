@@ -7,3 +7,11 @@ class MockLoginRequest(BaseModel):
 
 class MockLoginResponse(BaseModel):
     user_id: str
+
+
+class MockSignupRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class MockSignupResponse(BaseModel):
+    user_id: str

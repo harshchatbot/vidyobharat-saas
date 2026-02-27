@@ -45,9 +45,15 @@ export function EditorMockup() {
           className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4"
         >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Preview</p>
-          <div className="flex h-52 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-            <p className="text-sm text-[hsl(var(--color-muted))]">9:16 Video Player</p>
-          </div>
+          <video
+            className="h-52 w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] object-cover"
+            src="/videos/samples/hindi-festival-9x16.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="h-10 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]" />
             <div className="h-10 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]" />

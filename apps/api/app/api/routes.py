@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_id
 from app.db.session import get_db
-from app.schemas.auth import MockLoginRequest, MockLoginResponse
+from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.project import CreateProjectRequest, ProjectResponse, UpdateProjectRequest
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
@@ -26,8 +26,21 @@ async def health() -> dict[str, str]:
 @router.post('/auth/mock-login', response_model=MockLoginResponse)
 def mock_login(payload: MockLoginRequest, db: Session = Depends(get_db)):
     auth_service = AuthService(db)
-    user_id = auth_service.mock_login(email=payload.email)
+    try:
+        user_id = auth_service.mock_login(email=payload.email)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return MockLoginResponse(user_id=user_id)
+
+
+@router.post('/auth/mock-signup', response_model=MockSignupResponse, status_code=status.HTTP_201_CREATED)
+def mock_signup(payload: MockSignupRequest, db: Session = Depends(get_db)):
+    auth_service = AuthService(db)
+    try:
+        user_id = auth_service.mock_signup(email=payload.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return MockSignupResponse(user_id=user_id)
 
 
 @router.post('/projects', response_model=ProjectResponse)

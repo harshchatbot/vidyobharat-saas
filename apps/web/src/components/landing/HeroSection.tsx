@@ -78,13 +78,8 @@ export function HeroSection() {
             </Link>
           </div>
 
-          <div className="grid gap-2 text-left sm:grid-cols-2">
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-[hsl(var(--color-muted))]">
-              20+ Indian Languages
-            </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-[hsl(var(--color-muted))]">
-              Exports: 9:16 and 16:9
-            </div>
+          <div className="inline-flex rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-[hsl(var(--color-muted))]">
+            20+ Indian languages • 9:16 and 16:9 exports
           </div>
         </div>
 
