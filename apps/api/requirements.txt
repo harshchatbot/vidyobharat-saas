@@ -7,3 +7,4 @@ celery==5.4.0
 redis==5.2.1
 python-multipart==0.0.20
 edge-tts==6.1.19
+gTTS==2.5.4

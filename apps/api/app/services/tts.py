@@ -27,6 +27,16 @@ async def _synthesize_to_path(text: str, edge_voice: str, output_path: Path) -> 
     await communicator.save(str(output_path))
 
 
+def _synthesize_with_gtts(text: str, output_path: Path, lang: str) -> None:
+    try:
+        from gtts import gTTS
+    except ModuleNotFoundError as exc:
+        raise RuntimeError('gTTS dependency is missing. Install requirements in apps/api.') from exc
+
+    tts = gTTS(text=text, lang=lang)
+    tts.save(str(output_path))
+
+
 def generate_voiceover(script: str, voice: str, cache_dir: Path) -> tuple[Path, str]:
     text = script.strip()
     if not text:
@@ -41,14 +51,23 @@ def generate_voiceover(script: str, voice: str, cache_dir: Path) -> tuple[Path, 
     if output_path.exists() and output_path.stat().st_size > 0:
         return output_path, edge_voice
 
+    edge_error: Exception | None = None
     try:
-        asyncio.run(_synthesize_to_path(text=text, edge_voice=edge_voice, output_path=output_path))
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(_synthesize_to_path(text=text, edge_voice=edge_voice, output_path=output_path))
-        finally:
-            loop.close()
+            asyncio.run(_synthesize_to_path(text=text, edge_voice=edge_voice, output_path=output_path))
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(_synthesize_to_path(text=text, edge_voice=edge_voice, output_path=output_path))
+            finally:
+                loop.close()
+    except Exception as exc:  # noqa: BLE001
+        edge_error = exc
+
+    if (not output_path.exists() or output_path.stat().st_size == 0) and edge_error is not None:
+        # Fallback provider when edge websocket returns errors (e.g., 403 token issues).
+        fallback_lang = 'hi' if voice in {'Dev', 'Mira'} else 'en'
+        _synthesize_with_gtts(text=text, output_path=output_path, lang=fallback_lang)
 
     if not output_path.exists() or output_path.stat().st_size == 0:
         raise RuntimeError('TTS output file was not generated')

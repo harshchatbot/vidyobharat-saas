@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/Button';
@@ -55,6 +55,8 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
   const [musicVolume, setMusicVolume] = useState(20);
   const [duckMusic, setDuckMusic] = useState(true);
   const [musicPreviewError, setMusicPreviewError] = useState<string | null>(null);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [voicePreviewing, setVoicePreviewing] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +68,14 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       ? selectedTrack.preview_url
       : `${API_URL}${selectedTrack.preview_url}`)
     : undefined;
+
+  useEffect(() => {
+    const player = previewAudioRef.current;
+    if (!player) return;
+    player.pause();
+    player.currentTime = 0;
+    setMusicPlaying(false);
+  }, [selectedPreviewUrl, musicMode]);
 
   const loadTracks = async () => {
     if (tracks.length > 0 || tracksLoading) return;
@@ -129,6 +139,54 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       setError('Failed to create video. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const previewVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      setError('Voice preview is not supported in this browser.');
+      return;
+    }
+
+    if (voicePreviewing) {
+      window.speechSynthesis.cancel();
+      setVoicePreviewing(false);
+      return;
+    }
+
+    const text = script.trim() || 'Namaste. This is a voice preview from VidyoBharat.';
+    const utterance = new SpeechSynthesisUtterance(text);
+    const name = voice.toLowerCase();
+    utterance.lang = name === 'dev' || name === 'mira' ? 'hi-IN' : 'en-IN';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.onend = () => setVoicePreviewing(false);
+    utterance.onerror = () => setVoicePreviewing(false);
+
+    setVoicePreviewing(true);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleMusicPreview = async () => {
+    const player = previewAudioRef.current;
+    if (!player) return;
+
+    if (musicPlaying) {
+      player.pause();
+      player.currentTime = 0;
+      setMusicPlaying(false);
+      return;
+    }
+
+    setMusicPreviewError(null);
+    try {
+      player.currentTime = 0;
+      await player.play();
+      setMusicPlaying(true);
+    } catch {
+      setMusicPreviewError('Preview could not be played. Check track availability.');
+      setMusicPlaying(false);
     }
   };
 
@@ -213,7 +271,9 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
               <option key={option} value={option}>{option}</option>
             ))}
           </Dropdown>
-          <Button variant="secondary" type="button">Preview voice</Button>
+          <Button variant="secondary" type="button" onClick={previewVoice}>
+            {voicePreviewing ? 'Stop preview' : 'Preview voice'}
+          </Button>
         </div>
       </Card>
 
@@ -238,7 +298,19 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
             Upload my own
           </label>
           <label className="flex items-center gap-2">
-            <input type="radio" name="music-mode" checked={musicMode === 'none'} onChange={() => setMusicMode('none')} />
+            <input
+              type="radio"
+              name="music-mode"
+              checked={musicMode === 'none'}
+              onChange={() => {
+                setMusicMode('none');
+                if (previewAudioRef.current) {
+                  previewAudioRef.current.pause();
+                  previewAudioRef.current.currentTime = 0;
+                }
+                setMusicPlaying(false);
+              }}
+            />
             No music
           </label>
         </div>
@@ -258,24 +330,17 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
                   <Button
                     variant="secondary"
                     type="button"
-                    onClick={async () => {
-                      if (!previewAudioRef.current) return;
-                      setMusicPreviewError(null);
-                      try {
-                        await previewAudioRef.current.play();
-                      } catch {
-                        setMusicPreviewError('Preview could not be played. Check track availability.');
-                      }
-                    }}
+                    onClick={toggleMusicPreview}
                     disabled={!selectedTrack}
                   >
-                    Play preview
+                    {musicPlaying ? 'Stop preview' : 'Play preview'}
                   </Button>
                   <audio
                     ref={previewAudioRef}
                     src={selectedPreviewUrl}
                     preload="none"
                     onError={() => setMusicPreviewError('Preview could not be loaded.')}
+                    onEnded={() => setMusicPlaying(false)}
                   />
                 </div>
                 {musicPreviewError && <p className="text-xs text-[hsl(var(--color-danger))]">{musicPreviewError}</p>}
