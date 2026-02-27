@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, Clapperboard, LayoutDashboard, Mail, PlusCircle, Settings, Sparkles, User } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, Mail, PlusCircle, Settings, User } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { TopNav } from '@/components/layout/TopNav';
@@ -14,7 +14,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -22,6 +22,7 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/create-ai-video')) return 'AI Video';
   if (pathname.startsWith('/create-template')) return 'AI Reel Script';
   if (pathname.startsWith('/create')) return 'Create Video';
   if (pathname.startsWith('/videos/')) return 'Video Details';
@@ -29,7 +30,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/billing')) return 'Billing';
   if (pathname.startsWith('/profile')) return 'Profile';
   if (pathname.startsWith('/settings')) return 'Settings';
-  return 'VidyoBharat';
+  return 'RangManch AI';
 }
 
 export function AppFrame({ userId, accountLabel, accountEmail, children }: Props) {
@@ -42,15 +43,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, children }: Props
     const navItems = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/create', label: 'Create', icon: PlusCircle },
-      { href: '/create-template', label: 'AI Script', icon: Sparkles },
-      { href: '/create?template=real_estate', label: 'Templates', icon: Clapperboard },
     ];
 
     return (
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
         <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 md:block">
           <Link href="/dashboard" className="font-heading text-xl font-extrabold tracking-tight text-text">
-            VidyoBharat
+            RangManch AI
           </Link>
           <p className="mt-1 text-xs text-muted">Video SaaS</p>
           <nav className="mt-6 grid gap-2">

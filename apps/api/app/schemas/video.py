@@ -17,6 +17,8 @@ class VideoResponse(BaseModel):
     status: str
     progress: int
     image_urls: list[str] = Field(default_factory=list)
+    selected_model: str | None = None
+    reference_images: list[str] = Field(default_factory=list)
     music_mode: str
     music_track_id: str | None
     music_file_url: str | None

@@ -6,7 +6,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VidyoBharat',
+  title: 'RangManch AI',
   description: 'Hybrid text-to-video SaaS for India-first creators',
 };
 

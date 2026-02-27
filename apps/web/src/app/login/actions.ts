@@ -32,7 +32,7 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function loginWithGoogleAction() {
-  const googleEmail = 'google.user@vidyobharat.dev';
+  const googleEmail = 'google.user@rangmanchai.dev';
 
   try {
     const { user_id } = await api.mockLogin(googleEmail);

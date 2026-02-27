@@ -11,7 +11,7 @@ const steps = [
   {
     id: '02',
     title: 'Generate with AI + templates',
-    text: 'VidyoBharat combines structured scene templates with optional AI b-roll.',
+    text: 'RangManch AI combines structured scene templates with optional AI b-roll.',
   },
   {
     id: '03',

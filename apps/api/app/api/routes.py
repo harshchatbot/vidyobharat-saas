@@ -11,7 +11,7 @@ from app.api.deps import get_user_id
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
 from app.db.session import get_db
-from app.schemas.ai import ReelScriptRequest, ReelScriptResponse
+from app.schemas.ai import AIVideoGenerateRequest, AIVideoGenerateResponse, ReelScriptRequest, ReelScriptResponse
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.project import (
@@ -29,6 +29,7 @@ from app.services.auth_service import AuthService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
+from app.services.ai_video_service import AIVideoOrchestrator, ProviderError
 from app.services.upload_service import UploadService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
@@ -103,10 +104,15 @@ def _extract_json_payload(value: str) -> dict:
 
 def _to_video_response(video) -> VideoResponse:
     image_urls: list[str] = []
+    reference_images: list[str] = []
     try:
         image_urls = json.loads(video.image_urls or '[]')
     except json.JSONDecodeError:
         image_urls = []
+    try:
+        reference_images = json.loads(video.reference_images or '[]')
+    except json.JSONDecodeError:
+        reference_images = []
     return VideoResponse(
         id=video.id,
         user_id=video.user_id,
@@ -121,6 +127,8 @@ def _to_video_response(video) -> VideoResponse:
         status=video.status.value if hasattr(video.status, 'value') else str(video.status),
         progress=video.progress,
         image_urls=image_urls,
+        selected_model=video.selected_model,
+        reference_images=reference_images,
         music_mode=video.music_mode,
         music_track_id=video.music_track_id,
         music_file_url=video.music_file_url,
@@ -193,6 +201,45 @@ def generate_reel_script(
         detail = str(exc).strip() or 'Failed to generate reel script'
         if settings.env != 'development':
             detail = 'Failed to generate reel script'
+        raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.post('/ai/video/generate', response_model=AIVideoGenerateResponse)
+def generate_ai_video(
+    payload: AIVideoGenerateRequest,
+    _: str = Depends(get_user_id),
+):
+    try:
+        orchestrator = AIVideoOrchestrator(settings)
+        result = orchestrator.generate(payload.model_dump())
+        logger.info(
+            'ai_video_generated',
+            extra={
+                'request_id': get_request_id(),
+                'provider': result.provider,
+                'template_id': payload.templateId,
+            },
+        )
+        return AIVideoGenerateResponse(
+            videoUrl=result.video_url,
+            provider=result.provider,
+            duration=result.duration,
+            quality=result.quality,
+        )
+    except ProviderError as exc:
+        logger.warning(
+            'ai_video_provider_error',
+            extra={'request_id': get_request_id(), 'error': str(exc), 'provider': payload.selectedModel},
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'ai_video_generation_failed',
+            extra={'request_id': get_request_id(), 'error': str(exc), 'provider': payload.selectedModel},
+        )
+        detail = str(exc).strip() or 'Failed to generate AI video'
+        if settings.env != 'development':
+            detail = 'Failed to generate AI video'
         raise HTTPException(status_code=500, detail=detail) from exc
 
 
@@ -423,6 +470,8 @@ async def create_video(
     duration_mode: str = Form(default='auto'),
     duration_seconds: int | None = Form(default=None),
     captions_enabled: bool = Form(default=True),
+    selected_model: str | None = Form(default=None),
+    reference_images: list[str] = Form(default=[]),
     music_mode: str = Form(default='none'),
     music_track_id: str | None = Form(default=None),
     music_volume: int = Form(default=20),
@@ -445,6 +494,8 @@ async def create_video(
             duration_mode=duration_mode,
             duration_seconds=duration_seconds,
             captions_enabled=captions_enabled,
+            selected_model=selected_model,
+            reference_images=reference_images,
             music_mode=music_mode,
             music_track_id=music_track_id,
             music_volume=music_volume,

@@ -93,6 +93,8 @@ class Video(Base):
     status: Mapped[VideoStatus] = mapped_column(Enum(VideoStatus), default=VideoStatus.draft, index=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     image_urls: Mapped[str] = mapped_column(Text, default='[]')
+    selected_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reference_images: Mapped[str] = mapped_column(Text, default='[]')
     music_mode: Mapped[str] = mapped_column(String(20), default='none')
     music_track_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     music_file_url: Mapped[str | None] = mapped_column(String(255), nullable=True)

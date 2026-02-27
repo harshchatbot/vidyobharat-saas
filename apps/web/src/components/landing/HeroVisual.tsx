@@ -12,7 +12,7 @@ export function HeroVisual() {
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-[hsl(var(--color-text))]">VidyoBharat Video Editor</p>
+          <p className="text-sm font-semibold text-[hsl(var(--color-text))]">RangManch AI Video Editor</p>
           <p className="text-xs text-[hsl(var(--color-muted))]">Template: Business Explainer • Voice: Hindi Female</p>
         </div>
         <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-xs text-[hsl(var(--color-muted))]">
@@ -24,7 +24,7 @@ export function HeroVisual() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Script</p>
           <p className="text-sm leading-7 text-[hsl(var(--color-text))]">
             Bharat&apos;s next growth story is being written by creators, educators, and entrepreneurs who speak every
-            language. With VidyoBharat, turn your message into a polished video with smart scenes, captions, and
+            language. With RangManch AI, turn your message into a polished video with smart scenes, captions, and
             native-sounding narration.
           </p>
         </div>

@@ -1,4 +1,4 @@
-# VidyoBharat (MVP Monorepo)
+# RangManch AI (MVP Monorepo)
 
 India-first Hybrid Text-to-Video SaaS MVP with a Next.js frontend and FastAPI + Celery backend.
 

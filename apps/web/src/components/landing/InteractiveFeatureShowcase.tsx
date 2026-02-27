@@ -43,7 +43,7 @@ export function InteractiveFeatureShowcase() {
               Featured Video Capabilities
             </h2>
             <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-              Explore the core workflows powering VidyoBharat.
+              Explore the core workflows powering RangManch AI.
             </p>
 
             <div className="mt-6 space-y-2">

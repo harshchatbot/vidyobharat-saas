@@ -32,7 +32,7 @@ export async function signupAction(formData: FormData) {
 }
 
 export async function signupWithGoogleAction() {
-  const googleEmail = 'google.user@vidyobharat.dev';
+  const googleEmail = 'google.user@rangmanchai.dev';
 
   try {
     const { user_id } = await api.mockSignup(googleEmail);

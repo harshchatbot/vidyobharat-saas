@@ -3,7 +3,7 @@
 const faqs = [
   {
     q: 'Can I generate videos in Indian languages?',
-    a: 'Yes. VidyoBharat is designed for Indian language workflows including Hindi and Tamil in MVP.',
+    a: 'Yes. RangManch AI is designed for Indian language workflows including Hindi and Tamil in MVP.',
   },
   {
     q: 'Can I use both 9:16 and 16:9?',

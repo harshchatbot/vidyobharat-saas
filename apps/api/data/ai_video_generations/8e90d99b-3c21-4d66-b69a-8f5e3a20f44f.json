@@ -1,0 +1,21 @@
+{
+  "provider": "fallback",
+  "video_url": "/static/renders/d3ee99c0-1c31-4e0e-a160-4053c14dc500.mp4",
+  "duration": 12,
+  "quality": "720p",
+  "request": {
+    "templateId": "Prithviraj Chahuhan Battle of Tarain 1",
+    "topic": "Prithviraj Chahuhan Battle of Tarain 1",
+    "tone": "Cinematic",
+    "language": "English",
+    "selectedModel": "fallback",
+    "voice": "Aarav",
+    "referenceImages": []
+  },
+  "metadata": {
+    "fallback_reason": null,
+    "requested_provider": "fallback",
+    "template": "Prithviraj Chahuhan Battle of Tarain 1",
+    "voice": "Aarav"
+  }
+}

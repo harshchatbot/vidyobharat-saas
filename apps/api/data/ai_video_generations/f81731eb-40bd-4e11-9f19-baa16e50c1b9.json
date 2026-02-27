@@ -1,0 +1,21 @@
+{
+  "provider": "fallback",
+  "video_url": "/static/renders/e2427bd5-35ae-4710-83e9-606fec1ee02e.mp4",
+  "duration": 12,
+  "quality": "720p",
+  "request": {
+    "templateId": "New Delhi Capital Of India",
+    "topic": "New Delhi Capital Of India",
+    "tone": "Cinematic",
+    "language": "English",
+    "selectedModel": "fallback",
+    "voice": "Dev",
+    "referenceImages": []
+  },
+  "metadata": {
+    "fallback_reason": null,
+    "requested_provider": "fallback",
+    "template": "New Delhi Capital Of India",
+    "voice": "Dev"
+  }
+}

@@ -66,6 +66,8 @@ export type Video = {
   status: 'draft' | 'processing' | 'completed' | 'failed';
   progress: number;
   image_urls: string[];
+  selected_model: string | null;
+  reference_images: string[];
   music_mode: 'none' | 'library' | 'upload' | string;
   music_track_id: string | null;
   music_file_url: string | null;
@@ -98,4 +100,21 @@ export type ReelScriptOutput = {
   cta: string;
   caption: string;
   hashtags: string[];
+};
+
+export type AIVideoGenerateRequest = {
+  templateId: string;
+  topic: string;
+  tone: string;
+  language: string;
+  selectedModel: string;
+  voice?: string;
+  referenceImages?: string[];
+};
+
+export type AIVideoGenerateResponse = {
+  videoUrl: string;
+  provider: string;
+  duration: number;
+  quality: string;
 };

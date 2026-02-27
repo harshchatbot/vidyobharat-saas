@@ -53,7 +53,7 @@ export function HeroAuthCard() {
       </button>
 
       <p className="mt-3 text-center text-xs text-[hsl(var(--color-muted))]">
-        By continuing you agree to VidyoBharat terms.
+        By continuing you agree to RangManch AI terms.
       </p>
     </div>
   );

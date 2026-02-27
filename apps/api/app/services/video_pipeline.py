@@ -34,7 +34,7 @@ class VideoPipelineService:
         if include_broll:
             self.broll_provider.fetch_clip(topic='india startup growth')
 
-        caption = (script or 'VidyoBharat Render').replace(':', ' ').replace("'", '')[:80]
+        caption = (script or 'RangManch AI Render').replace(':', ' ').replace("'", '')[:80]
         cmd = [
             'ffmpeg',
             '-y',
@@ -174,7 +174,7 @@ class VideoPipelineService:
         if captions_enabled and script.strip():
             text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration))
         text_filters.append(
-            "drawtext=text='VidyoBharat':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24"
+            "drawtext=text='RangManch AI':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24"
         )
         video_filter = (
             f'scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,'

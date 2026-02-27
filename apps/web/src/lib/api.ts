@@ -1,6 +1,8 @@
 import { API_URL } from '@/lib/env';
 import type {
   Avatar,
+  AIVideoGenerateRequest,
+  AIVideoGenerateResponse,
   MusicTrack,
   Project,
   ProjectAsset,
@@ -156,6 +158,12 @@ export const api = {
   },
   generateReelScript(payload: ReelScriptRequest, userId: string) {
     return request<ReelScriptOutput>('/ai/reel-script', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  generateAIVideo(payload: AIVideoGenerateRequest, userId: string) {
+    return request<AIVideoGenerateResponse>('/ai/video/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });

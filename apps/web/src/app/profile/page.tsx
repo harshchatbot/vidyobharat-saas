@@ -16,7 +16,7 @@ export default async function ProfilePage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <Card>
         <h1 className="font-heading text-2xl font-bold text-text">Profile</h1>
-        <p className="mt-1 text-sm text-muted">Basic account details for your VidyoBharat workspace.</p>
+        <p className="mt-1 text-sm text-muted">Basic account details for your RangManch AI workspace.</p>
       </Card>
 
       <Card className="space-y-3">

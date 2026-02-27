@@ -2,7 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Captions, Clock3, GripVertical, Languages, Mic2, MonitorSmartphone, Sparkles, UserRound } from 'lucide-react';
+import {
+  Bot,
+  Captions,
+  Clapperboard,
+  Clock3,
+  Film,
+  GripVertical,
+  Languages,
+  Lightbulb,
+  Mic2,
+  MonitorSmartphone,
+  ScrollText,
+  Sparkles,
+  UserRound,
+  Wand2,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -13,7 +28,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { MusicTrack } from '@/types/api';
+import type { MusicTrack, ReelScriptOutput } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -31,6 +46,31 @@ const voiceProfiles: Record<string, { tone: string; language: string }> = {
 };
 
 const templatePrefills: Record<string, { title: string; scriptPlaceholder: string; voice: string }> = {
+  history_reel: {
+    title: 'History Reel',
+    scriptPlaceholder: 'Set the era, dramatic moment, key turning point, and takeaway.',
+    voice: 'Aarav',
+  },
+  mythology_short: {
+    title: 'Mythology Short',
+    scriptPlaceholder: 'Introduce the mythic character, the conflict, the emotional moment, and lesson.',
+    voice: 'Anaya',
+  },
+  tech_explainer: {
+    title: 'Tech Explainer',
+    scriptPlaceholder: 'Open with the problem, explain the tech simply, give examples, and a sharp close.',
+    voice: 'Dev',
+  },
+  startup_launch: {
+    title: 'Startup Launch',
+    scriptPlaceholder: 'State the product idea, pain point, solution, and why users should care now.',
+    voice: 'Mira',
+  },
+  product_showcase: {
+    title: 'Product Showcase',
+    scriptPlaceholder: 'Highlight what the product is, best features, ideal user, and strong CTA.',
+    voice: 'Mira',
+  },
   real_estate: {
     title: 'Real Estate Promo',
     scriptPlaceholder: 'Property intro, top amenities, location highlights, and CTA.',
@@ -43,6 +83,24 @@ const templatePrefills: Record<string, { title: string; scriptPlaceholder: strin
   },
 };
 
+const contentTemplateOptions = [
+  { value: 'history_reel', label: 'History', icon: ScrollText, aiTemplateId: 'History_POV' },
+  { value: 'mythology_short', label: 'Mythology', icon: Sparkles, aiTemplateId: 'Mythology_POV' },
+  { value: 'tech_explainer', label: 'Tech', icon: Lightbulb, aiTemplateId: 'Historical_Fact_Reel' },
+  { value: 'startup_launch', label: 'Startup', icon: Bot, aiTemplateId: 'Historical_Fact_Reel' },
+  { value: 'product_showcase', label: 'Product', icon: Clapperboard, aiTemplateId: 'Historical_Fact_Reel' },
+  { value: 'real_estate', label: 'Real Estate', icon: Film, aiTemplateId: 'Historical_Fact_Reel' },
+];
+
+const aiToneOptions = ['Cinematic', 'Dramatic', 'Educational', 'Inspirational', 'Bold'];
+const aiLanguageOptions = ['English', 'Hinglish', 'Hindi'];
+const aiModelOptions = [
+  { value: 'heygen', label: 'HeyGen' },
+  { value: 'runway', label: 'Runway' },
+  { value: 'genericTextVideoAPI', label: 'Generic API' },
+  { value: 'fallback', label: 'Fallback Local' },
+];
+
 export function CreateVideoClient({ userId, templateKey, initialScript, initialTitle }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -50,14 +108,25 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const prefill = templateKey ? templatePrefills[templateKey] : undefined;
+  const defaultTemplateKey = templateKey && templatePrefills[templateKey] ? templateKey : 'history_reel';
 
   const [title, setTitle] = useState(initialTitle ?? prefill?.title ?? '');
   const [script, setScript] = useState(initialScript ?? '');
   const [voice, setVoice] = useState(prefill?.voice ?? 'Aarav');
+  const [contentTemplate, setContentTemplate] = useState(defaultTemplateKey);
   const [images, setImages] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const [aiTopic, setAiTopic] = useState(initialTitle ?? prefill?.title ?? '');
+  const [aiTone, setAiTone] = useState('Cinematic');
+  const [aiLanguage, setAiLanguage] = useState('English');
+  const [selectedModel, setSelectedModel] = useState('heygen');
+  const [referenceImagesText, setReferenceImagesText] = useState('');
+  const [aiScriptLoading, setAiScriptLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiScriptResult, setAiScriptResult] = useState<ReelScriptOutput | null>(null);
 
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
@@ -82,11 +151,20 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
   const previews = useMemo(() => images.map((file) => ({ file, url: URL.createObjectURL(file) })), [images]);
   const selectedTrack = tracks.find((item) => item.id === selectedTrackId) ?? null;
   const selectedVoiceProfile = voiceProfiles[voice];
+  const selectedContentTemplate = contentTemplateOptions.find((item) => item.value === contentTemplate) ?? contentTemplateOptions[0];
   const selectedPreviewUrl = selectedTrack
     ? (selectedTrack.preview_url.startsWith('http://') || selectedTrack.preview_url.startsWith('https://')
       ? selectedTrack.preview_url
       : `${API_URL}${selectedTrack.preview_url}`)
     : undefined;
+  const aiReferenceImages = useMemo(
+    () =>
+      referenceImagesText
+        .split('\n')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    [referenceImagesText],
+  );
 
   useEffect(() => {
     const player = previewAudioRef.current;
@@ -129,6 +207,49 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
     });
   };
 
+  const applyTemplate = (templateValue: string) => {
+    setContentTemplate(templateValue);
+    const nextTemplate = templatePrefills[templateValue];
+    if (!nextTemplate) return;
+    if (!title.trim() || title === prefill?.title) {
+      setTitle(nextTemplate.title);
+    }
+    if (!script.trim()) {
+      setScript(nextTemplate.scriptPlaceholder);
+    }
+    setVoice(nextTemplate.voice);
+    if (!aiTopic.trim()) {
+      setAiTopic(nextTemplate.title);
+    }
+  };
+
+  const generateAIScript = async () => {
+    if (!aiTopic.trim()) {
+      setAiError('Enter a topic first to generate AI script.');
+      return;
+    }
+    setAiScriptLoading(true);
+    setAiError(null);
+    try {
+      const result = await api.generateReelScript(
+        {
+          templateId: selectedContentTemplate.aiTemplateId,
+          topic: aiTopic.trim(),
+          tone: aiTone,
+          language: aiLanguage,
+        },
+        userId,
+      );
+      setAiScriptResult(result);
+      setTitle((prev) => prev || aiTopic.trim());
+      setScript([result.hook, ...result.body_lines, result.cta].filter(Boolean).join('\n'));
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to generate AI script.');
+    } finally {
+      setAiScriptLoading(false);
+    }
+  };
+
   const submit = async () => {
     if (!script.trim()) {
       setError('Please add a script before generating.');
@@ -157,6 +278,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
       formData.append('title', title);
       formData.append('script', script);
       formData.append('voice', voice);
+      formData.append('selected_model', selectedModel);
       formData.append('aspect_ratio', aspectRatio);
       formData.append('resolution', resolution);
       formData.append('duration_mode', durationMode);
@@ -164,6 +286,9 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
         formData.append('duration_seconds', durationSeconds);
       }
       formData.append('captions_enabled', String(captionsEnabled));
+      aiReferenceImages.forEach((imageUrl) => {
+        formData.append('reference_images', imageUrl);
+      });
       formData.append('music_mode', musicMode);
       formData.append('music_volume', String(musicVolume));
       formData.append('duck_music', String(duckMusic));
@@ -198,7 +323,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
       return;
     }
 
-    const text = script.trim() || 'Namaste. This is a voice preview from VidyoBharat.';
+    const text = script.trim() || 'Namaste. This is a voice preview from RangManch AI.';
     const utterance = new SpeechSynthesisUtterance(text);
     const name = voice.toLowerCase();
     utterance.lang = name === 'dev' || name === 'mira' ? 'hi-IN' : 'en-IN';
@@ -238,8 +363,133 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Create Video</h1>
-        <p className="mt-1 text-sm text-muted">Text + images + optional music in one simple form.</p>
+        <p className="mt-1 text-sm text-muted">Choose a template, get AI help for script/video, then render in one flow.</p>
       </div>
+
+      <Card className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+          <div>
+            <p className="text-sm font-semibold text-text">AI Assist</p>
+            <p className="text-xs text-muted">Pick a content direction, generate script help, or preview provider video output.</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Content template</p>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {contentTemplateOptions.map((option) => {
+              const Icon = option.icon;
+              const active = contentTemplate === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => applyTemplate(option.value)}
+                  className={`rounded-[var(--radius-md)] border px-3 py-3 text-left transition ${
+                    active
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                      : 'border-border bg-bg hover:bg-elevated'
+                  }`}
+                >
+                  <Icon className="mb-2 h-4 w-4 text-[hsl(var(--color-accent))]" />
+                  <p className="text-sm font-semibold text-text">{option.label}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Topic</p>
+            <Input
+              value={aiTopic}
+              onChange={(event) => setAiTopic(event.target.value)}
+              placeholder="What video do you want to create?"
+              maxLength={300}
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Video model</p>
+            <Dropdown value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+              {aiModelOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Dropdown>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Tone</p>
+            <Dropdown value={aiTone} onChange={(event) => setAiTone(event.target.value)}>
+              {aiToneOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Dropdown>
+          </div>
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Language</p>
+            <Dropdown value={aiLanguage} onChange={(event) => setAiLanguage(event.target.value)}>
+              {aiLanguageOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Dropdown>
+          </div>
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Voice</p>
+            <Dropdown value={voice} onChange={(event) => setVoice(event.target.value)}>
+              {voiceOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Dropdown>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 text-sm font-semibold text-text">Reference image URLs (optional)</p>
+          <Textarea
+            rows={3}
+            value={referenceImagesText}
+            onChange={(event) => setReferenceImagesText(event.target.value)}
+            placeholder={'https://example.com/scene-1.jpg\nhttps://example.com/scene-2.jpg'}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={() => void generateAIScript()} disabled={aiScriptLoading} className="gap-2">
+            {aiScriptLoading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
+            {aiScriptLoading ? 'Generating script...' : 'Generate AI Script'}
+          </Button>
+          <p className="text-xs text-muted">The selected model will be used when you click the final Generate Video button below.</p>
+          {aiError && <p className="text-sm text-[hsl(var(--color-danger))]">{aiError}</p>}
+        </div>
+
+        {aiScriptResult && (
+          <div className="rounded-[var(--radius-md)] border border-border bg-bg p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ScrollText className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              <p className="text-sm font-semibold text-text">AI Script Suggestion</p>
+            </div>
+            <p className="text-sm font-semibold text-text">{aiScriptResult.hook}</p>
+            <ul className="mt-3 space-y-1 text-sm text-muted">
+              {aiScriptResult.body_lines.slice(0, 4).map((line, index) => (
+                <li key={`${line}-${index}`}>{line}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted">CTA: {aiScriptResult.cta}</p>
+          </div>
+        )}
+      </Card>
 
       <Card>
         <p className="text-sm font-semibold text-text">Title (optional)</p>

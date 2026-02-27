@@ -38,7 +38,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/" className="font-semibold tracking-tight text-[hsl(var(--color-text))]">VidyoBharat</Link>
+          <Link href="/" className="font-semibold tracking-tight text-[hsl(var(--color-text))]">RangManch AI</Link>
           <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
         </div>
 
