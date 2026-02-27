@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, Clapperboard, LayoutDashboard, Mail, PlusCircle, Settings, User } from 'lucide-react';
+import { ChevronDown, Clapperboard, LayoutDashboard, Mail, PlusCircle, Settings, Sparkles, User } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { TopNav } from '@/components/layout/TopNav';
@@ -14,7 +14,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/create', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -22,6 +22,7 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/create-template')) return 'AI Reel Script';
   if (pathname.startsWith('/create')) return 'Create Video';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
@@ -41,6 +42,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, children }: Props
     const navItems = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/create', label: 'Create', icon: PlusCircle },
+      { href: '/create-template', label: 'AI Script', icon: Sparkles },
       { href: '/create?template=real_estate', label: 'Templates', icon: Clapperboard },
     ];
 

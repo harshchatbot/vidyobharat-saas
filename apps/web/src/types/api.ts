@@ -84,3 +84,18 @@ export type MusicTrack = {
   duration_sec: number | null;
   preview_url: string;
 };
+
+export type ReelScriptRequest = {
+  templateId: string;
+  topic: string;
+  tone: string;
+  language: string;
+};
+
+export type ReelScriptOutput = {
+  hook: string;
+  body_lines: string[];
+  cta: string;
+  caption: string;
+  hashtags: string[];
+};

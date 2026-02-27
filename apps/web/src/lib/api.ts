@@ -1,5 +1,16 @@
 import { API_URL } from '@/lib/env';
-import type { Avatar, MusicTrack, Project, ProjectAsset, ProjectDetail, Render, Template, Video } from '@/types/api';
+import type {
+  Avatar,
+  MusicTrack,
+  Project,
+  ProjectAsset,
+  ProjectDetail,
+  ReelScriptOutput,
+  ReelScriptRequest,
+  Render,
+  Template,
+  Video,
+} from '@/types/api';
 
 export type ApiOptions = {
   userId?: string;
@@ -141,6 +152,12 @@ export const api = {
     return request<{ id: string; status: string }>(`/videos/${videoId}/retry`, {
       method: 'POST',
       body: JSON.stringify({}),
+    }, { userId, cache: 'no-store' });
+  },
+  generateReelScript(payload: ReelScriptRequest, userId: string) {
+    return request<ReelScriptOutput>('/ai/reel-script', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },
 };

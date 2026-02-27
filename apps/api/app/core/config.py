@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     storage_backend: str = 'local'
     public_asset_base_url: str = 'http://localhost:8000/static'
+    openai_api_key: str | None = None
+    openai_model: str = 'gpt-4.1-mini'
 
     @property
     def allowed_origins_list(self) -> list[str]:

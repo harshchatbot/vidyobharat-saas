@@ -18,6 +18,8 @@ import type { MusicTrack } from '@/types/api';
 type Props = {
   userId: string;
   templateKey?: string;
+  initialScript?: string;
+  initialTitle?: string;
 };
 
 const voiceOptions = ['Aarav', 'Anaya', 'Dev', 'Mira'];
@@ -41,7 +43,7 @@ const templatePrefills: Record<string, { title: string; scriptPlaceholder: strin
   },
 };
 
-export function CreateVideoClient({ userId, templateKey }: Props) {
+export function CreateVideoClient({ userId, templateKey, initialScript, initialTitle }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const musicInputRef = useRef<HTMLInputElement | null>(null);
@@ -49,8 +51,8 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
 
   const prefill = templateKey ? templatePrefills[templateKey] : undefined;
 
-  const [title, setTitle] = useState(prefill?.title ?? '');
-  const [script, setScript] = useState('');
+  const [title, setTitle] = useState(initialTitle ?? prefill?.title ?? '');
+  const [script, setScript] = useState(initialScript ?? '');
   const [voice, setVoice] = useState(prefill?.voice ?? 'Aarav');
   const [images, setImages] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);

@@ -3,10 +3,15 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from openai import OpenAI
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_id
+from app.core.config import get_settings
+from app.core.request_context import get_request_id
 from app.db.session import get_db
+from app.schemas.ai import ReelScriptRequest, ReelScriptResponse
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.project import (
@@ -30,6 +35,70 @@ from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
+REEL_PROMPT_TEMPLATES: dict[str, str] = {
+    'History_POV': 'Use first-person historical POV with dramatic authenticity.',
+    'Mythology_POV': 'Use first-person mythology POV with vivid emotional storytelling.',
+    'Titanic_POV': 'Use first-person Titanic-era POV with cinematic urgency and detail.',
+    'Roman_Soldier_POV': 'Use first-person Roman soldier POV with tactical and emotional realism.',
+    'Historical_Fact_Reel': 'Use concise fact-led reel style with clear, surprising insight.',
+}
+
+
+def _build_reel_prompt(payload: ReelScriptRequest) -> str:
+    template_style = REEL_PROMPT_TEMPLATES[payload.templateId]
+    return f"""
+You are a specialized AI script writer trained to generate structured short-form social media reels for creators.
+
+Template style:
+{template_style}
+
+Return valid JSON only with exactly these keys:
+{{
+  "hook": string,
+  "body_lines": string[],
+  "cta": string,
+  "caption": string,
+  "hashtags": string[]
+}}
+
+Rules:
+1) hook is a dynamic 1-3 second opening line.
+2) body_lines must be short punchy lines, each around 6-10 words.
+3) cta must be creator-focused.
+4) caption must summarize the reel theme.
+5) hashtags must contain 3-6 relevant items.
+6) Follow template style and requested tone/language exactly.
+7) Do not include markdown or extra commentary.
+
+INPUT:
+Topic: {payload.topic}
+Template: {payload.templateId}
+Tone: {payload.tone}
+Language: {payload.language}
+""".strip()
+
+
+def _extract_json_payload(value: str) -> dict:
+    raw = value.strip()
+    if raw.startswith('```'):
+        raw = raw.strip('`')
+        if raw.lower().startswith('json'):
+            raw = raw[4:].strip()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find('{')
+        end = raw.rfind('}')
+        if start == -1 or end == -1 or end <= start:
+            raise
+        data = json.loads(raw[start:end + 1])
+
+    if not isinstance(data, dict):
+        raise ValueError('Model response must be a JSON object.')
+    return data
 
 
 def _to_video_response(video) -> VideoResponse:
@@ -68,6 +137,63 @@ def _to_video_response(video) -> VideoResponse:
 @router.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
+
+
+@router.post('/ai/reel-script', response_model=ReelScriptResponse)
+def generate_reel_script(
+    payload: ReelScriptRequest,
+    _: str = Depends(get_user_id),
+):
+    prompt = _build_reel_prompt(payload)
+    try:
+        if not settings.openai_api_key:
+            raise HTTPException(status_code=500, detail='OPENAI_API_KEY is not configured in apps/api/.env')
+
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            temperature=0.7,
+            response_format={'type': 'json_object'},
+            messages=[
+                {'role': 'system', 'content': 'Output valid JSON only.'},
+                {'role': 'user', 'content': prompt},
+            ],
+        )
+        content = response.choices[0].message.content or '{}'
+        parsed = _extract_json_payload(content)
+        result = ReelScriptResponse.model_validate(parsed)
+        logger.info(
+            'reel_script_generated',
+            extra={
+                'request_id': get_request_id(),
+                'template_id': payload.templateId,
+                'language': payload.language,
+            },
+        )
+        return result
+    except ValidationError as exc:
+        logger.warning(
+            'reel_script_validation_failed',
+            extra={'request_id': get_request_id(), 'error': str(exc)},
+        )
+        raise HTTPException(status_code=422, detail='Generated script format is invalid') from exc
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            'reel_script_json_parse_failed',
+            extra={'request_id': get_request_id(), 'error': str(exc)},
+        )
+        raise HTTPException(status_code=502, detail='AI response was not valid JSON') from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            'reel_script_generation_failed',
+            extra={'request_id': get_request_id(), 'error': str(exc)},
+        )
+        detail = str(exc).strip() or 'Failed to generate reel script'
+        if settings.env != 'development':
+            detail = 'Failed to generate reel script'
+        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)
