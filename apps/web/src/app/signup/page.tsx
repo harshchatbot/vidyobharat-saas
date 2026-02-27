@@ -8,7 +8,7 @@ import { getUserIdFromCookie } from '@/lib/session';
 import { logoutAction } from '../auth-actions';
 import { signupAction } from './actions';
 
-export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string; email?: string }> }) {
   const userId = await getUserIdFromCookie();
   if (userId) {
     return (
@@ -40,7 +40,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           </p>
         )}
         <form action={signupAction} className="mt-4 grid gap-3">
-          <Input name="email" type="email" placeholder="you@domain.com" required />
+          <Input name="email" type="email" placeholder="you@domain.com" defaultValue={params.email ?? ''} required />
           <Button type="submit">Sign Up</Button>
         </form>
         <p className="mt-4 text-xs text-[hsl(var(--color-muted))]">
