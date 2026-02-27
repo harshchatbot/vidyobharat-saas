@@ -32,3 +32,16 @@ class ProjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CreateProjectAssetRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=120)
+    kind: str = Field(default='brand_asset', max_length=40)
+
+
+class ProjectAssetResponse(BaseModel):
+    asset_id: str
+    project_id: str
+    kind: str
+    upload_url: str
+    public_url: str

@@ -1,5 +1,5 @@
 import { API_URL } from '@/lib/env';
-import type { Project, ProjectDetail, Render } from '@/types/api';
+import type { Avatar, Project, ProjectAsset, ProjectDetail, Render, Template } from '@/types/api';
 
 export type ApiOptions = {
   userId?: string;
@@ -42,6 +42,22 @@ export const api = {
       body: JSON.stringify({ email }),
     });
   },
+  listAvatars(userId: string, params?: { search?: string; scope?: string; language?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.language) query.set('language', params.language);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<Avatar[]>(`/avatars${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  listTemplates(userId: string, params?: { search?: string; category?: string; aspect_ratio?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.category) query.set('category', params.category);
+    if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<Template[]>(`/templates${suffix}`, {}, { userId, cache: 'no-store' });
+  },
   createProject(payload: {
     user_id: string;
     title: string;
@@ -74,6 +90,12 @@ export const api = {
   ) {
     return request<Project>(`/projects/${projectId}`, {
       method: 'PATCH',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  addProjectAsset(projectId: string, payload: { filename: string; kind: string }, userId: string) {
+    return request<ProjectAsset>(`/projects/${projectId}/assets`, {
+      method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },

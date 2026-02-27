@@ -6,12 +6,21 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_user_id
 from app.db.session import get_db
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
-from app.schemas.project import CreateProjectRequest, ProjectResponse, UpdateProjectRequest
+from app.schemas.catalog import AvatarResponse, TemplateResponse
+from app.schemas.project import (
+    CreateProjectAssetRequest,
+    CreateProjectRequest,
+    ProjectAssetResponse,
+    ProjectResponse,
+    UpdateProjectRequest,
+)
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
+from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
+from app.services.template_service import TemplateService
 from app.services.upload_service import UploadService
 
 router = APIRouter()
@@ -41,6 +50,28 @@ def mock_signup(payload: MockSignupRequest, db: Session = Depends(get_db)):
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return MockSignupResponse(user_id=user_id)
+
+
+@router.get('/avatars', response_model=list[AvatarResponse])
+def list_avatars(
+    search: str | None = None,
+    scope: str | None = None,
+    language: str | None = None,
+    _: str = Depends(get_user_id),
+):
+    service = AvatarService()
+    return service.list_avatars(search=search, scope=scope, language=language)
+
+
+@router.get('/templates', response_model=list[TemplateResponse])
+def list_templates(
+    search: str | None = None,
+    category: str | None = None,
+    aspect_ratio: str | None = None,
+    _: str = Depends(get_user_id),
+):
+    service = TemplateService()
+    return service.list_templates(search=search, category=category, aspect_ratio=aspect_ratio)
 
 
 @router.post('/projects', response_model=ProjectResponse)
@@ -100,6 +131,30 @@ def update_project(
     if not project:
         raise HTTPException(status_code=404, detail='Project not found')
     return project
+
+
+@router.post('/projects/{project_id}/assets', response_model=ProjectAssetResponse, status_code=status.HTTP_201_CREATED)
+def create_project_asset(
+    project_id: str,
+    payload: CreateProjectAssetRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    service = ProjectService(db)
+    try:
+        asset, upload_url = service.add_project_asset(project_id, user_id, payload)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return ProjectAssetResponse(
+        asset_id=asset.id,
+        project_id=project_id,
+        kind=asset.kind,
+        upload_url=upload_url,
+        public_url=asset.public_url,
+    )
 
 
 @router.post('/renders', response_model=RenderResponse, status_code=status.HTTP_202_ACCEPTED)

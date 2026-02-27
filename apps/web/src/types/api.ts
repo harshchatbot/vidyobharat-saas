@@ -26,3 +26,28 @@ export type ProjectDetail = {
   project: Project;
   renders: Render[];
 };
+
+export type Avatar = {
+  id: string;
+  name: string;
+  scope: 'own' | 'public';
+  style: string;
+  language_tags: string[];
+  thumbnail_url: string;
+};
+
+export type Template = {
+  id: string;
+  name: string;
+  category: string;
+  aspect_ratio: '9:16' | '16:9' | string;
+  thumbnail_url: string;
+};
+
+export type ProjectAsset = {
+  asset_id: string;
+  project_id: string;
+  kind: string;
+  upload_url: string;
+  public_url: string;
+};
