@@ -21,3 +21,21 @@ export async function signupAction(formData: FormData) {
     redirect('/signup?error=Account%20already%20exists.%20Please%20login');
   }
 }
+
+export async function signupWithGoogleAction() {
+  const googleEmail = 'google.user@vidyobharat.dev';
+
+  try {
+    const { user_id } = await api.mockSignup(googleEmail);
+    await setUserIdCookie(user_id);
+    redirect('/projects');
+  } catch {
+    try {
+      const { user_id } = await api.mockLogin(googleEmail);
+      await setUserIdCookie(user_id);
+      redirect('/projects');
+    } catch {
+      redirect('/signup?error=Google%20sign-up%20failed.%20Please%20try%20again');
+    }
+  }
+}

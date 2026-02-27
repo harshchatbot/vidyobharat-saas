@@ -5,36 +5,46 @@ import { motion } from 'framer-motion';
 export function HeroVisual() {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: 18 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
-      className="relative mx-auto h-[360px] w-full max-w-[440px]"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+      className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-soft sm:p-6"
     >
-      <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_20%_20%,hsl(var(--color-accent)/0.28),transparent_50%)]" />
-
-      <motion.div
-        animate={{ rotate: [0, 2.2, -2.2, 0] }}
-        transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-        className="absolute left-10 top-8 h-48 w-64 overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-soft"
-      >
-        <video className="h-full w-full object-cover" src="/videos/samples/english-startup-16x9.mp4" autoPlay muted loop playsInline preload="metadata" />
-      </motion.div>
-
-      <motion.div
-        animate={{ rotate: [0, -2.8, 2.8, 0] }}
-        transition={{ duration: 9, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut', delay: 0.2 }}
-        className="absolute left-2 top-36 h-44 w-60 overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-soft"
-      >
-        <video className="h-full w-full object-cover" src="/videos/samples/hindi-festival-9x16.mp4" autoPlay muted loop playsInline preload="metadata" />
-      </motion.div>
-
-      <motion.div
-        animate={{ rotate: [0, 3, -3, 0] }}
-        transition={{ duration: 10, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut', delay: 0.4 }}
-        className="absolute right-1 top-24 h-52 w-44 overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-soft"
-      >
-        <video className="h-full w-full object-cover" src="/videos/samples/tamil-education-9x16.mp4" autoPlay muted loop playsInline preload="metadata" />
-      </motion.div>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[hsl(var(--color-text))]">VidyoBharat Video Editor</p>
+          <p className="text-xs text-[hsl(var(--color-muted))]">Template: Business Explainer • Voice: Hindi Female</p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-xs text-[hsl(var(--color-muted))]">
+          Render: 86%
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Script</p>
+          <p className="text-sm leading-7 text-[hsl(var(--color-text))]">
+            Bharat&apos;s next growth story is being written by creators, educators, and entrepreneurs who speak every
+            language. With VidyoBharat, turn your message into a polished video with smart scenes, captions, and
+            native-sounding narration.
+          </p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Preview</p>
+          <video
+            className="h-52 w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] object-cover"
+            src="/videos/samples/hindi-festival-9x16.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+          <div className="mt-3">
+            <div className="h-1.5 w-full rounded-full bg-[hsl(var(--color-border))]" />
+            <div className="mt-1 h-1.5 w-3/4 rounded-full bg-[hsl(var(--color-accent))]" />
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }

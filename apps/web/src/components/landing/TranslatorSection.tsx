@@ -14,6 +14,21 @@ export function TranslatorSection() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-6 shadow-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[hsl(var(--color-muted))]">AI Video Translator</p>
+          <div
+            className="mt-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] p-4"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 20% 20%, hsl(var(--color-accent) / 0.18), transparent 45%), url(https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1000&q=80)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          >
+            <div className="rounded-[var(--radius-md)] bg-[hsl(var(--color-bg)/0.72)] p-3 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[hsl(var(--color-muted))]">Regional Scripts</p>
+              <p className="mt-2 text-sm font-semibold text-[hsl(var(--color-text))]">नमस्ते · வணக்கம் · नमस्कार</p>
+            </div>
+          </div>
+
           <div className="mt-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3">

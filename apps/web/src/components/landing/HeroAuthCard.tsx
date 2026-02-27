@@ -8,6 +8,10 @@ export function HeroAuthCard() {
   const router = useRouter();
   const [email, setEmail] = useState('');
 
+  const goGoogle = () => {
+    router.push('/login');
+  };
+
   const goSignup = (selectedEmail?: string) => {
     const value = selectedEmail ?? email;
     const query = value ? `?email=${encodeURIComponent(value)}` : '';
@@ -19,12 +23,12 @@ export function HeroAuthCard() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
           type="button"
-          onClick={() => goSignup('harshveernirwan@gmail.com')}
+          onClick={goGoogle}
           className="flex min-w-[280px] items-center justify-between rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-2 text-left"
         >
           <div>
-            <p className="text-sm font-semibold text-[hsl(var(--color-text))]">Sign in as Harsh Veer</p>
-            <p className="text-xs text-[hsl(var(--color-muted))]">harshveernirwan@gmail.com</p>
+            <p className="text-sm font-semibold text-[hsl(var(--color-text))]">Continue with Google</p>
+            <p className="text-xs text-[hsl(var(--color-muted))]">One-click sign in for faster onboarding</p>
           </div>
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-sm font-bold text-[hsl(var(--color-text))]">
             G

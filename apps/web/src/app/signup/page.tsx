@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { getUserIdFromCookie } from '@/lib/session';
 
 import { logoutAction } from '../auth-actions';
-import { signupAction } from './actions';
+import { signupAction, signupWithGoogleAction } from './actions';
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string; email?: string }> }) {
   const userId = await getUserIdFromCookie();
@@ -39,6 +39,19 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
             {params.error}
           </p>
         )}
+        <form action={signupWithGoogleAction} className="mt-4">
+          <Button type="submit" variant="secondary" className="w-full justify-center gap-2">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-xs font-bold">
+              G
+            </span>
+            Continue with Google
+          </Button>
+        </form>
+        <div className="mt-4 flex items-center gap-2 text-xs text-[hsl(var(--color-muted))]">
+          <span className="h-px flex-1 bg-[hsl(var(--color-border))]" />
+          or continue with email
+          <span className="h-px flex-1 bg-[hsl(var(--color-border))]" />
+        </div>
         <form action={signupAction} className="mt-4 grid gap-3">
           <Input name="email" type="email" placeholder="you@domain.com" defaultValue={params.email ?? ''} required />
           <Button type="submit">Sign Up</Button>
