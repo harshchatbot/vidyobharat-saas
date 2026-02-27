@@ -58,6 +58,11 @@ export type Video = {
   title: string | null;
   script: string;
   voice: string;
+  aspect_ratio: '9:16' | '16:9' | '1:1' | string;
+  resolution: '720p' | '1080p' | string;
+  duration_mode: 'auto' | 'custom' | string;
+  duration_seconds: number | null;
+  captions_enabled: boolean;
   status: 'draft' | 'processing' | 'completed' | 'failed';
   progress: number;
   image_urls: string[];

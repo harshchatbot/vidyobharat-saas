@@ -45,6 +45,11 @@ def _ensure_video_columns() -> None:
         return
     existing = {column['name'] for column in inspector.get_columns('videos')}
     migrations = [
+        ('aspect_ratio', "ALTER TABLE videos ADD COLUMN aspect_ratio VARCHAR(10) DEFAULT '9:16'"),
+        ('resolution', "ALTER TABLE videos ADD COLUMN resolution VARCHAR(10) DEFAULT '1080p'"),
+        ('duration_mode', "ALTER TABLE videos ADD COLUMN duration_mode VARCHAR(10) DEFAULT 'auto'"),
+        ('duration_seconds', 'ALTER TABLE videos ADD COLUMN duration_seconds INTEGER'),
+        ('captions_enabled', 'ALTER TABLE videos ADD COLUMN captions_enabled BOOLEAN DEFAULT 1'),
         ('music_mode', "ALTER TABLE videos ADD COLUMN music_mode VARCHAR(20) DEFAULT 'none'"),
         ('music_track_id', 'ALTER TABLE videos ADD COLUMN music_track_id VARCHAR(80)'),
         ('music_file_url', 'ALTER TABLE videos ADD COLUMN music_file_url VARCHAR(255)'),

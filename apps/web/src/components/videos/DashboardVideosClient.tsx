@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
 
+import { MrGreenMascot } from '@/components/landing/MrGreenMascot';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -14,6 +15,7 @@ import type { Video } from '@/types/api';
 
 type Props = {
   userId: string;
+  userName: string;
 };
 
 function formatStatus(status: Video['status']) {
@@ -40,10 +42,11 @@ function toAbsoluteUrl(url: string | null) {
   return `${API_URL}${url}`;
 }
 
-export function DashboardVideosClient({ userId }: Props) {
+export function DashboardVideosClient({ userId, userName }: Props) {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +71,30 @@ export function DashboardVideosClient({ userId }: Props) {
     };
   }, [userId]);
 
+  const downloadVideo = async (video: Video) => {
+    const url = toAbsoluteUrl(video.output_url);
+    if (!url) return;
+    setDownloadingId(video.id);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = (video.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+      link.download = `${safeName || 'video'}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      setError('Failed to download video. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -79,10 +106,15 @@ export function DashboardVideosClient({ userId }: Props) {
       </div>
 
       <Card>
-        <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">
-          Hi User 👋 What do you want to create today?
-        </h2>
-        <p className="mt-1 text-sm text-muted">Start from scratch or use a ready template.</p>
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <MrGreenMascot size="sm" className="mx-auto sm:mx-0" />
+          <div className="text-left">
+            <h2 className="font-heading text-xl font-extrabold tracking-tight text-text sm:text-2xl">
+              Hi {userName} 👋 I am Mr Green. What do you want to create today?
+            </h2>
+            <p className="mt-1 text-sm text-muted">Start from scratch or use a ready template.</p>
+          </div>
+        </div>
       </Card>
 
       <Grid className="md:grid-cols-3">
@@ -154,7 +186,12 @@ export function DashboardVideosClient({ userId }: Props) {
                         alt={video.title ?? 'Untitled Video'}
                         className="h-10 w-16 rounded object-cover"
                       />
-                      <span className="font-medium text-text">{video.title || 'Untitled Video'}</span>
+                      <div>
+                        <p className="font-medium text-text">{video.title || 'Untitled Video'}</p>
+                        <p className="text-xs text-muted">
+                          {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
+                        </p>
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3"><Badge>{formatStatus(video.status)}</Badge></td>
@@ -163,9 +200,13 @@ export function DashboardVideosClient({ userId }: Props) {
                     <div className="flex items-center gap-2">
                       <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
                       {video.status === 'completed' && video.output_url && (
-                        <a href={toAbsoluteUrl(video.output_url) ?? '#'} target="_blank" rel="noreferrer">
-                          <Button className="px-3 py-1 text-xs">Download</Button>
-                        </a>
+                        <Button
+                          className="px-3 py-1 text-xs"
+                          onClick={() => void downloadVideo(video)}
+                          disabled={downloadingId === video.id}
+                        >
+                          {downloadingId === video.id ? 'Downloading...' : 'Download'}
+                        </Button>
                       )}
                     </div>
                   </td>

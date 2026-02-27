@@ -9,6 +9,11 @@ class VideoResponse(BaseModel):
     title: str | None
     script: str
     voice: str
+    aspect_ratio: str
+    resolution: str
+    duration_mode: str
+    duration_seconds: int | None
+    captions_enabled: bool
     status: str
     progress: int
     image_urls: list[str] = Field(default_factory=list)

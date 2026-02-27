@@ -15,29 +15,48 @@ const navLinks = [
   { href: '/pricing', label: 'Pricing' },
   { href: '/company', label: 'Company' },
 ];
+const compactNavLinks = navLinks.slice(0, 4);
 
 type TopNavProps = {
   userId: string | null;
   accountLabel: string | null;
 };
 
+function getInitials(label: string | null) {
+  if (!label) return 'U';
+  const parts = label.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+  return label.slice(0, 2).toUpperCase();
+}
+
 export function TopNav({ userId, accountLabel }: TopNavProps) {
   const [open, setOpen] = useState(false);
+  const initials = getInitials(accountLabel);
 
   return (
-    <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
-      <div className="flex items-center justify-between gap-3">
+    <div>
+      <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
+        <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href="/" className="font-semibold tracking-tight text-[hsl(var(--color-text))]">VidyoBharat</Link>
           <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
         </div>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {navLinks.map((link) => (
+          {compactNavLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className="whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))]"
+            >
+              {link.label}
+            </Link>
+          ))}
+          {navLinks.slice(compactNavLinks.length).map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="hidden whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))] xl:inline-flex"
             >
               {link.label}
             </Link>
@@ -56,13 +75,15 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
             <>
               <Link
                 href="/dashboard"
-                className="ml-2 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
+                className="ml-2 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
                 title={userId}
               >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
-                  {accountLabel}
+                  {initials}
                 </span>
-                Account
+                <span className="max-w-[120px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
+                  {accountLabel ?? 'Account'}
+                </span>
               </Link>
               <form action={logoutAction}>
                 <button type="submit" className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]">
@@ -75,17 +96,18 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
           <ToggleTheme />
         </nav>
 
-        <div className="flex items-center gap-2 lg:hidden">
-          <ToggleTheme />
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
-            aria-expanded={open}
-            aria-label="Toggle menu"
-          >
-            Menu
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <ToggleTheme />
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
+              aria-expanded={open}
+              aria-label="Toggle menu"
+            >
+              Menu
+            </button>
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import logging
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -9,7 +10,6 @@ from app.services.tts import generate_voiceover
 logger = logging.getLogger(__name__)
 
 DEFAULT_IMAGE_DURATION = 3.0
-VOICE_WORDS_PER_SECOND = 2.2
 MUSIC_BASE_GAIN = 0.7
 
 BUILTIN_MUSIC_TRACKS: dict[str, str] = {
@@ -68,6 +68,11 @@ class VideoPipelineService:
         script: str,
         voice_name: str,
         image_urls: list[str],
+        aspect_ratio: str,
+        resolution: str,
+        duration_mode: str,
+        duration_seconds: int | None,
+        captions_enabled: bool,
         music_mode: str,
         music_track_id: str | None,
         music_file_url: str | None,
@@ -82,6 +87,7 @@ class VideoPipelineService:
         image_paths = self._urls_to_local_paths(image_urls)
         voice_exists = bool(script.strip())
         real_voice_exists = False
+        target_size = self._resolve_target_size(aspect_ratio, resolution)
 
         voice_duration = 0.0
         if voice_exists:
@@ -93,8 +99,23 @@ class VideoPipelineService:
                 extra={'render_id': video_id, 'voice': resolved_voice},
             )
 
-        total_duration, per_image_duration = self._resolve_timing(voice_duration, len(image_paths), real_voice_exists)
-        self._build_slideshow(slideshow_path, image_paths, per_image_duration, total_duration, title)
+        total_duration, per_image_duration = self._resolve_timing(
+            voice_duration=voice_duration,
+            image_count=len(image_paths),
+            voice_exists=real_voice_exists,
+            duration_mode=duration_mode,
+            duration_seconds=duration_seconds,
+        )
+        self._build_slideshow(
+            slideshow_path=slideshow_path,
+            image_paths=image_paths,
+            per_image_duration=per_image_duration,
+            total_duration=total_duration,
+            title=title,
+            script=script,
+            captions_enabled=captions_enabled,
+            target_size=target_size,
+        )
 
         music_path = self._resolve_music_path(music_mode, music_track_id, music_file_url)
         self._compose_final_video(
@@ -112,12 +133,23 @@ class VideoPipelineService:
         self._make_thumbnail(output_path, thumb_path)
         return str(output_path), str(thumb_path)
 
-    def _resolve_timing(self, voice_duration: float, image_count: int, voice_exists: bool) -> tuple[float, float]:
+    def _resolve_timing(
+        self,
+        voice_duration: float,
+        image_count: int,
+        voice_exists: bool,
+        duration_mode: str,
+        duration_seconds: int | None,
+    ) -> tuple[float, float]:
         count = max(1, image_count)
+        if duration_mode == 'custom' and duration_seconds is not None:
+            total = float(max(5, min(300, duration_seconds)))
+            per_image = max(1.0, total / count)
+            return total, per_image
         if voice_exists:
-            per_image = max(1.5, voice_duration / count)
-            total = per_image * count
-            return max(1.5, total), per_image
+            total = max(0.1, voice_duration)
+            per_image = max(0.1, total / count)
+            return total, per_image
         per_image = DEFAULT_IMAGE_DURATION
         return per_image * count, per_image
 
@@ -128,19 +160,25 @@ class VideoPipelineService:
         per_image_duration: float,
         total_duration: float,
         title: str | None,
+        script: str,
+        captions_enabled: bool,
+        target_size: tuple[int, int],
     ) -> None:
+        target_w, target_h = target_size
         title_text = self._escape_drawtext(title or '')
         text_filters: list[str] = []
         if title_text:
             text_filters.append(
                 f"drawtext=text='{title_text}':fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
             )
+        if captions_enabled and script.strip():
+            text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration))
         text_filters.append(
             "drawtext=text='VidyoBharat':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24"
         )
         video_filter = (
-            'scale=1280:720:force_original_aspect_ratio=decrease,'
-            'pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p'
+            f'scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,'
+            f'pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p'
         )
         if text_filters:
             video_filter = f"{video_filter},{','.join(text_filters)}"
@@ -152,7 +190,7 @@ class VideoPipelineService:
                 '-f',
                 'lavfi',
                 '-i',
-                f'color=c=0x111827:s=1280x720:d={total_duration:.2f}',
+                f'color=c=0x111827:s={target_w}x{target_h}:d={total_duration:.2f}',
                 '-c:v',
                 'libx264',
                 '-pix_fmt',
@@ -344,3 +382,32 @@ class VideoPipelineService:
             .replace('%', r'\%')
             .replace(',', r'\,')
         )
+
+    def _resolve_target_size(self, aspect_ratio: str, resolution: str) -> tuple[int, int]:
+        matrix = {
+            ('9:16', '720p'): (720, 1280),
+            ('9:16', '1080p'): (1080, 1920),
+            ('16:9', '720p'): (1280, 720),
+            ('16:9', '1080p'): (1920, 1080),
+            ('1:1', '720p'): (720, 720),
+            ('1:1', '1080p'): (1080, 1080),
+        }
+        return matrix.get((aspect_ratio, resolution), (1080, 1920))
+
+    def _build_caption_filters(self, script: str, total_duration: float) -> list[str]:
+        parts = [value.strip() for value in re.split(r'(?<=[.!?])\s+', script.strip()) if value.strip()]
+        if not parts:
+            return []
+        segment = max(0.8, total_duration / len(parts))
+        filters: list[str] = []
+        for index, sentence in enumerate(parts):
+            start = index * segment
+            end = min(total_duration, (index + 1) * segment)
+            text = self._escape_drawtext(sentence[:140])
+            filters.append(
+                "drawtext="
+                f"text='{text}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
+                "box=1:boxcolor=black@0.55:boxborderw=10:shadowcolor=black@0.7:shadowx=1:shadowy=1:"
+                f"enable='between(t,{start:.2f},{end:.2f})'"
+            )
+        return filters

@@ -39,6 +39,11 @@ class VideoService:
         voice: str,
         images: list[UploadFile],
         title: str | None = None,
+        aspect_ratio: str = '9:16',
+        resolution: str = '1080p',
+        duration_mode: str = 'auto',
+        duration_seconds: int | None = None,
+        captions_enabled: bool = True,
         music_mode: str = 'none',
         music_track_id: str | None = None,
         music_volume: int = 20,
@@ -52,6 +57,17 @@ class VideoService:
             raise ValueError('music_track_id is required when music_mode=library')
         if normalized_mode == 'upload' and not music_file:
             raise ValueError('music_file is required when music_mode=upload')
+        if aspect_ratio not in {'9:16', '16:9', '1:1'}:
+            raise ValueError('aspect_ratio must be one of 9:16|16:9|1:1')
+        if resolution not in {'720p', '1080p'}:
+            raise ValueError('resolution must be one of 720p|1080p')
+        if duration_mode not in {'auto', 'custom'}:
+            raise ValueError('duration_mode must be one of auto|custom')
+        if duration_mode == 'custom':
+            if duration_seconds is None or duration_seconds < 5 or duration_seconds > 300:
+                raise ValueError('duration_seconds must be between 5 and 300 for custom mode')
+        else:
+            duration_seconds = None
 
         image_urls: list[str] = []
         for image in images:
@@ -76,6 +92,11 @@ class VideoService:
             title=title or None,
             script=script,
             voice=voice,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            duration_mode=duration_mode,
+            duration_seconds=duration_seconds,
+            captions_enabled=captions_enabled,
             status=VideoStatus.processing,
             progress=5,
             image_urls=json.dumps(image_urls),
@@ -127,6 +148,11 @@ def process_video(video_id: str) -> None:
             script=video.script,
             voice_name=video.voice,
             image_urls=image_urls,
+            aspect_ratio=video.aspect_ratio or '9:16',
+            resolution=video.resolution or '1080p',
+            duration_mode=video.duration_mode or 'auto',
+            duration_seconds=video.duration_seconds,
+            captions_enabled=True if video.captions_enabled is None else bool(video.captions_enabled),
             music_mode=video.music_mode,
             music_track_id=video.music_track_id,
             music_file_url=video.music_file_url,

@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Captions, Clock3, GripVertical, Languages, Mic2, MonitorSmartphone, Sparkles, UserRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +21,12 @@ type Props = {
 };
 
 const voiceOptions = ['Aarav', 'Anaya', 'Dev', 'Mira'];
+const voiceProfiles: Record<string, { tone: string; language: string }> = {
+  Aarav: { tone: 'Warm male', language: 'Hindi + English' },
+  Anaya: { tone: 'Bright female', language: 'Hindi + English' },
+  Dev: { tone: 'Deep male', language: 'Hindi + English' },
+  Mira: { tone: 'Calm female', language: 'Hindi + English' },
+};
 
 const templatePrefills: Record<string, { title: string; scriptPlaceholder: string; voice: string }> = {
   real_estate: {
@@ -46,6 +54,14 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
   const [voice, setVoice] = useState(prefill?.voice ?? 'Aarav');
   const [images, setImages] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
+  const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('auto');
+  const [durationSeconds, setDurationSeconds] = useState('30');
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
 
   const [musicMode, setMusicMode] = useState<'none' | 'library' | 'upload'>('none');
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
@@ -63,6 +79,7 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
 
   const previews = useMemo(() => images.map((file) => ({ file, url: URL.createObjectURL(file) })), [images]);
   const selectedTrack = tracks.find((item) => item.id === selectedTrackId) ?? null;
+  const selectedVoiceProfile = voiceProfiles[voice];
   const selectedPreviewUrl = selectedTrack
     ? (selectedTrack.preview_url.startsWith('http://') || selectedTrack.preview_url.startsWith('https://')
       ? selectedTrack.preview_url
@@ -99,6 +116,17 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
     setImages((prev) => [...prev, ...Array.from(files)]);
   };
 
+  const moveImage = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    setImages((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(fromIndex, 1);
+      if (!item) return prev;
+      next.splice(toIndex, 0, item);
+      return next;
+    });
+  };
+
   const submit = async () => {
     if (!script.trim()) {
       setError('Please add a script before generating.');
@@ -112,6 +140,13 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       setError('Please upload a music file.');
       return;
     }
+    if (durationMode === 'custom') {
+      const seconds = Number(durationSeconds);
+      if (!Number.isFinite(seconds) || seconds < 5 || seconds > 300) {
+        setError('Custom duration must be between 5 and 300 seconds.');
+        return;
+      }
+    }
 
     setSubmitting(true);
     setError(null);
@@ -120,6 +155,13 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       formData.append('title', title);
       formData.append('script', script);
       formData.append('voice', voice);
+      formData.append('aspect_ratio', aspectRatio);
+      formData.append('resolution', resolution);
+      formData.append('duration_mode', durationMode);
+      if (durationMode === 'custom') {
+        formData.append('duration_seconds', durationSeconds);
+      }
+      formData.append('captions_enabled', String(captionsEnabled));
       formData.append('music_mode', musicMode);
       formData.append('music_volume', String(musicVolume));
       formData.append('duck_music', String(duckMusic));
@@ -232,13 +274,49 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => onFiles(event.target.files)} />
 
-        <p className="mt-3 text-xs text-muted">{images.length} image(s) selected</p>
+        <p className="mt-3 text-xs text-muted">{images.length} image(s) selected • drag thumbnails to reorder</p>
 
         {previews.length > 0 && (
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
             {previews.map(({ file, url }, idx) => (
-              <div key={`${file.name}-${idx}`} className="relative overflow-hidden rounded-[var(--radius-md)] border border-border">
-                <img src={url} alt={file.name} className="h-20 w-full object-cover" />
+              <div
+                key={`${file.name}-${idx}`}
+                draggable
+                onDragStart={() => {
+                  setDragIndex(idx);
+                  setDropIndex(idx);
+                }}
+                onDragEnter={() => setDropIndex(idx)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (dragIndex === null) return;
+                  moveImage(dragIndex, idx);
+                  setDragIndex(null);
+                  setDropIndex(null);
+                }}
+                onDragEnd={() => {
+                  setDragIndex(null);
+                  setDropIndex(null);
+                }}
+                className={`relative overflow-hidden rounded-[var(--radius-md)] border transition-all duration-200 ${
+                  dragIndex === idx
+                    ? 'z-10 scale-[0.98] border-[hsl(var(--color-accent))] opacity-70 shadow-soft'
+                    : dropIndex === idx
+                      ? 'scale-[1.02] border-[hsl(var(--color-accent))] shadow-soft'
+                      : 'border-border'
+                }`}
+              >
+                <img
+                  src={url}
+                  alt={file.name}
+                  className={`h-20 w-full object-cover transition-transform duration-200 ${
+                    dragIndex === idx ? 'scale-105' : ''
+                  }`}
+                />
+                <span className="absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-[hsl(var(--color-bg)/0.85)] px-1.5 py-0.5 text-[10px] text-muted">
+                  <GripVertical className="h-3 w-3" />
+                  {idx + 1}
+                </span>
                 <button
                   type="button"
                   onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
@@ -250,6 +328,108 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
             ))}
           </div>
         )}
+      </Card>
+
+      <Card>
+        <details>
+          <summary className="cursor-pointer list-none">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-text">Output settings</p>
+              <span className="text-xs text-muted">Advanced</span>
+            </div>
+          </summary>
+
+          <div className="mt-4 grid gap-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Aspect ratio</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(['9:16', '16:9', '1:1'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setAspectRatio(option)}
+                    className={`rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
+                      aspectRatio === option
+                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                        : 'border-border bg-bg'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Resolution</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(['720p', '1080p'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setResolution(option)}
+                    className={`rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
+                      resolution === option
+                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                        : 'border-border bg-bg'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Duration mode</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setDurationMode('auto')}
+                  className={`rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
+                    durationMode === 'auto'
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                      : 'border-border bg-bg'
+                  }`}
+                >
+                  Auto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDurationMode('custom')}
+                  className={`rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
+                    durationMode === 'custom'
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                      : 'border-border bg-bg'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+              {durationMode === 'custom' && (
+                <Input
+                  type="number"
+                  min={5}
+                  max={300}
+                  className="mt-2"
+                  value={durationSeconds}
+                  onChange={(event) => setDurationSeconds(event.target.value)}
+                  placeholder="Duration in seconds (5-300)"
+                />
+              )}
+            </div>
+          </div>
+        </details>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2 text-xs text-muted">
+          <MonitorSmartphone className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+          <span>{aspectRatio}</span>
+          <span>•</span>
+          <span>{resolution}</span>
+          <span>•</span>
+          <Clock3 className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+          <span>{durationMode === 'auto' ? 'Auto duration' : `${durationSeconds || 0}s custom`}</span>
+        </div>
       </Card>
 
       <Card>
@@ -265,15 +445,75 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
 
       <Card>
         <p className="text-sm font-semibold text-text">Voice</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Badge>Indian voices</Badge>
+          <Badge>Natural tone</Badge>
+          <Badge>Script synced</Badge>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {voiceOptions.map((option) => {
+            const active = option === voice;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setVoice(option)}
+                className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-3 text-left transition ${
+                  active
+                    ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                    : 'border-border bg-bg hover:bg-elevated'
+                }`}
+              >
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.18)] text-text">
+                  <UserRound className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-text">{option}</span>
+                  <span className="block truncate text-xs text-muted">{voiceProfiles[option]?.tone ?? 'Balanced'} • {voiceProfiles[option]?.language ?? 'Hindi + English'}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
           <Dropdown value={voice} onChange={(event) => setVoice(event.target.value)}>
             {voiceOptions.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
           </Dropdown>
-          <Button variant="secondary" type="button" onClick={previewVoice}>
+          <Button variant="secondary" type="button" onClick={previewVoice} className="gap-2">
+            <Mic2 className="h-4 w-4" />
             {voicePreviewing ? 'Stop preview' : 'Preview voice'}
           </Button>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <span>{selectedVoiceProfile?.language ?? 'Hindi + English'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <span>{selectedVoiceProfile?.tone ?? 'Balanced'}</span>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <p className="text-sm font-semibold text-text">Captions</p>
+        <label className="mt-2 inline-flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            checked={captionsEnabled}
+            onChange={(event) => setCaptionsEnabled(event.target.checked)}
+          />
+          Burn-in captions from script
+        </label>
+        <div className="mt-2 inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-bg px-2 py-1 text-xs text-muted">
+          <Captions className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+          One simple subtitle style
         </div>
       </Card>
 

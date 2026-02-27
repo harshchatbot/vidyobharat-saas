@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, Clapperboard, LayoutDashboard, PlusCircle, Settings, User } from 'lucide-react';
+import { ChevronDown, Clapperboard, LayoutDashboard, Mail, PlusCircle, Settings, User } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { TopNav } from '@/components/layout/TopNav';
@@ -10,10 +10,11 @@ import { TopNav } from '@/components/layout/TopNav';
 type Props = {
   userId: string | null;
   accountLabel: string | null;
+  accountEmail: string | null;
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/create', '/videos', '/projects', '/editor', '/billing'];
+const appRoutePrefixes = ['/dashboard', '/create', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -25,10 +26,12 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
   if (pathname.startsWith('/billing')) return 'Billing';
+  if (pathname.startsWith('/profile')) return 'Profile';
+  if (pathname.startsWith('/settings')) return 'Settings';
   return 'VidyoBharat';
 }
 
-export function AppFrame({ userId, accountLabel, children }: Props) {
+export function AppFrame({ userId, accountLabel, accountEmail, children }: Props) {
   const pathname = usePathname();
   const inApp = Boolean(userId) && isAppRoute(pathname);
   const pageTitle = getPageTitle(pathname);
@@ -85,13 +88,20 @@ export function AppFrame({ userId, accountLabel, children }: Props) {
                   <span className="hidden sm:inline">{displayName}</span>
                   <ChevronDown className="h-4 w-4 text-muted" />
                 </summary>
-                <div className="absolute right-0 mt-2 w-44 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
-                  <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
+                  <div className="mb-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-2 py-2">
+                    <p className="truncate text-sm font-semibold text-text">{displayName}</p>
+                    <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--color-border))] px-2 py-0.5 text-[10px] text-muted">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{accountEmail ?? 'No email set'}</span>
+                    </div>
+                  </div>
+                  <Link href="/profile" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                     <User className="h-4 w-4" /> Profile
-                  </button>
-                  <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                  </Link>
+                  <Link href="/settings" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                     <Settings className="h-4 w-4" /> Settings
-                  </button>
+                  </Link>
                   <form action={logoutAction}>
                     <button type="submit" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       Logout

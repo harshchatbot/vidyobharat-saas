@@ -25,6 +25,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const load = async () => {
     try {
@@ -52,6 +53,32 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
     return () => clearInterval(interval);
   }, [video?.status]);
+
+  const downloadVideo = async () => {
+    if (!video) return;
+    const url = toAbsoluteUrl(video.output_url);
+    if (!url) return;
+
+    setDownloading(true);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = (video.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+      link.download = `${safeName || 'video'}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      setError('Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -93,9 +120,9 @@ export function VideoDetailClient({ userId, videoId }: Props) {
       {video.status === 'completed' && video.output_url ? (
         <Card className="space-y-3">
           <video src={toAbsoluteUrl(video.output_url) ?? undefined} controls className="w-full rounded-[var(--radius-md)] border border-border" />
-          <a href={toAbsoluteUrl(video.output_url) ?? '#'} target="_blank" rel="noreferrer">
-            <Button>Download Video</Button>
-          </a>
+          <Button onClick={() => void downloadVideo()} disabled={downloading}>
+            {downloading ? 'Downloading...' : 'Download Video'}
+          </Button>
         </Card>
       ) : null}
 
