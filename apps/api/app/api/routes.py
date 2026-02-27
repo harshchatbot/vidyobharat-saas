@@ -1,5 +1,6 @@
 import logging
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
@@ -17,7 +18,7 @@ from app.schemas.project import (
 )
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
-from app.schemas.video import VideoCreateResponse, VideoResponse, VideoRetryResponse
+from app.schemas.video import MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
 from app.services.project_service import ProjectService
@@ -25,6 +26,7 @@ from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
 from app.services.upload_service import UploadService
 from app.services.video_service import VideoService
+from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,6 +47,11 @@ def _to_video_response(video) -> VideoResponse:
         status=video.status.value if hasattr(video.status, 'value') else str(video.status),
         progress=video.progress,
         image_urls=image_urls,
+        music_mode=video.music_mode,
+        music_track_id=video.music_track_id,
+        music_file_url=video.music_file_url,
+        music_volume=video.music_volume,
+        duck_music=video.duck_music,
         thumbnail_url=video.thumbnail_url,
         output_url=video.output_url,
         error_message=video.error_message,
@@ -251,23 +258,60 @@ def list_videos(
     return [_to_video_response(video) for video in videos]
 
 
+@router.get('/music-tracks', response_model=list[MusicTrackResponse])
+def list_music_tracks() -> list[MusicTrackResponse]:
+    labels = {
+        'uplift-india': 'Uplift India',
+        'corporate-calm': 'Corporate Calm',
+        'soft-motivation': 'Soft Motivation',
+    }
+    tracks: list[MusicTrackResponse] = []
+    for track_id, url in BUILTIN_MUSIC_TRACKS.items():
+        local_path = Path(f"data/{url.replace('/static/', '', 1)}") if url.startswith('/static/') else Path(url)
+        exists = local_path.exists()
+        if not exists:
+            continue
+        tracks.append(
+            MusicTrackResponse(
+                id=track_id,
+                name=labels.get(track_id, track_id),
+                duration_sec=None,
+                preview_url=url,
+            )
+        )
+    return tracks
+
+
 @router.post('/videos', response_model=VideoCreateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_video(
     script: str = Form(default=''),
     voice: str = Form(default='Aarav'),
     title: str | None = Form(default=None),
+    music_mode: str = Form(default='none'),
+    music_track_id: str | None = Form(default=None),
+    music_volume: int = Form(default=20),
+    duck_music: bool = Form(default=True),
     images: list[UploadFile] = File(default=[]),
+    music_file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(db)
-    video = await service.create_video(
-        user_id=user_id,
-        script=script,
-        voice=voice,
-        images=images,
-        title=title,
-    )
+    try:
+        video = await service.create_video(
+            user_id=user_id,
+            script=script,
+            voice=voice,
+            images=images,
+            title=title,
+            music_mode=music_mode,
+            music_track_id=music_track_id,
+            music_volume=music_volume,
+            duck_music=duck_music,
+            music_file=music_file,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return VideoCreateResponse(id=video.id, status=video.status.value if hasattr(video.status, 'value') else str(video.status))
 
 

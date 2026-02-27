@@ -1,5 +1,5 @@
 import { API_URL } from '@/lib/env';
-import type { Avatar, Project, ProjectAsset, ProjectDetail, Render, Template, Video } from '@/types/api';
+import type { Avatar, MusicTrack, Project, ProjectAsset, ProjectDetail, Render, Template, Video } from '@/types/api';
 
 export type ApiOptions = {
   userId?: string;
@@ -124,6 +124,9 @@ export const api = {
   },
   listVideos(userId: string) {
     return request<Video[]>('/videos', {}, { userId, cache: 'no-store' });
+  },
+  listMusicTracks() {
+    return request<MusicTrack[]>('/music-tracks', {}, { cache: 'no-store' });
   },
   createVideo(payload: FormData, userId: string) {
     return request<{ id: string; status: string }>('/videos', {

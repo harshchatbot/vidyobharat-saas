@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
+import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
+import { API_URL } from '@/lib/env';
+import type { MusicTrack } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -20,12 +23,12 @@ const voiceOptions = ['Aarav', 'Anaya', 'Dev', 'Mira'];
 const templatePrefills: Record<string, { title: string; scriptPlaceholder: string; voice: string }> = {
   real_estate: {
     title: 'Real Estate Promo',
-    scriptPlaceholder: 'Showcase the property location, key amenities, floor plan highlights, and final CTA.',
+    scriptPlaceholder: 'Property intro, top amenities, location highlights, and CTA.',
     voice: 'Aarav',
   },
   youtube_intro: {
     title: 'YouTube Intro',
-    scriptPlaceholder: 'Welcome viewers, introduce your channel topic, mention posting schedule, and ask for subscribe.',
+    scriptPlaceholder: 'Welcome viewers, introduce channel, mention value, ask to subscribe.',
     voice: 'Mira',
   },
 };
@@ -33,6 +36,9 @@ const templatePrefills: Record<string, { title: string; scriptPlaceholder: strin
 export function CreateVideoClient({ userId, templateKey }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const musicInputRef = useRef<HTMLInputElement | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const prefill = templateKey ? templatePrefills[templateKey] : undefined;
 
   const [title, setTitle] = useState(prefill?.title ?? '');
@@ -40,13 +46,43 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
   const [voice, setVoice] = useState(prefill?.voice ?? 'Aarav');
   const [images, setImages] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
+
+  const [musicMode, setMusicMode] = useState<'none' | 'library' | 'upload'>('none');
+  const [tracks, setTracks] = useState<MusicTrack[]>([]);
+  const [tracksLoading, setTracksLoading] = useState(false);
+  const [selectedTrackId, setSelectedTrackId] = useState('');
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [musicVolume, setMusicVolume] = useState(20);
+  const [duckMusic, setDuckMusic] = useState(true);
+  const [musicPreviewError, setMusicPreviewError] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const previews = useMemo(
-    () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [images],
-  );
+  const previews = useMemo(() => images.map((file) => ({ file, url: URL.createObjectURL(file) })), [images]);
+  const selectedTrack = tracks.find((item) => item.id === selectedTrackId) ?? null;
+  const selectedPreviewUrl = selectedTrack
+    ? (selectedTrack.preview_url.startsWith('http://') || selectedTrack.preview_url.startsWith('https://')
+      ? selectedTrack.preview_url
+      : `${API_URL}${selectedTrack.preview_url}`)
+    : undefined;
+
+  const loadTracks = async () => {
+    if (tracks.length > 0 || tracksLoading) return;
+    setTracksLoading(true);
+    try {
+      const items = await api.listMusicTracks();
+      setTracks(items);
+      if (items.length > 0) {
+        setSelectedTrackId(items[0].id);
+        setMusicPreviewError(null);
+      } else {
+        setMusicPreviewError('No music tracks available right now.');
+      }
+    } finally {
+      setTracksLoading(false);
+    }
+  };
 
   const onFiles = (files: FileList | null) => {
     if (!files) return;
@@ -58,6 +94,14 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       setError('Please add a script before generating.');
       return;
     }
+    if (musicMode === 'library' && !selectedTrackId) {
+      setError('Please select a library track.');
+      return;
+    }
+    if (musicMode === 'upload' && !musicFile) {
+      setError('Please upload a music file.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -66,6 +110,15 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
       formData.append('title', title);
       formData.append('script', script);
       formData.append('voice', voice);
+      formData.append('music_mode', musicMode);
+      formData.append('music_volume', String(musicVolume));
+      formData.append('duck_music', String(duckMusic));
+      if (musicMode === 'library') {
+        formData.append('music_track_id', selectedTrackId);
+      }
+      if (musicMode === 'upload' && musicFile) {
+        formData.append('music_file', musicFile);
+      }
       images.forEach((image) => {
         formData.append('images', image);
       });
@@ -83,17 +136,12 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Create Video</h1>
-        <p className="mt-1 text-sm text-muted">Text + images to video in one simple form.</p>
+        <p className="mt-1 text-sm text-muted">Text + images + optional music in one simple form.</p>
       </div>
 
       <Card>
         <p className="text-sm font-semibold text-text">Title (optional)</p>
-        <Input
-          className="mt-2"
-          placeholder="Untitled Video"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
+        <Input className="mt-2" placeholder="Enter video title" value={title} onChange={(event) => setTitle(event.target.value)} />
       </Card>
 
       <Card>
@@ -124,14 +172,7 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
         >
           Drag & drop images here, or click to upload
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(event) => onFiles(event.target.files)}
-        />
+        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => onFiles(event.target.files)} />
 
         <p className="mt-3 text-xs text-muted">{images.length} image(s) selected</p>
 
@@ -158,7 +199,7 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
         <Textarea
           className="mt-2"
           rows={8}
-          placeholder={prefill?.scriptPlaceholder ?? 'Write your narration/script...'}
+          placeholder={prefill?.scriptPlaceholder ?? 'Write your script here...'}
           value={script}
           onChange={(event) => setScript(event.target.value)}
         />
@@ -172,14 +213,114 @@ export function CreateVideoClient({ userId, templateKey }: Props) {
               <option key={option} value={option}>{option}</option>
             ))}
           </Dropdown>
-          <Button variant="secondary" type="button">Preview Voice</Button>
+          <Button variant="secondary" type="button">Preview voice</Button>
         </div>
       </Card>
 
       <Card>
-        <Button onClick={submit} disabled={submitting}>
-          {submitting ? 'Generating...' : 'Generate Video'}
-        </Button>
+        <p className="text-sm font-semibold text-text">Background music</p>
+
+        <div className="mt-3 space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="music-mode"
+              checked={musicMode === 'library'}
+              onChange={async () => {
+                setMusicMode('library');
+                await loadTracks();
+              }}
+            />
+            Choose from library
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="music-mode" checked={musicMode === 'upload'} onChange={() => setMusicMode('upload')} />
+            Upload my own
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="music-mode" checked={musicMode === 'none'} onChange={() => setMusicMode('none')} />
+            No music
+          </label>
+        </div>
+
+        {musicMode === 'library' && (
+          <div className="mt-3 space-y-2">
+            {tracksLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Loading tracks...</div>
+            ) : (
+              <>
+                <Dropdown value={selectedTrackId} onChange={(event) => setSelectedTrackId(event.target.value)}>
+                  {tracks.map((track) => (
+                    <option key={track.id} value={track.id}>{track.name}</option>
+                  ))}
+                </Dropdown>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={async () => {
+                      if (!previewAudioRef.current) return;
+                      setMusicPreviewError(null);
+                      try {
+                        await previewAudioRef.current.play();
+                      } catch {
+                        setMusicPreviewError('Preview could not be played. Check track availability.');
+                      }
+                    }}
+                    disabled={!selectedTrack}
+                  >
+                    Play preview
+                  </Button>
+                  <audio
+                    ref={previewAudioRef}
+                    src={selectedPreviewUrl}
+                    preload="none"
+                    onError={() => setMusicPreviewError('Preview could not be loaded.')}
+                  />
+                </div>
+                {musicPreviewError && <p className="text-xs text-[hsl(var(--color-danger))]">{musicPreviewError}</p>}
+              </>
+            )}
+          </div>
+        )}
+
+        {musicMode === 'upload' && (
+          <div className="mt-3">
+            <input
+              ref={musicInputRef}
+              type="file"
+              accept="audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+              onChange={(event) => setMusicFile(event.target.files?.[0] ?? null)}
+            />
+            <p className="mt-1 text-xs text-muted">{musicFile ? musicFile.name : 'No file selected'}</p>
+          </div>
+        )}
+
+        {musicMode !== 'none' && (
+          <>
+            <div className="mt-4">
+              <label className="text-sm text-muted" htmlFor="music-volume">Music volume: {musicVolume}</label>
+              <input
+                id="music-volume"
+                type="range"
+                min={0}
+                max={100}
+                value={musicVolume}
+                onChange={(event) => setMusicVolume(Number(event.target.value))}
+                className="mt-1 w-full"
+              />
+            </div>
+
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={duckMusic} onChange={(event) => setDuckMusic(event.target.checked)} />
+              Duck music under voice
+            </label>
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <Button onClick={submit} disabled={submitting}>{submitting ? 'Generating...' : 'Generate Video'}</Button>
         {error && <p className="mt-2 text-sm text-[hsl(var(--color-danger))]">{error}</p>}
       </Card>
     </div>

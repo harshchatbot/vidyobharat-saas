@@ -6,12 +6,19 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { api } from '@/lib/api';
+import { API_URL } from '@/lib/env';
 import type { Video } from '@/types/api';
 
 type Props = {
   userId: string;
   videoId: string;
 };
+
+function toAbsoluteUrl(url: string | null) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_URL}${url}`;
+}
 
 export function VideoDetailClient({ userId, videoId }: Props) {
   const [video, setVideo] = useState<Video | null>(null);
@@ -85,8 +92,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
       {video.status === 'completed' && video.output_url ? (
         <Card className="space-y-3">
-          <video src={video.output_url} controls className="w-full rounded-[var(--radius-md)] border border-border" />
-          <a href={video.output_url} target="_blank" rel="noreferrer">
+          <video src={toAbsoluteUrl(video.output_url) ?? undefined} controls className="w-full rounded-[var(--radius-md)] border border-border" />
+          <a href={toAbsoluteUrl(video.output_url) ?? '#'} target="_blank" rel="noreferrer">
             <Button>Download Video</Button>
           </a>
         </Card>

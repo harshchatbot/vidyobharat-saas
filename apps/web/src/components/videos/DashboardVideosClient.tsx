@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Grid } from '@/components/ui/Grid';
 import { api } from '@/lib/api';
+import { API_URL } from '@/lib/env';
 import type { Video } from '@/types/api';
 
 type Props = {
@@ -31,6 +32,12 @@ function timeAgo(value: string) {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDay = Math.floor(diffHr / 24);
   return `${diffDay}d ago`;
+}
+
+function toAbsoluteUrl(url: string | null) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_URL}${url}`;
 }
 
 export function DashboardVideosClient({ userId }: Props) {
@@ -143,7 +150,7 @@ export function DashboardVideosClient({ userId }: Props) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <img
-                        src={video.thumbnail_url ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'}
+                        src={toAbsoluteUrl(video.thumbnail_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'}
                         alt={video.title ?? 'Untitled Video'}
                         className="h-10 w-16 rounded object-cover"
                       />
@@ -156,7 +163,7 @@ export function DashboardVideosClient({ userId }: Props) {
                     <div className="flex items-center gap-2">
                       <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
                       {video.status === 'completed' && video.output_url && (
-                        <a href={video.output_url} target="_blank" rel="noreferrer">
+                        <a href={toAbsoluteUrl(video.output_url) ?? '#'} target="_blank" rel="noreferrer">
                           <Button className="px-3 py-1 text-xs">Download</Button>
                         </a>
                       )}

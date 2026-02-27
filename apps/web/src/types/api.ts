@@ -61,9 +61,21 @@ export type Video = {
   status: 'draft' | 'processing' | 'completed' | 'failed';
   progress: number;
   image_urls: string[];
+  music_mode: 'none' | 'library' | 'upload' | string;
+  music_track_id: string | null;
+  music_file_url: string | null;
+  music_volume: number;
+  duck_music: boolean;
   thumbnail_url: string | null;
   output_url: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MusicTrack = {
+  id: string;
+  name: string;
+  duration_sec: number | null;
+  preview_url: string;
 };
