@@ -51,3 +51,19 @@ export type ProjectAsset = {
   upload_url: string;
   public_url: string;
 };
+
+export type Video = {
+  id: string;
+  user_id: string;
+  title: string | null;
+  script: string;
+  voice: string;
+  status: 'draft' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  image_urls: string[];
+  thumbnail_url: string | null;
+  output_url: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+};

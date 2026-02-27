@@ -1,6 +1,7 @@
 import logging
+import json
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_id
@@ -16,15 +17,40 @@ from app.schemas.project import (
 )
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
+from app.schemas.video import VideoCreateResponse, VideoResponse, VideoRetryResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
 from app.services.upload_service import UploadService
+from app.services.video_service import VideoService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _to_video_response(video) -> VideoResponse:
+    image_urls: list[str] = []
+    try:
+        image_urls = json.loads(video.image_urls or '[]')
+    except json.JSONDecodeError:
+        image_urls = []
+    return VideoResponse(
+        id=video.id,
+        user_id=video.user_id,
+        title=video.title,
+        script=video.script,
+        voice=video.voice,
+        status=video.status.value if hasattr(video.status, 'value') else str(video.status),
+        progress=video.progress,
+        image_urls=image_urls,
+        thumbnail_url=video.thumbnail_url,
+        output_url=video.output_url,
+        error_message=video.error_message,
+        created_at=video.created_at,
+        updated_at=video.updated_at,
+    )
 
 
 @router.get('/health')
@@ -213,3 +239,59 @@ def delete_upload(
         raise HTTPException(status_code=404, detail='Asset not found')
     logger.info('asset_deleted', extra={'asset_id': asset_id})
     return UploadDeleteResponse(asset_id=asset_id, deleted=True)
+
+
+@router.get('/videos', response_model=list[VideoResponse])
+def list_videos(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    service = VideoService(db)
+    videos = service.list_videos(user_id)
+    return [_to_video_response(video) for video in videos]
+
+
+@router.post('/videos', response_model=VideoCreateResponse, status_code=status.HTTP_202_ACCEPTED)
+async def create_video(
+    script: str = Form(default=''),
+    voice: str = Form(default='Aarav'),
+    title: str | None = Form(default=None),
+    images: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    service = VideoService(db)
+    video = await service.create_video(
+        user_id=user_id,
+        script=script,
+        voice=voice,
+        images=images,
+        title=title,
+    )
+    return VideoCreateResponse(id=video.id, status=video.status.value if hasattr(video.status, 'value') else str(video.status))
+
+
+@router.get('/videos/{video_id}', response_model=VideoResponse)
+def get_video(
+    video_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    service = VideoService(db)
+    video = service.get_video(video_id, user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail='Video not found')
+    return _to_video_response(video)
+
+
+@router.post('/videos/{video_id}/retry', response_model=VideoRetryResponse)
+def retry_video(
+    video_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    service = VideoService(db)
+    video = service.retry_video(video_id, user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail='Video not found')
+    return VideoRetryResponse(id=video.id, status=video.status.value if hasattr(video.status, 'value') else str(video.status))

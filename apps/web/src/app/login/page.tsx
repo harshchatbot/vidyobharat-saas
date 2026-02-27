@@ -16,10 +16,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Card>
           <h1 className="text-xl font-semibold text-[hsl(var(--color-text))]">You are already logged in</h1>
           <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-            Continue to your projects or logout to switch account.
+            Continue to your dashboard or logout to switch account.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/projects"><Button>Go to Projects</Button></Link>
+            <Link href="/dashboard"><Button>Go to Dashboard</Button></Link>
             <form action={logoutAction}><Button variant="secondary" type="submit">Logout</Button></form>
           </div>
         </Card>

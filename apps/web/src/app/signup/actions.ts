@@ -16,7 +16,7 @@ export async function signupAction(formData: FormData) {
   try {
     const { user_id } = await api.mockSignup(email);
     await setUserIdCookie(user_id);
-    redirect('/projects');
+    redirect('/dashboard');
   } catch {
     redirect('/signup?error=Account%20already%20exists.%20Please%20login');
   }
@@ -28,12 +28,12 @@ export async function signupWithGoogleAction() {
   try {
     const { user_id } = await api.mockSignup(googleEmail);
     await setUserIdCookie(user_id);
-    redirect('/projects');
+    redirect('/dashboard');
   } catch {
     try {
       const { user_id } = await api.mockLogin(googleEmail);
       await setUserIdCookie(user_id);
-      redirect('/projects');
+      redirect('/dashboard');
     } catch {
       redirect('/signup?error=Google%20sign-up%20failed.%20Please%20try%20again');
     }

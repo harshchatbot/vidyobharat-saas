@@ -16,7 +16,7 @@ export async function loginAction(formData: FormData) {
   try {
     const { user_id } = await api.mockLogin(email);
     await setUserIdCookie(user_id);
-    redirect('/projects');
+    redirect('/dashboard');
   } catch {
     redirect('/login?error=Account%20not%20found.%20Please%20sign%20up%20first');
   }
@@ -28,12 +28,12 @@ export async function loginWithGoogleAction() {
   try {
     const { user_id } = await api.mockLogin(googleEmail);
     await setUserIdCookie(user_id);
-    redirect('/projects');
+    redirect('/dashboard');
   } catch {
     try {
       const { user_id } = await api.mockSignup(googleEmail);
       await setUserIdCookie(user_id);
-      redirect('/projects');
+      redirect('/dashboard');
     } catch {
       redirect('/login?error=Google%20sign-in%20failed.%20Please%20try%20again');
     }

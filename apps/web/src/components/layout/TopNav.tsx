@@ -55,7 +55,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
           {userId && (
             <>
               <Link
-                href="/projects"
+                href="/dashboard"
                 className="ml-2 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
                 title={userId}
               >
@@ -107,7 +107,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
 
           {userId && (
             <div className="mt-1 flex gap-2">
-              <Link href="/projects" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
+              <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
                 Account
               </Link>
               <form action={logoutAction}>

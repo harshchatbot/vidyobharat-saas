@@ -1,5 +1,5 @@
 import { API_URL } from '@/lib/env';
-import type { Avatar, Project, ProjectAsset, ProjectDetail, Render, Template } from '@/types/api';
+import type { Avatar, Project, ProjectAsset, ProjectDetail, Render, Template, Video } from '@/types/api';
 
 export type ApiOptions = {
   userId?: string;
@@ -9,7 +9,10 @@ export type ApiOptions = {
 
 async function request<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set('Content-Type', 'application/json');
+  const isFormData = init.body instanceof FormData;
+  if (!isFormData) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (options.userId) {
     headers.set('X-User-ID', options.userId);
   }
@@ -118,5 +121,23 @@ export const api = {
     return request<{ asset_id: string; deleted: boolean }>(`/uploads/${assetId}`, {
       method: 'DELETE',
     }, { userId, cache: 'no-store' });
-  }
+  },
+  listVideos(userId: string) {
+    return request<Video[]>('/videos', {}, { userId, cache: 'no-store' });
+  },
+  createVideo(payload: FormData, userId: string) {
+    return request<{ id: string; status: string }>('/videos', {
+      method: 'POST',
+      body: payload,
+    }, { userId, cache: 'no-store' });
+  },
+  getVideo(videoId: string, userId: string) {
+    return request<Video>(`/videos/${videoId}`, {}, { userId, cache: 'no-store' });
+  },
+  retryVideo(videoId: string, userId: string) {
+    return request<{ id: string; status: string }>(`/videos/${videoId}/retry`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }, { userId, cache: 'no-store' });
+  },
 };
