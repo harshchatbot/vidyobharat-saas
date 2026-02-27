@@ -1,0 +1,59 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env files
+.env
+.env.*
+!.env.example
+apps/web/.env.local
+apps/web/.env*.local
+apps/api/.env
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+.npm/
+.pnpm-store/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+apps/api/venv/
+
+# Build / runtime artifacts
+build/
+dist/
+*.log
+
+# Local data artifacts (keep structure, ignore generated contents)
+apps/api/data/uploads/*
+apps/api/data/renders/*
+apps/api/data/*.db
+apps/api/data/*.sqlite
+apps/api/data/*.sqlite3
+!apps/api/data/uploads/.gitkeep
+!apps/api/data/renders/.gitkeep
+
+# Docker
+*.pid
+
+# Misc
+.tmp/
+tmp/

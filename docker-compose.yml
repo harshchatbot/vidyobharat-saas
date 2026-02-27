@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: vidyobharat-redis
+    ports:
+      - '6379:6379'
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: vidyobharat-api
+    env_file:
+      - ./apps/api/.env.example
+    volumes:
+      - ./apps/api/data:/app/data
+    ports:
+      - '8000:8000'
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ./apps/api
+    container_name: vidyobharat-worker
+    command: celery -A app.workers.worker.celery_app worker --loglevel=INFO
+    env_file:
+      - ./apps/api/.env.example
+    volumes:
+      - ./apps/api/data:/app/data
+    depends_on:
+      - redis

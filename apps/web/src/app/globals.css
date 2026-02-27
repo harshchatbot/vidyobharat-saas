@@ -1,0 +1,19 @@
+@import '../styles/theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-bg text-text antialiased;
+  background-image: radial-gradient(circle at top right, hsl(var(--color-accent) / 0.15), transparent 45%);
+}
+
+* {
+  @apply border-border;
+}

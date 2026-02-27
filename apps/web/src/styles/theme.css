@@ -1,0 +1,32 @@
+:root {
+  --color-bg: 40 33% 97%;
+  --color-surface: 0 0% 100%;
+  --color-elevated: 45 40% 99%;
+  --color-text: 220 25% 15%;
+  --color-muted: 217 12% 45%;
+  --color-border: 40 20% 88%;
+  --color-accent: 45 96% 55%;
+  --color-accent-contrast: 220 25% 14%;
+  --color-success: 145 63% 35%;
+  --color-danger: 355 72% 52%;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+
+  --shadow-soft: 0 8px 24px hsl(var(--color-text) / 0.08);
+  --shadow-hard: 0 16px 40px hsl(var(--color-text) / 0.14);
+}
+
+.dark {
+  --color-bg: 221 38% 8%;
+  --color-surface: 222 34% 12%;
+  --color-elevated: 223 29% 15%;
+  --color-text: 44 67% 96%;
+  --color-muted: 220 14% 70%;
+  --color-border: 221 20% 24%;
+  --color-accent: 45 93% 58%;
+  --color-accent-contrast: 224 32% 10%;
+  --color-success: 145 62% 45%;
+  --color-danger: 355 76% 62%;
+}
