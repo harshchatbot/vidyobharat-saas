@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Download, RefreshCcw, Tag } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -24,10 +25,32 @@ export function VideoPreview({
   error: string | null;
   onRetry: () => void;
 }) {
+  const [downloading, setDownloading] = useState(false);
   const videoUrl = toAbsoluteUrl(job?.output_url);
   const thumbnailUrl = toAbsoluteUrl(job?.thumbnail_url);
   const isProcessing = job && job.status !== 'completed' && job.status !== 'failed';
   const allTags = [...(job?.auto_tags ?? []), ...(job?.user_tags ?? [])];
+
+  const downloadVideo = async () => {
+    if (!videoUrl) return;
+    setDownloading(true);
+    try {
+      const response = await fetch(videoUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = (job?.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+      link.download = `${safeName || 'video'}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <Card className="space-y-4">
@@ -80,14 +103,15 @@ export function VideoPreview({
             </div>
           ) : null}
           <div className="flex flex-wrap gap-3">
-            <a
-              href={videoUrl}
-              download
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
+            <button
+              type="button"
+              onClick={() => void downloadVideo()}
+              disabled={downloading}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] disabled:opacity-60"
             >
               <Download className="h-4 w-4" />
-              Download
-            </a>
+              {downloading ? 'Downloading...' : 'Download'}
+            </button>
             <Button type="button" variant="secondary" onClick={onRetry} className="gap-2">
               <RefreshCcw className="h-4 w-4" />
               Retry

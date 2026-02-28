@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Film, Mic2, Settings2, Sparkles, Wand2 } from 'lucide-react';
+import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
@@ -94,6 +95,7 @@ export function CreateVideoPage({
   const [job, setJob] = useState<Video | null>(null);
   const [jobStatus, setJobStatus] = useState<AIVideoStatusResponse | null>(null);
   const [jobResponseId, setJobResponseId] = useState<string | null>(null);
+  const [videos, setVideos] = useState<Video[]>([]);
 
   const template = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate) ?? TEMPLATE_OPTIONS[0];
   const visibleTemplates = TEMPLATE_OPTIONS.filter((item) => {
@@ -128,10 +130,12 @@ export function CreateVideoPage({
     void Promise.all([
       api.listAIVideoModels(userId).catch(() => FALLBACK_VIDEO_MODELS),
       api.listGeneratedImages(userId).catch(() => []),
-    ]).then(([videoModels, userImages]) => {
+      api.listVideos(userId).catch(() => []),
+    ]).then(([videoModels, userImages, userVideos]) => {
       if (cancelled) return;
       setModels(videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS);
       setGeneratedImages(userImages);
+      setVideos(userVideos);
       if (videoModels.length > 0 && !videoModels.some((item) => item.key === modelKey)) {
         setModelKey((videoModels[0].key as 'sora2' | 'veo3') ?? 'sora2');
       }
@@ -254,7 +258,11 @@ export function CreateVideoPage({
         setJobStatus(status);
         if (status.status === 'success') {
           const fullVideo = await api.getVideo(jobResponseId, userId);
-          if (!cancelled) setJob(fullVideo);
+          if (!cancelled) {
+            setJob(fullVideo);
+            const refreshedVideos = await api.listVideos(userId).catch(() => null);
+            if (!cancelled && refreshedVideos) setVideos(refreshedVideos);
+          }
         }
       } catch (error) {
         if (!cancelled) setSubmitError(error instanceof Error ? error.message : 'Failed to refresh job status.');
@@ -484,6 +492,32 @@ export function CreateVideoPage({
     void submit();
   };
 
+  const toAssetUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    return url.startsWith('http://') || url.startsWith('https://') ? url : `${API_URL}${url}`;
+  };
+
+  const downloadVideo = async (videoItem: Video) => {
+    const videoUrl = toAssetUrl(videoItem.output_url);
+    if (!videoUrl) return;
+    try {
+      const response = await fetch(videoUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = (videoItem.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+      link.download = `${safeName || 'video'}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      setSubmitError('Download failed. Please try again.');
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
@@ -635,6 +669,56 @@ export function CreateVideoPage({
         error={submitError ?? (jobStatus?.status === 'failed' ? jobStatus.errorMessage ?? 'Generation failed.' : null)}
         onRetry={retry}
       />
+
+      <SectionCard
+        title="Studio Feed"
+        description="Review your latest generated videos without leaving the create flow."
+        icon={<Film className="h-5 w-5" />}
+      >
+        {videos.length === 0 ? (
+          <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {videos.map((videoItem) => {
+              const videoUrl = toAssetUrl(videoItem.output_url);
+              const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
+              return (
+                <div key={videoItem.id} className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-bg">
+                  {videoUrl ? (
+                    <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-48 w-full bg-black object-cover" />
+                  ) : thumbUrl ? (
+                    <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-48 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-48 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
+                  )}
+                  <div className="space-y-3 p-4">
+                    <div>
+                      <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
+                      <p className="mt-1 text-xs text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>
+                      <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.aspect_ratio}</span>
+                      {videoItem.duration_seconds ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.duration_seconds}s</span> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text">
+                        Open
+                      </Link>
+                      {videoUrl ? (
+                        <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
+                          <Download className="h-4 w-4" />
+                          Download
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

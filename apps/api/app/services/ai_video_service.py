@@ -1,9 +1,14 @@
 import json
 import logging
+import mimetypes
+import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -14,6 +19,8 @@ from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
+OPENAI_VIDEO_TIMEOUT_SECONDS = 600
+OPENAI_POLL_INTERVAL_SECONDS = 5
 
 
 class ProviderError(Exception):
@@ -136,31 +143,107 @@ class AIVideoCreateService:
     def generate_with_sora2(self, params: dict[str, Any]) -> ProviderResult:
         # Environment variables required for real integration:
         # - OPENAI_API_KEY
-        # - optional provider-specific model override if OpenAI changes naming
+        # - OPENAI_VIDEO_MODEL (optional override, defaults to sora-2)
         #
-        # Real API integration belongs here. When enabling live Sora calls, replace this fallback
-        # with the official OpenAI video generation client call, e.g. openai.videos.create(...)
-        # using:
-        # - model="sora-2"
-        # - prompt=params["script"]
-        # - image reference when params["imageUrl"] is present
-        # - aspect ratio / resolution / duration / voice mapped to the provider payload
+        # This uses the official OpenAI video REST endpoints:
+        # - POST /v1/videos
+        # - GET /v1/videos/{id}
+        # - GET /v1/videos/{id}/content
+        #
+        # If OpenAI changes the contract, update this adapter only. The rest of the app
+        # should stay stable because we normalize the provider result below.
         if not self.settings.openai_api_key:
             raise ProviderError('OPENAI_API_KEY is not configured for Sora 2')
-        output_path, _ = self._render_local_proxy(
-            render_id_prefix='sora2',
+
+        model = self.settings.openai_video_model
+        size = self._map_openai_video_size(params['aspectRatio'], params['resolution'])
+        prompt = self._build_sora_prompt(
             script=params['script'],
-            image_url=params.get('imageUrl'),
             voice=params['voice'],
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
         )
+
+        render_dir = Path('data/renders')
+        render_dir.mkdir(parents=True, exist_ok=True)
+        local_video_path = render_dir / f"{params['videoId']}.mp4"
+
+        headers = {
+            'Authorization': f'Bearer {self.settings.openai_api_key}',
+        }
+        multipart_fields: list[tuple[str, tuple[str | None, bytes | str, str | None]]] = [
+            ('model', (None, model, None)),
+            ('prompt', (None, prompt, None)),
+            ('size', (None, size, None)),
+            ('seconds', (None, str(params['durationSeconds']), None)),
+        ]
+
+        if params.get('imageUrl'):
+            filename, content, mime = self._load_reference_image(params['imageUrl'], size)
+            multipart_fields.append(('input_reference', (filename, content, mime)))
+
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=30.0)) as client:
+            response = client.post(
+                'https://api.openai.com/v1/videos',
+                headers=headers,
+                files=multipart_fields,
+            )
+            if response.status_code >= 400:
+                raise ProviderError(f'OpenAI Sora create failed ({response.status_code}): {self._truncate_error(response.text)}')
+
+            payload = response.json()
+            openai_video_id = str(payload.get('id') or '')
+            if not openai_video_id:
+                raise ProviderError('OpenAI Sora create response did not include a video id')
+
+            start = time.time()
+            last_progress = 30
+            while True:
+                status_response = client.get(
+                    f'https://api.openai.com/v1/videos/{openai_video_id}',
+                    headers=headers,
+                )
+                if status_response.status_code >= 400:
+                    raise ProviderError(f'OpenAI Sora status failed ({status_response.status_code}): {self._truncate_error(status_response.text)}')
+
+                status_payload = status_response.json()
+                status_value = str(status_payload.get('status') or '').lower()
+                progress = status_payload.get('progress')
+                if isinstance(progress, int):
+                    current_progress = max(30, min(95, progress))
+                else:
+                    current_progress = min(last_progress + 8, 92)
+                last_progress = current_progress
+                self._update_video_progress(params['videoId'], current_progress)
+
+                if status_value in {'completed', 'succeeded', 'success'}:
+                    break
+                if status_value in {'failed', 'error', 'cancelled', 'canceled'}:
+                    error_message = status_payload.get('error') or status_payload.get('last_error') or 'OpenAI Sora generation failed'
+                    raise ProviderError(str(error_message))
+                if time.time() - start > OPENAI_VIDEO_TIMEOUT_SECONDS:
+                    raise ProviderError('OpenAI Sora generation timed out while waiting for completion')
+                time.sleep(OPENAI_POLL_INTERVAL_SECONDS)
+
+            content_response = client.get(
+                f'https://api.openai.com/v1/videos/{openai_video_id}/content',
+                headers=headers,
+            )
+            if content_response.status_code >= 400:
+                raise ProviderError(f'OpenAI Sora content download failed ({content_response.status_code}): {self._truncate_error(content_response.text)}')
+
+            local_video_path.write_bytes(content_response.content)
+
         return ProviderResult(
             provider='OpenAI Sora 2',
             model_key='sora2',
-            video_url=output_path,
-            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
+            video_url=f'/static/renders/{params["videoId"]}.mp4',
+            metadata={
+                'voice': params['voice'],
+                'size': size,
+                'openai_video_model': model,
+            },
         )
 
     def generate_with_veo3(self, params: dict[str, Any]) -> ProviderResult:
@@ -224,6 +307,107 @@ class AIVideoCreateService:
         )
         return (f'/static/renders/{render_id}.mp4', f'/static/renders/{render_id}.jpg')
 
+    def _map_openai_video_size(self, aspect_ratio: str, resolution: str) -> str:
+        if aspect_ratio == '1:1':
+            raise ProviderError('OpenAI Sora 2 is currently configured only for 9:16 and 16:9 outputs')
+        if aspect_ratio == '9:16':
+            return '720x1280' if resolution == '720p' else '1024x1792'
+        if aspect_ratio == '16:9':
+            return '1280x720' if resolution == '720p' else '1792x1024'
+        raise ProviderError(f'Unsupported aspect ratio for Sora 2: {aspect_ratio}')
+
+    def _build_sora_prompt(
+        self,
+        *,
+        script: str,
+        voice: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration_seconds: int,
+    ) -> str:
+        return (
+            f'Create a cinematic AI video for the following narration script: {script}\n'
+            f'Narration voice preference: {voice}.\n'
+            f'Aspect ratio: {aspect_ratio}. Resolution target: {resolution}. Approx duration: {duration_seconds} seconds.\n'
+            'Prioritize coherent motion, clean scene transitions, and visual alignment with the narration.'
+        )
+
+    def _load_reference_image(self, image_url: str, size: str) -> tuple[str, bytes, str]:
+        if image_url.startswith('http://') or image_url.startswith('https://'):
+            with httpx.Client(timeout=httpx.Timeout(60.0, connect=20.0), follow_redirects=True) as client:
+                response = client.get(image_url)
+                if response.status_code >= 400:
+                    raise ProviderError(f'Failed to fetch reference image ({response.status_code})')
+                parsed = urlparse(image_url)
+                filename = Path(parsed.path).name or 'reference-image.png'
+                mime = response.headers.get('content-type') or mimetypes.guess_type(filename)[0] or 'image/png'
+                prepared_bytes = self._prepare_reference_image_bytes(
+                    source_bytes=response.content,
+                    source_name=filename,
+                    target_size=size,
+                )
+                return f'{Path(filename).stem}-{size.replace("x", "-")}.png', prepared_bytes, 'image/png'
+
+        normalized = image_url
+        if normalized.startswith('/static/'):
+            normalized = normalized.replace('/static/', '', 1)
+        elif normalized.startswith('/'):
+            normalized = normalized.lstrip('/')
+        local_path = Path('data') / normalized
+        if not local_path.exists():
+            raise ProviderError('Reference image file not found locally')
+        prepared_bytes = self._prepare_reference_image_bytes(
+            source_bytes=local_path.read_bytes(),
+            source_name=local_path.name,
+            target_size=size,
+        )
+        return f'{local_path.stem}-{size.replace("x", "-")}.png', prepared_bytes, 'image/png'
+
+    def _prepare_reference_image_bytes(self, *, source_bytes: bytes, source_name: str, target_size: str) -> bytes:
+        width_str, height_str = target_size.split('x', 1)
+        width = int(width_str)
+        height = int(height_str)
+
+        temp_dir = Path('data/tmp')
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        source_path = temp_dir / f'sora-source-{abs(hash((source_name, len(source_bytes), target_size))) % 10**10}{Path(source_name).suffix or ".img"}'
+        output_path = temp_dir / f'sora-prepared-{abs(hash((source_name, target_size))) % 10**10}.png'
+
+        source_path.write_bytes(source_bytes)
+        try:
+            subprocess.run(
+                [
+                    'ffmpeg',
+                    '-y',
+                    '-i',
+                    str(source_path),
+                    '-vf',
+                    f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=rgba',
+                    '-frames:v',
+                    '1',
+                    str(output_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            return output_path.read_bytes()
+        except subprocess.CalledProcessError as exc:
+            raise ProviderError(f'Failed to prepare reference image for Sora: {self._truncate_error(exc.stderr.decode("utf-8", errors="ignore"))}') from exc
+        finally:
+            if source_path.exists():
+                source_path.unlink()
+
+    def _truncate_error(self, value: str, limit: int = 260) -> str:
+        compact = ' '.join(value.split())
+        return compact[:limit]
+
+    def _update_video_progress(self, video_id: str, progress: int) -> None:
+        video = self.repo.get_by_id(video_id)
+        if not video:
+            return
+        self.repo.update(video, status=VideoStatus.processing, progress=progress)
+
 
 @celery_app.task(name='process_ai_video')
 def celery_process_ai_video(video_id: str) -> None:
@@ -240,6 +424,7 @@ def celery_process_ai_video(video_id: str) -> None:
             return
         repo.update(video, status=VideoStatus.processing, progress=20)
         payload = {
+            'videoId': video.id,
             'imageUrl': video.source_image_url,
             'script': video.script,
             'modelKey': video.selected_model,
@@ -257,7 +442,7 @@ def celery_process_ai_video(video_id: str) -> None:
             video,
             provider_name=result.provider,
             output_url=result.video_url,
-            thumbnail_url=video.source_image_url or f'/static/renders/{video_id}.jpg',
+            thumbnail_url=video.source_image_url or video.thumbnail_url,
             progress=100,
             status=VideoStatus.completed,
             error_message=None,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Clapperboard,
   Copy,
+  Download,
   Eraser,
   ExternalLink,
   Filter,
@@ -381,6 +382,26 @@ export function ImageStudioClient({ userId }: Props) {
     await navigator.clipboard.writeText(value);
     setCopiedPrompt(true);
     window.setTimeout(() => setCopiedPrompt(false), 1800);
+  };
+
+  const downloadImage = async (imageUrl: string, fileNameBase: string) => {
+    try {
+      const response = await fetch(toAbsoluteUrl(imageUrl));
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const extension = blob.type.includes('png') ? 'png' : blob.type.includes('svg') ? 'svg' : 'jpg';
+      const safeName = fileNameBase.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'image';
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${safeName}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not download image right now.'));
+    }
   };
 
   const runImageAction = async (imageId: string, action: 'remove_background' | 'upscale' | 'variation') => {
@@ -853,6 +874,10 @@ export function ImageStudioClient({ userId }: Props) {
                         ))}
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        <Button variant="secondary" type="button" onClick={() => void downloadImage(item.image_url, item.prompt)} className="gap-2 px-3 py-1.5 text-xs">
+                          <Download className="h-3.5 w-3.5" />
+                          Download
+                        </Button>
                         <Button variant="secondary" type="button" onClick={() => void runImageAction(item.id, 'remove_background')} className="gap-2 px-3 py-1.5 text-xs" disabled={actionLoading === `${item.id}:remove_background`}>
                           <Eraser className="h-3.5 w-3.5" />
                           {actionLoading === `${item.id}:remove_background` ? 'Working...' : 'Remove BG'}
@@ -1083,6 +1108,10 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Download image
+                  </Button>
                   <a href={toAbsoluteUrl(selectedGenerated.image_url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
                     <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                     Open full image

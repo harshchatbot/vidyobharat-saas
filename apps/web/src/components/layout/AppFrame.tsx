@@ -53,7 +53,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, children }: Props
           <Link href="/dashboard" className="font-heading text-xl font-extrabold tracking-tight text-text">
             RangManch AI
           </Link>
-          <p className="mt-1 text-xs text-muted">Video SaaS</p>
+          <p className="mt-1 text-xs text-muted">All-In-One Creator Studio</p>
           <nav className="mt-6 grid gap-2">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
