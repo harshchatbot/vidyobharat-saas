@@ -7,14 +7,17 @@ import {
   Captions,
   Clapperboard,
   Clock3,
+  Crown,
   Film,
   GripVertical,
   Languages,
   Lightbulb,
   Mic2,
   MonitorSmartphone,
+  Rocket,
   ScrollText,
   Sparkles,
+  Stars,
   UserRound,
   Wand2,
 } from 'lucide-react';
@@ -28,7 +31,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { MusicTrack, ReelScriptOutput } from '@/types/api';
+import type { AIVideoModel, MusicTrack, ReelScriptOutput } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -94,12 +97,43 @@ const contentTemplateOptions = [
 
 const aiToneOptions = ['Cinematic', 'Dramatic', 'Educational', 'Inspirational', 'Bold'];
 const aiLanguageOptions = ['English', 'Hinglish', 'Hindi'];
-const aiModelOptions = [
-  { value: 'heygen', label: 'HeyGen' },
-  { value: 'runway', label: 'Runway' },
-  { value: 'genericTextVideoAPI', label: 'Generic API' },
-  { value: 'fallback', label: 'Fallback Local' },
+const fallbackModelOptions: AIVideoModel[] = [
+  {
+    key: 'sora2_pro',
+    label: 'Sora 2 Pro',
+    description: 'Best for narrative social clips with realistic motion and polished continuity.',
+    frontendHint: 'Use this for premium reels and story-led short videos.',
+    apiAdapter: 'generate_with_sora2_pro',
+  },
+  {
+    key: 'veo3_1',
+    label: 'Veo 3.1',
+    description: 'Best for cinematic visuals and stronger creative control across scenes.',
+    frontendHint: 'Use this for cinematic campaigns and richer branded storytelling.',
+    apiAdapter: 'generate_with_veo3_1',
+  },
+  {
+    key: 'kling2_1',
+    label: 'Kling 2.1',
+    description: 'Best for fast, stylized, and artistic clips.',
+    frontendHint: 'Use this for quick drafts, trend-led content, and bold visual looks.',
+    apiAdapter: 'generate_with_kling2_1',
+  },
+  {
+    key: 'luma_style',
+    label: 'Luma Style',
+    description: 'Best for experimental, mood-driven, and concept-heavy visuals.',
+    frontendHint: 'Use this for prototypes, atmosphere, and exploratory creative directions.',
+    apiAdapter: 'generate_with_luma_style',
+  },
 ];
+
+const modelIcons: Record<string, typeof Crown> = {
+  sora2_pro: Crown,
+  veo3_1: MonitorSmartphone,
+  kling2_1: Rocket,
+  luma_style: Stars,
+};
 
 export function CreateVideoClient({ userId, templateKey, initialScript, initialTitle }: Props) {
   const router = useRouter();
@@ -122,7 +156,9 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
   const [aiTopic, setAiTopic] = useState(initialTitle ?? prefill?.title ?? '');
   const [aiTone, setAiTone] = useState('Cinematic');
   const [aiLanguage, setAiLanguage] = useState('English');
-  const [selectedModel, setSelectedModel] = useState('heygen');
+  const [selectedModel, setSelectedModel] = useState('sora2_pro');
+  const [aiModels, setAiModels] = useState<AIVideoModel[]>(fallbackModelOptions);
+  const [aiModelsLoading, setAiModelsLoading] = useState(false);
   const [referenceImagesText, setReferenceImagesText] = useState('');
   const [aiScriptLoading, setAiScriptLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -165,6 +201,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
         .filter(Boolean),
     [referenceImagesText],
   );
+  const selectedModelMeta = aiModels.find((model) => model.key === selectedModel) ?? aiModels[0];
 
   useEffect(() => {
     const player = previewAudioRef.current;
@@ -173,6 +210,32 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
     player.currentTime = 0;
     setMusicPlaying(false);
   }, [selectedPreviewUrl, musicMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAiModelsLoading(true);
+    void api
+      .listAIVideoModels(userId)
+      .then((models) => {
+        if (cancelled || models.length === 0) return;
+        setAiModels(models);
+        setSelectedModel((current) => (models.some((item) => item.key === current) ? current : models[0].key));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAiModels(fallbackModelOptions);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAiModelsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const loadTracks = async () => {
     if (tracks.length > 0 || tracksLoading) return;
@@ -371,7 +434,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
           <div>
             <p className="text-sm font-semibold text-text">AI Assist</p>
-            <p className="text-xs text-muted">Pick a content direction, generate script help, or preview provider video output.</p>
+            <p className="text-xs text-muted">Pick a content direction, generate script help, and choose the model style best suited for the final render.</p>
           </div>
         </div>
 
@@ -412,13 +475,46 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           </div>
           <div>
             <p className="mb-1 text-sm font-semibold text-text">Video model</p>
-            <Dropdown value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-              {aiModelOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Dropdown>
+            <div className="space-y-2">
+              <div className="grid gap-2 lg:grid-cols-2">
+                {aiModels.map((option) => {
+                  const Icon = modelIcons[option.key] ?? Sparkles;
+                  const active = option.key === selectedModel;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setSelectedModel(option.key)}
+                      className={`rounded-[var(--radius-md)] border p-3 text-left transition ${
+                        active
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] shadow-soft'
+                          : 'border-border bg-bg hover:bg-elevated'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.16)] text-[hsl(var(--color-accent))]">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-text">{option.label}</span>
+                          <span className="mt-1 block text-xs text-muted">{option.description}</span>
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2 text-xs text-muted">
+                {aiModelsLoading ? 'Loading model guidance...' : selectedModelMeta?.frontendHint}
+              </div>
+              <Dropdown value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                {aiModels.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </Dropdown>
+            </div>
           </div>
         </div>
 

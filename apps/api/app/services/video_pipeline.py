@@ -26,6 +26,7 @@ class VideoPipelineService:
         self.tts_cache_dir = Path('data/tts_cache')
         self.tts_cache_dir.mkdir(parents=True, exist_ok=True)
         self.broll_provider = BrollProvider()
+        self._font_cache: dict[str, str | None] = {}
 
     def build_video(self, render_id: str, script: str, include_broll: bool) -> tuple[str, str]:
         output_path = self.renders_dir / f'{render_id}.mp4'
@@ -168,8 +169,9 @@ class VideoPipelineService:
         title_text = self._escape_drawtext(title or '')
         text_filters: list[str] = []
         if title_text:
+            title_font = self._font_clause(title or '')
             text_filters.append(
-                f"drawtext=text='{title_text}':fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
+                f"drawtext=text='{title_text}'{title_font}:fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
             )
         if captions_enabled and script.strip():
             text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration))
@@ -394,6 +396,62 @@ class VideoPipelineService:
         }
         return matrix.get((aspect_ratio, resolution), (1080, 1920))
 
+    def _font_clause(self, text: str) -> str:
+        font_path = self._resolve_font_path(text)
+        if not font_path:
+            return ''
+        return f":fontfile='{self._escape_drawtext(font_path)}'"
+
+    def _resolve_font_path(self, text: str) -> str | None:
+        script_key = self._detect_script(text)
+        if script_key in self._font_cache:
+            return self._font_cache[script_key]
+
+        candidates_by_script: dict[str, list[Path]] = {
+            'devanagari': [
+                Path('/System/Library/Fonts/Supplemental/ITFDevanagari.ttc'),
+                Path('/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc'),
+                Path('/System/Library/Fonts/Supplemental/DevanagariMT.ttc'),
+                Path('/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf'),
+                Path('/usr/share/fonts/opentype/noto/NotoSansDevanagari-Regular.ttf'),
+            ],
+            'tamil': [
+                Path('/System/Library/Fonts/Supplemental/Tamil MN.ttc'),
+                Path('/System/Library/Fonts/Supplemental/Tamil Sangam MN.ttc'),
+                Path('/usr/share/fonts/truetype/noto/NotoSansTamil-Regular.ttf'),
+                Path('/usr/share/fonts/opentype/noto/NotoSansTamil-Regular.ttf'),
+            ],
+            'unicode': [
+                Path('/System/Library/Fonts/Supplemental/Arial Unicode.ttf'),
+                Path('/Library/Fonts/Arial Unicode.ttf'),
+                Path('/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf'),
+                Path('/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf'),
+            ],
+        }
+
+        candidates = [
+            *candidates_by_script.get(script_key, []),
+            *candidates_by_script['unicode'],
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                resolved = str(candidate)
+                self._font_cache[script_key] = resolved
+                return resolved
+
+        logger.warning('drawtext_font_not_found', extra={'script': script_key})
+        self._font_cache[script_key] = None
+        return None
+
+    def _detect_script(self, text: str) -> str:
+        if re.search(r'[\u0900-\u097F]', text):
+            return 'devanagari'
+        if re.search(r'[\u0B80-\u0BFF]', text):
+            return 'tamil'
+        if any(ord(char) > 127 for char in text):
+            return 'unicode'
+        return 'unicode'
+
     def _build_caption_filters(self, script: str, total_duration: float) -> list[str]:
         parts = [value.strip() for value in re.split(r'(?<=[.!?])\s+', script.strip()) if value.strip()]
         if not parts:
@@ -404,9 +462,10 @@ class VideoPipelineService:
             start = index * segment
             end = min(total_duration, (index + 1) * segment)
             text = self._escape_drawtext(sentence[:140])
+            font_clause = self._font_clause(sentence)
             filters.append(
                 "drawtext="
-                f"text='{text}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
+                f"text='{text}'{font_clause}:fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
                 "box=1:boxcolor=black@0.55:boxborderw=10:shadowcolor=black@0.7:shadowx=1:shadowy=1:"
                 f"enable='between(t,{start:.2f},{end:.2f})'"
             )

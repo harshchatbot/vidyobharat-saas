@@ -11,9 +11,23 @@ from app.api.deps import get_user_id
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
 from app.db.session import get_db
-from app.schemas.ai import AIVideoGenerateRequest, AIVideoGenerateResponse, ReelScriptRequest, ReelScriptResponse
+from app.schemas.ai import (
+    AIVideoCreateRequest,
+    AIVideoCreateResponse,
+    AIVideoGenerateRequest,
+    AIVideoGenerateResponse,
+    AIVideoModelResponse,
+    ReelScriptRequest,
+    ReelScriptResponse,
+)
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
+from app.schemas.image_generation import (
+    ImageGenerationCreateRequest,
+    ImageGenerationResponse,
+    ImageModelResponse,
+    InspirationImageResponse,
+)
 from app.schemas.project import (
     CreateProjectAssetRequest,
     CreateProjectRequest,
@@ -26,6 +40,7 @@ from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSi
 from app.schemas.video import MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
+from app.services.image_generation_service import ImageGenerationService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
@@ -142,6 +157,27 @@ def _to_video_response(video) -> VideoResponse:
     )
 
 
+def _to_image_generation_response(generation) -> ImageGenerationResponse:
+    reference_urls: list[str] = []
+    try:
+        reference_urls = json.loads(generation.reference_urls or '[]')
+    except json.JSONDecodeError:
+        reference_urls = []
+
+    return ImageGenerationResponse(
+        id=generation.id,
+        model_key=generation.model_key,
+        prompt=generation.prompt,
+        aspect_ratio=generation.aspect_ratio,
+        resolution=generation.resolution,
+        reference_urls=reference_urls,
+        image_url=generation.image_url,
+        thumbnail_url=generation.thumbnail_url,
+        status=generation.status.value if hasattr(generation.status, 'value') else str(generation.status),
+        created_at=generation.created_at,
+    )
+
+
 @router.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
@@ -222,7 +258,7 @@ def generate_ai_video(
         )
         return AIVideoGenerateResponse(
             videoUrl=result.video_url,
-            provider=result.provider,
+            provider=result.provider_name,
             duration=result.duration,
             quality=result.quality,
         )
@@ -241,6 +277,114 @@ def generate_ai_video(
         if settings.env != 'development':
             detail = 'Failed to generate AI video'
         raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
+def list_ai_video_models(_: str = Depends(get_user_id)):
+    orchestrator = AIVideoOrchestrator(settings)
+    return [
+        AIVideoModelResponse(
+            key=model.key,
+            label=model.label,
+            description=model.description,
+            frontendHint=model.frontend_hint,
+            apiAdapter=model.api_adapter,
+        )
+        for model in orchestrator.list_models()
+    ]
+
+
+@router.post('/ai/video/create', response_model=AIVideoCreateResponse)
+def create_ai_video(
+    payload: AIVideoCreateRequest,
+    _: str = Depends(get_user_id),
+):
+    try:
+        orchestrator = AIVideoOrchestrator(settings)
+        result = orchestrator.generate(payload.model_dump())
+        logger.info(
+            'ai_video_created',
+            extra={
+                'request_id': get_request_id(),
+                'provider': result.provider_name,
+                'model_key': result.model_key,
+            },
+        )
+        return AIVideoCreateResponse(
+            providerName=result.provider_name,
+            videoUrl=result.video_url,
+            modelKey=result.model_key,
+            modelLabel=result.model_label,
+            modelHint=result.model_hint,
+        )
+    except ProviderError as exc:
+        logger.warning(
+            'ai_video_create_provider_error',
+            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.selectedModel},
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'ai_video_create_failed',
+            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.selectedModel},
+        )
+        detail = str(exc).strip() or 'Failed to create AI video'
+        if settings.env != 'development':
+            detail = 'Failed to create AI video'
+        raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.get('/ai/image/models', response_model=list[ImageModelResponse])
+def list_ai_image_models(
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    return [
+        ImageModelResponse(
+            key=model.key,
+            label=model.label,
+            description=model.description,
+            frontend_hint=model.frontend_hint,
+        )
+        for model in service.list_models()
+    ]
+
+
+@router.get('/ai/images', response_model=list[ImageGenerationResponse])
+def list_ai_images(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    return [_to_image_generation_response(item) for item in service.list_user_images(user_id)]
+
+
+@router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
+def list_ai_image_inspiration(
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    return [InspirationImageResponse.model_validate(item) for item in service.list_inspiration()]
+
+
+@router.post('/ai/image/generate', response_model=ImageGenerationResponse)
+def generate_ai_image(
+    payload: ImageGenerationCreateRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    generation = service.create_image(
+        user_id=user_id,
+        model_key=payload.model_key,
+        prompt=payload.prompt,
+        aspect_ratio=payload.aspect_ratio,
+        resolution=payload.resolution,
+        reference_urls=payload.reference_urls,
+    )
+    return _to_image_generation_response(generation)
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)

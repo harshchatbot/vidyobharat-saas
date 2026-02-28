@@ -97,12 +97,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">Manage your generated videos and start quickly with templates.</p>
         </div>
-        <Link href="/create"><Button>Create video</Button></Link>
+        <Link href="/create" className="sm:self-start"><Button>Create video</Button></Link>
       </div>
 
       <Card>
@@ -163,58 +163,101 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         </Card>
       ) : (
-        <Card className="overflow-x-auto p-0">
-          <div className="border-b border-[hsl(var(--color-border))] px-4 py-3">
-            <h3 className="font-semibold text-text">Recent videos</h3>
-          </div>
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-[hsl(var(--color-border))] text-muted">
-                <th className="px-4 py-3 font-medium">Video</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Created</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        <>
+          <Card className="p-0 md:hidden">
+            <div className="border-b border-[hsl(var(--color-border))] px-4 py-3">
+              <h3 className="font-semibold text-text">Recent videos</h3>
+            </div>
+            <div className="space-y-3 p-4">
               {videos.map((video) => (
-                <tr key={video.id} className="border-b border-[hsl(var(--color-border))] last:border-0">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={toAbsoluteUrl(video.thumbnail_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'}
-                        alt={video.title ?? 'Untitled Video'}
-                        className="h-10 w-16 rounded object-cover"
-                      />
-                      <div>
-                        <p className="font-medium text-text">{video.title || 'Untitled Video'}</p>
-                        <p className="text-xs text-muted">
-                          {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
-                        </p>
+                <div key={video.id} className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] p-3">
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={toAbsoluteUrl(video.thumbnail_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'}
+                      alt={video.title ?? 'Untitled Video'}
+                      className="h-16 w-20 shrink-0 rounded object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="break-words font-medium text-text">{video.title || 'Untitled Video'}</p>
+                        <Badge>{formatStatus(video.status)}</Badge>
                       </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">{timeAgo(video.created_at)}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3"><Badge>{formatStatus(video.status)}</Badge></td>
-                  <td className="px-4 py-3 text-muted">{timeAgo(video.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
-                      {video.status === 'completed' && video.output_url && (
-                        <Button
-                          className="px-3 py-1 text-xs"
-                          onClick={() => void downloadVideo(video)}
-                          disabled={downloadingId === video.id}
-                        >
-                          {downloadingId === video.id ? 'Downloading...' : 'Download'}
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
+                    {video.status === 'completed' && video.output_url && (
+                      <Button
+                        className="px-3 py-1 text-xs"
+                        onClick={() => void downloadVideo(video)}
+                        disabled={downloadingId === video.id}
+                      >
+                        {downloadingId === video.id ? 'Downloading...' : 'Download'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </Card>
+            </div>
+          </Card>
+
+          <Card className="hidden overflow-x-auto p-0 md:block">
+            <div className="border-b border-[hsl(var(--color-border))] px-4 py-3">
+              <h3 className="font-semibold text-text">Recent videos</h3>
+            </div>
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[hsl(var(--color-border))] text-muted">
+                  <th className="px-4 py-3 font-medium">Video</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Created</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {videos.map((video) => (
+                  <tr key={video.id} className="border-b border-[hsl(var(--color-border))] last:border-0">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={toAbsoluteUrl(video.thumbnail_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'}
+                          alt={video.title ?? 'Untitled Video'}
+                          className="h-10 w-16 rounded object-cover"
+                        />
+                        <div>
+                          <p className="font-medium text-text">{video.title || 'Untitled Video'}</p>
+                          <p className="text-xs text-muted">
+                            {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><Badge>{formatStatus(video.status)}</Badge></td>
+                    <td className="px-4 py-3 text-muted">{timeAgo(video.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
+                        {video.status === 'completed' && video.output_url && (
+                          <Button
+                            className="px-3 py-1 text-xs"
+                            onClick={() => void downloadVideo(video)}
+                            disabled={downloadingId === video.id}
+                          >
+                            {downloadingId === video.id ? 'Downloading...' : 'Download'}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </>
       )}
     </div>
   );

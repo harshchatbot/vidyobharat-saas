@@ -1,12 +1,18 @@
 import { API_URL } from '@/lib/env';
 import type {
   Avatar,
+  AIVideoCreateRequest,
+  AIVideoCreateResponse,
+  AIVideoModel,
   AIVideoGenerateRequest,
   AIVideoGenerateResponse,
   MusicTrack,
   Project,
   ProjectAsset,
   ProjectDetail,
+  GeneratedImage,
+  ImageModel,
+  InspirationImage,
   ReelScriptOutput,
   ReelScriptRequest,
   Render,
@@ -164,6 +170,39 @@ export const api = {
   },
   generateAIVideo(payload: AIVideoGenerateRequest, userId: string) {
     return request<AIVideoGenerateResponse>('/ai/video/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  listAIVideoModels(userId: string) {
+    return request<AIVideoModel[]>('/ai/video/models', {}, { userId, cache: 'no-store' });
+  },
+  createAIVideo(payload: AIVideoCreateRequest, userId: string) {
+    return request<AIVideoCreateResponse>('/ai/video/create', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  listImageModels(userId: string) {
+    return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store' });
+  },
+  listGeneratedImages(userId: string) {
+    return request<GeneratedImage[]>('/ai/images', {}, { userId, cache: 'no-store' });
+  },
+  listImageInspiration(userId: string) {
+    return request<InspirationImage[]>('/ai/images/inspiration', {}, { userId, cache: 'no-store' });
+  },
+  generateImage(
+    payload: {
+      model_key: string;
+      prompt: string;
+      aspect_ratio: string;
+      resolution: string;
+      reference_urls: string[];
+    },
+    userId: string,
+  ) {
+    return request<GeneratedImage>('/ai/image/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, LayoutDashboard, Mail, PlusCircle, Settings, User } from 'lucide-react';
+import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, PlusCircle, Settings, User } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { TopNav } from '@/components/layout/TopNav';
@@ -14,7 +14,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/images', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -22,6 +22,7 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/images')) return 'Image Studio';
   if (pathname.startsWith('/create-ai-video')) return 'AI Video';
   if (pathname.startsWith('/create-template')) return 'AI Reel Script';
   if (pathname.startsWith('/create')) return 'Create Video';
@@ -42,6 +43,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, children }: Props
   if (inApp) {
     const navItems = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/images', label: 'Images', icon: ImageIcon },
       { href: '/create', label: 'Create', icon: PlusCircle },
     ];
 

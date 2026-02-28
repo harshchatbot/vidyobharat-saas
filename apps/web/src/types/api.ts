@@ -118,3 +118,58 @@ export type AIVideoGenerateResponse = {
   duration: number;
   quality: string;
 };
+
+export type AIVideoModel = {
+  key: string;
+  label: string;
+  description: string;
+  frontendHint: string;
+  apiAdapter: string;
+};
+
+export type AIVideoCreateRequest = {
+  script: string;
+  voice: string;
+  bgm: string;
+  aspectRatio: string;
+  resolution: string;
+  durationMode: string;
+  selectedModel: string;
+};
+
+export type AIVideoCreateResponse = {
+  providerName: string;
+  videoUrl: string;
+  modelKey: string;
+  modelLabel: string;
+  modelHint: string;
+};
+
+export type ImageModel = {
+  key: string;
+  label: string;
+  description: string;
+  frontend_hint: string;
+};
+
+export type GeneratedImage = {
+  id: string;
+  model_key: string;
+  prompt: string;
+  aspect_ratio: string;
+  resolution: string;
+  reference_urls: string[];
+  image_url: string;
+  thumbnail_url: string;
+  status: string;
+  created_at: string;
+};
+
+export type InspirationImage = {
+  id: string;
+  creator_name: string;
+  model_key: string;
+  title: string;
+  prompt: string;
+  image_url: string;
+};

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AudioLines, CheckCircle2, Clapperboard, Sparkles, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -18,6 +19,31 @@ function toAbsoluteUrl(url: string | null) {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   return `${API_URL}${url}`;
+}
+
+function getStage(progress: number, status: Video['status']) {
+  if (status === 'draft') {
+    return {
+      label: 'Queueing render',
+      detail: 'Preparing scenes, assets, and voice instructions.',
+    };
+  }
+  if (progress < 35) {
+    return {
+      label: 'Building scenes',
+      detail: 'Arranging layouts, images, and aspect ratio.',
+    };
+  }
+  if (progress < 70) {
+    return {
+      label: 'Generating voice and captions',
+      detail: 'Creating narration, timing visuals, and burn-in text.',
+    };
+  }
+  return {
+    label: 'Mixing final video',
+    detail: 'Encoding music, transitions, and final export.',
+  };
 }
 
 export function VideoDetailClient({ userId, videoId }: Props) {
@@ -97,6 +123,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     );
   }
 
+  const stage = getStage(video.progress, video.status);
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
@@ -105,20 +133,65 @@ export function VideoDetailClient({ userId, videoId }: Props) {
       </div>
 
       {video.status === 'processing' || video.status === 'draft' ? (
-        <Card className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Spinner />
-            <p className="text-sm text-muted">Processing your video... This page auto-refreshes every 3s.</p>
+        <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-5 py-8 shadow-soft sm:px-8 sm:py-10">
+          <div className="pointer-events-none absolute inset-x-10 top-0 h-40 rounded-full bg-[hsl(var(--color-accent)/0.18)] blur-3xl" />
+          <div className="relative mx-auto flex min-h-[65vh] max-w-2xl flex-col items-center justify-center text-center">
+            <div className="relative mb-6 flex h-28 w-28 items-center justify-center sm:h-32 sm:w-32">
+              <div className="absolute inset-0 animate-pulse rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[radial-gradient(circle_at_center,hsl(var(--color-accent)/0.25),transparent_70%)]" />
+              <div className="absolute inset-3 rounded-full border border-[hsl(var(--color-accent)/0.4)]" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--color-bg))] shadow-soft sm:h-24 sm:w-24">
+                <Spinner />
+              </div>
+            </div>
+
+            <p className="font-heading text-2xl font-extrabold tracking-tight text-text sm:text-3xl">{stage.label}</p>
+            <p className="mt-2 max-w-xl text-sm text-muted sm:text-base">{stage.detail}</p>
+
+            <div className="mt-6 w-full max-w-xl">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Render progress</span>
+                <span className="font-semibold text-text">{video.progress}%</span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-[hsl(var(--color-border))]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.72))] transition-[width] duration-700 ease-out"
+                  style={{ width: `${video.progress}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-3">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] p-4 text-left">
+                <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+                <p className="mt-3 text-sm font-semibold text-text">Scenes</p>
+                <p className="mt-1 text-xs text-muted">Layouts and image sequencing are being assembled.</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] p-4 text-left">
+                <AudioLines className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+                <p className="mt-3 text-sm font-semibold text-text">Narration</p>
+                <p className="mt-1 text-xs text-muted">Voiceover, music balance, and audio timing are processing.</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] p-4 text-left">
+                <Wand2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+                <p className="mt-3 text-sm font-semibold text-text">Final output</p>
+                <p className="mt-1 text-xs text-muted">Captions, overlays, and export are being finalized.</p>
+              </div>
+            </div>
+
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.75)] px-4 py-2 text-xs text-muted">
+              <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              Auto-refreshing every 3 seconds until your render completes
+            </div>
           </div>
-          <div className="h-2 rounded-full bg-[hsl(var(--color-border))]">
-            <div className="h-2 rounded-full bg-[hsl(var(--color-accent))]" style={{ width: `${video.progress}%` }} />
-          </div>
-          <p className="text-xs text-muted">Progress: {video.progress}%</p>
-        </Card>
+        </section>
       ) : null}
 
       {video.status === 'completed' && video.output_url ? (
         <Card className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-[hsl(var(--color-success))]">
+            <CheckCircle2 className="h-4 w-4" />
+            Video ready
+          </div>
           <video src={toAbsoluteUrl(video.output_url) ?? undefined} controls className="w-full rounded-[var(--radius-md)] border border-border" />
           <Button onClick={() => void downloadVideo()} disabled={downloading}>
             {downloading ? 'Downloading...' : 'Download Video'}

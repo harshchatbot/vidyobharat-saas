@@ -70,6 +70,7 @@ Path('data/uploads').mkdir(parents=True, exist_ok=True)
 Path('data/music').mkdir(parents=True, exist_ok=True)
 Path('data/music_uploads').mkdir(parents=True, exist_ok=True)
 Path('data/renders').mkdir(parents=True, exist_ok=True)
+Path('data/image_generations').mkdir(parents=True, exist_ok=True)
 
 
 def _ensure_builtin_music_previews() -> None:
