@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
-SUPPORTED_IMAGE_MODELS = {'nano_banana', 'seedream', 'flux_spark', 'recraft_studio'}
+SUPPORTED_IMAGE_MODELS = {'nano_banana', 'openai_image', 'seedream', 'flux_spark', 'recraft_studio'}
 SUPPORTED_ASPECT_RATIOS = {'9:16', '1:1', '16:9', '4:5'}
 SUPPORTED_RESOLUTIONS = {'1024', '1536', '2048'}
 

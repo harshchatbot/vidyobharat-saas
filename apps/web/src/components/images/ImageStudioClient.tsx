@@ -41,6 +41,12 @@ const fallbackModels: ImageModel[] = [
     frontend_hint: 'Use this for punchy reel covers and campaign concepts.',
   },
   {
+    key: 'openai_image',
+    label: 'OpenAI Images',
+    description: 'Best for reliable prompt-following and practical testing with a verified OpenAI image key.',
+    frontend_hint: 'Use this when you want the most dependable live image generation path right now.',
+  },
+  {
     key: 'seedream',
     label: 'Seedream',
     description: 'Best for premium editorial imagery and elegant lighting.',
@@ -160,6 +166,19 @@ function formatCreatedAt(value: string) {
   });
 }
 
+function toErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error) || !error.message) {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(error.message) as { detail?: string };
+    if (parsed.detail) return parsed.detail;
+  } catch {
+    return error.message;
+  }
+  return error.message;
+}
+
 export function ImageStudioClient({ userId }: Props) {
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
@@ -236,8 +255,8 @@ export function ImageStudioClient({ userId }: Props) {
       setGeneratedImages((prev) => [item, ...prev]);
       setSelectedGenerated(item);
       setActiveTab('generated');
-    } catch {
-      setError('Failed to generate image. Please try again.');
+    } catch (error) {
+      setError(toErrorMessage(error, 'Failed to generate image. Please try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -253,8 +272,8 @@ export function ImageStudioClient({ userId }: Props) {
     try {
       const response = await api.enhanceImagePrompt({ prompt, model_key: selectedModel }, userId);
       setPrompt(response.prompt);
-    } catch {
-      setError('Could not enhance the prompt right now.');
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not enhance the prompt right now.'));
     } finally {
       setEnhancing(false);
     }
@@ -294,8 +313,8 @@ export function ImageStudioClient({ userId }: Props) {
       setGeneratedImages((prev) => [...result.items, ...prev]);
       setSelectedGenerated(result.items[0]);
       setActiveTab('generated');
-    } catch {
-      setError('Could not complete that action right now.');
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not complete that action right now.'));
     } finally {
       setActionLoading(null);
     }

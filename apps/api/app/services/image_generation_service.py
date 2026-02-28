@@ -33,6 +33,12 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         description='Best for crisp social visuals and fast prompt-to-image drafts with bold composition.',
         frontend_hint='Use this for punchy reel covers, posters, and quick campaign concepts.',
     ),
+    'openai_image': ImageModelEntry(
+        key='openai_image',
+        label='OpenAI Images',
+        description='Best for dependable prompt-following, clean composition, and practical testing with a verified OpenAI image key.',
+        frontend_hint='Use this when you want the most reliable live image generation path in RangManch AI right now.',
+    ),
     'seedream': ImageModelEntry(
         key='seedream',
         label='Seedream',
@@ -186,24 +192,25 @@ class ImageGenerationService:
         model = IMAGE_MODEL_REGISTRY[model_key]
         image_url: str
         thumbnail_url: str
-        if model_key == 'nano_banana' and self.settings.gemini_api_key:
-            try:
-                image_url, thumbnail_url = self._generate_with_gemini(
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                )
-            except Exception as exc:
-                logger.warning('gemini_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
-                image_url, thumbnail_url = self._create_local_placeholder(
-                    model=model,
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    reference_urls=reference_urls,
-                )
+        if model_key == 'openai_image':
+            if not self.settings.openai_api_key:
+                raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
+            logger.info('image_generation_provider_selected', extra={'provider': 'openai_images', 'model_key': model_key})
+            image_url, thumbnail_url = self._generate_with_openai_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+        elif model_key == 'nano_banana' and self.settings.gemini_api_key:
+            logger.info('image_generation_provider_selected', extra={'provider': 'gemini', 'model_key': model_key})
+            image_url, thumbnail_url = self._generate_with_gemini(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
         elif self.settings.together_api_key:
             try:
+                logger.info('image_generation_provider_selected', extra={'provider': 'together', 'model_key': model_key})
                 remote_url = self._generate_with_together(
                     model_key=model_key,
                     prompt=prompt,
@@ -599,16 +606,25 @@ class ImageGenerationService:
                 {
                     'parts': [
                         {
-                            'text': f'{prompt}. Create a high-quality image output with aspect ratio {aspect_ratio} and resolution target around {resolution}px.'
+                            'text': (
+                                f'{prompt}. Create a high-quality image output with aspect ratio {aspect_ratio} '
+                                f'and resolution target around {resolution}px.'
+                            )
                         }
                     ]
                 }
-            ]
+            ],
+            'generationConfig': {
+                'responseModalities': ['TEXT', 'IMAGE'],
+            },
         }
         request = urllib.request.Request(
-            url=f'{self.settings.gemini_api_base.rstrip("/")}/models/{GEMINI_IMAGE_MODEL}:generateContent?key={self.settings.gemini_api_key}',
+            url=f'{self.settings.gemini_api_base.rstrip("/")}/models/{GEMINI_IMAGE_MODEL}:generateContent',
             data=json.dumps(payload).encode('utf-8'),
-            headers={'Content-Type': 'application/json'},
+            headers={
+                'Content-Type': 'application/json',
+                'x-goog-api-key': str(self.settings.gemini_api_key),
+            },
             method='POST',
         )
         try:
@@ -624,15 +640,16 @@ class ImageGenerationService:
         candidates = data.get('candidates') or []
         inline_data = None
         for candidate in candidates:
-            parts = candidate.get('content', {}).get('parts', [])
+            content = candidate.get('content', {})
+            parts = content.get('parts') or []
             for part in parts:
                 if 'inlineData' in part:
-                    inline_data = part['inlineData']
+                    inline_data = part.get('inlineData')
                     break
             if inline_data:
                 break
         if not inline_data:
-            raise RuntimeError('Gemini API returned no image payload')
+            raise RuntimeError(f'Gemini API returned no image payload: {raw[:500]}')
 
         mime_type = inline_data.get('mimeType')
         image_bytes = b64decode(inline_data.get('data', ''))
@@ -653,6 +670,46 @@ class ImageGenerationService:
             f'/static/image_generations/{thumb_file.name}',
         )
 
+    def _generate_with_openai_image(
+        self,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+    ) -> tuple[str, str]:
+        image_id = str(uuid4())
+        size = self._openai_image_size(aspect_ratio, resolution)
+        client = OpenAI(api_key=self.settings.openai_api_key)
+        response = client.images.generate(
+            model=self.settings.openai_image_model,
+            prompt=(
+                f'{prompt}. Create a polished creator-grade image with aspect ratio {aspect_ratio} '
+                f'optimized for {resolution}px output.'
+            ),
+            size=size,
+        )
+
+        if not response.data:
+            raise RuntimeError('OpenAI Images returned no image data')
+
+        image_base64 = getattr(response.data[0], 'b64_json', None)
+        image_url = getattr(response.data[0], 'url', None)
+        output_file = self.output_dir / f'{image_id}.png'
+        thumb_file = self.output_dir / f'{image_id}_thumb.png'
+
+        if image_base64:
+            image_bytes = b64decode(image_base64)
+            output_file.write_bytes(image_bytes)
+            thumb_file.write_bytes(image_bytes)
+            return (
+                f'/static/image_generations/{output_file.name}',
+                f'/static/image_generations/{thumb_file.name}',
+            )
+
+        if image_url:
+            return (str(image_url), str(image_url))
+
+        raise RuntimeError('OpenAI Images returned neither base64 data nor URL')
+
     def _together_dimensions(self, aspect_ratio: str, resolution: str) -> tuple[int, int]:
         base = int(resolution) if resolution.isdigit() else 1024
         if aspect_ratio == '9:16':
@@ -662,6 +719,16 @@ class ImageGenerationService:
         if aspect_ratio == '4:5':
             return (max(512, round(base * 4 / 5)), base)
         return (base, base)
+
+    def _openai_image_size(self, aspect_ratio: str, resolution: str) -> str:
+        target = int(resolution) if resolution.isdigit() else 1024
+        if aspect_ratio in {'9:16', '4:5'}:
+            return '1024x1536'
+        if aspect_ratio == '16:9':
+            return '1536x1024'
+        if target >= 1536:
+            return '1536x1024' if aspect_ratio == '16:9' else '1024x1536' if aspect_ratio in {'9:16', '4:5'} else '1024x1024'
+        return '1024x1024'
 
     def _upscaled_resolution(self, aspect_ratio: str, current: str) -> str:
         dims = self._dimensions_for(aspect_ratio, compact=False)

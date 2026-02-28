@@ -382,15 +382,25 @@ def generate_ai_image(
     db: Session = Depends(get_db),
 ):
     service = ImageGenerationService(db)
-    generation = service.create_image(
-        user_id=user_id,
-        model_key=payload.model_key,
-        prompt=payload.prompt,
-        aspect_ratio=payload.aspect_ratio,
-        resolution=payload.resolution,
-        reference_urls=payload.reference_urls,
-    )
-    return _to_image_generation_response(generation)
+    try:
+        generation = service.create_image(
+            user_id=user_id,
+            model_key=payload.model_key,
+            prompt=payload.prompt,
+            aspect_ratio=payload.aspect_ratio,
+            resolution=payload.resolution,
+            reference_urls=payload.reference_urls,
+        )
+        return _to_image_generation_response(generation)
+    except Exception as exc:
+        logger.exception(
+            'image_generation_failed',
+            extra={'request_id': get_request_id(), 'model_key': payload.model_key, 'error': str(exc)},
+        )
+        detail = str(exc).strip() or 'Failed to generate image'
+        if settings.env != 'development':
+            detail = 'Failed to generate image'
+        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 @router.post('/ai/image/prompt-enhance', response_model=ImagePromptEnhanceResponse)
