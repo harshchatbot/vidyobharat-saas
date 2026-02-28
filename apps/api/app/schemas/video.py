@@ -7,6 +7,8 @@ class VideoResponse(BaseModel):
     id: str
     user_id: str
     title: str | None
+    template: str | None = None
+    language: str | None = None
     script: str
     voice: str
     aspect_ratio: str
@@ -14,6 +16,7 @@ class VideoResponse(BaseModel):
     duration_mode: str
     duration_seconds: int | None
     captions_enabled: bool
+    caption_style: str | None = None
     status: str
     progress: int
     image_urls: list[str] = Field(default_factory=list)

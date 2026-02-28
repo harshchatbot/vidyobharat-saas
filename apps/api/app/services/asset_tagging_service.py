@@ -57,6 +57,31 @@ class AssetTaggingService:
         self.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='auto')
         return tags
 
+    def tag_script(self, script: str) -> list[str]:
+        if self.settings.openai_api_key:
+            try:
+                client = OpenAI(api_key=self.settings.openai_api_key)
+                response = client.chat.completions.create(
+                    model=self.settings.openai_model,
+                    temperature=0.2,
+                    response_format={'type': 'json_object'},
+                    messages=[
+                        {
+                            'role': 'system',
+                            'content': 'Return JSON only with {"tags": ["..."]}. Extract topic, style, character, setting, and intent tags.',
+                        },
+                        {'role': 'user', 'content': script},
+                    ],
+                )
+                raw = response.choices[0].message.content or '{}'
+                parsed = json.loads(raw)
+                tags = parsed.get('tags', [])
+                if isinstance(tags, list):
+                    return self._dedupe_tags([str(tag) for tag in tags])
+            except Exception as exc:
+                logger.warning('script_tagging_fallback', extra={'error': str(exc)})
+        return self._dedupe_tags(self._derive_tags(script))
+
     def _extract_vision_tags(self, image_url: str | None, prompt: str, content_type: str) -> list[str]:
         if not self.settings.openai_api_key or not image_url:
             return []

@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
@@ -72,65 +73,64 @@ class AIVideoCreateService:
         self,
         *,
         user_id: str,
-        image_url: str | None,
+        template: str,
+        language: str,
+        image_urls: list[str],
         script: str,
+        tags: list[str],
         model_key: str,
         aspect_ratio: str,
         resolution: str,
-        duration_seconds: int,
+        duration_mode: str,
+        duration_seconds: int | None,
         voice: str,
+        music: dict[str, Any] | None = None,
+        audio_settings: dict[str, Any] | None = None,
+        captions_enabled: bool = True,
+        caption_style: str | None = None,
     ) -> Video:
         registry_entry = self.VIDEO_MODEL_REGISTRY.get(model_key)
         adapter = self.providers.get(model_key)
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
 
+        normalized_duration = duration_seconds if duration_mode == 'custom' else 8
+        seed_image_url = image_urls[0] if image_urls else None
         video = self.repo.create(
             user_id=user_id,
             title=script[:80] or registry_entry.label,
+            template=template,
+            language=language,
             script=script,
             voice=voice,
             aspect_ratio=aspect_ratio,
             resolution=resolution,
-            duration_mode='custom',
-            duration_seconds=duration_seconds,
-            captions_enabled=True,
-            status=VideoStatus.processing,
-            progress=15,
-            image_urls=json.dumps([image_url] if image_url else []),
+            duration_mode=duration_mode,
+            duration_seconds=normalized_duration,
+            captions_enabled=captions_enabled,
+            caption_style=caption_style,
+            status=VideoStatus.draft,
+            progress=0,
+            image_urls=json.dumps(image_urls),
             selected_model=model_key,
             provider_name=registry_entry.label,
-            source_image_url=image_url,
-            reference_images=json.dumps([image_url] if image_url else []),
-            music_mode='none',
+            source_image_url=seed_image_url,
+            reference_images=json.dumps(image_urls),
+            music_mode=str((music or {}).get('type') or 'none'),
+            music_file_url=(music or {}).get('url'),
+            music_volume=int((audio_settings or {}).get('volume') or 20),
+            duck_music=bool((audio_settings or {}).get('ducking', True)),
         )
+        self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=self.tagging.tag_script(script), source='auto')
+        if tags:
+            self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
+        celery_process_ai_video.delay(video.id)
+        return video
 
-        try:
-            result = adapter(
-                {
-                    'imageUrl': image_url,
-                    'script': script,
-                    'modelKey': model_key,
-                    'aspectRatio': aspect_ratio,
-                    'resolution': resolution,
-                    'durationSeconds': duration_seconds,
-                    'voice': voice,
-                }
-            )
-            self.repo.update(
-                video,
-                provider_name=result.provider,
-                output_url=result.video_url,
-                thumbnail_url=image_url,
-                progress=100,
-                status=VideoStatus.completed,
-                error_message=None,
-            )
-            self.tagging.auto_tag_video(video)
-        except Exception as exc:
-            logger.exception('ai_video_create_failed', extra={'render_id': video.id, 'model_key': model_key})
-            self.repo.update(video, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
-            raise
+    def get_video(self, video_id: str, user_id: str) -> Video | None:
+        video = self.repo.get_by_id(video_id)
+        if not video or video.user_id != user_id:
+            return None
         return video
 
     def generate_with_sora2(self, params: dict[str, Any]) -> ProviderResult:
@@ -223,3 +223,52 @@ class AIVideoCreateService:
             duck_music=False,
         )
         return (f'/static/renders/{render_id}.mp4', f'/static/renders/{render_id}.jpg')
+
+
+@celery_app.task(name='process_ai_video')
+def celery_process_ai_video(video_id: str) -> None:
+    from app.core.config import get_settings
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    settings = get_settings()
+    service = AIVideoCreateService(db, settings)
+    repo = VideoRepository(db)
+    try:
+        video = repo.get_by_id(video_id)
+        if not video:
+            return
+        repo.update(video, status=VideoStatus.processing, progress=20)
+        payload = {
+            'imageUrl': video.source_image_url,
+            'script': video.script,
+            'modelKey': video.selected_model,
+            'aspectRatio': video.aspect_ratio,
+            'resolution': video.resolution,
+            'durationSeconds': video.duration_seconds or 8,
+            'voice': video.voice,
+        }
+        adapter = service.providers.get(video.selected_model or '')
+        if not adapter:
+            raise ProviderError(f'Unsupported model: {video.selected_model}')
+        repo.update(video, progress=55)
+        result = adapter(payload)
+        repo.update(
+            video,
+            provider_name=result.provider,
+            output_url=result.video_url,
+            thumbnail_url=video.source_image_url or f'/static/renders/{video_id}.jpg',
+            progress=100,
+            status=VideoStatus.completed,
+            error_message=None,
+        )
+        refreshed = repo.get_by_id(video_id)
+        if refreshed:
+            service.tagging.auto_tag_video(refreshed)
+    except Exception as exc:
+        logger.exception('ai_video_job_failed', extra={'render_id': video_id})
+        target = repo.get_by_id(video_id)
+        if target:
+            repo.update(target, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
+    finally:
+        db.close()

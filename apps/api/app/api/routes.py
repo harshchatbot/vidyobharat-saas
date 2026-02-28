@@ -17,8 +17,13 @@ from app.schemas.ai import (
     AIVideoGenerateRequest,
     AIVideoGenerateResponse,
     AIVideoModelResponse,
+    AIVideoStatusResponse,
     ReelScriptRequest,
     ReelScriptResponse,
+    ScriptEnhanceRequest,
+    ScriptGenerateRequest,
+    ScriptTagsRequest,
+    ScriptResponse,
 )
 from app.schemas.asset import AssetSearchResponse, AssetSearchResponseItem, AssetTagFacet, AssetTagUpdateRequest
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
@@ -141,6 +146,8 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         id=video.id,
         user_id=video.user_id,
         title=video.title,
+        template=video.template,
+        language=video.language,
         script=video.script,
         voice=video.voice,
         aspect_ratio=video.aspect_ratio or '9:16',
@@ -148,6 +155,7 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         duration_mode=video.duration_mode or 'auto',
         duration_seconds=video.duration_seconds,
         captions_enabled=bool(video.captions_enabled) if video.captions_enabled is not None else True,
+        caption_style=video.caption_style,
         status=video.status.value if hasattr(video.status, 'value') else str(video.status),
         progress=video.progress,
         image_urls=image_urls,
@@ -200,6 +208,74 @@ def _to_image_generation_response(generation, db: Session) -> ImageGenerationRes
 @router.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
+
+
+@router.post('/api/ai/script/generate', response_model=ScriptResponse)
+def generate_script_v2(
+    payload: ScriptGenerateRequest,
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    prompt = (
+        f'Write a short creator-ready video script for template {payload.template}. '
+        f'Topic: {payload.topic}. Language: {payload.language}. '
+        'Return only the script text.'
+    )
+    script_text = ''
+    if settings.openai_api_key:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            temperature=0.7,
+            messages=[
+                {'role': 'system', 'content': 'Write concise creator-ready video scripts.'},
+                {'role': 'user', 'content': prompt},
+            ],
+        )
+        script_text = (response.choices[0].message.content or '').strip()
+    if not script_text:
+        script_text = f'{payload.topic}. Start with a sharp hook, explain the core idea, and close with a memorable CTA.'
+    tags = AssetTaggingService(db).tag_script(script_text)
+    return ScriptResponse(script=script_text, tags=tags)
+
+
+@router.post('/api/ai/script/enhance', response_model=ScriptResponse)
+def enhance_script_v2(
+    payload: ScriptEnhanceRequest,
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    prompt = (
+        f'Enhance this video script for clarity, flow, and stronger storytelling. '
+        f'Template: {payload.template or "general"}. Language: {payload.language}. '
+        f'Script: {payload.script}'
+    )
+    script_text = ''
+    if settings.openai_api_key:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            temperature=0.5,
+            messages=[
+                {'role': 'system', 'content': 'Improve creator video scripts without changing the core meaning.'},
+                {'role': 'user', 'content': prompt},
+            ],
+        )
+        script_text = (response.choices[0].message.content or '').strip()
+    if not script_text:
+        script_text = payload.script
+    tags = AssetTaggingService(db).tag_script(script_text)
+    return ScriptResponse(script=script_text, tags=tags)
+
+
+@router.post('/api/ai/script/tags', response_model=ScriptResponse)
+def extract_script_tags_v2(
+    payload: ScriptTagsRequest,
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    tags = AssetTaggingService(db).tag_script(payload.script)
+    return ScriptResponse(script=payload.script, tags=tags)
 
 
 @router.post('/ai/reel-script', response_model=ReelScriptResponse)
@@ -269,13 +345,20 @@ def generate_ai_video(
         service = AIVideoCreateService(db, settings)
         video = service.create_video(
             user_id=user_id,
-            image_url=payload.referenceImages[0] if payload.referenceImages else None,
+            template=payload.templateId,
+            language=payload.language,
+            image_urls=payload.referenceImages[:1],
             script=f'{payload.topic}. Tone: {payload.tone}. Language: {payload.language}.',
+            tags=[],
             model_key=payload.selectedModel,
             aspect_ratio='9:16',
             resolution='1080p',
+            duration_mode='custom',
             duration_seconds=8,
             voice=payload.voice or 'Aarav',
+            music={'type': 'none', 'url': None},
+            audio_settings={'volume': 20, 'ducking': True},
+            captions_enabled=True,
         )
         logger.info(
             'ai_video_generated',
@@ -310,6 +393,7 @@ def generate_ai_video(
 
 @router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
 @router.get('/api/ai/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
+@router.get('/api/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
 def list_ai_video_models(_: str = Depends(get_user_id), db: Session = Depends(get_db)):
     service = AIVideoCreateService(db, settings)
     return [
@@ -335,13 +419,21 @@ def create_ai_video(
         service = AIVideoCreateService(db, settings)
         video = service.create_video(
             user_id=user_id,
-            image_url=payload.imageUrl,
+            template=payload.template,
+            language=payload.language,
+            image_urls=payload.imageUrls,
             script=payload.script,
+            tags=payload.tags,
             model_key=payload.modelKey,
             aspect_ratio=payload.aspectRatio,
             resolution=payload.resolution,
+            duration_mode=payload.durationMode,
             duration_seconds=payload.durationSeconds,
             voice=payload.voice,
+            music=payload.music.model_dump(),
+            audio_settings=payload.audioSettings.model_dump(),
+            captions_enabled=payload.captionsEnabled,
+            caption_style=payload.captionStyle,
         )
         logger.info(
             'ai_video_created',
@@ -352,8 +444,10 @@ def create_ai_video(
             },
         )
         return AIVideoCreateResponse(
-            videoUrl=video.output_url or '',
-            provider=video.provider_name or payload.modelKey,
+            id=video.id,
+            status='queued',
+            videoUrl=video.output_url,
+            provider=video.provider_name,
             modelKey=payload.modelKey,
         )
     except ProviderError as exc:
@@ -371,6 +465,35 @@ def create_ai_video(
         if settings.env != 'development':
             detail = 'Failed to create AI video'
         raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.get('/api/ai/video/status/{video_id}', response_model=AIVideoStatusResponse)
+def get_ai_video_status(
+    video_id: str,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = AIVideoCreateService(db, settings)
+    video = service.get_video(video_id, user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail='Video job not found')
+    auto_tags, user_tags = AssetTaggingService(db).list_tags(video.id, 'video')
+    status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
+    mapped_status = 'success' if status_value == 'completed' else 'failed' if status_value == 'failed' else 'processing'
+    return AIVideoStatusResponse(
+        id=video.id,
+        status='queued' if status_value == 'draft' else mapped_status,
+        videoUrl=video.output_url,
+        modelKey=video.selected_model,
+        modelLabel=video.provider_name,
+        provider=video.provider_name,
+        resolution=video.resolution,
+        aspectRatio=video.aspect_ratio,
+        durationSeconds=video.duration_seconds,
+        tags=[*auto_tags, *user_tags],
+        errorMessage=video.error_message,
+        thumbnailUrl=video.thumbnail_url,
+    )
 
 
 @router.get('/ai/image/models', response_model=list[ImageModelResponse])

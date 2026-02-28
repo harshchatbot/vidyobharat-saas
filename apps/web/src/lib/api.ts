@@ -6,6 +6,7 @@ import type {
   AIVideoGenerateResponse,
   AssetSearchResponse,
   AssetTagFacet,
+  AIVideoStatusResponse,
   MusicTrack,
   Project,
   ProjectAsset,
@@ -17,6 +18,10 @@ import type {
   ReelScriptOutput,
   ReelScriptRequest,
   Render,
+  ScriptEnhanceRequest,
+  ScriptGenerateRequest,
+  ScriptTagsRequest,
+  ScriptResponse,
   Template,
   Video,
   VideoCreateRequest,
@@ -171,6 +176,24 @@ export const api = {
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },
+  generateScriptV2(payload: ScriptGenerateRequest, userId: string) {
+    return request<ScriptResponse>('/api/ai/script/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  enhanceScriptV2(payload: ScriptEnhanceRequest, userId: string) {
+    return request<ScriptResponse>('/api/ai/script/enhance', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  extractScriptTags(payload: ScriptTagsRequest, userId: string) {
+    return request<ScriptResponse>('/api/ai/script/tags', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
   generateAIVideo(payload: AIVideoGenerateRequest, userId: string) {
     return request<AIVideoGenerateResponse>('/ai/video/generate', {
       method: 'POST',
@@ -178,13 +201,16 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   listAIVideoModels(userId: string) {
-    return request<AIVideoModel[]>('/ai/video/models', {}, { userId, cache: 'no-store' });
+    return request<AIVideoModel[]>('/api/video/models', {}, { userId, cache: 'no-store' });
   },
   createAIVideo(payload: VideoCreateRequest, userId: string) {
     return request<VideoCreateResponse>('/api/ai/video/create', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
+  },
+  getAIVideoStatus(videoId: string, userId: string) {
+    return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store' });
   },
   listImageModels(userId: string) {
     return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store' });

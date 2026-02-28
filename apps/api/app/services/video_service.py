@@ -71,8 +71,8 @@ class VideoService:
                 raise ValueError('duration_seconds must be between 5 and 300 for custom mode')
         else:
             duration_seconds = None
-        if selected_model and selected_model not in {'sora2_pro', 'veo3_1', 'kling2_1', 'luma_style'}:
-            raise ValueError('selected_model must be one of sora2_pro|veo3_1|kling2_1|luma_style')
+        if selected_model and selected_model not in {'sora2', 'veo3'}:
+            raise ValueError('selected_model must be one of sora2|veo3')
         normalized_reference_images = [value.strip() for value in (reference_images or []) if value.strip()]
 
         image_urls: list[str] = []

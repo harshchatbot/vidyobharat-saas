@@ -56,6 +56,8 @@ export type Video = {
   id: string;
   user_id: string;
   title: string | null;
+  template?: string | null;
+  language?: string | null;
   script: string;
   voice: string;
   aspect_ratio: '9:16' | '16:9' | '1:1' | string;
@@ -63,6 +65,7 @@ export type Video = {
   duration_mode: 'auto' | 'custom' | string;
   duration_seconds: number | null;
   captions_enabled: boolean;
+  caption_style?: string | null;
   status: 'draft' | 'processing' | 'completed' | 'failed';
   progress: number;
   image_urls: string[];
@@ -131,20 +134,72 @@ export type AIVideoModel = {
   apiAdapter: string;
 };
 
-export type VideoCreateRequest = {
-  imageUrl: string | null;
+export type ScriptGenerateRequest = {
+  template: string;
+  topic: string;
+  language: string;
+};
+
+export type ScriptEnhanceRequest = {
   script: string;
+  template?: string;
+  language: string;
+};
+
+export type ScriptTagsRequest = {
+  script: string;
+};
+
+export type ScriptResponse = {
+  script: string;
+  tags: string[];
+};
+
+export type VideoCreateRequest = {
+  template: string;
+  script: string;
+  tags: string[];
   modelKey: 'sora2' | 'veo3';
+  language: string;
+  voice: string;
+  imageUrls: string[];
+  music: {
+    type: 'library' | 'upload' | 'none';
+    url: string | null;
+  };
+  audioSettings: {
+    volume: number;
+    ducking: boolean;
+  };
   aspectRatio: string;
   resolution: string;
-  durationSeconds: number;
-  voice: string;
+  durationMode: 'auto' | 'custom';
+  durationSeconds?: number;
+  captionsEnabled: boolean;
+  captionStyle: string;
 };
 
 export type VideoCreateResponse = {
-  videoUrl: string;
-  provider: string;
+  id: string;
+  status: string;
+  videoUrl: string | null;
+  provider: string | null;
   modelKey: string;
+};
+
+export type AIVideoStatusResponse = {
+  id: string;
+  status: 'queued' | 'processing' | 'success' | 'failed' | string;
+  videoUrl: string | null;
+  modelKey: 'sora2' | 'veo3' | string | null;
+  modelLabel: string | null;
+  provider: string | null;
+  resolution: string;
+  aspectRatio: string;
+  durationSeconds: number | null;
+  tags: string[];
+  errorMessage: string | null;
+  thumbnailUrl: string | null;
 };
 
 export type ImageModel = {
