@@ -117,6 +117,7 @@ class ImageGeneration(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    parent_image_id: Mapped[str | None] = mapped_column(ForeignKey('image_generations.id', ondelete='SET NULL'), nullable=True, index=True)
     model_key: Mapped[str] = mapped_column(String(64), index=True)
     prompt: Mapped[str] = mapped_column(Text)
     aspect_ratio: Mapped[str] = mapped_column(String(16), default='9:16')
@@ -124,5 +125,6 @@ class ImageGeneration(Base):
     reference_urls: Mapped[str] = mapped_column(Text, default='[]')
     image_url: Mapped[str] = mapped_column(String(255))
     thumbnail_url: Mapped[str] = mapped_column(String(255))
+    action_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[ImageGenerationStatus] = mapped_column(Enum(ImageGenerationStatus), default=ImageGenerationStatus.completed, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

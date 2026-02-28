@@ -23,7 +23,8 @@ from app.schemas.ai import (
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.image_generation import (
-    ImageGenerationActionRequest,
+    ImageActionRequest,
+    ImageActionResponse,
     ImageGenerationCreateRequest,
     ImageGenerationResponse,
     ImageModelResponse,
@@ -169,6 +170,7 @@ def _to_image_generation_response(generation) -> ImageGenerationResponse:
 
     return ImageGenerationResponse(
         id=generation.id,
+        parent_image_id=generation.parent_image_id,
         model_key=generation.model_key,
         prompt=generation.prompt,
         aspect_ratio=generation.aspect_ratio,
@@ -176,6 +178,7 @@ def _to_image_generation_response(generation) -> ImageGenerationResponse:
         reference_urls=reference_urls,
         image_url=generation.image_url,
         thumbnail_url=generation.thumbnail_url,
+        action_type=generation.action_type,
         status=generation.status.value if hasattr(generation.status, 'value') else str(generation.status),
         created_at=generation.created_at,
     )
@@ -400,19 +403,39 @@ def enhance_ai_image_prompt(
     return ImagePromptEnhanceResponse(prompt=service.enhance_prompt(payload.prompt, payload.model_key))
 
 
-@router.post('/ai/images/{image_id}/action', response_model=ImageGenerationResponse)
+@router.post('/ai/images/action', response_model=ImageActionResponse)
 def apply_ai_image_action(
-    image_id: str,
-    payload: ImageGenerationActionRequest,
+    payload: ImageActionRequest,
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     service = ImageGenerationService(db)
     try:
-        result = service.apply_action(user_id=user_id, generation_id=image_id, action=payload.action)
+        results = service.apply_action(user_id=user_id, generation_id=payload.image_id, action=payload.action_type)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _to_image_generation_response(result)
+    return ImageActionResponse(
+        action_type=payload.action_type,
+        items=[_to_image_generation_response(item) for item in results],
+    )
+
+
+@router.post('/ai/images/{image_id}/action', response_model=ImageGenerationResponse)
+def apply_ai_image_action_legacy(
+    image_id: str,
+    payload: dict,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    action_type = str(payload.get('action') or payload.get('action_type') or '').strip()
+    if not action_type:
+        raise HTTPException(status_code=422, detail='action is required')
+    service = ImageGenerationService(db)
+    try:
+        results = service.apply_action(user_id=user_id, generation_id=image_id, action=action_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _to_image_generation_response(results[0])
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)

@@ -66,6 +66,24 @@ def _ensure_video_columns() -> None:
 
 _ensure_video_columns()
 
+
+def _ensure_image_generation_columns() -> None:
+    inspector = inspect(engine)
+    if 'image_generations' not in inspector.get_table_names():
+        return
+    existing = {column['name'] for column in inspector.get_columns('image_generations')}
+    migrations = [
+        ('parent_image_id', 'ALTER TABLE image_generations ADD COLUMN parent_image_id VARCHAR(36)'),
+        ('action_type', 'ALTER TABLE image_generations ADD COLUMN action_type VARCHAR(40)'),
+    ]
+    with engine.begin() as conn:
+        for column_name, statement in migrations:
+            if column_name not in existing:
+                conn.execute(text(statement))
+
+
+_ensure_image_generation_columns()
+
 Path('data/uploads').mkdir(parents=True, exist_ok=True)
 Path('data/music').mkdir(parents=True, exist_ok=True)
 Path('data/music_uploads').mkdir(parents=True, exist_ok=True)

@@ -17,6 +17,7 @@ class ImageModelResponse(BaseModel):
 
 class ImageGenerationResponse(BaseModel):
     id: str
+    parent_image_id: str | None = None
     model_key: str
     prompt: str
     aspect_ratio: str
@@ -24,6 +25,7 @@ class ImageGenerationResponse(BaseModel):
     reference_urls: list[str]
     image_url: str
     thumbnail_url: str
+    action_type: str | None = None
     status: str
     created_at: datetime
 
@@ -79,12 +81,18 @@ class ImagePromptEnhanceResponse(BaseModel):
     prompt: str
 
 
-class ImageGenerationActionRequest(BaseModel):
-    action: str = Field(min_length=3, max_length=40)
+class ImageActionRequest(BaseModel):
+    image_id: str = Field(min_length=8, max_length=64)
+    action_type: str = Field(min_length=3, max_length=40)
 
-    @field_validator('action')
+    @field_validator('action_type')
     @classmethod
     def validate_action(cls, value: str) -> str:
         if value not in {'remove_background', 'upscale', 'variation'}:
             raise ValueError('Unsupported action')
         return value
+
+
+class ImageActionResponse(BaseModel):
+    action_type: str
+    items: list[ImageGenerationResponse]

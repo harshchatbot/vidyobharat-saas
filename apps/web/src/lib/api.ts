@@ -11,6 +11,7 @@ import type {
   ProjectAsset,
   ProjectDetail,
   GeneratedImage,
+  ImageActionResponse,
   ImageModel,
   InspirationImage,
   ReelScriptOutput,
@@ -214,9 +215,9 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   applyImageAction(imageId: string, action: 'remove_background' | 'upscale' | 'variation', userId: string) {
-    return request<GeneratedImage>(`/ai/images/${imageId}/action`, {
+    return request<ImageActionResponse>('/ai/images/action', {
       method: 'POST',
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ image_id: imageId, action_type: action }),
     }, { userId, cache: 'no-store' });
   },
 };

@@ -1,5 +1,7 @@
 import json
 import logging
+import subprocess
+from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -197,6 +199,7 @@ class ImageGenerationService:
 
         generation = self.repo.create(
             user_id=user_id,
+            parent_image_id=None,
             model_key=model_key,
             prompt=prompt,
             aspect_ratio=aspect_ratio,
@@ -204,44 +207,156 @@ class ImageGenerationService:
             reference_urls=json.dumps(reference_urls),
             image_url=f'/static/image_generations/{output_file.name}',
             thumbnail_url=f'/static/image_generations/{thumbnail_file.name}',
+            action_type=None,
             status=ImageGenerationStatus.completed,
         )
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
 
-    def apply_action(self, user_id: str, generation_id: str, action: str) -> ImageGeneration:
+    def apply_action(self, user_id: str, generation_id: str, action: str) -> list[ImageGeneration]:
         generation = self.repo.get_by_id(generation_id)
         if generation is None or generation.user_id != user_id:
             raise ValueError('Image not found')
 
-        reference_urls: list[str] = []
-        try:
-            reference_urls = json.loads(generation.reference_urls or '[]')
-        except json.JSONDecodeError:
-            reference_urls = []
+        match action:
+            case 'remove_background':
+                return [self.process_background_removal(generation)]
+            case 'upscale':
+                return [self.process_upscale(generation)]
+            case 'variation':
+                return self.process_variations(generation)
+            case _:
+                raise ValueError('Unsupported action')
 
-        next_prompt = generation.prompt
-        next_resolution = generation.resolution
-        next_references = [generation.image_url, *reference_urls]
+    def process_background_removal(self, source: ImageGeneration) -> ImageGeneration:
+        output_id = str(uuid4())
+        output_file = self.output_dir / f'{output_id}.png'
+        thumb_file = self.output_dir / f'{output_id}_thumb.png'
+        source_path = self._url_to_local_path(source.image_url)
 
-        if action == 'remove_background':
-            next_prompt = f'{generation.prompt}. Isolated subject, clean transparent-style background, no environment clutter.'
-        elif action == 'upscale':
-            next_prompt = f'{generation.prompt}. Ultra-detailed upscale, sharper textures, polished high-resolution finish.'
-            next_resolution = self._next_resolution(generation.resolution)
-        elif action == 'variation':
-            next_prompt = f'{generation.prompt}. Create a close variation with a fresh mood, lighting shift, and subtle composition change.'
+        if source_path.exists():
+            self._run_ffmpeg_png(
+                source_path=source_path,
+                output_path=output_file,
+                alpha=0.72,
+            )
         else:
-            raise ValueError('Unsupported action')
+            self._write_placeholder_png(output_file, source.aspect_ratio)
+        self._write_placeholder_png(thumb_file, source.aspect_ratio)
 
-        return self.create_image(
-            user_id=user_id,
-            model_key=generation.model_key,
-            prompt=next_prompt,
-            aspect_ratio=generation.aspect_ratio,
-            resolution=next_resolution,
-            reference_urls=next_references,
+        reference_urls = self._parse_reference_urls(source)
+        return self.repo.create(
+            user_id=source.user_id,
+            parent_image_id=source.id,
+            model_key=source.model_key,
+            prompt=source.prompt,
+            aspect_ratio=source.aspect_ratio,
+            resolution=source.resolution,
+            reference_urls=json.dumps([source.image_url, *reference_urls]),
+            image_url=f'/static/image_generations/{output_file.name}',
+            thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+            action_type='remove_background',
+            status=ImageGenerationStatus.completed,
         )
+
+    def process_upscale(self, source: ImageGeneration) -> ImageGeneration:
+        next_resolution = self._upscaled_resolution(source.aspect_ratio, source.resolution)
+        reference_urls = self._parse_reference_urls(source)
+        model = IMAGE_MODEL_REGISTRY[source.model_key]
+        output_id = str(uuid4())
+        output_file = self.output_dir / f'{output_id}.svg'
+        thumb_file = self.output_dir / f'{output_id}_thumb.svg'
+
+        output_file.write_text(
+            self._build_svg(
+                model=model,
+                prompt=f'{source.prompt}. Ultra-detailed upscale, sharper textures, refined HD finish.',
+                aspect_ratio=source.aspect_ratio,
+                resolution=next_resolution,
+                reference_urls=[source.image_url, *reference_urls],
+                compact=False,
+            ),
+            encoding='utf-8',
+        )
+        thumb_file.write_text(
+            self._build_svg(
+                model=model,
+                prompt=source.prompt,
+                aspect_ratio=source.aspect_ratio,
+                resolution=next_resolution,
+                reference_urls=[source.image_url, *reference_urls],
+                compact=True,
+            ),
+            encoding='utf-8',
+        )
+
+        return self.repo.create(
+            user_id=source.user_id,
+            parent_image_id=source.id,
+            model_key=source.model_key,
+            prompt=source.prompt,
+            aspect_ratio=source.aspect_ratio,
+            resolution=next_resolution,
+            reference_urls=json.dumps([source.image_url, *reference_urls]),
+            image_url=f'/static/image_generations/{output_file.name}',
+            thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+            action_type='upscale',
+            status=ImageGenerationStatus.completed,
+        )
+
+    def process_variations(self, source: ImageGeneration) -> list[ImageGeneration]:
+        model = IMAGE_MODEL_REGISTRY[source.model_key]
+        reference_urls = self._parse_reference_urls(source)
+        base_seed_references = [source.image_url, *reference_urls]
+        prompts = [
+            f'{source.prompt}. Variation 1: warmer mood, softer contrast, slightly closer framing.',
+            f'{source.prompt}. Variation 2: bolder lighting, cleaner composition, stronger focal subject.',
+            f'{source.prompt}. Variation 3: premium editorial treatment, richer shadows, polished color balance.',
+            f'{source.prompt}. Variation 4: more dramatic atmosphere, subtle motion energy, elevated visual depth.',
+        ]
+        items: list[ImageGeneration] = []
+        for prompt in prompts:
+            output_id = str(uuid4())
+            output_file = self.output_dir / f'{output_id}.svg'
+            thumb_file = self.output_dir / f'{output_id}_thumb.svg'
+            output_file.write_text(
+                self._build_svg(
+                    model=model,
+                    prompt=prompt,
+                    aspect_ratio=source.aspect_ratio,
+                    resolution=source.resolution,
+                    reference_urls=base_seed_references,
+                    compact=False,
+                ),
+                encoding='utf-8',
+            )
+            thumb_file.write_text(
+                self._build_svg(
+                    model=model,
+                    prompt=prompt,
+                    aspect_ratio=source.aspect_ratio,
+                    resolution=source.resolution,
+                    reference_urls=base_seed_references,
+                    compact=True,
+                ),
+                encoding='utf-8',
+            )
+            items.append(
+                self.repo.create(
+                    user_id=source.user_id,
+                    parent_image_id=source.id,
+                    model_key=source.model_key,
+                    prompt=prompt,
+                    aspect_ratio=source.aspect_ratio,
+                    resolution=source.resolution,
+                    reference_urls=json.dumps(base_seed_references),
+                    image_url=f'/static/image_generations/{output_file.name}',
+                    thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+                    action_type='variation',
+                    status=ImageGenerationStatus.completed,
+                )
+            )
+        return items
 
     def _build_svg(
         self,
@@ -345,3 +460,69 @@ class ImageGenerationService:
         except ValueError:
             return '2048'
         return order[min(index + 1, len(order) - 1)]
+
+    def _upscaled_resolution(self, aspect_ratio: str, current: str) -> str:
+        dims = self._dimensions_for(aspect_ratio, compact=False)
+        try:
+            numeric = int(current)
+        except ValueError:
+            numeric = max(dims)
+        base = max(dims)
+        factor = 2 if numeric < 2048 else 4
+        scaled = tuple(value * factor for value in dims)
+        return f'{scaled[0]}x{scaled[1]}' if base else '2048x2048'
+
+    def _parse_reference_urls(self, generation: ImageGeneration) -> list[str]:
+        try:
+            return json.loads(generation.reference_urls or '[]')
+        except json.JSONDecodeError:
+            return []
+
+    def _url_to_local_path(self, url: str) -> Path:
+        normalized = url.strip()
+        if normalized.startswith('/static/'):
+            normalized = normalized.replace('/static/', '', 1)
+        return Path('data') / normalized
+
+    def _run_ffmpeg_png(self, source_path: Path, output_path: Path, alpha: float) -> None:
+        result = subprocess.run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(source_path),
+                '-vf',
+                f'format=rgba,colorchannelmixer=aa={alpha:.2f}',
+                '-frames:v',
+                '1',
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self._write_placeholder_png(output_path, '1:1')
+
+    def _write_placeholder_png(self, output_path: Path, aspect_ratio: str) -> None:
+        width, height = self._dimensions_for(aspect_ratio, compact=True)
+        result = subprocess.run(
+            [
+                'ffmpeg',
+                '-y',
+                '-f',
+                'lavfi',
+                '-i',
+                f'color=c=black@0.0:s={width}x{height}:d=0.1',
+                '-frames:v',
+                '1',
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            output_path.write_bytes(
+                b64decode(
+                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg=='
+                )
+            )

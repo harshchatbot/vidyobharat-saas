@@ -287,9 +287,12 @@ export function ImageStudioClient({ userId }: Props) {
     setActionLoading(`${imageId}:${action}`);
     setError(null);
     try {
-      const item = await api.applyImageAction(imageId, action, userId);
-      setGeneratedImages((prev) => [item, ...prev]);
-      setSelectedGenerated(item);
+      const result = await api.applyImageAction(imageId, action, userId);
+      if (result.items.length === 0) {
+        throw new Error('No images returned');
+      }
+      setGeneratedImages((prev) => [...result.items, ...prev]);
+      setSelectedGenerated(result.items[0]);
       setActiveTab('generated');
     } catch {
       setError('Could not complete that action right now.');
@@ -344,9 +347,8 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <div className="space-y-6">
-          <Card className="space-y-4">
+      <div className="space-y-6">
+        <Card className="space-y-4">
             <div className="flex items-center gap-2">
               <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
@@ -392,7 +394,7 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </Card>
 
-          <Card className="space-y-5">
+        <Card className="space-y-5">
             <div className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
@@ -540,8 +542,7 @@ export function ImageStudioClient({ userId }: Props) {
                 {submitting ? 'Generating...' : 'Generate Image'}
               </Button>
             </div>
-          </Card>
-        </div>
+        </Card>
 
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

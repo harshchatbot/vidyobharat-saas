@@ -154,6 +154,7 @@ export type ImageModel = {
 
 export type GeneratedImage = {
   id: string;
+  parent_image_id: string | null;
   model_key: string;
   prompt: string;
   aspect_ratio: string;
@@ -161,6 +162,7 @@ export type GeneratedImage = {
   reference_urls: string[];
   image_url: string;
   thumbnail_url: string;
+  action_type: string | null;
   status: string;
   created_at: string;
 };
@@ -176,6 +178,11 @@ export type InspirationImage = {
   resolution: string;
   created_at: string;
   reference_urls: string[];
+};
+
+export type ImageActionResponse = {
+  action_type: 'remove_background' | 'upscale' | 'variation';
+  items: GeneratedImage[];
 };
 
 export type ImageQuickTemplate = {
