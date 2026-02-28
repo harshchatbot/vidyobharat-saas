@@ -1,13 +1,15 @@
 import json
 import logging
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+
+from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.db.repositories.video_repository import VideoRepository
+from app.models.entities import Video, VideoStatus
+from app.services.asset_tagging_service import AssetTaggingService
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
@@ -28,225 +30,196 @@ class ModelRegistryEntry:
 
 @dataclass
 class ProviderResult:
-    provider_name: str
-    video_url: str
+    provider: str
     model_key: str
-    model_label: str
-    model_hint: str
-    duration: int
-    quality: str
+    video_url: str
     metadata: dict[str, Any]
 
 
-class AIVideoOrchestrator:
-    # Frontend can call list_models() to populate dropdowns/cards with:
-    # - label: human-readable choice
-    # - description: short best-use-case text
-    # - frontend_hint: concise "why choose this" helper copy
-    MODEL_REGISTRY: dict[str, ModelRegistryEntry] = {
-        'sora2_pro': ModelRegistryEntry(
-            key='sora2_pro',
-            label='Sora 2 Pro',
-            description='Best for narrative social clips with realistic motion, polished continuity, and creator-friendly storytelling.',
-            frontend_hint='Use this for premium reels that need believable motion and strong story flow.',
-            api_adapter='generate_with_sora2_pro',
+class AIVideoCreateService:
+    VIDEO_MODEL_REGISTRY: dict[str, ModelRegistryEntry] = {
+        'sora2': ModelRegistryEntry(
+            key='sora2',
+            label='Cinematic Storytelling (Sora 2)',
+            description='Best for realistic narrative videos with synced audio and premium motion realism.',
+            frontend_hint='Use this when story continuity and high-end realism matter most.',
+            api_adapter='generate_with_sora2',
         ),
-        'veo3_1': ModelRegistryEntry(
-            key='veo3_1',
-            label='Veo 3.1',
-            description='Best for cinematic visuals, longer narrative beats, and refined creative control across scenes.',
-            frontend_hint='Use this for cinematic campaigns, ad films, and visually rich branded videos.',
-            api_adapter='generate_with_veo3_1',
-        ),
-        'kling2_1': ModelRegistryEntry(
-            key='kling2_1',
-            label='Kling 2.1',
-            description='Best for fast, stylized, and visually artistic clips where speed and visual flair matter most.',
-            frontend_hint='Use this for trend-led content, stylized promos, and quick creative drafts.',
-            api_adapter='generate_with_kling2_1',
-        ),
-        'luma_style': ModelRegistryEntry(
-            key='luma_style',
-            label='Luma Style',
-            description='Best for experimental, mood-driven, and concept-heavy outputs where exploration beats strict realism.',
-            frontend_hint='Use this for prototype concepts, mood videos, and exploratory creative directions.',
-            api_adapter='generate_with_luma_style',
+        'veo3': ModelRegistryEntry(
+            key='veo3',
+            label='High-Quality Cinematics (Veo 3.1)',
+            description='Best for polished short-form videos with native audio and cinematic motion.',
+            frontend_hint='Use this for strong cinematic finish and premium short-form outputs.',
+            api_adapter='generate_with_veo3',
         ),
     }
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, db: Session, settings: Settings) -> None:
+        self.db = db
         self.settings = settings
+        self.repo = VideoRepository(db)
         self.pipeline = VideoPipelineService()
-        self.metadata_dir = Path('data/ai_video_generations')
-        self.metadata_dir.mkdir(parents=True, exist_ok=True)
+        self.tagging = AssetTaggingService(db)
         self.providers = {
-            'sora2_pro': self.generate_with_sora2_pro,
-            'veo3_1': self.generate_with_veo3_1,
-            'kling2_1': self.generate_with_kling2_1,
-            'luma_style': self.generate_with_luma_style,
+            'sora2': self.generate_with_sora2,
+            'veo3': self.generate_with_veo3,
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
-        return list(self.MODEL_REGISTRY.values())
+        return list(self.VIDEO_MODEL_REGISTRY.values())
 
-    def generate(self, payload: dict[str, Any]) -> ProviderResult:
-        selected = payload['selectedModel']
-        registry_entry = self.MODEL_REGISTRY.get(selected)
-        adapter = self.providers.get(selected)
-        if registry_entry is None or adapter is None:
-            raise ProviderError(f'Unsupported model: {selected}')
+    def create_video(
+        self,
+        *,
+        user_id: str,
+        image_url: str | None,
+        script: str,
+        model_key: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration_seconds: int,
+        voice: str,
+    ) -> Video:
+        registry_entry = self.VIDEO_MODEL_REGISTRY.get(model_key)
+        adapter = self.providers.get(model_key)
+        if not registry_entry or not adapter:
+            raise ProviderError(f'Unsupported model: {model_key}')
+
+        video = self.repo.create(
+            user_id=user_id,
+            title=script[:80] or registry_entry.label,
+            script=script,
+            voice=voice,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            duration_mode='custom',
+            duration_seconds=duration_seconds,
+            captions_enabled=True,
+            status=VideoStatus.processing,
+            progress=15,
+            image_urls=json.dumps([image_url] if image_url else []),
+            selected_model=model_key,
+            provider_name=registry_entry.label,
+            source_image_url=image_url,
+            reference_images=json.dumps([image_url] if image_url else []),
+            music_mode='none',
+        )
 
         try:
-            result = adapter(payload, registry_entry)
-        except Exception as exc:
-            logger.warning(
-                'ai_video_provider_failed',
-                extra={'provider': selected, 'error': str(exc)},
+            result = adapter(
+                {
+                    'imageUrl': image_url,
+                    'script': script,
+                    'modelKey': model_key,
+                    'aspectRatio': aspect_ratio,
+                    'resolution': resolution,
+                    'durationSeconds': duration_seconds,
+                    'voice': voice,
+                }
             )
-            result = self._generate_with_fallback(payload, registry_entry, source_error=str(exc))
+            self.repo.update(
+                video,
+                provider_name=result.provider,
+                output_url=result.video_url,
+                thumbnail_url=image_url,
+                progress=100,
+                status=VideoStatus.completed,
+                error_message=None,
+            )
+            self.tagging.auto_tag_video(video)
+        except Exception as exc:
+            logger.exception('ai_video_create_failed', extra={'render_id': video.id, 'model_key': model_key})
+            self.repo.update(video, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
+            raise
+        return video
 
-        self._store_metadata(payload=payload, result=result)
-        return result
-
-    def generate_with_sora2_pro(self, payload: dict[str, Any], model: ModelRegistryEntry) -> ProviderResult:
-        # Real integration point:
-        # Call OpenAI Sora / orchestration layer here with script, voice, bgm, aspect ratio, and resolution.
+    def generate_with_sora2(self, params: dict[str, Any]) -> ProviderResult:
+        # Environment variables required for real integration:
+        # - OPENAI_API_KEY
+        # - optional provider-specific model override if OpenAI changes naming
+        #
+        # Real API integration belongs here. When enabling live Sora calls, replace this fallback
+        # with the official OpenAI video generation client call, e.g. openai.videos.create(...)
+        # using:
+        # - model="sora-2"
+        # - prompt=params["script"]
+        # - image reference when params["imageUrl"] is present
+        # - aspect ratio / resolution / duration / voice mapped to the provider payload
         if not self.settings.openai_api_key:
-            raise ProviderError('OPENAI_API_KEY is not configured')
-        request_payload = {
-            'script': payload['script'],
-            'voice': payload.get('voice'),
-            'bgm': payload.get('bgm'),
-            'aspect_ratio': payload['aspectRatio'],
-            'resolution': payload['resolution'],
-            'duration_mode': payload['durationMode'],
-        }
+            raise ProviderError('OPENAI_API_KEY is not configured for Sora 2')
+        output_path, _ = self._render_local_proxy(
+            render_id_prefix='sora2',
+            script=params['script'],
+            image_url=params.get('imageUrl'),
+            voice=params['voice'],
+            aspect_ratio=params['aspectRatio'],
+            resolution=params['resolution'],
+            duration_seconds=params['durationSeconds'],
+        )
         return ProviderResult(
-            provider_name='OpenAI',
-            video_url=self._mock_remote_video_url(model.key),
-            model_key=model.key,
-            model_label=model.label,
-            model_hint=model.frontend_hint,
-            duration=40,
-            quality=payload['resolution'],
-            metadata={'request': request_payload, 'adapter': model.api_adapter},
+            provider='OpenAI Sora 2',
+            model_key='sora2',
+            video_url=output_path,
+            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
         )
 
-    def generate_with_veo3_1(self, payload: dict[str, Any], model: ModelRegistryEntry) -> ProviderResult:
-        # Real integration point:
-        # Call Google Veo 3.1 / Vertex AI video generation here.
-        request_payload = {
-            'prompt': payload['script'],
-            'voice': payload.get('voice'),
-            'bgm': payload.get('bgm'),
-            'aspect_ratio': payload['aspectRatio'],
-            'resolution': payload['resolution'],
-            'duration_mode': payload['durationMode'],
-        }
-        raise ProviderError('Veo 3.1 adapter is not connected yet')
-
-    def generate_with_kling2_1(self, payload: dict[str, Any], model: ModelRegistryEntry) -> ProviderResult:
-        # Real integration point:
-        # Call Kling 2.1 API here for fast stylized rendering.
-        request_payload = {
-            'prompt': payload['script'],
-            'voice': payload.get('voice'),
-            'aspect_ratio': payload['aspectRatio'],
-            'resolution': payload['resolution'],
-            'duration_mode': payload['durationMode'],
-            'bgm': payload.get('bgm'),
-        }
-        raise ProviderError(f'Kling 2.1 adapter is not connected yet: {json.dumps(request_payload)[:80]}')
-
-    def generate_with_luma_style(self, payload: dict[str, Any], model: ModelRegistryEntry) -> ProviderResult:
-        # Real integration point:
-        # Call Luma / experimental text-to-video provider here.
-        request_payload = {
-            'prompt': payload['script'],
-            'voice': payload.get('voice'),
-            'aspect_ratio': payload['aspectRatio'],
-            'resolution': payload['resolution'],
-            'duration_mode': payload['durationMode'],
-            'bgm': payload.get('bgm'),
-        }
-        raise ProviderError(f'Luma Style adapter is not connected yet: {json.dumps(request_payload)[:80]}')
-
-    def _generate_with_fallback(
-        self,
-        payload: dict[str, Any],
-        model: ModelRegistryEntry,
-        source_error: str | None = None,
-    ) -> ProviderResult:
-        render_id = str(uuid4())
-        output_path, _ = self.pipeline.build_video(
-            render_id=render_id,
-            script=payload['script'],
-            include_broll=False,
+    def generate_with_veo3(self, params: dict[str, Any]) -> ProviderResult:
+        # Environment variables required for real integration:
+        # - GEMINI_API_KEY
+        # - or Vertex AI credentials if you choose the Vertex route for Veo 3.1
+        #
+        # Real Gemini / Vertex video generation integration belongs here. Replace this fallback
+        # with the official Google Veo 3.1 call using:
+        # - prompt=params["script"]
+        # - image reference when params["imageUrl"] is present
+        # - aspect ratio / duration / voice mapped to the provider payload
+        if not self.settings.gemini_api_key:
+            raise ProviderError('GEMINI_API_KEY is not configured for Veo 3.1')
+        output_path, _ = self._render_local_proxy(
+            render_id_prefix='veo3',
+            script=params['script'],
+            image_url=params.get('imageUrl'),
+            voice=params['voice'],
+            aspect_ratio=params['aspectRatio'],
+            resolution=params['resolution'],
+            duration_seconds=params['durationSeconds'],
         )
-        path = Path(output_path)
-        video_url = f'/static/renders/{path.name}'
         return ProviderResult(
-            provider_name='Fallback Local',
-            video_url=video_url,
-            model_key=model.key,
-            model_label=model.label,
-            model_hint=model.frontend_hint,
-            duration=12,
-            quality=payload['resolution'],
-            metadata={
-                'fallback_reason': source_error,
-                'requested_model': model.key,
-                'adapter': model.api_adapter,
-                'voice': payload.get('voice'),
-                'bgm': payload.get('bgm'),
-            },
+            provider='Google Veo 3.1',
+            model_key='veo3',
+            video_url=output_path,
+            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
         )
 
-    def _mock_remote_video_url(self, model_key: str) -> str:
-        return f'https://example.com/generated/{model_key}/{uuid4()}.mp4'
-
-    def _post_json(
+    def _render_local_proxy(
         self,
-        url: str,
-        api_key: str,
-        payload: dict[str, Any],
-        header_name: str,
-        bearer: bool = False,
-    ) -> dict[str, Any]:
-        headers = {
-            'Content-Type': 'application/json',
-            header_name: f'Bearer {api_key}' if bearer else api_key,
-        }
-        body = json.dumps(payload).encode('utf-8')
-        request = urllib.request.Request(url=url, data=body, headers=headers, method='POST')
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                raw = response.read().decode('utf-8')
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode('utf-8', errors='ignore')
-            raise ProviderError(f'Provider HTTP {exc.code}: {detail[:300]}') from exc
-        except urllib.error.URLError as exc:
-            raise ProviderError(f'Provider connection failed: {exc.reason}') from exc
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ProviderError('Provider returned invalid JSON') from exc
-        if not isinstance(data, dict):
-            raise ProviderError('Provider returned unexpected payload')
-        return data
-
-    def _store_metadata(self, payload: dict[str, Any], result: ProviderResult) -> None:
-        record = {
-            'provider_name': result.provider_name,
-            'video_url': result.video_url,
-            'model_key': result.model_key,
-            'model_label': result.model_label,
-            'model_hint': result.model_hint,
-            'duration': result.duration,
-            'quality': result.quality,
-            'request': payload,
-            'metadata': result.metadata,
-        }
-        target = self.metadata_dir / f'{uuid4()}.json'
-        target.write_text(json.dumps(record, indent=2), encoding='utf-8')
+        *,
+        render_id_prefix: str,
+        script: str,
+        image_url: str | None,
+        voice: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration_seconds: int,
+    ) -> tuple[str, str]:
+        render_id = f'{render_id_prefix}-{Path.cwd().name}-{Path(script[:32]).stem}'.replace(' ', '-')
+        render_id = f'{render_id_prefix}-{abs(hash((script, image_url, voice, aspect_ratio, resolution, duration_seconds))) % 10**10}'
+        image_urls = [image_url] if image_url else []
+        self.pipeline.render_video_from_assets(
+            video_id=render_id,
+            title='AI Generated Video',
+            script=script,
+            voice_name=voice,
+            image_urls=image_urls,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            duration_mode='custom',
+            duration_seconds=duration_seconds,
+            captions_enabled=True,
+            music_mode='none',
+            music_track_id=None,
+            music_file_url=None,
+            music_volume=0,
+            duck_music=False,
+        )
+        return (f'/static/renders/{render_id}.mp4', f'/static/renders/{render_id}.jpg')

@@ -1,8 +1,6 @@
 import { API_URL } from '@/lib/env';
 import type {
   Avatar,
-  AIVideoCreateRequest,
-  AIVideoCreateResponse,
   AIVideoModel,
   AIVideoGenerateRequest,
   AIVideoGenerateResponse,
@@ -21,6 +19,8 @@ import type {
   Render,
   Template,
   Video,
+  VideoCreateRequest,
+  VideoCreateResponse,
 } from '@/types/api';
 
 export type ApiOptions = {
@@ -180,8 +180,8 @@ export const api = {
   listAIVideoModels(userId: string) {
     return request<AIVideoModel[]>('/ai/video/models', {}, { userId, cache: 'no-store' });
   },
-  createAIVideo(payload: AIVideoCreateRequest, userId: string) {
-    return request<AIVideoCreateResponse>('/ai/video/create', {
+  createAIVideo(payload: VideoCreateRequest, userId: string) {
+    return request<VideoCreateResponse>('/api/ai/video/create', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });

@@ -18,6 +18,8 @@ class VideoResponse(BaseModel):
     progress: int
     image_urls: list[str] = Field(default_factory=list)
     selected_model: str | None = None
+    provider_name: str | None = None
+    source_image_url: str | None = None
     reference_images: list[str] = Field(default_factory=list)
     music_mode: str
     music_track_id: str | None

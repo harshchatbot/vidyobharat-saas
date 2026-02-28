@@ -8,7 +8,7 @@ SUPPORTED_REEL_TEMPLATES = {
     'Roman_Soldier_POV',
     'Historical_Fact_Reel',
 }
-SUPPORTED_VIDEO_MODELS = {'sora2_pro', 'veo3_1', 'kling2_1', 'luma_style'}
+SUPPORTED_VIDEO_MODELS = {'sora2', 'veo3'}
 
 
 class ReelScriptRequest(BaseModel):
@@ -66,13 +66,13 @@ class AIVideoModelResponse(BaseModel):
 
 
 class AIVideoCreateRequest(BaseModel):
+    imageUrl: str | None = Field(default=None, max_length=255)
     script: str = Field(min_length=1, max_length=6000)
-    voice: str = Field(min_length=1, max_length=120)
-    bgm: str = Field(default='none', max_length=120)
+    modelKey: str = Field(min_length=2, max_length=64)
     aspectRatio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=20)
-    durationMode: str = Field(min_length=3, max_length=20)
-    selectedModel: str = Field(min_length=2, max_length=64)
+    durationSeconds: int = Field(ge=4, le=60)
+    voice: str = Field(min_length=1, max_length=120)
 
     @field_validator('aspectRatio')
     @classmethod
@@ -88,24 +88,15 @@ class AIVideoCreateRequest(BaseModel):
             raise ValueError('Unsupported resolution')
         return value
 
-    @field_validator('durationMode')
-    @classmethod
-    def validate_duration_mode(cls, value: str) -> str:
-        if value not in {'auto', 'custom'}:
-            raise ValueError('Unsupported durationMode')
-        return value
-
-    @field_validator('selectedModel')
+    @field_validator('modelKey')
     @classmethod
     def validate_selected_model(cls, value: str) -> str:
         if value not in SUPPORTED_VIDEO_MODELS:
-            raise ValueError('Unsupported selectedModel')
+            raise ValueError('Unsupported modelKey')
         return value
 
 
 class AIVideoCreateResponse(BaseModel):
-    providerName: str
     videoUrl: str
+    provider: str
     modelKey: str
-    modelLabel: str
-    modelHint: str

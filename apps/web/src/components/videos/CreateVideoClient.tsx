@@ -8,12 +8,15 @@ import {
   Clapperboard,
   Clock3,
   Crown,
+  Download,
   Film,
   GripVertical,
+  ImagePlus,
   Languages,
   Lightbulb,
   Mic2,
   MonitorSmartphone,
+  PlayCircle,
   Rocket,
   ScrollText,
   Sparkles,
@@ -31,7 +34,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, MusicTrack, ReelScriptOutput } from '@/types/api';
+import type { AIVideoModel, GeneratedImage, MusicTrack, ReelScriptOutput, VideoCreateResponse } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -99,40 +102,24 @@ const aiToneOptions = ['Cinematic', 'Dramatic', 'Educational', 'Inspirational', 
 const aiLanguageOptions = ['English', 'Hinglish', 'Hindi'];
 const fallbackModelOptions: AIVideoModel[] = [
   {
-    key: 'sora2_pro',
-    label: 'Sora 2 Pro',
-    description: 'Best for narrative social clips with realistic motion and polished continuity.',
-    frontendHint: 'Use this for premium reels and story-led short videos.',
-    apiAdapter: 'generate_with_sora2_pro',
+    key: 'sora2',
+    label: 'Cinematic Storytelling (Sora 2)',
+    description: 'Best for realistic narrative videos with synced audio.',
+    frontendHint: 'Use this for premium story-led videos with strong realism.',
+    apiAdapter: 'generate_with_sora2',
   },
   {
-    key: 'veo3_1',
-    label: 'Veo 3.1',
-    description: 'Best for cinematic visuals and stronger creative control across scenes.',
-    frontendHint: 'Use this for cinematic campaigns and richer branded storytelling.',
-    apiAdapter: 'generate_with_veo3_1',
-  },
-  {
-    key: 'kling2_1',
-    label: 'Kling 2.1',
-    description: 'Best for fast, stylized, and artistic clips.',
-    frontendHint: 'Use this for quick drafts, trend-led content, and bold visual looks.',
-    apiAdapter: 'generate_with_kling2_1',
-  },
-  {
-    key: 'luma_style',
-    label: 'Luma Style',
-    description: 'Best for experimental, mood-driven, and concept-heavy visuals.',
-    frontendHint: 'Use this for prototypes, atmosphere, and exploratory creative directions.',
-    apiAdapter: 'generate_with_luma_style',
+    key: 'veo3',
+    label: 'High-Quality Cinematics (Veo 3.1)',
+    description: 'Best for polished videos with native audio from Google Gemini.',
+    frontendHint: 'Use this for cinematic short videos with premium finish.',
+    apiAdapter: 'generate_with_veo3',
   },
 ];
 
 const modelIcons: Record<string, typeof Crown> = {
-  sora2_pro: Crown,
-  veo3_1: MonitorSmartphone,
-  kling2_1: Rocket,
-  luma_style: Stars,
+  sora2: Crown,
+  veo3: MonitorSmartphone,
 };
 
 export function CreateVideoClient({ userId, templateKey, initialScript, initialTitle }: Props) {
@@ -156,13 +143,18 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
   const [aiTopic, setAiTopic] = useState(initialTitle ?? prefill?.title ?? '');
   const [aiTone, setAiTone] = useState('Cinematic');
   const [aiLanguage, setAiLanguage] = useState('English');
-  const [selectedModel, setSelectedModel] = useState('sora2_pro');
+  const [selectedModel, setSelectedModel] = useState('sora2');
   const [aiModels, setAiModels] = useState<AIVideoModel[]>(fallbackModelOptions);
   const [aiModelsLoading, setAiModelsLoading] = useState(false);
   const [referenceImagesText, setReferenceImagesText] = useState('');
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [selectedImageUrl, setSelectedImageUrl] = useState('');
   const [aiScriptLoading, setAiScriptLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiScriptResult, setAiScriptResult] = useState<ReelScriptOutput | null>(null);
+  const [aiVideoSubmitting, setAiVideoSubmitting] = useState(false);
+  const [aiVideoError, setAiVideoError] = useState<string | null>(null);
+  const [aiVideoResult, setAiVideoResult] = useState<VideoCreateResponse | null>(null);
 
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
@@ -214,17 +206,17 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
   useEffect(() => {
     let cancelled = false;
     setAiModelsLoading(true);
-    void api
-      .listAIVideoModels(userId)
-      .then((models) => {
-        if (cancelled || models.length === 0) return;
-        setAiModels(models);
-        setSelectedModel((current) => (models.some((item) => item.key === current) ? current : models[0].key));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAiModels(fallbackModelOptions);
+    void Promise.all([
+      api.listAIVideoModels(userId).catch(() => fallbackModelOptions),
+      api.listGeneratedImages(userId).catch(() => []),
+    ])
+      .then(([models, images]) => {
+        if (cancelled) return;
+        if (models.length > 0) {
+          setAiModels(models);
+          setSelectedModel((current) => (models.some((item) => item.key === current) ? current : models[0].key));
         }
+        setGeneratedImages(images);
       })
       .finally(() => {
         if (!cancelled) {
@@ -341,7 +333,6 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
       formData.append('title', title);
       formData.append('script', script);
       formData.append('voice', voice);
-      formData.append('selected_model', selectedModel);
       formData.append('aspect_ratio', aspectRatio);
       formData.append('resolution', resolution);
       formData.append('duration_mode', durationMode);
@@ -371,6 +362,35 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
       setError('Failed to create video. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const generateAIVideo = async () => {
+    if (!script.trim()) {
+      setAiVideoError('Please add a script before generating AI video.');
+      return;
+    }
+    const seconds = Math.max(4, Math.min(60, Number(durationSeconds) || 8));
+    setAiVideoSubmitting(true);
+    setAiVideoError(null);
+    try {
+      const result = await api.createAIVideo(
+        {
+          imageUrl: selectedImageUrl || null,
+          script: script.trim(),
+          modelKey: selectedModel as 'sora2' | 'veo3',
+          aspectRatio: aspectRatio === '1:1' ? '9:16' : aspectRatio,
+          resolution,
+          durationSeconds: seconds,
+          voice,
+        },
+        userId,
+      );
+      setAiVideoResult(result);
+    } catch (err) {
+      setAiVideoError(err instanceof Error ? err.message : 'Failed to generate AI video.');
+    } finally {
+      setAiVideoSubmitting(false);
     }
   };
 
@@ -434,7 +454,7 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
           <div>
             <p className="text-sm font-semibold text-text">AI Assist</p>
-            <p className="text-xs text-muted">Pick a content direction, generate script help, and choose the model style best suited for the final render.</p>
+            <p className="text-xs text-muted">Pick a content direction, generate script help, then create text-to-video or image-seeded video with Sora 2 or Veo 3.1.</p>
           </div>
         </div>
 
@@ -612,12 +632,41 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
           />
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="mb-1 text-sm font-semibold text-text">Optional image picker</p>
+            <Dropdown value={selectedImageUrl} onChange={(event) => setSelectedImageUrl(event.target.value)}>
+              <option value="">Text-to-video only</option>
+              {generatedImages.map((item) => (
+                <option
+                  key={item.id}
+                  value={item.image_url.startsWith('http://') || item.image_url.startsWith('https://') ? item.image_url : `${API_URL}${item.image_url}`}
+                >
+                  {item.prompt.slice(0, 64)}
+                </option>
+              ))}
+            </Dropdown>
+            <p className="mt-2 text-xs text-muted">Pick one of your existing generated images to run image-to-video.</p>
+          </div>
+          <div className="rounded-[var(--radius-md)] border border-border bg-bg p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-text">
+              <ImagePlus className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              Selected seed
+            </div>
+            {selectedImageUrl ? (
+              <img src={selectedImageUrl} alt="Selected image seed" className="mt-3 h-28 w-full rounded-[var(--radius-md)] object-cover" />
+            ) : (
+              <p className="mt-3 text-xs text-muted">No image selected. The model will generate from text only.</p>
+            )}
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" onClick={() => void generateAIScript()} disabled={aiScriptLoading} className="gap-2">
             {aiScriptLoading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
             {aiScriptLoading ? 'Generating script...' : 'Generate AI Script'}
           </Button>
-          <p className="text-xs text-muted">The selected model will be used when you click the final Generate Video button below.</p>
+          <p className="text-xs text-muted">Use the AI video card below for Sora 2 / Veo 3.1 generation.</p>
           {aiError && <p className="text-sm text-[hsl(var(--color-danger))]">{aiError}</p>}
         </div>
 
@@ -636,6 +685,49 @@ export function CreateVideoClient({ userId, templateKey, initialScript, initialT
             <p className="mt-3 text-xs text-muted">CTA: {aiScriptResult.cta}</p>
           </div>
         )}
+
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-text">AI Video Generation</p>
+              <p className="mt-1 text-xs text-muted">Generate text-to-video or text + image to video with the selected model.</p>
+            </div>
+            <Button type="button" onClick={() => void generateAIVideo()} disabled={aiVideoSubmitting} className="gap-2">
+              {aiVideoSubmitting ? <Spinner /> : <PlayCircle className="h-4 w-4" />}
+              {aiVideoSubmitting ? 'Generating AI Video...' : 'Generate Video'}
+            </Button>
+          </div>
+          {aiVideoError ? <p className="mt-3 text-sm text-[hsl(var(--color-danger))]">{aiVideoError}</p> : null}
+          {aiVideoResult ? (
+            <div className="mt-4 space-y-3">
+              <video
+                src={aiVideoResult.videoUrl.startsWith('http://') || aiVideoResult.videoUrl.startsWith('https://') ? aiVideoResult.videoUrl : `${API_URL}${aiVideoResult.videoUrl}`}
+                controls
+                className="w-full rounded-[var(--radius-md)] border border-border"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Badge>{selectedModelMeta?.label}</Badge>
+                <Badge>{resolution}</Badge>
+                <Badge>{Math.max(4, Math.min(60, Number(durationSeconds) || 8))}s</Badge>
+                <Badge>{aiVideoResult.provider}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={aiVideoResult.videoUrl.startsWith('http://') || aiVideoResult.videoUrl.startsWith('https://') ? aiVideoResult.videoUrl : `${API_URL}${aiVideoResult.videoUrl}`}
+                  download
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </a>
+                <Button variant="secondary" type="button" onClick={() => void generateAIVideo()} className="gap-2">
+                  <Rocket className="h-4 w-4" />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </Card>
 
       <Card>

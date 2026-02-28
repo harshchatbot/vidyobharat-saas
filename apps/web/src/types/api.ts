@@ -67,6 +67,8 @@ export type Video = {
   progress: number;
   image_urls: string[];
   selected_model: string | null;
+  provider_name: string | null;
+  source_image_url: string | null;
   reference_images: string[];
   music_mode: 'none' | 'library' | 'upload' | string;
   music_track_id: string | null;
@@ -129,22 +131,20 @@ export type AIVideoModel = {
   apiAdapter: string;
 };
 
-export type AIVideoCreateRequest = {
+export type VideoCreateRequest = {
+  imageUrl: string | null;
   script: string;
-  voice: string;
-  bgm: string;
+  modelKey: 'sora2' | 'veo3';
   aspectRatio: string;
   resolution: string;
-  durationMode: string;
-  selectedModel: string;
+  durationSeconds: number;
+  voice: string;
 };
 
-export type AIVideoCreateResponse = {
-  providerName: string;
+export type VideoCreateResponse = {
   videoUrl: string;
+  provider: string;
   modelKey: string;
-  modelLabel: string;
-  modelHint: string;
 };
 
 export type ImageModel = {

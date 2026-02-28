@@ -51,6 +51,8 @@ def _ensure_video_columns() -> None:
         ('duration_seconds', 'ALTER TABLE videos ADD COLUMN duration_seconds INTEGER'),
         ('captions_enabled', 'ALTER TABLE videos ADD COLUMN captions_enabled BOOLEAN DEFAULT 1'),
         ('selected_model', 'ALTER TABLE videos ADD COLUMN selected_model VARCHAR(64)'),
+        ('provider_name', 'ALTER TABLE videos ADD COLUMN provider_name VARCHAR(120)'),
+        ('source_image_url', 'ALTER TABLE videos ADD COLUMN source_image_url VARCHAR(255)'),
         ('reference_images', "ALTER TABLE videos ADD COLUMN reference_images TEXT DEFAULT '[]'"),
         ('music_mode', "ALTER TABLE videos ADD COLUMN music_mode VARCHAR(20) DEFAULT 'none'"),
         ('music_track_id', 'ALTER TABLE videos ADD COLUMN music_track_id VARCHAR(80)'),

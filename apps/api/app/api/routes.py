@@ -49,7 +49,7 @@ from app.services.image_generation_service import ImageGenerationService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
-from app.services.ai_video_service import AIVideoOrchestrator, ProviderError
+from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.upload_service import UploadService
@@ -152,6 +152,8 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         progress=video.progress,
         image_urls=image_urls,
         selected_model=video.selected_model,
+        provider_name=video.provider_name,
+        source_image_url=video.source_image_url,
         reference_images=reference_images,
         music_mode=video.music_mode,
         music_track_id=video.music_track_id,
@@ -260,24 +262,34 @@ def generate_reel_script(
 @router.post('/ai/video/generate', response_model=AIVideoGenerateResponse)
 def generate_ai_video(
     payload: AIVideoGenerateRequest,
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
 ):
     try:
-        orchestrator = AIVideoOrchestrator(settings)
-        result = orchestrator.generate(payload.model_dump())
+        service = AIVideoCreateService(db, settings)
+        video = service.create_video(
+            user_id=user_id,
+            image_url=payload.referenceImages[0] if payload.referenceImages else None,
+            script=f'{payload.topic}. Tone: {payload.tone}. Language: {payload.language}.',
+            model_key=payload.selectedModel,
+            aspect_ratio='9:16',
+            resolution='1080p',
+            duration_seconds=8,
+            voice=payload.voice or 'Aarav',
+        )
         logger.info(
             'ai_video_generated',
             extra={
                 'request_id': get_request_id(),
-                'provider': result.provider_name,
+                'provider': video.provider_name,
                 'template_id': payload.templateId,
             },
         )
         return AIVideoGenerateResponse(
-            videoUrl=result.video_url,
-            provider=result.provider_name,
-            duration=result.duration,
-            quality=result.quality,
+            videoUrl=video.output_url or '',
+            provider=video.provider_name or payload.selectedModel,
+            duration=video.duration_seconds or 8,
+            quality=video.resolution,
         )
     except ProviderError as exc:
         logger.warning(
@@ -297,8 +309,9 @@ def generate_ai_video(
 
 
 @router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
-def list_ai_video_models(_: str = Depends(get_user_id)):
-    orchestrator = AIVideoOrchestrator(settings)
+@router.get('/api/ai/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
+def list_ai_video_models(_: str = Depends(get_user_id), db: Session = Depends(get_db)):
+    service = AIVideoCreateService(db, settings)
     return [
         AIVideoModelResponse(
             key=model.key,
@@ -307,43 +320,52 @@ def list_ai_video_models(_: str = Depends(get_user_id)):
             frontendHint=model.frontend_hint,
             apiAdapter=model.api_adapter,
         )
-        for model in orchestrator.list_models()
+        for model in service.list_models()
     ]
 
 
 @router.post('/ai/video/create', response_model=AIVideoCreateResponse)
+@router.post('/api/ai/video/create', response_model=AIVideoCreateResponse, include_in_schema=False)
 def create_ai_video(
     payload: AIVideoCreateRequest,
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
 ):
     try:
-        orchestrator = AIVideoOrchestrator(settings)
-        result = orchestrator.generate(payload.model_dump())
+        service = AIVideoCreateService(db, settings)
+        video = service.create_video(
+            user_id=user_id,
+            image_url=payload.imageUrl,
+            script=payload.script,
+            model_key=payload.modelKey,
+            aspect_ratio=payload.aspectRatio,
+            resolution=payload.resolution,
+            duration_seconds=payload.durationSeconds,
+            voice=payload.voice,
+        )
         logger.info(
             'ai_video_created',
             extra={
                 'request_id': get_request_id(),
-                'provider': result.provider_name,
-                'model_key': result.model_key,
+                'provider': video.provider_name,
+                'model_key': video.selected_model,
             },
         )
         return AIVideoCreateResponse(
-            providerName=result.provider_name,
-            videoUrl=result.video_url,
-            modelKey=result.model_key,
-            modelLabel=result.model_label,
-            modelHint=result.model_hint,
+            videoUrl=video.output_url or '',
+            provider=video.provider_name or payload.modelKey,
+            modelKey=payload.modelKey,
         )
     except ProviderError as exc:
         logger.warning(
             'ai_video_create_provider_error',
-            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.selectedModel},
+            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception(
             'ai_video_create_failed',
-            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.selectedModel},
+            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
         )
         detail = str(exc).strip() or 'Failed to create AI video'
         if settings.env != 'development':
