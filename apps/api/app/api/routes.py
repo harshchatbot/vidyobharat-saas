@@ -23,9 +23,12 @@ from app.schemas.ai import (
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.image_generation import (
+    ImageGenerationActionRequest,
     ImageGenerationCreateRequest,
     ImageGenerationResponse,
     ImageModelResponse,
+    ImagePromptEnhanceRequest,
+    ImagePromptEnhanceResponse,
     InspirationImageResponse,
 )
 from app.schemas.project import (
@@ -252,7 +255,7 @@ def generate_ai_video(
             'ai_video_generated',
             extra={
                 'request_id': get_request_id(),
-                'provider': result.provider,
+                'provider': result.provider_name,
                 'template_id': payload.templateId,
             },
         )
@@ -385,6 +388,31 @@ def generate_ai_image(
         reference_urls=payload.reference_urls,
     )
     return _to_image_generation_response(generation)
+
+
+@router.post('/ai/image/prompt-enhance', response_model=ImagePromptEnhanceResponse)
+def enhance_ai_image_prompt(
+    payload: ImagePromptEnhanceRequest,
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    return ImagePromptEnhanceResponse(prompt=service.enhance_prompt(payload.prompt, payload.model_key))
+
+
+@router.post('/ai/images/{image_id}/action', response_model=ImageGenerationResponse)
+def apply_ai_image_action(
+    image_id: str,
+    payload: ImageGenerationActionRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = ImageGenerationService(db)
+    try:
+        result = service.apply_action(user_id=user_id, generation_id=image_id, action=payload.action)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _to_image_generation_response(result)
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)

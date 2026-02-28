@@ -68,3 +68,23 @@ class ImageGenerationCreateRequest(BaseModel):
         if value not in SUPPORTED_RESOLUTIONS:
             raise ValueError('Unsupported resolution')
         return value
+
+
+class ImagePromptEnhanceRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=1000)
+    model_key: str | None = Field(default=None, max_length=64)
+
+
+class ImagePromptEnhanceResponse(BaseModel):
+    prompt: str
+
+
+class ImageGenerationActionRequest(BaseModel):
+    action: str = Field(min_length=3, max_length=40)
+
+    @field_validator('action')
+    @classmethod
+    def validate_action(cls, value: str) -> str:
+        if value not in {'remove_background', 'upscale', 'variation'}:
+            raise ValueError('Unsupported action')
+        return value

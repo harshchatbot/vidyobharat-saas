@@ -177,3 +177,13 @@ export type InspirationImage = {
   created_at: string;
   reference_urls: string[];
 };
+
+export type ImageQuickTemplate = {
+  id: string;
+  category: string;
+  title: string;
+  prompt: string;
+  aspect_ratio: string;
+  resolution: string;
+  model_key: string;
+};

@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from openai import OpenAI
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.repositories.image_generation_repository import ImageGenerationRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
 
@@ -105,6 +107,7 @@ class ImageGenerationService:
         self.repo = ImageGenerationRepository(db)
         self.output_dir = Path('data/image_generations')
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.settings = get_settings()
 
     def list_models(self) -> list[ImageModelEntry]:
         return list(IMAGE_MODEL_REGISTRY.values())
@@ -114,6 +117,50 @@ class ImageGenerationService:
 
     def list_inspiration(self) -> list[dict[str, str]]:
         return INSPIRATION_ITEMS
+
+    def enhance_prompt(self, prompt: str, model_key: str | None = None) -> str:
+        cleaned = prompt.strip()
+        if not cleaned:
+            return cleaned
+
+        if self.settings.openai_api_key:
+            try:
+                client = OpenAI(api_key=self.settings.openai_api_key)
+                response = client.chat.completions.create(
+                    model=self.settings.openai_model,
+                    temperature=0.7,
+                    messages=[
+                        {
+                            'role': 'system',
+                            'content': (
+                                'Rewrite image prompts for creator-grade image generation. '
+                                'Return only one refined prompt sentence. Keep it under 50 words.'
+                            ),
+                        },
+                        {
+                            'role': 'user',
+                            'content': (
+                                f'Base prompt: {cleaned}\n'
+                                f'Model: {model_key or "general"}\n'
+                                'Make it more cinematic, detailed, visually rich, and commercially useful.'
+                            ),
+                        },
+                    ],
+                )
+                refined = (response.choices[0].message.content or '').strip()
+                if refined:
+                    return refined
+            except Exception as exc:
+                logger.warning('image_prompt_enhance_fallback', extra={'error': str(exc), 'model_key': model_key})
+
+        descriptors = {
+            'nano_banana': 'bold composition, social-ready framing, cinematic lighting',
+            'seedream': 'editorial lighting, premium atmosphere, refined details',
+            'flux_spark': 'realistic materials, commercial polish, soft studio shadows',
+            'recraft_studio': 'illustrative composition, design-forward styling, rich color contrast',
+        }
+        suffix = descriptors.get(model_key or '', 'cinematic lighting, refined detail, premium composition')
+        return f'{cleaned}, {suffix}, high detail, creator-grade output'
 
     def create_image(
         self,
@@ -161,6 +208,40 @@ class ImageGenerationService:
         )
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
+
+    def apply_action(self, user_id: str, generation_id: str, action: str) -> ImageGeneration:
+        generation = self.repo.get_by_id(generation_id)
+        if generation is None or generation.user_id != user_id:
+            raise ValueError('Image not found')
+
+        reference_urls: list[str] = []
+        try:
+            reference_urls = json.loads(generation.reference_urls or '[]')
+        except json.JSONDecodeError:
+            reference_urls = []
+
+        next_prompt = generation.prompt
+        next_resolution = generation.resolution
+        next_references = [generation.image_url, *reference_urls]
+
+        if action == 'remove_background':
+            next_prompt = f'{generation.prompt}. Isolated subject, clean transparent-style background, no environment clutter.'
+        elif action == 'upscale':
+            next_prompt = f'{generation.prompt}. Ultra-detailed upscale, sharper textures, polished high-resolution finish.'
+            next_resolution = self._next_resolution(generation.resolution)
+        elif action == 'variation':
+            next_prompt = f'{generation.prompt}. Create a close variation with a fresh mood, lighting shift, and subtle composition change.'
+        else:
+            raise ValueError('Unsupported action')
+
+        return self.create_image(
+            user_id=user_id,
+            model_key=generation.model_key,
+            prompt=next_prompt,
+            aspect_ratio=generation.aspect_ratio,
+            resolution=next_resolution,
+            reference_urls=next_references,
+        )
 
     def _build_svg(
         self,
@@ -256,3 +337,11 @@ class ImageGenerationService:
             .replace('"', '&quot;')
             .replace("'", '&apos;')
         )
+
+    def _next_resolution(self, current: str) -> str:
+        order = ['1024', '1536', '2048']
+        try:
+            index = order.index(current)
+        except ValueError:
+            return '2048'
+        return order[min(index + 1, len(order) - 1)]

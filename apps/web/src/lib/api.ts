@@ -207,4 +207,16 @@ export const api = {
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },
+  enhanceImagePrompt(payload: { prompt: string; model_key?: string }, userId: string) {
+    return request<{ prompt: string }>('/ai/image/prompt-enhance', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  applyImageAction(imageId: string, action: 'remove_background' | 'upscale' | 'variation', userId: string) {
+    return request<GeneratedImage>(`/ai/images/${imageId}/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }, { userId, cache: 'no-store' });
+  },
 };
