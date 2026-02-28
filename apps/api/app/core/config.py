@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     public_asset_base_url: str = 'http://localhost:8000/static'
     openai_api_key: str | None = None
     openai_model: str = 'gpt-4.1-mini'
+    gemini_api_key: str | None = None
+    gemini_api_base: str = 'https://generativelanguage.googleapis.com/v1beta'
+    together_api_key: str | None = None
+    together_api_base: str = 'https://api.together.xyz/v1'
     heygen_api_key: str | None = None
     heygen_api_base: str = 'https://api.heygen.com'
     runway_api_key: str | None = None

@@ -1,6 +1,8 @@
 import json
 import logging
 import subprocess
+import urllib.error
+import urllib.request
 from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +52,14 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         frontend_hint='Use this for illustrated storytelling, album art, and creator-brand graphics.',
     ),
 }
+
+TOGETHER_IMAGE_MODELS = {
+    'nano_banana': 'google/gemini-3-pro-image',
+    'seedream': 'ByteDance-Seed/Seedream-4.0',
+    'flux_spark': 'black-forest-labs/FLUX.1-schnell-Free',
+    'recraft_studio': 'black-forest-labs/FLUX.1-schnell-Free',
+}
+GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image-preview'
 
 INSPIRATION_ITEMS = [
     {
@@ -174,28 +184,52 @@ class ImageGenerationService:
         reference_urls: list[str],
     ) -> ImageGeneration:
         model = IMAGE_MODEL_REGISTRY[model_key]
-        svg_id = str(uuid4())
-        output_file = self.output_dir / f'{svg_id}.svg'
-        thumbnail_file = self.output_dir / f'{svg_id}_thumb.svg'
-
-        svg_markup = self._build_svg(
-            model=model,
-            prompt=prompt,
-            aspect_ratio=aspect_ratio,
-            resolution=resolution,
-            reference_urls=reference_urls,
-            compact=False,
-        )
-        thumb_markup = self._build_svg(
-            model=model,
-            prompt=prompt,
-            aspect_ratio=aspect_ratio,
-            resolution=resolution,
-            reference_urls=reference_urls,
-            compact=True,
-        )
-        output_file.write_text(svg_markup, encoding='utf-8')
-        thumbnail_file.write_text(thumb_markup, encoding='utf-8')
+        image_url: str
+        thumbnail_url: str
+        if model_key == 'nano_banana' and self.settings.gemini_api_key:
+            try:
+                image_url, thumbnail_url = self._generate_with_gemini(
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                )
+            except Exception as exc:
+                logger.warning('gemini_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
+                image_url, thumbnail_url = self._create_local_placeholder(
+                    model=model,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+        elif self.settings.together_api_key:
+            try:
+                remote_url = self._generate_with_together(
+                    model_key=model_key,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+                image_url = remote_url
+                thumbnail_url = remote_url
+            except Exception as exc:
+                logger.warning('together_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
+                image_url, thumbnail_url = self._create_local_placeholder(
+                    model=model,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+        else:
+            image_url, thumbnail_url = self._create_local_placeholder(
+                model=model,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                reference_urls=reference_urls,
+            )
 
         generation = self.repo.create(
             user_id=user_id,
@@ -205,8 +239,8 @@ class ImageGenerationService:
             aspect_ratio=aspect_ratio,
             resolution=resolution,
             reference_urls=json.dumps(reference_urls),
-            image_url=f'/static/image_generations/{output_file.name}',
-            thumbnail_url=f'/static/image_generations/{thumbnail_file.name}',
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
             action_type=None,
             status=ImageGenerationStatus.completed,
         )
@@ -404,6 +438,41 @@ class ImageGenerationService:
   <text x='{width - 240 if compact else width - 320}' y='{height - 72}' fill='rgba(255,255,255,0.72)' font-size='{14 if compact else 20}' font-family='Arial Unicode MS, Arial, sans-serif'>Refs: {len(reference_urls)} • Model: {self._escape_xml(model.key)}</text>
 </svg>"""
 
+    def _create_local_placeholder(
+        self,
+        model: ImageModelEntry,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        reference_urls: list[str],
+    ) -> tuple[str, str]:
+        svg_id = str(uuid4())
+        output_file = self.output_dir / f'{svg_id}.svg'
+        thumbnail_file = self.output_dir / f'{svg_id}_thumb.svg'
+        output_file.write_text(
+            self._build_svg(
+                model=model,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                reference_urls=reference_urls,
+                compact=False,
+            ),
+            encoding='utf-8',
+        )
+        thumbnail_file.write_text(
+            self._build_svg(
+                model=model,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                reference_urls=reference_urls,
+                compact=True,
+            ),
+            encoding='utf-8',
+        )
+        return f'/static/image_generations/{output_file.name}', f'/static/image_generations/{thumbnail_file.name}'
+
     def _dimensions_for(self, aspect_ratio: str, compact: bool) -> tuple[int, int]:
         matrix = {
             '9:16': (540, 960) if compact else (1080, 1920),
@@ -460,6 +529,139 @@ class ImageGenerationService:
         except ValueError:
             return '2048'
         return order[min(index + 1, len(order) - 1)]
+
+    def _generate_with_together(
+        self,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        reference_urls: list[str],
+    ) -> str:
+        provider_model = TOGETHER_IMAGE_MODELS.get(model_key)
+        if not provider_model:
+            raise ValueError(f'Unsupported Together model mapping for {model_key}')
+
+        width, height = self._together_dimensions(aspect_ratio, resolution)
+        payload: dict[str, object] = {
+            'model': provider_model,
+            'prompt': prompt,
+            'width': width,
+            'height': height,
+            'steps': 28,
+            'n': 1,
+            'response_format': 'url',
+        }
+        if reference_urls:
+            payload['image_url'] = reference_urls[0]
+
+        request = urllib.request.Request(
+            url=f'{self.settings.together_api_base.rstrip("/")}/images/generations',
+            data=json.dumps(payload).encode('utf-8'),
+            headers={
+                'Authorization': f'Bearer {self.settings.together_api_key}',
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                raw = response.read().decode('utf-8')
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode('utf-8', errors='ignore')
+            raise RuntimeError(f'Together API HTTP {exc.code}: {detail[:400]}') from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f'Together API connection failed: {exc.reason}') from exc
+
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise RuntimeError('Together API returned unexpected payload')
+        items = data.get('data') or []
+        if not isinstance(items, list) or not items:
+            raise RuntimeError('Together API returned no image data')
+        url = items[0].get('url')
+        if not url:
+            raise RuntimeError('Together API returned no image URL')
+        return str(url)
+
+    def _generate_with_gemini(
+        self,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+    ) -> tuple[str, str]:
+        image_id = str(uuid4())
+        output_file = self.output_dir / f'{image_id}.png'
+        thumb_file = self.output_dir / f'{image_id}_thumb.png'
+
+        payload = {
+            'contents': [
+                {
+                    'parts': [
+                        {
+                            'text': f'{prompt}. Create a high-quality image output with aspect ratio {aspect_ratio} and resolution target around {resolution}px.'
+                        }
+                    ]
+                }
+            ]
+        }
+        request = urllib.request.Request(
+            url=f'{self.settings.gemini_api_base.rstrip("/")}/models/{GEMINI_IMAGE_MODEL}:generateContent?key={self.settings.gemini_api_key}',
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                raw = response.read().decode('utf-8')
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode('utf-8', errors='ignore')
+            raise RuntimeError(f'Gemini API HTTP {exc.code}: {detail[:400]}') from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f'Gemini API connection failed: {exc.reason}') from exc
+
+        data = json.loads(raw)
+        candidates = data.get('candidates') or []
+        inline_data = None
+        for candidate in candidates:
+            parts = candidate.get('content', {}).get('parts', [])
+            for part in parts:
+                if 'inlineData' in part:
+                    inline_data = part['inlineData']
+                    break
+            if inline_data:
+                break
+        if not inline_data:
+            raise RuntimeError('Gemini API returned no image payload')
+
+        mime_type = inline_data.get('mimeType')
+        image_bytes = b64decode(inline_data.get('data', ''))
+        if not image_bytes:
+            raise RuntimeError('Gemini API returned empty image data')
+
+        suffix = '.png'
+        if mime_type == 'image/jpeg':
+            suffix = '.jpg'
+        if suffix != '.png':
+            output_file = output_file.with_suffix(suffix)
+            thumb_file = thumb_file.with_suffix(suffix)
+
+        output_file.write_bytes(image_bytes)
+        thumb_file.write_bytes(image_bytes)
+        return (
+            f'/static/image_generations/{output_file.name}',
+            f'/static/image_generations/{thumb_file.name}',
+        )
+
+    def _together_dimensions(self, aspect_ratio: str, resolution: str) -> tuple[int, int]:
+        base = int(resolution) if resolution.isdigit() else 1024
+        if aspect_ratio == '9:16':
+            return (max(512, round(base * 9 / 16)), base)
+        if aspect_ratio == '16:9':
+            return (base, max(512, round(base * 9 / 16)))
+        if aspect_ratio == '4:5':
+            return (max(512, round(base * 4 / 5)), base)
+        return (base, base)
 
     def _upscaled_resolution(self, aspect_ratio: str, current: str) -> str:
         dims = self._dimensions_for(aspect_ratio, compact=False)
