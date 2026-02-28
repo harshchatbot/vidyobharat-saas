@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
 const navLinks = [
@@ -37,8 +38,8 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
     <div>
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="font-semibold tracking-tight text-[hsl(var(--color-text))]">RangManch AI</Link>
+        <div className="flex min-w-0 items-center gap-3">
+          <BrandLogo href="/" variant="full" size="sm" className="max-w-[180px] sm:max-w-[220px]" />
           <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
         </div>
 

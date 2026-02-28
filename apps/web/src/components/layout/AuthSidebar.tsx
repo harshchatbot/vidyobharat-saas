@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
 type Props = {
@@ -124,12 +125,9 @@ export function AuthSidebar({ accountLabel }: Props) {
   return (
     <aside className="sticky top-0 grid h-screen grid-cols-[72px_240px] border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
       <div className="flex flex-col items-center gap-3 border-r border-[hsl(var(--color-border))] px-2 py-3">
-        <Link
-          href="/dashboard"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-sm font-extrabold text-text"
-        >
-          VB
-        </Link>
+        <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-1">
+          <BrandLogo href="/dashboard" variant="mark" size="sm" />
+        </div>
 
         <nav className="grid gap-2">
           {railItems.map((item) => {

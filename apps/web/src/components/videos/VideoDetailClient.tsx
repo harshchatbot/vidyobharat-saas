@@ -89,24 +89,13 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     if (!url) return;
 
     setDownloading(true);
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      const safeName = (video.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-      link.download = `${safeName || 'video'}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      setError('Download failed. Please try again.');
-    } finally {
-      setDownloading(false);
-    }
+    const safeName = (video.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'video';
+    const link = document.createElement('a');
+    link.href = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(`${safeName}.mp4`)}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => setDownloading(false), 600);
   };
 
   if (loading) {

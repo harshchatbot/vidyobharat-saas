@@ -75,6 +75,12 @@ class AIVideoCreateService:
         'kling3': {'min': 3, 'max': 10, 'default': 5},
     }
 
+    OUTPUT_RULES: dict[str, dict[str, Any]] = {
+        'sora2': {'aspects': {'9:16', '16:9'}, 'resolutions': {'720p'}},
+        'veo3': {'aspects': {'9:16', '16:9', '1:1'}, 'resolutions': {'720p', '1080p'}},
+        'kling3': {'aspects': {'9:16', '16:9', '1:1'}, 'resolutions': {'720p', '1080p'}},
+    }
+
     def __init__(self, db: Session, settings: Settings) -> None:
         self.db = db
         self.settings = settings
@@ -114,6 +120,8 @@ class AIVideoCreateService:
         adapter = self.providers.get(model_key)
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
+
+        self._validate_output_settings(model_key=model_key, aspect_ratio=aspect_ratio, resolution=resolution)
 
         normalized_duration = self._normalize_duration(
             model_key=model_key,
@@ -355,10 +363,12 @@ class AIVideoCreateService:
     def _map_openai_video_size(self, aspect_ratio: str, resolution: str) -> str:
         if aspect_ratio == '1:1':
             raise ProviderError('OpenAI Sora 2 is currently configured only for 9:16 and 16:9 outputs')
+        if resolution != '720p':
+            raise ProviderError('OpenAI Sora 2 currently supports only 720p output sizes')
         if aspect_ratio == '9:16':
-            return '720x1280' if resolution == '720p' else '1024x1792'
+            return '720x1280'
         if aspect_ratio == '16:9':
-            return '1280x720' if resolution == '720p' else '1792x1024'
+            return '1280x720'
         raise ProviderError(f'Unsupported aspect ratio for Sora 2: {aspect_ratio}')
 
     def _build_sora_prompt(
@@ -446,6 +456,19 @@ class AIVideoCreateService:
     def _truncate_error(self, value: str, limit: int = 260) -> str:
         compact = ' '.join(value.split())
         return compact[:limit]
+
+    def _validate_output_settings(self, *, model_key: str, aspect_ratio: str, resolution: str) -> None:
+        rules = self.OUTPUT_RULES.get(model_key)
+        if not rules:
+            raise ProviderError(f'Unsupported model: {model_key}')
+        if aspect_ratio not in rules['aspects']:
+            raise ProviderError(
+                f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports only these aspect ratios: {", ".join(sorted(rules["aspects"]))}'
+            )
+        if resolution not in rules['resolutions']:
+            raise ProviderError(
+                f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports only these resolutions: {", ".join(sorted(rules["resolutions"]))}'
+            )
 
     def _normalize_duration(
         self,

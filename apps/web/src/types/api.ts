@@ -155,6 +155,60 @@ export type ScriptResponse = {
   tags: string[];
 };
 
+export type UserProfile = {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  company: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  postal_code: string | null;
+  timezone: string | null;
+  created_at: string;
+};
+
+export type UserProfileUpdateRequest = {
+  display_name: string;
+  email: string | null;
+  phone: string | null;
+  bio: string | null;
+  company: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  postal_code: string | null;
+  timezone: string | null;
+};
+
+export type UserSettings = {
+  id: string;
+  default_language: string | null;
+  default_voice: string | null;
+  default_aspect_ratio: string | null;
+  email_notifications: boolean;
+  marketing_emails: boolean;
+  auto_caption_default: boolean;
+  music_ducking_default: boolean;
+};
+
+export type UserSettingsUpdateRequest = {
+  default_language: string | null;
+  default_voice: string | null;
+  default_aspect_ratio: string | null;
+  email_notifications: boolean;
+  marketing_emails: boolean;
+  auto_caption_default: boolean;
+  music_ducking_default: boolean;
+};
+
 export type VideoCreateRequest = {
   template: string;
   script: string;

@@ -47,6 +47,7 @@ from app.schemas.project import (
 )
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
+from app.schemas.user import UserAvatarUploadResponse, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
 from app.schemas.video import MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
@@ -58,6 +59,7 @@ from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.upload_service import UploadService
+from app.services.user_service import UserService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 
@@ -205,9 +207,133 @@ def _to_image_generation_response(generation, db: Session) -> ImageGenerationRes
     )
 
 
+def _to_user_profile_response(user) -> UserProfileResponse:
+    return UserProfileResponse(
+        id=user.id,
+        display_name=user.display_name,
+        email=user.email,
+        phone=user.phone,
+        avatar_url=user.avatar_url,
+        bio=user.bio,
+        company=user.company,
+        address_line1=user.address_line1,
+        address_line2=user.address_line2,
+        city=user.city,
+        state=user.state,
+        country=user.country,
+        postal_code=user.postal_code,
+        timezone=user.timezone,
+        created_at=user.created_at.isoformat(),
+    )
+
+
+def _to_user_settings_response(user) -> UserSettingsResponse:
+    return UserSettingsResponse(
+        id=user.id,
+        default_language=user.default_language,
+        default_voice=user.default_voice,
+        default_aspect_ratio=user.default_aspect_ratio,
+        email_notifications=bool(user.email_notifications),
+        marketing_emails=bool(user.marketing_emails),
+        auto_caption_default=bool(user.auto_caption_default),
+        music_ducking_default=bool(user.music_ducking_default),
+    )
+
+
 @router.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
+
+
+@router.get('/me/profile', response_model=UserProfileResponse)
+def get_my_profile(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = UserService(db)
+    try:
+        return _to_user_profile_response(service.get_user(user_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put('/me/profile', response_model=UserProfileResponse)
+def update_my_profile(
+    payload: UserProfileUpdateRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = UserService(db)
+    try:
+        user = service.update_profile(
+            user_id,
+            display_name=payload.display_name.strip(),
+            email=payload.email.strip() if payload.email else None,
+            phone=payload.phone.strip() if payload.phone else None,
+            bio=payload.bio.strip() if payload.bio else None,
+            company=payload.company.strip() if payload.company else None,
+            address_line1=payload.address_line1.strip() if payload.address_line1 else None,
+            address_line2=payload.address_line2.strip() if payload.address_line2 else None,
+            city=payload.city.strip() if payload.city else None,
+            state=payload.state.strip() if payload.state else None,
+            country=payload.country.strip() if payload.country else None,
+            postal_code=payload.postal_code.strip() if payload.postal_code else None,
+            timezone=payload.timezone.strip() if payload.timezone else None,
+        )
+        return _to_user_profile_response(user)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post('/me/avatar', response_model=UserAvatarUploadResponse)
+async def upload_my_avatar(
+    avatar: UploadFile = File(...),
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    if not avatar.content_type or not avatar.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail='Avatar must be an image file')
+    service = UserService(db)
+    try:
+        user = service.save_avatar(user_id, avatar.filename or 'avatar.png', avatar.file)
+        return UserAvatarUploadResponse(avatar_url=str(user.avatar_url))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get('/me/settings', response_model=UserSettingsResponse)
+def get_my_settings(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = UserService(db)
+    try:
+        return _to_user_settings_response(service.get_user(user_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put('/me/settings', response_model=UserSettingsResponse)
+def update_my_settings(
+    payload: UserSettingsUpdateRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = UserService(db)
+    try:
+        user = service.update_settings(
+            user_id,
+            default_language=payload.default_language,
+            default_voice=payload.default_voice,
+            default_aspect_ratio=payload.default_aspect_ratio,
+            email_notifications=payload.email_notifications,
+            marketing_emails=payload.marketing_emails,
+            auto_caption_default=payload.auto_caption_default,
+            music_ducking_default=payload.music_ducking_default,
+        )
+        return _to_user_settings_response(user)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post('/api/ai/script/generate', response_model=ScriptResponse)

@@ -34,22 +34,13 @@ export function VideoPreview({
   const downloadVideo = async () => {
     if (!videoUrl) return;
     setDownloading(true);
-    try {
-      const response = await fetch(videoUrl);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      const safeName = (job?.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-      link.download = `${safeName || 'video'}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } finally {
-      setDownloading(false);
-    }
+    const safeName = (job?.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'video';
+    const link = document.createElement('a');
+    link.href = `/api/download?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(`${safeName}.mp4`)}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => setDownloading(false), 600);
   };
 
   return (

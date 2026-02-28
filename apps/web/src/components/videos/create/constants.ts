@@ -92,15 +92,44 @@ export const VOICE_OPTIONS: VoiceOption[] = [
 export const CAPTION_STYLE_OPTIONS = ['Classic', 'Bold', 'Minimal'] as const;
 
 export const ASPECT_OPTIONS = [
-  { value: '9:16', label: 'Reels / Shorts', description: 'Vertical-first for Instagram, Shorts, and TikTok.' },
-  { value: '16:9', label: 'YouTube / Landscape', description: 'Best for YouTube and presentation-style videos.' },
-  { value: '1:1', label: 'Square', description: 'Balanced format for feeds and cross-platform posting.' },
+  { value: '9:16', label: '9:16', description: 'Vertical output for reels, shorts, and story-style videos.' },
+  { value: '16:9', label: '16:9', description: 'Landscape output for YouTube, web, and presentation-style videos.' },
+  { value: '1:1', label: '1:1', description: 'Square output for feeds, ads, and balanced social posts.' },
 ] as const;
 
 export const RESOLUTION_OPTIONS = [
-  { value: '720p', label: '720p', description: 'Faster generations for drafts and testing.' },
-  { value: '1080p', label: '1080p', description: 'High quality final output for publishing.' },
+  { value: '720p', label: '720p', description: 'Faster generation with lighter credit usage.' },
+  { value: '1080p', label: '1080p', description: 'Higher fidelity output for final publishing.' },
 ] as const;
+
+export const VIDEO_OUTPUT_RULES = {
+  sora2: {
+    aspects: ['9:16', '16:9'],
+    resolutions: ['720p'],
+    sizes: {
+      '9:16': { '720p': '720x1280' },
+      '16:9': { '720p': '1280x720' },
+    },
+  },
+  veo3: {
+    aspects: ['9:16', '16:9', '1:1'],
+    resolutions: ['720p', '1080p'],
+    sizes: {
+      '9:16': { '720p': '720x1280', '1080p': '1080x1920' },
+      '16:9': { '720p': '1280x720', '1080p': '1920x1080' },
+      '1:1': { '720p': '720x720', '1080p': '1080x1080' },
+    },
+  },
+  kling3: {
+    aspects: ['9:16', '16:9', '1:1'],
+    resolutions: ['720p', '1080p'],
+    sizes: {
+      '9:16': { '720p': '720x1280', '1080p': '1080x1920' },
+      '16:9': { '720p': '1280x720', '1080p': '1920x1080' },
+      '1:1': { '720p': '720x720', '1080p': '1080x1080' },
+    },
+  },
+} as const;
 
 export const VIDEO_DURATION_RULES = {
   sora2: {

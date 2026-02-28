@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-labelledby="title desc">
+  <title id="title">RangManch AI light logo</title>
+  <desc id="desc">Gold RangManch AI logo for light theme.</desc>
+  <defs>
+    <linearGradient id="goldLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8f6513"/>
+      <stop offset="55%" stop-color="#c79b3b"/>
+      <stop offset="100%" stop-color="#e2c36b"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#goldLight)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="90" cy="85" r="56"/>
+    <path d="M52 123 L46 90 C42 67 58 42 82 40"/>
+    <path d="M84 38 L76 118"/>
+    <path d="M70 94 L92 76"/>
+    <path d="M118 126 C111 104 117 82 134 68"/>
+    <path d="M152 127 C137 103 139 74 156 56"/>
+    <path d="M168 125 L168 58"/>
+    <path d="M168 58 C188 59 196 69 196 84 C196 98 188 107 171 108"/>
+    <path d="M171 108 L199 126"/>
+  </g>
+  <g fill="url(#goldLight)">
+    <text x="240" y="102" font-size="58" font-weight="800" font-family="'Plus Jakarta Sans', Inter, sans-serif" letter-spacing="-1.6">RangManch AI</text>
+    <text x="242" y="145" font-size="26" font-weight="600" font-family="Inter, sans-serif" letter-spacing="0.4">India's Viral Reel Generator</text>
+  </g>
+</svg>

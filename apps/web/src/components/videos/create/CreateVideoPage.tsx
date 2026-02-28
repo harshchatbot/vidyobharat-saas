@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Video } from '@/types/api';
 
-import { FALLBACK_VIDEO_MODELS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES } from './constants';
+import { ASPECT_OPTIONS, FALLBACK_VIDEO_MODELS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES } from './constants';
 import { GenerateButton } from './GenerateButton';
 import { ModelDropdown } from './ModelDropdown';
 import { MusicSelector } from './MusicSelector';
@@ -108,6 +108,10 @@ export function CreateVideoPage({
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const selectedModel = models.find((model) => model.key === modelKey) ?? models[0];
   const durationRule = VIDEO_DURATION_RULES[modelKey];
+  const outputRule = VIDEO_OUTPUT_RULES[modelKey];
+  const outputSizes = outputRule.sizes as Record<string, Record<string, string>>;
+  const supportedAspects = [...outputRule.aspects] as string[];
+  const supportedResolutions = [...outputRule.resolutions] as string[];
   const hasReferenceImages = selectedImageUrls.length > 0;
   const seededDuration = modelKey === 'veo3' ? VIDEO_DURATION_RULES.veo3.seededSeconds : undefined;
   const klingMinDuration = modelKey === 'kling3' ? VIDEO_DURATION_RULES.kling3.minSeconds : undefined;
@@ -115,6 +119,20 @@ export function CreateVideoPage({
   const availableDurations: number[] = modelKey === 'veo3' && hasReferenceImages && seededDuration
     ? [seededDuration]
     : [...durationRule.presetSeconds];
+  const availableAspectRatios = ASPECT_OPTIONS.filter((option) =>
+    supportedAspects.includes(option.value),
+  );
+  const availableResolutions = RESOLUTION_OPTIONS.filter((option) =>
+    supportedResolutions.includes(option.value),
+  );
+  const selectedAspectDescription =
+    availableAspectRatios.find((option) => option.value === aspectRatio)?.description ??
+    availableAspectRatios[0]?.description ??
+    '';
+  const selectedResolutionDimensions =
+    outputSizes[aspectRatio]?.[resolution] ??
+    outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
+    '';
   const estimatedSeconds = Number(durationSeconds) || durationRule.defaultSeconds;
   const estimatedCredits = modelKey === 'sora2'
     ? Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2))
@@ -322,6 +340,18 @@ export function CreateVideoPage({
       setDurationSeconds(String(durationRule.defaultSeconds));
     }
   }, [modelKey, hasReferenceImages, durationSeconds, availableDurations, durationRule]);
+
+  useEffect(() => {
+    if (!availableAspectRatios.some((option) => option.value === aspectRatio)) {
+      setAspectRatio(availableAspectRatios[0]?.value ?? '9:16');
+    }
+  }, [availableAspectRatios, aspectRatio]);
+
+  useEffect(() => {
+    if (!availableResolutions.some((option) => option.value === resolution)) {
+      setResolution(availableResolutions[0]?.value ?? '1080p');
+    }
+  }, [availableResolutions, resolution]);
 
   useEffect(() => {
     if (musicMode !== 'library') return;
@@ -543,22 +573,12 @@ export function CreateVideoPage({
   const downloadVideo = async (videoItem: Video) => {
     const videoUrl = toAssetUrl(videoItem.output_url);
     if (!videoUrl) return;
-    try {
-      const response = await fetch(videoUrl);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      const safeName = (videoItem.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-      link.download = `${safeName || 'video'}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      setSubmitError('Download failed. Please try again.');
-    }
+    const safeName = (videoItem.title || 'video').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'video';
+    const link = document.createElement('a');
+    link.href = `/api/download?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(`${safeName}.mp4`)}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   return (
@@ -684,9 +704,13 @@ export function CreateVideoPage({
         <OutputSettings
           modelLabel={selectedModel.label}
           aspectRatio={aspectRatio}
+          availableAspectRatios={availableAspectRatios}
+          selectedAspectDescription={selectedAspectDescription}
           onAspectRatioChange={setAspectRatio}
           resolution={resolution}
           onResolutionChange={setResolution}
+          availableResolutions={availableResolutions}
+          selectedResolutionDimensions={selectedResolutionDimensions}
           durationSeconds={durationSeconds}
           onDurationSecondsChange={setDurationSeconds}
           availableDurations={availableDurations}

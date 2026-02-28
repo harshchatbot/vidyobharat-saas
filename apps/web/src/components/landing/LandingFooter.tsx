@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 
 export function LandingFooter() {
   return (
@@ -13,7 +14,7 @@ export function LandingFooter() {
     >
       <div className="grid items-start gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-sm font-semibold text-[hsl(var(--color-text))]">RangManch AI</p>
+          <BrandLogo href="/" variant="full" size="sm" className="max-w-[190px]" priority="footer" />
           <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">India-first hybrid text-to-video platform.</p>
         </div>
         <div>

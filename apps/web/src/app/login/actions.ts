@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { api } from '@/lib/api';
-import { setUserEmailCookie, setUserIdCookie, setUserNameCookie } from '@/lib/session';
+import { setUserAvatarCookie, setUserEmailCookie, setUserIdCookie, setUserNameCookie } from '@/lib/session';
 
 function displayNameFromEmail(email: string) {
   const local = email.split('@')[0] || 'User';
@@ -25,6 +25,7 @@ export async function loginAction(formData: FormData) {
     await setUserIdCookie(user_id);
     await setUserNameCookie(displayNameFromEmail(email));
     await setUserEmailCookie(email);
+    await setUserAvatarCookie('');
     redirect('/dashboard');
   } catch {
     redirect('/login?error=Account%20not%20found.%20Please%20sign%20up%20first');
@@ -39,6 +40,7 @@ export async function loginWithGoogleAction() {
     await setUserIdCookie(user_id);
     await setUserNameCookie('Google User');
     await setUserEmailCookie(googleEmail);
+    await setUserAvatarCookie('');
     redirect('/dashboard');
   } catch {
     try {
@@ -46,6 +48,7 @@ export async function loginWithGoogleAction() {
       await setUserIdCookie(user_id);
       await setUserNameCookie('Google User');
       await setUserEmailCookie(googleEmail);
+      await setUserAvatarCookie('');
       redirect('/dashboard');
     } catch {
       redirect('/login?error=Google%20sign-in%20failed.%20Please%20try%20again');

@@ -2,6 +2,8 @@ import base64
 import json
 import logging
 import mimetypes
+import subprocess
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import urlparse
@@ -49,9 +51,13 @@ class AssetTaggingService:
 
     def auto_tag_video(self, video: Video) -> list[str]:
         prompt = ' '.join(filter(None, [video.title or '', video.script or '', video.selected_model or '', video.aspect_ratio, video.resolution]))
-        # For videos we currently tag from the render thumbnail. Replace this with a true video tagging API
-        # if you want full scene-level temporal semantics later.
-        vision_tags = self._extract_vision_tags(image_url=video.thumbnail_url, prompt=prompt, content_type='video')
+        # Tag multiple representative frames so video search is not limited to a single thumbnail.
+        frame_urls = self._extract_video_frame_urls(video)
+        vision_tags: list[str] = []
+        for frame_url in frame_urls:
+            vision_tags.extend(self._extract_vision_tags(image_url=frame_url, prompt=prompt, content_type='video'))
+        if not vision_tags and video.thumbnail_url:
+            vision_tags.extend(self._extract_vision_tags(image_url=video.thumbnail_url, prompt=prompt, content_type='video'))
         derived = self._derive_tags(prompt)
         tags = self._dedupe_tags([*vision_tags, *derived, video.selected_model or 'local_render', video.aspect_ratio, video.resolution])
         self.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='auto')
@@ -164,3 +170,106 @@ class AssetTaggingService:
         elif path.startswith('/'):
             path = path.lstrip('/')
         return Path('data') / path
+
+    def _extract_video_frame_urls(self, video: Video) -> list[str]:
+        local_path = None
+        if video.output_url:
+            candidate = self._url_to_local_path(video.output_url)
+            if candidate.exists():
+                local_path = candidate
+        if not local_path:
+            return []
+
+        duration = self._probe_video_duration(local_path)
+        if duration <= 0:
+            return []
+
+        timestamps = self._representative_timestamps(duration)
+        if not timestamps:
+            return []
+
+        frame_dir = Path('data/tmp/video_tag_frames')
+        frame_dir.mkdir(parents=True, exist_ok=True)
+
+        frame_urls: list[str] = []
+        for index, second in enumerate(timestamps, start=1):
+            frame_name = f'{video.id}-frame-{index}.jpg'
+            frame_path = frame_dir / frame_name
+            try:
+                self._write_video_frame(local_path=local_path, output_path=frame_path, timestamp=second)
+                frame_urls.append(f'/static/tmp/video_tag_frames/{frame_name}')
+            except Exception as exc:
+                logger.warning('video_frame_tag_extract_failed', extra={'asset_id': video.id, 'timestamp': second, 'error': str(exc)})
+        return frame_urls
+
+    def _probe_video_duration(self, local_path: Path) -> float:
+        try:
+            result = subprocess.run(
+                [
+                    'ffprobe',
+                    '-v',
+                    'error',
+                    '-show_entries',
+                    'format=duration',
+                    '-of',
+                    'default=noprint_wrappers=1:nokey=1',
+                    str(local_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return float((result.stdout or '0').strip() or '0')
+        except Exception as exc:
+            logger.warning('video_duration_probe_failed', extra={'path': str(local_path), 'error': str(exc)})
+            return 0.0
+
+    def _representative_timestamps(self, duration: float) -> list[float]:
+        if duration <= 1.2:
+            return [0.1]
+        if duration <= 4.5:
+            points = [0.2, duration * 0.5, max(duration - 0.3, 0.2)]
+        elif duration <= 10:
+            points = [0.5, duration * 0.33, duration * 0.66, max(duration - 0.5, 0.5)]
+        else:
+            points = [0.8, duration * 0.25, duration * 0.5, duration * 0.75, max(duration - 0.8, 0.8)]
+        deduped: list[float] = []
+        seen: set[int] = set()
+        for point in points:
+            clamped = max(0.1, min(duration - 0.1, point))
+            marker = int(clamped * 10)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            deduped.append(round(clamped, 2))
+        return deduped
+
+    def _write_video_frame(self, *, local_path: Path, output_path: Path, timestamp: float) -> None:
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False, dir=output_path.parent) as temp_file:
+            temp_path = Path(temp_file.name)
+        try:
+            subprocess.run(
+                [
+                    'ffmpeg',
+                    '-y',
+                    '-ss',
+                    str(timestamp),
+                    '-i',
+                    str(local_path),
+                    '-frames:v',
+                    '1',
+                    '-q:v',
+                    '2',
+                    str(temp_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            temp_path.replace(output_path)
+        except subprocess.CalledProcessError as exc:
+            if temp_path.exists():
+                temp_path.unlink()
+            stderr = exc.stderr.decode('utf-8', errors='ignore') if isinstance(exc.stderr, bytes) else str(exc.stderr)
+            raise RuntimeError(stderr[:400]) from exc

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="markLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8f6513"/>
+      <stop offset="55%" stop-color="#c79b3b"/>
+      <stop offset="100%" stop-color="#e2c36b"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#markLight)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="31" cy="29" r="19"/>
+    <path d="M16 41 L14 29 C13 21 18 14 26 13"/>
+    <path d="M27 12 L24 39"/>
+    <path d="M22 31 L29 25"/>
+    <path d="M37 42 C34 34 36 26 42 21"/>
+    <path d="M47 42 L47 18"/>
+    <path d="M47 18 C54 18 57 22 57 28 C57 33 54 37 48 37"/>
+    <path d="M48 37 L58 43"/>
+  </g>
+</svg>

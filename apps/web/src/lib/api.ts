@@ -23,6 +23,10 @@ import type {
   ScriptTagsRequest,
   ScriptResponse,
   Template,
+  UserProfile,
+  UserProfileUpdateRequest,
+  UserSettings,
+  UserSettingsUpdateRequest,
   Video,
   VideoCreateRequest,
   VideoCreateResponse,
@@ -191,6 +195,32 @@ export const api = {
   extractScriptTags(payload: ScriptTagsRequest, userId: string) {
     return request<ScriptResponse>('/api/ai/script/tags', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  getMyProfile(userId: string) {
+    return request<UserProfile>('/me/profile', {}, { userId, cache: 'no-store' });
+  },
+  updateMyProfile(payload: UserProfileUpdateRequest, userId: string) {
+    return request<UserProfile>('/me/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  uploadMyAvatar(file: File, userId: string) {
+    const body = new FormData();
+    body.append('avatar', file);
+    return request<{ avatar_url: string }>('/me/avatar', {
+      method: 'POST',
+      body,
+    }, { userId, cache: 'no-store' });
+  },
+  getMySettings(userId: string) {
+    return request<UserSettings>('/me/settings', {}, { userId, cache: 'no-store' });
+  },
+  updateMySettings(payload: UserSettingsUpdateRequest, userId: string) {
+    return request<UserSettings>('/me/settings', {
+      method: 'PUT',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },

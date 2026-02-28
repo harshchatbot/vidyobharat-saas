@@ -39,6 +39,41 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
+def _ensure_user_columns() -> None:
+    inspector = inspect(engine)
+    if 'users' not in inspector.get_table_names():
+        return
+    existing = {column['name'] for column in inspector.get_columns('users')}
+    migrations = [
+        ('display_name', 'ALTER TABLE users ADD COLUMN display_name VARCHAR(120)'),
+        ('phone', 'ALTER TABLE users ADD COLUMN phone VARCHAR(32)'),
+        ('avatar_url', 'ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255)'),
+        ('bio', 'ALTER TABLE users ADD COLUMN bio TEXT'),
+        ('company', 'ALTER TABLE users ADD COLUMN company VARCHAR(120)'),
+        ('address_line1', 'ALTER TABLE users ADD COLUMN address_line1 VARCHAR(255)'),
+        ('address_line2', 'ALTER TABLE users ADD COLUMN address_line2 VARCHAR(255)'),
+        ('city', 'ALTER TABLE users ADD COLUMN city VARCHAR(80)'),
+        ('state', 'ALTER TABLE users ADD COLUMN state VARCHAR(80)'),
+        ('country', 'ALTER TABLE users ADD COLUMN country VARCHAR(80)'),
+        ('postal_code', 'ALTER TABLE users ADD COLUMN postal_code VARCHAR(24)'),
+        ('timezone', 'ALTER TABLE users ADD COLUMN timezone VARCHAR(64)'),
+        ('default_language', 'ALTER TABLE users ADD COLUMN default_language VARCHAR(40)'),
+        ('default_voice', 'ALTER TABLE users ADD COLUMN default_voice VARCHAR(80)'),
+        ('default_aspect_ratio', 'ALTER TABLE users ADD COLUMN default_aspect_ratio VARCHAR(10)'),
+        ('email_notifications', 'ALTER TABLE users ADD COLUMN email_notifications BOOLEAN DEFAULT 1'),
+        ('marketing_emails', 'ALTER TABLE users ADD COLUMN marketing_emails BOOLEAN DEFAULT 0'),
+        ('auto_caption_default', 'ALTER TABLE users ADD COLUMN auto_caption_default BOOLEAN DEFAULT 1'),
+        ('music_ducking_default', 'ALTER TABLE users ADD COLUMN music_ducking_default BOOLEAN DEFAULT 1'),
+    ]
+    with engine.begin() as conn:
+        for column_name, statement in migrations:
+            if column_name not in existing:
+                conn.execute(text(statement))
+
+
+_ensure_user_columns()
+
+
 def _ensure_video_columns() -> None:
     inspector = inspect(engine)
     if 'videos' not in inspector.get_table_names():
@@ -114,6 +149,7 @@ def _ensure_asset_tags_table() -> None:
 _ensure_asset_tags_table()
 
 Path('data/uploads').mkdir(parents=True, exist_ok=True)
+Path('data/uploads/avatars').mkdir(parents=True, exist_ok=True)
 Path('data/music').mkdir(parents=True, exist_ok=True)
 Path('data/music_uploads').mkdir(parents=True, exist_ok=True)
 Path('data/renders').mkdir(parents=True, exist_ok=True)

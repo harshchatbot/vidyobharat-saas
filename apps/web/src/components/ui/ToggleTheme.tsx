@@ -3,17 +3,26 @@
 import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
+const THEME_STORAGE_KEY = 'rangmanch-theme';
+
 export function ToggleTheme() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const initialDark = document.documentElement.classList.contains('dark');
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const initialDark = saved ? saved === 'dark' : document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', initialDark);
     setDark(initialDark);
   }, []);
 
   const toggle = () => {
-    document.documentElement.classList.toggle('dark');
-    setDark((value) => !value);
+    setDark((value) => {
+      const nextDark = !value;
+      document.documentElement.classList.toggle('dark', nextDark);
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextDark ? 'dark' : 'light');
+      window.dispatchEvent(new Event('rangmanch-theme-change'));
+      return nextDark;
+    });
   };
 
   return (

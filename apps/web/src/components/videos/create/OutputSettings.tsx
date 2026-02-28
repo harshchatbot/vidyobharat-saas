@@ -3,14 +3,18 @@ import { Captions, Clock3, Info } from 'lucide-react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 
-import { ASPECT_OPTIONS, CAPTION_STYLE_OPTIONS, RESOLUTION_OPTIONS } from './constants';
+import { CAPTION_STYLE_OPTIONS } from './constants';
 
 export function OutputSettings({
   modelLabel,
   aspectRatio,
   onAspectRatioChange,
+  availableAspectRatios,
+  selectedAspectDescription,
   resolution,
   onResolutionChange,
+  availableResolutions,
+  selectedResolutionDimensions,
   durationSeconds,
   onDurationSecondsChange,
   availableDurations,
@@ -26,9 +30,13 @@ export function OutputSettings({
 }: {
   modelLabel: string;
   aspectRatio: string;
+  availableAspectRatios: Array<{ value: '9:16' | '16:9' | '1:1'; label: string; description: string }>;
+  selectedAspectDescription: string;
   onAspectRatioChange: (value: '9:16' | '16:9' | '1:1') => void;
   resolution: string;
   onResolutionChange: (value: '720p' | '1080p') => void;
+  availableResolutions: Array<{ value: '720p' | '1080p'; label: string; description: string }>;
+  selectedResolutionDimensions: string;
   durationSeconds: string;
   onDurationSecondsChange: (value: string) => void;
   availableDurations: number[];
@@ -48,7 +56,7 @@ export function OutputSettings({
         <div>
           <p className="mb-2 text-sm font-semibold text-text">Aspect ratio</p>
           <div className="space-y-2">
-            {ASPECT_OPTIONS.map((option) => {
+            {availableAspectRatios.map((option) => {
               const active = option.value === aspectRatio;
               return (
                 <button
@@ -67,12 +75,13 @@ export function OutputSettings({
               );
             })}
           </div>
+          <p className="mt-2 text-xs text-muted">Selected output: {aspectRatio} • {selectedAspectDescription}</p>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-text">Resolution</p>
           <div className="space-y-2">
-            {RESOLUTION_OPTIONS.map((option) => {
+            {availableResolutions.map((option) => {
               const active = option.value === resolution;
               return (
                 <button
@@ -91,6 +100,7 @@ export function OutputSettings({
               );
             })}
           </div>
+          <p className="mt-2 text-xs text-muted">Selected output size: {selectedResolutionDimensions}</p>
         </div>
 
         <div className="space-y-4">

@@ -91,7 +91,7 @@ class AIVideoCreateRequest(BaseModel):
     aspectRatio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=20)
     durationMode: str = Field(min_length=4, max_length=10)
-    durationSeconds: int | None = Field(default=None, ge=4, le=300)
+    durationSeconds: int | None = Field(default=None, ge=3, le=300)
     voice: str = Field(min_length=1, max_length=120)
     imageUrls: list[str] = Field(default_factory=list)
     music: VideoMusicSettings = Field(default_factory=VideoMusicSettings)
