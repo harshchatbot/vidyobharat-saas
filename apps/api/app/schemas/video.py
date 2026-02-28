@@ -27,6 +27,8 @@ class VideoResponse(BaseModel):
     thumbnail_url: str | None
     output_url: str | None
     error_message: str | None
+    auto_tags: list[str] = Field(default_factory=list)
+    user_tags: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

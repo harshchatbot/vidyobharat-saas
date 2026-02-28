@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AudioLines, CheckCircle2, Clapperboard, Sparkles, Wand2 } from 'lucide-react';
+import { AudioLines, CheckCircle2, Clapperboard, Sparkles, Tag, Wand2 } from 'lucide-react';
 
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
@@ -52,11 +53,13 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [manualTags, setManualTags] = useState('');
 
   const load = async () => {
     try {
       const current = await api.getVideo(videoId, userId);
       setVideo(current);
+      setManualTags(current.user_tags.join(', '));
       setError(null);
     } catch {
       setError('Unable to load video status.');
@@ -198,6 +201,57 @@ export function VideoDetailClient({ userId, videoId }: Props) {
           </Button>
         </Card>
       ) : null}
+
+      <Card className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+          <p className="text-sm font-semibold text-text">Asset metadata</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Auto tags</p>
+            <div className="flex flex-wrap gap-2">
+              {video.auto_tags.length > 0 ? video.auto_tags.map((tag) => <Badge key={`video-auto-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No auto tags yet</span>}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">User tags</p>
+            <div className="flex flex-wrap gap-2">
+              {video.user_tags.length > 0 ? video.user_tags.map((tag) => <Badge key={`video-user-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No user tags yet</span>}
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <input
+            value={manualTags}
+            onChange={(event) => setManualTags(event.target.value)}
+            placeholder="Add comma separated tags"
+            className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+          />
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              try {
+                const response = await api.updateAssetTags(
+                  'video',
+                  video.id,
+                  manualTags
+                    .split(',')
+                    .map((item) => item.trim().toLowerCase())
+                    .filter(Boolean),
+                  userId,
+                );
+                setVideo((current) => (current ? { ...current, auto_tags: response.auto_tags, user_tags: response.user_tags } : current));
+                setManualTags(response.user_tags.join(', '));
+              } catch {
+                setError('Could not update video tags right now.');
+              }
+            }}
+          >
+            Save tags
+          </Button>
+        </div>
+      </Card>
 
       {video.status === 'failed' ? (
         <Card className="space-y-3">

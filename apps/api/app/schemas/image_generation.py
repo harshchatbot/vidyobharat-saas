@@ -27,6 +27,8 @@ class ImageGenerationResponse(BaseModel):
     thumbnail_url: str
     action_type: str | None = None
     status: str
+    auto_tags: list[str] = Field(default_factory=list)
+    user_tags: list[str] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -41,6 +43,7 @@ class InspirationImageResponse(BaseModel):
     resolution: str
     created_at: datetime
     reference_urls: list[str]
+    tags: list[str] = Field(default_factory=list)
 
 
 class ImageGenerationCreateRequest(BaseModel):

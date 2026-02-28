@@ -20,6 +20,7 @@ from app.schemas.ai import (
     ReelScriptRequest,
     ReelScriptResponse,
 )
+from app.schemas.asset import AssetSearchResponse, AssetSearchResponseItem, AssetTagFacet, AssetTagUpdateRequest
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.image_generation import (
@@ -49,6 +50,8 @@ from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
 from app.services.ai_video_service import AIVideoOrchestrator, ProviderError
+from app.services.asset_search_service import AssetSearchService
+from app.services.asset_tagging_service import AssetTaggingService
 from app.services.upload_service import UploadService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
@@ -121,7 +124,7 @@ def _extract_json_payload(value: str) -> dict:
     return data
 
 
-def _to_video_response(video) -> VideoResponse:
+def _to_video_response(video, db: Session) -> VideoResponse:
     image_urls: list[str] = []
     reference_images: list[str] = []
     try:
@@ -132,6 +135,8 @@ def _to_video_response(video) -> VideoResponse:
         reference_images = json.loads(video.reference_images or '[]')
     except json.JSONDecodeError:
         reference_images = []
+    asset_tagging = AssetTaggingService(db)
+    auto_tags, user_tags = asset_tagging.list_tags(video.id, 'video')
     return VideoResponse(
         id=video.id,
         user_id=video.user_id,
@@ -156,17 +161,21 @@ def _to_video_response(video) -> VideoResponse:
         thumbnail_url=video.thumbnail_url,
         output_url=video.output_url,
         error_message=video.error_message,
+        auto_tags=auto_tags,
+        user_tags=user_tags,
         created_at=video.created_at,
         updated_at=video.updated_at,
     )
 
 
-def _to_image_generation_response(generation) -> ImageGenerationResponse:
+def _to_image_generation_response(generation, db: Session) -> ImageGenerationResponse:
     reference_urls: list[str] = []
     try:
         reference_urls = json.loads(generation.reference_urls or '[]')
     except json.JSONDecodeError:
         reference_urls = []
+    asset_tagging = AssetTaggingService(db)
+    auto_tags, user_tags = asset_tagging.list_tags(generation.id, 'image')
 
     return ImageGenerationResponse(
         id=generation.id,
@@ -180,6 +189,8 @@ def _to_image_generation_response(generation) -> ImageGenerationResponse:
         thumbnail_url=generation.thumbnail_url,
         action_type=generation.action_type,
         status=generation.status.value if hasattr(generation.status, 'value') else str(generation.status),
+        auto_tags=auto_tags,
+        user_tags=user_tags,
         created_at=generation.created_at,
     )
 
@@ -363,7 +374,7 @@ def list_ai_images(
     db: Session = Depends(get_db),
 ):
     service = ImageGenerationService(db)
-    return [_to_image_generation_response(item) for item in service.list_user_images(user_id)]
+    return [_to_image_generation_response(item, db) for item in service.list_user_images(user_id)]
 
 
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
@@ -373,6 +384,92 @@ def list_ai_image_inspiration(
 ):
     service = ImageGenerationService(db)
     return [InspirationImageResponse.model_validate(item) for item in service.list_inspiration()]
+
+
+@router.get('/assets/tags', response_model=list[AssetTagFacet])
+def list_asset_tags(
+    query: str | None = None,
+    content_type: str | None = None,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = AssetSearchService(db)
+    facets = service.list_tag_facets(user_id=user_id, content_type=content_type, query=query)
+    return [AssetTagFacet(tag=tag, count=count) for tag, count in facets]
+
+
+@router.get('/assets/search', response_model=AssetSearchResponse)
+def search_assets(
+    query: str | None = None,
+    tags: list[str] | None = None,
+    models: list[str] | None = None,
+    resolutions: list[str] | None = None,
+    content_type: str | None = None,
+    sort: str = 'newest',
+    page: int = 1,
+    page_size: int = 24,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = AssetSearchService(db)
+    items, total = service.search_assets(
+        user_id=user_id,
+        query=query,
+        tags=tags,
+        models=models,
+        resolutions=resolutions,
+        content_type=content_type,
+        sort=sort,
+        page=page,
+        page_size=page_size,
+    )
+    return AssetSearchResponse(
+        items=[
+            AssetSearchResponseItem(
+                id=item.id,
+                content_type=item.content_type,
+                title=item.title,
+                model_key=item.model_key,
+                resolution=item.resolution,
+                aspect_ratio=item.aspect_ratio,
+                prompt=item.prompt,
+                thumbnail_url=item.thumbnail_url,
+                asset_url=item.asset_url,
+                status=item.status,
+                created_at=item.created_at,
+                reference_urls=item.reference_urls,
+                auto_tags=item.auto_tags,
+                user_tags=item.user_tags,
+            )
+            for item in items
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.put('/assets/{content_type}/{asset_id}/tags')
+def update_asset_tags(
+    content_type: str,
+    asset_id: str,
+    payload: AssetTagUpdateRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    if content_type not in {'image', 'video'}:
+        raise HTTPException(status_code=400, detail='content_type must be image or video')
+    if content_type == 'image':
+        image = ImageGenerationService(db).repo.get_by_id(asset_id)
+        if not image or image.user_id != user_id:
+            raise HTTPException(status_code=404, detail='Image not found')
+    else:
+        video = VideoService(db).get_video(asset_id, user_id)
+        if not video:
+            raise HTTPException(status_code=404, detail='Video not found')
+    service = AssetTaggingService(db)
+    auto_tags, user_tags = service.replace_user_tags(asset_id=asset_id, asset_type=content_type, tags=payload.user_tags)
+    return {'asset_id': asset_id, 'content_type': content_type, 'auto_tags': auto_tags, 'user_tags': user_tags}
 
 
 @router.post('/ai/image/generate', response_model=ImageGenerationResponse)
@@ -391,7 +488,7 @@ def generate_ai_image(
             resolution=payload.resolution,
             reference_urls=payload.reference_urls,
         )
-        return _to_image_generation_response(generation)
+        return _to_image_generation_response(generation, db)
     except Exception as exc:
         logger.exception(
             'image_generation_failed',
@@ -426,7 +523,7 @@ def apply_ai_image_action(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ImageActionResponse(
         action_type=payload.action_type,
-        items=[_to_image_generation_response(item) for item in results],
+        items=[_to_image_generation_response(item, db) for item in results],
     )
 
 
@@ -445,7 +542,7 @@ def apply_ai_image_action_legacy(
         results = service.apply_action(user_id=user_id, generation_id=image_id, action=action_type)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _to_image_generation_response(results[0])
+    return _to_image_generation_response(results[0], db)
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)
@@ -638,7 +735,7 @@ def list_videos(
 ):
     service = VideoService(db)
     videos = service.list_videos(user_id)
-    return [_to_video_response(video) for video in videos]
+    return [_to_video_response(video, db) for video in videos]
 
 
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])
@@ -722,7 +819,7 @@ def get_video(
     video = service.get_video(video_id, user_id)
     if not video:
         raise HTTPException(status_code=404, detail='Video not found')
-    return _to_video_response(video)
+    return _to_video_response(video, db)
 
 
 @router.post('/videos/{video_id}/retry', response_model=VideoRetryResponse)

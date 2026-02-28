@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Film } from 'lucide-react';
+import { Film, Search, Tag } from 'lucide-react';
 
 import { MrGreenMascot } from '@/components/landing/MrGreenMascot';
 import { Badge } from '@/components/ui/Badge';
@@ -11,14 +11,14 @@ import { Card } from '@/components/ui/Card';
 import { Grid } from '@/components/ui/Grid';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { Video } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet } from '@/types/api';
 
 type Props = {
   userId: string;
   userName: string;
 };
 
-function formatStatus(status: Video['status']) {
+function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
   if (status === 'completed') return 'Completed';
   if (status === 'failed') return 'Failed';
@@ -43,19 +43,32 @@ function toAbsoluteUrl(url: string | null) {
 }
 
 export function DashboardVideosClient({ userId, userName }: Props) {
-  const [videos, setVideos] = useState<Video[]>([]);
+  const [videos, setVideos] = useState<AssetSearchItem[]>([]);
+  const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void api
-      .listVideos(userId)
-      .then((items) => {
+    void Promise.all([
+      api.searchAssets(userId, {
+        content_type: 'video',
+        query: searchQuery || undefined,
+        tags: selectedTags,
+        sort: 'newest',
+        page: 1,
+        page_size: 24,
+      }),
+      api.listAssetTags(userId, { content_type: 'video' }),
+    ])
+      .then(([results, facets]) => {
         if (cancelled) return;
-        setVideos(items);
+        setVideos(results.items);
+        setTagFacets(facets);
         setError(null);
       })
       .catch(() => {
@@ -69,10 +82,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, searchQuery, selectedTags]);
 
-  const downloadVideo = async (video: Video) => {
-    const url = toAbsoluteUrl(video.output_url);
+  const downloadVideo = async (video: AssetSearchItem) => {
+    const url = toAbsoluteUrl(video.asset_url);
     if (!url) return;
     setDownloadingId(video.id);
     try {
@@ -143,6 +156,49 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {error && <Card><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
 
+      <Card className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+              <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              Search videos
+            </label>
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search scripts, titles, and tags..."
+              className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+            />
+          </div>
+          <div>
+            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+              <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              Filter by tags
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {tagFacets.slice(0, 12).map((item) => (
+                <button
+                  key={item.tag}
+                  type="button"
+                  onClick={() =>
+                    setSelectedTags((current) =>
+                      current.includes(item.tag) ? current.filter((value) => value !== item.tag) : [...current, item.tag],
+                    )
+                  }
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    selectedTags.includes(item.tag)
+                      ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                      : 'border border-[hsl(var(--color-border))] text-muted'
+                  }`}
+                >
+                  {item.tag} · {item.count}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {loading ? (
         <Card>
           <div className="space-y-3">
@@ -182,15 +238,18 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                         <p className="break-words font-medium text-text">{video.title || 'Untitled Video'}</p>
                         <Badge>{formatStatus(video.status)}</Badge>
                       </div>
-                      <p className="mt-1 text-xs text-muted">
-                        {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
-                      </p>
+                      <p className="mt-1 text-xs text-muted">{video.aspect_ratio} • {video.resolution}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {[...video.auto_tags.slice(0, 3), ...video.user_tags.slice(0, 2)].map((tag) => (
+                          <Badge key={`${video.id}-${tag}`}>{tag}</Badge>
+                        ))}
+                      </div>
                       <p className="mt-1 text-xs text-muted">{timeAgo(video.created_at)}</p>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
-                    {video.status === 'completed' && video.output_url && (
+                    {video.status === 'completed' && video.asset_url && (
                       <Button
                         className="px-3 py-1 text-xs"
                         onClick={() => void downloadVideo(video)}
@@ -230,9 +289,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                         />
                         <div>
                           <p className="font-medium text-text">{video.title || 'Untitled Video'}</p>
-                          <p className="text-xs text-muted">
-                            {video.aspect_ratio} • {video.resolution} • {video.duration_mode === 'auto' ? 'Auto' : `${video.duration_seconds ?? 0}s`}
-                          </p>
+                          <p className="text-xs text-muted">{video.aspect_ratio} • {video.resolution}</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {[...video.auto_tags.slice(0, 3), ...video.user_tags.slice(0, 2)].map((tag) => (
+                              <Badge key={`${video.id}-${tag}`}>{tag}</Badge>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -241,7 +303,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link href={`/videos/${video.id}`}><Button variant="secondary" className="px-3 py-1 text-xs">Open</Button></Link>
-                        {video.status === 'completed' && video.output_url && (
+                        {video.status === 'completed' && video.asset_url && (
                           <Button
                             className="px-3 py-1 text-xs"
                             onClick={() => void downloadVideo(video)}

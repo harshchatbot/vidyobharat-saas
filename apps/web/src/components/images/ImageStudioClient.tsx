@@ -6,14 +6,17 @@ import {
   Copy,
   Eraser,
   ExternalLink,
+  Filter,
   GalleryVerticalEnd,
   ImageIcon,
   Images,
   Info,
   Lightbulb,
   LoaderCircle,
+  Search,
   Sparkles,
   Stars,
+  Tag,
   Wand2,
   X,
   Zap,
@@ -27,7 +30,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -166,6 +169,25 @@ function formatCreatedAt(value: string) {
   });
 }
 
+function toGeneratedFromAsset(item: AssetSearchItem): GeneratedImage {
+  return {
+    id: item.id,
+    parent_image_id: null,
+    model_key: item.model_key,
+    prompt: item.prompt,
+    aspect_ratio: item.aspect_ratio,
+    resolution: item.resolution,
+    reference_urls: item.reference_urls,
+    image_url: item.asset_url ?? item.thumbnail_url ?? '',
+    thumbnail_url: item.thumbnail_url ?? item.asset_url ?? '',
+    action_type: null,
+    status: item.status,
+    auto_tags: item.auto_tags,
+    user_tags: item.user_tags,
+    created_at: item.created_at,
+  };
+}
+
 function toErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message) {
     return fallback;
@@ -183,6 +205,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
+  const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
@@ -198,20 +221,49 @@ export function ImageStudioClient({ userId }: Props) {
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
   const [activeQuickCategory, setActiveQuickCategory] = useState('E-commerce');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedModelFilters, setSelectedModelFilters] = useState<string[]>([]);
+  const [selectedResolutionFilters, setSelectedResolutionFilters] = useState<string[]>([]);
+  const [manualTagInput, setManualTagInput] = useState('');
+
+  const refreshGeneratedFeed = async (
+    nextQuery = searchQuery,
+    nextTags = selectedTags,
+    nextModels = selectedModelFilters,
+    nextResolutions = selectedResolutionFilters,
+  ) => {
+    const response = await api.searchAssets(userId, {
+      content_type: 'image',
+      query: nextQuery || undefined,
+      tags: nextTags,
+      models: nextModels,
+      resolutions: nextResolutions,
+      sort: 'newest',
+      page: 1,
+      page_size: 48,
+    });
+    setGeneratedImages(response.items.map(toGeneratedFromAsset));
+  };
+
+  const refreshTagFacets = async () => {
+    const facets = await api.listAssetTags(userId, { content_type: 'image' });
+    setTagFacets(facets);
+  };
 
   useEffect(() => {
     let cancelled = false;
     void Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
-      api.listGeneratedImages(userId).catch(() => []),
       api.listImageInspiration(userId).catch(() => []),
-    ]).then(([modelData, generatedData, inspirationData]) => {
+      api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
+    ]).then(([modelData, inspirationData, tagData]) => {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       setModels(nextModels);
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
-      setGeneratedImages(generatedData);
       setInspiration(inspirationData);
+      setTagFacets(tagData);
       setLoading(false);
     });
 
@@ -219,6 +271,22 @@ export function ImageStudioClient({ userId }: Props) {
       cancelled = true;
     };
   }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void refreshGeneratedFeed(searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters)
+      .catch((error) => {
+        if (cancelled) return;
+        setError(toErrorMessage(error, 'Failed to load filtered images.'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
+
+  useEffect(() => {
+    setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
+  }, [selectedGenerated]);
 
   const referenceUrls = useMemo(
     () =>
@@ -233,6 +301,19 @@ export function ImageStudioClient({ userId }: Props) {
   const selectedGeneratedModel = selectedGenerated ? models.find((model) => model.key === selectedGenerated.model_key) : null;
   const quickCategories = Array.from(new Set(quickTemplates.map((item) => item.category)));
   const visibleQuickTemplates = quickTemplates.filter((item) => item.category === activeQuickCategory);
+  const tagSuggestions = tagFacets
+    .filter((item) => item.tag.includes(searchQuery.trim().toLowerCase()))
+    .slice(0, 8);
+  const filteredInspiration = inspiration.filter((item) => {
+    const tags = item.tags ?? [];
+    const matchesQuery =
+      !searchQuery.trim() ||
+      `${item.title} ${item.prompt} ${tags.join(' ')}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => tags.map((value) => value.toLowerCase()).includes(tag.toLowerCase()));
+    const matchesModel = selectedModelFilters.length === 0 || selectedModelFilters.includes(item.model_key);
+    const matchesResolution = selectedResolutionFilters.length === 0 || selectedResolutionFilters.includes(item.resolution);
+    return matchesQuery && matchesTags && matchesModel && matchesResolution;
+  });
 
   const submit = async () => {
     if (!prompt.trim()) {
@@ -252,9 +333,9 @@ export function ImageStudioClient({ userId }: Props) {
         },
         userId,
       );
-      setGeneratedImages((prev) => [item, ...prev]);
       setSelectedGenerated(item);
       setActiveTab('generated');
+      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
     } catch (error) {
       setError(toErrorMessage(error, 'Failed to generate image. Please try again.'));
     } finally {
@@ -310,13 +391,40 @@ export function ImageStudioClient({ userId }: Props) {
       if (result.items.length === 0) {
         throw new Error('No images returned');
       }
-      setGeneratedImages((prev) => [...result.items, ...prev]);
       setSelectedGenerated(result.items[0]);
       setActiveTab('generated');
+      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not complete that action right now.'));
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const toggleFilter = (value: string, current: string[], setter: (next: string[]) => void) => {
+    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  };
+
+  const saveManualTags = async () => {
+    if (!selectedGenerated) return;
+    const nextUserTags = manualTagInput
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    try {
+      const response = await api.updateAssetTags('image', selectedGenerated.id, nextUserTags, userId);
+      setSelectedGenerated((current) =>
+        current ? { ...current, auto_tags: response.auto_tags, user_tags: response.user_tags } : current,
+      );
+      setGeneratedImages((current) =>
+        current.map((item) =>
+          item.id === selectedGenerated.id ? { ...item, auto_tags: response.auto_tags, user_tags: response.user_tags } : item,
+        ),
+      );
+      setManualTagInput(response.user_tags.join(', '));
+      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not update tags right now.'));
     }
   };
 
@@ -587,6 +695,135 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </div>
 
+          <Card className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                  <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                  Search by prompt or tags
+                </label>
+                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2">
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search for styles, objects, moods, scenes..."
+                    className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                  />
+                </div>
+                {searchQuery.trim() ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {tagSuggestions.map((item) => (
+                      <button
+                        key={item.tag}
+                        type="button"
+                        onClick={() => !selectedTags.includes(item.tag) && setSelectedTags((current) => [...current, item.tag])}
+                        className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
+                      >
+                        {item.tag} · {item.count}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                  <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                  Active filters
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedTags.map((tag) => (
+                    <button key={`active-tag-${tag}`} type="button" onClick={() => setSelectedTags((current) => current.filter((item) => item !== tag))} className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                      {tag}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                  {selectedModelFilters.map((item) => (
+                    <button key={`active-model-${item}`} type="button" onClick={() => setSelectedModelFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                      {models.find((model) => model.key === item)?.label ?? item}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                  {selectedResolutionFilters.map((item) => (
+                    <button key={`active-resolution-${item}`} type="button" onClick={() => setSelectedResolutionFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                      {item}px
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                  {selectedTags.length === 0 && selectedModelFilters.length === 0 && selectedResolutionFilters.length === 0 ? (
+                    <span className="text-xs text-muted">Newest assets are shown by default.</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 lg:col-span-2">
+                <div>
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                    <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                    Filter by tags
+                  </p>
+                  <div className="flex max-h-48 flex-wrap gap-2 overflow-auto">
+                    {tagFacets.map((item) => (
+                      <button
+                        key={item.tag}
+                        type="button"
+                        onClick={() => toggleFilter(item.tag, selectedTags, setSelectedTags)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          selectedTags.includes(item.tag)
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'border border-[hsl(var(--color-border))] text-muted'
+                        }`}
+                      >
+                        {item.tag} · {item.count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-text">Filter by model</p>
+                  <div className="flex flex-wrap gap-2">
+                    {models.map((model) => (
+                      <button
+                        key={`filter-model-${model.key}`}
+                        type="button"
+                        onClick={() => toggleFilter(model.key, selectedModelFilters, setSelectedModelFilters)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          selectedModelFilters.includes(model.key)
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'border border-[hsl(var(--color-border))] text-muted'
+                        }`}
+                      >
+                        {model.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-text">Filter by resolution</p>
+                  <div className="flex flex-wrap gap-2">
+                    {resolutionOptions.map((option) => (
+                      <button
+                        key={`filter-resolution-${option.value}`}
+                        type="button"
+                        onClick={() => toggleFilter(option.value, selectedResolutionFilters, setSelectedResolutionFilters)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          selectedResolutionFilters.includes(option.value)
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'border border-[hsl(var(--color-border))] text-muted'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {activeTab === 'generated' ? (
             generatedImages.length === 0 ? (
               <Card className="text-center">
@@ -611,6 +848,11 @@ export function ImageStudioClient({ userId }: Props) {
                       </div>
                       <p className="text-sm leading-6 text-muted">{item.prompt}</p>
                       <div className="flex flex-wrap gap-2">
+                        {[...item.auto_tags.slice(0, 4), ...item.user_tags.slice(0, 2)].map((tag) => (
+                          <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         <Button variant="secondary" type="button" onClick={() => void runImageAction(item.id, 'remove_background')} className="gap-2 px-3 py-1.5 text-xs" disabled={actionLoading === `${item.id}:remove_background`}>
                           <Eraser className="h-3.5 w-3.5" />
                           {actionLoading === `${item.id}:remove_background` ? 'Working...' : 'Remove BG'}
@@ -631,7 +873,7 @@ export function ImageStudioClient({ userId }: Props) {
             )
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              {inspiration.map((item) => (
+              {filteredInspiration.map((item) => (
                 <Card key={item.id} className="overflow-hidden p-0">
                   <button type="button" onClick={() => setSelectedInspiration(item)} className="block w-full text-left">
                     <img src={item.image_url} alt={item.title} className="h-64 w-full object-cover transition duration-300 hover:scale-[1.02]" />
@@ -643,6 +885,11 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                     <p className="text-xs uppercase tracking-[0.18em] text-muted">By {item.creator_name}</p>
                     <p className="text-sm leading-6 text-muted">{item.prompt}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.tags.slice(0, 5).map((tag) => (
+                        <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
+                      ))}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
                         <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
@@ -717,6 +964,14 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                   </div>
                 </div>
+                <div className="mt-6">
+                  <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedInspiration.tags.map((tag) => (
+                      <Badge key={`insp-tag-${tag}`}>{tag}</Badge>
+                    ))}
+                  </div>
+                </div>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
                   <a href={selectedInspiration.image_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
                     <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -760,6 +1015,31 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                   <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
                     <p className="text-sm leading-7 text-muted">{selectedGenerated.prompt}</p>
+                  </div>
+                </div>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                    <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedGenerated.auto_tags.length > 0 ? selectedGenerated.auto_tags.map((tag) => <Badge key={`auto-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No auto tags yet</span>}
+                    </div>
+                  </div>
+                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                    <p className="mb-2 text-sm font-semibold text-text">User tags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedGenerated.user_tags.length > 0 ? selectedGenerated.user_tags.map((tag) => <Badge key={`user-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No user tags yet</span>}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        value={manualTagInput}
+                        onChange={(event) => setManualTagInput(event.target.value)}
+                        placeholder="comma separated tags"
+                        className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+                      />
+                      <Button variant="secondary" type="button" onClick={() => void saveManualTags()}>
+                        Save
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-6">

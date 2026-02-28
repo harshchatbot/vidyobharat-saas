@@ -76,6 +76,8 @@ export type Video = {
   thumbnail_url: string | null;
   output_url: string | null;
   error_message: string | null;
+  auto_tags: string[];
+  user_tags: string[];
   created_at: string;
   updated_at: string;
 };
@@ -164,6 +166,8 @@ export type GeneratedImage = {
   thumbnail_url: string;
   action_type: string | null;
   status: string;
+  auto_tags: string[];
+  user_tags: string[];
   created_at: string;
 };
 
@@ -178,6 +182,36 @@ export type InspirationImage = {
   resolution: string;
   created_at: string;
   reference_urls: string[];
+  tags: string[];
+};
+
+export type AssetTagFacet = {
+  tag: string;
+  count: number;
+};
+
+export type AssetSearchItem = {
+  id: string;
+  content_type: 'image' | 'video' | string;
+  title: string;
+  model_key: string;
+  resolution: string;
+  aspect_ratio: string;
+  prompt: string;
+  thumbnail_url: string | null;
+  asset_url: string | null;
+  status: string;
+  created_at: string;
+  reference_urls: string[];
+  auto_tags: string[];
+  user_tags: string[];
+};
+
+export type AssetSearchResponse = {
+  items: AssetSearchItem[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type ImageActionResponse = {

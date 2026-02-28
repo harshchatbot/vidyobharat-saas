@@ -6,6 +6,8 @@ import type {
   AIVideoModel,
   AIVideoGenerateRequest,
   AIVideoGenerateResponse,
+  AssetSearchResponse,
+  AssetTagFacet,
   MusicTrack,
   Project,
   ProjectAsset,
@@ -192,6 +194,51 @@ export const api = {
   },
   listImageInspiration(userId: string) {
     return request<InspirationImage[]>('/ai/images/inspiration', {}, { userId, cache: 'no-store' });
+  },
+  listAssetTags(
+    userId: string,
+    params?: { query?: string; content_type?: 'image' | 'video' },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.query) query.set('query', params.query);
+    if (params?.content_type) query.set('content_type', params.content_type);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<AssetTagFacet[]>(`/assets/tags${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  searchAssets(
+    userId: string,
+    params: {
+      query?: string;
+      tags?: string[];
+      models?: string[];
+      resolutions?: string[];
+      content_type?: 'image' | 'video';
+      sort?: 'newest' | 'oldest';
+      page?: number;
+      page_size?: number;
+    },
+  ) {
+    const query = new URLSearchParams();
+    if (params.query) query.set('query', params.query);
+    for (const tag of params.tags ?? []) query.append('tags', tag);
+    for (const model of params.models ?? []) query.append('models', model);
+    for (const resolution of params.resolutions ?? []) query.append('resolutions', resolution);
+    if (params.content_type) query.set('content_type', params.content_type);
+    if (params.sort) query.set('sort', params.sort);
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<AssetSearchResponse>(`/assets/search${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  updateAssetTags(contentType: 'image' | 'video', assetId: string, userTags: string[], userId: string) {
+    return request<{ asset_id: string; content_type: string; auto_tags: string[]; user_tags: string[] }>(
+      `/assets/${contentType}/${assetId}/tags`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ user_tags: userTags }),
+      },
+      { userId, cache: 'no-store' },
+    );
   },
   generateImage(
     payload: {

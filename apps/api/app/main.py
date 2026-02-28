@@ -84,6 +84,30 @@ def _ensure_image_generation_columns() -> None:
 
 _ensure_image_generation_columns()
 
+
+def _ensure_asset_tags_table() -> None:
+    inspector = inspect(engine)
+    if 'asset_tags' in inspector.get_table_names():
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE asset_tags (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  asset_id VARCHAR(36) NOT NULL,
+                  asset_type VARCHAR(16) NOT NULL,
+                  tag VARCHAR(120) NOT NULL,
+                  source VARCHAR(16) NOT NULL DEFAULT 'auto',
+                  UNIQUE(asset_id, asset_type, tag)
+                )
+                """
+            )
+        )
+
+
+_ensure_asset_tags_table()
+
 Path('data/uploads').mkdir(parents=True, exist_ok=True)
 Path('data/music').mkdir(parents=True, exist_ok=True)
 Path('data/music_uploads').mkdir(parents=True, exist_ok=True)

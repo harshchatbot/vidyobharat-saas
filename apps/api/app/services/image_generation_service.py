@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.repositories.image_generation_repository import ImageGenerationRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
+from app.services.asset_tagging_service import AssetTaggingService
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ INSPIRATION_ITEMS = [
         'resolution': '1536',
         'created_at': '2026-01-20T09:48:49Z',
         'reference_urls': [],
+        'tags': ['monsoon', 'cafe', 'poster', 'cinematic', 'rain', 'warm tones'],
     },
     {
         'id': 'insp-2',
@@ -91,6 +93,7 @@ INSPIRATION_ITEMS = [
         'resolution': '1024',
         'created_at': '2026-01-18T17:18:10Z',
         'reference_urls': [],
+        'tags': ['streetwear', 'launch', 'cover art', 'urban', 'neon', 'social'],
     },
     {
         'id': 'insp-3',
@@ -103,6 +106,7 @@ INSPIRATION_ITEMS = [
         'resolution': '2048',
         'created_at': '2026-01-15T14:05:00Z',
         'reference_urls': ['https://example.com/reference-moodboard-1.jpg'],
+        'tags': ['mythology', 'illustration', 'portrait', 'gold accents', 'poster'],
     },
     {
         'id': 'insp-4',
@@ -115,6 +119,7 @@ INSPIRATION_ITEMS = [
         'resolution': '1536',
         'created_at': '2026-01-12T11:30:00Z',
         'reference_urls': ['https://example.com/reference-product-shot.jpg', 'https://example.com/reference-lighting.jpg'],
+        'tags': ['product', 'headphones', 'luxury', 'soft shadows', 'hero scene'],
     },
 ]
 
@@ -123,6 +128,7 @@ class ImageGenerationService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = ImageGenerationRepository(db)
+        self.tagging = AssetTaggingService(db)
         self.output_dir = Path('data/image_generations')
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.settings = get_settings()
@@ -133,7 +139,7 @@ class ImageGenerationService:
     def list_user_images(self, user_id: str) -> list[ImageGeneration]:
         return self.repo.list_by_user(user_id)
 
-    def list_inspiration(self) -> list[dict[str, str]]:
+    def list_inspiration(self) -> list[dict[str, object]]:
         return INSPIRATION_ITEMS
 
     def enhance_prompt(self, prompt: str, model_key: str | None = None) -> str:
@@ -251,6 +257,7 @@ class ImageGenerationService:
             action_type=None,
             status=ImageGenerationStatus.completed,
         )
+        self.tagging.auto_tag_image(generation)
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
 
@@ -286,7 +293,7 @@ class ImageGenerationService:
         self._write_placeholder_png(thumb_file, source.aspect_ratio)
 
         reference_urls = self._parse_reference_urls(source)
-        return self.repo.create(
+        item = self.repo.create(
             user_id=source.user_id,
             parent_image_id=source.id,
             model_key=source.model_key,
@@ -299,6 +306,8 @@ class ImageGenerationService:
             action_type='remove_background',
             status=ImageGenerationStatus.completed,
         )
+        self.tagging.auto_tag_image(item)
+        return item
 
     def process_upscale(self, source: ImageGeneration) -> ImageGeneration:
         next_resolution = self._upscaled_resolution(source.aspect_ratio, source.resolution)
@@ -331,7 +340,7 @@ class ImageGenerationService:
             encoding='utf-8',
         )
 
-        return self.repo.create(
+        item = self.repo.create(
             user_id=source.user_id,
             parent_image_id=source.id,
             model_key=source.model_key,
@@ -344,6 +353,8 @@ class ImageGenerationService:
             action_type='upscale',
             status=ImageGenerationStatus.completed,
         )
+        self.tagging.auto_tag_image(item)
+        return item
 
     def process_variations(self, source: ImageGeneration) -> list[ImageGeneration]:
         model = IMAGE_MODEL_REGISTRY[source.model_key]
@@ -382,8 +393,7 @@ class ImageGenerationService:
                 ),
                 encoding='utf-8',
             )
-            items.append(
-                self.repo.create(
+            item = self.repo.create(
                     user_id=source.user_id,
                     parent_image_id=source.id,
                     model_key=source.model_key,
@@ -396,7 +406,8 @@ class ImageGenerationService:
                     action_type='variation',
                     status=ImageGenerationStatus.completed,
                 )
-            )
+            self.tagging.auto_tag_image(item)
+            items.append(item)
         return items
 
     def _build_svg(

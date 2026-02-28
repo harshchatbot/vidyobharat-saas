@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
+from app.services.asset_tagging_service import AssetTaggingService
 from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
@@ -134,6 +135,7 @@ def process_video(video_id: str) -> None:
 
     db = SessionLocal()
     repo = VideoRepository(db)
+    tagging = AssetTaggingService(db)
     pipeline = VideoPipelineService()
     try:
         repo.set_progress(video_id, 15, VideoStatus.processing)
@@ -172,7 +174,9 @@ def process_video(video_id: str) -> None:
         repo.set_progress(video_id, 85, VideoStatus.processing)
         output_url = f'/static/renders/{video_id}.mp4'
         thumb_url = f'/static/renders/{video_id}.jpg'
-        repo.complete(video_id, output_url=output_url, thumbnail_url=thumb_url)
+        completed_video = repo.complete(video_id, output_url=output_url, thumbnail_url=thumb_url)
+        if completed_video:
+            tagging.auto_tag_video(completed_video)
         logger.info('video_job_completed', extra={'render_id': video_id})
     except Exception as exc:
         repo.fail(video_id, str(exc))
