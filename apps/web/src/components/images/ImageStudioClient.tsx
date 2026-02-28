@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Clapperboard,
+  Copy,
+  ExternalLink,
   GalleryVerticalEnd,
   ImageIcon,
   Images,
+  Info,
   Lightbulb,
   LoaderCircle,
+  X,
   Sparkles,
   Wand2,
 } from 'lucide-react';
@@ -79,6 +83,8 @@ export function ImageStudioClient({ userId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generated' | 'inspiration'>('generated');
+  const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState('nano_banana');
   const [prompt, setPrompt] = useState('');
@@ -117,6 +123,10 @@ export function ImageStudioClient({ userId }: Props) {
 
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
 
+  const selectedInspirationModel = selectedInspiration
+    ? models.find((model) => model.key === selectedInspiration.model_key)
+    : null;
+
   const submit = async () => {
     if (!prompt.trim()) {
       setError('Prompt is required.');
@@ -143,6 +153,24 @@ export function ImageStudioClient({ userId }: Props) {
       setSubmitting(false);
     }
   };
+
+  const copyPrompt = async () => {
+    if (!selectedInspiration) return;
+    await navigator.clipboard.writeText(selectedInspiration.prompt);
+    setCopiedPrompt(true);
+    window.setTimeout(() => setCopiedPrompt(false), 1800);
+  };
+
+  const formatCreatedAt = (value: string) =>
+    new Date(value).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
 
   if (loading) {
     return (
@@ -386,7 +414,13 @@ export function ImageStudioClient({ userId }: Props) {
             <div className="grid gap-4 sm:grid-cols-2">
               {inspiration.map((item) => (
                 <Card key={item.id} className="overflow-hidden p-0">
-                  <img src={item.image_url} alt={item.title} className="h-64 w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInspiration(item)}
+                    className="block w-full text-left"
+                  >
+                    <img src={item.image_url} alt={item.title} className="h-64 w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                  </button>
                   <div className="space-y-3 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-text">{item.title}</p>
@@ -394,9 +428,19 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                     <p className="text-xs uppercase tracking-[0.18em] text-muted">By {item.creator_name}</p>
                     <p className="text-sm leading-6 text-muted">{item.prompt}</p>
-                    <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
-                      <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                      Inspiration only
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                        <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                        Inspiration only
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInspiration(item)}
+                        className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text"
+                      >
+                        <Info className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                        View details
+                      </button>
                     </div>
                   </div>
                 </Card>
@@ -405,6 +449,89 @@ export function ImageStudioClient({ userId }: Props) {
           )}
         </div>
       </div>
+
+      {selectedInspiration ? (
+        <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedInspiration(null)}>
+          <div
+            className="mx-auto flex h-full max-w-6xl items-center justify-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="grid max-h-[92vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="min-h-[280px] bg-[hsl(var(--color-bg))]">
+                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="h-full w-full object-cover" />
+              </div>
+              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">{selectedInspiration.title}</h3>
+                    <p className="mt-2 text-sm text-muted">Created {formatCreatedAt(selectedInspiration.created_at)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInspiration(null)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-text">Prompt</p>
+                    <Button variant="secondary" type="button" onClick={() => void copyPrompt()} className="gap-2 px-3 py-1.5 text-xs">
+                      <Copy className="h-3.5 w-3.5" />
+                      {copiedPrompt ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                    <p className="text-sm leading-7 text-muted">{selectedInspiration.prompt}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <p className="mb-3 text-sm font-semibold text-text">Information</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Model</p>
+                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspirationModel?.label ?? selectedInspiration.model_key}</p>
+                    </div>
+                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">References</p>
+                      <p className="mt-2 text-sm font-semibold text-text">
+                        {selectedInspiration.reference_urls.length > 0 ? `${selectedInspiration.reference_urls.length}` : '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspiration.aspect_ratio}</p>
+                    </div>
+                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Resolution</p>
+                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspiration.resolution}px</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <a
+                    href={selectedInspiration.image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+                  >
+                    <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                    Open full image
+                  </a>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                    <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                    Inspiration reference
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

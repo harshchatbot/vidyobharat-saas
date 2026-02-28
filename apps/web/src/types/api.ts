@@ -172,4 +172,8 @@ export type InspirationImage = {
   title: string;
   prompt: string;
   image_url: string;
+  aspect_ratio: string;
+  resolution: string;
+  created_at: string;
+  reference_urls: string[];
 };

@@ -55,6 +55,10 @@ INSPIRATION_ITEMS = [
         'title': 'Monsoon Cafe Poster',
         'prompt': 'Warm Mumbai monsoon cafe poster with cinematic rain reflections and saffron highlights',
         'image_url': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '4:5',
+        'resolution': '1536',
+        'created_at': '2026-01-20T09:48:49Z',
+        'reference_urls': [],
     },
     {
         'id': 'insp-2',
@@ -63,6 +67,10 @@ INSPIRATION_ITEMS = [
         'title': 'Streetwear Launch Cover',
         'prompt': 'High-energy streetwear launch cover with neon accents and urban motion blur',
         'image_url': 'https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '1:1',
+        'resolution': '1024',
+        'created_at': '2026-01-18T17:18:10Z',
+        'reference_urls': [],
     },
     {
         'id': 'insp-3',
@@ -71,6 +79,10 @@ INSPIRATION_ITEMS = [
         'title': 'Mythology Art Card',
         'prompt': 'Illustrated mythology portrait with regal gold accents and modern poster layout',
         'image_url': 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '9:16',
+        'resolution': '2048',
+        'created_at': '2026-01-15T14:05:00Z',
+        'reference_urls': ['https://example.com/reference-moodboard-1.jpg'],
     },
     {
         'id': 'insp-4',
@@ -79,6 +91,10 @@ INSPIRATION_ITEMS = [
         'title': 'Product Hero Scene',
         'prompt': 'Premium headphone product scene with soft shadows, minimal props, and luxury mood',
         'image_url': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '16:9',
+        'resolution': '1536',
+        'created_at': '2026-01-12T11:30:00Z',
+        'reference_urls': ['https://example.com/reference-product-shot.jpg', 'https://example.com/reference-lighting.jpg'],
     },
 ]
 

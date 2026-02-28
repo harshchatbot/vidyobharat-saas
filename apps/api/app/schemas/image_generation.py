@@ -35,6 +35,10 @@ class InspirationImageResponse(BaseModel):
     title: str
     prompt: str
     image_url: str
+    aspect_ratio: str
+    resolution: str
+    created_at: datetime
+    reference_urls: list[str]
 
 
 class ImageGenerationCreateRequest(BaseModel):
