@@ -8,6 +8,7 @@ import {
   Sparkles,
   Crown,
   MonitorSmartphone,
+  WandSparkles,
 } from 'lucide-react';
 
 import type { AIVideoModel } from '@/types/api';
@@ -101,10 +102,26 @@ export const RESOLUTION_OPTIONS = [
   { value: '1080p', label: '1080p', description: 'High quality final output for publishing.' },
 ] as const;
 
-export const DURATION_OPTIONS = [
-  { value: 'auto', label: 'Auto', description: 'Matches narration and pacing automatically.' },
-  { value: 'custom', label: 'Custom', description: 'Set an explicit duration in seconds.' },
-] as const;
+export const VIDEO_DURATION_RULES = {
+  sora2: {
+    defaultSeconds: 8,
+    presetSeconds: [4, 8, 12],
+    helperText: 'Sora 2 supports 4s, 8s, and 12s clips.',
+  },
+  veo3: {
+    defaultSeconds: 8,
+    presetSeconds: [4, 6, 8],
+    seededSeconds: 8,
+    helperText: 'Veo 3.1 supports 4s, 6s, and 8s clips. Image-seeded clips are fixed to 8s.',
+  },
+  kling3: {
+    defaultSeconds: 5,
+    presetSeconds: [3, 5, 8, 10],
+    minSeconds: 3,
+    maxSeconds: 10,
+    helperText: 'Kling 3.0 supports flexible durations from 3s to 10s.',
+  },
+} as const;
 
 export const FALLBACK_VIDEO_MODELS: AIVideoModel[] = [
   {
@@ -121,9 +138,17 @@ export const FALLBACK_VIDEO_MODELS: AIVideoModel[] = [
     frontendHint: 'Choose this for visually refined short-form videos with cinematic finish.',
     apiAdapter: 'generate_with_veo3',
   },
+  {
+    key: 'kling3',
+    label: 'Stylized Rapid Drafts (Kling 3.0)',
+    description: 'Best for expressive, stylized clips and fast iteration.',
+    frontendHint: 'Choose this for shorter stylized videos where speed and experimentation matter.',
+    apiAdapter: 'generate_with_kling3',
+  },
 ];
 
 export const MODEL_ICONS: Record<string, typeof Crown> = {
   sora2: Crown,
   veo3: MonitorSmartphone,
+  kling3: WandSparkles,
 };

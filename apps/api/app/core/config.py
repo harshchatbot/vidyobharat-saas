@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     openai_model: str = 'gpt-4.1-mini'
     openai_image_model: str = 'gpt-image-1'
     openai_video_model: str = 'sora-2'
+    kling_api_key: str | None = None
+    kling_api_base: str = 'https://api.klingai.com'
     gemini_api_key: str | None = None
     gemini_api_base: str = 'https://generativelanguage.googleapis.com/v1beta'
     together_api_key: str | None = None

@@ -3,36 +3,44 @@ import { Captions, Clock3, Info } from 'lucide-react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 
-import { ASPECT_OPTIONS, CAPTION_STYLE_OPTIONS, DURATION_OPTIONS, RESOLUTION_OPTIONS } from './constants';
+import { ASPECT_OPTIONS, CAPTION_STYLE_OPTIONS, RESOLUTION_OPTIONS } from './constants';
 
 export function OutputSettings({
+  modelLabel,
   aspectRatio,
   onAspectRatioChange,
   resolution,
   onResolutionChange,
-  durationMode,
-  onDurationModeChange,
   durationSeconds,
   onDurationSecondsChange,
+  availableDurations,
+  supportsCustomDuration,
+  minDuration,
+  maxDuration,
+  durationHelperText,
+  durationError,
   captionsEnabled,
   onCaptionsEnabledChange,
   captionStyle,
   onCaptionStyleChange,
-  durationError,
 }: {
+  modelLabel: string;
   aspectRatio: string;
   onAspectRatioChange: (value: '9:16' | '16:9' | '1:1') => void;
   resolution: string;
   onResolutionChange: (value: '720p' | '1080p') => void;
-  durationMode: 'auto' | 'custom';
-  onDurationModeChange: (value: 'auto' | 'custom') => void;
   durationSeconds: string;
   onDurationSecondsChange: (value: string) => void;
+  availableDurations: number[];
+  supportsCustomDuration: boolean;
+  minDuration?: number;
+  maxDuration?: number;
+  durationHelperText: string;
+  durationError: string | null;
   captionsEnabled: boolean;
   onCaptionsEnabledChange: (value: boolean) => void;
   captionStyle: string;
   onCaptionStyleChange: (value: string) => void;
-  durationError: string | null;
 }) {
   return (
     <div className="space-y-5">
@@ -88,35 +96,42 @@ export function OutputSettings({
         <div className="space-y-4">
           <div>
             <p className="mb-2 text-sm font-semibold text-text">Duration</p>
-            <div className="space-y-2">
-              {DURATION_OPTIONS.map((option) => {
-                const active = option.value === durationMode;
+            <div className="grid gap-2 sm:grid-cols-2">
+              {availableDurations.map((seconds) => {
+                const active = Number(durationSeconds) === seconds;
                 return (
                   <button
-                    key={option.value}
+                    key={seconds}
                     type="button"
-                    onClick={() => onDurationModeChange(option.value)}
+                    onClick={() => onDurationSecondsChange(String(seconds))}
                     className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
                       active
                         ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
                         : 'border-border bg-bg hover:bg-elevated'
                     }`}
                   >
-                    <span className="block text-sm font-semibold text-text">{option.label}</span>
-                    <span className="mt-1 block text-xs text-muted">{option.description}</span>
+                    <span className="block text-sm font-semibold text-text">{seconds}s</span>
+                    <span className="mt-1 block text-xs text-muted">{modelLabel} clip</span>
                   </button>
                 );
               })}
             </div>
+            <p className="mt-2 text-xs text-muted">{durationHelperText}</p>
           </div>
 
-          {durationMode === 'custom' ? (
+          {supportsCustomDuration ? (
             <label className="block">
               <span className="mb-1 flex items-center gap-2 text-sm font-semibold text-text">
                 <Clock3 className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                 Custom duration (seconds)
               </span>
-              <Input type="number" min={5} max={300} value={durationSeconds} onChange={(event) => onDurationSecondsChange(event.target.value)} />
+              <Input
+                type="number"
+                min={minDuration}
+                max={maxDuration}
+                value={durationSeconds}
+                onChange={(event) => onDurationSecondsChange(event.target.value)}
+              />
               {durationError ? <p className="mt-1 text-sm text-[hsl(var(--color-danger))]">{durationError}</p> : null}
             </label>
           ) : null}

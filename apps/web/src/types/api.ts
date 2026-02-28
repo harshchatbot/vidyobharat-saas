@@ -159,7 +159,7 @@ export type VideoCreateRequest = {
   template: string;
   script: string;
   tags: string[];
-  modelKey: 'sora2' | 'veo3';
+  modelKey: 'sora2' | 'veo3' | 'kling3';
   language: string;
   voice: string;
   imageUrls: string[];
@@ -191,7 +191,7 @@ export type AIVideoStatusResponse = {
   id: string;
   status: 'queued' | 'processing' | 'success' | 'failed' | string;
   videoUrl: string | null;
-  modelKey: 'sora2' | 'veo3' | string | null;
+  modelKey: 'sora2' | 'veo3' | 'kling3' | string | null;
   modelLabel: string | null;
   provider: string | null;
   resolution: string;

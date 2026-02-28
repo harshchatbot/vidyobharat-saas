@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Video } from '@/types/api';
 
-import { FALLBACK_VIDEO_MODELS, TEMPLATE_OPTIONS } from './constants';
+import { FALLBACK_VIDEO_MODELS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES } from './constants';
 import { GenerateButton } from './GenerateButton';
 import { ModelDropdown } from './ModelDropdown';
 import { MusicSelector } from './MusicSelector';
@@ -33,6 +33,8 @@ const VOICE_PREVIEW_CONFIG: Record<string, { pitch: number; rate: number; keywor
 function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
 }
+
+type VideoModelKey = 'sora2' | 'veo3' | 'kling3';
 
 export function CreateVideoPage({
   userId,
@@ -67,7 +69,7 @@ export function CreateVideoPage({
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelKey, setModelKey] = useState<'sora2' | 'veo3'>('sora2');
+  const [modelKey, setModelKey] = useState<VideoModelKey>('sora2');
 
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImageUrls, setSelectedImageUrls] = useState<string[]>([]);
@@ -85,8 +87,8 @@ export function CreateVideoPage({
 
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
-  const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('auto');
-  const [durationSeconds, setDurationSeconds] = useState('12');
+  const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('custom');
+  const [durationSeconds, setDurationSeconds] = useState('8');
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [captionStyle, setCaptionStyle] = useState('Classic');
 
@@ -105,12 +107,29 @@ export function CreateVideoPage({
   });
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const selectedModel = models.find((model) => model.key === modelKey) ?? models[0];
-  const estimatedSeconds = durationMode === 'custom' ? Math.max(5, Math.min(300, Number(durationSeconds) || 12)) : 12;
-  const estimatedCredits = modelKey === 'sora2' ? Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2)) : Math.max(12, estimatedSeconds * (resolution === '1080p' ? 2 : 1));
-  const estimatedTime = modelKey === 'sora2' ? '2-4 min' : '1-3 min';
-  const durationError = durationMode === 'custom' && (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < 5 || Number(durationSeconds) > 300)
-    ? 'Enter a duration between 5 and 300 seconds.'
-    : null;
+  const durationRule = VIDEO_DURATION_RULES[modelKey];
+  const hasReferenceImages = selectedImageUrls.length > 0;
+  const seededDuration = modelKey === 'veo3' ? VIDEO_DURATION_RULES.veo3.seededSeconds : undefined;
+  const klingMinDuration = modelKey === 'kling3' ? VIDEO_DURATION_RULES.kling3.minSeconds : undefined;
+  const klingMaxDuration = modelKey === 'kling3' ? VIDEO_DURATION_RULES.kling3.maxSeconds : undefined;
+  const availableDurations: number[] = modelKey === 'veo3' && hasReferenceImages && seededDuration
+    ? [seededDuration]
+    : [...durationRule.presetSeconds];
+  const estimatedSeconds = Number(durationSeconds) || durationRule.defaultSeconds;
+  const estimatedCredits = modelKey === 'sora2'
+    ? Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2))
+    : modelKey === 'veo3'
+      ? Math.max(12, estimatedSeconds * (resolution === '1080p' ? 2 : 1))
+      : Math.max(10, estimatedSeconds * (resolution === '1080p' ? 2 : 1));
+  const estimatedTime = modelKey === 'sora2' ? '2-4 min' : modelKey === 'veo3' ? '1-3 min' : '1-2 min';
+  const durationError =
+    modelKey === 'kling3'
+      ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)
+        ? `Enter a duration between ${klingMinDuration}s and ${klingMaxDuration}s.`
+        : null)
+      : (!availableDurations.includes(Number(durationSeconds))
+        ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
+        : null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -137,7 +156,7 @@ export function CreateVideoPage({
       setGeneratedImages(userImages);
       setVideos(userVideos);
       if (videoModels.length > 0 && !videoModels.some((item) => item.key === modelKey)) {
-        setModelKey((videoModels[0].key as 'sora2' | 'veo3') ?? 'sora2');
+        setModelKey((videoModels[0].key as VideoModelKey) ?? 'sora2');
       }
     }).finally(() => {
       if (!cancelled) setModelsLoading(false);
@@ -162,7 +181,7 @@ export function CreateVideoPage({
       if (Array.isArray(parsed.scriptTags)) setScriptTags(sanitizeTags(parsed.scriptTags.map(String)));
       if (typeof parsed.language === 'string') setLanguage(parsed.language);
       if (typeof parsed.voice === 'string') setVoice(parsed.voice);
-      if (typeof parsed.modelKey === 'string') setModelKey(parsed.modelKey as 'sora2' | 'veo3');
+      if (typeof parsed.modelKey === 'string') setModelKey(parsed.modelKey as VideoModelKey);
       if (Array.isArray(parsed.selectedImageUrls)) setSelectedImageUrls(parsed.selectedImageUrls.map(String));
       if (typeof parsed.referenceImageUrlInput === 'string') setReferenceImageUrlInput(parsed.referenceImageUrlInput);
       if (typeof parsed.musicMode === 'string') setMusicMode(parsed.musicMode as 'none' | 'library' | 'upload');
@@ -279,6 +298,30 @@ export function CreateVideoPage({
       window.clearInterval(interval);
     };
   }, [jobResponseId, userId]);
+
+  useEffect(() => {
+    setDurationMode('custom');
+    const currentSeconds = Number(durationSeconds);
+    if (modelKey === 'veo3' && hasReferenceImages && seededDuration) {
+      if (currentSeconds !== seededDuration) {
+        setDurationSeconds(String(seededDuration));
+      }
+      return;
+    }
+
+    if (modelKey === 'kling3') {
+      const minimum = klingMinDuration ?? 3;
+      const maximum = klingMaxDuration ?? 10;
+      if (!Number.isFinite(currentSeconds) || currentSeconds < minimum || currentSeconds > maximum) {
+        setDurationSeconds(String(durationRule.defaultSeconds));
+      }
+      return;
+    }
+
+    if (!availableDurations.includes(currentSeconds)) {
+      setDurationSeconds(String(durationRule.defaultSeconds));
+    }
+  }, [modelKey, hasReferenceImages, durationSeconds, availableDurations, durationRule]);
 
   useEffect(() => {
     if (musicMode !== 'library') return;
@@ -472,8 +515,8 @@ export function CreateVideoPage({
         },
         aspectRatio,
         resolution,
-        durationMode,
-        durationSeconds: durationMode === 'custom' ? Number(durationSeconds) : undefined,
+        durationMode: 'custom',
+        durationSeconds: Number(durationSeconds),
         captionsEnabled,
         captionStyle: captionStyle.toLowerCase(),
       }, userId);
@@ -573,7 +616,7 @@ export function CreateVideoPage({
         icon={<Sparkles className="h-5 w-5" />}
         action={modelsLoading ? <Spinner /> : null}
       >
-        <ModelDropdown models={models} selectedModel={modelKey} onChange={(value) => setModelKey(value as 'sora2' | 'veo3')} />
+        <ModelDropdown models={models} selectedModel={modelKey} onChange={(value) => setModelKey(value as VideoModelKey)} />
       </SectionCard>
 
       <SectionCard
@@ -639,19 +682,25 @@ export function CreateVideoPage({
         icon={<Settings2 className="h-5 w-5" />}
       >
         <OutputSettings
+          modelLabel={selectedModel.label}
           aspectRatio={aspectRatio}
           onAspectRatioChange={setAspectRatio}
           resolution={resolution}
           onResolutionChange={setResolution}
-          durationMode={durationMode}
-          onDurationModeChange={setDurationMode}
           durationSeconds={durationSeconds}
           onDurationSecondsChange={setDurationSeconds}
+          availableDurations={availableDurations}
+          supportsCustomDuration={modelKey === 'kling3'}
+          minDuration={klingMinDuration}
+          maxDuration={klingMaxDuration}
+          durationHelperText={modelKey === 'veo3' && hasReferenceImages && seededDuration
+            ? 'Veo 3.1 image-seeded clips are currently limited to 8 seconds.'
+            : durationRule.helperText}
+          durationError={durationError}
           captionsEnabled={captionsEnabled}
           onCaptionsEnabledChange={setCaptionsEnabled}
           captionStyle={captionStyle}
           onCaptionStyleChange={setCaptionStyle}
-          durationError={durationError}
         />
       </SectionCard>
 

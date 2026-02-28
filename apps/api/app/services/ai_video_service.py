@@ -60,6 +60,19 @@ class AIVideoCreateService:
             frontend_hint='Use this for strong cinematic finish and premium short-form outputs.',
             api_adapter='generate_with_veo3',
         ),
+        'kling3': ModelRegistryEntry(
+            key='kling3',
+            label='Stylized Rapid Drafts (Kling 3.0)',
+            description='Best for quick stylized clips, fast iteration, and visually expressive drafts.',
+            frontend_hint='Use this when you want creative motion fast and need tighter control over short clip length.',
+            api_adapter='generate_with_kling3',
+        ),
+    }
+
+    DURATION_RULES: dict[str, dict[str, Any]] = {
+        'sora2': {'presets': {4, 8, 12}, 'default': 8},
+        'veo3': {'presets': {4, 6, 8}, 'default': 8, 'seeded_only': 8},
+        'kling3': {'min': 3, 'max': 10, 'default': 5},
     }
 
     def __init__(self, db: Session, settings: Settings) -> None:
@@ -71,6 +84,7 @@ class AIVideoCreateService:
         self.providers = {
             'sora2': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
+            'kling3': self.generate_with_kling3,
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
@@ -101,7 +115,12 @@ class AIVideoCreateService:
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
 
-        normalized_duration = duration_seconds if duration_mode == 'custom' else 8
+        normalized_duration = self._normalize_duration(
+            model_key=model_key,
+            duration_mode=duration_mode,
+            duration_seconds=duration_seconds,
+            image_urls=image_urls,
+        )
         seed_image_url = image_urls[0] if image_urls else None
         video = self.repo.create(
             user_id=user_id,
@@ -274,6 +293,32 @@ class AIVideoCreateService:
             metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
         )
 
+    def generate_with_kling3(self, params: dict[str, Any]) -> ProviderResult:
+        # Environment variables for real integration:
+        # - KLING_API_KEY
+        # - KLING_API_BASE
+        #
+        # Insert the real Kling 3.0 API request here. The normalized response should
+        # still return the final video URL and provider label so the rest of the app
+        # does not care which provider produced the clip.
+        if not self.settings.kling_api_key:
+            raise ProviderError('KLING_API_KEY is not configured for Kling 3.0')
+        output_path, _ = self._render_local_proxy(
+            render_id_prefix='kling3',
+            script=params['script'],
+            image_url=params.get('imageUrl'),
+            voice=params['voice'],
+            aspect_ratio=params['aspectRatio'],
+            resolution=params['resolution'],
+            duration_seconds=params['durationSeconds'],
+        )
+        return ProviderResult(
+            provider='Kling 3.0',
+            model_key='kling3',
+            video_url=output_path,
+            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
+        )
+
     def _render_local_proxy(
         self,
         *,
@@ -401,6 +446,42 @@ class AIVideoCreateService:
     def _truncate_error(self, value: str, limit: int = 260) -> str:
         compact = ' '.join(value.split())
         return compact[:limit]
+
+    def _normalize_duration(
+        self,
+        *,
+        model_key: str,
+        duration_mode: str,
+        duration_seconds: int | None,
+        image_urls: list[str],
+    ) -> int:
+        rules = self.DURATION_RULES.get(model_key)
+        if not rules:
+            raise ProviderError(f'Unsupported model: {model_key}')
+
+        if model_key == 'veo3' and image_urls:
+            if duration_seconds is not None and duration_seconds != rules['seeded_only']:
+                raise ProviderError('Veo 3.1 image-seeded videos currently support only 8 second clips')
+            return int(rules['seeded_only'])
+
+        if duration_mode != 'custom' or duration_seconds is None:
+            return int(rules['default'])
+
+        if 'presets' in rules:
+            allowed = sorted(int(item) for item in rules['presets'])
+            if duration_seconds not in rules['presets']:
+                raise ProviderError(
+                    f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports only {", ".join(f"{value}s" for value in allowed)} durations'
+                )
+            return int(duration_seconds)
+
+        minimum = int(rules['min'])
+        maximum = int(rules['max'])
+        if duration_seconds < minimum or duration_seconds > maximum:
+            raise ProviderError(
+                f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports durations between {minimum}s and {maximum}s'
+            )
+        return int(duration_seconds)
 
     def _update_video_progress(self, video_id: str, progress: int) -> None:
         video = self.repo.get_by_id(video_id)

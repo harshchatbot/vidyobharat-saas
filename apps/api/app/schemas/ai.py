@@ -8,7 +8,7 @@ SUPPORTED_REEL_TEMPLATES = {
     'Roman_Soldier_POV',
     'Historical_Fact_Reel',
 }
-SUPPORTED_VIDEO_MODELS = {'sora2', 'veo3'}
+SUPPORTED_VIDEO_MODELS = {'sora2', 'veo3', 'kling3'}
 
 
 class ReelScriptRequest(BaseModel):
