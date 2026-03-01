@@ -32,7 +32,7 @@ export function GenerateButton({
           <p className="font-heading text-xl font-extrabold tracking-tight text-text">Generate Video</p>
           <p className="mt-1 text-sm text-muted">Your current script, tags, media settings, and output preferences will be sent as a single job.</p>
         </div>
-        <Button type="button" onClick={onClick} disabled={loading || disabled} className="gap-2 px-6 py-3 text-base">
+        <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 px-6 py-3 text-base">
           {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}
           {loading ? 'Submitting job...' : 'Generate Video'}
         </Button>

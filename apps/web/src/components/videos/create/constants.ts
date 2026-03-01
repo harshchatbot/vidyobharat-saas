@@ -149,6 +149,11 @@ export const RESOLUTION_DISPLAY_OPTIONS = [
   { value: '2160p', label: '4K (2160p)', description: 'Coming soon. Not available for current models yet.' },
 ] as const;
 
+export const VIDEO_QUALITY_OPTIONS = [
+  { value: 'standard', label: 'Standard', description: 'Balanced output quality with lower credit usage.' },
+  { value: 'high', label: 'High', description: 'Higher compute quality for more polished motion and detail.' },
+] as const;
+
 export const AUDIO_QUALITY_OPTIONS = [
   { value: 8000, label: '8 kHz', description: 'Lowest bandwidth. Suitable for basic speech testing.' },
   { value: 22050, label: '22 kHz', description: 'Balanced quality for most reels and previews.' },

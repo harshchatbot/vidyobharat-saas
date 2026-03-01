@@ -91,6 +91,7 @@ class AIVideoCreateRequest(BaseModel):
     language: str = Field(min_length=2, max_length=40)
     aspectRatio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=20)
+    quality: str = Field(default='standard', min_length=3, max_length=20)
     durationMode: str = Field(min_length=4, max_length=10)
     durationSeconds: int | None = Field(default=None, ge=3, le=300)
     voice: str = Field(min_length=1, max_length=120)
@@ -112,6 +113,13 @@ class AIVideoCreateRequest(BaseModel):
     def validate_resolution(cls, value: str) -> str:
         if value not in {'720p', '1080p'}:
             raise ValueError('Unsupported resolution')
+        return value
+
+    @field_validator('quality')
+    @classmethod
+    def validate_quality(cls, value: str) -> str:
+        if value not in {'standard', 'high'}:
+            raise ValueError('Unsupported quality')
         return value
 
     @field_validator('durationMode')

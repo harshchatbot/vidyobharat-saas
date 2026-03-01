@@ -279,6 +279,7 @@ export type VideoCreateRequest = {
   };
   aspectRatio: string;
   resolution: string;
+  quality: 'standard' | 'high';
   durationMode: 'auto' | 'custom';
   durationSeconds?: number;
   captionsEnabled: boolean;
@@ -341,6 +342,12 @@ export type CreditBreakdownItem = {
   cost: number;
 };
 
+export type EstimateBreakdownItem = {
+  component: string;
+  value: number;
+  label?: string | null;
+};
+
 export type CreditWallet = {
   currentCredits: number;
   monthlyCredits: number;
@@ -362,7 +369,7 @@ export type CreditHistoryItem = {
 
 export type CreditEstimateResponse = {
   estimatedCredits: number;
-  breakdown: CreditBreakdownItem[];
+  breakdown: EstimateBreakdownItem[];
   currentCredits: number;
   remainingCredits: number;
   sufficient: boolean;

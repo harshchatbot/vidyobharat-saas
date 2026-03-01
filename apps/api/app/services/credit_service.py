@@ -1,20 +1,21 @@
 from __future__ import annotations
 
+import math
 import hashlib
 import hmac
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.repositories.credit_repository import CreditRepository
-from app.models.entities import CreditTopUpOrder, CreditTransaction, CreditWallet
+from app.models.entities import CreditTransaction, CreditWallet
 from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
 
@@ -25,11 +26,19 @@ class InsufficientCreditsError(RuntimeError):
         self.available = available
 
 
+class CreditCapExceededError(RuntimeError):
+    def __init__(self, requested: int, allowed: int, feature: str) -> None:
+        super().__init__(f'Requested configuration exceeds allowed credit cap for {feature}. Requested {requested}, max {allowed}.')
+        self.requested = requested
+        self.allowed = allowed
+        self.feature = feature
+
+
 @dataclass
 class CreditCostItem:
-    key: str
+    component: str
     label: str
-    amount: int
+    value: float
 
 
 @dataclass
@@ -67,19 +76,37 @@ class CreditService:
     FREE_VOICE_KEYS = {'Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'}
     FREE_IMAGE_MODELS = {'nano_banana'}
     FREE_IMAGE_RESOLUTIONS = {'1024'}
-    PREMIUM_VIDEO_MODELS = {'sora2', 'veo3', 'kling3'}
+    VIDEO_MODEL_ALIASES = {
+        'kling3': 'kling',
+        'kling': 'kling',
+        'veo3': 'veo',
+        'veo': 'veo',
+        'sora2': 'sora',
+        'sora': 'sora',
+    }
+    IMAGE_MODEL_TIERS = {
+        'nano_banana': 'standard',
+        'openai_image': 'premium',
+        'seedream': 'premium',
+        'flux_spark': 'premium',
+        'recraft_studio': 'premium',
+    }
+    VOICE_PROVIDER_ALIASES = {
+        'sarvam ai': 'sarvam',
+        'sarvam': 'sarvam',
+        'elevenlabs': 'elevenlabs',
+        'free': 'free',
+        'fallback tts': 'free',
+    }
 
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = CreditRepository(db)
         self.settings = get_settings()
         self.pricing_service = PricingService()
-        self.credit_costs = self._load_json('credit_pricing.json')
-        self.credit_plans = self._load_json('credit_plans.json')
-
-    def _load_json(self, filename: str) -> dict[str, Any]:
-        config_path = Path(__file__).resolve().parents[1] / 'core' / filename
-        return json.loads(config_path.read_text())
+        self.credit_costs = _load_json_config('credit_pricing.json')
+        self.credit_plans = _load_json_config('credit_plans.json')
+        self.credit_multipliers = _load_json_config('credit_multipliers.json')
 
     def ensure_wallet(self, user_id: str) -> CreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -117,6 +144,42 @@ class CreditService:
         if action == 'video_retry':
             return self._estimate_video_retry(payload)
         return CreditEstimate(required_credits=0, breakdown=[], premium=False)
+
+    # Central dynamic billing functions. These are the single source of truth for
+    # estimate and deduction paths for video/image/voice compute pricing.
+    def calculate_video_credits(
+        self,
+        *,
+        model: str,
+        resolution: str,
+        duration_seconds: int,
+        quality: str,
+    ) -> int:
+        total, _ = self._calculate_video_credits_with_breakdown(
+            model=model,
+            resolution=resolution,
+            duration_seconds=duration_seconds,
+            quality=quality,
+        )
+        return total
+
+    def calculate_image_credits(
+        self,
+        *,
+        resolution: str,
+        model: str,
+    ) -> int:
+        total, _ = self._calculate_image_credits_with_breakdown(resolution=resolution, model=model)
+        return total
+
+    def calculate_voice_credits(
+        self,
+        *,
+        provider: str,
+        sample_rate: str,
+    ) -> int:
+        total, _ = self._calculate_voice_credits_with_breakdown(provider=provider, sample_rate=sample_rate)
+        return total
 
     def estimate_for_user(self, user_id: str, action: str, payload: dict[str, Any]) -> tuple[CreditWallet, CreditEstimate]:
         wallet = self.ensure_wallet(user_id)
@@ -279,14 +342,16 @@ class CreditService:
         return count
 
     def _estimate_tts_preview(self, payload: dict[str, Any]) -> CreditEstimate:
-        voice = str(payload.get('voice') or '')
-        sample_rate = int(payload.get('sample_rate_hz') or payload.get('sampleRateHz') or 22050)
-        items: list[CreditCostItem] = []
-        if voice and voice not in self.FREE_VOICE_KEYS:
-            items.append(self._item('premium_voice_preview'))
-        if sample_rate == 48000:
-            items.append(self._item('audio_quality_48khz_modifier'))
-        return self._sum(items)
+        provider = self._resolve_voice_provider(
+            voice=str(payload.get('voice') or ''),
+            provider=payload.get('provider'),
+        )
+        sample_rate = str(int(payload.get('sample_rate_hz') or payload.get('sampleRateHz') or 22050))
+        total, dynamic_breakdown = self._calculate_voice_credits_with_breakdown(
+            provider=provider,
+            sample_rate=sample_rate,
+        )
+        return CreditEstimate(required_credits=total, breakdown=dynamic_breakdown, premium=total > 0)
 
     def _estimate_image_generate(self, payload: dict[str, Any]) -> CreditEstimate:
         model_key = str(payload.get('model_key') or payload.get('modelKey') or '')
@@ -294,10 +359,16 @@ class CreditService:
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
         if model_key not in self.FREE_IMAGE_MODELS or resolution not in self.FREE_IMAGE_RESOLUTIONS:
-            items.append(self._item('premium_image'))
+            dynamic_total, dynamic_items = self._calculate_image_credits_with_breakdown(
+                resolution=resolution,
+                model=self._resolve_image_model_tier(model_key),
+            )
+            items.extend(dynamic_items)
+        else:
+            dynamic_total = 0
         if isinstance(reference_urls, list) and len(reference_urls) > 0:
             items.append(self._item('character_consistency'))
-        return self._sum(items)
+        return self._sum(items, base_total=dynamic_total)
 
     def _estimate_image_action(self, payload: dict[str, Any]) -> CreditEstimate:
         action = str(payload.get('action_type') or payload.get('action') or '')
@@ -310,43 +381,163 @@ class CreditService:
         model_key = str(payload.get('modelKey') or payload.get('selected_model') or payload.get('selectedModel') or '')
         resolution = str(payload.get('resolution') or '720p')
         duration_seconds = int(payload.get('durationSeconds') or 15)
+        quality = str(payload.get('quality') or 'standard')
         captions_enabled = bool(payload.get('captionsEnabled') if 'captionsEnabled' in payload else payload.get('captions_enabled'))
         voice = str(payload.get('voice') or '')
         image_urls = payload.get('imageUrls') or payload.get('image_urls') or payload.get('reference_images') or []
         sample_rate = int(payload.get('sampleRateHz') or ((payload.get('audioSettings') or {}).get('sampleRateHz') if isinstance(payload.get('audioSettings'), dict) else 22050) or 22050)
-        items: list[CreditCostItem] = []
-        if model_key in self.PREMIUM_VIDEO_MODELS:
-            base_key = 'premium_video_1080p_15s' if resolution == '1080p' else 'premium_video_720p_15s'
-            base_amount = self.credit_costs[base_key]
-            scaled_amount = max(1, round((base_amount * duration_seconds) / 15))
-            items.append(CreditCostItem(key=base_key, label=self._label_for_key(base_key), amount=scaled_amount))
-        if voice and voice not in self.FREE_VOICE_KEYS:
-            items.append(self._item('premium_voice'))
+        video_total, items = self._calculate_video_credits_with_breakdown(
+            model=model_key,
+            resolution=resolution,
+            duration_seconds=duration_seconds,
+            quality=quality,
+        )
+        voice_provider = self._resolve_voice_provider(voice=voice, provider=payload.get('provider'))
+        voice_total, voice_items = self._calculate_voice_credits_with_breakdown(
+            provider=voice_provider,
+            sample_rate=str(sample_rate),
+        )
+        items.extend(voice_items)
         if captions_enabled:
             items.append(self._item('auto_caption'))
-        if sample_rate == 48000:
-            items.append(self._item('audio_quality_48khz_modifier'))
         if isinstance(image_urls, list) and len(image_urls) > 0:
             items.append(self._item('character_consistency'))
         items.append(self._item('auto_tag'))
-        return self._sum(items)
+        return self._sum(items, base_total=video_total + voice_total)
 
     def _estimate_script_enhance(self) -> CreditEstimate:
         return self._sum([self._item('script_enhance'), self._item('auto_tag')])
 
     def _estimate_video_retry(self, payload: dict[str, Any]) -> CreditEstimate:
-        voice = str(payload.get('voice') or '')
-        items: list[CreditCostItem] = []
-        if voice and voice not in self.FREE_VOICE_KEYS:
-            items.append(self._item('voice_retry'))
-        return self._sum(items)
+        voice_provider = self._resolve_voice_provider(
+            voice=str(payload.get('voice') or ''),
+            provider=payload.get('provider'),
+        )
+        sample_rate = str(int(payload.get('sample_rate_hz') or payload.get('sampleRateHz') or 22050))
+        total, voice_items = self._calculate_voice_credits_with_breakdown(
+            provider=voice_provider,
+            sample_rate=sample_rate,
+        )
+        retry_items = [self._item('voice_retry')] if total > 0 else []
+        return self._sum([*voice_items, *retry_items], base_total=total)
 
     def _item(self, key: str) -> CreditCostItem:
-        return CreditCostItem(key=key, label=self._label_for_key(key), amount=int(self.credit_costs[key]))
+        return CreditCostItem(component=key, label=self._label_for_key(key), value=int(self.credit_costs[key]))
 
-    def _sum(self, items: list[CreditCostItem]) -> CreditEstimate:
-        total = sum(item.amount for item in items)
+    def _sum(self, items: list[CreditCostItem], *, base_total: int = 0) -> CreditEstimate:
+        total = base_total + sum(int(item.value) for item in items)
         return CreditEstimate(required_credits=total, breakdown=items, premium=total > 0)
+
+    def _calculate_video_credits_with_breakdown(
+        self,
+        *,
+        model: str,
+        resolution: str,
+        duration_seconds: int,
+        quality: str,
+    ) -> tuple[int, list[CreditCostItem]]:
+        config = self.credit_multipliers['video']
+        normalized_model = self._normalize_video_model(model)
+        normalized_resolution = self._validate_multiplier_key('video resolution', resolution, config['resolution_multiplier'])
+        normalized_quality = self._validate_multiplier_key('video quality', quality.lower(), config['quality_multiplier'])
+        base_credits = int(config['base_credits'])
+        base_duration = int(config['base_duration'])
+        duration_factor = max(duration_seconds, 1) / base_duration
+        model_multiplier = float(config['model_multiplier'][normalized_model])
+        resolution_multiplier = float(config['resolution_multiplier'][normalized_resolution])
+        quality_multiplier = float(config['quality_multiplier'][normalized_quality])
+        raw_total = base_credits * model_multiplier * resolution_multiplier * duration_factor * quality_multiplier
+        total = max(1, math.ceil(raw_total))
+        self._ensure_within_cap(total, int(config['max_credits_cap']), 'video')
+        breakdown = [
+            CreditCostItem(component='base', label='Base video credits', value=base_credits),
+            CreditCostItem(component='model_multiplier', label=f'{normalized_model.title()} model multiplier', value=model_multiplier),
+            CreditCostItem(component='resolution_multiplier', label=f'{normalized_resolution} resolution multiplier', value=resolution_multiplier),
+            CreditCostItem(component='duration_factor', label=f'Duration factor ({duration_seconds}s / {base_duration}s)', value=round(duration_factor, 4)),
+            CreditCostItem(component='quality_multiplier', label=f'{normalized_quality.title()} quality multiplier', value=quality_multiplier),
+        ]
+        return total, breakdown
+
+    def _calculate_image_credits_with_breakdown(
+        self,
+        *,
+        resolution: str,
+        model: str,
+    ) -> tuple[int, list[CreditCostItem]]:
+        config = self.credit_multipliers['image']
+        normalized_resolution = '2048' if str(resolution) == '1536' else str(resolution)
+        normalized_resolution = self._validate_multiplier_key('image resolution', normalized_resolution, config['resolution_multiplier'])
+        normalized_model = self._validate_multiplier_key('image model tier', model, config['model_multiplier'])
+        base_credits = int(config['base_credits'])
+        resolution_multiplier = float(config['resolution_multiplier'][normalized_resolution])
+        model_multiplier = float(config['model_multiplier'][normalized_model])
+        raw_total = base_credits * resolution_multiplier * model_multiplier
+        total = max(1, math.ceil(raw_total))
+        self._ensure_within_cap(total, int(config['max_credits_cap']), 'image')
+        breakdown = [
+            CreditCostItem(component='base', label='Base image credits', value=base_credits),
+            CreditCostItem(component='resolution_multiplier', label=f'{normalized_resolution} resolution multiplier', value=resolution_multiplier),
+            CreditCostItem(component='model_multiplier', label=f'{normalized_model.title()} model multiplier', value=model_multiplier),
+        ]
+        return total, breakdown
+
+    def _calculate_voice_credits_with_breakdown(
+        self,
+        *,
+        provider: str,
+        sample_rate: str,
+    ) -> tuple[int, list[CreditCostItem]]:
+        config = self.credit_multipliers['voice']
+        normalized_provider = self._normalize_voice_provider(provider)
+        if normalized_provider == 'free':
+            return 0, [CreditCostItem(component='provider_multiplier', label='Free provider', value=0.0)]
+        normalized_sample_rate = '22050' if str(sample_rate) == '8000' else str(sample_rate)
+        normalized_sample_rate = self._validate_multiplier_key('voice sample rate', normalized_sample_rate, config['sample_rate_multiplier'])
+        base_credits = int(config['base_credits'])
+        provider_multiplier = float(config['provider_multiplier'][normalized_provider])
+        sample_rate_multiplier = float(config['sample_rate_multiplier'][normalized_sample_rate])
+        raw_total = base_credits * provider_multiplier * sample_rate_multiplier
+        total = max(1, math.ceil(raw_total))
+        self._ensure_within_cap(total, int(config['max_credits_cap']), 'voice')
+        breakdown = [
+            CreditCostItem(component='base', label='Base voice credits', value=base_credits),
+            CreditCostItem(component='provider_multiplier', label=f'{normalized_provider.title()} provider multiplier', value=provider_multiplier),
+            CreditCostItem(component='sample_rate_multiplier', label=f'{normalized_sample_rate} sample rate multiplier', value=sample_rate_multiplier),
+        ]
+        return total, breakdown
+
+    def _normalize_video_model(self, value: str) -> str:
+        normalized = self.VIDEO_MODEL_ALIASES.get(value.strip().lower())
+        if not normalized:
+            raise ValueError('Unsupported video model for credit calculation')
+        return normalized
+
+    def _resolve_image_model_tier(self, model_key: str) -> str:
+        return self.IMAGE_MODEL_TIERS.get(model_key, 'premium')
+
+    def _resolve_voice_provider(self, *, voice: str, provider: Any | None) -> str:
+        if provider:
+            normalized = self._normalize_voice_provider(str(provider))
+            if normalized == 'free' or voice in self.FREE_VOICE_KEYS:
+                return 'free'
+            return normalized
+        return 'free' if voice in self.FREE_VOICE_KEYS else 'sarvam'
+
+    def _normalize_voice_provider(self, value: str) -> str:
+        normalized = self.VOICE_PROVIDER_ALIASES.get(value.strip().lower())
+        if not normalized:
+            raise ValueError('Unsupported voice provider for credit calculation')
+        return normalized
+
+    def _validate_multiplier_key(self, label: str, value: str, mapping: dict[str, Any]) -> str:
+        normalized = str(value).strip()
+        if normalized not in mapping:
+            raise ValueError(f'Unsupported {label}')
+        return normalized
+
+    def _ensure_within_cap(self, requested: int, allowed: int, feature: str) -> None:
+        if requested > allowed:
+            raise CreditCapExceededError(requested=requested, allowed=allowed, feature=feature)
 
     def _label_for_key(self, key: str) -> str:
         labels = {
@@ -362,6 +553,13 @@ class CreditService:
             'auto_caption': 'Auto captions',
             'auto_tag': 'Auto tagging',
             'audio_quality_48khz_modifier': '48 kHz audio quality',
+            'base': 'Base cost',
+            'model_multiplier': 'Model multiplier',
+            'resolution_multiplier': 'Resolution multiplier',
+            'duration_factor': 'Duration factor',
+            'quality_multiplier': 'Quality multiplier',
+            'provider_multiplier': 'Provider multiplier',
+            'sample_rate_multiplier': 'Sample rate multiplier',
         }
         return labels.get(key, key)
 
@@ -518,3 +716,9 @@ class _CreditTransactionContext:
             return False
         self.db.commit()
         return False
+
+
+@lru_cache(maxsize=8)
+def _load_json_config(filename: str) -> dict[str, Any]:
+    config_path = Path(__file__).resolve().parents[1] / 'core' / filename
+    return json.loads(config_path.read_text())

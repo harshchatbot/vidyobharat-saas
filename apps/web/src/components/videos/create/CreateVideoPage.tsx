@@ -97,6 +97,7 @@ export function CreateVideoPage({
 
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
+  const [quality, setQuality] = useState<'standard' | 'high'>('standard');
   const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('custom');
   const [durationSeconds, setDurationSeconds] = useState('8');
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -127,6 +128,7 @@ export function CreateVideoPage({
   const filteredVoiceOptions = voiceOptions.filter((item) =>
     item.supported_language_codes.includes(selectedLanguageCode),
   );
+  const voiceProvider = ['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'].includes(voice) ? 'free' : 'sarvam';
   const durationRule = VIDEO_DURATION_RULES[modelKey];
   const outputRule = VIDEO_OUTPUT_RULES[modelKey];
   const outputSizes = outputRule.sizes as Record<string, Record<string, string>>;
@@ -153,13 +155,6 @@ export function CreateVideoPage({
     outputSizes[aspectRatio]?.[resolution] ??
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
-  const estimatedSeconds = Number(durationSeconds) || durationRule.defaultSeconds;
-  const sampleRateCreditMultiplier = audioSampleRateHz === 48000 ? 1.3 : audioSampleRateHz === 8000 ? 0.85 : 1;
-  const estimatedCredits = modelKey === 'sora2'
-    ? Math.round(Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2)) * sampleRateCreditMultiplier)
-    : modelKey === 'veo3'
-      ? Math.round(Math.max(12, estimatedSeconds * (resolution === '1080p' ? 2 : 1)) * sampleRateCreditMultiplier)
-      : Math.round(Math.max(10, estimatedSeconds * (resolution === '1080p' ? 2 : 1)) * sampleRateCreditMultiplier);
   const estimatedTime = modelKey === 'sora2' ? '2-4 min' : modelKey === 'veo3' ? '1-3 min' : '1-2 min';
   const durationError =
     modelKey === 'kling3'
@@ -268,6 +263,7 @@ export function CreateVideoPage({
       if (typeof parsed.ducking === 'boolean') setDucking(parsed.ducking);
       if (typeof parsed.aspectRatio === 'string') setAspectRatio(parsed.aspectRatio as '9:16' | '16:9' | '1:1');
       if (typeof parsed.resolution === 'string') setResolution(parsed.resolution as '720p' | '1080p');
+      if (typeof parsed.quality === 'string') setQuality(parsed.quality as 'standard' | 'high');
       if (typeof parsed.durationMode === 'string') setDurationMode(parsed.durationMode as 'auto' | 'custom');
       if (typeof parsed.durationSeconds === 'string') setDurationSeconds(parsed.durationSeconds);
       if (typeof parsed.captionsEnabled === 'boolean') setCaptionsEnabled(parsed.captionsEnabled);
@@ -300,6 +296,7 @@ export function CreateVideoPage({
       ducking,
       aspectRatio,
       resolution,
+      quality,
       durationMode,
       durationSeconds,
       captionsEnabled,
@@ -327,6 +324,7 @@ export function CreateVideoPage({
     ducking,
     aspectRatio,
     resolution,
+    quality,
     durationMode,
     durationSeconds,
     captionsEnabled,
@@ -352,9 +350,10 @@ export function CreateVideoPage({
     void api.estimateCredits(
       'video_create',
       {
-        modelKey,
+        model: modelKey,
         resolution,
         durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
+        quality,
         captionsEnabled: captionsEnabled,
         voice,
         imageUrls: selectedImageUrls,
@@ -371,15 +370,15 @@ export function CreateVideoPage({
     return () => {
       cancelled = true;
     };
-  }, [userId, modelKey, resolution, durationSeconds, durationRule.defaultSeconds, captionsEnabled, voice, selectedImageUrls, audioSampleRateHz]);
+  }, [userId, modelKey, resolution, quality, durationSeconds, durationRule.defaultSeconds, captionsEnabled, voice, selectedImageUrls, audioSampleRateHz]);
 
   useEffect(() => {
     let cancelled = false;
     void api.estimateCredits(
       'tts_preview',
       {
-        voice,
-        sample_rate_hz: audioSampleRateHz,
+        provider: voiceProvider,
+        sampleRate: audioSampleRateHz,
       },
       userId,
     )
@@ -392,7 +391,7 @@ export function CreateVideoPage({
     return () => {
       cancelled = true;
     };
-  }, [userId, voice, audioSampleRateHz]);
+  }, [userId, voiceProvider, audioSampleRateHz]);
 
   useEffect(() => {
     if (!jobResponseId) return;
@@ -703,6 +702,7 @@ export function CreateVideoPage({
         },
         aspectRatio,
         resolution,
+        quality,
         durationMode: 'custom',
         durationSeconds: Number(durationSeconds),
         captionsEnabled,
@@ -910,6 +910,8 @@ export function CreateVideoPage({
           availableResolutions={availableResolutions}
           resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
           selectedResolutionDimensions={selectedResolutionDimensions}
+          quality={quality}
+          onQualityChange={setQuality}
           durationSeconds={durationSeconds}
           onDurationSecondsChange={setDurationSeconds}
           availableDurations={availableDurations}
@@ -930,7 +932,7 @@ export function CreateVideoPage({
       <GenerateButton
         onClick={() => void submit()}
         loading={submitting}
-        estimatedCredits={creditEstimate?.estimatedCredits ?? estimatedCredits}
+        estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
         estimatedTime={estimatedTime}
         currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
         disabled={Boolean(durationError)}

@@ -1,0 +1,46 @@
+{
+  "video": {
+    "base_duration": 15,
+    "base_credits": 10,
+    "model_multiplier": {
+      "kling": 1.0,
+      "veo": 1.3,
+      "sora": 1.8
+    },
+    "resolution_multiplier": {
+      "720p": 1.0,
+      "1080p": 1.4
+    },
+    "quality_multiplier": {
+      "standard": 1.0,
+      "high": 1.3
+    },
+    "max_credits_cap": 150
+  },
+  "image": {
+    "base_credits": 2,
+    "resolution_multiplier": {
+      "512": 1.0,
+      "1024": 1.5,
+      "2048": 2.0
+    },
+    "model_multiplier": {
+      "standard": 1.0,
+      "premium": 2.0
+    },
+    "max_credits_cap": 50
+  },
+  "voice": {
+    "base_credits": 1,
+    "provider_multiplier": {
+      "free": 0.0,
+      "sarvam": 2.0,
+      "elevenlabs": 3.0
+    },
+    "sample_rate_multiplier": {
+      "22050": 1.0,
+      "48000": 1.4
+    },
+    "max_credits_cap": 20
+  }
+}

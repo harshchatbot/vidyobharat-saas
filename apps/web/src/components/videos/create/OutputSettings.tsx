@@ -3,7 +3,7 @@ import { Captions, Clock3, Info } from 'lucide-react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 
-import { CAPTION_STYLE_OPTIONS } from './constants';
+import { CAPTION_STYLE_OPTIONS, VIDEO_QUALITY_OPTIONS } from './constants';
 
 export function OutputSettings({
   modelLabel,
@@ -16,6 +16,8 @@ export function OutputSettings({
   availableResolutions,
   resolutionDisplayOptions,
   selectedResolutionDimensions,
+  quality,
+  onQualityChange,
   durationSeconds,
   onDurationSecondsChange,
   availableDurations,
@@ -39,6 +41,8 @@ export function OutputSettings({
   availableResolutions: Array<{ value: '720p' | '1080p'; label: string; description: string }>;
   resolutionDisplayOptions: ReadonlyArray<{ value: string; label: string; description: string }>;
   selectedResolutionDimensions: string;
+  quality: 'standard' | 'high';
+  onQualityChange: (value: 'standard' | 'high') => void;
   durationSeconds: string;
   onDurationSecondsChange: (value: string) => void;
   availableDurations: number[];
@@ -54,7 +58,7 @@ export function OutputSettings({
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 2xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         <div>
           <p className="mb-2 text-sm font-semibold text-text">Aspect ratio</p>
           <div className="space-y-2">
@@ -111,6 +115,33 @@ export function OutputSettings({
             })}
           </div>
           <p className="mt-2 text-xs text-muted">Selected output size: {selectedResolutionDimensions}</p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-semibold text-text">Quality</p>
+          <div className="space-y-2">
+            {VIDEO_QUALITY_OPTIONS.map((option) => {
+              const active = option.value === quality;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onQualityChange(option.value)}
+                  className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
+                    active
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
+                      : 'border-border bg-bg hover:bg-elevated'
+                  }`}
+                >
+                  <span className="block text-sm font-semibold text-text">{option.label}</span>
+                  <span className="mt-1 block text-xs text-muted">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            Selected quality: {VIDEO_QUALITY_OPTIONS.find((option) => option.value === quality)?.label ?? 'Standard'}
+          </p>
         </div>
 
         <div className="space-y-4">

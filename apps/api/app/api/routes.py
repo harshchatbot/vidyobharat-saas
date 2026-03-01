@@ -76,7 +76,7 @@ from app.services.template_service import TemplateService
 from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
-from app.services.credit_service import CreditService, InsufficientCreditsError
+from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
 from app.services.pricing_service import PricingService
 from app.services.upload_service import UploadService
 from app.services.user_service import UserService
@@ -329,18 +329,27 @@ def estimate_credits(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    wallet, estimate = CreditService(db).estimate_for_user(user_id, payload.action, payload.payload)
-    return EstimateCreditsResponse(
-        estimatedCredits=estimate.required_credits,
-        breakdown=[
-            CreditBreakdownItem(feature=item.label, cost=item.amount)
-            for item in estimate.breakdown
-        ],
-        currentCredits=wallet.current_credits,
-        remainingCredits=max(wallet.current_credits - estimate.required_credits, 0),
-        sufficient=wallet.current_credits >= estimate.required_credits,
-        premium=estimate.premium,
-    )
+    try:
+        wallet, estimate = CreditService(db).estimate_for_user(user_id, payload.action, payload.payload)
+        return EstimateCreditsResponse(
+            estimatedCredits=estimate.required_credits,
+            breakdown=[
+                {
+                    'component': item.component,
+                    'value': item.value,
+                    'label': item.label,
+                }
+                for item in estimate.breakdown
+            ],
+            currentCredits=wallet.current_credits,
+            remainingCredits=max(wallet.current_credits - estimate.required_credits, 0),
+            sufficient=wallet.current_credits >= estimate.required_credits,
+            premium=estimate.premium,
+        )
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post('/api/topupCredits', response_model=TopUpCreditsResponse)
@@ -882,6 +891,8 @@ def create_ai_video(
             status_code=402,
             detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
         ) from exc
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     except ProviderError as exc:
         if deduction_amount > 0:
             CreditService(db).top_up_credits(
@@ -1119,6 +1130,8 @@ def generate_ai_image(
             status_code=402,
             detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
         ) from exc
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     except Exception as exc:
         if deduction_amount > 0:
             CreditService(db).top_up_credits(
@@ -1188,6 +1201,8 @@ def apply_ai_image_action(
             status_code=402,
             detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
         ) from exc
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     return ImageActionResponse(
         action_type=payload.action_type,
         items=[_to_image_generation_response(item, db) for item in results],
@@ -1462,13 +1477,19 @@ def generate_tts_preview(
     preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
     credit_service = CreditService(db)
     wallet = credit_service.ensure_wallet(user_id)
-    estimate = credit_service.estimate(
-        'tts_preview',
-        {
-            'voice': payload.voice,
-            'sample_rate_hz': payload.sample_rate_hz,
-        },
-    )
+    try:
+        estimate = credit_service.estimate(
+            'tts_preview',
+            {
+                'voice': payload.voice,
+                'provider': 'free' if payload.voice in credit_service.FREE_VOICE_KEYS else 'sarvam',
+                'sample_rate_hz': payload.sample_rate_hz,
+            },
+        )
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     cache_dir = Path('data/tts_cache')
     cached = get_cached_voiceover_detailed(
         script=preview_text,
