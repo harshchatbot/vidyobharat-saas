@@ -7,6 +7,7 @@ import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, PlusCircle, Set
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { TopNav } from '@/components/layout/TopNav';
+import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { API_URL } from '@/lib/env';
 
 type Props = {
@@ -91,48 +92,51 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <span className="font-heading text-xl font-bold tracking-tight text-text">{pageTitle}</span>
               </div>
 
-              <details className="relative">
-                <summary className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text">
-                  {resolvedAvatar ? (
-                    <img src={resolvedAvatar} alt={displayName} className="h-7 w-7 rounded-full object-cover" />
-                  ) : (
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
-                      {displayName.slice(0, 1)}
-                    </span>
-                  )}
-                  <span className="hidden sm:inline">{displayName}</span>
-                  <ChevronDown className="h-4 w-4 text-muted" />
-                </summary>
-                <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
-                  <div className="mb-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      {resolvedAvatar ? (
-                        <img src={resolvedAvatar} alt={displayName} className="h-9 w-9 rounded-full object-cover" />
-                      ) : (
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
-                          {displayName.slice(0, 1)}
-                        </span>
-                      )}
-                      <p className="truncate text-sm font-semibold text-text">{displayName}</p>
+              <div className="flex items-center gap-2">
+                <ToggleTheme />
+                <details className="relative">
+                  <summary className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text">
+                    {resolvedAvatar ? (
+                      <img src={resolvedAvatar} alt={displayName} className="h-7 w-7 rounded-full object-cover" />
+                    ) : (
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
+                        {displayName.slice(0, 1)}
+                      </span>
+                    )}
+                    <span className="hidden sm:inline">{displayName}</span>
+                    <ChevronDown className="h-4 w-4 text-muted" />
+                  </summary>
+                  <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
+                    <div className="mb-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        {resolvedAvatar ? (
+                          <img src={resolvedAvatar} alt={displayName} className="h-9 w-9 rounded-full object-cover" />
+                        ) : (
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
+                            {displayName.slice(0, 1)}
+                          </span>
+                        )}
+                        <p className="truncate text-sm font-semibold text-text">{displayName}</p>
+                      </div>
+                      <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--color-border))] px-2 py-0.5 text-[10px] text-muted">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{accountEmail ?? 'No email set'}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--color-border))] px-2 py-0.5 text-[10px] text-muted">
-                      <Mail className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{accountEmail ?? 'No email set'}</span>
-                    </div>
+                    <Link href="/profile" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                      <User className="h-4 w-4" /> Profile
+                    </Link>
+                    <Link href="/settings" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                      <Settings className="h-4 w-4" /> Settings
+                    </Link>
+                    <form action={logoutAction}>
+                      <button type="submit" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                        Logout
+                      </button>
+                    </form>
                   </div>
-                  <Link href="/profile" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
-                    <User className="h-4 w-4" /> Profile
-                  </Link>
-                  <Link href="/settings" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
-                    <Settings className="h-4 w-4" /> Settings
-                  </Link>
-                  <form action={logoutAction}>
-                    <button type="submit" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
-                      Logout
-                    </button>
-                  </form>
-                </div>
-              </details>
+                </details>
+              </div>
             </div>
           </header>
           <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</main>

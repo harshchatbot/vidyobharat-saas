@@ -1,19 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">RangManch AI dark favicon</title>
   <defs>
-    <linearGradient id="markDark" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#b8841f"/>
-      <stop offset="50%" stop-color="#e0b95d"/>
-      <stop offset="100%" stop-color="#f3da9b"/>
+    <linearGradient id="ringDark" x1="8%" y1="8%" x2="92%" y2="92%">
+      <stop offset="0%" stop-color="#ffd43f"/>
+      <stop offset="55%" stop-color="#efbb18"/>
+      <stop offset="100%" stop-color="#d99b08"/>
     </linearGradient>
   </defs>
-  <g fill="none" stroke="url(#markDark)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="31" cy="29" r="19"/>
-    <path d="M16 41 L14 29 C13 21 18 14 26 13"/>
-    <path d="M27 12 L24 39"/>
-    <path d="M22 31 L29 25"/>
-    <path d="M37 42 C34 34 36 26 42 21"/>
-    <path d="M47 42 L47 18"/>
-    <path d="M47 18 C54 18 57 22 57 28 C57 33 54 37 48 37"/>
-    <path d="M48 37 L58 43"/>
-  </g>
+  <rect width="64" height="64" rx="14" fill="#071d4a"/>
+  <circle cx="32" cy="32" r="23.5" fill="none" stroke="url(#ringDark)" stroke-width="4"/>
+  <path
+    d="M23 47V17.5h13.5c6.7 0 10.7 3.8 10.7 9.5 0 4.1-2 7.1-5.6 8.5L48 47H38.7l-5.2-9.5h-1.7V47zm8.7-15.4h3.2c2.7 0 4.4-1.5 4.4-4 0-2.6-1.7-4-4.4-4h-3.2z"
+    fill="url(#ringDark)"
+  />
 </svg>
