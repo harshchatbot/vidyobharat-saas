@@ -58,7 +58,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
         <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 md:block">
           <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-            <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[180px]" priority="sidebar" />
+            <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[190px]" priority="sidebar" />
           </div>
           <nav className="mt-6 grid gap-2">
             {navItems.map((item) => {

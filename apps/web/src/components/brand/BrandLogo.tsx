@@ -10,14 +10,14 @@ type Props = {
 
 const sizeClasses = {
   full: {
-    sm: 'h-9 w-auto',
-    md: 'h-11 w-auto',
-    lg: 'h-14 w-auto',
+    sm: 'h-10 w-auto object-contain',
+    md: 'h-12 w-auto object-contain',
+    lg: 'h-16 w-auto object-contain',
   },
   mark: {
-    sm: 'h-8 w-8',
-    md: 'h-10 w-10',
-    lg: 'h-12 w-12',
+    sm: 'h-9 w-9 object-contain',
+    md: 'h-11 w-11 object-contain',
+    lg: 'h-[3.25rem] w-[3.25rem] object-contain',
   },
 } as const;
 

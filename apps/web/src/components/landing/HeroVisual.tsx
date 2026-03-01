@@ -23,9 +23,9 @@ export function HeroVisual() {
         <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Script</p>
           <p className="text-sm leading-7 text-[hsl(var(--color-text))]">
-            Bharat&apos;s next growth story is being written by creators, educators, and entrepreneurs who speak every
-            language. With RangManch AI, turn your message into a polished video with smart scenes, captions, and
-            native-sounding narration.
+            A forgotten city wakes under monsoon skies, where broken buses, silent streets, and overgrown towers frame
+            a haunting cinematic world. RangManch AI turns a single prompt into immersive vertical storytelling with
+            atmosphere, motion, and precise scene mood.
           </p>
         </div>
         <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">

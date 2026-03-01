@@ -63,19 +63,19 @@ export function HeroSection() {
         <div className="space-y-4">
           <HeroVisual />
           <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-soft">
-            <div className="grid items-center gap-4 sm:grid-cols-[auto_1fr]">
+            <div className="grid items-center gap-4 md:grid-cols-[auto_1fr]">
               <MrGreenMascot size="sm" className="mx-auto sm:mx-0" />
-              <div className="space-y-3">
-                <div className="inline-flex rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs font-semibold text-[hsl(var(--color-text))]">
+              <div className="space-y-3 text-center md:text-left">
+                <div className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs font-semibold leading-5 text-[hsl(var(--color-text))] sm:px-4 sm:py-3">
                   {speechByLanguage[selectedLanguage]}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-center gap-2 md:justify-start">
                   {(['en', 'hi', 'ta'] as MascotLanguage[]).map((lang) => (
                     <button
                       key={lang}
                       type="button"
                       onClick={() => setSelectedLanguage(lang)}
-                      className={`rounded-[var(--radius-md)] border px-3 py-1 text-xs font-semibold transition ${
+                      className={`min-w-[84px] rounded-[var(--radius-md)] border px-3 py-1.5 text-xs font-semibold transition sm:min-w-0 ${
                         selectedLanguage === lang
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-[hsl(var(--color-muted))]'

@@ -38,64 +38,64 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
     <div>
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <BrandLogo href="/" variant="full" size="sm" className="max-w-[180px] sm:max-w-[220px]" />
-          <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
-        </div>
+          <div className="flex min-w-0 items-center gap-3">
+            <BrandLogo href="/" variant="full" size="md" className="max-w-[210px] sm:max-w-[250px]" />
+            <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
+          </div>
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {compactNavLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))]"
-            >
-              {link.label}
-            </Link>
-          ))}
-          {navLinks.slice(compactNavLinks.length).map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="hidden whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))] xl:inline-flex"
-            >
-              {link.label}
-            </Link>
-          ))}
-
-          {!userId && (
-            <>
-              <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-text))] px-3 py-1 text-sm font-semibold text-[hsl(var(--color-bg))]">
-                Sign in
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </>
-          )}
-
-          {userId && (
-            <>
+          <nav className="hidden items-center gap-1 lg:flex">
+            {compactNavLinks.map((link) => (
               <Link
-                href="/dashboard"
-                className="ml-2 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
-                title={userId}
+                key={link.href}
+                href={link.href}
+                className="whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))]"
               >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
-                  {initials}
-                </span>
-                <span className="max-w-[120px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
-                  {accountLabel ?? 'Account'}
-                </span>
+                {link.label}
               </Link>
-              <form action={logoutAction}>
-                <button type="submit" className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]">
-                  Logout
-                </button>
-              </form>
-            </>
-          )}
+            ))}
+            {navLinks.slice(compactNavLinks.length).map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="hidden whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))] xl:inline-flex"
+              >
+                {link.label}
+              </Link>
+            ))}
 
-          <ToggleTheme />
-        </nav>
+            {!userId && (
+              <>
+                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-text))] px-3 py-1 text-sm font-semibold text-[hsl(var(--color-bg))]">
+                  Sign in
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            )}
+
+            {userId && (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="ml-2 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
+                  title={userId}
+                >
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
+                    {initials}
+                  </span>
+                  <span className="max-w-[120px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
+                    {accountLabel ?? 'Account'}
+                  </span>
+                </Link>
+                <form action={logoutAction}>
+                  <button type="submit" className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]">
+                    Logout
+                  </button>
+                </form>
+              </>
+            )}
+
+            <ToggleTheme />
+          </nav>
 
           <div className="flex items-center gap-2 lg:hidden">
             <ToggleTheme />

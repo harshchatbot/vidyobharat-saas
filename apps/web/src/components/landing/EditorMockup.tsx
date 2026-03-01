@@ -31,9 +31,9 @@ export function EditorMockup() {
         >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Script</p>
           <p className="text-sm leading-7 text-[hsl(var(--color-text))]">
-            Bharat&apos;s next growth story is being written by creators, educators, and entrepreneurs who speak every
-            language. With RangManch AI, turn your message into a polished video with smart scenes, captions, and
-            native-sounding narration.
+            An abandoned boulevard stretches into the mist as rain softens every ruined edge. With RangManch AI, a
+            cinematic dystopian idea becomes a moody vertical reel with scene depth, pacing, and narration-ready
+            structure in minutes.
           </p>
         </motion.div>
 
