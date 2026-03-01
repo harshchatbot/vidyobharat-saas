@@ -23,7 +23,9 @@ from app.schemas.ai import (
     ScriptEnhanceRequest,
     ScriptGenerateRequest,
     ScriptTagsRequest,
+    ScriptTranslateRequest,
     ScriptResponse,
+    TextResponse,
 )
 from app.schemas.asset import AssetSearchResponse, AssetSearchResponseItem, AssetTagFacet, AssetTagUpdateRequest
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
@@ -170,6 +172,7 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         duration_seconds=video.duration_seconds,
         captions_enabled=bool(video.captions_enabled) if video.captions_enabled is not None else True,
         caption_style=video.caption_style,
+        audio_sample_rate_hz=video.audio_sample_rate_hz,
         status=video.status.value if hasattr(video.status, 'value') else str(video.status),
         progress=video.progress,
         image_urls=image_urls,
@@ -414,6 +417,34 @@ def extract_script_tags_v2(
 ):
     tags = AssetTaggingService(db).tag_script(payload.script)
     return ScriptResponse(script=payload.script, tags=tags)
+
+
+@router.post('/api/ai/script/translate', response_model=TextResponse)
+def translate_script_text_v2(
+    payload: ScriptTranslateRequest,
+    _: str = Depends(get_user_id),
+):
+    translated_text = ''
+    if settings.openai_api_key:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            temperature=0.2,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': 'Translate the provided text accurately into the requested target language. Return only the translated text with no explanation.',
+                },
+                {
+                    'role': 'user',
+                    'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
+                },
+            ],
+        )
+        translated_text = (response.choices[0].message.content or '').strip()
+    if not translated_text:
+        translated_text = payload.text
+    return TextResponse(text=translated_text)
 
 
 @router.post('/ai/reel-script', response_model=ReelScriptResponse)
@@ -1081,6 +1112,7 @@ def generate_tts_preview(
         voice=payload.voice,
         cache_dir=cache_dir,
         language=payload.language,
+        sample_rate_hz=payload.sample_rate_hz,
     )
     if cached:
         result = cached
@@ -1097,6 +1129,7 @@ def generate_tts_preview(
             voice=payload.voice,
             cache_dir=cache_dir,
             language=payload.language,
+            sample_rate_hz=payload.sample_rate_hz,
         )
     preview_url = f"/static/{result.path.as_posix().replace('data/', '', 1)}"
     return TTSPreviewResponse(
@@ -1120,6 +1153,7 @@ async def create_video(
     duration_mode: str = Form(default='auto'),
     duration_seconds: int | None = Form(default=None),
     captions_enabled: bool = Form(default=True),
+    audio_sample_rate_hz: int = Form(default=22050),
     selected_model: str | None = Form(default=None),
     reference_images: list[str] = Form(default=[]),
     music_mode: str = Form(default='none'),
@@ -1145,6 +1179,7 @@ async def create_video(
             duration_mode=duration_mode,
             duration_seconds=duration_seconds,
             captions_enabled=captions_enabled,
+            audio_sample_rate_hz=audio_sample_rate_hz,
             selected_model=selected_model,
             reference_images=reference_images,
             music_mode=music_mode,

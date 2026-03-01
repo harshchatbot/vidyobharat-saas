@@ -46,6 +46,7 @@ class VideoService:
         duration_mode: str = 'auto',
         duration_seconds: int | None = None,
         captions_enabled: bool = True,
+        audio_sample_rate_hz: int = 22050,
         selected_model: str | None = None,
         reference_images: list[str] | None = None,
         music_mode: str = 'none',
@@ -72,6 +73,8 @@ class VideoService:
                 raise ValueError('duration_seconds must be between 5 and 300 for custom mode')
         else:
             duration_seconds = None
+        if audio_sample_rate_hz not in {8000, 22050, 48000}:
+            raise ValueError('audio_sample_rate_hz must be one of 8000|22050|48000')
         if selected_model and selected_model not in {'sora2', 'veo3'}:
             raise ValueError('selected_model must be one of sora2|veo3')
         normalized_reference_images = [value.strip() for value in (reference_images or []) if value.strip()]
@@ -105,6 +108,7 @@ class VideoService:
             duration_mode=duration_mode,
             duration_seconds=duration_seconds,
             captions_enabled=captions_enabled,
+            audio_sample_rate_hz=audio_sample_rate_hz,
             status=VideoStatus.processing,
             progress=5,
             image_urls=json.dumps(image_urls),
@@ -162,6 +166,7 @@ def process_video(video_id: str) -> None:
             script=video.script,
             language_name=video.language,
             voice_name=video.voice,
+            audio_sample_rate_hz=video.audio_sample_rate_hz or 22050,
             image_urls=image_urls,
             aspect_ratio=video.aspect_ratio or '9:16',
             resolution=video.resolution or '1080p',

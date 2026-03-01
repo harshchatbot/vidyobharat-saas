@@ -17,6 +17,7 @@ class VideoResponse(BaseModel):
     duration_seconds: int | None
     captions_enabled: bool
     caption_style: str | None = None
+    audio_sample_rate_hz: int | None = None
     status: str
     progress: int
     image_urls: list[str] = Field(default_factory=list)

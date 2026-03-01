@@ -69,6 +69,7 @@ class VideoPipelineService:
         script: str,
         language_name: str | None,
         voice_name: str,
+        audio_sample_rate_hz: int,
         image_urls: list[str],
         aspect_ratio: str,
         resolution: str,
@@ -98,6 +99,7 @@ class VideoPipelineService:
                 voice=voice_name,
                 cache_dir=self.tts_cache_dir,
                 language=language_name,
+                sample_rate_hz=audio_sample_rate_hz,
             )
             voice_duration = self._probe_duration(voice_path)
             real_voice_exists = True

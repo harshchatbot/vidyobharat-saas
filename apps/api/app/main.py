@@ -86,6 +86,7 @@ def _ensure_video_columns() -> None:
         ('duration_seconds', 'ALTER TABLE videos ADD COLUMN duration_seconds INTEGER'),
         ('captions_enabled', 'ALTER TABLE videos ADD COLUMN captions_enabled BOOLEAN DEFAULT 1'),
         ('caption_style', 'ALTER TABLE videos ADD COLUMN caption_style VARCHAR(40)'),
+        ('audio_sample_rate_hz', 'ALTER TABLE videos ADD COLUMN audio_sample_rate_hz INTEGER DEFAULT 22050'),
         ('template', 'ALTER TABLE videos ADD COLUMN template VARCHAR(80)'),
         ('language', 'ALTER TABLE videos ADD COLUMN language VARCHAR(40)'),
         ('selected_model', 'ALTER TABLE videos ADD COLUMN selected_model VARCHAR(64)'),

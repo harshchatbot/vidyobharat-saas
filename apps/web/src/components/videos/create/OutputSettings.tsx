@@ -14,6 +14,7 @@ export function OutputSettings({
   resolution,
   onResolutionChange,
   availableResolutions,
+  resolutionDisplayOptions,
   selectedResolutionDimensions,
   durationSeconds,
   onDurationSecondsChange,
@@ -36,6 +37,7 @@ export function OutputSettings({
   resolution: string;
   onResolutionChange: (value: '720p' | '1080p') => void;
   availableResolutions: Array<{ value: '720p' | '1080p'; label: string; description: string }>;
+  resolutionDisplayOptions: ReadonlyArray<{ value: string; label: string; description: string }>;
   selectedResolutionDimensions: string;
   durationSeconds: string;
   onDurationSecondsChange: (value: string) => void;
@@ -81,17 +83,25 @@ export function OutputSettings({
         <div>
           <p className="mb-2 text-sm font-semibold text-text">Resolution</p>
           <div className="space-y-2">
-            {availableResolutions.map((option) => {
+            {resolutionDisplayOptions.map((option) => {
+              const selectable = availableResolutions.some((item) => item.value === option.value);
               const active = option.value === resolution;
               return (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => onResolutionChange(option.value)}
+                  onClick={() => {
+                    if (selectable) {
+                      onResolutionChange(option.value as '720p' | '1080p');
+                    }
+                  }}
+                  disabled={!selectable}
                   className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
-                    active
+                    active && selectable
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                      : 'border-border bg-bg hover:bg-elevated'
+                      : selectable
+                        ? 'border-border bg-bg hover:bg-elevated'
+                        : 'border-border bg-[hsl(var(--color-bg)/0.6)] opacity-60'
                   }`}
                 >
                   <span className="block text-sm font-semibold text-text">{option.label}</span>

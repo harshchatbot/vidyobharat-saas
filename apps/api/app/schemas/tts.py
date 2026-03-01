@@ -28,6 +28,7 @@ class TTSPreviewRequest(BaseModel):
     text: str = Field(min_length=1, max_length=400)
     language: str = Field(min_length=2, max_length=40)
     voice: str = Field(min_length=1, max_length=80)
+    sample_rate_hz: int = Field(default=22050, ge=8000, le=48000)
 
 
 class TTSPreviewResponse(BaseModel):

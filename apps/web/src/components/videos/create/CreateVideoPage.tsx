@@ -5,12 +5,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Spinner } from '@/components/ui/Spinner';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
 
-import { ASPECT_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS } from './constants';
+import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS } from './constants';
 import { GenerateButton } from './GenerateButton';
 import { ModelDropdown } from './ModelDropdown';
 import { MusicSelector } from './MusicSelector';
@@ -59,6 +60,7 @@ export function CreateVideoPage({
 
   const [language, setLanguage] = useState('English');
   const [voice, setVoice] = useState('Shubh');
+  const [audioSampleRateHz, setAudioSampleRateHz] = useState(22050);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
   const [voicePreviewText, setVoicePreviewText] = useState('');
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
@@ -69,6 +71,8 @@ export function CreateVideoPage({
   const [voicePreviewCached, setVoicePreviewCached] = useState(false);
   const [voicePreviewLimit, setVoicePreviewLimit] = useState<string | null>(null);
   const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
+  const [voiceTranslationLoading, setVoiceTranslationLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -110,6 +114,13 @@ export function CreateVideoPage({
   });
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const selectedModel = models.find((model) => model.key === modelKey) ?? models[0];
+  const selectedLanguageCode =
+    languageOptions.find((item) => item.label === language)?.code ??
+    LANGUAGE_OPTIONS.find((item) => item.label === language)?.code ??
+    'en-IN';
+  const filteredVoiceOptions = voiceOptions.filter((item) =>
+    item.supported_language_codes.includes(selectedLanguageCode),
+  );
   const durationRule = VIDEO_DURATION_RULES[modelKey];
   const outputRule = VIDEO_OUTPUT_RULES[modelKey];
   const outputSizes = outputRule.sizes as Record<string, Record<string, string>>;
@@ -137,11 +148,12 @@ export function CreateVideoPage({
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
   const estimatedSeconds = Number(durationSeconds) || durationRule.defaultSeconds;
+  const sampleRateCreditMultiplier = audioSampleRateHz === 48000 ? 1.3 : audioSampleRateHz === 8000 ? 0.85 : 1;
   const estimatedCredits = modelKey === 'sora2'
-    ? Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2))
+    ? Math.round(Math.max(16, estimatedSeconds * (resolution === '1080p' ? 3 : 2)) * sampleRateCreditMultiplier)
     : modelKey === 'veo3'
-      ? Math.max(12, estimatedSeconds * (resolution === '1080p' ? 2 : 1))
-      : Math.max(10, estimatedSeconds * (resolution === '1080p' ? 2 : 1));
+      ? Math.round(Math.max(12, estimatedSeconds * (resolution === '1080p' ? 2 : 1)) * sampleRateCreditMultiplier)
+      : Math.round(Math.max(10, estimatedSeconds * (resolution === '1080p' ? 2 : 1)) * sampleRateCreditMultiplier);
   const estimatedTime = modelKey === 'sora2' ? '2-4 min' : modelKey === 'veo3' ? '1-3 min' : '1-2 min';
   const durationError =
     modelKey === 'kling3'
@@ -151,10 +163,37 @@ export function CreateVideoPage({
       : (!availableDurations.includes(Number(durationSeconds))
         ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
         : null);
+  const generationOverlayVisible = submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing';
+  const overlayVisible = initialLoading || voiceTranslationLoading || generationOverlayVisible;
+  const overlayTitle = initialLoading
+    ? 'Preparing your studio'
+    : voiceTranslationLoading
+      ? 'Translating preview text'
+      : 'Generating your video';
+  const overlayDescription = initialLoading
+    ? 'Loading models, voices, images, and recent videos so the creator studio is ready.'
+    : voiceTranslationLoading
+      ? `Converting your preview line into ${language} so the selected voice can be auditioned accurately.`
+      : `Building your ${selectedModel.label} render with the selected script, voice, media, and output settings.`;
+  const overlayStepLabel = initialLoading
+    ? 'Fetching studio data'
+    : voiceTranslationLoading
+      ? `Localizing text for ${language}`
+      : submitting
+        ? 'Submitting render job'
+        : jobStatus?.status === 'queued'
+          ? 'Queued in the render pipeline'
+          : 'Rendering visuals and audio';
+  const overlayAccentLabel = initialLoading
+    ? 'Studio Load'
+    : voiceTranslationLoading
+      ? 'Language Update'
+      : 'Video Render';
 
   useEffect(() => {
     let cancelled = false;
     setModelsLoading(true);
+    setInitialLoading(true);
     void Promise.all([
       api.listAIVideoModels(userId).catch(() => FALLBACK_VIDEO_MODELS),
       api.getTtsCatalog(userId).catch(() => null),
@@ -173,7 +212,10 @@ export function CreateVideoPage({
         setModelKey((videoModels[0].key as VideoModelKey) ?? 'sora2');
       }
     }).finally(() => {
-      if (!cancelled) setModelsLoading(false);
+      if (!cancelled) {
+        setModelsLoading(false);
+        setInitialLoading(false);
+      }
     });
 
     return () => {
@@ -182,10 +224,11 @@ export function CreateVideoPage({
   }, [userId]);
 
   useEffect(() => {
-    if (!voiceOptions.some((item) => item.key === voice) && voiceOptions[0]) {
-      setVoice(voiceOptions[0].key);
+    const availableVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
+    if (!availableVoices.some((item) => item.key === voice) && availableVoices[0]) {
+      setVoice(availableVoices[0].key);
     }
-  }, [voiceOptions, voice]);
+  }, [filteredVoiceOptions, voiceOptions, voice]);
 
   useEffect(() => {
     if (!languageOptions.some((item) => item.label === language) && languageOptions[0]) {
@@ -207,6 +250,7 @@ export function CreateVideoPage({
       if (Array.isArray(parsed.scriptTags)) setScriptTags(sanitizeTags(parsed.scriptTags.map(String)));
       if (typeof parsed.language === 'string') setLanguage(parsed.language);
       if (typeof parsed.voice === 'string') setVoice(parsed.voice);
+      if (typeof parsed.audioSampleRateHz === 'number') setAudioSampleRateHz(parsed.audioSampleRateHz);
       if (typeof parsed.voicePreviewText === 'string') setVoicePreviewText(parsed.voicePreviewText);
       if (typeof parsed.modelKey === 'string') setModelKey(parsed.modelKey as VideoModelKey);
       if (Array.isArray(parsed.selectedImageUrls)) setSelectedImageUrls(parsed.selectedImageUrls.map(String));
@@ -238,6 +282,7 @@ export function CreateVideoPage({
       scriptTags,
       language,
       voice,
+      audioSampleRateHz,
       voicePreviewText,
       modelKey,
       selectedImageUrls,
@@ -264,6 +309,7 @@ export function CreateVideoPage({
     scriptTags,
     language,
     voice,
+    audioSampleRateHz,
     voicePreviewText,
     modelKey,
     selectedImageUrls,
@@ -441,6 +487,9 @@ export function CreateVideoPage({
 
   const previewVoice = async (previewVoiceKey?: string) => {
     const activeVoice = previewVoiceKey ?? voice;
+    if (previewVoiceKey && previewVoiceKey !== voice) {
+      setVoice(previewVoiceKey);
+    }
     if (voicePreviewing) {
       const player = voicePreviewAudioRef.current;
       player?.pause();
@@ -458,6 +507,7 @@ export function CreateVideoPage({
           text: voicePreviewText.trim(),
           language,
           voice: activeVoice,
+          sample_rate_hz: audioSampleRateHz,
         },
         userId,
       );
@@ -481,6 +531,31 @@ export function CreateVideoPage({
       setVoicePreviewError(error instanceof Error ? error.message : 'Voice preview failed.');
       setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
       setVoicePreviewing(false);
+    }
+  };
+
+  const handleVoiceChange = (nextVoice: string) => {
+    setVoice(nextVoice);
+  };
+
+  const handleLanguageChange = async (nextLanguage: string) => {
+    setLanguage(nextLanguage);
+    if (!voicePreviewText.trim()) return;
+    setVoiceTranslationLoading(true);
+    setVoicePreviewError(null);
+    try {
+      const result = await api.translateScriptText(
+        {
+          text: voicePreviewText.trim(),
+          target_language: nextLanguage,
+        },
+        userId,
+      );
+      setVoicePreviewText(result.text);
+    } catch (error) {
+      setVoicePreviewError(error instanceof Error ? error.message : 'Preview text translation failed.');
+    } finally {
+      setVoiceTranslationLoading(false);
     }
   };
 
@@ -565,6 +640,7 @@ export function CreateVideoPage({
         audioSettings: {
           volume: musicVolume,
           ducking,
+          sampleRateHz: audioSampleRateHz,
         },
         aspectRatio,
         resolution,
@@ -606,6 +682,14 @@ export function CreateVideoPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      <LoadingOverlay
+        open={overlayVisible}
+        title={overlayTitle}
+        description={overlayDescription}
+        stepLabel={overlayStepLabel}
+        accentLabel={overlayAccentLabel}
+      />
+
       <section className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
         <div className="max-w-3xl">
           <p className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
@@ -669,11 +753,13 @@ export function CreateVideoPage({
       >
         <VoiceSelector
           languageOptions={languageOptions}
-          voiceOptions={voiceOptions}
+          voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
           language={language}
-          onLanguageChange={setLanguage}
+          onLanguageChange={(value) => void handleLanguageChange(value)}
           voice={voice}
-          onVoiceChange={setVoice}
+          onVoiceChange={handleVoiceChange}
+          sampleRateHz={audioSampleRateHz}
+          onSampleRateHzChange={setAudioSampleRateHz}
           previewText={voicePreviewText}
           onPreviewTextChange={setVoicePreviewText}
           onPreview={previewVoice}
@@ -684,6 +770,7 @@ export function CreateVideoPage({
           previewLimit={voicePreviewLimit}
           previewError={voicePreviewError}
           previewMessage={voicePreviewMessage}
+          translating={voiceTranslationLoading}
         />
         <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
       </SectionCard>
@@ -744,6 +831,7 @@ export function CreateVideoPage({
           resolution={resolution}
           onResolutionChange={setResolution}
           availableResolutions={availableResolutions}
+          resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
           selectedResolutionDimensions={selectedResolutionDimensions}
           durationSeconds={durationSeconds}
           onDurationSecondsChange={setDurationSeconds}
@@ -762,7 +850,7 @@ export function CreateVideoPage({
         />
       </SectionCard>
 
-      <GenerateButton onClick={() => void submit()} loading={submitting} estimatedCredits={estimatedCredits} estimatedTime={estimatedTime} disabled={Boolean(durationError)} />
+      <GenerateButton onClick={() => void submit()} loading={submitting} estimatedCredits={estimatedCredits} estimatedTime={estimatedTime} disabled={Boolean(durationError)} helperText={`Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · no actual credit wallet is enforced yet`} />
 
       {submitError ? (
         <Card>

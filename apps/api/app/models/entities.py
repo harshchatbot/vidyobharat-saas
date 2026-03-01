@@ -117,6 +117,7 @@ class Video(Base):
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     captions_enabled: Mapped[bool] = mapped_column(default=True)
     caption_style: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    audio_sample_rate_hz: Mapped[int] = mapped_column(Integer, default=22050)
     status: Mapped[VideoStatus] = mapped_column(Enum(VideoStatus), default=VideoStatus.draft, index=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     image_urls: Mapped[str] = mapped_column(Text, default='[]')

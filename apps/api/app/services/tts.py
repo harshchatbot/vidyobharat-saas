@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import logging
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,47 +54,54 @@ LANGUAGE_OPTIONS: tuple[LanguageOption, ...] = (
 )
 
 ALL_LANGUAGE_CODES = tuple(sorted({item.code for item in LANGUAGE_OPTIONS}))
+NORTH_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'bn-IN', 'gu-IN', 'mr-IN', 'pa-IN')
+SOUTH_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'kn-IN', 'ml-IN')
+BALANCED_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'mr-IN', 'ta-IN', 'te-IN')
+HINDI_FIRST_LANGUAGE_CODES = ('en-IN', 'hi-IN')
+EAST_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'bn-IN', 'od-IN')
+WEST_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'gu-IN', 'mr-IN')
+PAN_INDIA_LANGUAGE_CODES = ALL_LANGUAGE_CODES
 
 VOICE_OPTIONS: tuple[VoiceOption, ...] = (
-    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'shubh', ALL_LANGUAGE_CODES, 'Default Bulbul v3 voice with neutral, versatile delivery.'),
-    VoiceOption('Aditya', 'Aditya', 'Confident male', 'male', 'aditya', ALL_LANGUAGE_CODES, 'Clear storyteller voice for startup, product, and tech explainers.'),
-    VoiceOption('Rahul', 'Rahul', 'Warm male', 'male', 'rahul', ALL_LANGUAGE_CODES, 'Friendly male narration for accessible creator content.'),
-    VoiceOption('Rohan', 'Rohan', 'Polished male', 'male', 'rohan', ALL_LANGUAGE_CODES, 'Professional male delivery for branded and polished videos.'),
-    VoiceOption('Amit', 'Amit', 'Steady male', 'male', 'amit', ALL_LANGUAGE_CODES, 'Steady male narration for neutral explainers and promos.'),
-    VoiceOption('Dev', 'Dev', 'Deep male', 'male', 'dev', ALL_LANGUAGE_CODES, 'Stronger dramatic male tone for cinematic or intense scripts.'),
-    VoiceOption('Ratan', 'Ratan', 'Grounded male', 'male', 'ratan', ALL_LANGUAGE_CODES, 'Grounded male voice for informative and educational narration.'),
-    VoiceOption('Varun', 'Varun', 'Young male', 'male', 'varun', ALL_LANGUAGE_CODES, 'Youthful male tone for fast creator videos and social clips.'),
-    VoiceOption('Manan', 'Manan', 'Neutral male', 'male', 'manan', ALL_LANGUAGE_CODES, 'Neutral male delivery for general-purpose narration.'),
-    VoiceOption('Sumit', 'Sumit', 'Clear male', 'male', 'sumit', ALL_LANGUAGE_CODES, 'Clear male voice for instructional or product-led content.'),
-    VoiceOption('Kabir', 'Kabir', 'Broadcast male', 'male', 'kabir', ALL_LANGUAGE_CODES, 'Anchor-style male voice for commentary and educational reels.'),
-    VoiceOption('Aayan', 'Aayan', 'Light male', 'male', 'aayan', ALL_LANGUAGE_CODES, 'Lighter male voice for energetic creator-facing narration.'),
-    VoiceOption('Ashutosh', 'Ashutosh', 'Formal male', 'male', 'ashutosh', ALL_LANGUAGE_CODES, 'Formal male tone for corporate and training content.'),
-    VoiceOption('Advait', 'Advait', 'Measured male', 'male', 'advait', ALL_LANGUAGE_CODES, 'Measured male narration for premium explainers.'),
-    VoiceOption('Anand', 'Anand', 'Deep male', 'male', 'anand', ALL_LANGUAGE_CODES, 'Deeper cinematic tone for dramatic storytelling.'),
-    VoiceOption('Tarun', 'Tarun', 'Friendly male', 'male', 'tarun', ALL_LANGUAGE_CODES, 'Friendly and balanced male voice for everyday content.'),
-    VoiceOption('Sunny', 'Sunny', 'Energetic male', 'male', 'sunny', ALL_LANGUAGE_CODES, 'More upbeat male narration for engaging short-form content.'),
-    VoiceOption('Mani', 'Mani', 'Warm male', 'male', 'mani', ALL_LANGUAGE_CODES, 'Warm, conversational male voice for regional storytelling.'),
-    VoiceOption('Gokul', 'Gokul', 'Natural male', 'male', 'gokul', ALL_LANGUAGE_CODES, 'Natural male delivery for grounded scenes and local stories.'),
-    VoiceOption('Vijay', 'Vijay', 'Confident male', 'male', 'vijay', ALL_LANGUAGE_CODES, 'Confident male voice for authoritative delivery.'),
-    VoiceOption('Mohit', 'Mohit', 'Balanced male', 'male', 'mohit', ALL_LANGUAGE_CODES, 'Balanced male narration for general creator workflows.'),
-    VoiceOption('Rehan', 'Rehan', 'Smooth male', 'male', 'rehan', ALL_LANGUAGE_CODES, 'Smooth male voice for polished branded content.'),
-    VoiceOption('Soham', 'Soham', 'Young male', 'male', 'soham', ALL_LANGUAGE_CODES, 'Modern male tone for social and youth-focused scripts.'),
-    VoiceOption('Ritu', 'Ritu', 'Clear female', 'female', 'ritu', ALL_LANGUAGE_CODES, 'Natural female narration for clean explainers and tutorials.'),
-    VoiceOption('Priya', 'Priya', 'Bright female', 'female', 'priya', ALL_LANGUAGE_CODES, 'Lively female voice for social, product, and short-form content.'),
-    VoiceOption('Neha', 'Neha', 'Friendly female', 'female', 'neha', ALL_LANGUAGE_CODES, 'Friendly female narration for everyday brand and social use.'),
-    VoiceOption('Pooja', 'Pooja', 'Balanced female', 'female', 'pooja', ALL_LANGUAGE_CODES, 'Balanced female delivery for versatile creator workflows.'),
-    VoiceOption('Simran', 'Simran', 'Expressive female', 'female', 'simran', ALL_LANGUAGE_CODES, 'Energetic female voice for creator-led storytelling.'),
-    VoiceOption('Kavya', 'Kavya', 'Soft female', 'female', 'kavya', ALL_LANGUAGE_CODES, 'Gentle storytelling tone for mythology and devotional themes.'),
-    VoiceOption('Ishita', 'Ishita', 'Calm female', 'female', 'ishita', ALL_LANGUAGE_CODES, 'Composed female voice for premium brand narration.'),
-    VoiceOption('Shreya', 'Shreya', 'Polished female', 'female', 'shreya', ALL_LANGUAGE_CODES, 'Polished female voice for premium content and tutorials.'),
-    VoiceOption('Roopa', 'Roopa', 'Mature female', 'female', 'roopa', ALL_LANGUAGE_CODES, 'More grounded female delivery for documentary-style scripts.'),
-    VoiceOption('Amelia', 'Amelia', 'Global female', 'female', 'amelia', ALL_LANGUAGE_CODES, 'Refined female voice for premium and cosmopolitan content.'),
-    VoiceOption('Sophia', 'Sophia', 'Crisp female', 'female', 'sophia', ALL_LANGUAGE_CODES, 'Crisp female narration for sharp, clean product storytelling.'),
-    VoiceOption('Tanya', 'Tanya', 'Modern female', 'female', 'tanya', ALL_LANGUAGE_CODES, 'Modern female voice for social-first creator workflows.'),
-    VoiceOption('Shruti', 'Shruti', 'Warm female', 'female', 'shruti', ALL_LANGUAGE_CODES, 'Warm female narration for emotional or community-led content.'),
-    VoiceOption('Suhani', 'Suhani', 'Gentle female', 'female', 'suhani', ALL_LANGUAGE_CODES, 'Gentle female voice for softer storytelling and lifestyle content.'),
-    VoiceOption('Kavitha', 'Kavitha', 'Mature female', 'female', 'kavitha', ALL_LANGUAGE_CODES, 'Measured female voice for regional and documentary-style content.'),
-    VoiceOption('Rupali', 'Rupali', 'Rich female', 'female', 'rupali', ALL_LANGUAGE_CODES, 'Richer female tone for premium narrative voiceovers.'),
+    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'shubh', PAN_INDIA_LANGUAGE_CODES, 'Default Bulbul v3 voice with neutral, versatile delivery.'),
+    VoiceOption('Aditya', 'Aditya', 'Confident male', 'male', 'aditya', NORTH_LANGUAGE_CODES, 'Clear storyteller voice for startup, product, and tech explainers.'),
+    VoiceOption('Rahul', 'Rahul', 'Warm male', 'male', 'rahul', NORTH_LANGUAGE_CODES, 'Friendly male narration for accessible creator content.'),
+    VoiceOption('Rohan', 'Rohan', 'Polished male', 'male', 'rohan', BALANCED_LANGUAGE_CODES, 'Professional male delivery for branded and polished videos.'),
+    VoiceOption('Amit', 'Amit', 'Steady male', 'male', 'amit', WEST_LANGUAGE_CODES, 'Steady male narration for neutral explainers and promos.'),
+    VoiceOption('Dev', 'Dev', 'Deep male', 'male', 'dev', HINDI_FIRST_LANGUAGE_CODES, 'Stronger dramatic male tone for cinematic or intense scripts.'),
+    VoiceOption('Ratan', 'Ratan', 'Grounded male', 'male', 'ratan', EAST_LANGUAGE_CODES, 'Grounded male voice for informative and educational narration.'),
+    VoiceOption('Varun', 'Varun', 'Young male', 'male', 'varun', BALANCED_LANGUAGE_CODES, 'Youthful male tone for fast creator videos and social clips.'),
+    VoiceOption('Manan', 'Manan', 'Neutral male', 'male', 'manan', NORTH_LANGUAGE_CODES, 'Neutral male delivery for general-purpose narration.'),
+    VoiceOption('Sumit', 'Sumit', 'Clear male', 'male', 'sumit', NORTH_LANGUAGE_CODES, 'Clear male voice for instructional or product-led content.'),
+    VoiceOption('Kabir', 'Kabir', 'Broadcast male', 'male', 'kabir', HINDI_FIRST_LANGUAGE_CODES, 'Anchor-style male voice for commentary and educational reels.'),
+    VoiceOption('Aayan', 'Aayan', 'Light male', 'male', 'aayan', NORTH_LANGUAGE_CODES, 'Lighter male voice for energetic creator-facing narration.'),
+    VoiceOption('Ashutosh', 'Ashutosh', 'Formal male', 'male', 'ashutosh', HINDI_FIRST_LANGUAGE_CODES, 'Formal male tone for corporate and training content.'),
+    VoiceOption('Advait', 'Advait', 'Measured male', 'male', 'advait', BALANCED_LANGUAGE_CODES, 'Measured male narration for premium explainers.'),
+    VoiceOption('Anand', 'Anand', 'Deep male', 'male', 'anand', SOUTH_LANGUAGE_CODES, 'Deeper cinematic tone for dramatic storytelling.'),
+    VoiceOption('Tarun', 'Tarun', 'Friendly male', 'male', 'tarun', NORTH_LANGUAGE_CODES, 'Friendly and balanced male voice for everyday content.'),
+    VoiceOption('Sunny', 'Sunny', 'Energetic male', 'male', 'sunny', NORTH_LANGUAGE_CODES, 'More upbeat male narration for engaging short-form content.'),
+    VoiceOption('Mani', 'Mani', 'Warm male', 'male', 'mani', SOUTH_LANGUAGE_CODES, 'Warm, conversational male voice for regional storytelling.'),
+    VoiceOption('Gokul', 'Gokul', 'Natural male', 'male', 'gokul', SOUTH_LANGUAGE_CODES, 'Natural male delivery for grounded scenes and local stories.'),
+    VoiceOption('Vijay', 'Vijay', 'Confident male', 'male', 'vijay', SOUTH_LANGUAGE_CODES, 'Confident male voice for authoritative delivery.'),
+    VoiceOption('Mohit', 'Mohit', 'Balanced male', 'male', 'mohit', WEST_LANGUAGE_CODES, 'Balanced male narration for general creator workflows.'),
+    VoiceOption('Rehan', 'Rehan', 'Smooth male', 'male', 'rehan', NORTH_LANGUAGE_CODES, 'Smooth male voice for polished branded content.'),
+    VoiceOption('Soham', 'Soham', 'Young male', 'male', 'soham', NORTH_LANGUAGE_CODES, 'Modern male tone for social and youth-focused scripts.'),
+    VoiceOption('Ritu', 'Ritu', 'Clear female', 'female', 'ritu', NORTH_LANGUAGE_CODES, 'Natural female narration for clean explainers and tutorials.'),
+    VoiceOption('Priya', 'Priya', 'Bright female', 'female', 'priya', PAN_INDIA_LANGUAGE_CODES, 'Lively female voice for social, product, and short-form content.'),
+    VoiceOption('Neha', 'Neha', 'Friendly female', 'female', 'neha', NORTH_LANGUAGE_CODES, 'Friendly female narration for everyday brand and social use.'),
+    VoiceOption('Pooja', 'Pooja', 'Balanced female', 'female', 'pooja', WEST_LANGUAGE_CODES, 'Balanced female delivery for versatile creator workflows.'),
+    VoiceOption('Simran', 'Simran', 'Expressive female', 'female', 'simran', NORTH_LANGUAGE_CODES, 'Energetic female voice for creator-led storytelling.'),
+    VoiceOption('Kavya', 'Kavya', 'Soft female', 'female', 'kavya', SOUTH_LANGUAGE_CODES, 'Gentle storytelling tone for mythology and devotional themes.'),
+    VoiceOption('Ishita', 'Ishita', 'Calm female', 'female', 'ishita', BALANCED_LANGUAGE_CODES, 'Composed female voice for premium brand narration.'),
+    VoiceOption('Shreya', 'Shreya', 'Polished female', 'female', 'shreya', NORTH_LANGUAGE_CODES, 'Polished female voice for premium content and tutorials.'),
+    VoiceOption('Roopa', 'Roopa', 'Mature female', 'female', 'roopa', SOUTH_LANGUAGE_CODES, 'More grounded female delivery for documentary-style scripts.'),
+    VoiceOption('Amelia', 'Amelia', 'Global female', 'female', 'amelia', ('en-IN', 'hi-IN'), 'Refined female voice for premium and cosmopolitan content.'),
+    VoiceOption('Sophia', 'Sophia', 'Crisp female', 'female', 'sophia', ('en-IN', 'hi-IN'), 'Crisp female narration for sharp, clean product storytelling.'),
+    VoiceOption('Tanya', 'Tanya', 'Modern female', 'female', 'tanya', NORTH_LANGUAGE_CODES, 'Modern female voice for social-first creator workflows.'),
+    VoiceOption('Shruti', 'Shruti', 'Warm female', 'female', 'shruti', SOUTH_LANGUAGE_CODES, 'Warm female narration for emotional or community-led content.'),
+    VoiceOption('Suhani', 'Suhani', 'Gentle female', 'female', 'suhani', BALANCED_LANGUAGE_CODES, 'Gentle female voice for softer storytelling and lifestyle content.'),
+    VoiceOption('Kavitha', 'Kavitha', 'Mature female', 'female', 'kavitha', SOUTH_LANGUAGE_CODES, 'Measured female voice for regional and documentary-style content.'),
+    VoiceOption('Rupali', 'Rupali', 'Rich female', 'female', 'rupali', EAST_LANGUAGE_CODES, 'Richer female tone for premium narrative voiceovers.'),
 )
 
 EDGE_VOICE_MAP = {
@@ -155,6 +163,7 @@ PREVIEW_MAX_CHARS = 280
 PREVIEW_WINDOW_SECONDS = 600
 PREVIEW_MAX_REQUESTS_PER_WINDOW = 20
 _preview_request_log: dict[str, list[float]] = {}
+SUPPORTED_SAMPLE_RATES = (8000, 22050, 48000)
 
 
 def list_tts_languages() -> list[LanguageOption]:
@@ -237,7 +246,45 @@ def _synthesize_with_sarvam(text: str, output_path: Path, *, language_code: str,
     return speaker
 
 
-def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, language: str | None = None) -> VoiceoverResult:
+def _normalize_sample_rate(sample_rate_hz: int | None) -> int:
+    if sample_rate_hz in SUPPORTED_SAMPLE_RATES:
+        return int(sample_rate_hz)
+    return 22050
+
+
+def _resample_audio_file(path: Path, sample_rate_hz: int) -> Path:
+    normalized_rate = _normalize_sample_rate(sample_rate_hz)
+    target = path.with_name(f'{path.stem}_{normalized_rate}{path.suffix}')
+    if target.exists() and target.stat().st_size > 0:
+        return target
+    try:
+        subprocess.run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(path),
+                '-ar',
+                str(normalized_rate),
+                str(target),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if target.exists() and target.stat().st_size > 0:
+            return target
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('tts_resample_failed', extra={'path': str(path), 'sample_rate_hz': normalized_rate, 'error': str(exc)})
+    return path
+
+
+def generate_voiceover_detailed(
+    script: str,
+    voice: str,
+    cache_dir: Path,
+    language: str | None = None,
+    sample_rate_hz: int = 22050,
+) -> VoiceoverResult:
     text = script.strip()
     if not text:
         raise ValueError('Script is required for TTS voiceover generation')
@@ -245,9 +292,10 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
     cache_dir.mkdir(parents=True, exist_ok=True)
     language_code = resolve_language_code(language)
     voice_option = resolve_voice_option(voice)
+    normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
 
     settings = get_settings()
-    key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     sarvam_path = cache_dir / f'{key}.wav'
 
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
@@ -270,7 +318,7 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
             logger.warning('sarvam_tts_failed', extra={'voice': voice_option.provider_voice, 'language': language_code, 'error': str(exc)})
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     output_path = cache_dir / f'{fallback_key}.mp3'
     if output_path.exists() and output_path.stat().st_size > 0:
         return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', True, None)
@@ -297,12 +345,25 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
             raise RuntimeError(f'Sarvam TTS failed: {sarvam_error}')
         raise RuntimeError('TTS output file was not generated')
 
+    output_path = _resample_audio_file(output_path, normalized_sample_rate)
     message = f'Sarvam preview failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
     return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', False, message)
 
 
-def generate_voiceover(script: str, voice: str, cache_dir: Path, language: str | None = None) -> tuple[Path, str]:
-    result = generate_voiceover_detailed(script=script, voice=voice, cache_dir=cache_dir, language=language)
+def generate_voiceover(
+    script: str,
+    voice: str,
+    cache_dir: Path,
+    language: str | None = None,
+    sample_rate_hz: int = 22050,
+) -> tuple[Path, str]:
+    result = generate_voiceover_detailed(
+        script=script,
+        voice=voice,
+        cache_dir=cache_dir,
+        language=language,
+        sample_rate_hz=sample_rate_hz,
+    )
     return result.path, result.resolved_voice
 
 
@@ -316,7 +377,13 @@ def assert_preview_rate_limit(user_id: str) -> None:
     _preview_request_log[user_id] = timestamps
 
 
-def get_cached_voiceover(script: str, voice: str, cache_dir: Path, language: str | None = None) -> tuple[Path, str] | None:
+def get_cached_voiceover(
+    script: str,
+    voice: str,
+    cache_dir: Path,
+    language: str | None = None,
+    sample_rate_hz: int = 22050,
+) -> tuple[Path, str] | None:
     text = script.strip()
     if not text:
         return None
@@ -325,14 +392,15 @@ def get_cached_voiceover(script: str, voice: str, cache_dir: Path, language: str
     language_code = resolve_language_code(language)
     voice_option = resolve_voice_option(voice)
     settings = get_settings()
+    normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
 
-    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     sarvam_path = cache_dir / f'{sarvam_key}.wav'
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
         return sarvam_path, voice_option.provider_voice
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
     if fallback_path.exists() and fallback_path.stat().st_size > 0:
         return fallback_path, edge_voice
@@ -340,7 +408,13 @@ def get_cached_voiceover(script: str, voice: str, cache_dir: Path, language: str
     return None
 
 
-def get_cached_voiceover_detailed(script: str, voice: str, cache_dir: Path, language: str | None = None) -> VoiceoverResult | None:
+def get_cached_voiceover_detailed(
+    script: str,
+    voice: str,
+    cache_dir: Path,
+    language: str | None = None,
+    sample_rate_hz: int = 22050,
+) -> VoiceoverResult | None:
     text = script.strip()
     if not text:
         return None
@@ -349,14 +423,15 @@ def get_cached_voiceover_detailed(script: str, voice: str, cache_dir: Path, lang
     language_code = resolve_language_code(language)
     voice_option = resolve_voice_option(voice)
     settings = get_settings()
+    normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
 
-    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     sarvam_path = cache_dir / f'{sarvam_key}.wav'
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
         return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True, None)
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
     if settings.sarvam_api_key:
         # If Sarvam is configured, do not keep serving an older fallback cache.

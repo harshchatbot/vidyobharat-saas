@@ -9,12 +9,14 @@ export function GenerateButton({
   estimatedCredits,
   estimatedTime,
   disabled,
+  helperText,
 }: {
   onClick: () => void;
   loading: boolean;
   estimatedCredits: number;
   estimatedTime: string;
   disabled?: boolean;
+  helperText?: string;
 }) {
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-5">
@@ -38,6 +40,7 @@ export function GenerateButton({
           Est. {estimatedTime}
         </span>
       </div>
+      {helperText ? <p className="text-xs text-muted">{helperText}</p> : null}
     </div>
   );
 }

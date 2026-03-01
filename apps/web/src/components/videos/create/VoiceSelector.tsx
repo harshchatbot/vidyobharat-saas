@@ -6,6 +6,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Textarea } from '@/components/ui/Textarea';
 
 import type { TTSLanguageOption, TTSVoiceOption } from '@/types/api';
+import { AUDIO_QUALITY_OPTIONS } from './constants';
 
 export function VoiceSelector({
   languageOptions,
@@ -14,6 +15,8 @@ export function VoiceSelector({
   onLanguageChange,
   voice,
   onVoiceChange,
+  sampleRateHz,
+  onSampleRateHzChange,
   previewText,
   onPreviewTextChange,
   onPreview,
@@ -24,6 +27,7 @@ export function VoiceSelector({
   previewLimit,
   previewError,
   previewMessage,
+  translating,
 }: {
   languageOptions: TTSLanguageOption[];
   voiceOptions: TTSVoiceOption[];
@@ -31,6 +35,8 @@ export function VoiceSelector({
   onLanguageChange: (value: string) => void;
   voice: string;
   onVoiceChange: (value: string) => void;
+  sampleRateHz: number;
+  onSampleRateHzChange: (value: number) => void;
   previewText: string;
   onPreviewTextChange: (value: string) => void;
   onPreview: (voiceKey?: string) => void;
@@ -41,6 +47,7 @@ export function VoiceSelector({
   previewLimit: string | null;
   previewError: string | null;
   previewMessage: string | null;
+  translating: boolean;
 }) {
   const selected = voiceOptions.find((item) => item.key === voice) ?? voiceOptions[0];
 
@@ -60,14 +67,16 @@ export function VoiceSelector({
         </div>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-text">Preview text</span>
-          <Textarea
-            value={previewText}
-            onChange={(event) => onPreviewTextChange(event.target.value)}
-            rows={4}
-            maxLength={280}
-            placeholder="Type the exact line you want to test in the selected Sarvam voice."
-          />
-          <span className="mt-2 block text-xs text-muted">Up to 280 characters per preview.</span>
+            <Textarea
+              value={previewText}
+              onChange={(event) => onPreviewTextChange(event.target.value)}
+              rows={4}
+              maxLength={280}
+              placeholder="Type the exact line you want to test in the selected Sarvam voice."
+            />
+          <span className="mt-2 block text-xs text-muted">
+            Up to 280 characters per preview.{translating ? ' Translating to the selected language…' : ''}
+          </span>
         </label>
         <div className="space-y-1 text-xs text-muted">
           {previewProvider ? (
@@ -109,6 +118,20 @@ export function VoiceSelector({
           </Dropdown>
         </label>
       </div>
+
+      <label className="block">
+        <span className="mb-1 block text-sm font-semibold text-text">Sarvam audio quality</span>
+        <Dropdown value={String(sampleRateHz)} onChange={(event) => onSampleRateHzChange(Number(event.target.value))}>
+          {AUDIO_QUALITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Dropdown>
+        <span className="mt-2 block text-xs text-muted">
+          {AUDIO_QUALITY_OPTIONS.find((option) => option.value === sampleRateHz)?.description}
+        </span>
+      </label>
 
       <div className="max-h-[26rem] overflow-y-auto rounded-[var(--radius-md)] border border-border bg-[hsl(var(--color-bg)/0.55)] p-3">
         <div className="grid gap-3 sm:grid-cols-2">

@@ -66,6 +66,7 @@ export type Video = {
   duration_seconds: number | null;
   captions_enabled: boolean;
   caption_style?: string | null;
+  audio_sample_rate_hz?: number | null;
   status: 'draft' | 'processing' | 'completed' | 'failed';
   progress: number;
   image_urls: string[];
@@ -121,6 +122,7 @@ export type TTSPreviewRequest = {
   text: string;
   language: string;
   voice: string;
+  sample_rate_hz: number;
 };
 
 export type TTSPreviewResponse = {
@@ -193,6 +195,15 @@ export type ScriptResponse = {
   tags: string[];
 };
 
+export type ScriptTranslateRequest = {
+  text: string;
+  target_language: string;
+};
+
+export type TextResponse = {
+  text: string;
+};
+
 export type UserProfile = {
   id: string;
   display_name: string | null;
@@ -262,6 +273,7 @@ export type VideoCreateRequest = {
   audioSettings: {
     volume: number;
     ducking: boolean;
+    sampleRateHz: number;
   };
   aspectRatio: string;
   resolution: string;

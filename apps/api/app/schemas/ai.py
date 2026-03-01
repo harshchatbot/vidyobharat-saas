@@ -80,6 +80,7 @@ class VideoMusicSettings(BaseModel):
 class VideoAudioSettings(BaseModel):
     volume: int = Field(default=20, ge=0, le=100)
     ducking: bool = True
+    sampleRateHz: int = Field(default=22050, ge=8000, le=48000)
 
 
 class AIVideoCreateRequest(BaseModel):
@@ -170,3 +171,12 @@ class ScriptTagsRequest(BaseModel):
 class ScriptResponse(BaseModel):
     script: str
     tags: list[str]
+
+
+class ScriptTranslateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=6000)
+    target_language: str = Field(min_length=2, max_length=40)
+
+
+class TextResponse(BaseModel):
+    text: str

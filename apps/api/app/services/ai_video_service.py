@@ -129,6 +129,9 @@ class AIVideoCreateService:
             duration_seconds=duration_seconds,
             image_urls=image_urls,
         )
+        sample_rate_hz = int((audio_settings or {}).get('sampleRateHz') or 22050)
+        if sample_rate_hz not in {8000, 22050, 48000}:
+            raise ProviderError('sampleRateHz must be one of 8000, 22050, or 48000')
         seed_image_url = image_urls[0] if image_urls else None
         video = self.repo.create(
             user_id=user_id,
@@ -154,6 +157,7 @@ class AIVideoCreateService:
             music_file_url=(music or {}).get('url'),
             music_volume=int((audio_settings or {}).get('volume') or 20),
             duck_music=bool((audio_settings or {}).get('ducking', True)),
+            audio_sample_rate_hz=sample_rate_hz,
         )
         self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=self.tagging.tag_script(script), source='auto')
         if tags:
@@ -291,6 +295,7 @@ class AIVideoCreateService:
             image_url=params.get('imageUrl'),
             language=params.get('language'),
             voice=params['voice'],
+            audio_sample_rate_hz=int((params.get('audioSettings') or {}).get('sampleRateHz') or 22050),
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
@@ -318,6 +323,7 @@ class AIVideoCreateService:
             image_url=params.get('imageUrl'),
             language=params.get('language'),
             voice=params['voice'],
+            audio_sample_rate_hz=int((params.get('audioSettings') or {}).get('sampleRateHz') or 22050),
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
@@ -337,6 +343,7 @@ class AIVideoCreateService:
         image_url: str | None,
         language: str | None,
         voice: str,
+        audio_sample_rate_hz: int,
         aspect_ratio: str,
         resolution: str,
         duration_seconds: int,
@@ -350,6 +357,7 @@ class AIVideoCreateService:
             script=script,
             language_name=language,
             voice_name=voice,
+            audio_sample_rate_hz=audio_sample_rate_hz,
             image_urls=image_urls,
             aspect_ratio=aspect_ratio,
             resolution=resolution,
@@ -541,6 +549,9 @@ def celery_process_ai_video(video_id: str) -> None:
             'resolution': video.resolution,
             'durationSeconds': video.duration_seconds or 8,
             'voice': video.voice,
+            'audioSettings': {
+                'sampleRateHz': video.audio_sample_rate_hz or 22050,
+            },
         }
         adapter = service.providers.get(video.selected_model or '')
         if not adapter:

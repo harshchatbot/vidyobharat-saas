@@ -21,7 +21,9 @@ import type {
   ScriptEnhanceRequest,
   ScriptGenerateRequest,
   ScriptTagsRequest,
+  ScriptTranslateRequest,
   ScriptResponse,
+  TextResponse,
   Template,
   TTSCatalogResponse,
   TTSPreviewRequest,
@@ -206,6 +208,12 @@ export const api = {
   },
   extractScriptTags(payload: ScriptTagsRequest, userId: string) {
     return request<ScriptResponse>('/api/ai/script/tags', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  translateScriptText(payload: ScriptTranslateRequest, userId: string) {
+    return request<TextResponse>('/api/ai/script/translate', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
