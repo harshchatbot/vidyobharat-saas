@@ -129,6 +129,7 @@ export type TTSPreviewResponse = {
   resolved_voice: string;
   cached: boolean;
   preview_limit: string;
+  provider_message: string | null;
 };
 
 export type ReelScriptRequest = {

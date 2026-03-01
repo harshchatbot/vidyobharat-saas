@@ -36,3 +36,4 @@ class TTSPreviewResponse(BaseModel):
     resolved_voice: str
     cached: bool
     preview_limit: str
+    provider_message: str | None = None

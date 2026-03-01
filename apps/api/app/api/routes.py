@@ -1105,6 +1105,7 @@ def generate_tts_preview(
         resolved_voice=result.resolved_voice,
         cached=result.cached,
         preview_limit=f'{PREVIEW_MAX_REQUESTS_PER_WINDOW} uncached previews / {PREVIEW_WINDOW_SECONDS // 60} min · {PREVIEW_MAX_CHARS} chars max',
+        provider_message=result.provider_message,
     )
 
 

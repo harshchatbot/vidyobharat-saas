@@ -34,6 +34,7 @@ class VoiceoverResult:
     resolved_voice: str
     provider: str
     cached: bool
+    provider_message: str | None = None
 
 
 LANGUAGE_OPTIONS: tuple[LanguageOption, ...] = (
@@ -54,45 +55,45 @@ LANGUAGE_OPTIONS: tuple[LanguageOption, ...] = (
 ALL_LANGUAGE_CODES = tuple(sorted({item.code for item in LANGUAGE_OPTIONS}))
 
 VOICE_OPTIONS: tuple[VoiceOption, ...] = (
-    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'Shubh', ALL_LANGUAGE_CODES, 'Default Bulbul v3 voice with neutral, versatile delivery.'),
-    VoiceOption('Aditya', 'Aditya', 'Confident male', 'male', 'Aditya', ALL_LANGUAGE_CODES, 'Clear storyteller voice for startup, product, and tech explainers.'),
-    VoiceOption('Rahul', 'Rahul', 'Warm male', 'male', 'Rahul', ALL_LANGUAGE_CODES, 'Friendly male narration for accessible creator content.'),
-    VoiceOption('Rohan', 'Rohan', 'Polished male', 'male', 'Rohan', ALL_LANGUAGE_CODES, 'Professional male delivery for branded and polished videos.'),
-    VoiceOption('Amit', 'Amit', 'Steady male', 'male', 'Amit', ALL_LANGUAGE_CODES, 'Steady male narration for neutral explainers and promos.'),
-    VoiceOption('Dev', 'Dev', 'Deep male', 'male', 'Dev', ALL_LANGUAGE_CODES, 'Stronger dramatic male tone for cinematic or intense scripts.'),
-    VoiceOption('Ratan', 'Ratan', 'Grounded male', 'male', 'Ratan', ALL_LANGUAGE_CODES, 'Grounded male voice for informative and educational narration.'),
-    VoiceOption('Varun', 'Varun', 'Young male', 'male', 'Varun', ALL_LANGUAGE_CODES, 'Youthful male tone for fast creator videos and social clips.'),
-    VoiceOption('Manan', 'Manan', 'Neutral male', 'male', 'Manan', ALL_LANGUAGE_CODES, 'Neutral male delivery for general-purpose narration.'),
-    VoiceOption('Sumit', 'Sumit', 'Clear male', 'male', 'Sumit', ALL_LANGUAGE_CODES, 'Clear male voice for instructional or product-led content.'),
-    VoiceOption('Kabir', 'Kabir', 'Broadcast male', 'male', 'Kabir', ALL_LANGUAGE_CODES, 'Anchor-style male voice for commentary and educational reels.'),
-    VoiceOption('Aayan', 'Aayan', 'Light male', 'male', 'Aayan', ALL_LANGUAGE_CODES, 'Lighter male voice for energetic creator-facing narration.'),
-    VoiceOption('Ashutosh', 'Ashutosh', 'Formal male', 'male', 'Ashutosh', ALL_LANGUAGE_CODES, 'Formal male tone for corporate and training content.'),
-    VoiceOption('Advait', 'Advait', 'Measured male', 'male', 'Advait', ALL_LANGUAGE_CODES, 'Measured male narration for premium explainers.'),
-    VoiceOption('Anand', 'Anand', 'Deep male', 'male', 'Anand', ALL_LANGUAGE_CODES, 'Deeper cinematic tone for dramatic storytelling.'),
-    VoiceOption('Tarun', 'Tarun', 'Friendly male', 'male', 'Tarun', ALL_LANGUAGE_CODES, 'Friendly and balanced male voice for everyday content.'),
-    VoiceOption('Sunny', 'Sunny', 'Energetic male', 'male', 'Sunny', ALL_LANGUAGE_CODES, 'More upbeat male narration for engaging short-form content.'),
-    VoiceOption('Mani', 'Mani', 'Warm male', 'male', 'Mani', ALL_LANGUAGE_CODES, 'Warm, conversational male voice for regional storytelling.'),
-    VoiceOption('Gokul', 'Gokul', 'Natural male', 'male', 'Gokul', ALL_LANGUAGE_CODES, 'Natural male delivery for grounded scenes and local stories.'),
-    VoiceOption('Vijay', 'Vijay', 'Confident male', 'male', 'Vijay', ALL_LANGUAGE_CODES, 'Confident male voice for authoritative delivery.'),
-    VoiceOption('Mohit', 'Mohit', 'Balanced male', 'male', 'Mohit', ALL_LANGUAGE_CODES, 'Balanced male narration for general creator workflows.'),
-    VoiceOption('Rehan', 'Rehan', 'Smooth male', 'male', 'Rehan', ALL_LANGUAGE_CODES, 'Smooth male voice for polished branded content.'),
-    VoiceOption('Soham', 'Soham', 'Young male', 'male', 'Soham', ALL_LANGUAGE_CODES, 'Modern male tone for social and youth-focused scripts.'),
-    VoiceOption('Ritu', 'Ritu', 'Clear female', 'female', 'Ritu', ALL_LANGUAGE_CODES, 'Natural female narration for clean explainers and tutorials.'),
-    VoiceOption('Priya', 'Priya', 'Bright female', 'female', 'Priya', ALL_LANGUAGE_CODES, 'Lively female voice for social, product, and short-form content.'),
-    VoiceOption('Neha', 'Neha', 'Friendly female', 'female', 'Neha', ALL_LANGUAGE_CODES, 'Friendly female narration for everyday brand and social use.'),
-    VoiceOption('Pooja', 'Pooja', 'Balanced female', 'female', 'Pooja', ALL_LANGUAGE_CODES, 'Balanced female delivery for versatile creator workflows.'),
-    VoiceOption('Simran', 'Simran', 'Expressive female', 'female', 'Simran', ALL_LANGUAGE_CODES, 'Energetic female voice for creator-led storytelling.'),
-    VoiceOption('Kavya', 'Kavya', 'Soft female', 'female', 'Kavya', ALL_LANGUAGE_CODES, 'Gentle storytelling tone for mythology and devotional themes.'),
-    VoiceOption('Ishita', 'Ishita', 'Calm female', 'female', 'Ishita', ALL_LANGUAGE_CODES, 'Composed female voice for premium brand narration.'),
-    VoiceOption('Shreya', 'Shreya', 'Polished female', 'female', 'Shreya', ALL_LANGUAGE_CODES, 'Polished female voice for premium content and tutorials.'),
-    VoiceOption('Roopa', 'Roopa', 'Mature female', 'female', 'Roopa', ALL_LANGUAGE_CODES, 'More grounded female delivery for documentary-style scripts.'),
-    VoiceOption('Amelia', 'Amelia', 'Global female', 'female', 'Amelia', ALL_LANGUAGE_CODES, 'Refined female voice for premium and cosmopolitan content.'),
-    VoiceOption('Sophia', 'Sophia', 'Crisp female', 'female', 'Sophia', ALL_LANGUAGE_CODES, 'Crisp female narration for sharp, clean product storytelling.'),
-    VoiceOption('Tanya', 'Tanya', 'Modern female', 'female', 'Tanya', ALL_LANGUAGE_CODES, 'Modern female voice for social-first creator workflows.'),
-    VoiceOption('Shruti', 'Shruti', 'Warm female', 'female', 'Shruti', ALL_LANGUAGE_CODES, 'Warm female narration for emotional or community-led content.'),
-    VoiceOption('Suhani', 'Suhani', 'Gentle female', 'female', 'Suhani', ALL_LANGUAGE_CODES, 'Gentle female voice for softer storytelling and lifestyle content.'),
-    VoiceOption('Kavitha', 'Kavitha', 'Mature female', 'female', 'Kavitha', ALL_LANGUAGE_CODES, 'Measured female voice for regional and documentary-style content.'),
-    VoiceOption('Rupali', 'Rupali', 'Rich female', 'female', 'Rupali', ALL_LANGUAGE_CODES, 'Richer female tone for premium narrative voiceovers.'),
+    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'shubh', ALL_LANGUAGE_CODES, 'Default Bulbul v3 voice with neutral, versatile delivery.'),
+    VoiceOption('Aditya', 'Aditya', 'Confident male', 'male', 'aditya', ALL_LANGUAGE_CODES, 'Clear storyteller voice for startup, product, and tech explainers.'),
+    VoiceOption('Rahul', 'Rahul', 'Warm male', 'male', 'rahul', ALL_LANGUAGE_CODES, 'Friendly male narration for accessible creator content.'),
+    VoiceOption('Rohan', 'Rohan', 'Polished male', 'male', 'rohan', ALL_LANGUAGE_CODES, 'Professional male delivery for branded and polished videos.'),
+    VoiceOption('Amit', 'Amit', 'Steady male', 'male', 'amit', ALL_LANGUAGE_CODES, 'Steady male narration for neutral explainers and promos.'),
+    VoiceOption('Dev', 'Dev', 'Deep male', 'male', 'dev', ALL_LANGUAGE_CODES, 'Stronger dramatic male tone for cinematic or intense scripts.'),
+    VoiceOption('Ratan', 'Ratan', 'Grounded male', 'male', 'ratan', ALL_LANGUAGE_CODES, 'Grounded male voice for informative and educational narration.'),
+    VoiceOption('Varun', 'Varun', 'Young male', 'male', 'varun', ALL_LANGUAGE_CODES, 'Youthful male tone for fast creator videos and social clips.'),
+    VoiceOption('Manan', 'Manan', 'Neutral male', 'male', 'manan', ALL_LANGUAGE_CODES, 'Neutral male delivery for general-purpose narration.'),
+    VoiceOption('Sumit', 'Sumit', 'Clear male', 'male', 'sumit', ALL_LANGUAGE_CODES, 'Clear male voice for instructional or product-led content.'),
+    VoiceOption('Kabir', 'Kabir', 'Broadcast male', 'male', 'kabir', ALL_LANGUAGE_CODES, 'Anchor-style male voice for commentary and educational reels.'),
+    VoiceOption('Aayan', 'Aayan', 'Light male', 'male', 'aayan', ALL_LANGUAGE_CODES, 'Lighter male voice for energetic creator-facing narration.'),
+    VoiceOption('Ashutosh', 'Ashutosh', 'Formal male', 'male', 'ashutosh', ALL_LANGUAGE_CODES, 'Formal male tone for corporate and training content.'),
+    VoiceOption('Advait', 'Advait', 'Measured male', 'male', 'advait', ALL_LANGUAGE_CODES, 'Measured male narration for premium explainers.'),
+    VoiceOption('Anand', 'Anand', 'Deep male', 'male', 'anand', ALL_LANGUAGE_CODES, 'Deeper cinematic tone for dramatic storytelling.'),
+    VoiceOption('Tarun', 'Tarun', 'Friendly male', 'male', 'tarun', ALL_LANGUAGE_CODES, 'Friendly and balanced male voice for everyday content.'),
+    VoiceOption('Sunny', 'Sunny', 'Energetic male', 'male', 'sunny', ALL_LANGUAGE_CODES, 'More upbeat male narration for engaging short-form content.'),
+    VoiceOption('Mani', 'Mani', 'Warm male', 'male', 'mani', ALL_LANGUAGE_CODES, 'Warm, conversational male voice for regional storytelling.'),
+    VoiceOption('Gokul', 'Gokul', 'Natural male', 'male', 'gokul', ALL_LANGUAGE_CODES, 'Natural male delivery for grounded scenes and local stories.'),
+    VoiceOption('Vijay', 'Vijay', 'Confident male', 'male', 'vijay', ALL_LANGUAGE_CODES, 'Confident male voice for authoritative delivery.'),
+    VoiceOption('Mohit', 'Mohit', 'Balanced male', 'male', 'mohit', ALL_LANGUAGE_CODES, 'Balanced male narration for general creator workflows.'),
+    VoiceOption('Rehan', 'Rehan', 'Smooth male', 'male', 'rehan', ALL_LANGUAGE_CODES, 'Smooth male voice for polished branded content.'),
+    VoiceOption('Soham', 'Soham', 'Young male', 'male', 'soham', ALL_LANGUAGE_CODES, 'Modern male tone for social and youth-focused scripts.'),
+    VoiceOption('Ritu', 'Ritu', 'Clear female', 'female', 'ritu', ALL_LANGUAGE_CODES, 'Natural female narration for clean explainers and tutorials.'),
+    VoiceOption('Priya', 'Priya', 'Bright female', 'female', 'priya', ALL_LANGUAGE_CODES, 'Lively female voice for social, product, and short-form content.'),
+    VoiceOption('Neha', 'Neha', 'Friendly female', 'female', 'neha', ALL_LANGUAGE_CODES, 'Friendly female narration for everyday brand and social use.'),
+    VoiceOption('Pooja', 'Pooja', 'Balanced female', 'female', 'pooja', ALL_LANGUAGE_CODES, 'Balanced female delivery for versatile creator workflows.'),
+    VoiceOption('Simran', 'Simran', 'Expressive female', 'female', 'simran', ALL_LANGUAGE_CODES, 'Energetic female voice for creator-led storytelling.'),
+    VoiceOption('Kavya', 'Kavya', 'Soft female', 'female', 'kavya', ALL_LANGUAGE_CODES, 'Gentle storytelling tone for mythology and devotional themes.'),
+    VoiceOption('Ishita', 'Ishita', 'Calm female', 'female', 'ishita', ALL_LANGUAGE_CODES, 'Composed female voice for premium brand narration.'),
+    VoiceOption('Shreya', 'Shreya', 'Polished female', 'female', 'shreya', ALL_LANGUAGE_CODES, 'Polished female voice for premium content and tutorials.'),
+    VoiceOption('Roopa', 'Roopa', 'Mature female', 'female', 'roopa', ALL_LANGUAGE_CODES, 'More grounded female delivery for documentary-style scripts.'),
+    VoiceOption('Amelia', 'Amelia', 'Global female', 'female', 'amelia', ALL_LANGUAGE_CODES, 'Refined female voice for premium and cosmopolitan content.'),
+    VoiceOption('Sophia', 'Sophia', 'Crisp female', 'female', 'sophia', ALL_LANGUAGE_CODES, 'Crisp female narration for sharp, clean product storytelling.'),
+    VoiceOption('Tanya', 'Tanya', 'Modern female', 'female', 'tanya', ALL_LANGUAGE_CODES, 'Modern female voice for social-first creator workflows.'),
+    VoiceOption('Shruti', 'Shruti', 'Warm female', 'female', 'shruti', ALL_LANGUAGE_CODES, 'Warm female narration for emotional or community-led content.'),
+    VoiceOption('Suhani', 'Suhani', 'Gentle female', 'female', 'suhani', ALL_LANGUAGE_CODES, 'Gentle female voice for softer storytelling and lifestyle content.'),
+    VoiceOption('Kavitha', 'Kavitha', 'Mature female', 'female', 'kavitha', ALL_LANGUAGE_CODES, 'Measured female voice for regional and documentary-style content.'),
+    VoiceOption('Rupali', 'Rupali', 'Rich female', 'female', 'rupali', ALL_LANGUAGE_CODES, 'Richer female tone for premium narrative voiceovers.'),
 )
 
 EDGE_VOICE_MAP = {
@@ -250,7 +251,7 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
     sarvam_path = cache_dir / f'{key}.wav'
 
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
-        return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True)
+        return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True, None)
 
     sarvam_error: Exception | None = None
     if settings.sarvam_api_key:
@@ -263,7 +264,7 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
             )
             if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
                 logger.info('sarvam_tts_generated', extra={'voice': resolved_speaker, 'language': language_code})
-                return VoiceoverResult(sarvam_path, resolved_speaker, 'Sarvam AI', False)
+                return VoiceoverResult(sarvam_path, resolved_speaker, 'Sarvam AI', False, None)
         except Exception as exc:  # noqa: BLE001
             sarvam_error = exc
             logger.warning('sarvam_tts_failed', extra={'voice': voice_option.provider_voice, 'language': language_code, 'error': str(exc)})
@@ -272,7 +273,7 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
     fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
     output_path = cache_dir / f'{fallback_key}.mp3'
     if output_path.exists() and output_path.stat().st_size > 0:
-        return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', True)
+        return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', True, None)
 
     edge_error: Exception | None = None
     try:
@@ -296,7 +297,8 @@ def generate_voiceover_detailed(script: str, voice: str, cache_dir: Path, langua
             raise RuntimeError(f'Sarvam TTS failed: {sarvam_error}')
         raise RuntimeError('TTS output file was not generated')
 
-    return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', False)
+    message = f'Sarvam preview failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
+    return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', False, message)
 
 
 def generate_voiceover(script: str, voice: str, cache_dir: Path, language: str | None = None) -> tuple[Path, str]:
@@ -351,12 +353,12 @@ def get_cached_voiceover_detailed(script: str, voice: str, cache_dir: Path, lang
     sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
     sarvam_path = cache_dir / f'{sarvam_key}.wav'
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
-        return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True)
+        return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True, None)
 
     edge_voice = resolve_edge_voice(voice)
     fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
     if fallback_path.exists() and fallback_path.stat().st_size > 0:
-        return VoiceoverResult(fallback_path, edge_voice, 'Fallback TTS', True)
+        return VoiceoverResult(fallback_path, edge_voice, 'Fallback TTS', True, None)
 
     return None

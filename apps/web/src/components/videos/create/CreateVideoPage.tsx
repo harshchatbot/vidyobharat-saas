@@ -68,6 +68,7 @@ export function CreateVideoPage({
   const [voicePreviewResolvedVoice, setVoicePreviewResolvedVoice] = useState<string | null>(null);
   const [voicePreviewCached, setVoicePreviewCached] = useState(false);
   const [voicePreviewLimit, setVoicePreviewLimit] = useState<string | null>(null);
+  const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -438,7 +439,8 @@ export function CreateVideoPage({
     }
   };
 
-  const previewVoice = async () => {
+  const previewVoice = async (previewVoiceKey?: string) => {
+    const activeVoice = previewVoiceKey ?? voice;
     if (voicePreviewing) {
       const player = voicePreviewAudioRef.current;
       player?.pause();
@@ -449,12 +451,13 @@ export function CreateVideoPage({
     setVoicePreviewError(null);
     setVoicePreviewProvider(null);
     setVoicePreviewResolvedVoice(null);
+    setVoicePreviewMessage(null);
     try {
       const response = await api.previewTts(
         {
           text: voicePreviewText.trim(),
           language,
-          voice,
+          voice: activeVoice,
         },
         userId,
       );
@@ -466,6 +469,7 @@ export function CreateVideoPage({
       setVoicePreviewResolvedVoice(response.resolved_voice);
       setVoicePreviewCached(response.cached);
       setVoicePreviewLimit(response.preview_limit);
+      setVoicePreviewMessage(response.provider_message);
       setVoicePreviewing(true);
       await player.play();
     } catch (error) {
@@ -674,6 +678,7 @@ export function CreateVideoPage({
           previewCached={voicePreviewCached}
           previewLimit={voicePreviewLimit}
           previewError={voicePreviewError}
+          previewMessage={voicePreviewMessage}
         />
         <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
       </SectionCard>
