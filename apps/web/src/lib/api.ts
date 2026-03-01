@@ -19,6 +19,7 @@ import type {
   CreditHistoryItem,
   CreditTopUpOrderResponse,
   CreditWallet,
+  PricingResponse,
   ReelScriptOutput,
   ReelScriptRequest,
   Render,
@@ -368,14 +369,17 @@ export const api = {
       body: JSON.stringify({ credits }),
     }, { userId, cache: 'no-store' });
   },
-  createTopupOrder(credits: number, userId: string) {
+  getPricing() {
+    return request<PricingResponse>('/api/pricing', {}, { cache: 'no-store' });
+  },
+  createTopupOrder(planName: string, userId: string) {
     return request<CreditTopUpOrderResponse>('/api/topupCredits/order', {
       method: 'POST',
-      body: JSON.stringify({ credits }),
+      body: JSON.stringify({ planName }),
     }, { userId, cache: 'no-store' });
   },
   verifyTopupOrder(
-    payload: { credits: number; razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+    payload: { provider: string; providerOrderId: string; providerPaymentId: string; providerSignature: string },
     userId: string,
   ) {
     return request<{ wallet: CreditWallet; addedCredits: number }>('/api/topupCredits/verify', {

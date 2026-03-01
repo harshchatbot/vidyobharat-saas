@@ -10,9 +10,9 @@ type Props = {
 
 const sizeClasses = {
   full: {
-    sm: 'h-10 w-auto object-contain',
-    md: 'h-12 w-auto object-contain',
-    lg: 'h-16 w-auto object-contain',
+    sm: 'h-11 w-auto object-contain',
+    md: 'h-14 w-auto object-contain',
+    lg: 'h-20 w-auto object-contain',
   },
   mark: {
     sm: 'h-9 w-9 object-contain',
@@ -26,11 +26,21 @@ export function BrandLogo({ href = '/', variant = 'full', size = 'md', className
   const label = priority === 'footer' ? 'RangManch AI footer logo' : 'RangManch AI logo';
   const lightSrc = variant === 'full' ? '/brand/logo-light.png' : '/brand/logo-mark-light.svg';
   const darkSrc = variant === 'full' ? '/brand/logo-dark.png' : '/brand/logo-mark-dark.svg';
+  const wrapperClass =
+    variant === 'full'
+      ? 'relative inline-flex overflow-hidden'
+      : 'relative inline-flex';
+  const imageClass =
+    variant === 'full'
+      ? `${dimensions} origin-left scale-[1.18] transform-gpu`
+      : dimensions;
 
   return (
     <Link href={href} aria-label="RangManch AI" className={`inline-flex shrink-0 items-center ${className}`.trim()}>
-      <img src={lightSrc} alt={label} className={`${dimensions} block dark:hidden`} />
-      <img src={darkSrc} alt={label} className={`${dimensions} hidden dark:block`} />
+      <span className={wrapperClass}>
+        <img src={lightSrc} alt={label} className={`${imageClass} block dark:hidden`} />
+        <img src={darkSrc} alt={label} className={`${imageClass} hidden dark:block`} />
+      </span>
     </Link>
   );
 }

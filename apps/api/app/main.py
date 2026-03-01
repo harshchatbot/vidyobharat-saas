@@ -198,10 +198,13 @@ def _ensure_credit_tables() -> None:
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
                       user_id VARCHAR(36) NOT NULL,
                       provider VARCHAR(24) NOT NULL DEFAULT 'razorpay',
+                      plan_name VARCHAR(32) NOT NULL DEFAULT 'starter',
+                      pricing_region VARCHAR(24) NOT NULL DEFAULT 'south_asia',
                       credits INTEGER NOT NULL,
                       amount_paise INTEGER NOT NULL,
                       currency VARCHAR(8) NOT NULL DEFAULT 'INR',
                       provider_order_id VARCHAR(120) NOT NULL UNIQUE,
+                      provider_checkout_id VARCHAR(120),
                       provider_payment_id VARCHAR(120),
                       provider_signature VARCHAR(255),
                       status VARCHAR(24) NOT NULL DEFAULT 'created',
@@ -213,6 +216,16 @@ def _ensure_credit_tables() -> None:
                     """
                 )
             )
+        else:
+            existing = {column['name'] for column in inspector.get_columns('credit_topup_orders')}
+            migrations = [
+                ('plan_name', "ALTER TABLE credit_topup_orders ADD COLUMN plan_name VARCHAR(32) DEFAULT 'starter'"),
+                ('pricing_region', "ALTER TABLE credit_topup_orders ADD COLUMN pricing_region VARCHAR(24) DEFAULT 'south_asia'"),
+                ('provider_checkout_id', 'ALTER TABLE credit_topup_orders ADD COLUMN provider_checkout_id VARCHAR(120)'),
+            ]
+            for column_name, statement in migrations:
+                if column_name not in existing:
+                    conn.execute(text(statement))
 
 
 _ensure_credit_tables()

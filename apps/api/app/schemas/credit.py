@@ -37,23 +37,29 @@ class TopUpCreditsRequest(BaseModel):
 
 
 class CreditTopUpOrderRequest(BaseModel):
-    credits: int = Field(ge=1, le=100000)
+    planName: str = Field(min_length=3, max_length=32)
 
 
 class CreditTopUpOrderResponse(BaseModel):
     provider: str
-    orderId: str
-    keyId: str
-    amountPaise: int
+    region: str
+    country: str
+    planName: str
+    orderId: str | None = None
+    keyId: str | None = None
+    checkoutSessionId: str | None = None
+    checkoutUrl: str | None = None
+    amountMinor: int
     currency: str
     credits: int
+    message: str | None = None
 
 
 class CreditTopUpVerifyRequest(BaseModel):
-    credits: int = Field(ge=1, le=100000)
-    razorpayOrderId: str = Field(min_length=4, max_length=160)
-    razorpayPaymentId: str = Field(min_length=4, max_length=160)
-    razorpaySignature: str = Field(min_length=8, max_length=255)
+    provider: str = Field(min_length=3, max_length=24)
+    providerOrderId: str = Field(min_length=4, max_length=160)
+    providerPaymentId: str = Field(min_length=4, max_length=160)
+    providerSignature: str = Field(min_length=8, max_length=255)
 
 
 class TopUpCreditsResponse(BaseModel):
@@ -89,3 +95,13 @@ class EstimateCreditsResponse(BaseModel):
     remainingCredits: int
     sufficient: bool
     premium: bool
+
+
+class PricingResponse(BaseModel):
+    region: str
+    country: str
+    currency: str
+    paymentProvider: str
+    plans: dict[str, int]
+    creditAllocation: dict[str, int]
+    actionCosts: list[CreditBreakdownItem] = Field(default_factory=list)

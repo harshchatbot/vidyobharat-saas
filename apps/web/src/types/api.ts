@@ -371,11 +371,27 @@ export type CreditEstimateResponse = {
 
 export type CreditTopUpOrderResponse = {
   provider: string;
-  orderId: string;
-  keyId: string;
-  amountPaise: number;
+  region: string;
+  country: string;
+  planName: string;
+  orderId: string | null;
+  keyId: string | null;
+  checkoutSessionId: string | null;
+  checkoutUrl: string | null;
+  amountMinor: number;
   currency: string;
   credits: number;
+  message: string | null;
+};
+
+export type PricingResponse = {
+  region: string;
+  country: string;
+  currency: string;
+  paymentProvider: string;
+  plans: Record<string, number>;
+  creditAllocation: Record<string, number>;
+  actionCosts: CreditBreakdownItem[];
 };
 
 export type InspirationImage = {

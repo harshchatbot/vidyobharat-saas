@@ -14,7 +14,7 @@ export function LandingFooter() {
     >
       <div className="grid items-start gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <BrandLogo href="/" variant="full" size="md" className="max-w-[220px]" priority="footer" />
+          <BrandLogo href="/" variant="full" size="md" className="max-w-[250px]" priority="footer" />
           <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">India-first hybrid text-to-video platform.</p>
         </div>
         <div>

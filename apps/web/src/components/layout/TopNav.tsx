@@ -39,7 +39,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandLogo href="/" variant="full" size="md" className="max-w-[210px] sm:max-w-[250px]" />
+            <BrandLogo href="/" variant="full" size="md" className="max-w-[240px] sm:max-w-[290px]" />
             <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
           </div>
 

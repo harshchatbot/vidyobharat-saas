@@ -3,7 +3,7 @@ import json
 import hashlib
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from openai import OpenAI
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -41,6 +41,7 @@ from app.schemas.credit import (
     CreditWalletResponse,
     EstimateCreditsRequest,
     EstimateCreditsResponse,
+    PricingResponse,
     TopUpCreditsRequest,
     TopUpCreditsResponse,
 )
@@ -76,6 +77,7 @@ from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService, InsufficientCreditsError
+from app.services.pricing_service import PricingService
 from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
@@ -357,21 +359,31 @@ def topup_credits(
 
 @router.post('/api/topupCredits/order', response_model=CreditTopUpOrderResponse)
 def create_topup_order(
+    request: Request,
     payload: CreditTopUpOrderRequest,
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     try:
-        result = CreditService(db).create_razorpay_topup_order(user_id=user_id, credits=payload.credits)
+        selection = PricingService().resolve_checkout_plan(request, payload.planName)
+        result = CreditService(db).create_topup_order(user_id=user_id, selection=selection)
     except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CreditTopUpOrderResponse(
         provider=result.provider,
+        region=result.region,
+        country=result.country,
+        planName=result.plan_name,
         orderId=result.order_id,
         keyId=result.key_id,
-        amountPaise=result.amount_paise,
+        checkoutSessionId=result.checkout_session_id,
+        checkoutUrl=result.checkout_url,
+        amountMinor=result.amount_minor,
         currency=result.currency,
         credits=result.credits,
+        message=result.message,
     )
 
 
@@ -381,17 +393,53 @@ def verify_topup_order(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
+    service = CreditService(db)
+    order = service.repo.get_topup_order_by_provider_order_id(payload.providerOrderId)
+    if not order or order.user_id != user_id:
+        raise HTTPException(status_code=404, detail='Top-up order not found')
     try:
-        wallet = CreditService(db).verify_razorpay_topup(
+        if payload.provider != 'razorpay':
+            raise RuntimeError('Stripe checkout is not enabled yet')
+        wallet = service.verify_razorpay_topup(
             user_id=user_id,
-            credits=payload.credits,
-            razorpay_order_id=payload.razorpayOrderId,
-            razorpay_payment_id=payload.razorpayPaymentId,
-            razorpay_signature=payload.razorpaySignature,
+            razorpay_order_id=payload.providerOrderId,
+            razorpay_payment_id=payload.providerPaymentId,
+            razorpay_signature=payload.providerSignature,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return TopUpCreditsResponse(wallet=_to_credit_wallet_response(wallet), addedCredits=payload.credits)
+    return TopUpCreditsResponse(wallet=_to_credit_wallet_response(wallet), addedCredits=order.credits)
+
+
+@router.get('/api/pricing', response_model=PricingResponse)
+def get_pricing(request: Request):
+    quote = PricingService().get_pricing_quote(request)
+    labels = {
+        'premium_voice': 'Premium voice generation',
+        'premium_voice_preview': 'Premium voice preview',
+        'voice_retry': 'Voice retry',
+        'premium_image': 'Premium image generation',
+        'image_upscale': 'Image upscale',
+        'premium_video_720p_15s': 'Premium video generation (720p / 15s)',
+        'premium_video_1080p_15s': 'Premium video generation (1080p / 15s)',
+        'character_consistency': 'Character consistency add-on',
+        'script_enhance': 'Script enhance',
+        'auto_caption': 'Auto captions',
+        'auto_tag': 'Auto tagging',
+        'audio_quality_48khz_modifier': '48 kHz audio quality modifier',
+    }
+    return PricingResponse(
+        region=quote.region,
+        country=quote.country,
+        currency=quote.currency,
+        paymentProvider=quote.payment_provider,
+        plans=quote.plans,
+        creditAllocation=quote.credit_allocation,
+        actionCosts=[
+            CreditBreakdownItem(feature=labels.get(key, key), cost=value)
+            for key, value in quote.action_costs.items()
+        ],
+    )
 
 
 @router.get('/api/creditHistory', response_model=CreditHistoryResponse)

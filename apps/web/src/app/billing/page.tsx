@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Coins, LoaderCircle, Receipt, Wallet } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
-import type { CreditHistoryItem, CreditWallet } from '@/types/api';
+import type { CreditHistoryItem, CreditWallet, PricingResponse } from '@/types/api';
 
 declare global {
   interface Window {
@@ -26,11 +26,21 @@ function getUserIdFromCookie() {
     ?.split('=')[1] ?? null;
 }
 
+function formatMoney(currency: string, amount: number) {
+  const locale = currency === 'INR' ? 'en-IN' : 'en-US';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export default function BillingPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [wallet, setWallet] = useState<CreditWallet | null>(null);
   const [history, setHistory] = useState<CreditHistoryItem[]>([]);
-  const [topup, setTopup] = useState('100');
+  const [pricing, setPricing] = useState<PricingResponse | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState('creator');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,16 +54,32 @@ export default function BillingPage() {
       return;
     }
     setUserId(raw);
-    void Promise.all([api.getCreditWallet(raw), api.getCreditHistory(raw, 8)])
-      .then(([nextWallet, nextHistory]) => {
+    void Promise.all([api.getCreditWallet(raw), api.getCreditHistory(raw, 8), api.getPricing()])
+      .then(([nextWallet, nextHistory, nextPricing]) => {
         setWallet(nextWallet);
         setHistory(nextHistory.items);
+        setPricing(nextPricing);
+        if (!(selectedPlan in nextPricing.plans)) {
+          const firstPlan = Object.keys(nextPricing.plans)[0];
+          if (firstPlan) setSelectedPlan(firstPlan);
+        }
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load billing data.');
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const orderedPlans = useMemo(() => {
+    if (!pricing) return [];
+    return ['starter', 'creator', 'growth', 'pro']
+      .filter((plan) => plan in pricing.plans)
+      .map((plan) => ({
+        key: plan,
+        price: pricing.plans[plan],
+        credits: pricing.creditAllocation[plan],
+      }));
+  }, [pricing]);
 
   const loadRazorpayScript = async () => {
     if (window.Razorpay) return true;
@@ -68,52 +94,49 @@ export default function BillingPage() {
   };
 
   const handleTopup = async () => {
-    if (!userId) return;
-    const credits = Number(topup);
-    if (!Number.isFinite(credits) || credits <= 0) {
-      setError('Enter a valid credit amount.');
-      return;
-    }
+    if (!userId || !pricing) return;
     setSubmitting(true);
     setError(null);
     try {
-      const scriptReady = await loadRazorpayScript();
-      if (!scriptReady || !window.Razorpay) {
-        throw new Error('Razorpay checkout could not be loaded.');
+      const order = await api.createTopupOrder(selectedPlan, userId);
+      if (order.provider === 'razorpay') {
+        const scriptReady = await loadRazorpayScript();
+        if (!scriptReady || !window.Razorpay || !order.keyId || !order.orderId) {
+          throw new Error('Razorpay checkout could not be loaded.');
+        }
+        const checkout = new window.Razorpay({
+          key: order.keyId,
+          amount: order.amountMinor,
+          currency: order.currency,
+          name: 'RangManch AI',
+          description: `${order.planName} plan · ${order.credits} credits`,
+          order_id: order.orderId,
+          handler: async (response: Record<string, string>) => {
+            try {
+              const verification = await api.verifyTopupOrder(
+                {
+                  provider: 'razorpay',
+                  providerOrderId: response.razorpay_order_id,
+                  providerPaymentId: response.razorpay_payment_id,
+                  providerSignature: response.razorpay_signature,
+                },
+                userId,
+              );
+              setWallet(verification.wallet);
+              applyWallet(verification.wallet);
+              const refreshed = await api.getCreditHistory(userId, 8);
+              setHistory(refreshed.items);
+              show(`Top-up successful! Credits Added: ${verification.addedCredits} · Balance: ${verification.wallet.currentCredits}`);
+            } catch (verifyError) {
+              setError(verifyError instanceof Error ? verifyError.message : 'Payment verification failed.');
+            }
+          },
+          theme: { color: '#f6c21a' },
+        });
+        checkout.open();
+      } else {
+        setError(order.message ?? 'Stripe checkout is prepared but not enabled yet for this region.');
       }
-      const order = await api.createTopupOrder(credits, userId);
-      const checkout = new window.Razorpay({
-        key: order.keyId,
-        amount: order.amountPaise,
-        currency: order.currency,
-        name: 'RangManch AI',
-        description: `${order.credits} credits top-up`,
-        order_id: order.orderId,
-        handler: async (response: Record<string, string>) => {
-          try {
-            const verification = await api.verifyTopupOrder(
-              {
-                credits: order.credits,
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
-              },
-              userId,
-            );
-            setWallet(verification.wallet);
-            applyWallet(verification.wallet);
-            const refreshed = await api.getCreditHistory(userId, 8);
-            setHistory(refreshed.items);
-            show(`Top-up successful! Credits Added: ${verification.addedCredits} · Balance: ${verification.wallet.currentCredits}`);
-          } catch (verifyError) {
-            setError(verifyError instanceof Error ? verifyError.message : 'Payment verification failed.');
-          }
-        },
-        theme: {
-          color: '#f6c21a',
-        },
-      });
-      checkout.open();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Top-up failed.');
     } finally {
@@ -137,7 +160,7 @@ export default function BillingPage() {
           <div>
             <h1 className="font-heading text-2xl font-extrabold tracking-tight text-text">Billing & Credits</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted">
-              Track your plan allowance, top up credits for premium generations, and inspect recent usage.
+              Pick a plan, buy credits in your region, and keep premium generation predictable. Pricing is always validated on the backend.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -188,46 +211,49 @@ export default function BillingPage() {
             <div className="flex items-center gap-2">
               <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
-                <p className="text-sm font-semibold text-text">Top up credits</p>
-                <p className="text-xs text-muted">Manual top-up for local MVP billing. Payment gateway can be wired later.</p>
+                <p className="text-sm font-semibold text-text">Choose a plan</p>
+                <p className="text-xs text-muted">
+                  {pricing ? `Detected region: ${pricing.region} · currency: ${pricing.currency} · provider: ${pricing.paymentProvider}` : 'Loading region-aware checkout...'}
+                </p>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[100, 250, 500].map((value) => (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {orderedPlans.map((plan) => (
                 <button
-                  key={value}
+                  key={plan.key}
                   type="button"
-                  onClick={() => setTopup(String(value))}
-                  className={`rounded-[var(--radius-md)] border px-4 py-3 text-left ${
-                    topup === String(value)
+                  onClick={() => setSelectedPlan(plan.key)}
+                  className={`rounded-[var(--radius-md)] border px-4 py-4 text-left ${
+                    selectedPlan === plan.key
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]'
                   }`}
                 >
-                  <p className="text-sm font-semibold text-text">{value} credits</p>
-                  <p className="mt-1 text-xs text-muted">Instant wallet add</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold capitalize text-text">{plan.key}</p>
+                      <p className="mt-1 text-sm text-muted">{plan.credits} credits</p>
+                    </div>
+                    {pricing ? (
+                      <p className="text-base font-semibold text-text">{formatMoney(pricing.currency, plan.price)}</p>
+                    ) : null}
+                  </div>
                 </button>
               ))}
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                value={topup}
-                onChange={(event) => setTopup(event.target.value)}
-                className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3 text-sm text-text outline-none"
-                placeholder="Enter credits"
-              />
-              <Button onClick={() => void handleTopup()} disabled={submitting} className="min-w-40">
-                {submitting ? 'Preparing checkout...' : 'Pay & top up'}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+              <div className="text-sm text-muted">
+                {pricing ? (
+                  <>
+                    <p><span className="font-semibold text-text capitalize">{selectedPlan}</span> allocates <span className="font-semibold text-text">{pricing.creditAllocation[selectedPlan] ?? 0} credits</span>.</p>
+                    <p className="mt-1">Backend-controlled regional pricing prevents client-side tampering.</p>
+                  </>
+                ) : null}
+              </div>
+              <Button onClick={() => void handleTopup()} disabled={submitting || !pricing} className="min-w-44">
+                {submitting ? 'Preparing checkout...' : pricing?.paymentProvider === 'stripe' ? 'Prepare checkout' : 'Proceed to checkout'}
               </Button>
             </div>
-            {wallet ? (
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 text-sm text-muted">
-                <p><span className="font-semibold text-text">Plan:</span> {wallet.planName}</p>
-                <p className="mt-1"><span className="font-semibold text-text">Monthly allowance:</span> {wallet.monthlyCredits} credits</p>
-                <p className="mt-1"><span className="font-semibold text-text">Last reset:</span> {new Date(wallet.lastReset).toLocaleDateString()}</p>
-                <p className="mt-1"><span className="font-semibold text-text">Pricing:</span> 1 credit = INR 1 for the MVP checkout flow.</p>
-              </div>
-            ) : null}
             {error ? <p className="text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
           </Card>
         </div>

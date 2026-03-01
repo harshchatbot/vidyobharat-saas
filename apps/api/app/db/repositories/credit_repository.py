@@ -76,20 +76,26 @@ class CreditRepository:
         self,
         *,
         user_id: str,
+        plan_name: str,
+        pricing_region: str,
         credits: int,
         amount_paise: int,
         currency: str,
         provider_order_id: str,
+        provider_checkout_id: str | None,
         metadata_json: str,
-        provider: str = 'razorpay',
+        provider: str,
     ) -> CreditTopUpOrder:
         order = CreditTopUpOrder(
             user_id=user_id,
             provider=provider,
+            plan_name=plan_name,
+            pricing_region=pricing_region,
             credits=credits,
             amount_paise=amount_paise,
             currency=currency,
             provider_order_id=provider_order_id,
+            provider_checkout_id=provider_checkout_id,
             metadata_json=metadata_json,
         )
         self.db.add(order)

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.repositories.credit_repository import CreditRepository
 from app.models.entities import CreditTopUpOrder, CreditTransaction, CreditWallet
+from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
 
 class InsufficientCreditsError(RuntimeError):
@@ -48,22 +49,36 @@ class CreditDeductionResult:
 @dataclass
 class CreditTopUpOrderResult:
     provider: str
-    order_id: str
-    key_id: str
-    amount_paise: int
+    region: str
+    country: str
+    plan_name: str
+    order_id: str | None
+    key_id: str | None
+    checkout_session_id: str | None
+    checkout_url: str | None
+    amount_minor: int
     currency: str
     credits: int
+    message: str | None = None
 
 
 class CreditService:
+    FREE_PLAN_MONTHLY_CREDITS = 25
+    FREE_VOICE_KEYS = {'Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'}
+    FREE_IMAGE_MODELS = {'nano_banana'}
+    FREE_IMAGE_RESOLUTIONS = {'1024'}
+    PREMIUM_VIDEO_MODELS = {'sora2', 'veo3', 'kling3'}
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = CreditRepository(db)
-        self.config = self._load_config()
         self.settings = get_settings()
+        self.pricing_service = PricingService()
+        self.credit_costs = self._load_json('credit_pricing.json')
+        self.credit_plans = self._load_json('credit_plans.json')
 
-    def _load_config(self) -> dict[str, Any]:
-        config_path = Path(__file__).resolve().parents[1] / 'core' / 'credit_pricing.json'
+    def _load_json(self, filename: str) -> dict[str, Any]:
+        config_path = Path(__file__).resolve().parents[1] / 'core' / filename
         return json.loads(config_path.read_text())
 
     def ensure_wallet(self, user_id: str) -> CreditWallet:
@@ -75,7 +90,7 @@ class CreditService:
             return wallet
 
         plan = 'free'
-        monthly_credits = int(self.config['plans'][plan]['monthly_credits'])
+        monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
         wallet = self.repo.create_wallet(
             user_id=user_id,
             current_credits=monthly_credits,
@@ -112,12 +127,13 @@ class CreditService:
         return self._stable_key(prefix, metadata)
 
     def top_up_credits(self, user_id: str, credits: int, metadata: dict[str, Any] | None = None) -> CreditWallet:
+        metadata = metadata or {}
         idempotency_key = self._stable_key(
             'topup',
             {
                 'user_id': user_id,
                 'credits': credits,
-                'metadata': metadata or {},
+                'metadata': metadata,
             },
         )
         with self._transaction():
@@ -128,6 +144,11 @@ class CreditService:
                 return wallet
             wallet = self._ensure_wallet_locked(user_id)
             self._apply_monthly_reset_if_due(wallet)
+            plan_name = str(metadata.get('plan_name') or '').strip().lower()
+            plan_credits = int(metadata.get('plan_credits') or 0)
+            if plan_name and plan_credits > 0:
+                wallet.plan_type = plan_name
+                wallet.monthly_credits = plan_credits
             wallet.current_credits += credits
             self.repo.add_transaction(
                 user_id=user_id,
@@ -136,60 +157,22 @@ class CreditService:
                 balance_after=wallet.current_credits,
                 transaction_type='credit',
                 source='topup',
-                metadata_json=json.dumps(metadata or {}),
+                metadata_json=json.dumps(metadata),
                 idempotency_key=idempotency_key,
             )
             self.repo.save_all([wallet])
         wallet = self.ensure_wallet(user_id)
         return wallet
 
-    def create_razorpay_topup_order(self, user_id: str, credits: int) -> CreditTopUpOrderResult:
-        if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
-            raise RuntimeError('Razorpay is not configured')
-
-        amount_paise = self._credits_to_paise(credits)
-        payload = {
-            'amount': amount_paise,
-            'currency': 'INR',
-            'receipt': f'rangmanch-{user_id[:8]}-{credits}-{int(datetime.now(UTC).timestamp())}',
-            'notes': {
-                'user_id': user_id,
-                'credits': str(credits),
-            },
-        }
-        response = httpx.post(
-            f'{self.settings.razorpay_api_base}/orders',
-            auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
-            json=payload,
-            timeout=20.0,
-        )
-        if response.status_code >= 400:
-            raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
-        data = response.json()
-        provider_order_id = str(data['id'])
-        with self._transaction():
-            self.repo.create_topup_order(
-                user_id=user_id,
-                credits=credits,
-                amount_paise=amount_paise,
-                currency='INR',
-                provider_order_id=provider_order_id,
-                metadata_json=json.dumps({'provider_response': data}),
-            )
-        return CreditTopUpOrderResult(
-            provider='razorpay',
-            order_id=provider_order_id,
-            key_id=self.settings.razorpay_key_id,
-            amount_paise=amount_paise,
-            currency='INR',
-            credits=credits,
-        )
+    def create_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
+        if selection.payment_provider == 'razorpay':
+            return self._create_razorpay_topup_order(user_id, selection)
+        return self._create_stripe_placeholder_topup_order(user_id, selection)
 
     def verify_razorpay_topup(
         self,
         *,
         user_id: str,
-        credits: int,
         razorpay_order_id: str,
         razorpay_payment_id: str,
         razorpay_signature: str,
@@ -201,6 +184,8 @@ class CreditService:
             raise RuntimeError('Top-up order not found')
         if topup_order.status == 'paid':
             return self.ensure_wallet(user_id)
+        if topup_order.provider != 'razorpay':
+            raise RuntimeError('This order is not a Razorpay order')
         expected_signature = hmac.new(
             self.settings.razorpay_key_secret.encode('utf-8'),
             f'{razorpay_order_id}|{razorpay_payment_id}'.encode('utf-8'),
@@ -220,7 +205,7 @@ class CreditService:
                 order_locked.verified_at = datetime.now(UTC)
                 order_locked.metadata_json = json.dumps(
                     {
-                        'credits': credits,
+                        'plan_name': order_locked.plan_name,
                         'provider': 'razorpay',
                     }
                 )
@@ -228,9 +213,12 @@ class CreditService:
 
         wallet = self.top_up_credits(
             user_id=user_id,
-            credits=credits,
+            credits=topup_order.credits,
             metadata={
                 'provider': 'razorpay',
+                'plan_name': topup_order.plan_name,
+                'plan_credits': topup_order.credits,
+                'pricing_region': topup_order.pricing_region,
                 'razorpay_order_id': razorpay_order_id,
                 'razorpay_payment_id': razorpay_payment_id,
             },
@@ -293,12 +281,11 @@ class CreditService:
     def _estimate_tts_preview(self, payload: dict[str, Any]) -> CreditEstimate:
         voice = str(payload.get('voice') or '')
         sample_rate = int(payload.get('sample_rate_hz') or payload.get('sampleRateHz') or 22050)
-        free_voices = set(self.config.get('free_voice_keys', []))
         items: list[CreditCostItem] = []
-        if voice and voice not in free_voices:
-            items.append(self._item('PremiumVoicePreview'))
+        if voice and voice not in self.FREE_VOICE_KEYS:
+            items.append(self._item('premium_voice_preview'))
         if sample_rate == 48000:
-            items.append(self._item('AudioQuality48kHzModifier'))
+            items.append(self._item('audio_quality_48khz_modifier'))
         return self._sum(items)
 
     def _estimate_image_generate(self, payload: dict[str, Any]) -> CreditEstimate:
@@ -306,19 +293,17 @@ class CreditService:
         resolution = str(payload.get('resolution') or '')
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
-        free_models = set(self.config.get('free_image_models', []))
-        free_resolutions = set(self.config.get('free_image_resolutions', []))
-        if model_key not in free_models or resolution not in free_resolutions:
-            items.append(self._item('PremiumImageGen'))
+        if model_key not in self.FREE_IMAGE_MODELS or resolution not in self.FREE_IMAGE_RESOLUTIONS:
+            items.append(self._item('premium_image'))
         if isinstance(reference_urls, list) and len(reference_urls) > 0:
-            items.append(self._item('CharacterConsistencyAddOn'))
+            items.append(self._item('character_consistency'))
         return self._sum(items)
 
     def _estimate_image_action(self, payload: dict[str, Any]) -> CreditEstimate:
         action = str(payload.get('action_type') or payload.get('action') or '')
         items: list[CreditCostItem] = []
         if action == 'upscale':
-            items.append(self._item('ImageUpscale'))
+            items.append(self._item('image_upscale'))
         return self._sum(items)
 
     def _estimate_video_create(self, payload: dict[str, Any]) -> CreditEstimate:
@@ -330,58 +315,53 @@ class CreditService:
         image_urls = payload.get('imageUrls') or payload.get('image_urls') or payload.get('reference_images') or []
         sample_rate = int(payload.get('sampleRateHz') or ((payload.get('audioSettings') or {}).get('sampleRateHz') if isinstance(payload.get('audioSettings'), dict) else 22050) or 22050)
         items: list[CreditCostItem] = []
-        premium_video_models = set(self.config.get('premium_video_models', []))
-        if model_key in premium_video_models:
-            base_key = 'PremiumVideo1080p15s' if resolution == '1080p' else 'PremiumVideo720p15s'
-            base_amount = self.config['pricing'][base_key]
-            scaled_amount = max(1, round((base_amount * duration_seconds) / int(self.config['credit_modifiers']['video_base_seconds'])))
+        if model_key in self.PREMIUM_VIDEO_MODELS:
+            base_key = 'premium_video_1080p_15s' if resolution == '1080p' else 'premium_video_720p_15s'
+            base_amount = self.credit_costs[base_key]
+            scaled_amount = max(1, round((base_amount * duration_seconds) / 15))
             items.append(CreditCostItem(key=base_key, label=self._label_for_key(base_key), amount=scaled_amount))
-        if voice and voice not in set(self.config.get('free_voice_keys', [])):
-            items.append(self._item('PremiumVoiceGen'))
+        if voice and voice not in self.FREE_VOICE_KEYS:
+            items.append(self._item('premium_voice'))
         if captions_enabled:
-            items.append(self._item('AutoCaption'))
+            items.append(self._item('auto_caption'))
         if sample_rate == 48000:
-            items.append(self._item('AudioQuality48kHzModifier'))
+            items.append(self._item('audio_quality_48khz_modifier'))
         if isinstance(image_urls, list) and len(image_urls) > 0:
-            items.append(self._item('CharacterConsistencyAddOn'))
-        items.append(self._item('AutoTag'))
+            items.append(self._item('character_consistency'))
+        items.append(self._item('auto_tag'))
         return self._sum(items)
 
     def _estimate_script_enhance(self) -> CreditEstimate:
-        return self._sum([self._item('ScriptEnhance'), self._item('AutoTag')])
+        return self._sum([self._item('script_enhance'), self._item('auto_tag')])
 
     def _estimate_video_retry(self, payload: dict[str, Any]) -> CreditEstimate:
         voice = str(payload.get('voice') or '')
         items: list[CreditCostItem] = []
-        if voice and voice not in set(self.config.get('free_voice_keys', [])):
-            items.append(self._item('VoiceRetry'))
+        if voice and voice not in self.FREE_VOICE_KEYS:
+            items.append(self._item('voice_retry'))
         return self._sum(items)
 
     def _item(self, key: str) -> CreditCostItem:
-        return CreditCostItem(key=key, label=self._label_for_key(key), amount=int(self.config['pricing'][key]))
+        return CreditCostItem(key=key, label=self._label_for_key(key), amount=int(self.credit_costs[key]))
 
     def _sum(self, items: list[CreditCostItem]) -> CreditEstimate:
         total = sum(item.amount for item in items)
         return CreditEstimate(required_credits=total, breakdown=items, premium=total > 0)
 
-    def _credits_to_paise(self, credits: int) -> int:
-        # MVP pricing: 1 credit = INR 1.
-        return int(credits) * 100
-
     def _label_for_key(self, key: str) -> str:
         labels = {
-            'PremiumVoiceGen': 'Premium voice generation',
-            'PremiumVoicePreview': 'Premium voice preview',
-            'VoiceRetry': 'Voice retry',
-            'PremiumImageGen': 'Premium image generation',
-            'ImageUpscale': 'Image upscale',
-            'PremiumVideo720p15s': 'Premium video generation (720p)',
-            'PremiumVideo1080p15s': 'Premium video generation (1080p)',
-            'CharacterConsistencyAddOn': 'Character consistency add-on',
-            'ScriptEnhance': 'Script enhance',
-            'AutoCaption': 'Auto captions',
-            'AutoTag': 'Auto tagging',
-            'AudioQuality48kHzModifier': '48 kHz audio quality',
+            'premium_voice': 'Premium voice generation',
+            'premium_voice_preview': 'Premium voice preview',
+            'voice_retry': 'Voice retry',
+            'premium_image': 'Premium image generation',
+            'image_upscale': 'Image upscale',
+            'premium_video_720p_15s': 'Premium video generation (720p)',
+            'premium_video_1080p_15s': 'Premium video generation (1080p)',
+            'character_consistency': 'Character consistency add-on',
+            'script_enhance': 'Script enhance',
+            'auto_caption': 'Auto captions',
+            'auto_tag': 'Auto tagging',
+            'audio_quality_48khz_modifier': '48 kHz audio quality',
         }
         return labels.get(key, key)
 
@@ -421,7 +401,7 @@ class CreditService:
         if wallet:
             return wallet
         plan = 'free'
-        monthly_credits = int(self.config['plans'][plan]['monthly_credits'])
+        monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
         return self.repo.create_wallet(
             user_id=user_id,
             current_credits=monthly_credits,
@@ -433,6 +413,87 @@ class CreditService:
         normalized = json.dumps(metadata, sort_keys=True, separators=(',', ':'), default=str)
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return f'{prefix}:{digest}'
+
+    def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
+        if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
+            raise RuntimeError('Razorpay is not configured')
+
+        payload = {
+            'amount': selection.amount_minor,
+            'currency': selection.currency,
+            'receipt': f'rangmanch-{user_id[:8]}-{selection.plan_name}-{int(datetime.now(UTC).timestamp())}',
+            'notes': {
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'pricing_region': selection.region,
+            },
+        }
+        response = httpx.post(
+            f'{self.settings.razorpay_api_base}/orders',
+            auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
+            json=payload,
+            timeout=20.0,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
+        data = response.json()
+        provider_order_id = str(data['id'])
+        with self._transaction():
+            self.repo.create_topup_order(
+                user_id=user_id,
+                provider='razorpay',
+                plan_name=selection.plan_name,
+                pricing_region=selection.region,
+                credits=selection.allocated_credits,
+                amount_paise=selection.amount_minor,
+                currency=selection.currency,
+                provider_order_id=provider_order_id,
+                provider_checkout_id=None,
+                metadata_json=json.dumps({'provider_response': data}),
+            )
+        return CreditTopUpOrderResult(
+            provider='razorpay',
+            region=selection.region,
+            country=selection.country,
+            plan_name=selection.plan_name,
+            order_id=provider_order_id,
+            key_id=self.settings.razorpay_key_id,
+            checkout_session_id=None,
+            checkout_url=None,
+            amount_minor=selection.amount_minor,
+            currency=selection.currency,
+            credits=selection.allocated_credits,
+        )
+
+    def _create_stripe_placeholder_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
+        provider_order_id = self.pricing_service.make_stripe_placeholder_session_id()
+        with self._transaction():
+            self.repo.create_topup_order(
+                user_id=user_id,
+                provider='stripe',
+                plan_name=selection.plan_name,
+                pricing_region=selection.region,
+                credits=selection.allocated_credits,
+                amount_paise=selection.amount_minor,
+                currency=selection.currency,
+                provider_order_id=provider_order_id,
+                provider_checkout_id=provider_order_id,
+                metadata_json=json.dumps({'provider': 'stripe', 'mode': 'placeholder'}),
+            )
+        return CreditTopUpOrderResult(
+            provider='stripe',
+            region=selection.region,
+            country=selection.country,
+            plan_name=selection.plan_name,
+            order_id=None,
+            key_id=self.settings.stripe_publishable_key,
+            checkout_session_id=provider_order_id,
+            checkout_url=None,
+            amount_minor=selection.amount_minor,
+            currency=selection.currency,
+            credits=selection.allocated_credits,
+            message='Stripe checkout structure is prepared but not enabled yet for global users.',
+        )
 
     def _transaction(self):
         return _CreditTransactionContext(self.db)

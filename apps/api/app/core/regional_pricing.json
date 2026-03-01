@@ -1,0 +1,21 @@
+{
+  "south_asia": {
+    "countries": ["IN", "NP", "LK", "BD", "PK", "BT", "MM"],
+    "currency": "INR",
+    "plans": {
+      "starter": 499,
+      "creator": 1499,
+      "growth": 2999,
+      "pro": 5999
+    }
+  },
+  "global": {
+    "currency": "USD",
+    "plans": {
+      "starter": 9,
+      "creator": 19,
+      "growth": 39,
+      "pro": 79
+    }
+  }
+}

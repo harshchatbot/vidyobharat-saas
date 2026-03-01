@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     razorpay_key_id: str | None = None
     razorpay_key_secret: str | None = None
     razorpay_api_base: str = 'https://api.razorpay.com/v1'
+    stripe_secret_key: str | None = None
+    stripe_publishable_key: str | None = None
+    stripe_api_base: str = 'https://api.stripe.com/v1'
+    geoip_api_base: str = 'https://ipapi.co'
+    pricing_default_country: str = 'IN'
 
     @property
     def allowed_origins_list(self) -> list[str]:
