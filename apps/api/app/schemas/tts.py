@@ -38,3 +38,5 @@ class TTSPreviewResponse(BaseModel):
     cached: bool
     preview_limit: str
     provider_message: str | None = None
+    applied_credits: int = 0
+    remaining_credits: int | None = None

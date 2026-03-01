@@ -1,5 +1,6 @@
 import logging
 import json
+import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
@@ -30,6 +31,19 @@ from app.schemas.ai import (
 from app.schemas.asset import AssetSearchResponse, AssetSearchResponseItem, AssetTagFacet, AssetTagUpdateRequest
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
+from app.schemas.credit import (
+    CreditTopUpOrderRequest,
+    CreditTopUpOrderResponse,
+    CreditTopUpVerifyRequest,
+    CreditBreakdownItem,
+    CreditHistoryItemResponse,
+    CreditHistoryResponse,
+    CreditWalletResponse,
+    EstimateCreditsRequest,
+    EstimateCreditsResponse,
+    TopUpCreditsRequest,
+    TopUpCreditsResponse,
+)
 from app.schemas.image_generation import (
     ImageActionRequest,
     ImageActionResponse,
@@ -61,6 +75,7 @@ from app.services.template_service import TemplateService
 from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.credit_service import CreditService, InsufficientCreditsError
 from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
@@ -195,7 +210,13 @@ def _to_video_response(video, db: Session) -> VideoResponse:
     )
 
 
-def _to_image_generation_response(generation, db: Session) -> ImageGenerationResponse:
+def _to_image_generation_response(
+    generation,
+    db: Session,
+    *,
+    applied_credits: int = 0,
+    remaining_credits: int | None = None,
+) -> ImageGenerationResponse:
     reference_urls: list[str] = []
     try:
         reference_urls = json.loads(generation.reference_urls or '[]')
@@ -218,6 +239,8 @@ def _to_image_generation_response(generation, db: Session) -> ImageGenerationRes
         status=generation.status.value if hasattr(generation.status, 'value') else str(generation.status),
         auto_tags=auto_tags,
         user_tags=user_tags,
+        applied_credits=applied_credits,
+        remaining_credits=remaining_credits,
         created_at=generation.created_at,
     )
 
@@ -255,9 +278,138 @@ def _to_user_settings_response(user) -> UserSettingsResponse:
     )
 
 
+def _to_credit_wallet_response(wallet) -> CreditWalletResponse:
+    used_credits = max(wallet.monthly_credits - wallet.current_credits, 0)
+    return CreditWalletResponse(
+        currentCredits=wallet.current_credits,
+        monthlyCredits=wallet.monthly_credits,
+        usedCredits=used_credits,
+        planName=wallet.plan_type.title(),
+        lastReset=wallet.last_reset,
+    )
+
+
+def _to_credit_history_item(transaction) -> CreditHistoryItemResponse:
+    metadata = {}
+    try:
+        metadata = json.loads(transaction.metadata_json or '{}')
+    except json.JSONDecodeError:
+        metadata = {}
+    return CreditHistoryItemResponse(
+        id=transaction.id,
+        featureName=transaction.feature_key,
+        creditsUsed=transaction.amount,
+        remainingBalance=transaction.balance_after,
+        transactionType=transaction.transaction_type,
+        source=transaction.source,
+        metadata=metadata,
+        createdAt=transaction.created_at,
+    )
+
+
 @router.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
+
+
+@router.get('/api/credits/wallet', response_model=CreditWalletResponse)
+def get_credit_wallet(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    wallet = CreditService(db).ensure_wallet(user_id)
+    return _to_credit_wallet_response(wallet)
+
+
+@router.post('/api/estimateCredits', response_model=EstimateCreditsResponse)
+def estimate_credits(
+    payload: EstimateCreditsRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    wallet, estimate = CreditService(db).estimate_for_user(user_id, payload.action, payload.payload)
+    return EstimateCreditsResponse(
+        estimatedCredits=estimate.required_credits,
+        breakdown=[
+            CreditBreakdownItem(feature=item.label, cost=item.amount)
+            for item in estimate.breakdown
+        ],
+        currentCredits=wallet.current_credits,
+        remainingCredits=max(wallet.current_credits - estimate.required_credits, 0),
+        sufficient=wallet.current_credits >= estimate.required_credits,
+        premium=estimate.premium,
+    )
+
+
+@router.post('/api/topupCredits', response_model=TopUpCreditsResponse)
+def topup_credits(
+    payload: TopUpCreditsRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    wallet = CreditService(db).top_up_credits(
+        user_id=user_id,
+        credits=payload.credits,
+        metadata={'route': '/api/topupCredits'},
+    )
+    return TopUpCreditsResponse(wallet=_to_credit_wallet_response(wallet), addedCredits=payload.credits)
+
+
+@router.post('/api/topupCredits/order', response_model=CreditTopUpOrderResponse)
+def create_topup_order(
+    payload: CreditTopUpOrderRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = CreditService(db).create_razorpay_topup_order(user_id=user_id, credits=payload.credits)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CreditTopUpOrderResponse(
+        provider=result.provider,
+        orderId=result.order_id,
+        keyId=result.key_id,
+        amountPaise=result.amount_paise,
+        currency=result.currency,
+        credits=result.credits,
+    )
+
+
+@router.post('/api/topupCredits/verify', response_model=TopUpCreditsResponse)
+def verify_topup_order(
+    payload: CreditTopUpVerifyRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    try:
+        wallet = CreditService(db).verify_razorpay_topup(
+            user_id=user_id,
+            credits=payload.credits,
+            razorpay_order_id=payload.razorpayOrderId,
+            razorpay_payment_id=payload.razorpayPaymentId,
+            razorpay_signature=payload.razorpaySignature,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return TopUpCreditsResponse(wallet=_to_credit_wallet_response(wallet), addedCredits=payload.credits)
+
+
+@router.get('/api/creditHistory', response_model=CreditHistoryResponse)
+def credit_history(
+    limit: int = 100,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = CreditService(db)
+    items = service.list_history(user_id, limit=max(1, min(limit, 250)))
+    return CreditHistoryResponse(items=[_to_credit_history_item(item) for item in items])
+
+
+@router.post('/api/credits/run-monthly-reset', include_in_schema=False)
+def run_monthly_credit_reset(db: Session = Depends(get_db)):
+    # Internal hook for cron/scheduler integration.
+    updated = CreditService(db).run_monthly_reset()
+    return {'updated_wallets': updated}
 
 
 @router.get('/me/profile', response_model=UserProfileResponse)
@@ -383,9 +535,34 @@ def generate_script_v2(
 @router.post('/api/ai/script/enhance', response_model=ScriptResponse)
 def enhance_script_v2(
     payload: ScriptEnhanceRequest,
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
+    credit_service = CreditService(db)
+    estimate = credit_service.estimate('script_enhance', {})
+    if estimate.required_credits > 0:
+        try:
+            credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key='script_enhance',
+                metadata={'template': payload.template or 'general', 'language': payload.language},
+                source='premium',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'script_enhance',
+                    {
+                        'user_id': user_id,
+                        'template': payload.template or 'general',
+                        'language': payload.language,
+                        'script_hash': hashlib.sha256(payload.script.encode('utf-8')).hexdigest(),
+                    },
+                ),
+            )
+        except InsufficientCreditsError as exc:
+            raise HTTPException(
+                status_code=402,
+                detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+            ) from exc
     prompt = (
         f'Enhance this video script for clarity, flow, and stronger storytelling. '
         f'Template: {payload.template or "general"}. Language: {payload.language}. '
@@ -584,7 +761,38 @@ def create_ai_video(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
+    deduction_amount = 0
     try:
+        credit_service = CreditService(db)
+        estimate = credit_service.estimate('video_create', payload.model_dump())
+        remaining_credits: int | None = None
+        if estimate.required_credits > 0:
+            deduction = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key='video_create',
+                metadata=payload.model_dump(),
+                source='premium',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'video_create',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
+            deduction_amount = estimate.required_credits
+            remaining_credits = deduction.wallet.current_credits
+        else:
+            deduction = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=0,
+                feature_key='video_create_free',
+                metadata=payload.model_dump(),
+                source='free',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'video_create_free',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
+            remaining_credits = deduction.wallet.current_credits
         service = AIVideoCreateService(db, settings)
         video = service.create_video(
             user_id=user_id,
@@ -618,14 +826,33 @@ def create_ai_video(
             videoUrl=video.output_url,
             provider=video.provider_name,
             modelKey=payload.modelKey,
+            appliedCredits=estimate.required_credits,
+            remainingCredits=remaining_credits,
         )
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+        ) from exc
     except ProviderError as exc:
+        if deduction_amount > 0:
+            CreditService(db).top_up_credits(
+                user_id=user_id,
+                credits=deduction_amount,
+                metadata={'refund_for': 'video_create_provider_error', 'model_key': payload.modelKey},
+            )
         logger.warning(
             'ai_video_create_provider_error',
             extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
+        if deduction_amount > 0:
+            CreditService(db).top_up_credits(
+                user_id=user_id,
+                credits=deduction_amount,
+                metadata={'refund_for': 'video_create_error', 'model_key': payload.modelKey},
+            )
         logger.exception(
             'ai_video_create_failed',
             extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
@@ -793,7 +1020,38 @@ def generate_ai_image(
     db: Session = Depends(get_db),
 ):
     service = ImageGenerationService(db)
+    deduction_amount = 0
     try:
+        credit_service = CreditService(db)
+        estimate = credit_service.estimate('image_generate', payload.model_dump())
+        remaining_credits: int | None = None
+        if estimate.required_credits > 0:
+            deduction = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key='image_generate',
+                metadata=payload.model_dump(),
+                source='premium',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'image_generate',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
+            deduction_amount = estimate.required_credits
+            remaining_credits = deduction.wallet.current_credits
+        else:
+            deduction = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=0,
+                feature_key='image_generate_free',
+                metadata=payload.model_dump(),
+                source='free',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'image_generate_free',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
+            remaining_credits = deduction.wallet.current_credits
         generation = service.create_image(
             user_id=user_id,
             model_key=payload.model_key,
@@ -802,8 +1060,24 @@ def generate_ai_image(
             resolution=payload.resolution,
             reference_urls=payload.reference_urls,
         )
-        return _to_image_generation_response(generation, db)
+        return _to_image_generation_response(
+            generation,
+            db,
+            applied_credits=estimate.required_credits,
+            remaining_credits=remaining_credits,
+        )
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+        ) from exc
     except Exception as exc:
+        if deduction_amount > 0:
+            CreditService(db).top_up_credits(
+                user_id=user_id,
+                credits=deduction_amount,
+                metadata={'refund_for': 'image_generate_error', 'model_key': payload.model_key},
+            )
         logger.exception(
             'image_generation_failed',
             extra={'request_id': get_request_id(), 'model_key': payload.model_key, 'error': str(exc)},
@@ -832,9 +1106,40 @@ def apply_ai_image_action(
 ):
     service = ImageGenerationService(db)
     try:
+        credit_service = CreditService(db)
+        estimate = credit_service.estimate('image_action', payload.model_dump())
+        if estimate.required_credits > 0:
+            credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key=f'image_action:{payload.action_type}',
+                metadata=payload.model_dump(),
+                source='premium',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'image_action',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
+        else:
+            credit_service.deduct_credits(
+                user_id=user_id,
+                amount=0,
+                feature_key=f'image_action:{payload.action_type}',
+                metadata=payload.model_dump(),
+                source='free',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'image_action_free',
+                    {'user_id': user_id, **payload.model_dump()},
+                ),
+            )
         results = service.apply_action(user_id=user_id, generation_id=payload.image_id, action=payload.action_type)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+        ) from exc
     return ImageActionResponse(
         action_type=payload.action_type,
         items=[_to_image_generation_response(item, db) for item in results],
@@ -1104,8 +1409,18 @@ def get_tts_catalog(_: str = Depends(get_user_id)) -> TTSCatalogResponse:
 def generate_tts_preview(
     payload: TTSPreviewRequest,
     user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
 ) -> TTSPreviewResponse:
     preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
+    credit_service = CreditService(db)
+    wallet = credit_service.ensure_wallet(user_id)
+    estimate = credit_service.estimate(
+        'tts_preview',
+        {
+            'voice': payload.voice,
+            'sample_rate_hz': payload.sample_rate_hz,
+        },
+    )
     cache_dir = Path('data/tts_cache')
     cached = get_cached_voiceover_detailed(
         script=preview_text,
@@ -1130,7 +1445,47 @@ def generate_tts_preview(
             cache_dir=cache_dir,
             language=payload.language,
             sample_rate_hz=payload.sample_rate_hz,
+            allow_premium=wallet.current_credits >= estimate.required_credits,
         )
+    applied_credits = 0
+    remaining_credits = wallet.current_credits
+    if not result.cached and result.provider == 'Sarvam AI' and estimate.required_credits > 0:
+        try:
+            deduction = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key='tts_preview',
+                metadata={
+                    'voice': payload.voice,
+                    'language': payload.language,
+                    'sample_rate_hz': payload.sample_rate_hz,
+                    'text_hash': hashlib.sha256(preview_text.encode('utf-8')).hexdigest(),
+                },
+                source='premium',
+                idempotency_key=credit_service.make_idempotency_key(
+                    'tts_preview',
+                    {
+                        'user_id': user_id,
+                        'voice': payload.voice,
+                        'language': payload.language,
+                        'sample_rate_hz': payload.sample_rate_hz,
+                        'text_hash': hashlib.sha256(preview_text.encode('utf-8')).hexdigest(),
+                    },
+                ),
+            )
+            applied_credits = estimate.required_credits
+            remaining_credits = deduction.wallet.current_credits
+        except InsufficientCreditsError:
+            # If premium synthesis succeeded but credits became unavailable concurrently,
+            # surface the asset as fallback-free but do not pretend the balance changed.
+            result = generate_voiceover_detailed(
+                script=preview_text,
+                voice=payload.voice,
+                cache_dir=cache_dir,
+                language=payload.language,
+                sample_rate_hz=payload.sample_rate_hz,
+                allow_premium=False,
+            )
     preview_url = f"/static/{result.path.as_posix().replace('data/', '', 1)}"
     return TTSPreviewResponse(
         preview_url=preview_url,
@@ -1139,6 +1494,8 @@ def generate_tts_preview(
         cached=result.cached,
         preview_limit=f'{PREVIEW_MAX_REQUESTS_PER_WINDOW} uncached previews / {PREVIEW_WINDOW_SECONDS // 60} min · {PREVIEW_MAX_CHARS} chars max',
         provider_message=result.provider_message,
+        applied_credits=applied_credits,
+        remaining_credits=remaining_credits,
     )
 
 

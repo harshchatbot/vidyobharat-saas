@@ -6,6 +6,8 @@ import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, PlusCircle, Set
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
+import { CreditChip } from '@/components/credits/CreditChip';
+import { CreditProvider } from '@/components/credits/CreditContext';
 import { TopNav } from '@/components/layout/TopNav';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { API_URL } from '@/lib/env';
@@ -18,7 +20,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/images', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/images', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -33,6 +35,8 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
   if (pathname.startsWith('/billing')) return 'Billing';
+  if (pathname.startsWith('/pricing')) return 'Pricing';
+  if (pathname.startsWith('/credits/history')) return 'Credit History';
   if (pathname.startsWith('/profile')) return 'Profile';
   if (pathname.startsWith('/settings')) return 'Settings';
   return 'RangManch AI';
@@ -55,6 +59,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     ];
 
     return (
+      <CreditProvider userId={userId}>
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
         <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 md:block">
           <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
@@ -93,6 +98,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
 
               <div className="flex items-center gap-2">
+                <CreditChip />
                 <ToggleTheme />
                 <details className="relative">
                   <summary className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text">
@@ -142,6 +148,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</main>
         </div>
       </div>
+      </CreditProvider>
     );
   }
 

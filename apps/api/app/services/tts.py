@@ -284,6 +284,7 @@ def generate_voiceover_detailed(
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    allow_premium: bool = True,
 ) -> VoiceoverResult:
     text = script.strip()
     if not text:
@@ -302,7 +303,7 @@ def generate_voiceover_detailed(
         return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True, None)
 
     sarvam_error: Exception | None = None
-    if settings.sarvam_api_key:
+    if settings.sarvam_api_key and allow_premium:
         try:
             resolved_speaker = _synthesize_with_sarvam(
                 text=text,
@@ -356,6 +357,7 @@ def generate_voiceover(
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    allow_premium: bool = True,
 ) -> tuple[Path, str]:
     result = generate_voiceover_detailed(
         script=script,
@@ -363,6 +365,7 @@ def generate_voiceover(
         cache_dir=cache_dir,
         language=language,
         sample_rate_hz=sample_rate_hz,
+        allow_premium=allow_premium,
     )
     return result.path, result.resolved_voice
 

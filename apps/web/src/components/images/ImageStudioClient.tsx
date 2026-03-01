@@ -19,6 +19,7 @@ import {
   Stars,
   Tag,
   Wand2,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react';
@@ -29,9 +30,11 @@ import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
+import { useToast } from '@/components/ui/Toast';
+import { useCredits } from '@/components/credits/CreditContext';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetSearchItem, AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet, CreditEstimateResponse, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -78,9 +81,9 @@ const aspectOptions = [
 ];
 
 const resolutionOptions = [
-  { value: '1024', label: '1024px', helper: 'Fast previews' },
-  { value: '1536', label: '1536px', helper: 'Balanced quality' },
-  { value: '2048', label: '2048px', helper: 'High detail' },
+  { value: '1024', label: '1K', helper: 'Fast previews' },
+  { value: '1536', label: '2K', helper: 'Balanced quality' },
+  { value: '2048', label: '4K', helper: 'High detail' },
 ];
 
 const powerWords = [
@@ -185,6 +188,8 @@ function toGeneratedFromAsset(item: AssetSearchItem): GeneratedImage {
     status: item.status,
     auto_tags: item.auto_tags,
     user_tags: item.user_tags,
+    applied_credits: 0,
+    remaining_credits: null,
     created_at: item.created_at,
   };
 }
@@ -212,6 +217,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [enhancing, setEnhancing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [estimate, setEstimate] = useState<CreditEstimateResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'generated' | 'inspiration'>('generated');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
@@ -227,6 +233,8 @@ export function ImageStudioClient({ userId }: Props) {
   const [selectedModelFilters, setSelectedModelFilters] = useState<string[]>([]);
   const [selectedResolutionFilters, setSelectedResolutionFilters] = useState<string[]>([]);
   const [manualTagInput, setManualTagInput] = useState('');
+  const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
+  const { show } = useToast();
 
   const refreshGeneratedFeed = async (
     nextQuery = searchQuery,
@@ -285,10 +293,6 @@ export function ImageStudioClient({ userId }: Props) {
     };
   }, [userId, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
 
-  useEffect(() => {
-    setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
-  }, [selectedGenerated]);
-
   const referenceUrls = useMemo(
     () =>
       referenceInput
@@ -297,6 +301,33 @@ export function ImageStudioClient({ userId }: Props) {
         .filter(Boolean),
     [referenceInput],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.estimateCredits(
+      'image_generate',
+      {
+        model_key: selectedModel,
+        resolution,
+        reference_urls: referenceUrls,
+      },
+      userId,
+    )
+      .then((result) => {
+        if (!cancelled) setEstimate(result);
+      })
+      .catch(() => {
+        if (!cancelled) setEstimate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, selectedModel, resolution, referenceUrls]);
+
+  useEffect(() => {
+    setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
+  }, [selectedGenerated]);
+
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
   const selectedInspirationModel = selectedInspiration ? models.find((model) => model.key === selectedInspiration.model_key) : null;
   const selectedGeneratedModel = selectedGenerated ? models.find((model) => model.key === selectedGenerated.model_key) : null;
@@ -334,6 +365,14 @@ export function ImageStudioClient({ userId }: Props) {
         },
         userId,
       );
+      if (typeof item.remaining_credits === 'number') {
+        if (wallet) {
+          applyWallet({ ...wallet, currentCredits: item.remaining_credits });
+        } else {
+          void refreshCredits();
+        }
+      }
+      show(`Created! Credits Used: ${item.applied_credits} · Remaining Balance: ${item.remaining_credits ?? wallet?.currentCredits ?? 0}`);
       setSelectedGenerated(item);
       setActiveTab('generated');
       await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
@@ -474,6 +513,12 @@ export function ImageStudioClient({ userId }: Props) {
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">
               Use quick starts, refine prompts with AI, and keep creating after generation with one-click actions like variations, upscale, and background cleanup.
             </p>
+            {wallet ? (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
+                <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                {wallet.currentCredits} credits available
+              </div>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] p-4">
@@ -682,13 +727,31 @@ export function ImageStudioClient({ userId }: Props) {
             {error ? <p className="text-sm text-danger">{error}</p> : null}
 
             <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted">
-                <span className="font-semibold text-text">{selectedModelMeta?.label}</span> • {aspectRatio} • {resolution}px
+              <div className="space-y-1 text-sm text-muted">
+                <div>
+                  <span className="font-semibold text-text">{selectedModelMeta?.label}</span> • {aspectRatio} • {resolution}px
+                </div>
+                {estimate ? (
+                  <div>
+                    Est. {estimate.estimatedCredits} credits • {estimate.remainingCredits} after generation
+                  </div>
+                ) : null}
               </div>
-              <Button onClick={() => void submit()} disabled={submitting} className="gap-2">
-                {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                {submitting ? 'Generating...' : 'Generate Image'}
-              </Button>
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <Button onClick={() => void submit()} disabled={submitting || Boolean(estimate && !estimate.sufficient)} className="gap-2">
+                  {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  {submitting ? 'Generating...' : 'Generate Image'}
+                </Button>
+                {estimate && !estimate.sufficient ? (
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
+                    <button type="button" onClick={() => openLowBalanceModal(estimate.estimatedCredits)}>
+                      Insufficient credits
+                    </button>
+                    <a href="/billing">Top up</a>
+                    <a href="/pricing">View plans</a>
+                  </div>
+                ) : null}
+              </div>
             </div>
         </Card>
 

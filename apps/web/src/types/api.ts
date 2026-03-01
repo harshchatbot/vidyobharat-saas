@@ -132,6 +132,8 @@ export type TTSPreviewResponse = {
   cached: boolean;
   preview_limit: string;
   provider_message: string | null;
+  applied_credits: number;
+  remaining_credits: number | null;
 };
 
 export type ReelScriptRequest = {
@@ -289,6 +291,8 @@ export type VideoCreateResponse = {
   videoUrl: string | null;
   provider: string | null;
   modelKey: string;
+  appliedCredits: number;
+  remainingCredits: number | null;
 };
 
 export type AIVideoStatusResponse = {
@@ -327,7 +331,51 @@ export type GeneratedImage = {
   status: string;
   auto_tags: string[];
   user_tags: string[];
+  applied_credits: number;
+  remaining_credits: number | null;
   created_at: string;
+};
+
+export type CreditBreakdownItem = {
+  feature: string;
+  cost: number;
+};
+
+export type CreditWallet = {
+  currentCredits: number;
+  monthlyCredits: number;
+  usedCredits: number;
+  planName: string;
+  lastReset: string;
+};
+
+export type CreditHistoryItem = {
+  id: number;
+  featureName: string;
+  creditsUsed: number;
+  remainingBalance: number;
+  transactionType: string;
+  source: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type CreditEstimateResponse = {
+  estimatedCredits: number;
+  breakdown: CreditBreakdownItem[];
+  currentCredits: number;
+  remainingCredits: number;
+  sufficient: boolean;
+  premium: boolean;
+};
+
+export type CreditTopUpOrderResponse = {
+  provider: string;
+  orderId: string;
+  keyId: string;
+  amountPaise: number;
+  currency: string;
+  credits: number;
 };
 
 export type InspirationImage = {

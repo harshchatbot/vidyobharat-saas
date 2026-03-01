@@ -135,6 +135,8 @@ class AIVideoCreateResponse(BaseModel):
     videoUrl: str | None = None
     provider: str | None = None
     modelKey: str
+    appliedCredits: int = 0
+    remainingCredits: int | None = None
 
 
 class AIVideoStatusResponse(BaseModel):

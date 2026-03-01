@@ -1,4 +1,5 @@
 import { Languages, Mic2, UserRound } from 'lucide-react';
+import Link from 'next/link';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +29,10 @@ export function VoiceSelector({
   previewError,
   previewMessage,
   translating,
+  estimatedCredits,
+  currentBalance,
+  insufficientCredits,
+  onOpenLowBalance,
 }: {
   languageOptions: TTSLanguageOption[];
   voiceOptions: TTSVoiceOption[];
@@ -48,6 +53,10 @@ export function VoiceSelector({
   previewError: string | null;
   previewMessage: string | null;
   translating: boolean;
+  estimatedCredits?: number;
+  currentBalance?: number | null;
+  insufficientCredits?: boolean;
+  onOpenLowBalance?: () => void;
 }) {
   const selected = voiceOptions.find((item) => item.key === voice) ?? voiceOptions[0];
 
@@ -79,6 +88,16 @@ export function VoiceSelector({
           </span>
         </label>
         <div className="space-y-1 text-xs text-muted">
+          {typeof estimatedCredits === 'number' ? (
+            <p>
+              Estimated Credits: <span className="font-medium text-text">{estimatedCredits}</span>
+              {typeof currentBalance === 'number' ? (
+                <>
+                  {' '}· Your Balance: <span className="font-medium text-text">{currentBalance}</span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
           {previewProvider ? (
             <p>
               Provider: <span className="font-medium text-text">{previewProvider}</span>
@@ -92,6 +111,22 @@ export function VoiceSelector({
           ) : null}
           {previewLimit ? <p>{previewLimit}</p> : null}
           {previewMessage ? <p className="text-[hsl(var(--color-warning))]">{previewMessage}</p> : null}
+          {insufficientCredits ? (
+            <div className="flex flex-wrap items-center gap-2 text-[hsl(var(--color-danger))]">
+              <p>Insufficient credits — Top-Up or upgrade plan.</p>
+              {onOpenLowBalance ? (
+                <button type="button" onClick={onOpenLowBalance} className="font-semibold underline underline-offset-2">
+                  See options
+                </button>
+              ) : null}
+              <Link href="/billing" className="font-semibold underline underline-offset-2">
+                Top-Up
+              </Link>
+              <Link href="/pricing" className="font-semibold underline underline-offset-2">
+                View Plans
+              </Link>
+            </div>
+          ) : null}
           {previewError ? <p className="text-[hsl(var(--color-danger))]">{previewError}</p> : null}
         </div>
       </div>
@@ -167,7 +202,7 @@ export function VoiceSelector({
                     onVoiceChange(option.key);
                     onPreview(option.key);
                   }}
-                  disabled={!previewText.trim()}
+                  disabled={!previewText.trim() || Boolean(insufficientCredits)}
                   className="shrink-0 gap-2 px-3 py-2 text-xs"
                 >
                   <Mic2 className="h-3.5 w-3.5" />

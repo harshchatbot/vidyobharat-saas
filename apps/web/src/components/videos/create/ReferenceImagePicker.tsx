@@ -36,7 +36,7 @@ export function ReferenceImagePicker({
           <p className="text-sm font-semibold text-text">Select from Your Images</p>
           <p className="mt-1 text-sm text-muted">Use one or more existing generated images to seed the motion. If none are selected, generation will be text-to-video only.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {generatedImages.slice(0, 9).map((image) => {
+            {generatedImages.slice(0, 6).map((image) => {
               const absoluteUrl = toAbsoluteUrl(image.image_url);
               const active = selectedImageUrls.includes(absoluteUrl);
               return (

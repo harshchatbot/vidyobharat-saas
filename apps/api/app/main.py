@@ -149,6 +149,74 @@ def _ensure_asset_tags_table() -> None:
 
 _ensure_asset_tags_table()
 
+
+def _ensure_credit_tables() -> None:
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        if 'credit_wallets' not in inspector.get_table_names():
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE credit_wallets (
+                      user_id VARCHAR(36) PRIMARY KEY,
+                      current_credits INTEGER NOT NULL DEFAULT 25,
+                      plan_type VARCHAR(32) NOT NULL DEFAULT 'free',
+                      monthly_credits INTEGER NOT NULL DEFAULT 25,
+                      last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      premium_usage_count INTEGER NOT NULL DEFAULT 0,
+                      free_usage_count INTEGER NOT NULL DEFAULT 0,
+                      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+            )
+        if 'credit_transactions' not in inspector.get_table_names():
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE credit_transactions (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id VARCHAR(36) NOT NULL,
+                      feature_key VARCHAR(80) NOT NULL,
+                      amount INTEGER NOT NULL DEFAULT 0,
+                      balance_after INTEGER NOT NULL DEFAULT 0,
+                      transaction_type VARCHAR(24) NOT NULL DEFAULT 'debit',
+                      source VARCHAR(16) NOT NULL DEFAULT 'premium',
+                      metadata_json TEXT NOT NULL DEFAULT '{}',
+                      idempotency_key VARCHAR(255) NOT NULL UNIQUE,
+                      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY(user_id) REFERENCES credit_wallets(user_id) ON DELETE CASCADE
+                    )
+                    """
+                )
+            )
+        if 'credit_topup_orders' not in inspector.get_table_names():
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE credit_topup_orders (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id VARCHAR(36) NOT NULL,
+                      provider VARCHAR(24) NOT NULL DEFAULT 'razorpay',
+                      credits INTEGER NOT NULL,
+                      amount_paise INTEGER NOT NULL,
+                      currency VARCHAR(8) NOT NULL DEFAULT 'INR',
+                      provider_order_id VARCHAR(120) NOT NULL UNIQUE,
+                      provider_payment_id VARCHAR(120),
+                      provider_signature VARCHAR(255),
+                      status VARCHAR(24) NOT NULL DEFAULT 'created',
+                      metadata_json TEXT NOT NULL DEFAULT '{}',
+                      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      verified_at DATETIME,
+                      FOREIGN KEY(user_id) REFERENCES credit_wallets(user_id) ON DELETE CASCADE
+                    )
+                    """
+                )
+            )
+
+
+_ensure_credit_tables()
+
 Path('data/uploads').mkdir(parents=True, exist_ok=True)
 Path('data/uploads/avatars').mkdir(parents=True, exist_ok=True)
 Path('data/music').mkdir(parents=True, exist_ok=True)

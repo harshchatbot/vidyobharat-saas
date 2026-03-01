@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wand2 } from 'lucide-react';
+import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Spinner } from '@/components/ui/Spinner';
+import { useToast } from '@/components/ui/Toast';
+import { useCredits } from '@/components/credits/CreditContext';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, CreditEstimateResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
 
 import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS } from './constants';
 import { GenerateButton } from './GenerateButton';
@@ -72,6 +74,7 @@ export function CreateVideoPage({
   const [voicePreviewLimit, setVoicePreviewLimit] = useState<string | null>(null);
   const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
   const [voiceTranslationLoading, setVoiceTranslationLoading] = useState(false);
+  const [voiceEstimate, setVoiceEstimate] = useState<CreditEstimateResponse | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
@@ -101,10 +104,13 @@ export function CreateVideoPage({
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [creditEstimate, setCreditEstimate] = useState<CreditEstimateResponse | null>(null);
   const [job, setJob] = useState<Video | null>(null);
   const [jobStatus, setJobStatus] = useState<AIVideoStatusResponse | null>(null);
   const [jobResponseId, setJobResponseId] = useState<string | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
+  const { wallet: creditWallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
+  const { show } = useToast();
 
   const template = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate) ?? TEMPLATE_OPTIONS[0];
   const visibleTemplates = TEMPLATE_OPTIONS.filter((item) => {
@@ -342,6 +348,53 @@ export function CreateVideoPage({
   }, [script, userId]);
 
   useEffect(() => {
+    let cancelled = false;
+    void api.estimateCredits(
+      'video_create',
+      {
+        modelKey,
+        resolution,
+        durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
+        captionsEnabled: captionsEnabled,
+        voice,
+        imageUrls: selectedImageUrls,
+        audioSettings: { sampleRateHz: audioSampleRateHz },
+      },
+      userId,
+    )
+      .then((result) => {
+        if (!cancelled) setCreditEstimate(result);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditEstimate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, modelKey, resolution, durationSeconds, durationRule.defaultSeconds, captionsEnabled, voice, selectedImageUrls, audioSampleRateHz]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.estimateCredits(
+      'tts_preview',
+      {
+        voice,
+        sample_rate_hz: audioSampleRateHz,
+      },
+      userId,
+    )
+      .then((result) => {
+        if (!cancelled) setVoiceEstimate(result);
+      })
+      .catch(() => {
+        if (!cancelled) setVoiceEstimate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, voice, audioSampleRateHz]);
+
+  useEffect(() => {
     if (!jobResponseId) return;
     let cancelled = false;
 
@@ -525,6 +578,12 @@ export function CreateVideoPage({
             ? 'Sarvam preview was not used for this sample. Check the API server log or provider configuration.'
             : null),
       );
+      if (typeof response.remaining_credits === 'number' && creditWallet) {
+        applyWallet({ ...creditWallet, currentCredits: response.remaining_credits });
+      }
+      if (response.applied_credits > 0) {
+        show(`Created! Credits Used: ${response.applied_credits} · Remaining Balance: ${response.remaining_credits ?? creditWallet?.currentCredits ?? 0}`);
+      }
       setVoicePreviewing(true);
       await player.play();
     } catch (error) {
@@ -649,6 +708,14 @@ export function CreateVideoPage({
         captionsEnabled,
         captionStyle: captionStyle.toLowerCase(),
       }, userId);
+      if (typeof result.remainingCredits === 'number') {
+        if (creditWallet) {
+          applyWallet({ ...creditWallet, currentCredits: result.remainingCredits });
+        } else {
+          void refreshCredits();
+        }
+      }
+      show(`Created! Credits Used: ${result.appliedCredits} · Remaining Balance: ${result.remainingCredits ?? creditWallet?.currentCredits ?? 0}`);
       setJobResponseId(result.id);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to create video job.');
@@ -700,6 +767,12 @@ export function CreateVideoPage({
           <p className="mt-3 max-w-2xl text-sm text-muted sm:text-base">
             Pick a content direction, write or enhance your script, customize settings, and generate your video.
           </p>
+          {creditWallet ? (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
+              <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              {creditWallet.currentCredits} credits available
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -771,6 +844,10 @@ export function CreateVideoPage({
           previewError={voicePreviewError}
           previewMessage={voicePreviewMessage}
           translating={voiceTranslationLoading}
+          estimatedCredits={voiceEstimate?.estimatedCredits}
+          currentBalance={voiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+          insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
+          onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
         />
         <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
       </SectionCard>
@@ -850,11 +927,32 @@ export function CreateVideoPage({
         />
       </SectionCard>
 
-      <GenerateButton onClick={() => void submit()} loading={submitting} estimatedCredits={estimatedCredits} estimatedTime={estimatedTime} disabled={Boolean(durationError)} helperText={`Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · no actual credit wallet is enforced yet`} />
+      <GenerateButton
+        onClick={() => void submit()}
+        loading={submitting}
+        estimatedCredits={creditEstimate?.estimatedCredits ?? estimatedCredits}
+        estimatedTime={estimatedTime}
+        currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+        disabled={Boolean(durationError)}
+        insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
+        onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
+        helperText={
+          creditEstimate
+            ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
+            : `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'}`
+        }
+      />
 
       {submitError ? (
         <Card>
-          <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
+            {submitError.toLowerCase().includes('insufficient credits') ? (
+              <Link href="/billing" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+                Top up credits
+              </Link>
+            ) : null}
+          </div>
         </Card>
       ) : null}
 

@@ -15,6 +15,10 @@ import type {
   ImageActionResponse,
   ImageModel,
   InspirationImage,
+  CreditEstimateResponse,
+  CreditHistoryItem,
+  CreditTopUpOrderResponse,
+  CreditWallet,
   ReelScriptOutput,
   ReelScriptRequest,
   Render,
@@ -61,6 +65,12 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   });
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await response.json();
+      const message = body?.message || body?.detail?.message || body?.detail || body?.error || 'Request failed';
+      throw new Error(message);
+    }
     const body = await response.text();
     throw new Error(body || 'Request failed');
   }
@@ -342,5 +352,38 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ image_id: imageId, action_type: action }),
     }, { userId, cache: 'no-store' });
+  },
+  getCreditWallet(userId: string) {
+    return request<CreditWallet>('/api/credits/wallet', {}, { userId, cache: 'no-store' });
+  },
+  estimateCredits(action: string, payload: Record<string, unknown>, userId: string) {
+    return request<CreditEstimateResponse>('/api/estimateCredits', {
+      method: 'POST',
+      body: JSON.stringify({ action, payload }),
+    }, { userId, cache: 'no-store' });
+  },
+  topupCredits(credits: number, userId: string) {
+    return request<{ wallet: CreditWallet; addedCredits: number }>('/api/topupCredits', {
+      method: 'POST',
+      body: JSON.stringify({ credits }),
+    }, { userId, cache: 'no-store' });
+  },
+  createTopupOrder(credits: number, userId: string) {
+    return request<CreditTopUpOrderResponse>('/api/topupCredits/order', {
+      method: 'POST',
+      body: JSON.stringify({ credits }),
+    }, { userId, cache: 'no-store' });
+  },
+  verifyTopupOrder(
+    payload: { credits: number; razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+    userId: string,
+  ) {
+    return request<{ wallet: CreditWallet; addedCredits: number }>('/api/topupCredits/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  getCreditHistory(userId: string, limit = 100) {
+    return request<{ items: CreditHistoryItem[] }>(`/api/creditHistory?limit=${limit}`, {}, { userId, cache: 'no-store' });
   },
 };

@@ -1,0 +1,36 @@
+{
+  "plans": {
+    "free": {
+      "monthly_credits": 25
+    },
+    "creator": {
+      "monthly_credits": 250
+    },
+    "pro": {
+      "monthly_credits": 1000
+    }
+  },
+  "pricing": {
+    "PremiumVoiceGen": 3,
+    "PremiumVoicePreview": 1,
+    "VoiceRetry": 2,
+    "PremiumImageGen": 3,
+    "ImageUpscale": 1,
+    "PremiumVideo720p15s": 10,
+    "PremiumVideo1080p15s": 15,
+    "CharacterConsistencyAddOn": 5,
+    "ScriptEnhance": 1,
+    "AutoCaption": 1,
+    "AutoTag": 1,
+    "AudioQuality48kHzModifier": 1
+  },
+  "free_voice_keys": ["Aarav", "Mira", "Dev", "Shubh", "Priya"],
+  "free_image_models": ["nano_banana"],
+  "premium_image_models": ["openai_image", "seedream", "flux_spark", "recraft_studio"],
+  "premium_video_models": ["sora2", "veo3", "kling3"],
+  "premium_sample_rates_hz": [48000],
+  "free_image_resolutions": ["1024"],
+  "credit_modifiers": {
+    "video_base_seconds": 15
+  }
+}

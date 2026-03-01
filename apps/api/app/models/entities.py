@@ -54,6 +54,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     projects: Mapped[list['Project']] = relationship(back_populates='user')
+    credit_wallet: Mapped['CreditWallet | None'] = relationship(back_populates='user', uselist=False)
 
 
 class Project(Base):
@@ -163,3 +164,53 @@ class AssetTag(Base):
     asset_type: Mapped[str] = mapped_column(String(16), index=True)
     tag: Mapped[str] = mapped_column(String(120), index=True)
     source: Mapped[str] = mapped_column(String(16), default='auto')
+
+
+class CreditWallet(Base):
+    __tablename__ = 'credit_wallets'
+
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    current_credits: Mapped[int] = mapped_column(Integer, default=25)
+    plan_type: Mapped[str] = mapped_column(String(32), default='free')
+    monthly_credits: Mapped[int] = mapped_column(Integer, default=25)
+    last_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    premium_usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    free_usage_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    user: Mapped['User'] = relationship(back_populates='credit_wallet')
+    transaction_history: Mapped[list['CreditTransaction']] = relationship(back_populates='wallet')
+
+
+class CreditTransaction(Base):
+    __tablename__ = 'credit_transactions'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('credit_wallets.user_id', ondelete='CASCADE'), index=True)
+    feature_key: Mapped[str] = mapped_column(String(80), index=True)
+    amount: Mapped[int] = mapped_column(Integer, default=0)
+    balance_after: Mapped[int] = mapped_column(Integer, default=0)
+    transaction_type: Mapped[str] = mapped_column(String(24), default='debit')
+    source: Mapped[str] = mapped_column(String(16), default='premium')
+    metadata_json: Mapped[str] = mapped_column(Text, default='{}')
+    idempotency_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    wallet: Mapped['CreditWallet'] = relationship(back_populates='transaction_history')
+
+
+class CreditTopUpOrder(Base):
+    __tablename__ = 'credit_topup_orders'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('credit_wallets.user_id', ondelete='CASCADE'), index=True)
+    provider: Mapped[str] = mapped_column(String(24), default='razorpay')
+    credits: Mapped[int] = mapped_column(Integer)
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(8), default='INR')
+    provider_order_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    provider_payment_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default='created', index=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default='{}')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

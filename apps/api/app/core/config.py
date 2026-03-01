@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     runway_api_base: str = 'https://api.dev.runwayml.com'
     generic_text_video_api_key: str | None = None
     generic_text_video_api_base: str = 'https://api.example.com'
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_api_base: str = 'https://api.razorpay.com/v1'
 
     @property
     def allowed_origins_list(self) -> list[str]:
