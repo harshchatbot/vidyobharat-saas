@@ -64,7 +64,7 @@ class Project(Base):
     title: Mapped[str] = mapped_column(String(120))
     script: Mapped[str] = mapped_column(Text, default='')
     language: Mapped[str] = mapped_column(String(20), default='hi-IN')
-    voice: Mapped[str] = mapped_column(String(80), default='Aarav')
+    voice: Mapped[str] = mapped_column(String(80), default='Shubh')
     template: Mapped[str] = mapped_column(String(80), default='clean-corporate')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -110,7 +110,7 @@ class Video(Base):
     template: Mapped[str | None] = mapped_column(String(80), nullable=True)
     language: Mapped[str | None] = mapped_column(String(40), nullable=True)
     script: Mapped[str] = mapped_column(Text, default='')
-    voice: Mapped[str] = mapped_column(String(80), default='Aarav')
+    voice: Mapped[str] = mapped_column(String(80), default='Shubh')
     aspect_ratio: Mapped[str] = mapped_column(String(10), default='9:16')
     resolution: Mapped[str] = mapped_column(String(10), default='1080p')
     duration_mode: Mapped[str] = mapped_column(String(10), default='auto')

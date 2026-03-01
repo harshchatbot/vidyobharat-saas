@@ -9,3 +9,4 @@ python-multipart==0.0.20
 edge-tts==6.1.19
 gTTS==2.5.4
 openai==1.58.1
+sarvamai==0.1.13

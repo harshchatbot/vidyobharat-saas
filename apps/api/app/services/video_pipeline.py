@@ -67,6 +67,7 @@ class VideoPipelineService:
         video_id: str,
         title: str | None,
         script: str,
+        language_name: str | None,
         voice_name: str,
         image_urls: list[str],
         aspect_ratio: str,
@@ -92,7 +93,12 @@ class VideoPipelineService:
 
         voice_duration = 0.0
         if voice_exists:
-            voice_path, resolved_voice = generate_voiceover(script=script, voice=voice_name, cache_dir=self.tts_cache_dir)
+            voice_path, resolved_voice = generate_voiceover(
+                script=script,
+                voice=voice_name,
+                cache_dir=self.tts_cache_dir,
+                language=language_name,
+            )
             voice_duration = self._probe_duration(voice_path)
             real_voice_exists = True
             logger.info(

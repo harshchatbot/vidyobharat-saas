@@ -8,9 +8,9 @@ import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Video } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
 
-import { ASPECT_OPTIONS, FALLBACK_VIDEO_MODELS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES } from './constants';
+import { ASPECT_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS } from './constants';
 import { GenerateButton } from './GenerateButton';
 import { ModelDropdown } from './ModelDropdown';
 import { MusicSelector } from './MusicSelector';
@@ -23,12 +23,6 @@ import { VideoPreview } from './VideoPreview';
 import { VoiceSelector } from './VoiceSelector';
 
 const DRAFT_VERSION = 2;
-const VOICE_PREVIEW_CONFIG: Record<string, { pitch: number; rate: number; keywords: string[] }> = {
-  Aarav: { pitch: 0.92, rate: 0.95, keywords: ['male', 'aarav', 'ravi', 'aditya', 'prabhat'] },
-  Anaya: { pitch: 1.14, rate: 1.03, keywords: ['female', 'anaya', 'heera', 'aditi', 'samantha'] },
-  Dev: { pitch: 0.74, rate: 0.86, keywords: ['male', 'dev', 'daniel', 'alex', 'deep'] },
-  Mira: { pitch: 1.01, rate: 0.9, keywords: ['female', 'mira', 'victoria', 'zira', 'calm'] },
-};
 
 function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
@@ -49,8 +43,8 @@ export function CreateVideoPage({
 }) {
   const draftKey = `rangmanch-create-draft:${userId}`;
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastTaggedScriptRef = useRef('');
-  const availableVoicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
   const initialTemplate = TEMPLATE_OPTIONS.find((item) => item.key === templateKey) ?? TEMPLATE_OPTIONS[0];
 
@@ -64,8 +58,16 @@ export function CreateVideoPage({
   const [scriptLoading, setScriptLoading] = useState(false);
 
   const [language, setLanguage] = useState('English');
-  const [voice, setVoice] = useState('Aarav');
+  const [voice, setVoice] = useState('Shubh');
   const [voicePreviewing, setVoicePreviewing] = useState(false);
+  const [voicePreviewText, setVoicePreviewText] = useState('');
+  const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
+  const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
+  const [voicePreviewError, setVoicePreviewError] = useState<string | null>(null);
+  const [voicePreviewProvider, setVoicePreviewProvider] = useState<string | null>(null);
+  const [voicePreviewResolvedVoice, setVoicePreviewResolvedVoice] = useState<string | null>(null);
+  const [voicePreviewCached, setVoicePreviewCached] = useState(false);
+  const [voicePreviewLimit, setVoicePreviewLimit] = useState<string | null>(null);
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -150,27 +152,20 @@ export function CreateVideoPage({
         : null);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const loadVoices = () => {
-      availableVoicesRef.current = window.speechSynthesis.getVoices();
-    };
-    loadVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
-    return () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
-    };
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     setModelsLoading(true);
     void Promise.all([
       api.listAIVideoModels(userId).catch(() => FALLBACK_VIDEO_MODELS),
+      api.getTtsCatalog(userId).catch(() => null),
       api.listGeneratedImages(userId).catch(() => []),
       api.listVideos(userId).catch(() => []),
-    ]).then(([videoModels, userImages, userVideos]) => {
+    ]).then(([videoModels, ttsCatalog, userImages, userVideos]) => {
       if (cancelled) return;
       setModels(videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS);
+      if (ttsCatalog) {
+        setLanguageOptions(ttsCatalog.languages.length > 0 ? ttsCatalog.languages : LANGUAGE_OPTIONS);
+        setVoiceOptions(ttsCatalog.voices.length > 0 ? ttsCatalog.voices : VOICE_OPTIONS);
+      }
       setGeneratedImages(userImages);
       setVideos(userVideos);
       if (videoModels.length > 0 && !videoModels.some((item) => item.key === modelKey)) {
@@ -186,6 +181,18 @@ export function CreateVideoPage({
   }, [userId]);
 
   useEffect(() => {
+    if (!voiceOptions.some((item) => item.key === voice) && voiceOptions[0]) {
+      setVoice(voiceOptions[0].key);
+    }
+  }, [voiceOptions, voice]);
+
+  useEffect(() => {
+    if (!languageOptions.some((item) => item.label === language) && languageOptions[0]) {
+      setLanguage(languageOptions[0].label);
+    }
+  }, [languageOptions, language]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = window.localStorage.getItem(draftKey);
     if (!raw) return;
@@ -199,6 +206,7 @@ export function CreateVideoPage({
       if (Array.isArray(parsed.scriptTags)) setScriptTags(sanitizeTags(parsed.scriptTags.map(String)));
       if (typeof parsed.language === 'string') setLanguage(parsed.language);
       if (typeof parsed.voice === 'string') setVoice(parsed.voice);
+      if (typeof parsed.voicePreviewText === 'string') setVoicePreviewText(parsed.voicePreviewText);
       if (typeof parsed.modelKey === 'string') setModelKey(parsed.modelKey as VideoModelKey);
       if (Array.isArray(parsed.selectedImageUrls)) setSelectedImageUrls(parsed.selectedImageUrls.map(String));
       if (typeof parsed.referenceImageUrlInput === 'string') setReferenceImageUrlInput(parsed.referenceImageUrlInput);
@@ -229,6 +237,7 @@ export function CreateVideoPage({
       scriptTags,
       language,
       voice,
+      voicePreviewText,
       modelKey,
       selectedImageUrls,
       referenceImageUrlInput,
@@ -254,6 +263,7 @@ export function CreateVideoPage({
     scriptTags,
     language,
     voice,
+    voicePreviewText,
     modelKey,
     selectedImageUrls,
     referenceImageUrlInput,
@@ -428,37 +438,41 @@ export function CreateVideoPage({
     }
   };
 
-  const previewVoice = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      setSubmitError('Voice preview is not supported in this browser.');
-      return;
-    }
+  const previewVoice = async () => {
     if (voicePreviewing) {
-      window.speechSynthesis.cancel();
+      const player = voicePreviewAudioRef.current;
+      player?.pause();
+      if (player) player.currentTime = 0;
       setVoicePreviewing(false);
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(script.trim() || topic.trim() || 'RangManch AI voice preview');
-    const voiceConfig = VOICE_PREVIEW_CONFIG[voice] ?? VOICE_PREVIEW_CONFIG.Aarav;
-    const preferredLang = language === 'Hindi' ? 'hi-IN' : 'en-IN';
-    const voices = availableVoicesRef.current;
-    const matchingVoice =
-      voices.find((item) =>
-        item.lang.toLowerCase().startsWith(preferredLang.toLowerCase()) &&
-        voiceConfig.keywords.some((keyword) => item.name.toLowerCase().includes(keyword)),
-      ) ??
-      voices.find((item) => voiceConfig.keywords.some((keyword) => item.name.toLowerCase().includes(keyword))) ??
-      voices.find((item) => item.lang.toLowerCase().startsWith(preferredLang.toLowerCase()));
-
-    utterance.lang = matchingVoice?.lang ?? preferredLang;
-    utterance.voice = matchingVoice ?? null;
-    utterance.pitch = voiceConfig.pitch;
-    utterance.rate = voiceConfig.rate;
-    utterance.onend = () => setVoicePreviewing(false);
-    utterance.onerror = () => setVoicePreviewing(false);
-    setVoicePreviewing(true);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    setVoicePreviewError(null);
+    setVoicePreviewProvider(null);
+    setVoicePreviewResolvedVoice(null);
+    try {
+      const response = await api.previewTts(
+        {
+          text: voicePreviewText.trim(),
+          language,
+          voice,
+        },
+        userId,
+      );
+      const player = voicePreviewAudioRef.current;
+      if (!player) return;
+      player.src = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
+      player.currentTime = 0;
+      setVoicePreviewProvider(response.provider);
+      setVoicePreviewResolvedVoice(response.resolved_voice);
+      setVoicePreviewCached(response.cached);
+      setVoicePreviewLimit(response.preview_limit);
+      setVoicePreviewing(true);
+      await player.play();
+    } catch (error) {
+      setVoicePreviewError(error instanceof Error ? error.message : 'Voice preview failed.');
+      setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
+      setVoicePreviewing(false);
+    }
   };
 
   const toggleImageSelection = (url: string) => {
@@ -645,13 +659,23 @@ export function CreateVideoPage({
         icon={<Mic2 className="h-5 w-5" />}
       >
         <VoiceSelector
+          languageOptions={languageOptions}
+          voiceOptions={voiceOptions}
           language={language}
           onLanguageChange={setLanguage}
           voice={voice}
           onVoiceChange={setVoice}
+          previewText={voicePreviewText}
+          onPreviewTextChange={setVoicePreviewText}
           onPreview={previewVoice}
           previewing={voicePreviewing}
+          previewProvider={voicePreviewProvider}
+          resolvedVoice={voicePreviewResolvedVoice}
+          previewCached={voicePreviewCached}
+          previewLimit={voicePreviewLimit}
+          previewError={voicePreviewError}
         />
+        <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
       </SectionCard>
 
       <SectionCard

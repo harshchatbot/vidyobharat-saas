@@ -23,6 +23,9 @@ import type {
   ScriptTagsRequest,
   ScriptResponse,
   Template,
+  TTSCatalogResponse,
+  TTSPreviewRequest,
+  TTSPreviewResponse,
   UserProfile,
   UserProfileUpdateRequest,
   UserSettings,
@@ -158,6 +161,15 @@ export const api = {
   },
   listMusicTracks() {
     return request<MusicTrack[]>('/music-tracks', {}, { cache: 'no-store' });
+  },
+  getTtsCatalog(userId: string) {
+    return request<TTSCatalogResponse>('/tts/catalog', {}, { userId, cache: 'no-store' });
+  },
+  previewTts(payload: TTSPreviewRequest, userId: string) {
+    return request<TTSPreviewResponse>('/tts/preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
   },
   createVideo(payload: FormData, userId: string) {
     return request<{ id: string; status: string }>('/videos', {

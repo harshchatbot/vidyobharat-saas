@@ -37,6 +37,7 @@ class VideoService:
         self,
         user_id: str,
         script: str,
+        language: str,
         voice: str,
         images: list[UploadFile],
         title: str | None = None,
@@ -96,6 +97,7 @@ class VideoService:
         video = self.repo.create(
             user_id=user_id,
             title=title or None,
+            language=language,
             script=script,
             voice=voice,
             aspect_ratio=aspect_ratio,
@@ -158,6 +160,7 @@ def process_video(video_id: str) -> None:
             video_id=video_id,
             title=video.title,
             script=video.script,
+            language_name=video.language,
             voice_name=video.voice,
             image_urls=image_urls,
             aspect_ratio=video.aspect_ratio or '9:16',

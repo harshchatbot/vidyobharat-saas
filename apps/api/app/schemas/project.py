@@ -8,7 +8,7 @@ class CreateProjectRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     script: str = Field(default='', max_length=5000)
     language: str = Field(default='hi-IN', max_length=20)
-    voice: str = Field(default='Aarav', max_length=80)
+    voice: str = Field(default='Shubh', max_length=80)
     template: str = Field(default='clean-corporate', max_length=80)
 
 

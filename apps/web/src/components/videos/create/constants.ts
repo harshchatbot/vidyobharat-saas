@@ -11,7 +11,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 
-import type { AIVideoModel } from '@/types/api';
+import type { AIVideoModel, TTSLanguageOption, TTSVoiceOption } from '@/types/api';
 
 export type TemplateOption = {
   key: string;
@@ -20,13 +20,6 @@ export type TemplateOption = {
   icon: typeof ScrollText;
   scriptHint: string;
   topicHint: string;
-};
-
-export type VoiceOption = {
-  key: string;
-  label: string;
-  tone: string;
-  description: string;
 };
 
 export const TEMPLATE_OPTIONS: TemplateOption[] = [
@@ -80,13 +73,61 @@ export const TEMPLATE_OPTIONS: TemplateOption[] = [
   },
 ];
 
-export const LANGUAGE_OPTIONS = ['English', 'Hindi', 'Hinglish'] as const;
+export const LANGUAGE_OPTIONS: TTSLanguageOption[] = [
+  { code: 'en-IN', label: 'English', native_label: 'English' },
+  { code: 'hi-IN', label: 'Hindi', native_label: 'हिन्दी' },
+  { code: 'hi-IN', label: 'Hinglish', native_label: 'Hinglish' },
+  { code: 'bn-IN', label: 'Bengali', native_label: 'বাংলা' },
+  { code: 'gu-IN', label: 'Gujarati', native_label: 'ગુજરાતી' },
+  { code: 'kn-IN', label: 'Kannada', native_label: 'ಕನ್ನಡ' },
+  { code: 'ml-IN', label: 'Malayalam', native_label: 'മലയാളം' },
+  { code: 'mr-IN', label: 'Marathi', native_label: 'मराठी' },
+  { code: 'od-IN', label: 'Odia', native_label: 'ଓଡ଼ିଆ' },
+  { code: 'pa-IN', label: 'Punjabi', native_label: 'ਪੰਜਾਬੀ' },
+  { code: 'ta-IN', label: 'Tamil', native_label: 'தமிழ்' },
+  { code: 'te-IN', label: 'Telugu', native_label: 'తెలుగు' },
+];
 
-export const VOICE_OPTIONS: VoiceOption[] = [
-  { key: 'Aarav', label: 'Aarav', tone: 'Warm male', description: 'Steady, confident narration for explainers and history.' },
-  { key: 'Anaya', label: 'Anaya', tone: 'Bright female', description: 'Expressive delivery for social content and reels.' },
-  { key: 'Dev', label: 'Dev', tone: 'Deep male', description: 'Strong cinematic tone for premium storytelling.' },
-  { key: 'Mira', label: 'Mira', tone: 'Calm female', description: 'Balanced narration for polished brand videos.' },
+export const VOICE_OPTIONS: TTSVoiceOption[] = [
+  { key: 'Shubh', label: 'Shubh', tone: 'Balanced male', gender: 'male', provider_voice: 'Shubh', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Versatile Sarvam voice for explainers, education, and general creator narration.' },
+  { key: 'Aditya', label: 'Aditya', tone: 'Confident male', gender: 'male', provider_voice: 'Aditya', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Clear storyteller voice for startup, product, and tech explainers.' },
+  { key: 'Rahul', label: 'Rahul', tone: 'Warm male', gender: 'male', provider_voice: 'Rahul', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Friendly male narration for accessible creator content.' },
+  { key: 'Rohan', label: 'Rohan', tone: 'Polished male', gender: 'male', provider_voice: 'Rohan', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Professional male delivery for branded and polished videos.' },
+  { key: 'Amit', label: 'Amit', tone: 'Steady male', gender: 'male', provider_voice: 'Amit', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Steady male narration for neutral explainers and promos.' },
+  { key: 'Dev', label: 'Dev', tone: 'Deep male', gender: 'male', provider_voice: 'Dev', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Stronger dramatic male tone for cinematic or intense scripts.' },
+  { key: 'Ratan', label: 'Ratan', tone: 'Grounded male', gender: 'male', provider_voice: 'Ratan', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Grounded male voice for informative and educational narration.' },
+  { key: 'Varun', label: 'Varun', tone: 'Young male', gender: 'male', provider_voice: 'Varun', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Youthful male tone for fast creator videos and social clips.' },
+  { key: 'Manan', label: 'Manan', tone: 'Neutral male', gender: 'male', provider_voice: 'Manan', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Neutral male delivery for general-purpose narration.' },
+  { key: 'Sumit', label: 'Sumit', tone: 'Clear male', gender: 'male', provider_voice: 'Sumit', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Clear male voice for instructional or product-led content.' },
+  { key: 'Kabir', label: 'Kabir', tone: 'Broadcast male', gender: 'male', provider_voice: 'Kabir', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Anchor-style male voice for commentary and educational reels.' },
+  { key: 'Aayan', label: 'Aayan', tone: 'Light male', gender: 'male', provider_voice: 'Aayan', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Lighter male voice for energetic creator-facing narration.' },
+  { key: 'Ashutosh', label: 'Ashutosh', tone: 'Formal male', gender: 'male', provider_voice: 'Ashutosh', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Formal male tone for corporate and training content.' },
+  { key: 'Advait', label: 'Advait', tone: 'Measured male', gender: 'male', provider_voice: 'Advait', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Measured male narration for premium explainers.' },
+  { key: 'Anand', label: 'Anand', tone: 'Deep male', gender: 'male', provider_voice: 'Anand', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Deeper cinematic tone for dramatic storytelling.' },
+  { key: 'Tarun', label: 'Tarun', tone: 'Friendly male', gender: 'male', provider_voice: 'Tarun', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Friendly and balanced male voice for everyday content.' },
+  { key: 'Sunny', label: 'Sunny', tone: 'Energetic male', gender: 'male', provider_voice: 'Sunny', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'More upbeat male narration for engaging short-form content.' },
+  { key: 'Mani', label: 'Mani', tone: 'Warm male', gender: 'male', provider_voice: 'Mani', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Warm, conversational male voice for regional storytelling.' },
+  { key: 'Gokul', label: 'Gokul', tone: 'Natural male', gender: 'male', provider_voice: 'Gokul', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Natural male delivery for grounded scenes and local stories.' },
+  { key: 'Vijay', label: 'Vijay', tone: 'Confident male', gender: 'male', provider_voice: 'Vijay', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Confident male voice for authoritative delivery.' },
+  { key: 'Mohit', label: 'Mohit', tone: 'Balanced male', gender: 'male', provider_voice: 'Mohit', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Balanced male narration for general creator workflows.' },
+  { key: 'Rehan', label: 'Rehan', tone: 'Smooth male', gender: 'male', provider_voice: 'Rehan', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Smooth male voice for polished branded content.' },
+  { key: 'Soham', label: 'Soham', tone: 'Young male', gender: 'male', provider_voice: 'Soham', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Modern male tone for social and youth-focused scripts.' },
+  { key: 'Ritu', label: 'Ritu', tone: 'Clear female', gender: 'female', provider_voice: 'Ritu', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Natural female narration for clean explainers and tutorials.' },
+  { key: 'Priya', label: 'Priya', tone: 'Bright female', gender: 'female', provider_voice: 'Priya', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Lively female voice for social, product, and short-form content.' },
+  { key: 'Neha', label: 'Neha', tone: 'Friendly female', gender: 'female', provider_voice: 'Neha', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Friendly female narration for everyday brand and social use.' },
+  { key: 'Pooja', label: 'Pooja', tone: 'Balanced female', gender: 'female', provider_voice: 'Pooja', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Balanced female delivery for versatile creator workflows.' },
+  { key: 'Simran', label: 'Simran', tone: 'Expressive female', gender: 'female', provider_voice: 'Simran', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Energetic female voice for creator-led storytelling.' },
+  { key: 'Kavya', label: 'Kavya', tone: 'Soft female', gender: 'female', provider_voice: 'Kavya', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Gentle storytelling tone for mythology and devotional themes.' },
+  { key: 'Ishita', label: 'Ishita', tone: 'Calm female', gender: 'female', provider_voice: 'Ishita', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Composed female voice for premium brand narration.' },
+  { key: 'Shreya', label: 'Shreya', tone: 'Polished female', gender: 'female', provider_voice: 'Shreya', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Polished female voice for premium content and tutorials.' },
+  { key: 'Roopa', label: 'Roopa', tone: 'Mature female', gender: 'female', provider_voice: 'Roopa', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'More grounded female delivery for documentary-style scripts.' },
+  { key: 'Amelia', label: 'Amelia', tone: 'Global female', gender: 'female', provider_voice: 'Amelia', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Refined female voice for premium and cosmopolitan content.' },
+  { key: 'Sophia', label: 'Sophia', tone: 'Crisp female', gender: 'female', provider_voice: 'Sophia', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Crisp female narration for sharp, clean product storytelling.' },
+  { key: 'Tanya', label: 'Tanya', tone: 'Modern female', gender: 'female', provider_voice: 'Tanya', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Modern female voice for social-first creator workflows.' },
+  { key: 'Shruti', label: 'Shruti', tone: 'Warm female', gender: 'female', provider_voice: 'Shruti', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Warm female narration for emotional or community-led content.' },
+  { key: 'Suhani', label: 'Suhani', tone: 'Gentle female', gender: 'female', provider_voice: 'Suhani', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Gentle female voice for softer storytelling and lifestyle content.' },
+  { key: 'Kavitha', label: 'Kavitha', tone: 'Mature female', gender: 'female', provider_voice: 'Kavitha', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Measured female voice for regional and documentary-style content.' },
+  { key: 'Rupali', label: 'Rupali', tone: 'Rich female', gender: 'female', provider_voice: 'Rupali', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Richer female tone for premium narrative voiceovers.' },
 ];
 
 export const CAPTION_STYLE_OPTIONS = ['Classic', 'Bold', 'Minimal'] as const;

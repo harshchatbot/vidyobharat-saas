@@ -6,10 +6,11 @@ import { Bell, Captions, LoaderCircle, Save, SlidersHorizontal, Volume2, WandSpa
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { api } from '@/lib/api';
+import { LANGUAGE_OPTIONS, VOICE_OPTIONS } from '@/components/videos/create/constants';
 import type { UserSettings } from '@/types/api';
 
-const languageOptions = ['English', 'Hindi', 'Hinglish'];
-const voiceOptions = ['Aarav', 'Anaya', 'Dev', 'Mira'];
+const languageOptions = LANGUAGE_OPTIONS.map((item) => item.label);
+const voiceOptions = VOICE_OPTIONS.map((item) => item.key);
 const aspectOptions = ['9:16', '16:9', '1:1'];
 
 export function SettingsClient({ userId }: { userId: string }) {

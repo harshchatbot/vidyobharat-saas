@@ -94,6 +94,43 @@ export type MusicTrack = {
   preview_url: string;
 };
 
+export type TTSLanguageOption = {
+  code: string;
+  label: string;
+  native_label: string;
+};
+
+export type TTSVoiceOption = {
+  key: string;
+  label: string;
+  tone: string;
+  gender: string;
+  provider_voice: string;
+  supported_language_codes: string[];
+  description: string;
+};
+
+export type TTSCatalogResponse = {
+  provider: string;
+  model: string;
+  languages: TTSLanguageOption[];
+  voices: TTSVoiceOption[];
+};
+
+export type TTSPreviewRequest = {
+  text: string;
+  language: string;
+  voice: string;
+};
+
+export type TTSPreviewResponse = {
+  preview_url: string;
+  provider: string;
+  resolved_voice: string;
+  cached: boolean;
+  preview_limit: string;
+};
+
 export type ReelScriptRequest = {
   templateId: string;
   topic: string;

@@ -49,6 +49,7 @@ from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
 from app.schemas.user import UserAvatarUploadResponse, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
 from app.schemas.video import MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
+from app.schemas.tts import TTSCatalogResponse, TTSLanguageOptionResponse, TTSPreviewRequest, TTSPreviewResponse, TTSVoiceOptionResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
 from app.services.image_generation_service import ImageGenerationService
@@ -62,6 +63,17 @@ from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
+from app.services.tts import (
+    PREVIEW_MAX_CHARS,
+    PREVIEW_MAX_REQUESTS_PER_WINDOW,
+    PREVIEW_WINDOW_SECONDS,
+    assert_preview_rate_limit,
+    generate_voiceover,
+    generate_voiceover_detailed,
+    get_cached_voiceover_detailed,
+    list_tts_languages,
+    list_tts_voices,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -481,7 +493,7 @@ def generate_ai_video(
             resolution='1080p',
             duration_mode='custom',
             duration_seconds=8,
-            voice=payload.voice or 'Aarav',
+            voice=payload.voice or 'Shubh',
             music={'type': 'none', 'url': None},
             audio_settings={'volume': 20, 'ducking': True},
             captions_enabled=True,
@@ -1033,10 +1045,74 @@ def list_music_tracks() -> list[MusicTrackResponse]:
     return tracks
 
 
+@router.get('/tts/catalog', response_model=TTSCatalogResponse)
+def get_tts_catalog(_: str = Depends(get_user_id)) -> TTSCatalogResponse:
+    return TTSCatalogResponse(
+        provider='sarvam',
+        model=settings.sarvam_model,
+        languages=[
+            TTSLanguageOptionResponse(code=item.code, label=item.label, native_label=item.native_label)
+            for item in list_tts_languages()
+        ],
+        voices=[
+            TTSVoiceOptionResponse(
+                key=item.key,
+                label=item.label,
+                tone=item.tone,
+                gender=item.gender,
+                provider_voice=item.provider_voice,
+                supported_language_codes=list(item.supported_language_codes),
+                description=item.description,
+            )
+            for item in list_tts_voices()
+        ],
+    )
+
+
+@router.post('/tts/preview', response_model=TTSPreviewResponse)
+def generate_tts_preview(
+    payload: TTSPreviewRequest,
+    user_id: str = Depends(get_user_id),
+) -> TTSPreviewResponse:
+    preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
+    cache_dir = Path('data/tts_cache')
+    cached = get_cached_voiceover_detailed(
+        script=preview_text,
+        voice=payload.voice,
+        cache_dir=cache_dir,
+        language=payload.language,
+    )
+    if cached:
+        result = cached
+    else:
+        try:
+            assert_preview_rate_limit(user_id)
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=429,
+                detail=f'{exc} Limit: {PREVIEW_MAX_REQUESTS_PER_WINDOW} previews every {PREVIEW_WINDOW_SECONDS // 60} minutes.',
+            ) from exc
+        result = generate_voiceover_detailed(
+            script=preview_text,
+            voice=payload.voice,
+            cache_dir=cache_dir,
+            language=payload.language,
+        )
+    preview_url = f"/static/{result.path.as_posix().replace('data/', '', 1)}"
+    return TTSPreviewResponse(
+        preview_url=preview_url,
+        provider=result.provider,
+        resolved_voice=result.resolved_voice,
+        cached=result.cached,
+        preview_limit=f'{PREVIEW_MAX_REQUESTS_PER_WINDOW} uncached previews / {PREVIEW_WINDOW_SECONDS // 60} min · {PREVIEW_MAX_CHARS} chars max',
+    )
+
+
 @router.post('/videos', response_model=VideoCreateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_video(
     script: str = Form(default=''),
-    voice: str = Form(default='Aarav'),
+    language: str = Form(default='English'),
+    voice: str = Form(default='Shubh'),
     title: str | None = Form(default=None),
     aspect_ratio: str = Form(default='9:16'),
     resolution: str = Form(default='1080p'),
@@ -1059,6 +1135,7 @@ async def create_video(
         video = await service.create_video(
             user_id=user_id,
             script=script,
+            language=language,
             voice=voice,
             images=images,
             title=title,
