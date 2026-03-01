@@ -358,6 +358,10 @@ def get_cached_voiceover_detailed(script: str, voice: str, cache_dir: Path, lang
     edge_voice = resolve_edge_voice(voice)
     fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
+    if settings.sarvam_api_key:
+        # If Sarvam is configured, do not keep serving an older fallback cache.
+        # This allows previews to recover to the real provider once Sarvam is fixed.
+        return None
     if fallback_path.exists() and fallback_path.stat().st_size > 0:
         return VoiceoverResult(fallback_path, edge_voice, 'Fallback TTS', True, None)
 

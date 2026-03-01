@@ -469,7 +469,12 @@ export function CreateVideoPage({
       setVoicePreviewResolvedVoice(response.resolved_voice);
       setVoicePreviewCached(response.cached);
       setVoicePreviewLimit(response.preview_limit);
-      setVoicePreviewMessage(response.provider_message);
+      setVoicePreviewMessage(
+        response.provider_message ??
+          (response.provider === 'Fallback TTS'
+            ? 'Sarvam preview was not used for this sample. Check the API server log or provider configuration.'
+            : null),
+      );
       setVoicePreviewing(true);
       await player.play();
     } catch (error) {
