@@ -24,8 +24,8 @@ const sizeClasses = {
 export function BrandLogo({ href = '/', variant = 'full', size = 'md', className = '', priority = 'nav' }: Props) {
   const dimensions = sizeClasses[variant][size];
   const label = priority === 'footer' ? 'RangManch AI footer logo' : 'RangManch AI logo';
-  const lightSrc = variant === 'full' ? '/brand/logo-light.svg' : '/brand/logo-mark-light.svg';
-  const darkSrc = variant === 'full' ? '/brand/logo-dark.svg' : '/brand/logo-mark-dark.svg';
+  const lightSrc = variant === 'full' ? '/brand/logo-light.png' : '/brand/logo-mark-light.svg';
+  const darkSrc = variant === 'full' ? '/brand/logo-dark.png' : '/brand/logo-mark-dark.svg';
 
   return (
     <Link href={href} aria-label="RangManch AI" className={`inline-flex shrink-0 items-center ${className}`.trim()}>
