@@ -33,6 +33,7 @@ export function VoiceSelector({
   currentBalance,
   insufficientCredits,
   onOpenLowBalance,
+  voiceCreditMap,
 }: {
   languageOptions: TTSLanguageOption[];
   voiceOptions: TTSVoiceOption[];
@@ -57,6 +58,7 @@ export function VoiceSelector({
   currentBalance?: number | null;
   insufficientCredits?: boolean;
   onOpenLowBalance?: () => void;
+  voiceCreditMap?: Record<string, number>;
 }) {
   const selected = voiceOptions.find((item) => item.key === voice) ?? voiceOptions[0];
 
@@ -206,7 +208,15 @@ export function VoiceSelector({
                   className="shrink-0 gap-2 px-3 py-2 text-xs"
                 >
                   <Mic2 className="h-3.5 w-3.5" />
-                  {previewing && active ? 'Stop' : 'Preview'}
+                  {previewing && active
+                    ? 'Stop'
+                    : `Preview · ${
+                        typeof voiceCreditMap?.[option.key] === 'number'
+                          ? voiceCreditMap[option.key] > 0
+                            ? `${voiceCreditMap[option.key]} cr`
+                            : 'Free'
+                          : '...'
+                      }`}
                 </Button>
               </div>
               <p className="text-xs text-muted">{option.tone}</p>

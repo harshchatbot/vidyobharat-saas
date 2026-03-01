@@ -25,6 +25,12 @@ export function GenerateButton({
   insufficientCredits?: boolean;
   onOpenLowBalance?: () => void;
 }) {
+  const buttonLabel = loading
+    ? 'Submitting job...'
+    : estimatedCredits > 0
+      ? `Generate Video · ${estimatedCredits} credits`
+      : 'Generate Video · Free';
+
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -34,7 +40,7 @@ export function GenerateButton({
         </div>
         <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 px-6 py-3 text-base">
           {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-          {loading ? 'Submitting job...' : 'Generate Video'}
+          {buttonLabel}
         </Button>
       </div>
       <div className="flex flex-wrap gap-3 text-sm text-muted">

@@ -354,7 +354,7 @@ class CreditService:
         return CreditEstimate(required_credits=total, breakdown=dynamic_breakdown, premium=total > 0)
 
     def _estimate_image_generate(self, payload: dict[str, Any]) -> CreditEstimate:
-        model_key = str(payload.get('model_key') or payload.get('modelKey') or '')
+        model_key = str(payload.get('model_key') or payload.get('modelKey') or payload.get('model') or '')
         resolution = str(payload.get('resolution') or '')
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
@@ -378,7 +378,13 @@ class CreditService:
         return self._sum(items)
 
     def _estimate_video_create(self, payload: dict[str, Any]) -> CreditEstimate:
-        model_key = str(payload.get('modelKey') or payload.get('selected_model') or payload.get('selectedModel') or '')
+        model_key = str(
+            payload.get('modelKey')
+            or payload.get('selected_model')
+            or payload.get('selectedModel')
+            or payload.get('model')
+            or ''
+        )
         resolution = str(payload.get('resolution') or '720p')
         duration_seconds = int(payload.get('durationSeconds') or 15)
         quality = str(payload.get('quality') or 'standard')

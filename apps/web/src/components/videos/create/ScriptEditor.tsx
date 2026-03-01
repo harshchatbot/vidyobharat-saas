@@ -18,6 +18,8 @@ export function ScriptEditor({
   loading,
   error,
   tags,
+  generateCredits,
+  enhanceCredits,
 }: {
   topic: string;
   onTopicChange: (value: string) => void;
@@ -30,7 +32,22 @@ export function ScriptEditor({
   loading: boolean;
   error: string | null;
   tags: string[];
+  generateCredits?: number | null;
+  enhanceCredits?: number | null;
 }) {
+  const generateLabel =
+    typeof generateCredits === 'number'
+      ? generateCredits > 0
+        ? `Generate Script · ${generateCredits} credits`
+        : 'Generate Script · Free'
+      : 'Generate Script';
+  const enhanceLabel =
+    typeof enhanceCredits === 'number'
+      ? enhanceCredits > 0
+        ? `Enhance Script · ${enhanceCredits} credits`
+        : 'Enhance Script · Free'
+      : 'Enhance Script';
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -57,11 +74,11 @@ export function ScriptEditor({
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" onClick={onGenerate} disabled={loading} className="gap-2">
           {loading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
-          {loading ? 'Working...' : 'Generate Script'}
+          {loading ? 'Working...' : generateLabel}
         </Button>
         <Button type="button" variant="secondary" onClick={onEnhance} disabled={loading} className="gap-2">
           <Wand2 className="h-4 w-4" />
-          Enhance Script
+          {enhanceLabel}
         </Button>
         {error ? <p className="text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
       </div>
