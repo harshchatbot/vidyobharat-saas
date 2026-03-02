@@ -6,6 +6,7 @@ from urllib.request import urlopen
 import jwt
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
+import logging
 
 from app.core.config import get_settings
 from app.db.repositories.user_repository import UserRepository
@@ -16,6 +17,7 @@ from app.services.firestore_sync_service import FirestoreSyncService
 
 _FIREBASE_CERTS_CACHE: dict[str, Any] = {'expires_at': 0.0, 'certs': {}}
 _FIREBASE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+logger = logging.getLogger(__name__)
 
 
 def _derive_display_name(claims: dict[str, Any], email: str | None) -> str | None:
@@ -99,20 +101,28 @@ async def get_user_id(
 ) -> str:
     if authorization and authorization.lower().startswith('bearer '):
         token = authorization.split(' ', 1)[1].strip()
-        claims = _verify_firebase_token(token)
-        user_id = claims['sub']
-        email = claims.get('email')
-        user = UserRepository(db).get_or_create_auth_user(
-            user_id=user_id,
-            email=email if isinstance(email, str) else None,
-            display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
-            avatar_url=_derive_avatar_url(claims),
-        )
-        FirestoreSyncService().sync_user(user)
-        wallet = CreditService(db).ensure_wallet(user.id)
-        FirestoreSyncService().sync_wallet(wallet)
-        request.state.user_claims = claims
-        return user.id
+        try:
+            claims = _verify_firebase_token(token)
+            user_id = claims['sub']
+            email = claims.get('email')
+            user = UserRepository(db).get_or_create_auth_user(
+                user_id=user_id,
+                email=email if isinstance(email, str) else None,
+                display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
+                avatar_url=_derive_avatar_url(claims),
+            )
+            FirestoreSyncService().sync_user(user)
+            wallet = CreditService(db).ensure_wallet(user.id)
+            FirestoreSyncService().sync_wallet(wallet)
+            request.state.user_claims = claims
+            return user.id
+        except HTTPException as exc:
+            if not x_user_id:
+                raise
+            logger.warning(
+                'firebase_token_verification_failed_falling_back_to_user_id',
+                extra={'request_id': getattr(request.state, 'request_id', 'system'), 'detail': exc.detail},
+            )
 
     if x_user_id:
         # Transitional fallback for existing server-rendered flows until all API calls
