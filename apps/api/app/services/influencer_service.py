@@ -12,6 +12,7 @@ from app.db.repositories.influencer_repository import InfluencerRepository
 from app.models.entities import InfluencerPersona
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.image_generation_service import IMAGE_MODEL_REGISTRY, ImageGenerationService
 
 POSE_OPTIONS = [
@@ -51,6 +52,7 @@ class InfluencerService:
         self.storage = build_storage_provider(self.settings)
         self.image_service = ImageGenerationService(db)
         self.tagging = AssetTaggingService(db)
+        self.sync = FirestoreSyncService()
 
     def list_personas(self, user_id: str) -> list[InfluencerPersona]:
         return self.repo.list_by_user(user_id)
@@ -79,7 +81,7 @@ class InfluencerService:
             personality_traits,
             fields.get('tone') or '',
         )
-        return self.repo.create(
+        persona = self.repo.create(
             user_id=user_id,
             name=fields['name'],
             gender_identity=fields.get('gender_identity'),
@@ -96,6 +98,8 @@ class InfluencerService:
             system_prompt_template=system_prompt,
             character_locked=fields.get('character_locked', True),
         )
+        self.sync.sync_persona(persona)
+        return persona
 
     def update_persona(self, persona_id: str, user_id: str, **fields) -> InfluencerPersona:
         persona = self.get_persona(persona_id, user_id)
@@ -130,6 +134,7 @@ class InfluencerService:
             ),
             character_locked=fields.get('character_locked', True),
         )
+        self.sync.sync_persona(updated)
         return updated
 
     def upload_reference_image(
@@ -149,12 +154,14 @@ class InfluencerService:
             kind='influencer-references',
         )
         embedding = self._make_reference_embedding(content, uploaded.public_url)
-        return self.repo.update(
+        updated = self.repo.update(
             persona,
             reference_image_url=uploaded.public_url,
             reference_image_path=uploaded.storage_path,
             reference_embedding_vector=json.dumps(embedding),
         )
+        self.sync.sync_persona(updated)
+        return updated
 
     def lock_reference(self, persona_id: str, user_id: str) -> InfluencerPersona:
         persona = self.get_persona(persona_id, user_id)
@@ -163,7 +170,9 @@ class InfluencerService:
         if not persona.reference_embedding_vector:
             embedding = self._make_reference_embedding(b'', persona.reference_image_url)
             persona = self.repo.update(persona, reference_embedding_vector=json.dumps(embedding))
-        return self.repo.update(persona, character_locked=True)
+        updated = self.repo.update(persona, character_locked=True)
+        self.sync.sync_persona(updated)
+        return updated
 
     def generate_content(self, persona_id: str, user_id: str, *, intent: str, platform: str) -> dict:
         persona = self.get_persona(persona_id, user_id)
@@ -327,6 +336,7 @@ class InfluencerService:
             negative_constraints=negative_constraints,
             is_system=False,
         )
+        self.sync.sync_scene_preset(created)
         return {
             'id': created.id,
             'key': created.key,

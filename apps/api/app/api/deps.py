@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.repositories.user_repository import UserRepository
 from app.db.session import get_db
 from app.services.credit_service import CreditService
+from app.services.firestore_sync_service import FirestoreSyncService
 
 
 _FIREBASE_CERTS_CACHE: dict[str, Any] = {'expires_at': 0.0, 'certs': {}}
@@ -107,7 +108,9 @@ async def get_user_id(
             display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
             avatar_url=_derive_avatar_url(claims),
         )
-        CreditService(db).ensure_wallet(user.id)
+        FirestoreSyncService().sync_user(user)
+        wallet = CreditService(db).ensure_wallet(user.id)
+        FirestoreSyncService().sync_wallet(wallet)
         request.state.user_claims = claims
         return user.id
 
@@ -120,7 +123,9 @@ async def get_user_id(
             display_name=None,
             avatar_url=None,
         )
-        CreditService(db).ensure_wallet(user.id)
+        FirestoreSyncService().sync_user(user)
+        wallet = CreditService(db).ensure_wallet(user.id)
+        FirestoreSyncService().sync_wallet(wallet)
         return user.id
 
     raise HTTPException(status_code=401, detail='Authentication required')

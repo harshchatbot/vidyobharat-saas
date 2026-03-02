@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Primary ownership rule for all user-scoped documents mirrored from the API.
+    // Backend writes use the Admin SDK and bypass rules; these rules protect direct client access.
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /private/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /creditTransactions/{transactionId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /images/{imageId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /videos/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /personas/{personaId} {
+        allow read, write: if isOwner(userId);
+
+        match /scenes/{sceneId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /sceneLibrary/{sceneId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.db.repositories.image_generation_repository import ImageGenerationRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.firestore_sync_service import FirestoreSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class ImageGenerationService:
         self.db = db
         self.repo = ImageGenerationRepository(db)
         self.tagging = AssetTaggingService(db)
+        self.sync = FirestoreSyncService()
         self.output_dir = Path('data/image_generations')
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.settings = get_settings()
@@ -258,6 +260,8 @@ class ImageGenerationService:
             status=ImageGenerationStatus.completed,
         )
         self.tagging.auto_tag_image(generation)
+        auto_tags, user_tags = self.tagging.list_tags(generation.id, 'image')
+        self.sync.sync_image(generation, auto_tags=auto_tags, user_tags=user_tags)
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
 
@@ -307,6 +311,8 @@ class ImageGenerationService:
             status=ImageGenerationStatus.completed,
         )
         self.tagging.auto_tag_image(item)
+        auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
         return item
 
     def process_upscale(self, source: ImageGeneration) -> ImageGeneration:
@@ -354,6 +360,8 @@ class ImageGenerationService:
             status=ImageGenerationStatus.completed,
         )
         self.tagging.auto_tag_image(item)
+        auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
         return item
 
     def process_variations(self, source: ImageGeneration) -> list[ImageGeneration]:
@@ -394,19 +402,21 @@ class ImageGenerationService:
                 encoding='utf-8',
             )
             item = self.repo.create(
-                    user_id=source.user_id,
-                    parent_image_id=source.id,
-                    model_key=source.model_key,
-                    prompt=prompt,
-                    aspect_ratio=source.aspect_ratio,
-                    resolution=source.resolution,
-                    reference_urls=json.dumps(base_seed_references),
-                    image_url=f'/static/image_generations/{output_file.name}',
-                    thumbnail_url=f'/static/image_generations/{thumb_file.name}',
-                    action_type='variation',
-                    status=ImageGenerationStatus.completed,
-                )
+                user_id=source.user_id,
+                parent_image_id=source.id,
+                model_key=source.model_key,
+                prompt=prompt,
+                aspect_ratio=source.aspect_ratio,
+                resolution=source.resolution,
+                reference_urls=json.dumps(base_seed_references),
+                image_url=f'/static/image_generations/{output_file.name}',
+                thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+                action_type='variation',
+                status=ImageGenerationStatus.completed,
+            )
             self.tagging.auto_tag_image(item)
+            auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+            self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
             items.append(item)
         return items
 

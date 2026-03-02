@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.repositories.credit_repository import CreditRepository
 from app.models.entities import CreditTransaction, CreditWallet
+from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
 
@@ -104,6 +105,7 @@ class CreditService:
         self.repo = CreditRepository(db)
         self.settings = get_settings()
         self.pricing_service = PricingService()
+        self.sync = FirestoreSyncService()
         self.credit_costs = _load_json_config('credit_pricing.json')
         self.credit_plans = _load_json_config('credit_plans.json')
         self.credit_multipliers = _load_json_config('credit_multipliers.json')
@@ -126,6 +128,7 @@ class CreditService:
         )
         self.db.commit()
         self.db.refresh(wallet)
+        self.sync.sync_wallet(wallet)
         return wallet
 
     def estimate(self, action: str, payload: dict[str, Any]) -> CreditEstimate:
@@ -216,6 +219,7 @@ class CreditService:
                 'metadata': metadata,
             },
         )
+        transaction: CreditTransaction | None = None
         with self._transaction():
             existing = self.repo.get_transaction_by_idempotency_key(idempotency_key)
             if existing:
@@ -230,7 +234,7 @@ class CreditService:
                 wallet.plan_type = plan_name
                 wallet.monthly_credits = plan_credits
             wallet.current_credits += credits
-            self.repo.add_transaction(
+            transaction = self.repo.add_transaction(
                 user_id=user_id,
                 feature_key='topup',
                 amount=credits,
@@ -242,6 +246,9 @@ class CreditService:
             )
             self.repo.save_all([wallet])
         wallet = self.ensure_wallet(user_id)
+        self.sync.sync_wallet(wallet)
+        if transaction:
+            self.sync.sync_credit_transaction(transaction)
         return wallet
 
     def create_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
@@ -315,36 +322,41 @@ class CreditService:
         source: str,
         idempotency_key: str,
     ) -> CreditDeductionResult:
+        result: CreditDeductionResult | None = None
         with self._transaction():
             existing = self.repo.get_transaction_by_idempotency_key(idempotency_key)
             if existing:
                 wallet = self._ensure_wallet_locked(user_id)
-                return CreditDeductionResult(wallet=wallet, transaction=existing, already_processed=True)
-
-            wallet = self._ensure_wallet_locked(user_id)
-            self._apply_monthly_reset_if_due(wallet)
-            if amount > 0 and wallet.current_credits < amount:
-                raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
-
-            wallet.current_credits -= amount
-            if amount > 0:
-                wallet.premium_usage_count += 1
+                result = CreditDeductionResult(wallet=wallet, transaction=existing, already_processed=True)
             else:
-                wallet.free_usage_count += 1
+                wallet = self._ensure_wallet_locked(user_id)
+                self._apply_monthly_reset_if_due(wallet)
+                if amount > 0 and wallet.current_credits < amount:
+                    raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
 
-            transaction = self.repo.add_transaction(
-                user_id=user_id,
-                feature_key=feature_key,
-                amount=amount,
-                balance_after=wallet.current_credits,
-                transaction_type='debit',
-                source=source,
-                metadata_json=json.dumps(metadata),
-                idempotency_key=idempotency_key,
-            )
-            self.repo.save_all([wallet])
-            self.db.flush()
-            return CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=False)
+                wallet.current_credits -= amount
+                if amount > 0:
+                    wallet.premium_usage_count += 1
+                else:
+                    wallet.free_usage_count += 1
+
+                transaction = self.repo.add_transaction(
+                    user_id=user_id,
+                    feature_key=feature_key,
+                    amount=amount,
+                    balance_after=wallet.current_credits,
+                    transaction_type='debit',
+                    source=source,
+                    metadata_json=json.dumps(metadata),
+                    idempotency_key=idempotency_key,
+                )
+                self.repo.save_all([wallet])
+                self.db.flush()
+                result = CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=False)
+        assert result is not None
+        self.sync.sync_wallet(result.wallet)
+        self.sync.sync_credit_transaction(result.transaction)
+        return result
 
     def list_history(self, user_id: str, limit: int = 100) -> list[CreditTransaction]:
         self.ensure_wallet(user_id)

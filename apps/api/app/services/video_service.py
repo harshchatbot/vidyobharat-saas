@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
@@ -19,6 +20,7 @@ class VideoService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = VideoRepository(db)
+        self.sync = FirestoreSyncService()
         self.upload_dir = Path('data/uploads')
         self.music_upload_dir = Path('data/music_uploads')
         self.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -121,6 +123,7 @@ class VideoService:
             duck_music=duck_music,
         )
 
+        self.sync.sync_video(video, auto_tags=[], user_tags=[])
         process_video.delay(video.id)
         logger.info('video_job_enqueued', extra={'render_id': video.id})
         return video
@@ -130,6 +133,7 @@ class VideoService:
         if not video:
             return None
         self.repo.update(video, status=VideoStatus.processing, progress=0, error_message=None)
+        self.sync.sync_video(video, auto_tags=[], user_tags=[])
         process_video.delay(video.id)
         logger.info('video_job_retried', extra={'render_id': video.id})
         return video
@@ -142,6 +146,7 @@ def process_video(video_id: str) -> None:
     db = SessionLocal()
     repo = VideoRepository(db)
     tagging = AssetTaggingService(db)
+    sync = FirestoreSyncService()
     pipeline = VideoPipelineService()
     try:
         repo.set_progress(video_id, 15, VideoStatus.processing)
@@ -185,9 +190,15 @@ def process_video(video_id: str) -> None:
         completed_video = repo.complete(video_id, output_url=output_url, thumbnail_url=thumb_url)
         if completed_video:
             tagging.auto_tag_video(completed_video)
+            auto_tags, user_tags = tagging.list_tags(completed_video.id, 'video')
+            sync.sync_video(completed_video, auto_tags=auto_tags, user_tags=user_tags)
         logger.info('video_job_completed', extra={'render_id': video_id})
     except Exception as exc:
         repo.fail(video_id, str(exc))
+        failed_video = repo.get_by_id(video_id)
+        if failed_video:
+            auto_tags, user_tags = tagging.list_tags(failed_video.id, 'video')
+            sync.sync_video(failed_video, auto_tags=auto_tags, user_tags=user_tags)
         logger.exception('video_job_failed', extra={'render_id': video_id})
     finally:
         db.close()

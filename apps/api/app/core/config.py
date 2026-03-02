@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     firebase_project_id: str | None = None
     firebase_web_api_key: str | None = None
     firebase_auth_domain: str | None = None
+    firebase_service_account_json: str | None = None
+    firebase_service_account_path: str | None = None
+    firebase_storage_bucket: str | None = None
     openai_api_key: str | None = None
     openai_model: str = 'gpt-4.1-mini'
     openai_image_model: str = 'gpt-image-1'
