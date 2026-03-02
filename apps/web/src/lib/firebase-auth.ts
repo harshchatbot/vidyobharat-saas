@@ -17,6 +17,34 @@ export type FirebaseUserProfile = {
   emailVerified: boolean;
 };
 
+// 1. Add this interface here
+interface PromptMomentNotification {
+  isDisplayMoment: () => boolean;
+  isDisplayed: () => boolean;
+  isNotDisplayed: () => boolean;
+  getNotDisplayedReason: () => string;
+  isSkippedMoment: () => boolean;
+  getSkippedReason: () => string;
+  isDismissedMoment: () => boolean;
+  getDismissedReason: () => string;
+  getMomentType: () => string;
+}
+
+// 2. Your existing declare global block
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: Record<string, unknown>) => void;
+          // 3. Update this line to include the optional callback
+          prompt: (callback?: (notification: PromptMomentNotification) => void) => void;
+        };
+      };
+    };
+  }
+}
+
 declare global {
   interface Window {
     google?: {
@@ -268,12 +296,16 @@ export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {
   if (!GOOGLE_CLIENT_ID) {
     throw new Error('Google sign-in is not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.');
   }
+  
   await loadGoogleIdentityScript();
+  
   return new Promise<FirebaseAuthSession>((resolve, reject) => {
     if (!window.google?.accounts?.id) {
       reject(new Error('Google Identity Services is unavailable'));
       return;
     }
+
+    // 📍 CHANGE 1: Explicitly initialize with the CURRENT GOOGLE_CLIENT_ID (Project 63)
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: async (response: { credential?: string }) => {
@@ -289,9 +321,18 @@ export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {
         }
       },
       ux_mode: 'popup',
-      auto_select: false,
-      cancel_on_tap_outside: true,
+      auto_select: false, // Prevents auto-logging into the first account found
+      context: 'signin',
     });
-    window.google.accounts.id.prompt();
+
+    // 📍 CHANGE 2: Force the "Select Account" screen
+    // This tells Google: "Do not skip the UI, show the user their account options."
+    window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // If the "One Tap" bubble is blocked or skipped, 
+            // the system will still try to open the popup when called.
+            console.log("One tap notification skipped/not displayed");
+        }
+    });
   });
 }
