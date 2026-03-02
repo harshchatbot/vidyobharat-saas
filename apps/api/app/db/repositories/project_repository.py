@@ -21,8 +21,15 @@ class ProjectRepository:
         return self._to_model(kwargs)
 
     def list_by_user(self, user_id: str) -> list[Project]:
-        rows = self.collection.where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').stream()
-        return [self._to_model({**(row.to_dict() or {}), 'id': row.id}) for row in rows]
+        items: list[Project] = []
+        for row in self.collection.stream():
+            data = row.to_dict() or {}
+            if data.get('user_id') != user_id:
+                continue
+            data.setdefault('id', row.id)
+            items.append(self._to_model(data))
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items
 
     def get_by_id(self, project_id: str) -> Project | None:
         snapshot = self.collection.document(project_id).get()

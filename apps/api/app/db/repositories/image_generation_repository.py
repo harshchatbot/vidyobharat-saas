@@ -29,12 +29,14 @@ class ImageGenerationRepository:
         return self._to_model(data)
 
     def list_by_user(self, user_id: str) -> list[ImageGeneration]:
-        rows = self.collection.where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').stream()
         items: list[ImageGeneration] = []
-        for row in rows:
+        for row in self.collection.stream():
             data = row.to_dict() or {}
+            if data.get('user_id') != user_id:
+                continue
             data.setdefault('id', row.id)
             items.append(self._to_model(data))
+        items.sort(key=lambda item: item.created_at, reverse=True)
         return items
 
     def _serialize(self, fields: dict) -> dict:

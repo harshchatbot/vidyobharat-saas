@@ -39,14 +39,20 @@ class AssetTagRepository:
         return created
 
     def list_for_asset(self, asset_id: str, asset_type: str) -> list[AssetTag]:
-        rows = self.collection.where('asset_id', '==', asset_id).where('asset_type', '==', asset_type).stream()
-        items = [self._to_model(doc.to_dict() or {}) for doc in rows]
+        items: list[AssetTag] = []
+        for doc in self.collection.stream():
+            data = doc.to_dict() or {}
+            if data.get('asset_id') != asset_id or data.get('asset_type') != asset_type:
+                continue
+            items.append(self._to_model(data))
         items.sort(key=lambda item: (item.source, item.tag))
         return items
 
     def replace_user_tags(self, asset_id: str, asset_type: str, tags: list[str]) -> list[AssetTag]:
-        rows = self.collection.where('asset_id', '==', asset_id).where('asset_type', '==', asset_type).where('source', '==', 'user').stream()
-        for doc in rows:
+        for doc in self.collection.stream():
+            data = doc.to_dict() or {}
+            if data.get('asset_id') != asset_id or data.get('asset_type') != asset_type or data.get('source') != 'user':
+                continue
             doc.reference.delete()
         self.add_tags(asset_id=asset_id, asset_type=asset_type, tags=tags, source='user')
         return self.list_for_asset(asset_id=asset_id, asset_type=asset_type)
