@@ -1037,9 +1037,16 @@ def list_asset_tags(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    service = AssetSearchService(db)
-    facets = service.list_tag_facets(user_id=user_id, content_type=content_type, query=query)
-    return [AssetTagFacet(tag=tag, count=count) for tag, count in facets]
+    try:
+        service = AssetSearchService(db)
+        facets = service.list_tag_facets(user_id=user_id, content_type=content_type, query=query)
+        return [AssetTagFacet(tag=tag, count=count) for tag, count in facets]
+    except Exception as exc:
+        logger.exception(
+            'asset_tag_list_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'content_type': content_type, 'error': str(exc)},
+        )
+        return []
 
 
 @router.get('/assets/search', response_model=AssetSearchResponse)
@@ -1055,42 +1062,49 @@ def search_assets(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    service = AssetSearchService(db)
-    items, total = service.search_assets(
-        user_id=user_id,
-        query=query,
-        tags=tags,
-        models=models,
-        resolutions=resolutions,
-        content_type=content_type,
-        sort=sort,
-        page=page,
-        page_size=page_size,
-    )
-    return AssetSearchResponse(
-        items=[
-            AssetSearchResponseItem(
-                id=item.id,
-                content_type=item.content_type,
-                title=item.title,
-                model_key=item.model_key,
-                resolution=item.resolution,
-                aspect_ratio=item.aspect_ratio,
-                prompt=item.prompt,
-                thumbnail_url=item.thumbnail_url,
-                asset_url=item.asset_url,
-                status=item.status,
-                created_at=item.created_at,
-                reference_urls=item.reference_urls,
-                auto_tags=item.auto_tags,
-                user_tags=item.user_tags,
-            )
-            for item in items
-        ],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    try:
+        service = AssetSearchService(db)
+        items, total = service.search_assets(
+            user_id=user_id,
+            query=query,
+            tags=tags,
+            models=models,
+            resolutions=resolutions,
+            content_type=content_type,
+            sort=sort,
+            page=page,
+            page_size=page_size,
+        )
+        return AssetSearchResponse(
+            items=[
+                AssetSearchResponseItem(
+                    id=item.id,
+                    content_type=item.content_type,
+                    title=item.title,
+                    model_key=item.model_key,
+                    resolution=item.resolution,
+                    aspect_ratio=item.aspect_ratio,
+                    prompt=item.prompt,
+                    thumbnail_url=item.thumbnail_url,
+                    asset_url=item.asset_url,
+                    status=item.status,
+                    created_at=item.created_at,
+                    reference_urls=item.reference_urls,
+                    auto_tags=item.auto_tags,
+                    user_tags=item.user_tags,
+                )
+                for item in items
+            ],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+    except Exception as exc:
+        logger.exception(
+            'asset_search_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'content_type': content_type, 'error': str(exc)},
+        )
+        return AssetSearchResponse(items=[], total=0, page=page, page_size=page_size)
 
 
 @router.put('/assets/{content_type}/{asset_id}/tags')
@@ -1276,8 +1290,15 @@ def list_influencer_personas(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = InfluencerService(db)
-    return [_to_influencer_persona_response(item) for item in service.list_personas(user_id)]
+    try:
+        service = InfluencerService(db)
+        return [_to_influencer_persona_response(item) for item in service.list_personas(user_id)]
+    except Exception as exc:
+        logger.exception(
+            'influencer_persona_list_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'error': str(exc)},
+        )
+        return []
 
 
 @router.post('/api/influencer/personas', response_model=InfluencerPersonaResponse, status_code=status.HTTP_201_CREATED)

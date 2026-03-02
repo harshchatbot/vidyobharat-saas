@@ -44,7 +44,10 @@ class AssetTagRepository:
             data = doc.to_dict() or {}
             if data.get('asset_id') != asset_id or data.get('asset_type') != asset_type:
                 continue
-            items.append(self._to_model(data))
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
         items.sort(key=lambda item: (item.source, item.tag))
         return items
 

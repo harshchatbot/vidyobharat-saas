@@ -35,7 +35,10 @@ class ImageGenerationRepository:
             if data.get('user_id') != user_id:
                 continue
             data.setdefault('id', row.id)
-            items.append(self._to_model(data))
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items
 

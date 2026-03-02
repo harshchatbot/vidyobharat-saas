@@ -212,9 +212,11 @@ export function VoiceSelector({
                     ? 'Stop'
                     : `Preview · ${
                         typeof voiceCreditMap?.[option.key] === 'number'
-                          ? voiceCreditMap[option.key] > 0
-                            ? `${voiceCreditMap[option.key]} cr`
-                            : 'Free'
+                          ? voiceCreditMap[option.key] >= 0
+                            ? voiceCreditMap[option.key] > 0
+                              ? `${voiceCreditMap[option.key]} cr`
+                              : 'Free'
+                            : '...'
                           : '...'
                       }`}
                 </Button>

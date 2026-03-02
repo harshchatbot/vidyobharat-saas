@@ -1,84 +1,57 @@
-import Link from "next/link";
-import { Layers, Globe, Zap, Workflow, Subtitles, Shield, ArrowRight } from "lucide-react";
-
-const Container = ({ children }: { children: React.ReactNode }) => (
-  <div className="mx-auto max-w-6xl px-4">{children}</div>
-);
-
-const Card = ({
-  icon: Icon,
-  title,
-  desc,
-}: {
-  icon: any;
-  title: string;
-  desc: string;
-}) => (
-  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#F4B400]/10">
-      <Icon className="h-5 w-5 text-[#F4B400]" />
-    </div>
-    <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
-    <p className="mt-2 text-sm text-slate-600">{desc}</p>
-  </div>
-);
+import { Layers, Globe, Sparkles, Cpu } from "lucide-react";
 
 export default function PlatformPage() {
   return (
-    <main className="bg-[#F8F6F2] py-20">
-      <Container>
+    <main className="bg-[hsl(var(--color-bg))] py-20">
+      <div className="mx-auto max-w-6xl px-4">
+
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold text-slate-800">
-            A unified AI video platform
+          <h1 className="text-4xl font-semibold text-[hsl(var(--color-text))]">
+            The AI Video Platform Built for India
           </h1>
-          <p className="mt-4 text-lg text-slate-600">
-            Templates, multilingual narration, captions and async rendering —
-            built for scale and consistency.
+          <p className="mt-4 text-lg text-[hsl(var(--color-muted))]">
+            Hybrid template + AI workflows, multilingual voices, captions and async rendering pipelines.
           </p>
         </div>
 
-        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <Card
-            icon={Layers}
-            title="Template + AI Hybrid"
-            desc="Structured layouts enhanced with AI b-roll for reliable scale."
-          />
-          <Card
-            icon={Globe}
-            title="India-first Voices"
-            desc="Hindi and regional language narration built into workflow."
-          />
-          <Card
-            icon={Subtitles}
-            title="Mobile-first Captions"
-            desc="Auto-generated captions optimized for retention."
-          />
-          <Card
-            icon={Workflow}
-            title="Project Workflow"
-            desc="Reusable creative settings and structured scene control."
-          />
-          <Card
-            icon={Zap}
-            title="Async Render Jobs"
-            desc="Track progress and receive final delivery URLs."
-          />
-          <Card
-            icon={Shield}
-            title="Secure Multi-tenant"
-            desc="User-scoped architecture with clean ownership model."
-          />
+        <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              icon: Layers,
+              title: "Hybrid Workflow",
+              desc: "Template + AI b-roll engine for predictable, scalable output.",
+            },
+            {
+              icon: Globe,
+              title: "Indian Language First",
+              desc: "Hindi, Tamil and 20+ regional voices built-in.",
+            },
+            {
+              icon: Sparkles,
+              title: "Reusable Projects",
+              desc: "Save creative configurations and scale production.",
+            },
+            {
+              icon: Cpu,
+              title: "Async Rendering",
+              desc: "Background rendering with real-time progress tracking.",
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-6 shadow-[var(--shadow-soft)]"
+            >
+              <item.icon className="h-6 w-6 text-[hsl(var(--color-accent))]" />
+              <h3 className="mt-4 text-lg font-semibold text-[hsl(var(--color-text))]">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
+                {item.desc}
+              </p>
+            </div>
+          ))}
         </div>
-
-        <div className="mt-16 text-center">
-          <Link
-            href="/create"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#F4B400] px-8 py-3 text-sm font-semibold text-black hover:opacity-90"
-          >
-            Get Started for Free <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </Container>
+      </div>
     </main>
   );
 }

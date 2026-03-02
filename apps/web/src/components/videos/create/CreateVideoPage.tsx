@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -26,6 +26,7 @@ import { VideoPreview } from './VideoPreview';
 import { VoiceSelector } from './VoiceSelector';
 
 const DRAFT_VERSION = 2;
+const FREE_VOICE_KEYS = new Set(['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya']);
 
 function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
@@ -75,7 +76,7 @@ export function CreateVideoPage({
   const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
   const [voiceTranslationLoading, setVoiceTranslationLoading] = useState(false);
   const [voiceEstimate, setVoiceEstimate] = useState<CreditEstimateResponse | null>(null);
-  const [voiceCreditMap, setVoiceCreditMap] = useState<Record<string, number>>({});
+  const [premiumVoiceEstimate, setPremiumVoiceEstimate] = useState<CreditEstimateResponse | null>(null);
   const [scriptGenerateEstimate, setScriptGenerateEstimate] = useState<CreditEstimateResponse | null>(null);
   const [scriptEnhanceEstimate, setScriptEnhanceEstimate] = useState<CreditEstimateResponse | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -131,7 +132,7 @@ export function CreateVideoPage({
   const filteredVoiceOptions = voiceOptions.filter((item) =>
     item.supported_language_codes.includes(selectedLanguageCode),
   );
-  const voiceProvider = ['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'].includes(voice) ? 'free' : 'sarvam';
+  const voiceProvider = FREE_VOICE_KEYS.has(voice) ? 'free' : 'sarvam';
   const durationRule = VIDEO_DURATION_RULES[modelKey];
   const outputRule = VIDEO_OUTPUT_RULES[modelKey];
   const outputSizes = outputRule.sizes as Record<string, Record<string, string>>;
@@ -193,6 +194,16 @@ export function CreateVideoPage({
     : voiceTranslationLoading
       ? 'Language Update'
       : 'Video Render';
+  const voiceCreditMap = useMemo(() => {
+    const allVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
+    const premiumCredits = premiumVoiceEstimate?.estimatedCredits ?? null;
+    return Object.fromEntries(
+      allVoices.map((option) => [
+        option.key,
+        FREE_VOICE_KEYS.has(option.key) ? 0 : (premiumCredits ?? -1),
+      ]),
+    );
+  }, [filteredVoiceOptions, voiceOptions, premiumVoiceEstimate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,6 +409,27 @@ export function CreateVideoPage({
 
   useEffect(() => {
     let cancelled = false;
+    void api.estimateCredits(
+      'tts_preview',
+      {
+        provider: 'sarvam',
+        sampleRateHz: audioSampleRateHz,
+      },
+      userId,
+    )
+      .then((result) => {
+        if (!cancelled) setPremiumVoiceEstimate(result);
+      })
+      .catch(() => {
+        if (!cancelled) setPremiumVoiceEstimate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, audioSampleRateHz]);
+
+  useEffect(() => {
+    let cancelled = false;
     void Promise.all([
       api.estimateCredits('script_generate', {}, userId),
       api.estimateCredits('script_enhance', {}, userId),
@@ -416,41 +448,6 @@ export function CreateVideoPage({
       cancelled = true;
     };
   }, [userId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const visibleVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
-    if (visibleVoices.length === 0) {
-      setVoiceCreditMap({});
-      return () => {
-        cancelled = true;
-      };
-    }
-    void Promise.all(
-      visibleVoices.map(async (option) => {
-        const estimate = await api.estimateCredits(
-          'tts_preview',
-          {
-            provider: ['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'].includes(option.key) ? 'free' : 'sarvam',
-            sampleRateHz: audioSampleRateHz,
-          },
-          userId,
-        );
-        return [option.key, estimate.estimatedCredits] as const;
-      }),
-    )
-      .then((entries) => {
-        if (cancelled) return;
-        setVoiceCreditMap(Object.fromEntries(entries));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setVoiceCreditMap({});
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, audioSampleRateHz, filteredVoiceOptions, voiceOptions]);
 
   useEffect(() => {
     if (!jobResponseId) return;
@@ -907,7 +904,7 @@ export function CreateVideoPage({
           previewMessage={voicePreviewMessage}
           translating={voiceTranslationLoading}
           estimatedCredits={voiceEstimate?.estimatedCredits}
-          currentBalance={voiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+          currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
           insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
           onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
           voiceCreditMap={voiceCreditMap}

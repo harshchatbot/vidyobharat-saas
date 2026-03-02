@@ -15,8 +15,18 @@ class InfluencerRepository:
         self.scenes = self.firestore.collection('influencer_scene_presets')
 
     def list_by_user(self, user_id: str) -> list[InfluencerPersona]:
-        rows = self.personas.where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').stream()
-        return [self._to_persona({**(row.to_dict() or {}), 'id': row.id}) for row in rows]
+        rows = self.personas.stream()
+        items: list[InfluencerPersona] = []
+        for row in rows:
+            data = row.to_dict() or {}
+            if data.get('user_id') != user_id:
+                continue
+            try:
+                items.append(self._to_persona({**data, 'id': row.id}))
+            except Exception:
+                continue
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items
 
     def get(self, persona_id: str) -> InfluencerPersona | None:
         snapshot = self.personas.document(persona_id).get()
@@ -51,7 +61,10 @@ class InfluencerRepository:
         for row in rows:
             data = row.to_dict() or {}
             data.setdefault('id', row.id)
-            scene = self._to_scene(data)
+            try:
+                scene = self._to_scene(data)
+            except Exception:
+                continue
             if scene.is_system or scene.user_id == user_id:
                 if persona_id is None or scene.persona_id in {None, persona_id}:
                     items.append(scene)
