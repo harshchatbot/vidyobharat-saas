@@ -27,6 +27,7 @@ export function AuthFormClient({ mode }: Props) {
   const searchParams = useSearchParams();
   const { show } = useToast();
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -39,7 +40,7 @@ export function AuthFormClient({ mode }: Props) {
   const title = isLogin ? 'Welcome back' : 'Create your account';
   const subtitle = isLogin
     ? 'Sign in with email or Google to continue into RangManch AI.'
-    : 'Set up your account, confirm your email, and start creating with RangManch AI.';
+    : 'Create your account, verify your email, and get into the studio with a standard secure signup flow.';
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,6 +52,11 @@ export function AuthFormClient({ mode }: Props) {
     if (!isLogin) {
       if (!fullName.trim()) {
         setError('Full name is required');
+        setSubmitting(false);
+        return;
+      }
+      if (phone.trim() && !/^[0-9+\-\s()]{8,20}$/.test(phone.trim())) {
+        setError('Enter a valid phone number or leave it blank');
         setSubmitting(false);
         return;
       }
@@ -178,8 +184,8 @@ export function AuthFormClient({ mode }: Props) {
           </div>
           {!isLogin ? (
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px]">
-              <div className="font-medium text-[hsl(var(--color-text))]">What happens next</div>
-              <div className="mt-1">Create account, verify email, then come back to log in.</div>
+              <div className="font-medium text-[hsl(var(--color-text))]">Account setup</div>
+              <div className="mt-1">Create account, verify your email, then sign in to activate your workspace.</div>
             </div>
           ) : null}
         </div>
@@ -213,19 +219,33 @@ export function AuthFormClient({ mode }: Props) {
 
         <form onSubmit={handleSubmit} className="mt-4 grid gap-3">
           {!isLogin ? (
-            <Input
-              name="full_name"
-              type="text"
-              placeholder="Full name"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              required
-            />
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  name="full_name"
+                  type="text"
+                  placeholder="Full name"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  required
+                />
+                <Input
+                  name="phone"
+                  type="tel"
+                  placeholder="Phone (optional)"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                />
+              </div>
+              <p className="text-xs text-[hsl(var(--color-muted))]">
+                Use your real name so your profile, billing, and workspace settings are initialized correctly.
+              </p>
+            </>
           ) : null}
           <Input
             name="email"
             type="email"
-            placeholder="you@domain.com"
+            placeholder={isLogin ? 'you@domain.com' : 'Work email'}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
@@ -249,7 +269,7 @@ export function AuthFormClient({ mode }: Props) {
                 required
               />
               <p className="text-xs text-[hsl(var(--color-muted))]">
-                By creating an account, you agree to use RangManch AI responsibly and verify your email before first login.
+                Use at least 8 characters. After signup, Firebase will send a verification email before first login.
               </p>
             </>
           ) : null}

@@ -31,6 +31,7 @@ declare global {
 }
 
 let googleScriptPromise: Promise<void> | null = null;
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
 function ensureConfigured() {
   if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
@@ -54,8 +55,23 @@ async function parseJson<T>(response: Response): Promise<T> {
   return body as T;
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = AUTH_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Request timed out. Check your Firebase configuration and network, then try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function sendVerifyEmail(idToken: string) {
-  const response = await fetch(firebaseRestUrl('accounts:sendOobCode'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:sendOobCode'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -67,7 +83,7 @@ async function sendVerifyEmail(idToken: string) {
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<FirebaseAuthSession> {
-  const response = await fetch(firebaseRestUrl('accounts:signInWithPassword'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signInWithPassword'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -93,7 +109,7 @@ export async function signInWithPassword(email: string, password: string): Promi
 }
 
 export async function signUpWithPassword(email: string, password: string, fullName?: string): Promise<FirebaseAuthSession | null> {
-  const response = await fetch(firebaseRestUrl('accounts:signUp'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signUp'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -113,12 +129,17 @@ export async function signUpWithPassword(email: string, password: string, fullNa
     await updateProfile(body.idToken, { displayName: fullName.trim() });
   }
 
-  await sendVerifyEmail(body.idToken);
+  try {
+    await sendVerifyEmail(body.idToken);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to send verification email';
+    throw new Error(`Account created, but verification email could not be sent. ${message}`);
+  }
   return null;
 }
 
 async function updateProfile(idToken: string, payload: { displayName?: string; photoUrl?: string }) {
-  const response = await fetch(firebaseRestUrl('accounts:update'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:update'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -132,7 +153,7 @@ async function updateProfile(idToken: string, payload: { displayName?: string; p
 }
 
 export async function getUserForIdToken(idToken: string): Promise<FirebaseUserProfile> {
-  const response = await fetch(firebaseRestUrl('accounts:lookup'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:lookup'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
@@ -214,7 +235,7 @@ async function loadGoogleIdentityScript() {
 }
 
 async function signInWithGoogleCredential(credential: string): Promise<FirebaseAuthSession> {
-  const response = await fetch(firebaseRestUrl('accounts:signInWithIdp'), {
+  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signInWithIdp'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
