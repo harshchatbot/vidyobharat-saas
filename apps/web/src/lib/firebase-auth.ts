@@ -17,34 +17,6 @@ export type FirebaseUserProfile = {
   emailVerified: boolean;
 };
 
-// 1. Add this interface here
-interface PromptMomentNotification {
-  isDisplayMoment: () => boolean;
-  isDisplayed: () => boolean;
-  isNotDisplayed: () => boolean;
-  getNotDisplayedReason: () => string;
-  isSkippedMoment: () => boolean;
-  getSkippedReason: () => string;
-  isDismissedMoment: () => boolean;
-  getDismissedReason: () => string;
-  getMomentType: () => string;
-}
-
-// 2. Your existing declare global block
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (config: Record<string, unknown>) => void;
-          // 3. Update this line to include the optional callback
-          prompt: (callback?: (notification: PromptMomentNotification) => void) => void;
-        };
-      };
-    };
-  }
-}
-
 interface PromptMomentNotification {
   isDisplayMoment: () => boolean;
   isDisplayed: () => boolean;
@@ -62,9 +34,25 @@ declare global {
     google?: {
       accounts?: {
         id?: {
-          initialize: (config: Record<string, unknown>) => void;
-          // Updated signature to include the optional callback
+          initialize: (config: {
+            client_id: string;
+            callback: (response: any) => void;
+            ux_mode?: 'popup' | 'redirect';
+            auto_select?: boolean;
+            context?: string;
+          }) => void;
           prompt: (callback?: (notification: PromptMomentNotification) => void) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              type?: 'standard' | 'icon';
+              theme?: 'outline' | 'filled_blue' | 'filled_black';
+              size?: 'large' | 'medium' | 'small';
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+            }
+          ) => void;
+          disableAutoSelect: () => void;
         };
       };
     };
@@ -318,34 +306,62 @@ export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {
       return;
     }
 
-    // 📍 CHANGE 1: Explicitly initialize with the CURRENT GOOGLE_CLIENT_ID (Project 63)
+    // 1. Initialize the IDP configuration
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
-      callback: async (response: { credential?: string }) => {
+      ux_mode: 'popup',
+      auto_select: false, // Vital: prevents automatically picking the "default" browser account
+      callback: async (response: any) => {
+        if (response.error) {
+          reject(new Error(`Google Identity Error: ${response.error}`));
+          return;
+        }
         try {
-          if (!response.credential) {
-            reject(new Error('Google sign-in did not return a credential'));
-            return;
-          }
           const session = await signInWithGoogleCredential(response.credential);
           resolve(session);
         } catch (error) {
           reject(error instanceof Error ? error : new Error('Google sign-in failed'));
         }
       },
-      ux_mode: 'popup',
-      auto_select: false, // Prevents auto-logging into the first account found
-      context: 'signin',
     });
 
-    // 📍 CHANGE 2: Force the "Select Account" screen
-    // This tells Google: "Do not skip the UI, show the user their account options."
-    window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // If the "One Tap" bubble is blocked or skipped, 
-            // the system will still try to open the popup when called.
-            console.log("One tap notification skipped/not displayed");
-        }
+    /**
+     * 2. FORCING THE ACCOUNT SELECTOR
+     * Instead of just calling .prompt(), we use the 'click' trigger on a hidden element 
+     * or use the standard GSI popup picker. 
+     */
+    const parent = document.createElement('div');
+    parent.id = 'google-signin-hidden-container';
+    parent.style.display = 'none';
+    document.body.appendChild(parent);
+
+    // This renders the actual Google button logic internally
+    window.google.accounts.id.renderButton(parent, {
+      type: 'standard',
+      shape: 'rectangular',
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
     });
+
+    // Manually trigger the click on the internal div that Google created
+    const googleBtn = parent.querySelector('div[role="button"]') as HTMLElement;
+    if (googleBtn) {
+      googleBtn.click();
+    } else {
+      // Fallback to prompt if the button rendering fails
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          reject(new Error('Google Popup blocked or not displayed. Please check browser settings.'));
+        }
+      });
+    }
+
+    // Cleanup the hidden div after a short delay
+    setTimeout(() => {
+      if (document.getElementById('google-signin-hidden-container')) {
+        document.body.removeChild(parent);
+      }
+    }, 5000);
   });
 }
