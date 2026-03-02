@@ -45,13 +45,26 @@ declare global {
   }
 }
 
+interface PromptMomentNotification {
+  isDisplayMoment: () => boolean;
+  isDisplayed: () => boolean;
+  isNotDisplayed: () => boolean;
+  getNotDisplayedReason: () => string;
+  isSkippedMoment: () => boolean;
+  getSkippedReason: () => string;
+  isDismissedMoment: () => boolean;
+  getDismissedReason: () => string;
+  getMomentType: () => string;
+}
+
 declare global {
   interface Window {
     google?: {
       accounts?: {
         id?: {
           initialize: (config: Record<string, unknown>) => void;
-          prompt: () => void;
+          // Updated signature to include the optional callback
+          prompt: (callback?: (notification: PromptMomentNotification) => void) => void;
         };
       };
     };
