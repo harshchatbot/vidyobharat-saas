@@ -603,7 +603,9 @@ export function CreateVideoPage({
       player?.pause();
       if (player) player.currentTime = 0;
       setVoicePreviewing(false);
-      return;
+      if (!previewVoiceKey || activeVoice === voice) {
+        return;
+      }
     }
     setVoicePreviewError(null);
     setVoicePreviewProvider(null);
@@ -640,7 +642,10 @@ export function CreateVideoPage({
       if (response.applied_credits > 0) {
         show(`Created! Credits Used: ${response.applied_credits} · Remaining Balance: ${response.remaining_credits ?? creditWallet?.currentCredits ?? 0}`);
       }
-      await player.play();
+      const playResult = player.play();
+      if (playResult instanceof Promise) {
+        await playResult;
+      }
       setVoicePreviewing(true);
     } catch (error) {
       setVoicePreviewError(error instanceof Error ? error.message : 'Voice preview failed.');

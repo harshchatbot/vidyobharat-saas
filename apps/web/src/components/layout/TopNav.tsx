@@ -10,7 +10,6 @@ import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
 const navLinks = [
   { href: '/platform', label: 'Platform' },
-  { href: '/business', label: 'Business' },
   { href: '/use-cases', label: 'Use cases' },
   { href: '/learning', label: 'Learning' },
   { href: '/pricing', label: 'Pricing' },

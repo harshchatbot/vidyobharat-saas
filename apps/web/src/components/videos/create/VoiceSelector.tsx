@@ -177,18 +177,23 @@ export function VoiceSelector({
           return (
             <div
               key={option.key}
+              onClick={() => onVoiceChange(option.key)}
               className={`rounded-[var(--radius-lg)] border p-4 text-left transition ${
                 active
                   ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] shadow-soft'
                   : 'border-border bg-bg hover:bg-elevated'
               }`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onVoiceChange(option.key);
+                }
+              }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => onVoiceChange(option.key)}
-                  className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 flex-1 items-start gap-3 text-left">
                   <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.16)] text-[hsl(var(--color-accent))]">
                     <UserRound className="h-5 w-5" />
                   </span>
@@ -196,16 +201,17 @@ export function VoiceSelector({
                     <p className="text-sm font-semibold text-text">{option.label}</p>
                     <p className="text-xs text-muted">{option.tone}</p>
                   </span>
-                </button>
+                </div>
                 <Button
                   type="button"
                   variant={active ? 'primary' : 'secondary'}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation();
                     onVoiceChange(option.key);
                     onPreview(option.key);
                   }}
                   disabled={!previewText.trim() || Boolean(insufficientCredits)}
-                  className="shrink-0 gap-2 px-3 py-2 text-xs"
+                  className="w-full shrink-0 gap-2 px-3 py-2 text-xs sm:w-auto"
                 >
                   <Mic2 className="h-3.5 w-3.5" />
                   {previewing && active

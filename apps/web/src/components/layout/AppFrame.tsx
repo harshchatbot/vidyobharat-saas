@@ -20,7 +20,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/images', '/influencer', '/create-ai-video', '/create', '/create-template', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/images', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -30,8 +30,6 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
   if (pathname.startsWith('/images')) return 'Image Studio';
   if (pathname.startsWith('/influencer')) return 'Influencer Studio';
-  if (pathname.startsWith('/create-ai-video')) return 'AI Video';
-  if (pathname.startsWith('/create-template')) return 'AI Reel Script';
   if (pathname.startsWith('/create')) return 'Create Video';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
