@@ -44,6 +44,21 @@ service cloud.firestore {
       allow create, update: if ownerFieldMatches();
     }
 
+    match /projects/{projectId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /renders/{renderId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /assets/{assetId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
     match /videos/{videoId} {
       allow read: if existingOwnerFieldMatches();
       allow create, update: if ownerFieldMatches();

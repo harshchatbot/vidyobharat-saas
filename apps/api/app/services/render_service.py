@@ -44,12 +44,10 @@ class RenderService:
 
 @celery_app.task(name='process_render')
 def process_render(render_id: str, include_broll: bool) -> None:
-    from app.db.session import SessionLocal
     from app.services.video_pipeline import VideoPipelineService
 
-    db = SessionLocal()
-    repo = RenderRepository(db)
-    project_repo = ProjectRepository(db)
+    repo = RenderRepository(None)
+    project_repo = ProjectRepository(None)
     pipeline = VideoPipelineService()
     try:
         repo.set_progress(render_id, 10, RenderStatus.rendering)
@@ -73,5 +71,3 @@ def process_render(render_id: str, include_broll: bool) -> None:
     except Exception as exc:
         repo.fail(render_id, str(exc))
         logging.getLogger(__name__).exception('render_job_failed', extra={'render_id': render_id})
-    finally:
-        db.close()

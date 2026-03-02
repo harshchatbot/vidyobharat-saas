@@ -528,12 +528,10 @@ class AIVideoCreateService:
 @celery_app.task(name='process_ai_video')
 def celery_process_ai_video(video_id: str) -> None:
     from app.core.config import get_settings
-    from app.db.session import SessionLocal
 
-    db = SessionLocal()
     settings = get_settings()
-    service = AIVideoCreateService(db, settings)
-    repo = VideoRepository(db)
+    service = AIVideoCreateService(None, settings)
+    repo = VideoRepository(None)
     try:
         video = repo.get_by_id(video_id)
         if not video:
@@ -575,5 +573,3 @@ def celery_process_ai_video(video_id: str) -> None:
         target = repo.get_by_id(video_id)
         if target:
             repo.update(target, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
-    finally:
-        db.close()

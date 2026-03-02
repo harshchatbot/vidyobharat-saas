@@ -141,11 +141,8 @@ class VideoService:
 
 @celery_app.task(name='process_video')
 def process_video(video_id: str) -> None:
-    from app.db.session import SessionLocal
-
-    db = SessionLocal()
-    repo = VideoRepository(db)
-    tagging = AssetTaggingService(db)
+    repo = VideoRepository(None)
+    tagging = AssetTaggingService(None)
     sync = FirestoreSyncService()
     pipeline = VideoPipelineService()
     try:
@@ -200,5 +197,3 @@ def process_video(video_id: str) -> None:
             auto_tags, user_tags = tagging.list_tags(failed_video.id, 'video')
             sync.sync_video(failed_video, auto_tags=auto_tags, user_tags=user_tags)
         logger.exception('video_job_failed', extra={'render_id': video_id})
-    finally:
-        db.close()
