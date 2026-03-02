@@ -1,0 +1,25 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='1500' viewBox='0 0 1200 1500'>
+  <defs>
+    <linearGradient id='bg' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#0f172a' />
+      <stop offset='50%' stop-color='#334155' />
+      <stop offset='100%' stop-color='#c084fc' />
+    </linearGradient>
+    <radialGradient id='glow' cx='50%' cy='30%' r='75%'>
+      <stop offset='0%' stop-color='rgba(255,255,255,0.30)' />
+      <stop offset='100%' stop-color='rgba(255,255,255,0)' />
+    </radialGradient>
+  </defs>
+  <rect width='1200' height='1500' rx='36' fill='url(#bg)' />
+  <rect width='1200' height='1500' fill='url(#glow)' />
+  <circle cx='1090' cy='110' r='86' fill='rgba(255,255,255,0.08)' />
+  <circle cx='1030' cy='1330' r='124' fill='rgba(255,255,255,0.06)' />
+  <rect x='32' y='32' width='1136' height='1436' rx='28' fill='rgba(15,23,42,0.15)' stroke='rgba(255,255,255,0.22)' />
+  <text x='48' y='72' fill='rgba(255,255,255,0.78)' font-size='24' font-family='Arial Unicode MS, Arial, sans-serif'>RangManch AI Image Studio</text>
+  <text x='48' y='170' fill='white' font-size='56' font-weight='700' font-family='Arial Unicode MS, Arial, sans-serif'>Seedream</text>
+  <text x='48' y='216' fill='rgba(255,255,255,0.80)' font-size='24' font-family='Arial Unicode MS, Arial, sans-serif'>Use this for polished brand shots, fashion-style frames, and premium moodboards.</text>
+  <text x='48' y='420' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>Fashion campaign portrait of a model wearing</text><text x='48' y='466' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>street-luxury apparel in a premium studio,</text><text x='48' y='512' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>editorial lighting, clean backdrop, detailed</text><text x='48' y='558' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>fabric texture.…</text>
+  <rect x='48' y='1390' rx='18' ry='18' width='240' height='56' fill='rgba(255,255,255,0.12)' stroke='rgba(255,255,255,0.28)' />
+  <text x='72' y='1427' fill='white' font-size='22' font-family='Arial Unicode MS, Arial, sans-serif'>4:5 • 1024px</text>
+  <text x='880' y='1428' fill='rgba(255,255,255,0.72)' font-size='20' font-family='Arial Unicode MS, Arial, sans-serif'>Refs: 0 • Model: seedream</text>
+</svg>

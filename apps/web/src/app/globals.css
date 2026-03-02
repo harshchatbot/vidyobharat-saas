@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Inter:wght@400;500&display=swap');
+@import '../styles/theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-bg text-text antialiased font-sans;
+  line-height: 1.45;
+  background-image: radial-gradient(circle at top right, hsl(var(--color-accent) / 0.15), transparent 45%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-heading;
+  letter-spacing: -0.01em;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+* {
+  @apply border-border;
+}
+
+.glass-card {
+  background: hsl(var(--color-surface) / 0.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--color-border));
+  box-shadow:
+    0 8px 32px hsl(220 35% 8% / 0.28),
+    inset 0 1px 0 hsl(var(--color-surface) / 0.45);
+}
+
+.shimmer-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-btn::after {
+  content: '';
+  position: absolute;
+  inset: -150% -30%;
+  background: linear-gradient(120deg, transparent 35%, hsl(var(--color-accent-contrast) / 0.35), transparent 65%);
+  transform: translateX(-120%) rotate(8deg);
+  animation: shimmer-move 2.4s infinite;
+}
+
+@keyframes shimmer-move {
+  to {
+    transform: translateX(120%) rotate(8deg);
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "users": [],
+  "projects": [],
+  "renders": [],
+  "assets": [],
+  "videos": [],
+  "image_generations": [],
+  "credit_wallets": [],
+  "credit_transactions": [],
+  "credit_topup_orders": [],
+  "influencer_personas": [],
+  "influencer_scene_presets": [],
+  "migration_meta": [
+    {
+      "id": "summary",
+      "data": {
+        "exported_at": "2026-03-02T09:13:32.193Z",
+        "source": "supabase",
+        "target": "firestore",
+        "collections": {
+          "users": 0,
+          "projects": 0,
+          "renders": 0,
+          "assets": 0,
+          "videos": 0,
+          "images": 0,
+          "wallets": 0,
+          "transactions": 0,
+          "topups": 0,
+          "personas": 0,
+          "scenes": 0
+        }
+      }
+    }
+  ]
+}

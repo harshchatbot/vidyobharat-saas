@@ -1,0 +1,25 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920' viewBox='0 0 1080 1920'>
+  <defs>
+    <linearGradient id='bg' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#f59e0b' />
+      <stop offset='50%' stop-color='#f97316' />
+      <stop offset='100%' stop-color='#7c3aed' />
+    </linearGradient>
+    <radialGradient id='glow' cx='50%' cy='30%' r='75%'>
+      <stop offset='0%' stop-color='rgba(255,255,255,0.30)' />
+      <stop offset='100%' stop-color='rgba(255,255,255,0)' />
+    </radialGradient>
+  </defs>
+  <rect width='1080' height='1920' rx='36' fill='url(#bg)' />
+  <rect width='1080' height='1920' fill='url(#glow)' />
+  <circle cx='970' cy='110' r='86' fill='rgba(255,255,255,0.08)' />
+  <circle cx='910' cy='1750' r='124' fill='rgba(255,255,255,0.06)' />
+  <rect x='32' y='32' width='1016' height='1856' rx='28' fill='rgba(15,23,42,0.15)' stroke='rgba(255,255,255,0.22)' />
+  <text x='48' y='72' fill='rgba(255,255,255,0.78)' font-size='24' font-family='Arial Unicode MS, Arial, sans-serif'>RangManch AI Image Studio</text>
+  <text x='48' y='170' fill='white' font-size='56' font-weight='700' font-family='Arial Unicode MS, Arial, sans-serif'>Nano Banana</text>
+  <text x='48' y='216' fill='rgba(255,255,255,0.80)' font-size='24' font-family='Arial Unicode MS, Arial, sans-serif'>Use this for punchy reel covers, posters, and quick campaign concepts.</text>
+  <text x='48' y='420' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>Cinematic minimalist depiction of Lord Krishna</text><text x='48' y='466' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>playing the flute, with intricate details, vibrant</text><text x='48' y='512' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>colors, and a visually rich composition that</text><text x='48' y='558' fill='rgba(255,255,255,0.92)' font-size='30' font-family='Arial Unicode MS, Arial, sans-serif'>evokes divine serenity and cultural elegance..…</text>
+  <rect x='48' y='1810' rx='18' ry='18' width='240' height='56' fill='rgba(255,255,255,0.12)' stroke='rgba(255,255,255,0.28)' />
+  <text x='72' y='1847' fill='white' font-size='22' font-family='Arial Unicode MS, Arial, sans-serif'>9:16 • 2048px</text>
+  <text x='760' y='1848' fill='rgba(255,255,255,0.72)' font-size='20' font-family='Arial Unicode MS, Arial, sans-serif'>Refs: 2 • Model: nano_banana</text>
+</svg>

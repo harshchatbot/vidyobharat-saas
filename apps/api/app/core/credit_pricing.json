@@ -1,0 +1,16 @@
+{
+  "premium_voice": 3,
+  "premium_voice_preview": 1,
+  "voice_retry": 2,
+  "premium_image": 3,
+  "image_upscale": 1,
+  "premium_video_720p_15s": 12,
+  "premium_video_1080p_15s": 18,
+  "character_consistency": 5,
+  "influencer_reference_lock": 8,
+  "influencer_content_generate": 2,
+  "script_enhance": 1,
+  "auto_caption": 1,
+  "auto_tag": 1,
+  "audio_quality_48khz_modifier": 1
+}

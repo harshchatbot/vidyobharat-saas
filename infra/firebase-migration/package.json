@@ -1,0 +1,23 @@
+{
+  "name": "rangmanch-firebase-migration",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Supabase to Firebase migration toolkit for RangManch AI",
+  "scripts": {
+    "export": "node ./src/export.mjs",
+    "import:firestore": "node ./src/import-firestore.mjs",
+    "import:rtdb": "node ./src/import-rtdb.mjs",
+    "import:auth": "node ./src/import-auth.mjs",
+    "auth:reset-links": "node ./src/generate-reset-links.mjs",
+    "import:storage": "node ./src/import-storage.mjs",
+    "verify": "node ./src/verify.mjs",
+    "migrate": "node ./src/migrate.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.7.0",
+    "p-limit": "^6.2.0",
+    "pg": "^8.13.1"
+  }
+}

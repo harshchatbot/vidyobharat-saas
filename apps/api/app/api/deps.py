@@ -1,0 +1,126 @@
+import json
+import time
+from typing import Any
+from urllib.request import urlopen
+
+import jwt
+from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.db.repositories.user_repository import UserRepository
+from app.db.session import get_db
+from app.services.credit_service import CreditService
+
+
+_FIREBASE_CERTS_CACHE: dict[str, Any] = {'expires_at': 0.0, 'certs': {}}
+_FIREBASE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+
+
+def _derive_display_name(claims: dict[str, Any], email: str | None) -> str | None:
+    for key in ('name', 'display_name', 'full_name'):
+        value = claims.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if email:
+        local = email.split('@')[0] or 'User'
+        return ' '.join(
+            part.capitalize()
+            for part in local.replace('.', ' ').replace('_', ' ').replace('-', ' ').split()
+        ) or 'User'
+    return None
+
+
+def _derive_avatar_url(claims: dict[str, Any]) -> str | None:
+    for key in ('picture', 'avatar_url'):
+        value = claims.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _load_firebase_certs() -> dict[str, str]:
+    now = time.time()
+    if _FIREBASE_CERTS_CACHE['expires_at'] > now and _FIREBASE_CERTS_CACHE['certs']:
+        return _FIREBASE_CERTS_CACHE['certs']
+
+    with urlopen(_FIREBASE_CERTS_URL, timeout=10) as response:  # noqa: S310
+        cache_control = response.headers.get('Cache-Control', '')
+        max_age = 300
+        for part in cache_control.split(','):
+            part = part.strip()
+            if part.startswith('max-age='):
+                try:
+                    max_age = int(part.split('=', 1)[1])
+                except ValueError:
+                    max_age = 300
+        certs = json.loads(response.read().decode('utf-8'))
+        _FIREBASE_CERTS_CACHE['certs'] = certs
+        _FIREBASE_CERTS_CACHE['expires_at'] = now + max_age
+        return certs
+
+
+def _verify_firebase_token(token: str) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.firebase_project_id:
+        raise HTTPException(status_code=500, detail='FIREBASE_PROJECT_ID is not configured')
+
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get('kid')
+        if not isinstance(kid, str) or not kid:
+            raise HTTPException(status_code=401, detail='Auth token is missing key id')
+        certs = _load_firebase_certs()
+        certificate = certs.get(kid)
+        if not certificate:
+            raise HTTPException(status_code=401, detail='Unable to verify Firebase token signature')
+        claims = jwt.decode(
+            token,
+            certificate,
+            algorithms=['RS256'],
+            audience=settings.firebase_project_id,
+            issuer=f'https://securetoken.google.com/{settings.firebase_project_id}',
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail='Invalid or expired auth token') from exc
+
+    sub = claims.get('sub')
+    if not isinstance(sub, str) or not sub.strip():
+        raise HTTPException(status_code=401, detail='Auth token is missing subject')
+    return claims
+
+
+async def get_user_id(
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_user_id: str | None = Header(default=None),
+) -> str:
+    if authorization and authorization.lower().startswith('bearer '):
+        token = authorization.split(' ', 1)[1].strip()
+        claims = _verify_firebase_token(token)
+        user_id = claims['sub']
+        email = claims.get('email')
+        user = UserRepository(db).get_or_create_auth_user(
+            user_id=user_id,
+            email=email if isinstance(email, str) else None,
+            display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
+            avatar_url=_derive_avatar_url(claims),
+        )
+        CreditService(db).ensure_wallet(user.id)
+        request.state.user_claims = claims
+        return user.id
+
+    if x_user_id:
+        # Transitional fallback for existing server-rendered flows until all API calls
+        # consistently forward Firebase bearer tokens.
+        user = UserRepository(db).get_or_create_auth_user(
+            user_id=x_user_id,
+            email=None,
+            display_name=None,
+            avatar_url=None,
+        )
+        CreditService(db).ensure_wallet(user.id)
+        return user.id
+
+    raise HTTPException(status_code=401, detail='Authentication required')

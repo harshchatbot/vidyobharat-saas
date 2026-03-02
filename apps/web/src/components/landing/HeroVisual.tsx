@@ -1,0 +1,50 @@
+'use client';
+
+import { motion } from 'framer-motion';
+
+export function HeroVisual() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+      className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-soft sm:p-6"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[hsl(var(--color-text))]">RangManch AI Video Editor</p>
+          <p className="text-xs text-[hsl(var(--color-muted))]">Template: Business Explainer • Voice: Hindi Female</p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-xs text-[hsl(var(--color-muted))]">
+          Render: 86%
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Script</p>
+          <p className="text-sm leading-7 text-[hsl(var(--color-text))]">
+            A forgotten city wakes under monsoon skies, where broken buses, silent streets, and overgrown towers frame
+            a haunting cinematic world. RangManch AI turns a single prompt into immersive vertical storytelling with
+            atmosphere, motion, and precise scene mood.
+          </p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Preview</p>
+          <video
+            className="h-52 w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] object-cover"
+            src="/videos/samples/hindi-festival-9x16.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+          <div className="mt-3">
+            <div className="h-1.5 w-full rounded-full bg-[hsl(var(--color-border))]" />
+            <div className="mt-1 h-1.5 w-3/4 rounded-full bg-[hsl(var(--color-accent))]" />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

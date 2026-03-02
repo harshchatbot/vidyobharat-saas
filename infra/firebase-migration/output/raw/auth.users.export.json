@@ -1,0 +1,27 @@
+[
+  {
+    "id": "3639081c-81e6-4435-bc39-32cadc4b8276",
+    "email": "harshveernirwan@gmail.com",
+    "phone": null,
+    "created_at": "2026-03-02T08:01:45.095Z",
+    "updated_at": "2026-03-02T08:02:17.978Z",
+    "email_confirmed_at": "2026-03-02T08:02:17.923Z",
+    "last_sign_in_at": "2026-03-02T08:02:17.948Z",
+    "raw_user_meta_data": {
+      "sub": "3639081c-81e6-4435-bc39-32cadc4b8276",
+      "email": "harshveernirwan@gmail.com",
+      "email_verified": true,
+      "phone_verified": false
+    },
+    "raw_app_meta_data": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "encrypted_password": "$2a$10$2DrpvXcZ2qYfNbOFymda3eo11qwLAwZHxDNJMcs4qv7MH1o8WQxMO",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "is_sso_user": false
+  }
+]

@@ -1,0 +1,276 @@
+import { FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID } from '@/lib/env';
+
+export type FirebaseAuthSession = {
+  idToken: string;
+  refreshToken?: string;
+  email?: string;
+  localId: string;
+  displayName?: string;
+  photoUrl?: string;
+};
+
+export type FirebaseUserProfile = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  emailVerified: boolean;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: Record<string, unknown>) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
+let googleScriptPromise: Promise<void> | null = null;
+
+function ensureConfigured() {
+  if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
+    throw new Error(
+      'Firebase auth is not configured. Set NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, and NEXT_PUBLIC_FIREBASE_APP_ID.',
+    );
+  }
+}
+
+function firebaseRestUrl(path: string) {
+  ensureConfigured();
+  return `https://identitytoolkit.googleapis.com/v1/${path}?key=${FIREBASE_API_KEY}`;
+}
+
+async function parseJson<T>(response: Response): Promise<T> {
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = body?.error?.message || body?.error?.errors?.[0]?.message || 'Authentication failed';
+    throw new Error(message.replaceAll('_', ' '));
+  }
+  return body as T;
+}
+
+async function sendVerifyEmail(idToken: string) {
+  const response = await fetch(firebaseRestUrl('accounts:sendOobCode'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestType: 'VERIFY_EMAIL',
+      idToken,
+    }),
+  });
+  await parseJson(response);
+}
+
+export async function signInWithPassword(email: string, password: string): Promise<FirebaseAuthSession> {
+  const response = await fetch(firebaseRestUrl('accounts:signInWithPassword'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      password,
+      returnSecureToken: true,
+    }),
+  });
+  const body = await parseJson<{
+    idToken: string;
+    refreshToken: string;
+    localId: string;
+    email?: string;
+    displayName?: string;
+  }>(response);
+  return {
+    idToken: body.idToken,
+    refreshToken: body.refreshToken,
+    localId: body.localId,
+    email: body.email,
+    displayName: body.displayName,
+  };
+}
+
+export async function signUpWithPassword(email: string, password: string, fullName?: string): Promise<FirebaseAuthSession | null> {
+  const response = await fetch(firebaseRestUrl('accounts:signUp'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      password,
+      returnSecureToken: true,
+    }),
+  });
+  const body = await parseJson<{
+    idToken: string;
+    refreshToken: string;
+    localId: string;
+    email?: string;
+  }>(response);
+
+  if (fullName?.trim()) {
+    await updateProfile(body.idToken, { displayName: fullName.trim() });
+  }
+
+  await sendVerifyEmail(body.idToken);
+  return null;
+}
+
+async function updateProfile(idToken: string, payload: { displayName?: string; photoUrl?: string }) {
+  const response = await fetch(firebaseRestUrl('accounts:update'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      idToken,
+      displayName: payload.displayName,
+      photoUrl: payload.photoUrl,
+      returnSecureToken: false,
+    }),
+  });
+  await parseJson(response);
+}
+
+export async function getUserForIdToken(idToken: string): Promise<FirebaseUserProfile> {
+  const response = await fetch(firebaseRestUrl('accounts:lookup'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+  const body = await parseJson<{ users?: Array<Record<string, unknown>> }>(response);
+  const user = body.users?.[0];
+  if (!user) {
+    throw new Error('Unable to load Firebase user profile');
+  }
+  const email = typeof user.email === 'string' ? user.email : '';
+  const displayName = typeof user.displayName === 'string' && user.displayName.trim()
+    ? user.displayName.trim()
+    : email.split('@')[0] || 'User';
+  const photoUrl = typeof user.photoUrl === 'string' && user.photoUrl.trim() ? user.photoUrl.trim() : null;
+  return {
+    id: typeof user.localId === 'string' ? user.localId : '',
+    email,
+    name: displayName,
+    avatarUrl: photoUrl,
+    emailVerified: Boolean(user.emailVerified),
+  };
+}
+
+export function getProfileFields(user: FirebaseUserProfile) {
+  return {
+    name: user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+  };
+}
+
+export async function persistAppSession(payload: {
+  accessToken: string;
+  userId: string;
+  name?: string;
+  email?: string;
+  avatarUrl?: string | null;
+}) {
+  const response = await fetch('/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || 'Failed to persist app session');
+  }
+}
+
+async function loadGoogleIdentityScript() {
+  if (googleScriptPromise) {
+    return googleScriptPromise;
+  }
+  googleScriptPromise = new Promise<void>((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Google sign-in requires a browser environment'));
+      return;
+    }
+    if (window.google?.accounts?.id) {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>('script[data-google-identity="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(script);
+  });
+  return googleScriptPromise;
+}
+
+async function signInWithGoogleCredential(credential: string): Promise<FirebaseAuthSession> {
+  const response = await fetch(firebaseRestUrl('accounts:signInWithIdp'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      postBody: `id_token=${encodeURIComponent(credential)}&providerId=google.com`,
+      requestUri: typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
+      returnIdpCredential: true,
+      returnSecureToken: true,
+    }),
+  });
+  const body = await parseJson<{
+    idToken: string;
+    refreshToken: string;
+    localId: string;
+    email?: string;
+    displayName?: string;
+    photoUrl?: string;
+  }>(response);
+  return {
+    idToken: body.idToken,
+    refreshToken: body.refreshToken,
+    localId: body.localId,
+    email: body.email,
+    displayName: body.displayName,
+    photoUrl: body.photoUrl,
+  };
+}
+
+export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {
+  ensureConfigured();
+  if (!GOOGLE_CLIENT_ID) {
+    throw new Error('Google sign-in is not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.');
+  }
+  await loadGoogleIdentityScript();
+  return new Promise<FirebaseAuthSession>((resolve, reject) => {
+    if (!window.google?.accounts?.id) {
+      reject(new Error('Google Identity Services is unavailable'));
+      return;
+    }
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response: { credential?: string }) => {
+        try {
+          if (!response.credential) {
+            reject(new Error('Google sign-in did not return a credential'));
+            return;
+          }
+          const session = await signInWithGoogleCredential(response.credential);
+          resolve(session);
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('Google sign-in failed'));
+        }
+      },
+      ux_mode: 'popup',
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    window.google.accounts.id.prompt();
+  });
+}

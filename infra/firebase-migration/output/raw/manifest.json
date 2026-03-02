@@ -1,0 +1,72 @@
+{
+  "public.users.json": {
+    "schema": "public",
+    "table": "users",
+    "rows": 0
+  },
+  "public.projects.json": {
+    "schema": "public",
+    "table": "projects",
+    "rows": 0
+  },
+  "public.renders.json": {
+    "schema": "public",
+    "table": "renders",
+    "rows": 0
+  },
+  "public.assets.json": {
+    "schema": "public",
+    "table": "assets",
+    "rows": 0
+  },
+  "public.videos.json": {
+    "schema": "public",
+    "table": "videos",
+    "rows": 0
+  },
+  "public.image_generations.json": {
+    "schema": "public",
+    "table": "image_generations",
+    "rows": 0
+  },
+  "public.asset_tags.json": {
+    "schema": "public",
+    "table": "asset_tags",
+    "rows": 0
+  },
+  "public.credit_wallets.json": {
+    "schema": "public",
+    "table": "credit_wallets",
+    "rows": 0
+  },
+  "public.credit_transactions.json": {
+    "schema": "public",
+    "table": "credit_transactions",
+    "rows": 0
+  },
+  "public.credit_topup_orders.json": {
+    "schema": "public",
+    "table": "credit_topup_orders",
+    "rows": 0
+  },
+  "public.influencer_personas.json": {
+    "schema": "public",
+    "table": "influencer_personas",
+    "rows": 0
+  },
+  "public.influencer_scene_presets.json": {
+    "schema": "public",
+    "table": "influencer_scene_presets",
+    "rows": 0
+  },
+  "auth.users.json": {
+    "schema": "auth",
+    "table": "users",
+    "rows": 1
+  },
+  "storage.objects.json": {
+    "schema": "storage",
+    "table": "objects",
+    "rows": 0
+  }
+}

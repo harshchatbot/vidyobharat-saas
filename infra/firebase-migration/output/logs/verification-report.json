@@ -1,0 +1,67 @@
+{
+  "started_at": "2026-03-02T09:42:58.831Z",
+  "firestore": {
+    "users": {
+      "expected": 0,
+      "actual": 0
+    },
+    "projects": {
+      "expected": 0,
+      "actual": 0
+    },
+    "renders": {
+      "expected": 0,
+      "actual": 0
+    },
+    "assets": {
+      "expected": 0,
+      "actual": 0
+    },
+    "videos": {
+      "expected": 0,
+      "actual": 0
+    },
+    "image_generations": {
+      "expected": 0,
+      "actual": 0
+    },
+    "asset_tags": {
+      "expected": 0,
+      "actual": 0
+    },
+    "credit_wallets": {
+      "expected": 0,
+      "actual": 0
+    },
+    "credit_transactions": {
+      "expected": 0,
+      "actual": 0
+    },
+    "credit_topup_orders": {
+      "expected": 0,
+      "actual": 0
+    },
+    "influencer_personas": {
+      "expected": 0,
+      "actual": 0
+    },
+    "influencer_scene_presets": {
+      "expected": 0,
+      "actual": 0
+    }
+  },
+  "rtdb": {
+    "collections": 1
+  },
+  "auth": {
+    "expected_users": 1,
+    "actual_users": 1
+  },
+  "storage": {
+    "rangmanch-assets": {
+      "expected": 0,
+      "actual": 0
+    }
+  },
+  "finished_at": "2026-03-02T09:43:12.754Z"
+}
