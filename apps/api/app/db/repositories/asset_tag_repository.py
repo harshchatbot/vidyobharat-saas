@@ -1,14 +1,20 @@
-from collections import Counter
+from __future__ import annotations
 
-from sqlalchemy import delete, select
+from collections import Counter
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
+from app.db.firestore_utils import model_from_fields
 from app.models.entities import AssetTag
+from app.providers.firebase import get_firestore_client
 
 
 class AssetTagRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.firestore = get_firestore_client()
+        self.collection = self.firestore.collection('asset_tags')
 
     def add_tags(self, asset_id: str, asset_type: str, tags: list[str], source: str) -> list[AssetTag]:
         created: list[AssetTag] = []
@@ -16,40 +22,32 @@ class AssetTagRepository:
             tag = raw_tag.strip().lower()
             if not tag:
                 continue
-            existing = self.db.scalar(
-                select(AssetTag).where(
-                    AssetTag.asset_id == asset_id,
-                    AssetTag.asset_type == asset_type,
-                    AssetTag.tag == tag,
-                )
-            )
-            if existing:
+            doc_id = f'{asset_type}:{asset_id}:{tag}'
+            doc_ref = self.collection.document(doc_id)
+            if doc_ref.get().exists:
                 continue
-            row = AssetTag(asset_id=asset_id, asset_type=asset_type, tag=tag, source=source)
-            self.db.add(row)
-            created.append(row)
-        self.db.commit()
-        for row in created:
-            self.db.refresh(row)
+            payload = {
+                'id': self._new_int_id(),
+                'asset_id': asset_id,
+                'asset_type': asset_type,
+                'tag': tag,
+                'source': source,
+                'created_at': datetime.now(UTC).isoformat(),
+            }
+            doc_ref.set(payload)
+            created.append(self._to_model(payload))
         return created
 
     def list_for_asset(self, asset_id: str, asset_type: str) -> list[AssetTag]:
-        stmt = (
-            select(AssetTag)
-            .where(AssetTag.asset_id == asset_id, AssetTag.asset_type == asset_type)
-            .order_by(AssetTag.source.asc(), AssetTag.tag.asc())
-        )
-        return list(self.db.scalars(stmt).all())
+        rows = self.collection.where('asset_id', '==', asset_id).where('asset_type', '==', asset_type).stream()
+        items = [self._to_model(doc.to_dict() or {}) for doc in rows]
+        items.sort(key=lambda item: (item.source, item.tag))
+        return items
 
     def replace_user_tags(self, asset_id: str, asset_type: str, tags: list[str]) -> list[AssetTag]:
-        self.db.execute(
-            delete(AssetTag).where(
-                AssetTag.asset_id == asset_id,
-                AssetTag.asset_type == asset_type,
-                AssetTag.source == 'user',
-            )
-        )
-        self.db.commit()
+        rows = self.collection.where('asset_id', '==', asset_id).where('asset_type', '==', asset_type).where('source', '==', 'user').stream()
+        for doc in rows:
+            doc.reference.delete()
         self.add_tags(asset_id=asset_id, asset_type=asset_type, tags=tags, source='user')
         return self.list_for_asset(asset_id=asset_id, asset_type=asset_type)
 
@@ -61,3 +59,16 @@ class AssetTagRepository:
             rows.extend(self.list_for_asset(asset_id=asset_id, asset_type=asset_type))
         counts = Counter(item.tag for item in rows)
         return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
+    def _to_model(self, data: dict) -> AssetTag:
+        return model_from_fields(
+            AssetTag,
+            id=int(data.get('id') or self._new_int_id()),
+            asset_id=data.get('asset_id'),
+            asset_type=data.get('asset_type'),
+            tag=data.get('tag'),
+            source=data.get('source') or 'auto',
+        )
+
+    def _new_int_id(self) -> int:
+        return int(datetime.now(UTC).timestamp() * 1_000_000)

@@ -114,8 +114,7 @@ class CreditService:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
             self._apply_monthly_reset_if_due(wallet)
-            self.db.commit()
-            self.db.refresh(wallet)
+            self.repo.update_wallet(wallet)
             return wallet
 
         plan = 'free'
@@ -126,8 +125,6 @@ class CreditService:
             plan_type=plan,
             monthly_credits=monthly_credits,
         )
-        self.db.commit()
-        self.db.refresh(wallet)
         self.sync.sync_wallet(wallet)
         return wallet
 
@@ -220,31 +217,18 @@ class CreditService:
             },
         )
         transaction: CreditTransaction | None = None
-        with self._transaction():
-            existing = self.repo.get_transaction_by_idempotency_key(idempotency_key)
-            if existing:
-                wallet = self.repo.get_wallet(user_id)
-                assert wallet is not None
-                return wallet
-            wallet = self._ensure_wallet_locked(user_id)
-            self._apply_monthly_reset_if_due(wallet)
-            plan_name = str(metadata.get('plan_name') or '').strip().lower()
-            plan_credits = int(metadata.get('plan_credits') or 0)
-            if plan_name and plan_credits > 0:
-                wallet.plan_type = plan_name
-                wallet.monthly_credits = plan_credits
-            wallet.current_credits += credits
-            transaction = self.repo.add_transaction(
-                user_id=user_id,
-                feature_key='topup',
-                amount=credits,
-                balance_after=wallet.current_credits,
-                transaction_type='credit',
-                source='topup',
-                metadata_json=json.dumps(metadata),
-                idempotency_key=idempotency_key,
-            )
-            self.repo.save_all([wallet])
+        wallet, transaction, already_processed = self.repo.run_wallet_mutation(
+            user_id=user_id,
+            create_defaults={
+                'current_credits': self.FREE_PLAN_MONTHLY_CREDITS,
+                'plan_type': 'free',
+                'monthly_credits': self.FREE_PLAN_MONTHLY_CREDITS,
+            },
+            idempotency_key=idempotency_key,
+            mutate=lambda wallet: self._topup_mutation(wallet, credits, metadata, idempotency_key),
+        )
+        if already_processed:
+            return wallet
         wallet = self.ensure_wallet(user_id)
         self.sync.sync_wallet(wallet)
         if transaction:
@@ -281,22 +265,21 @@ class CreditService:
         if not hmac.compare_digest(expected_signature, razorpay_signature):
             raise RuntimeError('Invalid Razorpay signature')
 
-        with self._transaction():
-            order_locked = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
-            if order_locked is None or order_locked.user_id != user_id:
-                raise RuntimeError('Top-up order not found')
-            if order_locked.status != 'paid':
-                order_locked.status = 'paid'
-                order_locked.provider_payment_id = razorpay_payment_id
-                order_locked.provider_signature = razorpay_signature
-                order_locked.verified_at = datetime.now(UTC)
-                order_locked.metadata_json = json.dumps(
-                    {
-                        'plan_name': order_locked.plan_name,
-                        'provider': 'razorpay',
-                    }
-                )
-                self.repo.save_all([order_locked])
+        order_locked = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
+        if order_locked is None or order_locked.user_id != user_id:
+            raise RuntimeError('Top-up order not found')
+        if order_locked.status != 'paid':
+            order_locked.status = 'paid'
+            order_locked.provider_payment_id = razorpay_payment_id
+            order_locked.provider_signature = razorpay_signature
+            order_locked.verified_at = datetime.now(UTC)
+            order_locked.metadata_json = json.dumps(
+                {
+                    'plan_name': order_locked.plan_name,
+                    'provider': 'razorpay',
+                }
+            )
+            self.repo.save_all([order_locked])
 
         wallet = self.top_up_credits(
             user_id=user_id,
@@ -323,36 +306,24 @@ class CreditService:
         idempotency_key: str,
     ) -> CreditDeductionResult:
         result: CreditDeductionResult | None = None
-        with self._transaction():
-            existing = self.repo.get_transaction_by_idempotency_key(idempotency_key)
-            if existing:
-                wallet = self._ensure_wallet_locked(user_id)
-                result = CreditDeductionResult(wallet=wallet, transaction=existing, already_processed=True)
-            else:
-                wallet = self._ensure_wallet_locked(user_id)
-                self._apply_monthly_reset_if_due(wallet)
-                if amount > 0 and wallet.current_credits < amount:
-                    raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
-
-                wallet.current_credits -= amount
-                if amount > 0:
-                    wallet.premium_usage_count += 1
-                else:
-                    wallet.free_usage_count += 1
-
-                transaction = self.repo.add_transaction(
-                    user_id=user_id,
-                    feature_key=feature_key,
-                    amount=amount,
-                    balance_after=wallet.current_credits,
-                    transaction_type='debit',
-                    source=source,
-                    metadata_json=json.dumps(metadata),
-                    idempotency_key=idempotency_key,
-                )
-                self.repo.save_all([wallet])
-                self.db.flush()
-                result = CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=False)
+        wallet, transaction, already_processed = self.repo.run_wallet_mutation(
+            user_id=user_id,
+            create_defaults={
+                'current_credits': self.FREE_PLAN_MONTHLY_CREDITS,
+                'plan_type': 'free',
+                'monthly_credits': self.FREE_PLAN_MONTHLY_CREDITS,
+            },
+            idempotency_key=idempotency_key,
+            mutate=lambda wallet: self._deduction_mutation(
+                wallet=wallet,
+                amount=amount,
+                feature_key=feature_key,
+                metadata=metadata,
+                source=source,
+                idempotency_key=idempotency_key,
+            ),
+        )
+        result = CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=already_processed)
         assert result is not None
         self.sync.sync_wallet(result.wallet)
         self.sync.sync_credit_transaction(result.transaction)
@@ -364,10 +335,10 @@ class CreditService:
 
     def run_monthly_reset(self) -> int:
         count = 0
-        for wallet in self.db.query(CreditWallet).all():
+        for wallet in self.repo.list_wallets():
             if self._apply_monthly_reset_if_due(wallet):
+                self.repo.update_wallet(wallet)
                 count += 1
-        self.db.commit()
         return count
 
     def _estimate_tts_preview(self, payload: dict[str, Any]) -> CreditEstimate:
@@ -641,6 +612,66 @@ class CreditService:
             monthly_credits=monthly_credits,
         )
 
+    def _topup_mutation(
+        self,
+        wallet: CreditWallet,
+        credits: int,
+        metadata: dict[str, Any],
+        idempotency_key: str,
+    ) -> tuple[CreditWallet, dict[str, Any]]:
+        self._apply_monthly_reset_if_due(wallet)
+        plan_name = str(metadata.get('plan_name') or '').strip().lower()
+        plan_credits = int(metadata.get('plan_credits') or 0)
+        if plan_name and plan_credits > 0:
+            wallet.plan_type = plan_name
+            wallet.monthly_credits = plan_credits
+        wallet.current_credits += credits
+        tx_id = self.repo._new_int_id()
+        return wallet, {
+            'id': tx_id,
+            'user_id': wallet.user_id,
+            'feature_key': 'topup',
+            'amount': credits,
+            'balance_after': wallet.current_credits,
+            'transaction_type': 'credit',
+            'source': 'topup',
+            'metadata_json': json.dumps(metadata),
+            'idempotency_key': idempotency_key,
+            'created_at': datetime.now(UTC),
+        }
+
+    def _deduction_mutation(
+        self,
+        *,
+        wallet: CreditWallet,
+        amount: int,
+        feature_key: str,
+        metadata: dict[str, Any],
+        source: str,
+        idempotency_key: str,
+    ) -> tuple[CreditWallet, dict[str, Any]]:
+        self._apply_monthly_reset_if_due(wallet)
+        if amount > 0 and wallet.current_credits < amount:
+            raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
+        wallet.current_credits -= amount
+        if amount > 0:
+            wallet.premium_usage_count += 1
+        else:
+            wallet.free_usage_count += 1
+        tx_id = self.repo._new_int_id()
+        return wallet, {
+            'id': tx_id,
+            'user_id': wallet.user_id,
+            'feature_key': feature_key,
+            'amount': amount,
+            'balance_after': wallet.current_credits,
+            'transaction_type': 'debit',
+            'source': source,
+            'metadata_json': json.dumps(metadata),
+            'idempotency_key': idempotency_key,
+            'created_at': datetime.now(UTC),
+        }
+
     def _stable_key(self, prefix: str, metadata: dict[str, Any]) -> str:
         normalized = json.dumps(metadata, sort_keys=True, separators=(',', ':'), default=str)
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
@@ -726,30 +757,6 @@ class CreditService:
             credits=selection.allocated_credits,
             message='Stripe checkout structure is prepared but not enabled yet for global users.',
         )
-
-    def _transaction(self):
-        return _CreditTransactionContext(self.db)
-
-
-class _CreditTransactionContext:
-    def __init__(self, db: Session) -> None:
-        self.db = db
-
-    def __enter__(self):
-        self.db.rollback()
-        if self.db.bind and self.db.bind.dialect.name == 'sqlite':
-            connection = self.db.connection()
-            connection.exec_driver_sql('BEGIN IMMEDIATE')
-        return self.db
-
-    def __exit__(self, exc_type, exc, tb):
-        if exc_type:
-            self.db.rollback()
-            return False
-        self.db.commit()
-        return False
-
-
 @lru_cache(maxsize=8)
 def _load_json_config(filename: str) -> dict[str, Any]:
     config_path = Path(__file__).resolve().parents[1] / 'core' / filename

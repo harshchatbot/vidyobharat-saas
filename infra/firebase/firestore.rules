@@ -9,6 +9,61 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function ownerFieldMatches() {
+      return isSignedIn() && (
+        request.resource.data.user_id == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+    }
+
+    function existingOwnerFieldMatches() {
+      return isSignedIn() && (
+        resource.data.user_id == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Top-level source-of-truth collections used by the backend runtime.
+    match /credit_wallets/{walletId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /credit_transactions/{transactionId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /credit_topup_orders/{orderId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /image_generations/{imageId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /videos/{videoId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /influencer_personas/{personaId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /influencer_scene_presets/{sceneId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
+    match /asset_tags/{tagId} {
+      allow read: if existingOwnerFieldMatches();
+      allow create, update: if ownerFieldMatches();
+    }
+
     // Primary ownership rule for all user-scoped documents mirrored from the API.
     // Backend writes use the Admin SDK and bypass rules; these rules protect direct client access.
     match /users/{userId} {
