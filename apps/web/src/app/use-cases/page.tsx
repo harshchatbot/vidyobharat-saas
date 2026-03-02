@@ -99,7 +99,7 @@ export default function UseCasesPage() {
               "Regional language expansion",
               "Sponsored product video generation",
             ]}
-            image="/illustrations/ai-influencer.jpg"
+            image="/illustrations/ai-influencer.png"
           />
 
           {/* Product Ads */}
@@ -113,7 +113,7 @@ export default function UseCasesPage() {
               "9:16 & 1:1 exports",
               "Creative testing at scale",
             ]}
-            image="/illustrations/product-ads.jpg"
+            image="/illustrations/product-ads.png"
             reverse
           />
 
@@ -128,7 +128,7 @@ export default function UseCasesPage() {
               "Parallel campaign launches",
               "Brand-safe structured layouts",
             ]}
-            image="/illustrations/marketing.jpg"
+            image="/illustrations/marketing.png"
           />
 
           {/* EdTech */}
@@ -142,7 +142,7 @@ export default function UseCasesPage() {
               "Regional language narration",
               "Scalable lesson production",
             ]}
-            image="/illustrations/edtech.jpg"
+            image="/illustrations/edtech.png"
             reverse
           />
 
@@ -157,7 +157,7 @@ export default function UseCasesPage() {
               "Explainer videos",
               "Quick turnaround cycles",
             ]}
-            image="/illustrations/startup.jpg"
+            image="/illustrations/startup.png"
           />
 
           {/* Agencies */}
@@ -171,7 +171,7 @@ export default function UseCasesPage() {
               "Parallel render jobs",
               "Faster delivery timelines",
             ]}
-            image="/illustrations/agency.jpg"
+            image="/illustrations/agency.png"
             reverse
           />
         </div>

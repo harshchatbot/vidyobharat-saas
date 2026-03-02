@@ -217,7 +217,7 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
                   Account summary
                 </p>
                 <div className="mt-3 space-y-2 text-sm text-text">
-                  <p><span className="text-muted">User ID:</span> {profile?.id ?? userId}</p>
+                  {/*<p><span className="text-muted">User ID:</span> {profile?.id ?? userId}</p>*/}
                   <p><span className="text-muted">Joined:</span> {profile ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}</p>
                   <p><span className="text-muted">Timezone:</span> {form.timezone ?? 'Not set'}</p>
                 </div>

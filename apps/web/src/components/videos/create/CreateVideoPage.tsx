@@ -381,7 +381,7 @@ export function CreateVideoPage({
       'tts_preview',
       {
         provider: voiceProvider,
-        sampleRate: audioSampleRateHz,
+        sampleRateHz: audioSampleRateHz,
       },
       userId,
     )
@@ -432,7 +432,7 @@ export function CreateVideoPage({
           'tts_preview',
           {
             provider: ['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'].includes(option.key) ? 'free' : 'sarvam',
-            sampleRate: audioSampleRateHz,
+            sampleRateHz: audioSampleRateHz,
           },
           userId,
         );
@@ -626,6 +626,7 @@ export function CreateVideoPage({
       if (!player) return;
       player.src = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
       player.currentTime = 0;
+      player.load();
       setVoicePreviewProvider(response.provider);
       setVoicePreviewResolvedVoice(response.resolved_voice);
       setVoicePreviewCached(response.cached);
@@ -642,8 +643,8 @@ export function CreateVideoPage({
       if (response.applied_credits > 0) {
         show(`Created! Credits Used: ${response.applied_credits} · Remaining Balance: ${response.remaining_credits ?? creditWallet?.currentCredits ?? 0}`);
       }
-      setVoicePreviewing(true);
       await player.play();
+      setVoicePreviewing(true);
     } catch (error) {
       setVoicePreviewError(error instanceof Error ? error.message : 'Voice preview failed.');
       setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
