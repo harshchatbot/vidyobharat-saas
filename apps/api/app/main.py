@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 
 from fastapi import FastAPI, Request
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -97,6 +98,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={'detail': 'Internal server error', 'request_id': request_id},
+    )
+
+
+@app.exception_handler(RuntimeError)
+async def runtime_error_handler(request: Request, exc: RuntimeError):
+    request_id = get_request_id() or 'system'
+    logger.exception('runtime_error', extra={'request_id': request_id, 'path': str(request.url.path)})
+    return JSONResponse(
+        status_code=500,
+        content={'detail': str(exc), 'request_id': request_id},
     )
 
 
