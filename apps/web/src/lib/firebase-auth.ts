@@ -294,7 +294,7 @@ async function signInWithGoogleCredential(credential: string): Promise<FirebaseA
 
 export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {
   console.log("DEBUG: Using Client ID:", GOOGLE_CLIENT_ID);
-// If this logs anything starting with '73', your local/Vercel env is not updated.
+// If this logs anything starting with '73', your local/Vercel env is not updated. ok its done
   ensureConfigured();
   if (!GOOGLE_CLIENT_ID) {
     throw new Error('Google sign-in is not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.');
