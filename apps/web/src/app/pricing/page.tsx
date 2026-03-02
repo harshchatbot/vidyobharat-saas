@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Coins, LoaderCircle } from 'lucide-react';
+import { Coins, LoaderCircle } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import type { PricingResponse } from '@/types/api';
@@ -44,12 +44,21 @@ export default function PricingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     void api
       .getPricing()
-      .then(setPricing)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load pricing.')
-      );
+      .then((result) => {
+        if (cancelled) return;
+        setPricing(result);
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load pricing.');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const orderedPlans = useMemo(() => {
@@ -74,18 +83,17 @@ export default function PricingPage() {
           </p>
 
           <h1 className="mt-3 text-4xl font-semibold text-[hsl(var(--color-text))]">
-            Simple, region-aware pricing
+            Flexible plans for creators and teams
           </h1>
 
           <p className="mt-4 text-lg text-[hsl(var(--color-muted))]">
-            Pricing automatically adjusts based on your region.
-            Credits power generation — money purchases credit packs.
+            Choose a plan that fits your content volume, then scale with credits as you grow.
           </p>
 
           {pricing && (
             <div className="mt-6 inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-5 py-2 text-sm text-[hsl(var(--color-muted))] shadow-[var(--shadow-soft)]">
               <span>
-                Region: <strong className="text-[hsl(var(--color-text))]">{pricing.region}</strong>
+                Billing region: <strong className="text-[hsl(var(--color-text))]">{pricing.region}</strong>
               </span>
               <span>•</span>
               <span>
@@ -178,10 +186,10 @@ export default function PricingPage() {
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                 <div>
                   <p className="font-semibold text-[hsl(var(--color-text))]">
-                    Credit cost breakdown
+                    Usage costs
                   </p>
                   <p className="text-sm text-[hsl(var(--color-muted))]">
-                    Usage costs are measured in credits.
+                    Credits are consumed only when premium actions run.
                   </p>
                 </div>
               </div>
@@ -219,6 +227,9 @@ export default function PricingPage() {
 
             {/* CTA */}
             <div className="mt-20 text-center">
+              <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">
+                Start with a plan today and top up anytime as your usage grows.
+              </p>
               <Link href="/billing">
                 <button className="rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-8 py-3 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
                   Upgrade or Top-Up
