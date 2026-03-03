@@ -889,6 +889,68 @@ export function CreateVideoPage({
         </div>
       </section>
 
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              {
+                title: 'Text to Video',
+                subtitle: 'Script-led generation',
+                active: true,
+              },
+              {
+                title: 'Image to Video',
+                subtitle: 'Reference-seeded motion',
+                active: selectedImageUrls.length > 0,
+              },
+              {
+                title: 'Multi-shot',
+                subtitle: 'Coming soon',
+                active: false,
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className={`rounded-[var(--radius-lg)] border px-4 py-4 ${
+                  item.active
+                    ? 'border-[hsl(var(--color-accent)/0.5)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),hsl(var(--color-accent)/0.06))]'
+                    : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)]'
+                }`}
+              >
+                <p className="text-sm font-semibold text-text">{item.title}</p>
+                <p className="mt-1 text-xs text-muted">{item.subtitle}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
+              <p className="mt-2 text-lg font-semibold text-text">{selectedModel?.label ?? 'Model selected'}</p>
+              <p className="mt-1 text-sm text-muted">
+                {aspectRatio} • {selectedResolutionDimensions || resolution} • {Number(durationSeconds) || durationRule.defaultSeconds}s
+              </p>
+            </div>
+            <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.75)] px-3 py-1 text-xs font-semibold text-text">
+              {quality === 'high' ? 'High quality' : 'Standard quality'}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-3 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration</p>
+              <p className="mt-1 text-sm font-semibold text-text">{voice} • {language}</p>
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-3 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted">References</p>
+              <p className="mt-1 text-sm font-semibold text-text">
+                {selectedImageUrls.length > 0 ? `${selectedImageUrls.length} selected` : 'Text only'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <SectionCard
         title="Content Template"
         description="Choose a content direction to drive script hints and creative defaults."

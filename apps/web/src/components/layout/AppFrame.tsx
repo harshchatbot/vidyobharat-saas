@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, Menu, PlusCircle, Settings, Sparkles, User, X } from 'lucide-react';
+import { ChevronDown, Home, Image as ImageIcon, Mail, Menu, Settings, Sparkles, User, Video, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -77,20 +77,21 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   if (inApp) {
     const navItems = [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/images', label: 'Images', icon: ImageIcon },
-      { href: '/influencer', label: 'Influencer', icon: Sparkles },
-      { href: '/create', label: 'Create', icon: PlusCircle },
+      { href: '/dashboard', label: 'Home', hint: 'Creator Home', icon: Home },
+      { href: '/images', label: 'Create Image', hint: 'Image Studio', icon: ImageIcon },
+      { href: '/create', label: 'Text to Video', hint: 'Video Studio', icon: Video },
+      { href: '/influencer', label: 'Influencer', hint: 'Character Engine', icon: Sparkles },
     ];
 
     return (
       <CreditProvider userId={userId}>
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
-        <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 md:block">
-          <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-            <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[220px]" priority="sidebar" />
+        <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-4 md:block">
+          <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-surface)))] p-3 shadow-soft">
+            <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[240px]" priority="sidebar" />
           </div>
-          <nav className="mt-6 grid gap-2">
+          <div className="mt-6 px-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Workspace</div>
+          <nav className="mt-3 grid gap-2">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
               const Icon = item.icon;
@@ -98,14 +99,25 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`inline-flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
+                  className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm transition ${
                     active
-                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                      : 'border-[hsl(var(--color-border))] text-muted'
+                      ? 'border-[hsl(var(--color-accent)/0.5)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.08))] text-text shadow-soft'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:bg-[hsl(var(--color-surface))]'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
+                  <span
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${
+                      active
+                        ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.16)] text-[hsl(var(--color-accent))]'
+                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-text">{item.label}</span>
+                    <span className="block text-xs text-muted">{item.hint}</span>
+                  </span>
                 </Link>
               );
             })}
@@ -188,9 +200,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           </header>
           {mobileNavOpen ? (
             <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 md:hidden">
-              <div className="space-y-3">
+                <div className="space-y-3">
                 <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[220px]" priority="nav" />
+                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[240px]" priority="nav" />
                 </div>
                 <nav className="grid gap-2">
                   {navItems.map((item) => {
@@ -201,14 +213,19 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         key={item.label}
                         href={item.href}
                         onClick={() => setMobileNavOpen(false)}
-                        className={`inline-flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-3 text-sm font-medium ${
+                        className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm font-medium ${
                           active
                             ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
                             : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted'
                         }`}
                       >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-text">{item.label}</span>
+                          <span className="block text-xs text-muted">{item.hint}</span>
+                        </span>
                       </Link>
                     );
                   })}
