@@ -601,11 +601,11 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Choose the generation engine without wasting half the screen on cards.</p>
+                  <p className="mt-1 text-xs text-muted">Use a compact selector so the composer stays focused on the prompt and output.</p>
                 </div>
                 <Badge>{selectedModelMeta?.label}</Badge>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex gap-2 overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
                 {models.map((model) => {
                   const active = model.key === selectedModel;
                   return (
@@ -613,19 +613,19 @@ export function ImageStudioClient({ userId }: Props) {
                       key={model.key}
                       type="button"
                       onClick={() => setSelectedModel(model.key)}
-                      className={`rounded-[24px] border p-3 text-left transition ${
+                      className={`min-w-[148px] shrink-0 rounded-[20px] border px-3 py-3 text-left transition ${
                         active
-                          ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),transparent)] shadow-soft'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
+                          ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.2),transparent)] shadow-soft'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] hover:bg-[hsl(var(--color-elevated))]'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
                           <Sparkles className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-text">{model.label}</p>
-                          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{model.description}</p>
+                          <p className="truncate text-sm font-semibold text-text">{model.label}</p>
+                          <p className="mt-0.5 truncate text-[11px] text-muted">{model.frontend_hint}</p>
                         </div>
                       </div>
                     </button>
@@ -633,7 +633,7 @@ export function ImageStudioClient({ userId }: Props) {
                 })}
               </div>
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2 text-xs text-muted">
-                {selectedModelMeta?.frontend_hint}
+                {selectedModelMeta?.description}
               </div>
             </div>
 
@@ -713,13 +713,14 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Output</p>
-                  <p className="mt-1 text-xs text-muted">Compact controls for aspect ratio and resolution.</p>
+                  <p className="mt-1 text-xs text-muted">One compact control block for framing and fidelity.</p>
                 </div>
-                <Badge>{selectedModelMeta?.label}</Badge>
+                <Badge>
+                  {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}
+                </Badge>
               </div>
               <div className="space-y-3">
                 <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
-                  <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Aspect ratio</p>
                   <div className="flex flex-wrap gap-2">
                     {aspectOptions.map((option) => (
                       <button
@@ -731,6 +732,7 @@ export function ImageStudioClient({ userId }: Props) {
                             ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                             : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
                         }`}
+                        title={option.label}
                       >
                         {option.value}
                       </button>
@@ -738,7 +740,6 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
-                  <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Resolution</p>
                   <div className="flex flex-wrap gap-2">
                     {resolutionOptions.map((option) => (
                       <button
