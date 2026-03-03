@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   Clapperboard,
   Copy,
   Download,
@@ -18,6 +19,8 @@ import {
   Sparkles,
   Stars,
   Tag,
+  Trash2,
+  Upload,
   Wand2,
   Wallet,
   X,
@@ -226,7 +229,8 @@ export function ImageStudioClient({ userId }: Props) {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [selectedModel, setSelectedModel] = useState('nano_banana');
   const [prompt, setPrompt] = useState('');
-  const [referenceInput, setReferenceInput] = useState('');
+  const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
+  const [uploadingReference, setUploadingReference] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
   const [activeQuickCategory, setActiveQuickCategory] = useState('E-commerce');
@@ -305,14 +309,7 @@ export function ImageStudioClient({ userId }: Props) {
     };
   }, [userId, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
 
-  const referenceUrls = useMemo(
-    () =>
-      referenceInput
-        .split('\n')
-        .map((value) => value.trim())
-        .filter(Boolean),
-    [referenceInput],
-  );
+  const referenceUrls = useMemo(() => referenceUploads.map((item) => item.url), [referenceUploads]);
 
   useEffect(() => {
     let cancelled = false;
@@ -421,6 +418,50 @@ export function ImageStudioClient({ userId }: Props) {
     }
     if (normalized.toLowerCase().includes(word.toLowerCase())) return;
     setPrompt(`${normalized}, ${word}`);
+  };
+
+  const uploadReferenceFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingReference(true);
+    setError(null);
+    try {
+      const nextUploads: Array<{ id: string; url: string; name: string }> = [];
+      for (const file of Array.from(files).slice(0, Math.max(0, 4 - referenceUploads.length))) {
+        const signed = await api.signUpload(
+          {
+            user_id: userId,
+            filename: file.name,
+            kind: 'image_reference',
+          },
+          userId,
+        );
+        const uploadResponse = await fetch(signed.upload_url, {
+          method: signed.method || 'PUT',
+          headers: {
+            ...(signed.headers ?? {}),
+            'Content-Type': file.type || 'application/octet-stream',
+          },
+          body: file,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error('Reference upload failed.');
+        }
+        nextUploads.push({
+          id: signed.asset_id,
+          url: signed.public_url,
+          name: file.name,
+        });
+      }
+      setReferenceUploads((current) => [...current, ...nextUploads].slice(0, 4));
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not upload reference image right now.'));
+    } finally {
+      setUploadingReference(false);
+    }
+  };
+
+  const removeReferenceUpload = (assetId: string) => {
+    setReferenceUploads((current) => current.filter((item) => item.id !== assetId));
   };
 
   const applyQuickTemplate = (template: ImageQuickTemplate) => {
@@ -627,9 +668,24 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2">
+              <button
+                type="button"
+                className="rounded-[var(--radius-md)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.22),transparent)] px-4 py-3 text-sm font-semibold text-text"
+              >
+                Create Image
+              </button>
+              <button
+                type="button"
+                className="rounded-[var(--radius-md)] px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[hsl(var(--color-elevated))] hover:text-text"
+              >
+                Image Variations
+              </button>
+            </div>
+
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Choose model</p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex gap-2 overflow-x-auto pb-2">
                 {models.map((model) => {
                   const active = model.key === selectedModel;
                   return (
@@ -637,19 +693,19 @@ export function ImageStudioClient({ userId }: Props) {
                       key={model.key}
                       type="button"
                       onClick={() => setSelectedModel(model.key)}
-                      className={`rounded-[var(--radius-md)] border p-4 text-left transition ${
+                      className={`min-w-[180px] rounded-[var(--radius-md)] border px-4 py-3 text-left transition ${
                         active
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] shadow-soft'
                           : 'border-border bg-bg hover:bg-elevated'
                       }`}
                     >
-                  <div className="flex items-start gap-3">
-                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] text-[hsl(var(--color-accent))]">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] text-[hsl(var(--color-accent))]">
                           <Sparkles className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-text">{model.label}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">{model.description}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{model.description}</p>
                         </div>
                       </div>
                     </button>
@@ -658,15 +714,6 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
               <div className="mt-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
                 {selectedModelMeta?.frontend_hint}
-              </div>
-              <div className="mt-3">
-                <Dropdown value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                  {models.map((model) => (
-                    <option key={model.key} value={model.key}>
-                      {model.label}
-                    </option>
-                  ))}
-                </Dropdown>
               </div>
             </div>
 
@@ -699,56 +746,90 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
 
             <div>
-              <p className="mb-1 text-sm font-semibold text-text">Photos or references (optional)</p>
-              <Textarea
-                rows={3}
-                value={referenceInput}
-                onChange={(event) => setReferenceInput(event.target.value)}
-                placeholder={'Paste one URL per line\nhttps://example.com/reference-1.jpg\nhttps://example.com/reference-2.jpg'}
-              />
-              <p className="mt-2 text-xs text-muted">Add links to mood references, product shots, or visual direction boards.</p>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Photos or references (optional)</p>
+                  <p className="mt-1 text-xs text-muted">Upload up to 4 reference images to guide style, composition, or product direction.</p>
+                </div>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingReference ? 'Uploading...' : 'Upload photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => void uploadReferenceFiles(event.target.files)}
+                    disabled={uploadingReference || referenceUploads.length >= 4}
+                  />
+                </label>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
+                {referenceUploads.length === 0 ? (
+                  <div className="flex min-h-24 items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[hsl(var(--color-border))] text-center text-xs text-muted">
+                    Drop in product shots, mood references, or character visuals.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {referenceUploads.map((item) => (
+                      <div key={item.id} className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))]">
+                        <img src={toAbsoluteUrl(item.url)} alt={item.name} className="aspect-square w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeReferenceUpload(item.id)}
+                          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-surface)/0.92)] text-text opacity-0 transition group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Output</p>
+                  <p className="mt-1 text-xs text-muted">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
+                </div>
+                <Badge>{selectedModelMeta?.label}</Badge>
+              </div>
               <div>
-                <p className="mb-2 text-sm font-semibold text-text">Aspect ratio</p>
-                <div className="grid gap-2">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Aspect ratio</p>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
                   {aspectOptions.map((option) => (
                     <button
                       key={option.value}
                       type="button"
                       onClick={() => setAspectRatio(option.value)}
-                      className={`flex items-center justify-between rounded-[var(--radius-md)] border px-3 py-3 text-left ${
+                      className={`rounded-[var(--radius-md)] border px-2 py-3 text-center text-xs font-semibold ${
                         aspectRatio === option.value
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                          : 'border-border bg-bg hover:bg-elevated'
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                          : 'border-[hsl(var(--color-border))] text-muted hover:bg-[hsl(var(--color-elevated))]'
                       }`}
                     >
-                      <span>
-                        <span className="block text-sm font-semibold text-text">{option.label}</span>
-                        <span className="block text-xs text-muted">{option.helper}</span>
-                      </span>
-                      <Badge>{option.value}</Badge>
+                      {option.value}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="mb-2 text-sm font-semibold text-text">Resolution</p>
-                <div className="grid gap-2">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Resolution</p>
+                <div className="grid grid-cols-3 gap-2">
                   {resolutionOptions.map((option) => (
                     <button
                       key={option.value}
                       type="button"
                       onClick={() => setResolution(option.value)}
-                      className={`rounded-[var(--radius-md)] border px-3 py-3 text-left ${
+                      className={`rounded-[var(--radius-md)] border px-3 py-3 text-center text-sm font-semibold ${
                         resolution === option.value
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                          : 'border-border bg-bg hover:bg-elevated'
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                          : 'border-[hsl(var(--color-border))] text-muted hover:bg-[hsl(var(--color-elevated))]'
                       }`}
                     >
-                      <span className="block text-sm font-semibold text-text">{option.label}</span>
-                      <span className="block text-xs text-muted">{option.helper}</span>
+                      {option.label}
                     </button>
                   ))}
                 </div>
