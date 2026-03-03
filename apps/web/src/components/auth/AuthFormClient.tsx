@@ -151,7 +151,7 @@ export function AuthFormClient({ mode }: Props) {
 
   if (awaitingConfirmation && !isLogin) {
     return (
-      <div className="mx-auto max-w-xl py-6">
+      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
         <Card>
           <div className="flex items-start gap-4">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
@@ -179,13 +179,14 @@ export function AuthFormClient({ mode }: Props) {
                   <div className="mt-1 text-xs text-[hsl(var(--color-muted))]">Come back here and sign in once your email is verified.</div>
                 </div>
               </div>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button type="button" onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Button type="button" className="w-full sm:w-auto" onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}>
                   Go to Login
                 </Button>
                 <Button
                   variant="secondary"
                   type="button"
+                  className="w-full sm:w-auto"
                   onClick={() => {
                     setAwaitingConfirmation(false);
                     setMessage('');
@@ -214,9 +215,9 @@ export function AuthFormClient({ mode }: Props) {
         stepLabel={authStages[authStageIndex]}
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
-      <div className="mx-auto max-w-xl py-6">
+      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
         <Card>
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-md">
             <h1 className="text-2xl font-semibold text-[hsl(var(--color-text))]">{title}</h1>
             <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{subtitle}</p>
@@ -242,7 +243,7 @@ export function AuthFormClient({ mode }: Props) {
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-bg))]"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-bg))]"
         >
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-xs font-bold">
             G
@@ -312,7 +313,7 @@ export function AuthFormClient({ mode }: Props) {
               </p>
             </>
           ) : null}
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting} className="min-h-11 w-full">
             {submitting ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
           </Button>
         </form>

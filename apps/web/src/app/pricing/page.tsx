@@ -82,7 +82,7 @@ export default function PricingPage() {
 
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
-      <div className="mx-auto max-w-7xl px-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
 
         {/* HERO */}
         <div className="mx-auto max-w-3xl text-center">
@@ -127,7 +127,7 @@ export default function PricingPage() {
         ) : (
           <>
             {/* PLANS */}
-            <div className="mt-16 grid gap-8 lg:grid-cols-4">
+            <div className="mt-12 grid gap-5 lg:mt-16 lg:grid-cols-4 lg:gap-8">
               {orderedPlans.map((plan) => {
                 const isPopular = plan.key === 'creator';
                 const isSelected = selectedPlan === plan.key;
@@ -137,7 +137,7 @@ export default function PricingPage() {
                     key={plan.key}
                     type="button"
                     onClick={() => handleSelectPlan(plan.key)}
-                    className={`relative flex h-full flex-col rounded-[var(--radius-lg)] border p-8 text-left transition duration-200 ${
+                    className={`relative flex h-full flex-col rounded-[var(--radius-lg)] border p-5 text-left transition duration-200 sm:p-6 lg:p-8 ${
                       isSelected || isPopular
                         ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-elevated))] shadow-[var(--shadow-hard)]'
                         : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-[var(--shadow-soft)] hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)]'
@@ -153,8 +153,8 @@ export default function PricingPage() {
                       {plan.key}
                     </h3>
 
-                    <div className="mt-6">
-                      <span className="text-4xl font-bold text-[hsl(var(--color-text))]">
+                    <div className="mt-5">
+                      <span className="text-3xl font-bold text-[hsl(var(--color-text))] sm:text-4xl">
                         {formatMoney(pricing.currency, plan.price)}
                       </span>
                       <span className="ml-2 text-[hsl(var(--color-muted))]">
@@ -166,7 +166,7 @@ export default function PricingPage() {
                       {plan.credits} credits included
                     </p>
 
-                    <ul className="mt-6 space-y-3 text-sm text-[hsl(var(--color-muted))]">
+                    <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
                       {(featureCopy[plan.key] ?? []).map((feature) => (
                         <li key={feature} className="flex items-start gap-2">
                           <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
@@ -190,7 +190,7 @@ export default function PricingPage() {
             </div>
 
             {/* CREDIT BREAKDOWN */}
-            <div className="mt-20 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-8 shadow-[var(--shadow-soft)]">
+            <div className="mt-16 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
               <div className="mb-6 flex items-center gap-3">
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                 <div>
@@ -203,7 +203,19 @@ export default function PricingPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))]">
+              <div className="space-y-3 sm:hidden">
+                {pricing.actionCosts.map((item) => (
+                  <div
+                    key={item.feature}
+                    className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.feature}</p>
+                    <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{item.cost} credits</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] sm:block">
                 <table className="min-w-full text-sm">
                   <thead className="bg-[hsl(var(--color-elevated))]">
                     <tr>
@@ -235,7 +247,7 @@ export default function PricingPage() {
             </div>
 
             {/* CTA */}
-            <div className="mt-20 text-center">
+            <div className="mt-16 text-center lg:mt-20">
               <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">
                 Start with a plan today and top up anytime as your usage grows.
               </p>

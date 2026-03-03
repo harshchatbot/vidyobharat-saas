@@ -262,9 +262,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const emptyState = emptyCopy(mediaFilter);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <section
-        className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-6 shadow-soft sm:p-8"
+        className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-5 shadow-soft sm:p-7"
         style={{
           background:
             'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 26%), radial-gradient(circle at bottom left, hsl(196 80% 58% / 0.12), transparent 28%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
@@ -274,10 +274,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           <div className="space-y-5">
             <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator home</Badge>
             <div>
-              <h1 className="font-heading text-4xl font-extrabold tracking-tight text-text sm:text-5xl">
+              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl xl:text-5xl">
                 What would you like to create today, {userName.split(' ')[0] || 'Creator'}?
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-muted sm:text-lg">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7 lg:text-lg">
                 Jump into video, image, or influencer workflows, then pick up your latest creations and fresh inspiration without leaving the studio.
               </p>
             </div>
@@ -289,17 +289,17 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">All creations</p>
-                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>
+                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.all}</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">Videos</p>
-                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>
+                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.video}</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">Images</p>
-                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>
+                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.image}</p>
               </div>
             </div>
           </div>
@@ -330,10 +330,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     : (item as InspirationImage).image_url;
                 return (
                   <div key={item.id} className="overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-                    <img src={preview} alt={item.title} className="h-28 w-full object-cover" />
+                    <img src={preview} alt={item.title} className="h-28 w-full object-cover sm:h-32" />
                     <div className="space-y-2 p-3">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold text-text">{item.title}</p>
+                        <p className="line-clamp-1 font-semibold text-text">{item.title}</p>
                         <Badge>{item.model_key}</Badge>
                       </div>
                       <p className="line-clamp-2 text-xs leading-5 text-muted">{item.prompt}</p>
@@ -363,7 +363,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             const Icon = item.icon;
             const content = (
               <Card
-                className="flex h-full flex-col justify-between border-[hsl(var(--color-border))] p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.16)]"
+                className="flex h-full flex-col justify-between border-[hsl(var(--color-border))] p-4 sm:p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.16)]"
                 style={{ background: item.gradient }}
               >
                 <div className="space-y-4">
@@ -371,7 +371,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     <Icon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                   </div>
                   <div>
-                    <p className="font-heading text-xl font-extrabold text-text">{item.title}</p>
+                    <p className="font-heading text-lg font-extrabold text-text sm:text-xl">{item.title}</p>
                     <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
                   </div>
                 </div>
@@ -429,11 +429,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 : `${(item as InspirationImage).creator_name} • ${(item as InspirationImage).aspect_ratio}`;
             return (
               <Card key={item.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.14)]">
-                <img src={preview} alt={item.title} className="h-56 w-full object-cover" />
+                <img src={preview} alt={item.title} className="h-48 w-full object-cover sm:h-56" />
                 <div className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-heading text-xl font-extrabold text-text">{item.title}</p>
+                      <p className="font-heading text-lg font-extrabold text-text sm:text-xl">{item.title}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{meta}</p>
                     </div>
                     <Badge>{item.model_key}</Badge>
@@ -487,7 +487,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -532,7 +532,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         {loading ? (
           <Grid className="md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={`asset-skeleton-${index}`} className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
+              <div key={`asset-skeleton-${index}`} className="h-64 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
             ))}
           </Grid>
         ) : assets.length === 0 ? (
@@ -554,26 +554,28 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
               return (
                 <Card key={asset.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_hsl(var(--color-accent)/0.16)]">
-                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-44 w-full object-cover" />
+                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-40 w-full object-cover sm:h-44" />
                   <div className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                        <p className="mt-1 text-xs text-muted">{mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution}</p>
+                        <p className="line-clamp-2 font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
+                        <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-muted">{mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution}</p>
                       </div>
                       <Badge>{formatStatus(asset.status)}</Badge>
                     </div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="min-h-6 flex flex-wrap gap-1">
                       {[...asset.auto_tags.slice(0, 3), ...asset.user_tags.slice(0, 2)].map((tag) => (
                         <Badge key={`${asset.id}-${tag}`}>{tag}</Badge>
                       ))}
                     </div>
-                    <p className="text-xs text-muted">{timeAgo(asset.created_at)}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Link href={openHref}><Button variant="secondary" className="px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open images'}</Button></Link>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">{timeAgo(asset.created_at)}</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <Link href={openHref} className="sm:flex-1">
+                        <Button variant="secondary" className="w-full px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open images'}</Button>
+                      </Link>
                       {asset.asset_url && (
                         <Button
-                          className="px-3 py-1 text-xs"
+                          className="w-full px-3 py-1 text-xs sm:w-auto"
                           onClick={() => void downloadAsset(asset)}
                           disabled={downloadingId === asset.id}
                         >
