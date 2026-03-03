@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clapperboard, Download, Film, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
+import { Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -831,7 +831,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -840,17 +840,18 @@ export function CreateVideoPage({
         accentLabel={overlayAccentLabel}
       />
 
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_26%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
         <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
             <Clapperboard className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
             Video Studio
           </p>
-          <h1 className="mt-4 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">Create Your AI Video</h1>
+          <h1 className="mt-4 max-w-2xl font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">Build premium video outputs with one focused studio.</h1>
           <p className="mt-3 max-w-2xl text-sm text-muted sm:text-base">
-            Pick a content direction, write or enhance your script, customize settings, and generate your video.
+            Keep the control stack compact on the left, monitor your output on the right, and move from concept to render without scanning a long settings page.
           </p>
           {creditWallet ? (
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
@@ -859,7 +860,7 @@ export function CreateVideoPage({
             </div>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-2">
-            {['Template-led', 'AI assist', 'Voice + music', 'Studio feed'].map((item) => (
+            {['Text to video', 'Frame to video', 'Multi-shot soon', 'Recent renders'].map((item) => (
               <span
                 key={item}
                 className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
@@ -873,7 +874,7 @@ export function CreateVideoPage({
           <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
             <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
             <p className="mt-3 text-sm font-semibold text-text">Narrative models</p>
-            <p className="mt-1 text-xs text-muted">Choose Sora, Veo, or Kling by output style, realism, and speed.</p>
+            <p className="mt-1 text-xs text-muted">Choose Sora, Veo, or Kling by realism, control, and turnaround time.</p>
           </Card>
           <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
             <Mic2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
@@ -889,8 +890,10 @@ export function CreateVideoPage({
         </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_380px] xl:items-start">
+        <div className="space-y-6">
+          <section className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               {
@@ -917,13 +920,18 @@ export function CreateVideoPage({
                     : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)]'
                 }`}
               >
-                <p className="text-sm font-semibold text-text">{item.title}</p>
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${item.active ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'}`}>
+                    {item.title === 'Text to Video' ? <Wand2 className="h-4 w-4" /> : item.title === 'Image to Video' ? <GalleryVerticalEnd className="h-4 w-4" /> : <Clapperboard className="h-4 w-4" />}
+                  </span>
+                  <p className="text-sm font-semibold text-text">{item.title}</p>
+                </div>
                 <p className="mt-1 text-xs text-muted">{item.subtitle}</p>
               </div>
             ))}
           </div>
-        </div>
-        <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
+            </div>
+            <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
@@ -948,10 +956,10 @@ export function CreateVideoPage({
               </p>
             </div>
           </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      <SectionCard
+          <SectionCard
         title="Content Template"
         description="Choose a content direction to drive script hints and creative defaults."
         icon={<Film className="h-5 w-5" />}
@@ -963,9 +971,9 @@ export function CreateVideoPage({
           selectedTemplate={selectedTemplate}
           onSelect={applyTemplate}
         />
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Script Editor & AI Assist"
         description="Write manually, generate a first draft, or enhance the current script."
         icon={<Wand2 className="h-5 w-5" />}
@@ -985,18 +993,18 @@ export function CreateVideoPage({
           generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
           enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
         />
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Video Model Selection"
         description="Choose based on output style and realism, not just provider name."
         icon={<Sparkles className="h-5 w-5" />}
         action={modelsLoading ? <Spinner /> : null}
       >
         <ModelDropdown models={models} selectedModel={modelKey} onChange={(value) => setModelKey(value as VideoModelKey)} />
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Voice & Language"
         description="Pick the narration language and voice personality."
         icon={<Mic2 className="h-5 w-5" />}
@@ -1054,9 +1062,9 @@ export function CreateVideoPage({
             </p>
           ) : null}
         </div>
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Optional Reference Images"
         description="Use your image library or add external references for image-seeded generation."
         icon={<Film className="h-5 w-5" />}
@@ -1071,12 +1079,13 @@ export function CreateVideoPage({
           onMove={moveImage}
           onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
         />
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Background Audio"
         description="Add music, preview it, and control how it sits under narration."
         icon={<Mic2 className="h-5 w-5" />}
+        defaultOpen={false}
       >
         <MusicSelector
           mode={musicMode}
@@ -1096,9 +1105,9 @@ export function CreateVideoPage({
           error={musicPreviewError}
         />
         {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard
+          <SectionCard
         title="Output Settings"
         description="Adjust format, resolution, duration, and captions before you submit."
         icon={<Settings2 className="h-5 w-5" />}
@@ -1131,45 +1140,73 @@ export function CreateVideoPage({
           captionStyle={captionStyle}
           onCaptionStyleChange={setCaptionStyle}
         />
-      </SectionCard>
+          </SectionCard>
+        </div>
 
-      <GenerateButton
-        onClick={() => void submit()}
-        loading={submitting}
-        estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
-        estimatedTime={estimatedTime}
-        currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-        disabled={Boolean(durationError)}
-        insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
-        onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
-        helperText={
-          creditEstimate
-            ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
-            : `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'}`
-        }
-      />
+        <div className="space-y-6 xl:sticky xl:top-24">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
+                <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
+              </div>
+              <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
+                {selectedModel?.label ?? 'Model'}
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
+                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration</p>
+                <p className="mt-1 text-sm font-semibold text-text">{voice} • {language}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Mode</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</p>
+              </div>
+            </div>
 
-      {submitError ? (
-        <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
-            {submitError.toLowerCase().includes('insufficient credits') ? (
-              <Link href="/billing" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
-                Top up credits
-              </Link>
+            <GenerateButton
+              onClick={() => void submit()}
+              loading={submitting}
+              estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
+              estimatedTime={estimatedTime}
+              currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+              disabled={Boolean(durationError)}
+              insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
+              onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
+              helperText={
+                creditEstimate
+                  ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
+                  : `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'}`
+              }
+            />
+
+            {submitError ? (
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
+                  {submitError.toLowerCase().includes('insufficient credits') ? (
+                    <Link href="/billing" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+                      Top up credits
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
-          </div>
-        </Card>
-      ) : null}
+          </Card>
 
-      <VideoPreview
-        job={job}
-        loading={submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing'}
-        error={submitError ?? (jobStatus?.status === 'failed' ? jobStatus.errorMessage ?? 'Generation failed.' : null)}
-        onRetry={retry}
-      />
+          <VideoPreview
+            job={job}
+            loading={submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing'}
+            error={submitError ?? (jobStatus?.status === 'failed' ? jobStatus.errorMessage ?? 'Generation failed.' : null)}
+            onRetry={retry}
+          />
 
-      <SectionCard
+          <SectionCard
         title="Studio Feed"
         description="Review your latest generated videos without leaving the create flow."
         icon={<Film className="h-5 w-5" />}
@@ -1217,7 +1254,9 @@ export function CreateVideoPage({
             })}
           </div>
         )}
-      </SectionCard>
+          </SectionCard>
+        </div>
+      </div>
     </div>
   );
 }

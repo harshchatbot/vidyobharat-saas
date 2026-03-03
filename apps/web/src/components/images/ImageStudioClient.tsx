@@ -207,6 +207,16 @@ function toErrorMessage(error: unknown, fallback: string) {
   return error.message;
 }
 
+function getPreviewImageUrl(item: GeneratedImage | InspirationImage | null) {
+  if (!item) return null;
+  return toAbsoluteUrl(item.image_url);
+}
+
+function getPreviewImageLabel(item: GeneratedImage | InspirationImage | null) {
+  if (!item) return '';
+  return 'title' in item ? item.title : item.prompt;
+}
+
 export function ImageStudioClient({ userId }: Props) {
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
@@ -497,9 +507,14 @@ export function ImageStudioClient({ userId }: Props) {
     );
   }
 
+  const livePreviewImage =
+    activeTab === 'generated'
+      ? selectedGenerated ?? generatedImages[0] ?? null
+      : selectedInspiration ?? filteredInspiration[0] ?? null;
+
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_28%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_40%,hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.2),transparent_24%),radial-gradient(circle_at_85%_15%,hsl(var(--color-accent)/0.1),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_40%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
         <div className="pointer-events-none absolute -left-8 top-6 h-40 w-40 rounded-full bg-[hsl(var(--color-accent)/0.15)] blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -507,11 +522,11 @@ export function ImageStudioClient({ userId }: Props) {
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
               RangManch AI Image Studio
             </div>
-            <h1 className="mt-4 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
-              Move from a blank prompt box to a real creator studio.
+            <h1 className="mt-4 max-w-2xl font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
+              Create polished images without living inside a giant form.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">
-              Use quick starts, refine prompts with AI, and keep creating after generation with one-click actions like variations, upscale, and background cleanup.
+              Start from a focused prompt surface, use quick starts when needed, and keep the live canvas visible while you generate and refine.
             </p>
             {wallet ? (
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
@@ -520,7 +535,7 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
             ) : null}
             <div className="mt-5 flex flex-wrap gap-2">
-              {['Prompt refine', 'Quick starts', 'Post-gen remix', 'Studio feed'].map((item) => (
+              {['Prompt refine', 'Quick starts', 'Live canvas', 'Studio feed'].map((item) => (
                 <span
                   key={item}
                   className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
@@ -530,7 +545,7 @@ export function ImageStudioClient({ userId }: Props) {
               ))}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
               <Wand2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="mt-3 text-sm font-semibold text-text">Smart Prompt</p>
@@ -550,13 +565,14 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
       </section>
 
-      <div className="space-y-6">
-        <Card className="space-y-4 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.98fr)_400px] xl:items-start">
+        <div className="space-y-6">
+          <Card className="space-y-4 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
             <div className="flex items-center gap-2">
               <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
                 <p className="text-sm font-semibold text-text">Quick Starts</p>
-                <p className="text-xs text-muted">Jump into creator-friendly presets instead of starting from blank.</p>
+                <p className="text-xs text-muted">Use one polished starting point instead of scanning dozens of empty controls.</p>
               </div>
             </div>
 
@@ -597,12 +613,12 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </Card>
 
-        <Card className="space-y-5 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+          <Card className="space-y-5 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
             <div className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
                 <p className="text-sm font-semibold text-text">Create Image</p>
-                <p className="text-xs text-muted">Simple controls, but with real guidance.</p>
+                <p className="text-xs text-muted">A compact composer with only the controls that materially change the output.</p>
               </div>
             </div>
 
@@ -622,8 +638,8 @@ export function ImageStudioClient({ userId }: Props) {
                           : 'border-border bg-bg hover:bg-elevated'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.16)] text-[hsl(var(--color-accent))]">
+                  <div className="flex items-start gap-3">
+                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] text-[hsl(var(--color-accent))]">
                           <Sparkles className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
@@ -763,9 +779,44 @@ export function ImageStudioClient({ userId }: Props) {
                 ) : null}
               </div>
             </div>
-        </Card>
+          </Card>
+        </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6 xl:sticky xl:top-24">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Canvas</p>
+                <h2 className="mt-2 text-lg font-semibold text-text">Current Image Output</h2>
+              </div>
+              <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
+            </div>
+            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+              {livePreviewImage ? (
+                <img
+                  src={getPreviewImageUrl(livePreviewImage) ?? ''}
+                  alt={getPreviewImageLabel(livePreviewImage)}
+                  className="aspect-[4/5] w-full object-cover"
+                />
+              ) : (
+                <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">
+                  Generate an image to start building your live canvas.
+                </div>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedModelMeta?.label ?? 'Model selected'}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Output</p>
+                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolution}px</p>
+              </div>
+            </div>
+          </Card>
+
+          <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
@@ -1007,6 +1058,7 @@ export function ImageStudioClient({ userId }: Props) {
               ))}
             </div>
           )}
+          </div>
         </div>
       </div>
 

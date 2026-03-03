@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Home, Image as ImageIcon, Mail, Menu, Settings, Sparkles, User, Video, X } from 'lucide-react';
+import { ChevronDown, Home, Image as ImageIcon, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -77,10 +77,34 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   if (inApp) {
     const navItems = [
-      { href: '/dashboard', label: 'Home', hint: 'Creator Home', icon: Home },
-      { href: '/images', label: 'Create Image', hint: 'Image Studio', icon: ImageIcon },
-      { href: '/create', label: 'Text to Video', hint: 'Video Studio', icon: Video },
-      { href: '/influencer', label: 'Influencer', hint: 'Character Engine', icon: Sparkles },
+      {
+        href: '/dashboard',
+        label: 'Creator Home',
+        hint: 'Recent outputs',
+        icon: Home,
+        glow: 'from-[hsl(var(--color-accent)/0.2)] to-transparent',
+      },
+      {
+        href: '/images',
+        label: 'Create Image',
+        hint: 'Prompt to image',
+        icon: ImageIcon,
+        glow: 'from-sky-500/15 to-transparent',
+      },
+      {
+        href: '/create',
+        label: 'Video Studio',
+        hint: 'Text / frame to video',
+        icon: Video,
+        glow: 'from-emerald-500/15 to-transparent',
+      },
+      {
+        href: '/influencer',
+        label: 'Influencer Studio',
+        hint: 'Character consistency',
+        icon: Wand2,
+        glow: 'from-rose-500/15 to-transparent',
+      },
     ];
 
     return (
@@ -88,7 +112,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
         <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-4 md:block">
           <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-surface)))] p-3 shadow-soft">
-            <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[240px]" priority="sidebar" />
+            <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[255px]" priority="sidebar" />
           </div>
           <div className="mt-6 px-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Workspace</div>
           <nav className="mt-3 grid gap-2">
@@ -101,17 +125,18 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   href={item.href}
                   className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm transition ${
                     active
-                      ? 'border-[hsl(var(--color-accent)/0.5)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.08))] text-text shadow-soft'
+                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:bg-[hsl(var(--color-surface))]'
                   }`}
                 >
                   <span
-                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${
+                    className={`relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
                       active
-                        ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.16)] text-[hsl(var(--color-accent))]'
+                        ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
                         : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
                     }`}
                   >
+                    <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
@@ -202,7 +227,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 md:hidden">
                 <div className="space-y-3">
                 <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[240px]" priority="nav" />
+                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
                 </div>
                 <nav className="grid gap-2">
                   {navItems.map((item) => {

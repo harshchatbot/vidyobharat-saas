@@ -442,7 +442,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         accentLabel="Influencer Studio"
       />
 
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_28%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-6">
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.2),transparent_26%),radial-gradient(circle_at_85%_10%,hsl(var(--color-accent)/0.1),transparent_20%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -right-10 top-4 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.16)] blur-3xl" />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -450,8 +450,8 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             <h1 className="mt-2 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
               Character Consistency Engine
             </h1>
-            <p className="mt-2 text-sm text-muted sm:text-base">
-              Build a stable influencer persona once, then reuse the same identity across content, scenes, poses, and future video workflows.
+            <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
+              Build one stable persona, keep identity locked, and generate content, scenes, and visuals from a tighter studio workflow instead of a long configuration page.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {['Persona memory', 'Identity lock', 'Scene variations', 'Content engine'].map((item) => (
@@ -498,13 +498,15 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         ))}
       </div>
 
-      {personaError ? (
-        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
-          {personaError}
-        </div>
-      ) : null}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <div className="space-y-5">
+          {personaError ? (
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
+              {personaError}
+            </div>
+          ) : null}
 
-      <div ref={sectionRefs.persona} className="scroll-mt-24">
+          <div ref={sectionRefs.persona} className="scroll-mt-24">
         <SectionCard
           title="Persona Builder"
           description="Define the memory, voice, visuals, and emotional core of the influencer."
@@ -661,9 +663,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
           </div>
         </SectionCard>
-      </div>
+          </div>
 
-      <div ref={sectionRefs.content} className="scroll-mt-24">
+          <div ref={sectionRefs.content} className="scroll-mt-24">
         <SectionCard
           title="Influencer Content Generator"
           description="Generate structured platform content from the locked persona memory."
@@ -726,13 +728,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null}
           </div>
         </SectionCard>
-      </div>
+          </div>
 
-      <div ref={sectionRefs.images} className="scroll-mt-24">
+          <div ref={sectionRefs.images} className="scroll-mt-24">
         <SectionCard
           title="Reference Locking & Image Consistency"
           description="Upload a base face, lock the identity, then generate pose and scene variations without changing the character."
           icon={<ImageIcon className="h-5 w-5" />}
+          defaultOpen={false}
         >
           <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
             <div className="space-y-4">
@@ -879,13 +882,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
           </div>
         </SectionCard>
-      </div>
+          </div>
 
-      <div ref={sectionRefs.scenes} className="scroll-mt-24">
+          <div ref={sectionRefs.scenes} className="scroll-mt-24">
         <SectionCard
           title="Scene Variations Engine"
           description="Use saved scene presets to vary environment, lighting, and mood without changing the face."
           icon={<Layers3 className="h-5 w-5" />}
+          defaultOpen={false}
         >
           <div className="mb-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-4 text-sm text-muted">
             These presets define the background, lighting, and overall scene mood behind the influencer. Identity remains locked separately through the reference image and character memory.
@@ -979,13 +983,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
           </div>
         </SectionCard>
-      </div>
+          </div>
 
-      <div ref={sectionRefs.settings} className="scroll-mt-24">
+          <div ref={sectionRefs.settings} className="scroll-mt-24">
         <SectionCard
           title="Character Lock Mode"
           description="Freeze core identity and rebuild style memory without changing the persona’s face."
           icon={<Wand2 className="h-5 w-5" />}
+          defaultOpen={false}
         >
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="px-5 py-5">
@@ -1015,6 +1020,74 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </Card>
           </div>
         </SectionCard>
+          </div>
+        </div>
+
+        <div className="space-y-6 xl:sticky xl:top-24">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Character</p>
+                <h2 className="mt-2 text-lg font-semibold text-text">{selectedPersona?.name ?? draft.name ?? 'New persona'}</h2>
+              </div>
+              {draft.character_locked ? <Badge variant="success">Locked</Badge> : <Badge variant="outline">Unlocked</Badge>}
+            </div>
+            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+              {generatedImage?.image_url ? (
+                <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="aspect-[4/5] w-full object-cover" />
+              ) : selectedPersona?.reference_image_url ? (
+                <img src={toAbsoluteUrl(selectedPersona.reference_image_url) ?? ''} alt={selectedPersona.name} className="aspect-[4/5] w-full object-cover" />
+              ) : (
+                <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">
+                  Save a persona and upload a reference to start.
+                </div>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Niche</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedPersona?.niche || draft.niche || 'Not set'}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Tone</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedPersona?.tone || draft.tone || 'Not set'}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Scene</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedScenePreset?.label || 'No scene selected'}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Outputs</p>
+                <h3 className="mt-2 text-base font-semibold text-text">Content & scenes</h3>
+              </div>
+              <Badge variant="outline">{platform}</Badge>
+            </div>
+            {contentResult ? (
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+                <p className="text-sm font-semibold text-text">{contentResult.title}</p>
+                <p className="mt-2 text-sm text-muted">{contentResult.intro}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {contentResult.tags.slice(0, 4).map((tag) => (
+                    <Badge key={tag} variant="outline">{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-sm text-muted">
+                Generated captions, hooks, and CTA blocks will appear here.
+              </div>
+            )}
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <p className="text-sm font-semibold text-text">Current scene preset</p>
+              <p className="mt-2 text-sm text-muted">{selectedScenePreset?.description || 'Choose or create a scene to shape environment, props, and lighting.'}</p>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
