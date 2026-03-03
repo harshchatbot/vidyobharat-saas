@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, PlusCircle, Settings, Sparkles, User } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, Menu, PlusCircle, Settings, Sparkles, User, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -43,6 +44,7 @@ function getPageTitle(pathname: string) {
 
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const inApp = Boolean(userId) && isAppRoute(pathname);
   const pageTitle = getPageTitle(pathname);
   const displayName = accountLabel ?? 'User';
@@ -91,6 +93,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           <header className="sticky top-0 z-40 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.94)] backdrop-blur">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                  onClick={() => setMobileNavOpen((current) => !current)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text md:hidden"
+                >
+                  {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
                 <div className="md:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
@@ -145,6 +155,36 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           </header>
+          {mobileNavOpen ? (
+            <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 md:hidden">
+              <div className="space-y-3">
+                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
+                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[220px]" priority="nav" />
+                </div>
+                <nav className="grid gap-2">
+                  {navItems.map((item) => {
+                    const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        onClick={() => setMobileNavOpen(false)}
+                        className={`inline-flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-3 text-sm font-medium ${
+                          active
+                            ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+          ) : null}
           <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</main>
         </div>
       </div>
