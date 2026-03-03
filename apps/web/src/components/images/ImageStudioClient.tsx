@@ -34,7 +34,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetSearchItem, AssetTagFacet, CreditEstimateResponse, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
+import type { AssetTagFacet, CreditEstimateResponse, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -173,27 +173,6 @@ function formatCreatedAt(value: string) {
   });
 }
 
-function toGeneratedFromAsset(item: AssetSearchItem): GeneratedImage {
-  return {
-    id: item.id,
-    parent_image_id: null,
-    model_key: item.model_key,
-    prompt: item.prompt,
-    aspect_ratio: item.aspect_ratio,
-    resolution: item.resolution,
-    reference_urls: item.reference_urls,
-    image_url: item.asset_url ?? item.thumbnail_url ?? '',
-    thumbnail_url: item.thumbnail_url ?? item.asset_url ?? '',
-    action_type: null,
-    status: item.status,
-    auto_tags: item.auto_tags,
-    user_tags: item.user_tags,
-    applied_credits: 0,
-    remaining_credits: null,
-    created_at: item.created_at,
-  };
-}
-
 function toErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message) {
     return fallback;
@@ -215,6 +194,19 @@ function getPreviewImageUrl(item: GeneratedImage | InspirationImage | null) {
 function getPreviewImageLabel(item: GeneratedImage | InspirationImage | null) {
   if (!item) return '';
   return 'title' in item ? item.title : item.prompt;
+}
+
+function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    for (const tag of [...item.auto_tags, ...item.user_tags]) {
+      const key = tag.toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
 export function ImageStudioClient({ userId }: Props) {
@@ -243,6 +235,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [selectedModelFilters, setSelectedModelFilters] = useState<string[]>([]);
   const [selectedResolutionFilters, setSelectedResolutionFilters] = useState<string[]>([]);
   const [manualTagInput, setManualTagInput] = useState('');
+  const [allGeneratedImages, setAllGeneratedImages] = useState<GeneratedImage[]>([]);
   const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
 
@@ -252,22 +245,29 @@ export function ImageStudioClient({ userId }: Props) {
     nextModels = selectedModelFilters,
     nextResolutions = selectedResolutionFilters,
   ) => {
-    const response = await api.searchAssets(userId, {
-      content_type: 'image',
-      query: nextQuery || undefined,
-      tags: nextTags,
-      models: nextModels,
-      resolutions: nextResolutions,
-      sort: 'newest',
-      page: 1,
-      page_size: 48,
+    const items = await api.listGeneratedImages(userId);
+    setAllGeneratedImages(items);
+    const normalizedQuery = nextQuery.trim().toLowerCase();
+    const filtered = items.filter((item) => {
+      const searchable = `${item.prompt} ${item.auto_tags.join(' ')} ${item.user_tags.join(' ')}`.toLowerCase();
+      const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+      const imageTags = [...item.auto_tags, ...item.user_tags].map((tag) => tag.toLowerCase());
+      const matchesTags = nextTags.length === 0 || nextTags.every((tag) => imageTags.includes(tag.toLowerCase()));
+      const matchesModel = nextModels.length === 0 || nextModels.includes(item.model_key);
+      const matchesResolution = nextResolutions.length === 0 || nextResolutions.includes(item.resolution);
+      return matchesQuery && matchesTags && matchesModel && matchesResolution;
     });
-    setGeneratedImages(response.items.map(toGeneratedFromAsset));
+    setGeneratedImages(filtered);
+    return items;
   };
 
-  const refreshTagFacets = async () => {
-    const facets = await api.listAssetTags(userId, { content_type: 'image' });
-    setTagFacets(facets);
+  const refreshTagFacets = async (itemsOverride?: GeneratedImage[]) => {
+    try {
+      const facets = await api.listAssetTags(userId, { content_type: 'image' });
+      setTagFacets(facets);
+    } catch {
+      setTagFacets(buildTagFacets(itemsOverride ?? allGeneratedImages));
+    }
   };
 
   useEffect(() => {
@@ -275,13 +275,15 @@ export function ImageStudioClient({ userId }: Props) {
     void Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
       api.listImageInspiration(userId).catch(() => []),
+      api.listGeneratedImages(userId).catch(() => []),
       api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
-    ]).then(([modelData, inspirationData, tagData]) => {
+    ]).then(([modelData, inspirationData, imageData, tagData]) => {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       setModels(nextModels);
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
       setInspiration(inspirationData);
+      setAllGeneratedImages(imageData);
       setTagFacets(tagData);
       setLoading(false);
     });
@@ -385,7 +387,8 @@ export function ImageStudioClient({ userId }: Props) {
       show(`Created! Credits Used: ${item.applied_credits} · Remaining Balance: ${item.remaining_credits ?? wallet?.currentCredits ?? 0}`);
       setSelectedGenerated(item);
       setActiveTab('generated');
-      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
+      const items = await refreshGeneratedFeed();
+      await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Failed to generate image. Please try again.'));
     } finally {
@@ -463,7 +466,8 @@ export function ImageStudioClient({ userId }: Props) {
       }
       setSelectedGenerated(result.items[0]);
       setActiveTab('generated');
-      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
+      const items = await refreshGeneratedFeed();
+      await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not complete that action right now.'));
     } finally {
@@ -492,7 +496,8 @@ export function ImageStudioClient({ userId }: Props) {
         ),
       );
       setManualTagInput(response.user_tags.join(', '));
-      await Promise.all([refreshGeneratedFeed(), refreshTagFacets()]);
+      const items = await refreshGeneratedFeed();
+      await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not update tags right now.'));
     }

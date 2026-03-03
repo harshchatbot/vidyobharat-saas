@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Grid } from '@/components/ui/Grid';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetSearchItem, AssetTagFacet, InspirationImage, InspirationVideo } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet, GeneratedImage, InspirationImage, InspirationVideo, Video } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -67,6 +67,57 @@ function emptyCopy(mediaFilter: MediaFilter) {
   };
 }
 
+function toAssetFromImage(image: GeneratedImage): AssetSearchItem {
+  return {
+    id: image.id,
+    content_type: 'image',
+    title: image.prompt.split('.').find(Boolean)?.trim() || 'Generated image',
+    model_key: image.model_key,
+    resolution: image.resolution,
+    aspect_ratio: image.aspect_ratio,
+    prompt: image.prompt,
+    thumbnail_url: image.thumbnail_url || image.image_url,
+    asset_url: image.image_url,
+    status: image.status,
+    created_at: image.created_at,
+    reference_urls: image.reference_urls,
+    auto_tags: image.auto_tags,
+    user_tags: image.user_tags,
+  };
+}
+
+function toAssetFromVideo(video: Video): AssetSearchItem {
+  return {
+    id: video.id,
+    content_type: 'video',
+    title: video.title || 'Generated video',
+    model_key: video.selected_model || video.provider_name || 'video',
+    resolution: video.resolution,
+    aspect_ratio: video.aspect_ratio,
+    prompt: video.script,
+    thumbnail_url: video.thumbnail_url,
+    asset_url: video.output_url,
+    status: video.status,
+    created_at: video.created_at,
+    reference_urls: video.reference_images,
+    auto_tags: video.auto_tags,
+    user_tags: video.user_tags,
+  };
+}
+
+function buildTagFacets(assets: AssetSearchItem[]): AssetTagFacet[] {
+  const counts = new Map<string, number>();
+  for (const asset of assets) {
+    for (const tag of [...asset.auto_tags, ...asset.user_tags]) {
+      const key = tag.toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
 const workflowCards = [
   {
     title: 'Create Reel Video',
@@ -104,6 +155,7 @@ const workflowCards = [
 
 export function DashboardVideosClient({ userId, userName }: Props) {
   const [assets, setAssets] = useState<AssetSearchItem[]>([]);
+  const [allAssets, setAllAssets] = useState<AssetSearchItem[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
   const [imageInspiration, setImageInspiration] = useState<InspirationImage[]>([]);
   const [videoInspiration, setVideoInspiration] = useState<InspirationVideo[]>([]);
@@ -119,31 +171,45 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     let cancelled = false;
     setLoading(true);
     void Promise.allSettled([
-      api.searchAssets(userId, {
-        content_type: mediaFilter === 'all' ? undefined : mediaFilter,
-        query: searchQuery || undefined,
-        tags: selectedTags,
-        sort: 'newest',
-        page: 1,
-        page_size: 24,
-      }),
+      api.listGeneratedImages(userId),
+      api.listVideos(userId),
       api.listAssetTags(userId, {
         content_type: mediaFilter === 'all' ? undefined : mediaFilter,
       }),
       api.listImageInspiration(userId),
       api.listVideoInspiration(userId),
     ])
-      .then(([results, facets, imageRefs, videoRefs]) => {
+      .then(([imageResults, videoResults, facets, imageRefs, videoRefs]) => {
         if (cancelled) return;
-        if (results.status === 'fulfilled') {
-          setAssets(results.value.items);
+        if (imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled') {
+          const nextAssets = [
+            ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
+            ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
+          ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setAllAssets(nextAssets);
           setError(null);
+          const normalizedQuery = searchQuery.trim().toLowerCase();
+          const filtered = nextAssets.filter((item) => {
+            const matchesMedia = mediaFilter === 'all' || item.content_type === mediaFilter;
+            const searchable = `${item.title} ${item.prompt} ${item.auto_tags.join(' ')} ${item.user_tags.join(' ')}`.toLowerCase();
+            const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+            const allTags = [...item.auto_tags, ...item.user_tags].map((tag) => tag.toLowerCase());
+            const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => allTags.includes(tag.toLowerCase()));
+            return matchesMedia && matchesQuery && matchesTags;
+          });
+          setAssets(filtered);
         } else {
+          setAllAssets([]);
           setAssets([]);
           setError('Failed to load creations. Please refresh.');
         }
 
-        setTagFacets(facets.status === 'fulfilled' ? facets.value : []);
+        setTagFacets(facets.status === 'fulfilled' ? facets.value : buildTagFacets(imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled'
+          ? [
+              ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
+              ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
+            ].filter((item) => mediaFilter === 'all' || item.content_type === mediaFilter)
+          : []));
         setImageInspiration(imageRefs.status === 'fulfilled' ? imageRefs.value : []);
         setVideoInspiration(videoRefs.status === 'fulfilled' ? videoRefs.value : []);
       })
@@ -165,7 +231,16 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     [assets],
   );
 
-  const highlightedAssets = useMemo(() => assets.slice(0, 4), [assets]);
+  const highlightedAssets = useMemo(() => {
+    if (mediaFilter !== 'all') {
+      return assets.slice(0, 6);
+    }
+    const videos = assets.filter((item) => item.content_type === 'video').slice(0, 3);
+    const images = assets.filter((item) => item.content_type === 'image').slice(0, 3);
+    return [...videos, ...images]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 6);
+  }, [assets, mediaFilter]);
   const inspirationItems = inspirationFilter === 'video' ? videoInspiration : imageInspiration;
 
   const downloadAsset = async (asset: AssetSearchItem) => {
