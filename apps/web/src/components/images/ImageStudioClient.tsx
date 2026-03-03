@@ -569,34 +569,7 @@ export function ImageStudioClient({ userId }: Props) {
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
               AI Image Studio
             </div>
-            <h1 className="mt-4 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
-              Compose, preview, and ship images from one compact canvas.
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">
-              Keep the prompt, references, and output controls on one side and the live canvas on the other so you can generate without hunting through oversized cards.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {['Prompt refine', 'Reference upload', 'Compact controls', 'Live canvas'].map((item) => (
-                <span
-                  key={item}
-                  className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-1.5 text-xs font-medium text-text backdrop-blur-md"
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
-              <Wand2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Prompt Refinement</p>
-              <p className="mt-1 text-xs text-muted">Start loose, then polish before generating.</p>
-            </div>
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
-              <GalleryVerticalEnd className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Live Canvas</p>
-              <p className="mt-1 text-xs text-muted">Preview the active image while iterating.</p>
-            </div>
+            
             <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
               <Wallet className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="mt-3 text-sm font-semibold text-text">Available Credits</p>
@@ -824,7 +797,7 @@ export function ImageStudioClient({ userId }: Props) {
           </div>
         </div>
 
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0">
           <Card className="space-y-4 rounded-[32px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -865,178 +838,178 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
             </div>
           </Card>
+        </div>
+      </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
-                <p className="mt-1 text-sm text-muted">Browse your latest outputs or switch into curated inspiration without leaving the canvas.</p>
-              </div>
-              <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] p-1 backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('generated')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'generated' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
-                >
-                  Your images
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('inspiration')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'inspiration' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
-                >
-                  Inspiration
-                </button>
-              </div>
-            </div>
-
-            <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
-              <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-                <div>
-                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-                    <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                    Search by prompt or tags
-                  </label>
-                  <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
-                    <input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Search by mood, object, prompt, or style..."
-                      className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-                    />
-                  </div>
-                  {searchQuery.trim() ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {tagSuggestions.map((item) => (
-                        <button
-                          key={item.tag}
-                          type="button"
-                          onClick={() => !selectedTags.includes(item.tag) && setSelectedTags((current) => [...current, item.tag])}
-                          className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
-                        >
-                          {item.tag} · {item.count}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
-                    <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                    Active filters
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedTags.map((tag) => (
-                      <button key={`active-tag-${tag}`} type="button" onClick={() => setSelectedTags((current) => current.filter((item) => item !== tag))} className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
-                        {tag}
-                        <X className="h-3 w-3" />
-                      </button>
-                    ))}
-                    {selectedModelFilters.map((item) => (
-                      <button key={`active-model-${item}`} type="button" onClick={() => setSelectedModelFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
-                        {models.find((model) => model.key === item)?.label ?? item}
-                        <X className="h-3 w-3" />
-                      </button>
-                    ))}
-                    {selectedResolutionFilters.map((item) => (
-                      <button key={`active-resolution-${item}`} type="button" onClick={() => setSelectedResolutionFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
-                        {item}px
-                        <X className="h-3 w-3" />
-                      </button>
-                    ))}
-                    {selectedTags.length === 0 && selectedModelFilters.length === 0 && selectedResolutionFilters.length === 0 ? (
-                      <span className="text-xs text-muted">No active filters</span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
-                  const imageUrl = getPreviewImageUrl(item);
-                  const itemModel = models.find((model) => model.key === item.model_key);
-                  const isGenerated = activeTab === 'generated';
-                  return (
-                    <button
-                      key={`${activeTab}-${item.id}`}
-                      type="button"
-                      onClick={() => {
-                        if (isGenerated) {
-                          setSelectedGenerated(item as GeneratedImage);
-                        } else {
-                          setSelectedInspiration(item as InspirationImage);
-                        }
-                      }}
-                      className={`overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
-                        ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
-                          ? 'border-[hsl(var(--color-accent))] shadow-soft'
-                          : 'border-[hsl(var(--color-border))]'
-                      } bg-[hsl(var(--color-bg)/0.72)]`}
-                    >
-                      <div className="overflow-hidden">
-                        {imageUrl ? (
-                          <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
-                        ) : (
-                          <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
-                        )}
-                      </div>
-                      <div className="space-y-3 p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="line-clamp-1 text-sm font-semibold text-text">
-                              {'title' in item ? item.title : item.prompt.split(',')[0]}
-                            </p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{getPreviewImageLabel(item)}</p>
-                          </div>
-                          <Badge>{itemModel?.label ?? item.model_key}</Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge>{item.aspect_ratio}</Badge>
-                          <Badge>{item.resolution}px</Badge>
-                          {isGenerated ? <Badge>{(item as GeneratedImage).status}</Badge> : null}
-                        </div>
-                        {isGenerated ? (
-                          <div className="flex items-center justify-between gap-2">
-                            <Button
-                              variant="secondary"
-                              type="button"
-                              className="gap-2 px-3 py-2 text-xs"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void downloadImage((item as GeneratedImage).image_url, (item as GeneratedImage).prompt);
-                              }}
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Download
-                            </Button>
-                            <div className="flex items-center gap-2 text-xs text-muted">
-                              <Tag className="h-3.5 w-3.5" />
-                              {[...(item as GeneratedImage).auto_tags, ...(item as GeneratedImage).user_tags].slice(0, 2).join(', ') || 'No tags'}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {(activeTab === 'generated' ? generatedImages : filteredInspiration).length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-5 py-12 text-center">
-                  <ImageIcon className="mx-auto h-8 w-8 text-[hsl(var(--color-accent))]" />
-                  <p className="mt-4 text-sm font-semibold text-text">
-                    {activeTab === 'generated' ? 'No generated images yet' : 'No inspiration items match these filters'}
-                  </p>
-                  <p className="mt-2 text-xs text-muted">
-                    {activeTab === 'generated'
-                      ? 'Generate your first image and it will appear here instantly.'
-                      : 'Try a different tag, model, or prompt search term.'}
-                  </p>
-                </div>
-              ) : null}
-            </Card>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
+            <p className="mt-1 text-sm text-muted">Browse your latest outputs or switch into curated inspiration without leaving the canvas.</p>
+          </div>
+          <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] p-1 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setActiveTab('generated')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'generated' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
+            >
+              Your images
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('inspiration')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'inspiration' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
+            >
+              Inspiration
+            </button>
           </div>
         </div>
+
+        <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
+          <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Search by prompt or tags
+              </label>
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by mood, object, prompt, or style..."
+                  className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                />
+              </div>
+              {searchQuery.trim() ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {tagSuggestions.map((item) => (
+                    <button
+                      key={item.tag}
+                      type="button"
+                      onClick={() => !selectedTags.includes(item.tag) && setSelectedTags((current) => [...current, item.tag])}
+                      className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
+                    >
+                      {item.tag} · {item.count}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Active filters
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedTags.map((tag) => (
+                  <button key={`active-tag-${tag}`} type="button" onClick={() => setSelectedTags((current) => current.filter((item) => item !== tag))} className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                    {tag}
+                    <X className="h-3 w-3" />
+                  </button>
+                ))}
+                {selectedModelFilters.map((item) => (
+                  <button key={`active-model-${item}`} type="button" onClick={() => setSelectedModelFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                    {models.find((model) => model.key === item)?.label ?? item}
+                    <X className="h-3 w-3" />
+                  </button>
+                ))}
+                {selectedResolutionFilters.map((item) => (
+                  <button key={`active-resolution-${item}`} type="button" onClick={() => setSelectedResolutionFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                    {item}px
+                    <X className="h-3 w-3" />
+                  </button>
+                ))}
+                {selectedTags.length === 0 && selectedModelFilters.length === 0 && selectedResolutionFilters.length === 0 ? (
+                  <span className="text-xs text-muted">No active filters</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
+              const imageUrl = getPreviewImageUrl(item);
+              const itemModel = models.find((model) => model.key === item.model_key);
+              const isGenerated = activeTab === 'generated';
+              return (
+                <button
+                  key={`${activeTab}-${item.id}`}
+                  type="button"
+                  onClick={() => {
+                    if (isGenerated) {
+                      setSelectedGenerated(item as GeneratedImage);
+                    } else {
+                      setSelectedInspiration(item as InspirationImage);
+                    }
+                  }}
+                  className={`overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                    ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
+                      ? 'border-[hsl(var(--color-accent))] shadow-soft'
+                      : 'border-[hsl(var(--color-border))]'
+                  } bg-[hsl(var(--color-bg)/0.72)]`}
+                >
+                  <div className="overflow-hidden">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                    ) : (
+                      <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
+                    )}
+                  </div>
+                  <div className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="line-clamp-1 text-sm font-semibold text-text">
+                          {'title' in item ? item.title : item.prompt.split(',')[0]}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{getPreviewImageLabel(item)}</p>
+                      </div>
+                      <Badge>{itemModel?.label ?? item.model_key}</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge>{item.aspect_ratio}</Badge>
+                      <Badge>{item.resolution}px</Badge>
+                      {isGenerated ? <Badge>{(item as GeneratedImage).status}</Badge> : null}
+                    </div>
+                    {isGenerated ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          className="gap-2 px-3 py-2 text-xs"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void downloadImage((item as GeneratedImage).image_url, (item as GeneratedImage).prompt);
+                          }}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download
+                        </Button>
+                        <div className="flex items-center gap-2 text-xs text-muted">
+                          <Tag className="h-3.5 w-3.5" />
+                          {[...(item as GeneratedImage).auto_tags, ...(item as GeneratedImage).user_tags].slice(0, 2).join(', ') || 'No tags'}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {(activeTab === 'generated' ? generatedImages : filteredInspiration).length === 0 ? (
+            <div className="rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-5 py-12 text-center">
+              <ImageIcon className="mx-auto h-8 w-8 text-[hsl(var(--color-accent))]" />
+              <p className="mt-4 text-sm font-semibold text-text">
+                {activeTab === 'generated' ? 'No generated images yet' : 'No inspiration items match these filters'}
+              </p>
+              <p className="mt-2 text-xs text-muted">
+                {activeTab === 'generated'
+                  ? 'Generate your first image and it will appear here instantly.'
+                  : 'Try a different tag, model, or prompt search term.'}
+              </p>
+            </div>
+          ) : null}
+        </Card>
       </div>
       {selectedInspiration ? (
         <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedInspiration(null)}>
