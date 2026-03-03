@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
+  ChevronRight,
   Clapperboard,
   Copy,
   Download,
@@ -31,6 +32,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
@@ -228,12 +230,12 @@ export function ImageStudioClient({ userId }: Props) {
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [selectedModel, setSelectedModel] = useState('nano_banana');
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
   const [uploadingReference, setUploadingReference] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
-  const [activeQuickCategory, setActiveQuickCategory] = useState('E-commerce');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedModelFilters, setSelectedModelFilters] = useState<string[]>([]);
@@ -340,8 +342,6 @@ export function ImageStudioClient({ userId }: Props) {
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
   const selectedInspirationModel = selectedInspiration ? models.find((model) => model.key === selectedInspiration.model_key) : null;
   const selectedGeneratedModel = selectedGenerated ? models.find((model) => model.key === selectedGenerated.model_key) : null;
-  const quickCategories = Array.from(new Set(quickTemplates.map((item) => item.category)));
-  const visibleQuickTemplates = quickTemplates.filter((item) => item.category === activeQuickCategory);
   const tagSuggestions = tagFacets
     .filter((item) => item.tag.includes(searchQuery.trim().toLowerCase()))
     .slice(0, 8);
@@ -464,13 +464,6 @@ export function ImageStudioClient({ userId }: Props) {
     setReferenceUploads((current) => current.filter((item) => item.id !== assetId));
   };
 
-  const applyQuickTemplate = (template: ImageQuickTemplate) => {
-    setPrompt(template.prompt);
-    setAspectRatio(template.aspect_ratio);
-    setResolution(template.resolution);
-    setSelectedModel(template.model_key);
-  };
-
   const copyPrompt = async (value: string) => {
     await navigator.clipboard.writeText(value);
     setCopiedPrompt(true);
@@ -559,21 +552,30 @@ export function ImageStudioClient({ userId }: Props) {
       : selectedInspiration ?? filteredInspiration[0] ?? null;
 
   return (
+    <>
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_22%),radial-gradient(circle_at_86%_18%,hsl(var(--color-accent)/0.12),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-7 sm:py-8">
-        <div className="pointer-events-none absolute -left-10 top-4 h-44 w-44 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 h-40 w-40 rounded-full bg-[hsl(var(--color-accent)/0.1)] blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
+        <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-muted backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              AI Image Studio
+              Create Image
             </div>
-            
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
-              <Wallet className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Available Credits</p>
-              <p className="mt-1 text-xs text-muted">{wallet?.currentCredits ?? 0} credits ready for image runs.</p>
+            <h1 className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-text sm:text-3xl">
+              Prompt, reference, and generate in one compact studio.
+            </h1>
+            <p className="mt-2 max-w-xl text-sm text-muted">
+              Keep the composer tight, tune the output quickly, and review recent generations below the canvas.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3 backdrop-blur-md">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+              <Wallet className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Credits</p>
+              <p className="text-sm font-semibold text-text">{wallet?.currentCredits ?? 0} available</p>
             </div>
           </div>
         </div>
@@ -601,47 +603,35 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Use a compact selector so the composer stays focused on the prompt and output.</p>
+                  <p className="mt-1 text-xs text-muted">Select one engine, then keep moving. Change only when you need a different look.</p>
                 </div>
                 <Badge>{selectedModelMeta?.label}</Badge>
               </div>
-              <div className="flex gap-2 overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
-                {models.map((model) => {
-                  const active = model.key === selectedModel;
-                  return (
-                    <button
-                      key={model.key}
-                      type="button"
-                      onClick={() => setSelectedModel(model.key)}
-                      className={`min-w-[148px] shrink-0 rounded-[20px] border px-3 py-3 text-left transition ${
-                        active
-                          ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.2),transparent)] shadow-soft'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] hover:bg-[hsl(var(--color-elevated))]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
-                          <Sparkles className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-text">{model.label}</p>
-                          <p className="mt-0.5 truncate text-[11px] text-muted">{model.frontend_hint}</p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2 text-xs text-muted">
-                {selectedModelMeta?.description}
-              </div>
+              <button
+                type="button"
+                onClick={() => setModelPickerOpen(true)}
+                className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-left transition hover:bg-[hsl(var(--color-elevated))]"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-semibold text-text">{selectedModelMeta?.label}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {selectedModelMeta?.frontend_hint ?? selectedModelMeta?.description}
+                    </p>
+                  </div>
+                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted" />
+                </div>
+              </button>
             </div>
 
             <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Describe your image</p>
-                  <p className="mt-1 text-xs text-muted">Use a single focused prompt, then layer references and output choices below.</p>
+                  <p className="mt-1 text-xs text-muted">Start with one strong visual idea. References and output settings will refine it.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -652,7 +642,7 @@ export function ImageStudioClient({ userId }: Props) {
                 rows={7}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Describe your subject, mood, environment, camera feel, lighting, and visual style. Keep it precise enough for premium output."
+                placeholder="Describe the subject, mood, environment, camera feel, lighting, and final style you want."
               />
               <div className="flex flex-wrap gap-2">
                 {powerWords.map((word) => (
@@ -672,7 +662,7 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Visual references</p>
-                  <p className="mt-1 text-xs text-muted">Upload photo references for style, subject, or composition guidance.</p>
+                  <p className="mt-1 text-xs text-muted">Upload reference photos for composition, styling, or subject consistency.</p>
                 </div>
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
                   <Upload className="h-3.5 w-3.5" />
@@ -713,7 +703,7 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Output</p>
-                  <p className="mt-1 text-xs text-muted">One compact control block for framing and fidelity.</p>
+                  <p className="mt-1 text-xs text-muted">Keep framing and fidelity compact so the prompt stays primary.</p>
                 </div>
                 <Badge>
                   {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}
@@ -732,7 +722,7 @@ export function ImageStudioClient({ userId }: Props) {
                             ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                             : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
                         }`}
-                        title={option.label}
+                        title={`${option.label} · ${option.helper}`}
                       >
                         {option.value}
                       </button>
@@ -764,13 +754,13 @@ export function ImageStudioClient({ userId }: Props) {
               {error ? <p className="text-sm text-danger">{error}</p> : null}
               <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
-                  <p className="mt-1 text-xs text-muted">{estimate ? `${estimate.estimatedCredits} credits estimated` : 'Estimating credits...'}</p>
+                  <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
+                  <p className="mt-1 text-xs text-muted">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`} • {estimate ? `${estimate.estimatedCredits} credits estimated` : 'Estimating credits...'}</p>
                 </div>
                 <Button
                   onClick={() => void submit()}
                   disabled={submitting || Boolean(estimate && !estimate.sufficient)}
-                  className="min-w-[180px] rounded-[20px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                  className="min-w-[190px] rounded-[20px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                 >
                   {submitting ? (
                     <>
@@ -820,7 +810,7 @@ export function ImageStudioClient({ userId }: Props) {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
                 <p className="mt-1 text-sm font-semibold text-text">
@@ -867,7 +857,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
 
         <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
-          <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -1199,5 +1189,50 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
       ) : null}
     </div>
+
+      <Modal open={modelPickerOpen} onClose={() => setModelPickerOpen(false)}>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Model selection</p>
+            <h3 className="mt-1 text-xl font-semibold text-text">Choose your image model</h3>
+            <p className="mt-1 text-sm text-muted">Pick the output engine, then get back to the prompt quickly.</p>
+          </div>
+          <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
+            {models.map((model) => {
+              const active = model.key === selectedModel;
+              return (
+                <button
+                  key={model.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedModel(model.key);
+                    setModelPickerOpen(false);
+                  }}
+                  className={`w-full rounded-[24px] border p-4 text-left transition ${
+                    active
+                      ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
+                      <Sparkles className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-base font-semibold text-text">{model.label}</p>
+                        {active ? <Badge>Selected</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-sm text-muted">{model.description}</p>
+                      <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
