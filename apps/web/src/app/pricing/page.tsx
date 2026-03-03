@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Coins, LoaderCircle } from 'lucide-react';
 
@@ -40,8 +41,10 @@ const featureCopy: Record<string, string[]> = {
 };
 
 export default function PricingPage() {
+  const router = useRouter();
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string>('creator');
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +74,11 @@ export default function PricingPage() {
         credits: pricing.creditAllocation[plan],
       }));
   }, [pricing]);
+
+  const handleSelectPlan = (planKey: string) => {
+    setSelectedPlan(planKey);
+    router.push(`/billing?plan=${encodeURIComponent(planKey)}`);
+  };
 
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
@@ -122,14 +130,17 @@ export default function PricingPage() {
             <div className="mt-16 grid gap-8 lg:grid-cols-4">
               {orderedPlans.map((plan) => {
                 const isPopular = plan.key === 'creator';
+                const isSelected = selectedPlan === plan.key;
 
                 return (
-                  <div
+                  <button
                     key={plan.key}
-                    className={`relative rounded-[var(--radius-lg)] border p-8 transition ${
-                      isPopular
+                    type="button"
+                    onClick={() => handleSelectPlan(plan.key)}
+                    className={`relative flex h-full flex-col rounded-[var(--radius-lg)] border p-8 text-left transition duration-200 ${
+                      isSelected || isPopular
                         ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-elevated))] shadow-[var(--shadow-hard)]'
-                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-[var(--shadow-soft)]'
+                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-[var(--shadow-soft)] hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)]'
                     }`}
                   >
                     {isPopular && (
@@ -164,18 +175,16 @@ export default function PricingPage() {
                       ))}
                     </ul>
 
-                    <Link href="/billing" className="mt-8 block">
-                      <button
-                        className={`w-full rounded-[var(--radius-md)] px-6 py-3 text-sm font-semibold transition ${
-                          isPopular
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text))]'
-                        }`}
-                      >
-                        {isPopular ? 'Choose Creator' : 'Select Plan'}
-                      </button>
-                    </Link>
-                  </div>
+                    <span
+                      className={`mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] px-6 py-3 text-sm font-semibold transition ${
+                        isSelected || isPopular
+                          ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                          : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text))]'
+                      }`}
+                    >
+                      {isSelected ? 'Selected Plan' : isPopular ? 'Choose Creator' : 'Select Plan'}
+                    </span>
+                  </button>
                 );
               })}
             </div>

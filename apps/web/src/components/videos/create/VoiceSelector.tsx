@@ -222,8 +222,8 @@ export function VoiceSelector({
                             ? voiceCreditMap[option.key] > 0
                               ? `${voiceCreditMap[option.key]} cr`
                               : 'Free'
-                            : '...'
-                          : '...'
+                            : 'Estimating'
+                          : 'Estimating'
                       }`}
                 </Button>
               </div>

@@ -54,7 +54,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void Promise.all([
+    void Promise.allSettled([
       api.searchAssets(userId, {
         content_type: 'video',
         query: searchQuery || undefined,
@@ -67,13 +67,19 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     ])
       .then(([results, facets]) => {
         if (cancelled) return;
-        setVideos(results.items);
-        setTagFacets(facets);
-        setError(null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setError('Failed to load videos. Please refresh.');
+        if (results.status === 'fulfilled') {
+          setVideos(results.value.items);
+          setError(null);
+        } else {
+          setVideos([]);
+          setError('Failed to load videos. Please refresh.');
+        }
+
+        if (facets.status === 'fulfilled') {
+          setTagFacets(facets.value);
+        } else {
+          setTagFacets([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

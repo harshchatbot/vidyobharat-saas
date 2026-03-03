@@ -65,6 +65,7 @@ export function CreateVideoPage({
   const [voice, setVoice] = useState('Shubh');
   const [audioSampleRateHz, setAudioSampleRateHz] = useState(22050);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
+  const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [voicePreviewText, setVoicePreviewText] = useState('');
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
@@ -611,6 +612,7 @@ export function CreateVideoPage({
     setVoicePreviewProvider(null);
     setVoicePreviewResolvedVoice(null);
     setVoicePreviewMessage(null);
+    setVoicePreviewUrl(null);
     try {
       const response = await api.previewTts(
         {
@@ -623,7 +625,12 @@ export function CreateVideoPage({
       );
       const player = voicePreviewAudioRef.current;
       if (!player) return;
-      player.src = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
+      const nextPreviewUrl = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
+      setVoicePreviewUrl(nextPreviewUrl);
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      player.src = nextPreviewUrl;
       player.currentTime = 0;
       player.load();
       setVoicePreviewProvider(response.provider);
@@ -636,21 +643,35 @@ export function CreateVideoPage({
             ? 'Sarvam preview was not used for this sample. Check the API server log or provider configuration.'
             : null),
       );
+      if (response.provider === 'Fallback TTS' && response.provider_message) {
+        show(response.provider_message);
+      }
       if (typeof response.remaining_credits === 'number' && creditWallet) {
         applyWallet({ ...creditWallet, currentCredits: response.remaining_credits });
       }
       if (response.applied_credits > 0) {
         show(`Created! Credits Used: ${response.applied_credits} · Remaining Balance: ${response.remaining_credits ?? creditWallet?.currentCredits ?? 0}`);
       }
-      const playResult = player.play();
-      if (playResult instanceof Promise) {
-        await playResult;
+      try {
+        const playResult = player.play();
+        if (playResult instanceof Promise) {
+          await playResult;
+        }
+        setVoicePreviewing(true);
+      } catch (playError) {
+        const message = playError instanceof Error
+          ? `Preview audio is ready, but autoplay was blocked. Use the player controls below. ${playError.message}`
+          : 'Preview audio is ready, but autoplay was blocked. Use the player controls below.';
+        setVoicePreviewError(message);
+        show(message);
+        setVoicePreviewing(false);
       }
-      setVoicePreviewing(true);
     } catch (error) {
-      setVoicePreviewError(error instanceof Error ? error.message : 'Voice preview failed.');
+      const message = error instanceof Error ? error.message : 'Voice preview failed.';
+      setVoicePreviewError(message);
       setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
       setVoicePreviewing(false);
+      show(message);
     }
   };
 
@@ -914,7 +935,33 @@ export function CreateVideoPage({
           onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
           voiceCreditMap={voiceCreditMap}
         />
-        <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
+        <div className="space-y-2">
+          {voicePreviewUrl ? (
+            <audio
+              ref={voicePreviewAudioRef}
+              src={voicePreviewUrl}
+              controls
+              preload="auto"
+              className="w-full"
+              onEnded={() => setVoicePreviewing(false)}
+              onPause={() => setVoicePreviewing(false)}
+              onPlay={() => setVoicePreviewing(true)}
+              onError={() => {
+                const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                setVoicePreviewError(message);
+                setVoicePreviewing(false);
+                show(message);
+              }}
+            />
+          ) : (
+            <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
+          )}
+          {voicePreviewUrl ? (
+            <p className="text-xs text-muted">
+              If autoplay does not start, use the built-in audio controls to play the preview manually.
+            </p>
+          ) : null}
+        </div>
       </SectionCard>
 
       <SectionCard
