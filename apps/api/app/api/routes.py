@@ -232,26 +232,33 @@ def _to_image_generation_response(
     applied_credits: int = 0,
     remaining_credits: int | None = None,
 ) -> ImageGenerationResponse:
+    raw_reference_urls = getattr(generation, 'reference_urls', None)
     reference_urls: list[str] = []
-    try:
-        reference_urls = json.loads(generation.reference_urls or '[]')
-    except json.JSONDecodeError:
-        reference_urls = []
+    if isinstance(raw_reference_urls, list):
+        reference_urls = [str(url) for url in raw_reference_urls if url]
+    else:
+        try:
+            reference_urls = json.loads(raw_reference_urls or '[]')
+        except (json.JSONDecodeError, TypeError):
+            reference_urls = []
     asset_tagging = AssetTaggingService(db)
     auto_tags, user_tags = asset_tagging.list_tags(generation.id, 'image')
 
+    image_url = getattr(generation, 'image_url', None) or getattr(generation, 'thumbnail_url', None) or ''
+    thumbnail_url = getattr(generation, 'thumbnail_url', None) or image_url
+
     return ImageGenerationResponse(
         id=generation.id,
-        parent_image_id=generation.parent_image_id,
-        model_key=generation.model_key,
-        prompt=generation.prompt,
-        aspect_ratio=generation.aspect_ratio,
-        resolution=generation.resolution,
+        parent_image_id=getattr(generation, 'parent_image_id', None),
+        model_key=getattr(generation, 'model_key', None) or 'nano_banana',
+        prompt=getattr(generation, 'prompt', None) or 'Generated image',
+        aspect_ratio=getattr(generation, 'aspect_ratio', None) or '1:1',
+        resolution=str(getattr(generation, 'resolution', None) or '1024'),
         reference_urls=reference_urls,
-        image_url=generation.image_url,
-        thumbnail_url=generation.thumbnail_url,
-        action_type=generation.action_type,
-        status=generation.status.value if hasattr(generation.status, 'value') else str(generation.status),
+        image_url=image_url,
+        thumbnail_url=thumbnail_url,
+        action_type=getattr(generation, 'action_type', None),
+        status=generation.status.value if hasattr(generation.status, 'value') else str(getattr(generation, 'status', 'completed')),
         auto_tags=auto_tags,
         user_tags=user_tags,
         applied_credits=applied_credits,
@@ -1018,7 +1025,13 @@ def list_ai_images(
     db: Session = Depends(get_db),
 ):
     service = ImageGenerationService(db)
-    return [_to_image_generation_response(item, db) for item in service.list_user_images(user_id)]
+    items: list[ImageGenerationResponse] = []
+    for item in service.list_user_images(user_id):
+        try:
+            items.append(_to_image_generation_response(item, db))
+        except Exception:
+            continue
+    return items
 
 
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
