@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/Textarea';
 
 import type { TTSLanguageOption, TTSVoiceOption } from '@/types/api';
 import { AUDIO_QUALITY_OPTIONS } from './constants';
+import { Spinner } from '@/components/ui/Spinner';
 
 export function VoiceSelector({
   languageOptions,
@@ -22,6 +23,7 @@ export function VoiceSelector({
   onPreviewTextChange,
   onPreview,
   previewing,
+  previewLoadingKey,
   previewProvider,
   resolvedVoice,
   previewCached,
@@ -47,6 +49,7 @@ export function VoiceSelector({
   onPreviewTextChange: (value: string) => void;
   onPreview: (voiceKey?: string) => void;
   previewing: boolean;
+  previewLoadingKey?: string | null;
   previewProvider: string | null;
   resolvedVoice: string | null;
   previewCached: boolean;
@@ -210,11 +213,18 @@ export function VoiceSelector({
                     onVoiceChange(option.key);
                     onPreview(option.key);
                   }}
-                  disabled={!previewText.trim() || Boolean(insufficientCredits)}
+                  disabled={!previewText.trim() || Boolean(insufficientCredits) || Boolean(previewLoadingKey)}
                   className="w-full shrink-0 gap-2 px-3 py-2 text-xs sm:w-auto"
                 >
-                  <Mic2 className="h-3.5 w-3.5" />
-                  {previewing && active
+                  {previewLoadingKey === option.key ? (
+                    <>
+                      <Spinner className="h-3.5 w-3.5 border-[hsl(var(--color-accent-contrast)/0.45)] border-t-[hsl(var(--color-accent-contrast))]" />
+                      Loading
+                    </>
+                  ) : (
+                    <>
+                      <Mic2 className="h-3.5 w-3.5" />
+                      {previewing && active
                     ? 'Stop'
                     : `Preview · ${
                         typeof voiceCreditMap?.[option.key] === 'number'
@@ -225,6 +235,8 @@ export function VoiceSelector({
                             : 'Estimating'
                           : 'Estimating'
                       }`}
+                    </>
+                  )}
                 </Button>
               </div>
               <p className="text-xs text-muted">{option.tone}</p>

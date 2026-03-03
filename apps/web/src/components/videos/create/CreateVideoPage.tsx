@@ -65,7 +65,9 @@ export function CreateVideoPage({
   const [voice, setVoice] = useState('Shubh');
   const [audioSampleRateHz, setAudioSampleRateHz] = useState(22050);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
+  const [voicePreviewLoadingKey, setVoicePreviewLoadingKey] = useState<string | null>(null);
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
+  const [voicePreviewVoiceKey, setVoicePreviewVoiceKey] = useState<string | null>(null);
   const [voicePreviewText, setVoicePreviewText] = useState('');
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
@@ -596,11 +598,30 @@ export function CreateVideoPage({
 
   const previewVoice = async (previewVoiceKey?: string) => {
     const activeVoice = previewVoiceKey ?? voice;
+    const player = voicePreviewAudioRef.current;
     if (previewVoiceKey && previewVoiceKey !== voice) {
       setVoice(previewVoiceKey);
     }
+    if (
+      player &&
+      voicePreviewUrl &&
+      voicePreviewVoiceKey === activeVoice &&
+      !voicePreviewing
+    ) {
+      try {
+        await player.play();
+        setVoicePreviewing(true);
+        setVoicePreviewError(null);
+        return;
+      } catch (playError) {
+        const message = playError instanceof Error
+          ? `Preview is ready. Tap the audio player below if playback does not start automatically. ${playError.message}`
+          : 'Preview is ready. Tap the audio player below if playback does not start automatically.';
+        setVoicePreviewError(message);
+        show(message);
+      }
+    }
     if (voicePreviewing) {
-      const player = voicePreviewAudioRef.current;
       player?.pause();
       if (player) player.currentTime = 0;
       setVoicePreviewing(false);
@@ -613,6 +634,8 @@ export function CreateVideoPage({
     setVoicePreviewResolvedVoice(null);
     setVoicePreviewMessage(null);
     setVoicePreviewUrl(null);
+    setVoicePreviewVoiceKey(null);
+    setVoicePreviewLoadingKey(activeVoice);
     try {
       const response = await api.previewTts(
         {
@@ -627,6 +650,7 @@ export function CreateVideoPage({
       if (!player) return;
       const nextPreviewUrl = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
       setVoicePreviewUrl(nextPreviewUrl);
+      setVoicePreviewVoiceKey(activeVoice);
       player.pause();
       player.removeAttribute('src');
       player.load();
@@ -672,6 +696,8 @@ export function CreateVideoPage({
       setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
       setVoicePreviewing(false);
       show(message);
+    } finally {
+      setVoicePreviewLoadingKey(null);
     }
   };
 
@@ -1022,6 +1048,7 @@ export function CreateVideoPage({
           onPreviewTextChange={setVoicePreviewText}
           onPreview={previewVoice}
           previewing={voicePreviewing}
+          previewLoadingKey={voicePreviewLoadingKey}
           previewProvider={voicePreviewProvider}
           resolvedVoice={voicePreviewResolvedVoice}
           previewCached={voicePreviewCached}
@@ -1037,22 +1064,34 @@ export function CreateVideoPage({
         />
         <div className="space-y-2">
           {voicePreviewUrl ? (
-            <audio
-              ref={voicePreviewAudioRef}
-              src={voicePreviewUrl}
-              controls
-              preload="auto"
-              className="w-full"
-              onEnded={() => setVoicePreviewing(false)}
-              onPause={() => setVoicePreviewing(false)}
-              onPlay={() => setVoicePreviewing(true)}
-              onError={() => {
-                const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                setVoicePreviewError(message);
-                setVoicePreviewing(false);
-                show(message);
-              }}
-            />
+            <div className="space-y-2">
+              <audio
+                ref={voicePreviewAudioRef}
+                src={voicePreviewUrl}
+                controls
+                preload="auto"
+                className="w-full"
+                onEnded={() => setVoicePreviewing(false)}
+                onPause={() => setVoicePreviewing(false)}
+                onPlay={() => setVoicePreviewing(true)}
+                onError={() => {
+                  const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                  setVoicePreviewError(message);
+                  setVoicePreviewing(false);
+                  show(message);
+                }}
+              />
+              {!voicePreviewing ? (
+                <button
+                  type="button"
+                  onClick={() => void previewVoice(voicePreviewVoiceKey ?? voice)}
+                  className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                >
+                  <Mic2 className="h-3.5 w-3.5" />
+                  Play preview
+                </button>
+              ) : null}
+            </div>
           ) : (
             <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
           )}
