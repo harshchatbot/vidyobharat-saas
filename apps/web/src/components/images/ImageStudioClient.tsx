@@ -560,132 +560,79 @@ export function ImageStudioClient({ userId }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.2),transparent_24%),radial-gradient(circle_at_85%_15%,hsl(var(--color-accent)/0.1),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_40%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
-        <div className="pointer-events-none absolute -left-8 top-6 h-40 w-40 rounded-full bg-[hsl(var(--color-accent)/0.15)] blur-3xl" />
+      <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_22%),radial-gradient(circle_at_86%_18%,hsl(var(--color-accent)/0.12),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-7 sm:py-8">
+        <div className="pointer-events-none absolute -left-10 top-4 h-44 w-44 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-0 h-40 w-40 rounded-full bg-[hsl(var(--color-accent)/0.1)] blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-3 py-1 text-xs font-semibold text-muted">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-muted backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              RangManch AI Image Studio
+              AI Image Studio
             </div>
-            <h1 className="mt-4 max-w-2xl font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
-              Create polished images without living inside a giant form.
+            <h1 className="mt-4 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
+              Compose, preview, and ship images from one compact canvas.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">
-              Start from a focused prompt surface, use quick starts when needed, and keep the live canvas visible while you generate and refine.
+              Keep the prompt, references, and output controls on one side and the live canvas on the other so you can generate without hunting through oversized cards.
             </p>
-            {wallet ? (
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
-                <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                {wallet.currentCredits} credits available
-              </div>
-            ) : null}
             <div className="mt-5 flex flex-wrap gap-2">
-              {['Prompt refine', 'Quick starts', 'Live canvas', 'Studio feed'].map((item) => (
+              {['Prompt refine', 'Reference upload', 'Compact controls', 'Live canvas'].map((item) => (
                 <span
                   key={item}
-                  className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
+                  className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-1.5 text-xs font-medium text-text backdrop-blur-md"
                 >
                   {item}
                 </span>
               ))}
             </div>
           </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
+          <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
               <Wand2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Smart Prompt</p>
-              <p className="mt-1 text-xs text-muted">Refine weak prompts into premium visual direction.</p>
+              <p className="mt-3 text-sm font-semibold text-text">Prompt Refinement</p>
+              <p className="mt-1 text-xs text-muted">Start loose, then polish before generating.</p>
             </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
-              <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Quick Starts</p>
-              <p className="mt-1 text-xs text-muted">Use creator templates for e-commerce, YouTube, and fantasy art.</p>
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
+              <GalleryVerticalEnd className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+              <p className="mt-3 text-sm font-semibold text-text">Live Canvas</p>
+              <p className="mt-1 text-xs text-muted">Preview the active image while iterating.</p>
             </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
-              <Stars className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <p className="mt-3 text-sm font-semibold text-text">Magic Actions</p>
-              <p className="mt-1 text-xs text-muted">Remove background, upscale, or generate variations after the first output.</p>
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 backdrop-blur-md">
+              <Wallet className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+              <p className="mt-3 text-sm font-semibold text-text">Available Credits</p>
+              <p className="mt-1 text-xs text-muted">{wallet?.currentCredits ?? 0} credits ready for image runs.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.98fr)_400px] xl:items-start">
-        <div className="space-y-6">
-          <Card className="space-y-4 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
-            <div className="flex items-center gap-2">
-              <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <div>
-                <p className="text-sm font-semibold text-text">Quick Starts</p>
-                <p className="text-xs text-muted">Use one polished starting point instead of scanning dozens of empty controls.</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {quickCategories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setActiveQuickCategory(category)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                    activeQuickCategory === category
-                      ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                      : 'border border-[hsl(var(--color-border))] text-muted'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {visibleQuickTemplates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => applyQuickTemplate(template)}
-                  className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 text-left hover:bg-[hsl(var(--color-elevated))]"
-                >
-                  <p className="text-sm font-semibold text-text">{template.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">{template.prompt}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge>{template.aspect_ratio}</Badge>
-                    <Badge>{template.resolution}px</Badge>
-                    <Badge>{models.find((item) => item.key === template.model_key)?.label ?? template.model_key}</Badge>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="space-y-5 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-              <div>
-                <p className="text-sm font-semibold text-text">Create Image</p>
-                <p className="text-xs text-muted">A compact composer with only the controls that materially change the output.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2">
+      <div className="grid gap-6 xl:grid-cols-[440px_minmax(0,1fr)] xl:items-start">
+        <div className="xl:sticky xl:top-24">
+          <div className="space-y-5 rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
+            <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
               <button
                 type="button"
-                className="rounded-[var(--radius-md)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.22),transparent)] px-4 py-3 text-sm font-semibold text-text"
+                className="rounded-[20px] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] px-4 py-3 text-sm font-semibold text-text"
               >
                 Create Image
               </button>
               <button
                 type="button"
-                className="rounded-[var(--radius-md)] px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[hsl(var(--color-elevated))] hover:text-text"
+                className="rounded-[20px] px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[hsl(var(--color-elevated))] hover:text-text"
               >
                 Image Variations
               </button>
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Choose model</p>
-              <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Model</p>
+                  <p className="mt-1 text-xs text-muted">Choose the generation engine without wasting half the screen on cards.</p>
+                </div>
+                <Badge>{selectedModelMeta?.label}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 {models.map((model) => {
                   const active = model.key === selectedModel;
                   return (
@@ -693,51 +640,54 @@ export function ImageStudioClient({ userId }: Props) {
                       key={model.key}
                       type="button"
                       onClick={() => setSelectedModel(model.key)}
-                      className={`min-w-[180px] rounded-[var(--radius-md)] border px-4 py-3 text-left transition ${
+                      className={`rounded-[24px] border p-3 text-left transition ${
                         active
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] shadow-soft'
-                          : 'border-border bg-bg hover:bg-elevated'
+                          ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),transparent)] shadow-soft'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] text-[hsl(var(--color-accent))]">
-                          <Sparkles className="h-5 w-5" />
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
+                          <Sparkles className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-text">{model.label}</p>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{model.description}</p>
+                          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{model.description}</p>
                         </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
-              <div className="mt-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2 text-xs text-muted">
                 {selectedModelMeta?.frontend_hint}
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-text">Prompt</p>
+            <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Describe your image</p>
+                  <p className="mt-1 text-xs text-muted">Use a single focused prompt, then layer references and output choices below.</p>
+                </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                   {enhancing ? 'Enhancing...' : 'Enhance'}
                 </Button>
               </div>
               <Textarea
-                rows={6}
+                rows={7}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Describe the image you want to create. Include style, setting, lighting, mood, camera perspective, and any important objects or people."
+                placeholder="Describe your subject, mood, environment, camera feel, lighting, and visual style. Keep it precise enough for premium output."
               />
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 {powerWords.map((word) => (
                   <button
                     key={word}
                     type="button"
                     onClick={() => applyPowerWord(word)}
-                    className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-1.5 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
+                    className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.4)] px-3 py-1.5 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))] hover:text-text"
                   >
                     {word}
                   </button>
@@ -745,13 +695,13 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Photos or references (optional)</p>
-                  <p className="mt-1 text-xs text-muted">Upload up to 4 reference images to guide style, composition, or product direction.</p>
+                  <p className="text-sm font-semibold text-text">Visual references</p>
+                  <p className="mt-1 text-xs text-muted">Upload photo references for style, subject, or composition guidance.</p>
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
                   <Upload className="h-3.5 w-3.5" />
                   {uploadingReference ? 'Uploading...' : 'Upload photo'}
                   <input
@@ -764,112 +714,118 @@ export function ImageStudioClient({ userId }: Props) {
                   />
                 </label>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                {referenceUploads.length === 0 ? (
-                  <div className="flex min-h-24 items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[hsl(var(--color-border))] text-center text-xs text-muted">
-                    Drop in product shots, mood references, or character visuals.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {referenceUploads.map((item) => (
-                      <div key={item.id} className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))]">
-                        <img src={toAbsoluteUrl(item.url)} alt={item.name} className="aspect-square w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeReferenceUpload(item.id)}
-                          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-surface)/0.92)] text-text opacity-0 transition group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {referenceUploads.length === 0 ? (
+                <div className="flex min-h-24 items-center justify-center rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] text-center text-xs text-muted">
+                  Add up to 4 JPG, PNG, or WEBP references.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {referenceUploads.map((item) => (
+                    <div key={item.id} className="group relative overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))]">
+                      <img src={toAbsoluteUrl(item.url)} alt={item.name} className="aspect-square w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeReferenceUpload(item.id)}
+                        className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-surface)/0.92)] text-text opacity-0 transition group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+            <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 backdrop-blur-md">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Output</p>
-                  <p className="mt-1 text-xs text-muted">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
+                  <p className="mt-1 text-xs text-muted">Compact controls for aspect ratio and resolution.</p>
                 </div>
                 <Badge>{selectedModelMeta?.label}</Badge>
               </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Aspect ratio</p>
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                  {aspectOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setAspectRatio(option.value)}
-                      className={`rounded-[var(--radius-md)] border px-2 py-3 text-center text-xs font-semibold ${
-                        aspectRatio === option.value
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                          : 'border-[hsl(var(--color-border))] text-muted hover:bg-[hsl(var(--color-elevated))]'
-                      }`}
-                    >
-                      {option.value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Resolution</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {resolutionOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setResolution(option.value)}
-                      className={`rounded-[var(--radius-md)] border px-3 py-3 text-center text-sm font-semibold ${
-                        resolution === option.value
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                          : 'border-[hsl(var(--color-border))] text-muted hover:bg-[hsl(var(--color-elevated))]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
-
-            <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1 text-sm text-muted">
-                <div>
-                  <span className="font-semibold text-text">{selectedModelMeta?.label}</span> • {aspectRatio} • {resolution}px
-                </div>
-                {estimate ? (
-                  <div>
-                    Est. {estimate.estimatedCredits} credits • {estimate.remainingCredits} after generation
+              <div className="space-y-3">
+                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                  <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Aspect ratio</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aspectOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAspectRatio(option.value)}
+                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                          aspectRatio === option.value
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                        }`}
+                      >
+                        {option.value}
+                      </button>
+                    ))}
                   </div>
-                ) : null}
+                </div>
+                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                  <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Resolution</p>
+                  <div className="flex flex-wrap gap-2">
+                    {resolutionOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setResolution(option.value)}
+                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                          resolution === option.value
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                <Button onClick={() => void submit()} disabled={submitting || Boolean(estimate && !estimate.sufficient)} className="gap-2">
-                  {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                  {submitting ? 'Generating...' : 'Generate Image'}
+            </Card>
+
+            <div className="space-y-3">
+              {error ? <p className="text-sm text-danger">{error}</p> : null}
+              <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
+                  <p className="mt-1 text-xs text-muted">{estimate ? `${estimate.estimatedCredits} credits estimated` : 'Estimating credits...'}</p>
+                </div>
+                <Button
+                  onClick={() => void submit()}
+                  disabled={submitting || Boolean(estimate && !estimate.sufficient)}
+                  className="min-w-[180px] rounded-[20px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                >
+                  {submitting ? (
+                    <>
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4" />
+                      Generate · {estimate ? `${estimate.estimatedCredits} cr` : '...'}
+                    </>
+                  )}
                 </Button>
-                {estimate && !estimate.sufficient ? (
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
-                    <button type="button" onClick={() => openLowBalanceModal(estimate.estimatedCredits)}>
-                      Insufficient credits
-                    </button>
-                    <a href="/billing">Top up</a>
-                    <a href="/pricing">View plans</a>
-                  </div>
-                ) : null}
               </div>
+              {estimate && !estimate.sufficient ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
+                  <button type="button" onClick={() => openLowBalanceModal(estimate.estimatedCredits)}>
+                    Insufficient credits
+                  </button>
+                  <a href="/billing">Top up</a>
+                  <a href="/pricing">View plans</a>
+                </div>
+              ) : null}
             </div>
-          </Card>
+          </div>
         </div>
 
-        <div className="space-y-6 xl:sticky xl:top-24">
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+        <div className="min-w-0 space-y-6">
+          <Card className="space-y-4 rounded-[32px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Canvas</p>
@@ -877,7 +833,7 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
               <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
             </div>
-            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+            <div className="overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
               {livePreviewImage ? (
                 <img
                   src={getPreviewImageUrl(livePreviewImage) ?? ''}
@@ -890,264 +846,198 @@ export function ImageStudioClient({ userId }: Props) {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedModelMeta?.label ?? 'Model selected'}</p>
+                <p className="mt-1 text-sm font-semibold text-text">
+                  {activeTab === 'generated'
+                    ? selectedGeneratedModel?.label ?? selectedModelMeta?.label ?? 'Model selected'
+                    : selectedInspirationModel?.label ?? selectedModelMeta?.label ?? 'Model selected'}
+                </p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Output</p>
-                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolution}px</p>
+                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
+              </div>
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Preview</p>
+                <p className="mt-1 text-sm font-semibold text-text">{activeTab === 'generated' ? 'Studio output' : 'Creator inspiration'}</p>
               </div>
             </div>
           </Card>
 
           <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
-              <p className="mt-1 text-sm text-muted">Switch between your latest outputs and creator inspiration.</p>
-            </div>
-            <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1">
-              <button
-                type="button"
-                onClick={() => setActiveTab('generated')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'generated' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
-              >
-                Your images
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('inspiration')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'inspiration' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
-              >
-                Inspiration
-              </button>
-            </div>
-          </div>
-
-          <Card className="space-y-4">
-            <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-                  <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  Search by prompt or tags
-                </label>
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2">
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search for styles, objects, moods, scenes..."
-                    className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-                  />
-                </div>
-                {searchQuery.trim() ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {tagSuggestions.map((item) => (
-                      <button
-                        key={item.tag}
-                        type="button"
-                        onClick={() => !selectedTags.includes(item.tag) && setSelectedTags((current) => [...current, item.tag])}
-                        className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
-                      >
-                        {item.tag} · {item.count}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
+                <p className="mt-1 text-sm text-muted">Browse your latest outputs or switch into curated inspiration without leaving the canvas.</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-text">
-                  <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  Active filters
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedTags.map((tag) => (
-                    <button key={`active-tag-${tag}`} type="button" onClick={() => setSelectedTags((current) => current.filter((item) => item !== tag))} className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
-                      {tag}
-                      <X className="h-3 w-3" />
-                    </button>
-                  ))}
-                  {selectedModelFilters.map((item) => (
-                    <button key={`active-model-${item}`} type="button" onClick={() => setSelectedModelFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
-                      {models.find((model) => model.key === item)?.label ?? item}
-                      <X className="h-3 w-3" />
-                    </button>
-                  ))}
-                  {selectedResolutionFilters.map((item) => (
-                    <button key={`active-resolution-${item}`} type="button" onClick={() => setSelectedResolutionFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
-                      {item}px
-                      <X className="h-3 w-3" />
-                    </button>
-                  ))}
-                  {selectedTags.length === 0 && selectedModelFilters.length === 0 && selectedResolutionFilters.length === 0 ? (
-                    <span className="text-xs text-muted">Newest assets are shown by default.</span>
-                  ) : null}
-                </div>
+              <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] p-1 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('generated')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'generated' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
+                >
+                  Your images
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('inspiration')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === 'inspiration' ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]' : 'text-muted'}`}
+                >
+                  Inspiration
+                </button>
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 lg:col-span-2">
+            <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
+              <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
                 <div>
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-                    <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                    Filter by tags
-                  </p>
-                  <div className="flex max-h-48 flex-wrap gap-2 overflow-auto">
-                    {tagFacets.map((item) => (
-                      <button
-                        key={item.tag}
-                        type="button"
-                        onClick={() => toggleFilter(item.tag, selectedTags, setSelectedTags)}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          selectedTags.includes(item.tag)
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] text-muted'
-                        }`}
-                      >
-                        {item.tag} · {item.count}
-                      </button>
-                    ))}
+                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                    <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                    Search by prompt or tags
+                  </label>
+                  <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+                    <input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Search by mood, object, prompt, or style..."
+                      className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                    />
                   </div>
-                </div>
-              </div>
-              <div className="space-y-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-text">Filter by model</p>
-                  <div className="flex flex-wrap gap-2">
-                    {models.map((model) => (
-                      <button
-                        key={`filter-model-${model.key}`}
-                        type="button"
-                        onClick={() => toggleFilter(model.key, selectedModelFilters, setSelectedModelFilters)}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          selectedModelFilters.includes(model.key)
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] text-muted'
-                        }`}
-                      >
-                        {model.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-text">Filter by resolution</p>
-                  <div className="flex flex-wrap gap-2">
-                    {resolutionOptions.map((option) => (
-                      <button
-                        key={`filter-resolution-${option.value}`}
-                        type="button"
-                        onClick={() => toggleFilter(option.value, selectedResolutionFilters, setSelectedResolutionFilters)}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          selectedResolutionFilters.includes(option.value)
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] text-muted'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {activeTab === 'generated' ? (
-            generatedImages.length === 0 ? (
-              <Card className="text-center">
-                <Images className="mx-auto h-10 w-10 text-[hsl(var(--color-accent))]" />
-                <p className="mt-4 font-semibold text-text">No images generated yet</p>
-                <p className="mt-1 text-sm text-muted">Your new creations will appear here immediately after generation.</p>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {generatedImages.map((item) => (
-                  <Card key={item.id} className="overflow-hidden p-0">
-                    <button type="button" onClick={() => setSelectedGenerated(item)} className="block w-full text-left">
-                      <img src={toAbsoluteUrl(item.image_url)} alt={item.prompt} className="h-64 w-full object-cover transition duration-300 hover:scale-[1.02]" />
-                    </button>
-                    <div className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text">{models.find((model) => model.key === item.model_key)?.label ?? item.model_key}</p>
-                          <p className="mt-1 text-xs text-muted">{item.aspect_ratio} • {item.resolution}px</p>
-                        </div>
-                        <Badge>{item.status}</Badge>
-                      </div>
-                      <p className="text-sm leading-6 text-muted">{item.prompt}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {[...item.auto_tags.slice(0, 4), ...item.user_tags.slice(0, 2)].map((tag) => (
-                          <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="secondary" type="button" onClick={() => void downloadImage(item.image_url, item.prompt)} className="gap-2 px-3 py-1.5 text-xs">
-                          <Download className="h-3.5 w-3.5" />
-                          Download
-                        </Button>
-                        <Button variant="secondary" type="button" onClick={() => void runImageAction(item.id, 'remove_background')} className="gap-2 px-3 py-1.5 text-xs" disabled={actionLoading === `${item.id}:remove_background`}>
-                          <Eraser className="h-3.5 w-3.5" />
-                          {actionLoading === `${item.id}:remove_background` ? 'Working...' : 'Remove BG'}
-                        </Button>
-                        <Button variant="secondary" type="button" onClick={() => void runImageAction(item.id, 'upscale')} className="gap-2 px-3 py-1.5 text-xs" disabled={actionLoading === `${item.id}:upscale`}>
-                          <Zap className="h-3.5 w-3.5" />
-                          {actionLoading === `${item.id}:upscale` ? 'Working...' : 'Upscale'}
-                        </Button>
-                        <Button variant="secondary" type="button" onClick={() => void runImageAction(item.id, 'variation')} className="gap-2 px-3 py-1.5 text-xs" disabled={actionLoading === `${item.id}:variation`}>
-                          <Stars className="h-3.5 w-3.5" />
-                          {actionLoading === `${item.id}:variation` ? 'Working...' : 'Variation'}
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {filteredInspiration.map((item) => (
-                <Card key={item.id} className="overflow-hidden p-0">
-                  <button type="button" onClick={() => setSelectedInspiration(item)} className="block w-full text-left">
-                    <img src={item.image_url} alt={item.title} className="h-64 w-full object-cover transition duration-300 hover:scale-[1.02]" />
-                  </button>
-                  <div className="space-y-3 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-text">{item.title}</p>
-                      <Badge>{models.find((model) => model.key === item.model_key)?.label ?? item.model_key}</Badge>
-                    </div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted">By {item.creator_name}</p>
-                    <p className="text-sm leading-6 text-muted">{item.prompt}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {item.tags.slice(0, 5).map((tag) => (
-                        <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
+                  {searchQuery.trim() ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {tagSuggestions.map((item) => (
+                        <button
+                          key={item.tag}
+                          type="button"
+                          onClick={() => !selectedTags.includes(item.tag) && setSelectedTags((current) => [...current, item.tag])}
+                          className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))]"
+                        >
+                          {item.tag} · {item.count}
+                        </button>
                       ))}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
-                        <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                        Inspiration only
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedInspiration(item)}
-                        className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text"
-                      >
-                        <Info className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                        View details
-                      </button>
-                    </div>
+                  ) : null}
+                </div>
+                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                    Active filters
                   </div>
-                </Card>
-              ))}
-            </div>
-          )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedTags.map((tag) => (
+                      <button key={`active-tag-${tag}`} type="button" onClick={() => setSelectedTags((current) => current.filter((item) => item !== tag))} className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                        {tag}
+                        <X className="h-3 w-3" />
+                      </button>
+                    ))}
+                    {selectedModelFilters.map((item) => (
+                      <button key={`active-model-${item}`} type="button" onClick={() => setSelectedModelFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                        {models.find((model) => model.key === item)?.label ?? item}
+                        <X className="h-3 w-3" />
+                      </button>
+                    ))}
+                    {selectedResolutionFilters.map((item) => (
+                      <button key={`active-resolution-${item}`} type="button" onClick={() => setSelectedResolutionFilters((current) => current.filter((value) => value !== item))} className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                        {item}px
+                        <X className="h-3 w-3" />
+                      </button>
+                    ))}
+                    {selectedTags.length === 0 && selectedModelFilters.length === 0 && selectedResolutionFilters.length === 0 ? (
+                      <span className="text-xs text-muted">No active filters</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
+                  const imageUrl = getPreviewImageUrl(item);
+                  const itemModel = models.find((model) => model.key === item.model_key);
+                  const isGenerated = activeTab === 'generated';
+                  return (
+                    <button
+                      key={`${activeTab}-${item.id}`}
+                      type="button"
+                      onClick={() => {
+                        if (isGenerated) {
+                          setSelectedGenerated(item as GeneratedImage);
+                        } else {
+                          setSelectedInspiration(item as InspirationImage);
+                        }
+                      }}
+                      className={`overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                        ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
+                          ? 'border-[hsl(var(--color-accent))] shadow-soft'
+                          : 'border-[hsl(var(--color-border))]'
+                      } bg-[hsl(var(--color-bg)/0.72)]`}
+                    >
+                      <div className="overflow-hidden">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                        ) : (
+                          <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
+                        )}
+                      </div>
+                      <div className="space-y-3 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="line-clamp-1 text-sm font-semibold text-text">
+                              {'title' in item ? item.title : item.prompt.split(',')[0]}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{getPreviewImageLabel(item)}</p>
+                          </div>
+                          <Badge>{itemModel?.label ?? item.model_key}</Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge>{item.aspect_ratio}</Badge>
+                          <Badge>{item.resolution}px</Badge>
+                          {isGenerated ? <Badge>{(item as GeneratedImage).status}</Badge> : null}
+                        </div>
+                        {isGenerated ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <Button
+                              variant="secondary"
+                              type="button"
+                              className="gap-2 px-3 py-2 text-xs"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void downloadImage((item as GeneratedImage).image_url, (item as GeneratedImage).prompt);
+                              }}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              Download
+                            </Button>
+                            <div className="flex items-center gap-2 text-xs text-muted">
+                              <Tag className="h-3.5 w-3.5" />
+                              {[...(item as GeneratedImage).auto_tags, ...(item as GeneratedImage).user_tags].slice(0, 2).join(', ') || 'No tags'}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {(activeTab === 'generated' ? generatedImages : filteredInspiration).length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-5 py-12 text-center">
+                  <ImageIcon className="mx-auto h-8 w-8 text-[hsl(var(--color-accent))]" />
+                  <p className="mt-4 text-sm font-semibold text-text">
+                    {activeTab === 'generated' ? 'No generated images yet' : 'No inspiration items match these filters'}
+                  </p>
+                  <p className="mt-2 text-xs text-muted">
+                    {activeTab === 'generated'
+                      ? 'Generate your first image and it will appear here instantly.'
+                      : 'Try a different tag, model, or prompt search term.'}
+                  </p>
+                </div>
+              ) : null}
+            </Card>
           </div>
         </div>
       </div>
-
       {selectedInspiration ? (
         <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedInspiration(null)}>
           <div className="mx-auto flex h-full max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
