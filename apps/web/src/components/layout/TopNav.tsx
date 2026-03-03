@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
@@ -31,10 +31,28 @@ function getInitials(label: string | null) {
 
 export function TopNav({ userId, accountLabel }: TopNavProps) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const initials = getInitials(accountLabel);
 
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
   return (
-    <div>
+    <div ref={menuRef}>
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">

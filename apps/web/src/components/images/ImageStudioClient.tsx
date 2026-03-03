@@ -499,8 +499,8 @@ export function ImageStudioClient({ userId }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-6 shadow-soft sm:p-8">
-        <div className="pointer-events-none absolute right-0 top-0 h-44 w-44 rounded-full bg-[hsl(var(--color-accent)/0.18)] blur-3xl" />
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_28%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_40%,hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
+        <div className="pointer-events-none absolute -left-8 top-6 h-40 w-40 rounded-full bg-[hsl(var(--color-accent)/0.15)] blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-3 py-1 text-xs font-semibold text-muted">
@@ -519,19 +519,29 @@ export function ImageStudioClient({ userId }: Props) {
                 {wallet.currentCredits} credits available
               </div>
             ) : null}
+            <div className="mt-5 flex flex-wrap gap-2">
+              {['Prompt refine', 'Quick starts', 'Post-gen remix', 'Studio feed'].map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] p-4">
+          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
               <Wand2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="mt-3 text-sm font-semibold text-text">Smart Prompt</p>
               <p className="mt-1 text-xs text-muted">Refine weak prompts into premium visual direction.</p>
             </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] p-4">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
               <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="mt-3 text-sm font-semibold text-text">Quick Starts</p>
               <p className="mt-1 text-xs text-muted">Use creator templates for e-commerce, YouTube, and fantasy art.</p>
             </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] p-4">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.95),hsl(var(--color-surface)/0.9))] p-4">
               <Stars className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="mt-3 text-sm font-semibold text-text">Magic Actions</p>
               <p className="mt-1 text-xs text-muted">Remove background, upscale, or generate variations after the first output.</p>
@@ -541,7 +551,7 @@ export function ImageStudioClient({ userId }: Props) {
       </section>
 
       <div className="space-y-6">
-        <Card className="space-y-4">
+        <Card className="space-y-4 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
             <div className="flex items-center gap-2">
               <Clapperboard className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
@@ -587,7 +597,7 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </Card>
 
-        <Card className="space-y-5">
+        <Card className="space-y-5 bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
             <div className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>

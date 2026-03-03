@@ -442,7 +442,8 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         accentLabel="Influencer Studio"
       />
 
-      <section className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-5 py-6 shadow-soft sm:px-6">
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_28%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-6">
+        <div className="pointer-events-none absolute -right-10 top-4 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.16)] blur-3xl" />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[hsl(var(--color-accent))]">AI Influencer Studio</p>
@@ -452,17 +453,27 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             <p className="mt-2 text-sm text-muted sm:text-base">
               Build a stable influencer persona once, then reuse the same identity across content, scenes, poses, and future video workflows.
             </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {['Persona memory', 'Identity lock', 'Scene variations', 'Content engine'].map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.78)] px-3 py-1.5 text-xs font-medium text-text"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="grid gap-2 text-sm text-muted sm:grid-cols-3">
-            <Card className="px-4 py-3">
+            <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-3">
               <div className="font-semibold text-text">{personas.length}</div>
               <div>Personas</div>
             </Card>
-            <Card className="px-4 py-3">
+            <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-3">
               <div className="font-semibold text-text">{selectedPersona?.reference_image_url ? 'Locked' : 'Open'}</div>
               <div>Identity state</div>
             </Card>
-            <Card className="px-4 py-3">
+            <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-3">
               <div className="font-semibold text-text">{wallet?.currentCredits ?? '—'}</div>
               <div>Credits available</div>
             </Card>
@@ -470,7 +481,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         </div>
       </section>
 
-      <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-2">
+      <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-2">
         {tabItems.map((item) => (
           <button
             key={item.key}

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Image as ImageIcon, LayoutDashboard, Mail, Menu, PlusCircle, Settings, Sparkles, User, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
@@ -45,12 +45,35 @@ function getPageTitle(pathname: string) {
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
   const pageTitle = getPageTitle(pathname);
   const displayName = accountLabel ?? 'User';
   const resolvedAvatar = accountAvatar
     ? (accountAvatar.startsWith('http://') || accountAvatar.startsWith('https://') ? accountAvatar : `${API_URL}${accountAvatar}`)
     : null;
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+        setMobileNavOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
 
   if (inApp) {
     const navItems = [
@@ -110,8 +133,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               <div className="flex items-center gap-2">
                 <CreditChip />
                 <ToggleTheme />
-                <details className="relative">
-                  <summary className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text">
+                <div ref={accountMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAccountMenuOpen((current) => !current)}
+                    className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text"
+                    aria-expanded={accountMenuOpen}
+                    aria-label="Open account menu"
+                  >
                     {resolvedAvatar ? (
                       <img src={resolvedAvatar} alt={displayName} className="h-7 w-7 rounded-full object-cover" />
                     ) : (
@@ -121,7 +150,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     )}
                     <span className="hidden sm:inline">{displayName}</span>
                     <ChevronDown className="h-4 w-4 text-muted" />
-                  </summary>
+                  </button>
+                  {accountMenuOpen ? (
                   <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
                     <div className="mb-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-2 py-2">
                       <div className="flex items-center gap-2">
@@ -139,10 +169,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         <span className="truncate">{accountEmail ?? 'No email set'}</span>
                       </div>
                     </div>
-                    <Link href="/profile" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                    <Link href="/profile" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <User className="h-4 w-4" /> Profile
                     </Link>
-                    <Link href="/settings" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                    <Link href="/settings" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <Settings className="h-4 w-4" /> Settings
                     </Link>
                     <form action={logoutAction}>
@@ -151,7 +181,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       </button>
                     </form>
                   </div>
-                </details>
+                  ) : null}
+                </div>
               </div>
             </div>
           </header>

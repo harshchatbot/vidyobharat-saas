@@ -840,7 +840,9 @@ export function CreateVideoPage({
         accentLabel={overlayAccentLabel}
       />
 
-      <section className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
+      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.18),transparent_26%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-6 shadow-soft sm:p-8">
+        <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
             <Clapperboard className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
@@ -856,6 +858,34 @@ export function CreateVideoPage({
               {creditWallet.currentCredits} credits available
             </div>
           ) : null}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {['Template-led', 'AI assist', 'Voice + music', 'Studio feed'].map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
+            <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+            <p className="mt-3 text-sm font-semibold text-text">Narrative models</p>
+            <p className="mt-1 text-xs text-muted">Choose Sora, Veo, or Kling by output style, realism, and speed.</p>
+          </Card>
+          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
+            <Mic2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+            <p className="mt-3 text-sm font-semibold text-text">Regional voice</p>
+            <p className="mt-1 text-xs text-muted">Pair language, voice, and music before committing to the final render.</p>
+          </Card>
+          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
+            <Settings2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+            <p className="mt-3 text-sm font-semibold text-text">Output control</p>
+            <p className="mt-1 text-xs text-muted">Tune size, quality, and duration with a credit-aware studio workflow.</p>
+          </Card>
+        </div>
         </div>
       </section>
 

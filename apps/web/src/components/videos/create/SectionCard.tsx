@@ -20,10 +20,11 @@ export function SectionCard({
 }>) {
   return (
     <details open={defaultOpen} className="group">
-      <Card className="overflow-hidden p-0">
-        <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4 marker:content-none sm:px-6">
+      <Card className="overflow-hidden border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-0 shadow-soft">
+        <summary className="relative flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-5 marker:content-none sm:px-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--color-accent)/0.55),transparent)]" />
           <div className="flex min-w-0 items-start gap-3">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-accent)/0.22)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.08))] text-[hsl(var(--color-accent))] shadow-[0_12px_32px_hsl(var(--color-accent)/0.08)]">
               {icon}
             </span>
             <div className="min-w-0">
@@ -33,12 +34,12 @@ export function SectionCard({
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {action}
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-bg text-text transition group-open:rotate-180">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-[hsl(var(--color-bg)/0.8)] text-text transition group-open:rotate-180">
               <ChevronDown className="h-4 w-4" />
             </span>
           </div>
         </summary>
-        <div className="border-t border-border px-5 py-5 sm:px-6">{children}</div>
+        <div className="border-t border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.7),hsl(var(--color-bg)/0.35))] px-5 py-5 sm:px-6">{children}</div>
       </Card>
     </details>
   );
