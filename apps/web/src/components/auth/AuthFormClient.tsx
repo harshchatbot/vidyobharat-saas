@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Mail, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { useToast } from '@/components/ui/Toast';
 import {
   signInWithGooglePopup,
@@ -35,12 +36,34 @@ export function AuthFormClient({ mode }: Props) {
   const [error, setError] = useState(searchParams.get('error') ?? '');
   const [message, setMessage] = useState('');
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [authStageIndex, setAuthStageIndex] = useState(0);
 
   const isLogin = mode === 'login';
   const title = isLogin ? 'Welcome back' : 'Create your account';
   const subtitle = isLogin
     ? 'Sign in with email or Google to continue into RangManch AI.'
     : 'Create your account, verify your email, and get into the studio with a standard secure signup flow.';
+  const authStages = useMemo(
+    () => (
+      isLogin
+        ? ['Signing you in', 'Loading dashboard', 'Fetching your creations']
+        : ['Creating your account', 'Securing your workspace', 'Preparing your dashboard']
+    ),
+    [isLogin],
+  );
+
+  useEffect(() => {
+    if (!submitting) {
+      setAuthStageIndex(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setAuthStageIndex((current) => (current + 1) % authStages.length);
+    }, 1300);
+
+    return () => window.clearInterval(timer);
+  }, [submitting, authStages]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,6 +127,9 @@ export function AuthFormClient({ mode }: Props) {
   }
 
   async function handleGoogleSignIn() {
+    setSubmitting(true);
+    setError('');
+    setMessage('');
     try {
       const session = await signInWithGooglePopup();
       const user = await getUserForIdToken(session.idToken);
@@ -119,6 +145,7 @@ export function AuthFormClient({ mode }: Props) {
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Google sign-in failed');
+      setSubmitting(false);
     }
   }
 
@@ -175,8 +202,20 @@ export function AuthFormClient({ mode }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-xl py-6">
-      <Card>
+    <>
+      <LoadingOverlay
+        open={submitting}
+        title={isLogin ? 'Signing you in' : 'Creating your account'}
+        description={
+          isLogin
+            ? 'We are verifying your identity, loading your dashboard, and syncing your latest creations.'
+            : 'We are securing your account, provisioning your workspace, and preparing your dashboard.'
+        }
+        stepLabel={authStages[authStageIndex]}
+        accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
+      />
+      <div className="mx-auto max-w-xl py-6">
+        <Card>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-md">
             <h1 className="text-2xl font-semibold text-[hsl(var(--color-text))]">{title}</h1>
@@ -284,7 +323,8 @@ export function AuthFormClient({ mode }: Props) {
             {isLogin ? 'Create account' : 'Login'}
           </Link>
         </p>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }
