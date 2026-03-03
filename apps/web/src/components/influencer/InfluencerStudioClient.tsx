@@ -446,7 +446,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
 
       <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.2),transparent_26%),radial-gradient(circle_at_85%_10%,hsl(var(--color-accent)/0.1),transparent_20%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] px-5 py-6 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -right-10 top-4 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.16)] blur-3xl" />
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[hsl(var(--color-accent))]">AI Influencer Studio</p>
             <h1 className="mt-2 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
@@ -500,7 +500,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
         <div className="space-y-5">
           {personaError ? (
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
@@ -519,7 +519,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null
           }
         >
-          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-text">Saved personas</h3>
@@ -739,7 +739,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           icon={<ImageIcon className="h-5 w-5" />}
           defaultOpen={false}
         >
-          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
             <div className="space-y-4">
               <Card className="overflow-hidden p-0">
                 <div className="aspect-[4/5] bg-[hsl(var(--color-bg))]">
@@ -775,7 +775,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Pose</label>
                   <Dropdown value={selectedPose} onChange={(e) => setSelectedPose(e.target.value)}>
@@ -913,7 +913,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           </div>
 
           <div className="mb-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4">
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Scene name</label>
                 <Input
@@ -970,7 +970,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           </div>
 
           <div className="max-h-[32rem] overflow-y-auto pr-1">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {scenePresets.map((scene) => (
               <button
                 key={scene.key}
@@ -1060,7 +1060,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Niche</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedPersona?.niche || draft.niche || 'Not set'}</p>

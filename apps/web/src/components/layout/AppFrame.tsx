@@ -109,8 +109,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={userId}>
-      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] md:grid-cols-[240px_1fr]">
-        <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-4 md:block">
+      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] lg:grid-cols-[240px_1fr]">
+        <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-4 lg:block">
           <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-surface)))] p-3 shadow-soft">
             <BrandLogo href="/dashboard" variant="full" size="lg" className="max-w-[255px]" priority="sidebar" />
           </div>
@@ -157,11 +157,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   type="button"
                   aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   onClick={() => setMobileNavOpen((current) => !current)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text md:hidden"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text lg:hidden"
                 >
                   {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>
-                <div className="md:hidden">
+                <div className="lg:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
                 <span className="font-heading text-xl font-bold tracking-tight text-text">{pageTitle}</span>
@@ -224,7 +224,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </header>
           {mobileNavOpen ? (
-            <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 md:hidden">
+            <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 lg:hidden">
                 <div className="space-y-3">
                 <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
                   <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />

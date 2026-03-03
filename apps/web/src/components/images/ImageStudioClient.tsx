@@ -556,7 +556,7 @@ export function ImageStudioClient({ userId }: Props) {
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
@@ -581,7 +581,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[440px_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
         <div className="xl:sticky xl:top-24">
           <div className="space-y-5 rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
@@ -810,7 +810,7 @@ export function ImageStudioClient({ userId }: Props) {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
                 <p className="mt-1 text-sm font-semibold text-text">
@@ -857,7 +857,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
 
         <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 2xl:grid-cols-[1.2fr_0.8fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -917,7 +917,7 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);

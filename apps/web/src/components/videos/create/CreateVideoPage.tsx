@@ -870,7 +870,7 @@ export function CreateVideoPage({
             ))}
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+        <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-3">
           <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
             <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
             <p className="mt-3 text-sm font-semibold text-text">Narrative models</p>
@@ -890,11 +890,11 @@ export function CreateVideoPage({
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_380px] xl:items-start">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
         <div className="space-y-6">
-          <section className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <section className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-4 shadow-soft">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
             {[
               {
                 title: 'Text to Video',
@@ -1143,7 +1143,7 @@ export function CreateVideoPage({
           </SectionCard>
         </div>
 
-        <div className="space-y-6 xl:sticky xl:top-24">
+        <div className="space-y-6 2xl:sticky 2xl:top-24">
           <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1154,7 +1154,7 @@ export function CreateVideoPage({
                 {selectedModel?.label ?? 'Model'}
               </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
                 <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
@@ -1214,7 +1214,7 @@ export function CreateVideoPage({
         {videos.length === 0 ? (
           <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
             {videos.map((videoItem) => {
               const videoUrl = toAssetUrl(videoItem.output_url);
               const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
