@@ -22,6 +22,54 @@ logger = logging.getLogger(__name__)
 OPENAI_VIDEO_TIMEOUT_SECONDS = 600
 OPENAI_POLL_INTERVAL_SECONDS = 5
 
+VIDEO_INSPIRATION_ITEMS = [
+    {
+        'id': 'vid-insp-1',
+        'creator_name': 'Meera',
+        'model_key': 'sora2',
+        'provider_name': 'OpenAI Sora 2',
+        'title': 'Apocalyptic Street Teaser',
+        'prompt': 'Abandoned city street after rainfall, cinematic fog, creeping vines, cracked asphalt, silent tension, premium vertical teaser framing.',
+        'video_url': '/videos/samples/hindi-festival-9x16.mp4',
+        'thumbnail_url': '/videos/samples/hindi-festival-9x16-frame.jpg',
+        'aspect_ratio': '9:16',
+        'resolution': '720p',
+        'duration_seconds': 8,
+        'created_at': '2026-02-28T08:45:00Z',
+        'tags': ['cinematic', 'post-apocalyptic', 'street', 'fog', 'vertical teaser'],
+    },
+    {
+        'id': 'vid-insp-2',
+        'creator_name': 'Kabir',
+        'model_key': 'veo3',
+        'provider_name': 'Google Veo 3.1',
+        'title': 'Founder Launch Cut',
+        'prompt': 'Premium founder launch montage inside a dark tech office, moody blue-gold lighting, confident close-ups, polished motion, startup launch energy.',
+        'video_url': 'https://cdn.coverr.co/videos/coverr-working-in-the-office-5176/1080p.mp4',
+        'thumbnail_url': 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '16:9',
+        'resolution': '1080p',
+        'duration_seconds': 8,
+        'created_at': '2026-02-25T11:20:00Z',
+        'tags': ['startup', 'office', 'launch', 'cinematic', 'brand film'],
+    },
+    {
+        'id': 'vid-insp-3',
+        'creator_name': 'Aarohi',
+        'model_key': 'kling3',
+        'provider_name': 'Kling 3.0',
+        'title': 'Luxury Fashion Motion Poster',
+        'prompt': 'High-fashion motion poster with glossy reflections, portrait lens compression, elegant movement, and gold-accent editorial lighting.',
+        'video_url': 'https://cdn.coverr.co/videos/coverr-model-looking-at-camera-1568045416603?download=1080p',
+        'thumbnail_url': 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80',
+        'aspect_ratio': '4:5',
+        'resolution': '1080p',
+        'duration_seconds': 6,
+        'created_at': '2026-02-21T15:05:00Z',
+        'tags': ['fashion', 'luxury', 'poster', 'studio', 'editorial'],
+    },
+]
+
 
 class ProviderError(Exception):
     pass
@@ -95,6 +143,9 @@ class AIVideoCreateService:
 
     def list_models(self) -> list[ModelRegistryEntry]:
         return list(self.VIDEO_MODEL_REGISTRY.values())
+
+    def list_inspiration(self) -> list[dict[str, object]]:
+        return VIDEO_INSPIRATION_ITEMS
 
     def create_video(
         self,

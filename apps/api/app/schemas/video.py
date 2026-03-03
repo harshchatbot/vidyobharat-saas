@@ -54,3 +54,19 @@ class MusicTrackResponse(BaseModel):
     name: str
     duration_sec: int | None = None
     preview_url: str
+
+
+class InspirationVideoResponse(BaseModel):
+    id: str
+    creator_name: str
+    model_key: str
+    provider_name: str
+    title: str
+    prompt: str
+    video_url: str
+    thumbnail_url: str
+    aspect_ratio: str
+    resolution: str
+    duration_seconds: int
+    created_at: datetime
+    tags: list[str] = Field(default_factory=list)

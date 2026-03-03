@@ -15,6 +15,7 @@ import type {
   ImageActionResponse,
   ImageModel,
   InspirationImage,
+  InspirationVideo,
   CreditEstimateResponse,
   CreditHistoryItem,
   CreditTopUpOrderResponse,
@@ -302,6 +303,9 @@ export const api = {
   },
   listImageInspiration(userId: string) {
     return request<InspirationImage[]>('/ai/images/inspiration', {}, { userId, cache: 'no-store' });
+  },
+  listVideoInspiration(userId: string) {
+    return request<InspirationVideo[]>('/api/videos/inspiration', {}, { userId, cache: 'no-store' });
   },
   listAssetTags(
     userId: string,

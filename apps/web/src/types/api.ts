@@ -416,6 +416,22 @@ export type InspirationImage = {
   tags: string[];
 };
 
+export type InspirationVideo = {
+  id: string;
+  creator_name: string;
+  model_key: string;
+  provider_name: string;
+  title: string;
+  prompt: string;
+  video_url: string;
+  thumbnail_url: string;
+  aspect_ratio: string;
+  resolution: string;
+  duration_seconds: number;
+  created_at: string;
+  tags: string[];
+};
+
 export type AssetTagFacet = {
   tag: string;
   count: number;

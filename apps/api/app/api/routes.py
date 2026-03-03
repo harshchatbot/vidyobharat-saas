@@ -77,7 +77,7 @@ from app.schemas.project import (
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
 from app.schemas.user import UserAvatarUploadResponse, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
-from app.schemas.video import MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
+from app.schemas.video import InspirationVideoResponse, MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
 from app.schemas.tts import TTSCatalogResponse, TTSLanguageOptionResponse, TTSPreviewRequest, TTSPreviewResponse, TTSVoiceOptionResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
@@ -1028,6 +1028,15 @@ def list_ai_image_inspiration(
 ):
     service = ImageGenerationService(db)
     return [InspirationImageResponse.model_validate(item) for item in service.list_inspiration()]
+
+
+@router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
+def list_ai_video_inspiration(
+    _: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = AIVideoCreateService(db, settings)
+    return [InspirationVideoResponse.model_validate(item) for item in service.list_inspiration()]
 
 
 @router.get('/assets/tags', response_model=list[AssetTagFacet])

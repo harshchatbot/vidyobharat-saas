@@ -2,16 +2,15 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Film, ImageIcon, Search, Tag } from 'lucide-react';
+import { ArrowRight, Clapperboard, Film, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
 
-import { MrGreenMascot } from '@/components/landing/MrGreenMascot';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Grid } from '@/components/ui/Grid';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetSearchItem, AssetTagFacet } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet, InspirationImage, InspirationVideo } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -19,6 +18,7 @@ type Props = {
 };
 
 type MediaFilter = 'all' | 'video' | 'image';
+type InspirationFilter = 'video' | 'image';
 
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
@@ -67,15 +67,53 @@ function emptyCopy(mediaFilter: MediaFilter) {
   };
 }
 
+const workflowCards = [
+  {
+    title: 'Create Reel Video',
+    description: 'Script, voice, scene, and render in one guided studio.',
+    href: '/create',
+    cta: 'Open video studio',
+    gradient: 'radial-gradient(circle at top left, hsl(var(--color-accent) / 0.34), transparent 38%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    icon: Film,
+  },
+  {
+    title: 'Generate Premium Visuals',
+    description: 'Posters, thumbnails, and scene-rich image generations.',
+    href: '/images',
+    cta: 'Open image studio',
+    gradient: 'radial-gradient(circle at top left, hsl(190 88% 58% / 0.22), transparent 36%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    icon: ImageIcon,
+  },
+  {
+    title: 'Build AI Influencer',
+    description: 'Lock a persona, keep style memory, and generate consistently.',
+    href: '/influencer',
+    cta: 'Open influencer studio',
+    gradient: 'radial-gradient(circle at top left, hsl(142 71% 45% / 0.2), transparent 34%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    icon: Wand2,
+  },
+  {
+    title: 'Start From Inspiration',
+    description: 'Study reference outputs before jumping into your own workflow.',
+    href: '#inspiration',
+    cta: 'Browse inspiration',
+    gradient: 'radial-gradient(circle at top left, hsl(275 70% 62% / 0.18), transparent 34%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    icon: Layers3,
+  },
+];
+
 export function DashboardVideosClient({ userId, userName }: Props) {
   const [assets, setAssets] = useState<AssetSearchItem[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
+  const [imageInspiration, setImageInspiration] = useState<InspirationImage[]>([]);
+  const [videoInspiration, setVideoInspiration] = useState<InspirationVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
+  const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('video');
 
   useEffect(() => {
     let cancelled = false;
@@ -92,8 +130,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       api.listAssetTags(userId, {
         content_type: mediaFilter === 'all' ? undefined : mediaFilter,
       }),
+      api.listImageInspiration(userId),
+      api.listVideoInspiration(userId),
     ])
-      .then(([results, facets]) => {
+      .then(([results, facets, imageRefs, videoRefs]) => {
         if (cancelled) return;
         if (results.status === 'fulfilled') {
           setAssets(results.value.items);
@@ -103,11 +143,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           setError('Failed to load creations. Please refresh.');
         }
 
-        if (facets.status === 'fulfilled') {
-          setTagFacets(facets.value);
-        } else {
-          setTagFacets([]);
-        }
+        setTagFacets(facets.status === 'fulfilled' ? facets.value : []);
+        setImageInspiration(imageRefs.status === 'fulfilled' ? imageRefs.value : []);
+        setVideoInspiration(videoRefs.status === 'fulfilled' ? videoRefs.value : []);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -126,6 +164,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     }),
     [assets],
   );
+
+  const highlightedAssets = useMemo(() => assets.slice(0, 4), [assets]);
+  const inspirationItems = inspirationFilter === 'video' ? videoInspiration : imageInspiration;
 
   const downloadAsset = async (asset: AssetSearchItem) => {
     const url = toAbsoluteUrl(asset.asset_url);
@@ -146,171 +187,315 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const emptyState = emptyCopy(mediaFilter);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted">Manage your generated images and videos from one place.</p>
-        </div>
-        <div className="flex flex-wrap gap-2 sm:self-start">
-          <Link href="/images"><Button variant="secondary">Create image</Button></Link>
-          <Link href="/create"><Button>Create video</Button></Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <section
+        className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-6 shadow-soft sm:p-8"
+        style={{
+          background:
+            'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 26%), radial-gradient(circle at bottom left, hsl(196 80% 58% / 0.12), transparent 28%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+        }}
+      >
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-5">
+            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator home</Badge>
+            <div>
+              <h1 className="font-heading text-4xl font-extrabold tracking-tight text-text sm:text-5xl">
+                What would you like to create today, {userName.split(' ')[0] || 'Creator'}?
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-muted sm:text-lg">
+                Jump into video, image, or influencer workflows, then pick up your latest creations and fresh inspiration without leaving the studio.
+              </p>
+            </div>
 
-      <Card>
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <MrGreenMascot size="sm" className="mx-auto sm:mx-0" />
-          <div className="text-left">
-            <h2 className="font-heading text-xl font-extrabold tracking-tight text-text sm:text-2xl">
-              Hi {userName} 👋 I am Mr Green. Welcome Back !! 
-              What do you want to create today?
-            </h2>
-            <p className="mt-1 text-sm text-muted">Jump into images, videos, or use a ready template.</p>
-          </div>
-        </div>
-      </Card>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/create"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
+              <Link href="/images"><Button variant="secondary" className="gap-2">Generate image <ImageIcon className="h-4 w-4" /></Button></Link>
+              <Link href="/influencer"><Button variant="secondary" className="gap-2">Influencer studio <Sparkles className="h-4 w-4" /></Button></Link>
+            </div>
 
-      <Grid className="md:grid-cols-3">
-        <Card className="flex h-full flex-col justify-between">
-          <div>
-            <p className="font-semibold text-text">Create image</p>
-            <p className="mt-1 text-sm text-muted">Generate covers, posters, thumbnails, and influencer visuals.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">All creations</p>
+                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">Videos</p>
+                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">Images</p>
+                <p className="mt-2 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>
+              </div>
+            </div>
           </div>
-          <Link href="/images" className="mt-4"><Button className="w-full">Open Images</Button></Link>
-        </Card>
-        <Card className="flex h-full flex-col justify-between">
-          <div>
-            <p className="font-semibold text-text">Create video</p>
-            <p className="mt-1 text-sm text-muted">Write a script, choose a voice, and render your next video.</p>
-          </div>
-          <Link href="/create" className="mt-4"><Button variant="secondary" className="w-full">Open Studio</Button></Link>
-        </Card>
-        <Card className="flex h-full flex-col justify-between">
-          <div>
-            <p className="font-semibold text-text">AI Influencer Studio</p>
-            <p className="mt-1 text-sm text-muted">Build a locked character persona and generate consistent outputs.</p>
-          </div>
-          <Link href="/influencer" className="mt-4"><Button variant="secondary" className="w-full">Open Influencer</Button></Link>
-        </Card>
-      </Grid>
 
-      {error && <Card><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
-
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {([
-            ['all', `All · ${assetCounts.all}`],
-            ['video', `Videos · ${assetCounts.video}`],
-            ['image', `Images · ${assetCounts.image}`],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMediaFilter(value)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                mediaFilter === value
-                  ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                  : 'border border-[hsl(var(--color-border))] text-muted hover:border-[hsl(var(--color-accent)/0.5)] hover:text-text'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div>
-            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-              <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-              Search {mediaFilter === 'all' ? 'creations' : mediaFilter === 'image' ? 'images' : 'videos'}
-            </label>
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search titles, prompts, scripts, and tags..."
-              className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
-            />
-          </div>
-          <div>
-            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-              <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-              Filter by tags
-            </p>
+          <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4 sm:p-5">
             <div className="flex flex-wrap gap-2">
-              {tagFacets.slice(0, 12).map((item) => (
+              {(['video', 'image'] as const).map((value) => (
                 <button
-                  key={item.tag}
+                  key={value}
                   type="button"
-                  onClick={() =>
-                    setSelectedTags((current) =>
-                      current.includes(item.tag) ? current.filter((value) => value !== item.tag) : [...current, item.tag],
-                    )
-                  }
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    selectedTags.includes(item.tag)
+                  onClick={() => setInspirationFilter(value)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    inspirationFilter === value
                       ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                      : 'border border-[hsl(var(--color-border))] text-muted'
+                      : 'border border-[hsl(var(--color-border))] text-muted hover:text-text'
                   }`}
                 >
-                  {item.tag} · {item.count}
+                  {value === 'video' ? 'Video inspiration' : 'Image inspiration'}
                 </button>
               ))}
             </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {inspirationItems.slice(0, 4).map((item) => {
+                const preview =
+                  inspirationFilter === 'video'
+                    ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) || (item as InspirationVideo).thumbnail_url
+                    : (item as InspirationImage).image_url;
+                return (
+                  <div key={item.id} className="overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
+                    <img src={preview} alt={item.title} className="h-28 w-full object-cover" />
+                    <div className="space-y-2 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-text">{item.title}</p>
+                        <Badge>{item.model_key}</Badge>
+                      </div>
+                      <p className="line-clamp-2 text-xs leading-5 text-muted">{item.prompt}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {item.tags.slice(0, 3).map((tag) => (
+                          <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </Card>
+      </section>
 
-      {loading ? (
-        <Card>
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div key={`skeleton-row-${index}`} className="h-12 w-full animate-pulse rounded-[var(--radius-md)] bg-[hsl(var(--color-border))]" />
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Featured workflows</h2>
+            <p className="mt-1 text-sm text-muted">Start with a polished studio path instead of a blank page.</p>
+          </div>
+        </div>
+        <Grid className="md:grid-cols-2 xl:grid-cols-4">
+          {workflowCards.map((item) => {
+            const Icon = item.icon;
+            const content = (
+              <Card
+                className="flex h-full flex-col justify-between border-[hsl(var(--color-border))] p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.16)]"
+                style={{ background: item.gradient }}
+              >
+                <div className="space-y-4">
+                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
+                    <Icon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
+                  </div>
+                  <div>
+                    <p className="font-heading text-xl font-extrabold text-text">{item.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+                  </div>
+                </div>
+                <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-text">
+                  {item.cta}
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Card>
+            );
+            return item.href.startsWith('#') ? (
+              <a key={item.title} href={item.href} className="block">
+                {content}
+              </a>
+            ) : (
+              <Link key={item.title} href={item.href} className="block">
+                {content}
+              </Link>
+            );
+          })}
+        </Grid>
+      </section>
+
+      <section id="inspiration" className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Inspiration feed</h2>
+            <p className="mt-1 text-sm text-muted">Reference-ready outputs to help you start faster and set quality expectations.</p>
+          </div>
+          <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1">
+            {(['video', 'image'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setInspirationFilter(value)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  inspirationFilter === value
+                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                    : 'text-muted'
+                }`}
+              >
+                {value === 'video' ? 'Videos' : 'Images'}
+              </button>
             ))}
           </div>
-        </Card>
-      ) : assets.length === 0 ? (
-        <Card className="text-center">
-          <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border))]">
-            {mediaFilter === 'image' ? <ImageIcon className="h-5 w-5 text-muted" /> : <Film className="h-5 w-5 text-muted" />}
+        </div>
+        <Grid className="md:grid-cols-2 xl:grid-cols-3">
+          {inspirationItems.map((item) => {
+            const preview =
+              inspirationFilter === 'video'
+                ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) || (item as InspirationVideo).thumbnail_url
+                : (item as InspirationImage).image_url;
+            const meta =
+              inspirationFilter === 'video'
+                ? `${(item as InspirationVideo).provider_name} • ${(item as InspirationVideo).duration_seconds}s`
+                : `${(item as InspirationImage).creator_name} • ${(item as InspirationImage).aspect_ratio}`;
+            return (
+              <Card key={item.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.14)]">
+                <img src={preview} alt={item.title} className="h-56 w-full object-cover" />
+                <div className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-heading text-xl font-extrabold text-text">{item.title}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{meta}</p>
+                    </div>
+                    <Badge>{item.model_key}</Badge>
+                  </div>
+                  <p className="line-clamp-3 text-sm leading-6 text-muted">{item.prompt}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {item.tags.slice(0, 4).map((tag) => (
+                      <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </Grid>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Your recent creations</h2>
+            <p className="mt-1 text-sm text-muted">Filter images and videos from one unified studio feed.</p>
           </div>
-          <p className="mt-3 font-semibold text-text">{emptyState.title}</p>
-          <p className="mt-1 text-sm text-muted">{emptyState.description}</p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/images"><Button variant="secondary">Create image</Button></Link>
             <Link href="/create"><Button>Create video</Button></Link>
           </div>
-        </Card>
-      ) : (
-        <>
-          <Card className="p-0 md:hidden">
-            <div className="border-b border-[hsl(var(--color-border))] px-4 py-3">
-              <h3 className="font-semibold text-text">Recent creations</h3>
+        </div>
+
+        {error && <Card><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
+
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              ['all', `All · ${assetCounts.all}`],
+              ['video', `Videos · ${assetCounts.video}`],
+              ['image', `Images · ${assetCounts.image}`],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setMediaFilter(value)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  mediaFilter === value
+                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                    : 'border border-[hsl(var(--color-border))] text-muted hover:border-[hsl(var(--color-accent)/0.5)] hover:text-text'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Search {mediaFilter === 'all' ? 'creations' : mediaFilter === 'image' ? 'images' : 'videos'}
+              </label>
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search titles, prompts, scripts, and tags..."
+                className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+              />
             </div>
-            <div className="space-y-3 p-4">
-              {assets.map((asset) => {
-                const preview = toAbsoluteUrl(asset.thumbnail_url) ?? toAbsoluteUrl(asset.asset_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
-                const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
-                return (
-                  <div key={asset.id} className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] p-3">
-                    <div className="flex items-start gap-3">
-                      <img src={preview} alt={asset.title || 'Untitled asset'} className="h-16 w-20 shrink-0 rounded object-cover" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="break-words font-medium text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                          <Badge>{formatStatus(asset.status)}</Badge>
-                        </div>
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Filter by tags
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tagFacets.slice(0, 12).map((item) => (
+                  <button
+                    key={item.tag}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTags((current) =>
+                        current.includes(item.tag) ? current.filter((value) => value !== item.tag) : [...current, item.tag],
+                      )
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      selectedTags.includes(item.tag)
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : 'border border-[hsl(var(--color-border))] text-muted'
+                    }`}
+                  >
+                    {item.tag} · {item.count}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {loading ? (
+          <Grid className="md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={`asset-skeleton-${index}`} className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
+            ))}
+          </Grid>
+        ) : assets.length === 0 ? (
+          <Card className="text-center">
+            <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border))]">
+              {mediaFilter === 'image' ? <ImageIcon className="h-5 w-5 text-muted" /> : <Film className="h-5 w-5 text-muted" />}
+            </div>
+            <p className="mt-3 font-semibold text-text">{emptyState.title}</p>
+            <p className="mt-1 text-sm text-muted">{emptyState.description}</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link href="/images"><Button variant="secondary">Create image</Button></Link>
+              <Link href="/create"><Button>Create video</Button></Link>
+            </div>
+          </Card>
+        ) : (
+          <Grid className="md:grid-cols-2 xl:grid-cols-4">
+            {highlightedAssets.map((asset) => {
+              const preview = toAbsoluteUrl(asset.thumbnail_url) ?? toAbsoluteUrl(asset.asset_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
+              const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
+              return (
+                <Card key={asset.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_hsl(var(--color-accent)/0.16)]">
+                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-44 w-full object-cover" />
+                  <div className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
                         <p className="mt-1 text-xs text-muted">{mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution}</p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {[...asset.auto_tags.slice(0, 3), ...asset.user_tags.slice(0, 2)].map((tag) => (
-                            <Badge key={`${asset.id}-${tag}`}>{tag}</Badge>
-                          ))}
-                        </div>
-                        <p className="mt-1 text-xs text-muted">{timeAgo(asset.created_at)}</p>
                       </div>
+                      <Badge>{formatStatus(asset.status)}</Badge>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={openHref}><Button variant="secondary" className="px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open Images'}</Button></Link>
+                    <div className="flex flex-wrap gap-1">
+                      {[...asset.auto_tags.slice(0, 3), ...asset.user_tags.slice(0, 2)].map((tag) => (
+                        <Badge key={`${asset.id}-${tag}`}>{tag}</Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted">{timeAgo(asset.created_at)}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={openHref}><Button variant="secondary" className="px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open images'}</Button></Link>
                       {asset.asset_url && (
                         <Button
                           className="px-3 py-1 text-xs"
@@ -322,75 +507,23 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </Card>
+                </Card>
+              );
+            })}
+          </Grid>
+        )}
 
-          <Card className="hidden overflow-x-auto p-0 md:block">
-            <div className="border-b border-[hsl(var(--color-border))] px-4 py-3">
-              <h3 className="font-semibold text-text">Recent creations</h3>
-            </div>
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-[hsl(var(--color-border))] text-muted">
-                  <th className="px-4 py-3 font-medium">Asset</th>
-                  <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Created</th>
-                  <th className="px-4 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map((asset) => {
-                  const preview = toAbsoluteUrl(asset.thumbnail_url) ?? toAbsoluteUrl(asset.asset_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
-                  const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
-                  return (
-                    <tr key={asset.id} className="border-b border-[hsl(var(--color-border))] last:border-0">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <img src={preview} alt={asset.title || 'Untitled asset'} className="h-10 w-16 rounded object-cover" />
-                          <div>
-                            <p className="font-medium text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                            <p className="text-xs text-muted">{asset.aspect_ratio} • {asset.resolution}</p>
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {[...asset.auto_tags.slice(0, 3), ...asset.user_tags.slice(0, 2)].map((tag) => (
-                                <Badge key={`${asset.id}-${tag}`}>{tag}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-text">
-                        <div className="inline-flex items-center gap-2">
-                          {asset.content_type === 'image' ? <ImageIcon className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : <Film className="h-4 w-4 text-[hsl(var(--color-accent))]" />}
-                          {mediaLabel(asset.content_type)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3"><Badge>{formatStatus(asset.status)}</Badge></td>
-                      <td className="px-4 py-3 text-muted">{timeAgo(asset.created_at)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Link href={openHref}><Button variant="secondary" className="px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open Images'}</Button></Link>
-                          {asset.asset_url && (
-                            <Button
-                              className="px-3 py-1 text-xs"
-                              onClick={() => void downloadAsset(asset)}
-                              disabled={downloadingId === asset.id}
-                            >
-                              {downloadingId === asset.id ? 'Downloading...' : 'Download'}
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
-        </>
-      )}
+        {!loading && assets.length > highlightedAssets.length && (
+          <div className="flex justify-center">
+            <Link href={mediaFilter === 'image' ? '/images' : '/dashboard'}>
+              <Button variant="secondary" className="gap-2">
+                View more creations
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
