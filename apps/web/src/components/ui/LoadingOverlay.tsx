@@ -1,11 +1,9 @@
-import { Sparkles } from 'lucide-react';
-
 export function LoadingOverlay({
   open,
   title,
-  description,
-  stepLabel,
-  accentLabel,
+  description: _description,
+  stepLabel: _stepLabel,
+  accentLabel: _accentLabel,
 }: {
   open: boolean;
   title: string;
@@ -32,27 +30,10 @@ export function LoadingOverlay({
         </div>
 
         <div className="relative mt-6 w-full max-w-sm space-y-3 sm:mt-7">
-          {accentLabel ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.72)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              {accentLabel}
-            </div>
-          ) : null}
-
           <div className="space-y-2">
             <h2 className="font-heading text-2xl font-semibold tracking-tight text-text sm:text-[1.95rem]">
               {title}
             </h2>
-            {description ? (
-              <p className="mx-auto max-w-md text-sm leading-6 text-muted sm:text-[15px]">{description}</p>
-            ) : null}
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="rangmanch-loader-letters text-[11px] font-semibold uppercase text-muted">
-              Loading
-            </p>
-            <p className="text-sm font-semibold text-text">{stepLabel ?? 'Working on your request'}</p>
           </div>
 
           <div className="mx-auto mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--color-border))]">

@@ -1017,7 +1017,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         >
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="px-5 py-5">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-semibold text-text">Lock Character Identity</div>
                   <p className="mt-1 text-sm text-muted">When on, face structure and identity markers remain fixed across generations.</p>
@@ -1025,7 +1025,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 <button
                   type="button"
                   onClick={onToggleCharacterLock}
-                  className={`inline-flex h-10 w-20 items-center rounded-full border px-1 transition ${
+                  className={`inline-flex h-10 w-20 shrink-0 items-center self-start rounded-full border px-1 transition sm:self-auto ${
                     draft.character_locked ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.16)]' : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]'
                   }`}
                   aria-pressed={draft.character_locked}

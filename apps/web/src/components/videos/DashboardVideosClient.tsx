@@ -330,27 +330,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4 sm:p-5">
-            <Badge className="bg-[hsl(var(--color-accent)/0.16)] text-text">Workspace pulse</Badge>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">One home for image, video, and character workflows.</p>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Move between studios quickly, keep your recent creations visible, and use the inspiration feed below when you need a stronger starting point.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.88)] p-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Recommended next</p>
-                  <p className="mt-2 font-semibold text-text">Open the studio that matches the format you want to ship.</p>
-                </div>
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.88)] p-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Tip</p>
-                  <p className="mt-2 font-semibold text-text">Use inspiration to calibrate output quality before generating your own assets.</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          
         </div>
       </section>
 
