@@ -268,28 +268,59 @@ class CreditService:
         order_locked = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
         if order_locked is None or order_locked.user_id != user_id:
             raise RuntimeError('Top-up order not found')
-        if order_locked.status != 'paid':
-            order_locked.status = 'paid'
-            order_locked.provider_payment_id = razorpay_payment_id
-            order_locked.provider_signature = razorpay_signature
-            order_locked.verified_at = datetime.now(UTC)
-            order_locked.metadata_json = json.dumps(
+        return self._complete_razorpay_topup(
+            topup_order=order_locked,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_signature=razorpay_signature,
+        )
+
+    def reconcile_razorpay_topup(
+        self,
+        *,
+        razorpay_order_id: str,
+        razorpay_payment_id: str,
+        razorpay_signature: str,
+    ) -> CreditWallet:
+        topup_order = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
+        if not topup_order:
+            raise RuntimeError('Top-up order not found')
+        if topup_order.provider != 'razorpay':
+            raise RuntimeError('This order is not a Razorpay order')
+        return self._complete_razorpay_topup(
+            topup_order=topup_order,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_signature=razorpay_signature,
+        )
+
+    def _complete_razorpay_topup(
+        self,
+        *,
+        topup_order,
+        razorpay_payment_id: str,
+        razorpay_signature: str,
+    ) -> CreditWallet:
+        if topup_order.status != 'paid':
+            topup_order.status = 'paid'
+            topup_order.provider_payment_id = razorpay_payment_id
+            topup_order.provider_signature = razorpay_signature
+            topup_order.verified_at = datetime.now(UTC)
+            topup_order.metadata_json = json.dumps(
                 {
-                    'plan_name': order_locked.plan_name,
+                    'plan_name': topup_order.plan_name,
                     'provider': 'razorpay',
                 }
             )
-            self.repo.save_all([order_locked])
+            self.repo.save_all([topup_order])
 
         wallet = self.top_up_credits(
-            user_id=user_id,
+            user_id=topup_order.user_id,
             credits=topup_order.credits,
             metadata={
                 'provider': 'razorpay',
                 'plan_name': topup_order.plan_name,
                 'plan_credits': topup_order.credits,
                 'pricing_region': topup_order.pricing_region,
-                'razorpay_order_id': razorpay_order_id,
+                'razorpay_order_id': topup_order.provider_order_id,
                 'razorpay_payment_id': razorpay_payment_id,
             },
         )

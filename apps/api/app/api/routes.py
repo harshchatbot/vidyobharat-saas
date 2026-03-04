@@ -471,6 +471,59 @@ def verify_topup_order(
     return TopUpCreditsResponse(wallet=_to_credit_wallet_response(wallet), addedCredits=order.credits)
 
 
+@router.post('/api/topupCredits/webhook')
+async def razorpay_topup_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    if not settings.razorpay_webhook_secret:
+        raise HTTPException(status_code=400, detail='Razorpay webhook is not configured')
+
+    raw_body = await request.body()
+    signature = request.headers.get('x-razorpay-signature')
+    if not signature:
+        raise HTTPException(status_code=400, detail='Missing Razorpay webhook signature')
+
+    expected_signature = hmac.new(
+        settings.razorpay_webhook_secret.encode('utf-8'),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_signature, signature):
+        raise HTTPException(status_code=400, detail='Invalid Razorpay webhook signature')
+
+    try:
+        payload = json.loads(raw_body.decode('utf-8'))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail='Invalid webhook payload') from exc
+
+    event_name = str(payload.get('event') or '')
+    if event_name not in {'payment.captured', 'order.paid'}:
+        return {'status': 'ignored', 'event': event_name}
+
+    entity = payload.get('payload', {}).get('payment', {}).get('entity', {})
+    order_id = str(entity.get('order_id') or '')
+    payment_id = str(entity.get('id') or '')
+    if not order_id or not payment_id:
+        return {'status': 'ignored', 'event': event_name}
+
+    try:
+        wallet = CreditService(db).reconcile_razorpay_topup(
+            razorpay_order_id=order_id,
+            razorpay_payment_id=payment_id,
+            razorpay_signature=signature,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        'status': 'processed',
+        'event': event_name,
+        'userId': wallet.user_id,
+        'currentCredits': wallet.current_credits,
+    }
+
+
 @router.get('/api/pricing', response_model=PricingResponse)
 def get_pricing(request: Request):
     quote = PricingService().get_pricing_quote(request)

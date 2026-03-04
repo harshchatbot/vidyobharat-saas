@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     razorpay_key_id: str | None = None
     razorpay_key_secret: str | None = None
     razorpay_api_base: str = 'https://api.razorpay.com/v1'
+    razorpay_webhook_secret: str | None = None
     stripe_secret_key: str | None = None
     stripe_publishable_key: str | None = None
     stripe_api_base: str = 'https://api.stripe.com/v1'

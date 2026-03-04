@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Coins, LoaderCircle, Receipt, Wallet } from 'lucide-react';
 
@@ -36,6 +37,7 @@ function formatMoney(currency: string, amount: number) {
 }
 
 export default function BillingPage() {
+  const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
   const [wallet, setWallet] = useState<CreditWallet | null>(null);
   const [history, setHistory] = useState<CreditHistoryItem[]>([]);
@@ -46,6 +48,12 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const { applyWallet } = useCredits();
   const { show } = useToast();
+
+  useEffect(() => {
+    const requestedPlan = searchParams.get('plan');
+    if (!requestedPlan) return;
+    setSelectedPlan(requestedPlan);
+  }, [searchParams]);
 
   useEffect(() => {
     const raw = getUserIdFromCookie();
@@ -59,7 +67,10 @@ export default function BillingPage() {
         setWallet(nextWallet);
         setHistory(nextHistory.items);
         setPricing(nextPricing);
-        if (!(selectedPlan in nextPricing.plans)) {
+        const requestedPlan = searchParams.get('plan');
+        if (requestedPlan && requestedPlan in nextPricing.plans) {
+          setSelectedPlan(requestedPlan);
+        } else if (!(selectedPlan in nextPricing.plans)) {
           const firstPlan = Object.keys(nextPricing.plans)[0];
           if (firstPlan) setSelectedPlan(firstPlan);
         }
@@ -68,7 +79,7 @@ export default function BillingPage() {
         setError(err instanceof Error ? err.message : 'Failed to load billing data.');
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [searchParams]);
 
   const orderedPlans = useMemo(() => {
     if (!pricing) return [];
