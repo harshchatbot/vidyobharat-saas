@@ -1,13 +1,16 @@
 import json
 import logging
+import mimetypes
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
+from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.render_service import celery_app
@@ -25,6 +28,7 @@ class VideoService:
         self.music_upload_dir = Path('data/music_uploads')
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.music_upload_dir.mkdir(parents=True, exist_ok=True)
+        self.storage = build_storage_provider(get_settings())
 
     def list_videos(self, user_id: str) -> list[Video]:
         return self.repo.list_by_user(user_id)
@@ -145,6 +149,7 @@ def process_video(video_id: str) -> None:
     tagging = AssetTaggingService(None)
     sync = FirestoreSyncService()
     pipeline = VideoPipelineService()
+    storage = build_storage_provider(get_settings())
     try:
         repo.set_progress(video_id, 15, VideoStatus.processing)
         video = repo.get_by_id(video_id)
@@ -182,8 +187,12 @@ def process_video(video_id: str) -> None:
             duck_music=video.duck_music,
         )
         repo.set_progress(video_id, 85, VideoStatus.processing)
-        output_url = f'/static/renders/{video_id}.mp4'
-        thumb_url = f'/static/renders/{video_id}.jpg'
+        output_path = Path('data/renders') / f'{video_id}.mp4'
+        thumb_path = Path('data/renders') / f'{video_id}.jpg'
+        output_signed = _upload_generated_video_asset(storage, video.user_id, output_path, video.selected_model or 'video')
+        thumb_signed = _upload_generated_video_asset(storage, video.user_id, thumb_path, video.selected_model or 'video')
+        output_url = output_signed.public_url
+        thumb_url = thumb_signed.public_url
         completed_video = repo.complete(video_id, output_url=output_url, thumbnail_url=thumb_url)
         if completed_video:
             tagging.auto_tag_video(completed_video)
@@ -197,3 +206,13 @@ def process_video(video_id: str) -> None:
             auto_tags, user_tags = tagging.list_tags(failed_video.id, 'video')
             sync.sync_video(failed_video, auto_tags=auto_tags, user_tags=user_tags)
         logger.exception('video_job_failed', extra={'render_id': video_id})
+
+
+def _upload_generated_video_asset(storage, user_id: str, source_path: Path, model_key: str):
+    content_type = mimetypes.guess_type(source_path.name)[0] or 'application/octet-stream'
+    return storage.upload_bytes(
+        f'{model_key}{source_path.suffix}',
+        source_path.read_bytes(),
+        content_type=content_type,
+        kind=f'users/{user_id}/generated/videos',
+    )

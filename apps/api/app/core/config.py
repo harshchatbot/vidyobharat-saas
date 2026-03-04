@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     allowed_origins: str = Field(default='http://localhost:3000')
     log_level: str = 'INFO'
 
-    storage_backend: str = 'supabase'
+    storage_backend: str = 'firebase'
     public_asset_base_url: str = 'http://localhost:8000/static'
     supabase_url: str | None = None
     supabase_anon_key: str | None = None

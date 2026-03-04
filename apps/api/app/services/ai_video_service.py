@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
+from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
@@ -583,6 +584,7 @@ def celery_process_ai_video(video_id: str) -> None:
     settings = get_settings()
     service = AIVideoCreateService(None, settings)
     repo = VideoRepository(None)
+    storage = build_storage_provider(settings)
     try:
         video = repo.get_by_id(video_id)
         if not video:
@@ -607,11 +609,20 @@ def celery_process_ai_video(video_id: str) -> None:
             raise ProviderError(f'Unsupported model: {video.selected_model}')
         repo.update(video, progress=55)
         result = adapter(payload)
+        stored_video_url = _persist_generated_video(storage, video.user_id, video.selected_model or 'video', result.video_url)
+        stored_thumb_url = _persist_generated_thumbnail(
+            storage=storage,
+            user_id=video.user_id,
+            model_key=video.selected_model or 'video',
+            result_video_url=result.video_url,
+            source_thumbnail_url=video.source_image_url or video.thumbnail_url,
+            video_id=video.id,
+        )
         repo.update(
             video,
             provider_name=result.provider,
-            output_url=result.video_url,
-            thumbnail_url=video.source_image_url or video.thumbnail_url,
+            output_url=stored_video_url,
+            thumbnail_url=stored_thumb_url,
             progress=100,
             status=VideoStatus.completed,
             error_message=None,
@@ -624,3 +635,77 @@ def celery_process_ai_video(video_id: str) -> None:
         target = repo.get_by_id(video_id)
         if target:
             repo.update(target, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
+
+
+def _persist_generated_video(storage, user_id: str, model_key: str, source_url: str) -> str:
+    source_path = _resolve_local_generated_file(source_url)
+    if source_path and source_path.exists():
+        content = source_path.read_bytes()
+        content_type = mimetypes.guess_type(source_path.name)[0] or 'video/mp4'
+        filename = source_path.name
+    else:
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=20.0), follow_redirects=True) as client:
+            response = client.get(source_url)
+            if response.status_code >= 400:
+                raise ProviderError(f'Failed to fetch generated video asset ({response.status_code})')
+            content = response.content
+            filename = Path(source_url.split('?', 1)[0]).name or f'{model_key}.mp4'
+            content_type = response.headers.get('content-type') or mimetypes.guess_type(filename)[0] or 'video/mp4'
+    signed = storage.upload_bytes(
+        filename,
+        content,
+        content_type=content_type,
+        kind=f'users/{user_id}/generated/videos',
+    )
+    return signed.public_url
+
+
+def _persist_generated_thumbnail(
+    *,
+    storage,
+    user_id: str,
+    model_key: str,
+    result_video_url: str,
+    source_thumbnail_url: str | None,
+    video_id: str,
+) -> str | None:
+    if source_thumbnail_url and (source_thumbnail_url.startswith('http://') or source_thumbnail_url.startswith('https://')):
+        with httpx.Client(timeout=httpx.Timeout(60.0, connect=20.0), follow_redirects=True) as client:
+            response = client.get(source_thumbnail_url)
+            if response.status_code < 400:
+                filename = Path(source_thumbnail_url.split('?', 1)[0]).name or f'{video_id}.jpg'
+                content_type = response.headers.get('content-type') or mimetypes.guess_type(filename)[0] or 'image/jpeg'
+                signed = storage.upload_bytes(
+                    filename,
+                    response.content,
+                    content_type=content_type,
+                    kind=f'users/{user_id}/generated/videos',
+                )
+                return signed.public_url
+
+    local_video = _resolve_local_generated_file(result_video_url)
+    if local_video and local_video.exists():
+        thumb_path = Path('data/renders') / f'{video_id}.jpg'
+        if not thumb_path.exists():
+            VideoPipelineService()._make_thumbnail(local_video, thumb_path)
+        if thumb_path.exists():
+            signed = storage.upload_bytes(
+                thumb_path.name,
+                thumb_path.read_bytes(),
+                content_type='image/jpeg',
+                kind=f'users/{user_id}/generated/videos',
+            )
+            return signed.public_url
+    return source_thumbnail_url
+
+
+def _resolve_local_generated_file(url: str) -> Path | None:
+    normalized = url.strip()
+    if normalized.startswith('/static/'):
+        normalized = normalized.replace('/static/', '', 1)
+        candidate = Path('data') / normalized
+        return candidate
+    path = Path(normalized)
+    if path.exists():
+        return path
+    return None

@@ -1,6 +1,8 @@
 import json
 import logging
+import mimetypes
 import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 from base64 import b64decode
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.repositories.image_generation_repository import ImageGenerationRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
+from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.firestore_sync_service import FirestoreSyncService
 
@@ -134,6 +137,7 @@ class ImageGenerationService:
         self.output_dir = Path('data/image_generations')
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.settings = get_settings()
+        self.storage = build_storage_provider(self.settings)
 
     def list_models(self) -> list[ImageModelEntry]:
         return list(IMAGE_MODEL_REGISTRY.values())
@@ -245,6 +249,12 @@ class ImageGenerationService:
                 resolution=resolution,
                 reference_urls=reference_urls,
             )
+        image_url, thumbnail_url = self._normalize_generated_outputs(
+            user_id=user_id,
+            model_key=model_key,
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
+        )
 
         generation = self.repo.create(
             user_id=user_id,
@@ -284,9 +294,9 @@ class ImageGenerationService:
         output_id = str(uuid4())
         output_file = self.output_dir / f'{output_id}.png'
         thumb_file = self.output_dir / f'{output_id}_thumb.png'
-        source_path = self._url_to_local_path(source.image_url)
+        source_path = self._resolve_source_path(source.image_url)
 
-        if source_path.exists():
+        if source_path and source_path.exists():
             self._run_ffmpeg_png(
                 source_path=source_path,
                 output_path=output_file,
@@ -295,6 +305,12 @@ class ImageGenerationService:
         else:
             self._write_placeholder_png(output_file, source.aspect_ratio)
         self._write_placeholder_png(thumb_file, source.aspect_ratio)
+        image_url, thumbnail_url = self._store_local_generated_pair(
+            user_id=source.user_id,
+            model_key=source.model_key,
+            output_file=output_file,
+            thumb_file=thumb_file,
+        )
 
         reference_urls = self._parse_reference_urls(source)
         item = self.repo.create(
@@ -305,8 +321,8 @@ class ImageGenerationService:
             aspect_ratio=source.aspect_ratio,
             resolution=source.resolution,
             reference_urls=json.dumps([source.image_url, *reference_urls]),
-            image_url=f'/static/image_generations/{output_file.name}',
-            thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
             action_type='remove_background',
             status=ImageGenerationStatus.completed,
         )
@@ -345,6 +361,12 @@ class ImageGenerationService:
             ),
             encoding='utf-8',
         )
+        image_url, thumbnail_url = self._store_local_generated_pair(
+            user_id=source.user_id,
+            model_key=source.model_key,
+            output_file=output_file,
+            thumb_file=thumb_file,
+        )
 
         item = self.repo.create(
             user_id=source.user_id,
@@ -354,8 +376,8 @@ class ImageGenerationService:
             aspect_ratio=source.aspect_ratio,
             resolution=next_resolution,
             reference_urls=json.dumps([source.image_url, *reference_urls]),
-            image_url=f'/static/image_generations/{output_file.name}',
-            thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
             action_type='upscale',
             status=ImageGenerationStatus.completed,
         )
@@ -401,6 +423,12 @@ class ImageGenerationService:
                 ),
                 encoding='utf-8',
             )
+            image_url, thumbnail_url = self._store_local_generated_pair(
+                user_id=source.user_id,
+                model_key=source.model_key,
+                output_file=output_file,
+                thumb_file=thumb_file,
+            )
             item = self.repo.create(
                 user_id=source.user_id,
                 parent_image_id=source.id,
@@ -409,8 +437,8 @@ class ImageGenerationService:
                 aspect_ratio=source.aspect_ratio,
                 resolution=source.resolution,
                 reference_urls=json.dumps(base_seed_references),
-                image_url=f'/static/image_generations/{output_file.name}',
-                thumbnail_url=f'/static/image_generations/{thumb_file.name}',
+                image_url=image_url,
+                thumbnail_url=thumbnail_url,
                 action_type='variation',
                 status=ImageGenerationStatus.completed,
             )
@@ -500,6 +528,95 @@ class ImageGenerationService:
             encoding='utf-8',
         )
         return f'/static/image_generations/{output_file.name}', f'/static/image_generations/{thumbnail_file.name}'
+
+    def _normalize_generated_outputs(
+        self,
+        *,
+        user_id: str,
+        model_key: str,
+        image_url: str,
+        thumbnail_url: str,
+    ) -> tuple[str, str]:
+        image_signed = self._store_generated_asset(
+            user_id=user_id,
+            model_key=model_key,
+            source=image_url,
+            suffix='image',
+        )
+        thumb_signed = self._store_generated_asset(
+            user_id=user_id,
+            model_key=model_key,
+            source=thumbnail_url,
+            suffix='thumb',
+        )
+        return image_signed.public_url, thumb_signed.public_url
+
+    def _store_local_generated_pair(
+        self,
+        *,
+        user_id: str,
+        model_key: str,
+        output_file: Path,
+        thumb_file: Path,
+    ) -> tuple[str, str]:
+        image_signed = self._store_generated_asset(
+            user_id=user_id,
+            model_key=model_key,
+            source=str(output_file),
+            suffix='image',
+        )
+        thumb_signed = self._store_generated_asset(
+            user_id=user_id,
+            model_key=model_key,
+            source=str(thumb_file),
+            suffix='thumb',
+        )
+        return image_signed.public_url, thumb_signed.public_url
+
+    def _store_generated_asset(self, *, user_id: str, model_key: str, source: str, suffix: str):
+        content, filename, content_type = self._read_asset_source(source)
+        return self.storage.upload_bytes(
+            f'{model_key}-{suffix}{Path(filename).suffix or ""}',
+            content,
+            content_type=content_type,
+            kind=f'users/{user_id}/generated/images',
+        )
+
+    def _read_asset_source(self, source: str) -> tuple[bytes, str, str]:
+        if source.startswith('http://') or source.startswith('https://'):
+            with urllib.request.urlopen(source, timeout=60) as response:
+                content = response.read()
+                filename = Path(getattr(response, 'url', source)).name or 'generated.bin'
+                content_type = response.headers.get_content_type() or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                return content, filename, content_type
+
+        path = Path(source)
+        if path.exists():
+            return path.read_bytes(), path.name, mimetypes.guess_type(path.name)[0] or 'application/octet-stream'
+
+        local_path = self._url_to_local_path(source)
+        if local_path.exists():
+            return local_path.read_bytes(), local_path.name, mimetypes.guess_type(local_path.name)[0] or 'application/octet-stream'
+
+        raise FileNotFoundError(f'Could not resolve generated asset source: {source}')
+
+    def _resolve_source_path(self, source_url: str) -> Path | None:
+        local_path = self._url_to_local_path(source_url)
+        if local_path.exists():
+            return local_path
+        if source_url.startswith('http://') or source_url.startswith('https://'):
+            try:
+                content, filename, _ = self._read_asset_source(source_url)
+                ext = Path(filename).suffix or '.img'
+                tmp_root = Path('data/tmp')
+                tmp_root.mkdir(parents=True, exist_ok=True)
+                temp_dir = Path(tempfile.mkdtemp(prefix='rangmanch-img-src-', dir=tmp_root))
+                target = temp_dir / f'{uuid4()}{ext}'
+                target.write_bytes(content)
+                return target
+            except Exception:
+                return None
+        return None
 
     def _dimensions_for(self, aspect_ratio: str, compact: bool) -> tuple[int, int]:
         matrix = {

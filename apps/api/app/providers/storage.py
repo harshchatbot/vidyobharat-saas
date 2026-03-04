@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.providers.firebase import get_firebase_app
 
 
 @dataclass
@@ -120,8 +122,71 @@ class SupabaseStorageProvider(StorageProvider):
         return response.status_code in {200, 204}
 
 
+class FirebaseStorageProvider(StorageProvider):
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings or get_settings()
+        if not self.settings.firebase_storage_bucket:
+            raise RuntimeError('Firebase storage is configured as primary backend but FIREBASE_STORAGE_BUCKET is missing.')
+        self.bucket_name = self.settings.firebase_storage_bucket
+        self.bucket = self._get_bucket()
+
+    def _get_bucket(self):
+        from firebase_admin import storage
+
+        app = get_firebase_app()
+        return storage.bucket(app=app)
+
+    def _storage_path(self, filename: str, *, kind: str) -> str:
+        ext = Path(filename).suffix
+        return f'{kind.strip("/")}/{uuid4()}{ext}'
+
+    def _download_url(self, path: str, token: str) -> str:
+        encoded = quote(path, safe='')
+        return f'https://firebasestorage.googleapis.com/v0/b/{self.bucket_name}/o/{encoded}?alt=media&token={token}'
+
+    def sign_upload(self, filename: str, *, kind: str = 'asset') -> SignedUpload:
+        object_path = self._storage_path(filename, kind=kind)
+        token = str(uuid4())
+        blob = self.bucket.blob(object_path)
+        upload_url = blob.generate_signed_url(
+            version='v4',
+            expiration=15 * 60,
+            method='PUT',
+            content_type='application/octet-stream',
+        )
+        return SignedUpload(
+            upload_url=upload_url,
+            public_url=self._download_url(object_path, token),
+            storage_path=object_path,
+            headers={'x-goog-meta-firebaseStorageDownloadTokens': token},
+        )
+
+    def upload_bytes(self, filename: str, content: bytes, *, content_type: str, kind: str = 'asset') -> SignedUpload:
+        object_path = self._storage_path(filename, kind=kind)
+        token = str(uuid4())
+        blob = self.bucket.blob(object_path)
+        blob.metadata = {'firebaseStorageDownloadTokens': token}
+        blob.cache_control = 'public,max-age=31536000'
+        blob.upload_from_string(content, content_type=content_type)
+        return SignedUpload(
+            upload_url='',
+            public_url=self._download_url(object_path, token),
+            storage_path=object_path,
+        )
+
+    def delete(self, path: str) -> bool:
+        blob = self.bucket.blob(path.lstrip('/'))
+        try:
+            blob.delete()
+            return True
+        except Exception:
+            return False
+
+
 def build_storage_provider(settings: Settings | None = None) -> StorageProvider:
     current = settings or get_settings()
+    if current.storage_backend == 'firebase':
+        return FirebaseStorageProvider(current)
     if current.storage_backend == 'supabase':
         return SupabaseStorageProvider(current)
     return LocalStorageProvider(current)

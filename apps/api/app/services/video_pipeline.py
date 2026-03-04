@@ -2,7 +2,10 @@ import logging
 import re
 import shlex
 import subprocess
+import tempfile
 from pathlib import Path
+
+import httpx
 
 from app.providers.broll import BrollProvider
 from app.services.tts import generate_voiceover
@@ -353,20 +356,36 @@ class VideoPipelineService:
             track_url = BUILTIN_MUSIC_TRACKS.get(track_id)
             if not track_url:
                 return None
-            candidate = self._url_to_local_path(track_url)
-            return candidate if candidate.exists() else None
+            return self._ensure_local_media(track_url)
         if music_mode == 'upload' and music_file_url:
-            candidate = self._url_to_local_path(music_file_url)
-            return candidate if candidate.exists() else None
+            return self._ensure_local_media(music_file_url)
         return None
 
     def _urls_to_local_paths(self, urls: list[str]) -> list[Path]:
         paths: list[Path] = []
         for url in urls:
-            path = self._url_to_local_path(url)
-            if path.exists():
+            path = self._ensure_local_media(url)
+            if path and path.exists():
                 paths.append(path.resolve())
         return paths
+
+    def _ensure_local_media(self, url: str) -> Path | None:
+        path = self._url_to_local_path(url)
+        if path.exists():
+            return path
+        if url.startswith('http://') or url.startswith('https://'):
+            tmp_root = Path('data/tmp/media_cache')
+            tmp_root.mkdir(parents=True, exist_ok=True)
+            suffix = Path(url.split('?', 1)[0]).suffix or '.bin'
+            temp_dir = Path(tempfile.mkdtemp(prefix='rangmanch-media-', dir=tmp_root))
+            target = temp_dir / f'asset{suffix}'
+            with httpx.Client(timeout=httpx.Timeout(60.0, connect=20.0), follow_redirects=True) as client:
+                response = client.get(url)
+                if response.status_code >= 400:
+                    return None
+                target.write_bytes(response.content)
+                return target
+        return None
 
     def _url_to_local_path(self, url: str) -> Path:
         normalized = url.strip()

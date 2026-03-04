@@ -1,4 +1,6 @@
 import logging
+import mimetypes
+from pathlib import Path
 
 from celery import Celery
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from app.core.config import get_settings
 from app.db.repositories.project_repository import ProjectRepository
 from app.db.repositories.render_repository import RenderRepository
 from app.models.entities import RenderStatus
+from app.providers.storage import build_storage_provider
 from app.schemas.render import CreateRenderRequest
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,7 @@ def process_render(render_id: str, include_broll: bool) -> None:
     repo = RenderRepository(None)
     project_repo = ProjectRepository(None)
     pipeline = VideoPipelineService()
+    storage = build_storage_provider(get_settings())
     try:
         repo.set_progress(render_id, 10, RenderStatus.rendering)
         render = repo.get_by_id(render_id)
@@ -64,10 +68,20 @@ def process_render(render_id: str, include_broll: bool) -> None:
             include_broll=include_broll,
         )
 
-        video_url = f'/static/renders/{render_id}.mp4'
-        thumb_url = f'/static/renders/{render_id}.jpg'
+        video_url = _upload_render_asset(storage, render.user_id, Path(video_path))
+        thumb_url = _upload_render_asset(storage, render.user_id, Path(thumb_path))
         repo.complete(render_id, video_url, thumb_url)
         logging.getLogger(__name__).info('render_job_completed', extra={'render_id': render_id})
     except Exception as exc:
         repo.fail(render_id, str(exc))
         logging.getLogger(__name__).exception('render_job_failed', extra={'render_id': render_id})
+
+
+def _upload_render_asset(storage, user_id: str, path: Path) -> str:
+    signed = storage.upload_bytes(
+        path.name,
+        path.read_bytes(),
+        content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream',
+        kind=f'users/{user_id}/generated/renders',
+    )
+    return signed.public_url
