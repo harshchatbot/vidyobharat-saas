@@ -300,6 +300,7 @@ export type VideoCreateResponse = {
 export type AIVideoStatusResponse = {
   id: string;
   status: 'queued' | 'processing' | 'success' | 'failed' | string;
+  progress: number;
   videoUrl: string | null;
   modelKey: 'sora2' | 'veo3' | 'kling3' | string | null;
   modelLabel: string | null;

@@ -4,14 +4,21 @@ export function LoadingOverlay({
   description: _description,
   stepLabel: _stepLabel,
   accentLabel: _accentLabel,
+  progress,
+  remainingLabel,
 }: {
   open: boolean;
   title: string;
   description: string;
   stepLabel?: string;
   accentLabel?: string;
+  progress?: number;
+  remainingLabel?: string;
 }) {
   if (!open) return null;
+  const normalizedProgress = typeof progress === 'number'
+    ? Math.max(0, Math.min(100, Math.round(progress)))
+    : null;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-[hsl(var(--color-bg)/0.68)] px-4 py-6 backdrop-blur-lg sm:px-6">
@@ -37,8 +44,20 @@ export function LoadingOverlay({
           </div>
 
           <div className="mx-auto mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--color-border))]">
-            <span className="rangmanch-loader-bar block h-full w-2/5 rounded-full bg-[hsl(var(--color-accent))]" />
+            {normalizedProgress !== null ? (
+              <span
+                className="block h-full rounded-full bg-[hsl(var(--color-accent))] transition-all duration-300"
+                style={{ width: `${normalizedProgress}%` }}
+              />
+            ) : (
+              <span className="rangmanch-loader-bar block h-full w-2/5 rounded-full bg-[hsl(var(--color-accent))]" />
+            )}
           </div>
+          {normalizedProgress !== null ? (
+            <p className="text-xs font-medium text-muted">
+              {normalizedProgress}% complete{remainingLabel ? ` • ${remainingLabel}` : ''}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

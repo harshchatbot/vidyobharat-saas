@@ -80,12 +80,20 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     headers.set('X-User-ID', options.userId);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-    cache: options.cache,
-    next: options.next,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+      cache: options.cache,
+      next: options.next,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Network request failed for ${path}. Please check API availability/CORS and try again.`);
+    }
+    throw new Error(`Network request failed for ${path}.`);
+  }
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type') || '';

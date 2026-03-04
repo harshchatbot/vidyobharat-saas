@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
@@ -221,6 +222,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState(0);
   const [enhancing, setEnhancing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -339,6 +341,18 @@ export function ImageStudioClient({ userId }: Props) {
     setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
   }, [selectedGenerated]);
 
+  useEffect(() => {
+    if (!submitting) {
+      setSubmitProgress(0);
+      return;
+    }
+    setSubmitProgress(10);
+    const interval = window.setInterval(() => {
+      setSubmitProgress((current) => (current >= 92 ? current : current + 6));
+    }, 650);
+    return () => window.clearInterval(interval);
+  }, [submitting]);
+
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
   const selectedInspirationModel = selectedInspiration ? models.find((model) => model.key === selectedInspiration.model_key) : null;
   const selectedGeneratedModel = selectedGenerated ? models.find((model) => model.key === selectedGenerated.model_key) : null;
@@ -364,6 +378,7 @@ export function ImageStudioClient({ userId }: Props) {
     setSubmitting(true);
     setError(null);
     try {
+      setSubmitProgress(14);
       const item = await api.generateImage(
         {
           model_key: selectedModel,
@@ -381,6 +396,7 @@ export function ImageStudioClient({ userId }: Props) {
           void refreshCredits();
         }
       }
+      setSubmitProgress(100);
       show(`Created! Credits Used: ${item.applied_credits} · Remaining Balance: ${item.remaining_credits ?? wallet?.currentCredits ?? 0}`);
       setSelectedGenerated(item);
       setActiveTab('generated');
@@ -546,6 +562,13 @@ export function ImageStudioClient({ userId }: Props) {
 
   return (
     <>
+    <LoadingOverlay
+      open={submitting}
+      title="Generating your image"
+      description=""
+      progress={submitProgress}
+      remainingLabel={`${Math.max(0, 100 - submitProgress)}% remaining`}
+    />
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />

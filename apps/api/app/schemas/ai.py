@@ -150,6 +150,7 @@ class AIVideoCreateResponse(BaseModel):
 class AIVideoStatusResponse(BaseModel):
     id: str
     status: str
+    progress: int = 0
     videoUrl: str | None = None
     modelKey: str | None = None
     modelLabel: str | None = None

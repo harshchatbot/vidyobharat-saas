@@ -1042,6 +1042,7 @@ def get_ai_video_status(
     return AIVideoStatusResponse(
         id=video.id,
         status='queued' if status_value == 'draft' else mapped_status,
+        progress=video.progress or 0,
         videoUrl=video.output_url,
         modelKey=video.selected_model,
         modelLabel=video.provider_name,

@@ -200,6 +200,20 @@ export function CreateVideoPage({
     : voiceTranslationLoading
       ? 'Language Update'
       : 'Video Render';
+  const overlayProgress = initialLoading
+    ? 22
+    : voiceTranslationLoading
+      ? 34
+      : submitting
+        ? 12
+        : jobStatus?.status === 'queued'
+          ? 20
+          : jobStatus?.status === 'processing'
+            ? Math.max(20, Math.min(95, jobStatus.progress ?? 42))
+            : null;
+  const overlayRemainingLabel = typeof overlayProgress === 'number'
+    ? `${Math.max(0, 100 - overlayProgress)}% remaining`
+    : undefined;
   const voiceCreditMap = useMemo(() => {
     const allVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
     const premiumCredits = premiumVoiceEstimate?.estimatedCredits ?? null;
@@ -458,35 +472,107 @@ export function CreateVideoPage({
   useEffect(() => {
     if (!jobResponseId) return;
     let cancelled = false;
+    let interval: number | null = null;
+    let consecutiveFailures = 0;
+
+    const statusToVideo = (status: AIVideoStatusResponse): Video => ({
+      id: status.id,
+      user_id: userId,
+      title: title || 'Untitled Video',
+      template: template.label,
+      language,
+      script,
+      voice,
+      aspect_ratio: status.aspectRatio,
+      resolution: status.resolution,
+      duration_mode: 'custom',
+      duration_seconds: status.durationSeconds,
+      captions_enabled: captionsEnabled,
+      caption_style: captionStyle,
+      audio_sample_rate_hz: audioSampleRateHz,
+      status: status.status === 'success' ? 'completed' : status.status === 'failed' ? 'failed' : 'processing',
+      progress: status.progress ?? (status.status === 'success' ? 100 : 50),
+      image_urls: selectedImageUrls,
+      selected_model: status.modelKey,
+      provider_name: status.provider ?? status.modelLabel,
+      source_image_url: selectedImageUrls[0] ?? null,
+      reference_images: selectedImageUrls,
+      music_mode: musicMode,
+      music_track_id: selectedTrackId || null,
+      music_file_url: uploadedMusicUrl || null,
+      music_volume: musicVolume,
+      duck_music: ducking,
+      thumbnail_url: status.thumbnailUrl,
+      output_url: status.videoUrl,
+      error_message: status.errorMessage,
+      auto_tags: status.tags,
+      user_tags: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     const poll = async () => {
       try {
         const status = await api.getAIVideoStatus(jobResponseId, userId);
         if (cancelled) return;
+        consecutiveFailures = 0;
         setJobStatus(status);
+        setSubmitError(null);
         if (status.status === 'success') {
-          const fullVideo = await api.getVideo(jobResponseId, userId);
-          if (!cancelled) {
-            setJob(fullVideo);
-            const refreshedVideos = await api.listVideos(userId).catch(() => null);
-            if (!cancelled && refreshedVideos) setVideos(refreshedVideos);
+          setJob((current) => current ?? statusToVideo(status));
+          try {
+            const fullVideo = await api.getVideo(jobResponseId, userId);
+            if (!cancelled) {
+              setJob(fullVideo);
+              const refreshedVideos = await api.listVideos(userId).catch(() => null);
+              if (!cancelled && refreshedVideos) setVideos(refreshedVideos);
+            }
+          } catch {
+            if (!cancelled) {
+              setJob((current) => current ?? statusToVideo(status));
+            }
           }
+          if (interval) window.clearInterval(interval);
+        } else if (status.status === 'failed') {
+          setJob((current) => current ?? statusToVideo(status));
+          if (interval) window.clearInterval(interval);
         }
       } catch (error) {
-        if (!cancelled) setSubmitError(error instanceof Error ? error.message : 'Failed to refresh job status.');
+        if (cancelled) return;
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 3) {
+          setSubmitError(error instanceof Error ? error.message : 'Failed to refresh job status.');
+        }
       }
     };
 
     void poll();
-    const interval = window.setInterval(() => {
+    interval = window.setInterval(() => {
       void poll();
     }, 3000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (interval) window.clearInterval(interval);
     };
-  }, [jobResponseId, userId]);
+  }, [
+    jobResponseId,
+    userId,
+    title,
+    template.label,
+    language,
+    script,
+    voice,
+    captionsEnabled,
+    captionStyle,
+    audioSampleRateHz,
+    selectedImageUrls,
+    musicMode,
+    selectedTrackId,
+    uploadedMusicUrl,
+    musicVolume,
+    ducking,
+  ]);
 
   useEffect(() => {
     setDurationMode('custom');
@@ -899,6 +985,8 @@ export function CreateVideoPage({
         description={overlayDescription}
         stepLabel={overlayStepLabel}
         accentLabel={overlayAccentLabel}
+        progress={overlayProgress ?? undefined}
+        remainingLabel={overlayRemainingLabel}
       />
 
       <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
