@@ -224,37 +224,45 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </header>
           {mobileNavOpen ? (
-            <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-4 lg:hidden">
+            <div className="fixed inset-x-0 bottom-0 top-[65px] z-40 lg:hidden">
+              <button
+                type="button"
+                aria-label="Close navigation menu"
+                onClick={() => setMobileNavOpen(false)}
+                className="absolute inset-0 bg-[hsl(var(--color-bg)/0.78)] backdrop-blur-sm"
+              />
+              <div className="absolute inset-x-4 top-3 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft">
                 <div className="space-y-3">
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                  <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
+                    <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                  </div>
+                  <nav className="grid gap-2">
+                    {navItems.map((item) => {
+                      const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.label}
+                          href={item.href}
+                          onClick={() => setMobileNavOpen(false)}
+                          className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm font-medium ${
+                            active
+                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted'
+                          }`}
+                        >
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-text">{item.label}</span>
+                            <span className="block text-xs text-muted">{item.hint}</span>
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </nav>
                 </div>
-                <nav className="grid gap-2">
-                  {navItems.map((item) => {
-                    const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        onClick={() => setMobileNavOpen(false)}
-                        className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm font-medium ${
-                          active
-                            ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted'
-                        }`}
-                      >
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-text">{item.label}</span>
-                          <span className="block text-xs text-muted">{item.hint}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </nav>
               </div>
             </div>
           ) : null}

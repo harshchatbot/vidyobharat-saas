@@ -472,19 +472,12 @@ export function ImageStudioClient({ userId }: Props) {
 
   const downloadImage = async (imageUrl: string, fileNameBase: string) => {
     try {
-      const response = await fetch(toAbsoluteUrl(imageUrl));
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const extension = blob.type.includes('png') ? 'png' : blob.type.includes('svg') ? 'svg' : 'jpg';
       const safeName = fileNameBase.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'image';
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `${safeName}.${extension}`;
+      link.href = `/api/download?url=${encodeURIComponent(toAbsoluteUrl(imageUrl) ?? imageUrl)}&filename=${encodeURIComponent(safeName)}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not download image right now.'));
     }

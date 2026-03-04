@@ -291,15 +291,27 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">All creations</p>
-                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.all}</p>
+                {loading ? (
+                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.all}</p>
+                )}
               </div>
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">Videos</p>
-                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.video}</p>
+                {loading ? (
+                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.video}</p>
+                )}
               </div>
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted">Images</p>
-                <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.image}</p>
+                {loading ? (
+                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.image}</p>
+                )}
               </div>
             </div>
           </div>

@@ -58,96 +58,108 @@ export function OutputSettings({
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
-        <div>
-          <p className="mb-2 text-sm font-semibold text-text">Aspect ratio</p>
-          <div className="space-y-2">
-            {availableAspectRatios.map((option) => {
-              const active = option.value === aspectRatio;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onAspectRatioChange(option.value)}
-                  className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
-                    active
-                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                      : 'border-border bg-bg hover:bg-elevated'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold text-text">{option.label}</span>
-                  <span className="mt-1 block text-xs text-muted">{option.description}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-muted">Selected output: {aspectRatio} • {selectedAspectDescription}</p>
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-text">Resolution</p>
-          <div className="space-y-2">
-            {resolutionDisplayOptions.map((option) => {
-              const selectable = availableResolutions.some((item) => item.value === option.value);
-              const active = option.value === resolution;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    if (selectable) {
-                      onResolutionChange(option.value as '720p' | '1080p');
-                    }
-                  }}
-                  disabled={!selectable}
-                  className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
-                    active && selectable
-                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                      : selectable
-                        ? 'border-border bg-bg hover:bg-elevated'
-                        : 'border-border bg-[hsl(var(--color-bg)/0.6)] opacity-60'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold text-text">{option.label}</span>
-                  <span className="mt-1 block text-xs text-muted">{option.description}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-muted">Selected output size: {selectedResolutionDimensions}</p>
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-text">Quality</p>
-          <div className="space-y-2">
-            {VIDEO_QUALITY_OPTIONS.map((option) => {
-              const active = option.value === quality;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onQualityChange(option.value)}
-                  className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
-                    active
-                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                      : 'border-border bg-bg hover:bg-elevated'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold text-text">{option.label}</span>
-                  <span className="mt-1 block text-xs text-muted">{option.description}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-muted">
-            Selected quality: {VIDEO_QUALITY_OPTIONS.find((option) => option.value === quality)?.label ?? 'Standard'}
-          </p>
-        </div>
-
-        <div className="space-y-4">
+      <div className="space-y-4 rounded-[24px] border border-border bg-bg px-4 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="mb-2 text-sm font-semibold text-text">Duration</p>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <p className="text-sm font-semibold text-text">Output</p>
+            <p className="mt-1 text-xs text-muted">
+              {aspectRatio} • {selectedResolutionDimensions} • {VIDEO_QUALITY_OPTIONS.find((option) => option.value === quality)?.label ?? 'Standard'}
+            </p>
+          </div>
+          <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-1 text-xs font-semibold text-text">
+            {modelLabel}
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-text">Aspect ratio</p>
+          <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+            <div className="flex flex-wrap gap-2">
+              {availableAspectRatios.map((option) => {
+                const active = option.value === aspectRatio;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onAspectRatioChange(option.value)}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      active
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                    }`}
+                    title={`${option.label} · ${option.description}`}
+                  >
+                    {option.value}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-xs text-muted">{selectedAspectDescription}</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-text">Resolution</p>
+          <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+            <div className="flex flex-wrap gap-2">
+              {resolutionDisplayOptions.map((option) => {
+                const selectable = availableResolutions.some((item) => item.value === option.value);
+                const active = option.value === resolution;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      if (selectable) onResolutionChange(option.value as '720p' | '1080p');
+                    }}
+                    disabled={!selectable}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      active && selectable
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : selectable
+                          ? 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                          : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.45)] text-muted opacity-60'
+                    }`}
+                    title={option.description}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-text">Quality</p>
+          <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+            <div className="flex flex-wrap gap-2">
+              {VIDEO_QUALITY_OPTIONS.map((option) => {
+                const active = option.value === quality;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onQualityChange(option.value)}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      active
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                    }`}
+                    title={option.description}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-text">Duration</p>
+          <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+            <div className="flex flex-wrap gap-2">
               {availableDurations.map((seconds) => {
                 const active = Number(durationSeconds) === seconds;
                 return (
@@ -155,21 +167,19 @@ export function OutputSettings({
                     key={seconds}
                     type="button"
                     onClick={() => onDurationSecondsChange(String(seconds))}
-                    className={`w-full rounded-[var(--radius-md)] border px-4 py-3 text-left ${
+                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
                       active
-                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                        : 'border-border bg-bg hover:bg-elevated'
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
                     }`}
                   >
-                    <span className="block text-sm font-semibold text-text">{seconds}s</span>
-                    <span className="mt-1 block text-xs text-muted">{modelLabel} clip</span>
+                    {seconds}s
                   </button>
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-muted">{durationHelperText}</p>
           </div>
-
+          <p className="text-xs text-muted">{durationHelperText}</p>
           {supportsCustomDuration ? (
             <label className="block">
               <span className="mb-1 flex items-center gap-2 text-sm font-semibold text-text">

@@ -775,7 +775,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Pose</label>
                   <Dropdown value={selectedPose} onChange={(e) => setSelectedPose(e.target.value)}>
@@ -818,26 +818,72 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     </div>
                   </button>
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-text">Aspect ratio</label>
-                  <Dropdown value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
-                    <option value="9:16">9:16</option>
-                    <option value="4:5">4:5</option>
-                    <option value="1:1">1:1</option>
-                      <option value="16:9">16:9</option>
-                  </Dropdown>
-                  <p className="mt-2 text-xs text-muted">Pick the frame that matches where this character will be used next.</p>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-text">Resolution</label>
-                  <Dropdown value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                    <option value="1024">1024 px</option>
-                    <option value="1536">1536 px</option>
-                    <option value="2048">2048 px</option>
-                  </Dropdown>
-                  <p className="mt-2 text-xs text-muted">Higher resolutions cost more credits but help when the asset will be reused in thumbnails or campaigns.</p>
-                </div>
               </div>
+
+              <Card className="space-y-3 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Output</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {aspectRatio} • {resolution} px • {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Selected model'}
+                    </p>
+                  </div>
+                  <Badge variant="outline">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : 'Estimating...'}</Badge>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-text">Aspect ratio</p>
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ['9:16', 'Reels'],
+                        ['4:5', 'Portrait'],
+                        ['1:1', 'Square'],
+                        ['16:9', 'Landscape'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setAspectRatio(value)}
+                          className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                            aspectRatio === value
+                              ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                              : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                          }`}
+                          title={label}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-text">Resolution</p>
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ['1024', '1024 px'],
+                        ['1536', '1536 px'],
+                        ['2048', '2048 px'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setResolution(value)}
+                          className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                            resolution === value
+                              ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                              : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted">Higher resolutions cost more credits but help when the asset will be reused in thumbnails or campaigns.</p>
+                </div>
+              </Card>
 
               {selectedPose === 'custom' ? (
                 <div>
