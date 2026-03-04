@@ -75,6 +75,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     };
   }, []);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+    setAccountMenuOpen(false);
+  }, [pathname]);
+
   if (inApp) {
     const navItems = [
       {

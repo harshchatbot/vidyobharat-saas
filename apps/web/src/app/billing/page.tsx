@@ -57,28 +57,49 @@ export default function BillingPage() {
 
   useEffect(() => {
     const raw = getUserIdFromCookie();
-    if (!raw) {
-      setLoading(false);
-      return;
+    if (raw) {
+      setUserId(raw);
     }
-    setUserId(raw);
-    void Promise.all([api.getCreditWallet(raw), api.getCreditHistory(raw, 8), api.getPricing()])
-      .then(([nextWallet, nextHistory, nextPricing]) => {
-        setWallet(nextWallet);
-        setHistory(nextHistory.items);
-        setPricing(nextPricing);
+
+    void (async () => {
+      try {
+        const pricingResult = await api.getPricing();
+        setPricing(pricingResult);
         const requestedPlan = searchParams.get('plan');
-        if (requestedPlan && requestedPlan in nextPricing.plans) {
+        if (requestedPlan && requestedPlan in pricingResult.plans) {
           setSelectedPlan(requestedPlan);
-        } else if (!(selectedPlan in nextPricing.plans)) {
-          const firstPlan = Object.keys(nextPricing.plans)[0];
+        } else if (!(selectedPlan in pricingResult.plans)) {
+          const firstPlan = Object.keys(pricingResult.plans)[0];
           if (firstPlan) setSelectedPlan(firstPlan);
         }
-      })
-      .catch((err) => {
+
+        if (!raw) {
+          setError('Please sign in to view your wallet and continue to checkout.');
+          return;
+        }
+
+        const [walletResult, historyResult] = await Promise.allSettled([
+          api.getCreditWallet(raw),
+          api.getCreditHistory(raw, 8),
+        ]);
+
+        if (walletResult.status === 'fulfilled') {
+          setWallet(walletResult.value);
+        } else {
+          setError(walletResult.reason instanceof Error ? walletResult.reason.message : 'Failed to load wallet data.');
+        }
+
+        if (historyResult.status === 'fulfilled') {
+          setHistory(historyResult.value.items);
+        } else if (!error) {
+          setError(historyResult.reason instanceof Error ? historyResult.reason.message : 'Failed to load credit history.');
+        }
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load billing data.');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [searchParams]);
 
   const orderedPlans = useMemo(() => {
@@ -105,7 +126,14 @@ export default function BillingPage() {
   };
 
   const handleTopup = async () => {
-    if (!userId || !pricing) return;
+    if (!userId) {
+      setError('Please sign in again before starting checkout.');
+      return;
+    }
+    if (!pricing) {
+      setError('Pricing is still loading. Please try again in a moment.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -261,7 +289,7 @@ export default function BillingPage() {
                   </>
                 ) : null}
               </div>
-              <Button onClick={() => void handleTopup()} disabled={submitting || !pricing} className="w-full sm:min-w-44 sm:w-auto">
+              <Button onClick={() => void handleTopup()} disabled={submitting || !pricing || !userId} className="w-full sm:min-w-44 sm:w-auto">
                 {submitting ? 'Preparing checkout...' : pricing?.paymentProvider === 'stripe' ? 'Prepare checkout' : 'Proceed to checkout'}
               </Button>
             </div>
