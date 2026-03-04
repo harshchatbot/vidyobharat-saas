@@ -30,8 +30,17 @@ class CreditRepository:
         return [self._to_wallet(doc.to_dict() or {}) for doc in self.wallets.stream()]
 
     def list_history(self, user_id: str, limit: int = 100) -> list[CreditTransaction]:
-        rows = self.transactions.where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').limit(limit).stream()
-        return [self._to_transaction(doc.to_dict() or {}) for doc in rows]
+        items: list[CreditTransaction] = []
+        for doc in self.transactions.stream():
+            data = doc.to_dict() or {}
+            if data.get('user_id') != user_id:
+                continue
+            try:
+                items.append(self._to_transaction(data))
+            except Exception:
+                continue
+        items.sort(key=lambda item: item.created_at or datetime.now(UTC), reverse=True)
+        return items[:limit]
 
     def get_transaction_by_idempotency_key(self, idempotency_key: str) -> CreditTransaction | None:
         rows = list(self.transactions.where('idempotency_key', '==', idempotency_key).limit(1).stream())
