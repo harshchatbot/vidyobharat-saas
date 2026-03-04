@@ -996,7 +996,7 @@ export function ImageStudioClient({ userId }: Props) {
         </Card>
       </div>
       {selectedInspiration ? (
-        <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedInspiration(null)}>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedInspiration(null)}>
           <div className="mx-auto flex h-full max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
             <div className="grid max-h-[92vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard lg:grid-cols-[1.1fr_0.9fr]">
               <div className="min-h-[280px] bg-[hsl(var(--color-bg))]">
@@ -1056,7 +1056,12 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <a href={selectedInspiration.image_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
+                  <a
+                    href={toAbsoluteUrl(selectedInspiration.image_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+                  >
                     <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                     Open full image
                   </a>

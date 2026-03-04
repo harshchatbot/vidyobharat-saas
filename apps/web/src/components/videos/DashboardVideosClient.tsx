@@ -680,7 +680,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 href={
                   isVideoInspiration(selectedInspirationItem)
                     ? (toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url)
-                    : selectedInspirationItem.image_url
+                    : (toAbsoluteUrl(selectedInspirationItem.image_url) ?? selectedInspirationItem.image_url)
                 }
                 target="_blank"
                 rel="noreferrer"
