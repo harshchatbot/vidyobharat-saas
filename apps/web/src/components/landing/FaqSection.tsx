@@ -24,7 +24,7 @@ export function FaqSection() {
     <section className="space-y-4">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-[hsl(var(--color-text))] sm:text-3xl">FAQs</h2>
-        <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Answering objections early improves conversion and trust.</p>
+        <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Everything you need before starting your first generation.</p>
       </div>
       <div className="space-y-2">
         {faqs.map((item) => (

@@ -28,7 +28,7 @@ export function WorkflowSection() {
           From prompt to publish in three steps.
         </h2>
         <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-          A reliable production flow built for teams that need speed without sacrificing quality.
+          Keep the workflow clean: script, style, and output in one fast path.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-3">

@@ -40,6 +40,21 @@ const featureCopy: Record<string, string[]> = {
   ],
 };
 
+const pricingFaqs = [
+  {
+    q: 'Do unused credits roll over?',
+    a: 'Top-up packs stay in your wallet. Monthly plan credits refresh based on your active subscription cycle.',
+  },
+  {
+    q: 'Can I mix image, voice, and video usage?',
+    a: 'Yes. One shared wallet powers all premium generation actions across the studio.',
+  },
+  {
+    q: 'Can I start free and upgrade later?',
+    a: 'Yes. You can start on the free tier and move to paid packs whenever your output volume grows.',
+  },
+];
+
 export default function PricingPage() {
   const router = useRouter();
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
@@ -294,6 +309,18 @@ export default function PricingPage() {
                 </table>
               </div>
             </div>
+
+            <section className="mt-10 grid gap-4 lg:mt-12 lg:grid-cols-3">
+              {pricingFaqs.map((item) => (
+                <article
+                  key={item.q}
+                  className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-[var(--shadow-soft)]"
+                >
+                  <h3 className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.q}</h3>
+                  <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">{item.a}</p>
+                </article>
+              ))}
+            </section>
 
             <div className="mt-16 text-center lg:mt-20">
               <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">

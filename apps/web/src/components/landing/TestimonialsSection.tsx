@@ -25,7 +25,7 @@ export function TestimonialsSection() {
     <section className="space-y-4">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-[hsl(var(--color-text))] sm:text-3xl">What teams say</h2>
-        <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Customer voice is a major conversion lever on top AI SaaS pages.</p>
+        <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Creators and teams using RangManch AI in production workflows.</p>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         {testimonials.map((item, index) => (
