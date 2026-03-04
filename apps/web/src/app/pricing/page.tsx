@@ -83,8 +83,6 @@ export default function PricingPage() {
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-
-        {/* HERO */}
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--color-accent))]">
             Pricing
@@ -126,11 +124,55 @@ export default function PricingPage() {
           </div>
         ) : (
           <>
-            {/* PLANS */}
             <div className="mt-12 grid gap-5 lg:mt-16 lg:grid-cols-4 lg:gap-8">
+              <button
+                type="button"
+                onClick={() => router.push('/signup')}
+                className="relative flex h-full flex-col rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 text-left shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)] sm:p-6 lg:p-8"
+              >
+                <h3 className="text-xl font-semibold text-[hsl(var(--color-text))]">
+                  Free
+                </h3>
+
+                <div className="mt-5">
+                  <span className="text-3xl font-bold text-[hsl(var(--color-text))] sm:text-4xl">
+                    {formatMoney(pricing.currency, 0)}
+                  </span>
+                  <span className="ml-2 text-[hsl(var(--color-muted))]">
+                    /forever
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
+                  40 credits included
+                </p>
+
+                <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
+                  <li className="flex items-start gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
+                    <span>Try the studio before upgrading</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
+                    <span>Good for first images, voice tests, and lightweight runs</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
+                    <span>Upgrade later without changing your workflow</span>
+                  </li>
+                </ul>
+
+                <span className="mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-6 py-3 text-sm font-semibold text-[hsl(var(--color-text))] transition">
+                  Start Free
+                </span>
+              </button>
+
               {orderedPlans.map((plan) => {
                 const isPopular = plan.key === 'creator';
                 const isSelected = selectedPlan === plan.key;
+                const hdVideos = Math.floor(plan.credits / 18);
+                const videos720p = Math.floor(plan.credits / 12);
+                const images = Math.floor(plan.credits / 3);
 
                 return (
                   <button
@@ -144,7 +186,7 @@ export default function PricingPage() {
                     }`}
                   >
                     {isPopular && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-1 text-xs font-semibold text-[hsl(var(--color-accent-contrast))] shadow">
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-1 text-xs font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
                         Most Popular
                       </div>
                     )}
@@ -165,6 +207,14 @@ export default function PricingPage() {
                     <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
                       {plan.credits} credits included
                     </p>
+
+                    <div className="mt-3 space-y-1 text-sm text-[hsl(var(--color-muted))]">
+                      <p>~{hdVideos} HD videos</p>
+                      <p>~{images} images</p>
+                      <p className="text-xs" title={`~${videos720p} 720p videos`}>
+                        Best for repeat video and image workflows
+                      </p>
+                    </div>
 
                     <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
                       {(featureCopy[plan.key] ?? []).map((feature) => (
@@ -189,7 +239,6 @@ export default function PricingPage() {
               })}
             </div>
 
-            {/* CREDIT BREAKDOWN */}
             <div className="mt-16 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
               <div className="mb-6 flex items-center gap-3">
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
@@ -246,7 +295,6 @@ export default function PricingPage() {
               </div>
             </div>
 
-            {/* CTA */}
             <div className="mt-16 text-center lg:mt-20">
               <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">
                 Start with a plan today and top up anytime as your usage grows.
