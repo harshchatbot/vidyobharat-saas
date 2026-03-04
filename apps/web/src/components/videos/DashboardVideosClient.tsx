@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clapperboard, Film, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
+import { ArrowRight, Clapperboard, Copy, ExternalLink, Film, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Grid } from '@/components/ui/Grid';
+import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AssetSearchItem, AssetTagFacet, GeneratedImage, InspirationImage, InspirationVideo, Video } from '@/types/api';
@@ -19,6 +20,7 @@ type Props = {
 
 type MediaFilter = 'all' | 'video' | 'image';
 type InspirationFilter = 'video' | 'image';
+type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
@@ -46,6 +48,10 @@ function toAbsoluteUrl(url: string | null) {
 
 function mediaLabel(contentType: string) {
   return contentType === 'image' ? 'Image' : 'Video';
+}
+
+function isVideoInspiration(item: DashboardInspirationItem): item is InspirationVideo {
+  return 'provider_name' in item;
 }
 
 function emptyCopy(mediaFilter: MediaFilter) {
@@ -166,6 +172,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
   const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('video');
+  const [selectedInspirationItem, setSelectedInspirationItem] = useState<DashboardInspirationItem | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +251,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   }, [assets, mediaFilter]);
   const inspirationItems = inspirationFilter === 'video' ? videoInspiration : imageInspiration;
 
+  const copyPrompt = async (prompt: string) => {
+    await navigator.clipboard.writeText(prompt);
+    setCopiedPrompt(true);
+    window.setTimeout(() => setCopiedPrompt(false), 1500);
+  };
+
   const downloadAsset = async (asset: AssetSearchItem) => {
     const url = toAbsoluteUrl(asset.asset_url);
     if (!url) return;
@@ -317,47 +331,24 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-4 sm:p-5">
-            <div className="flex flex-wrap gap-2">
-              {(['video', 'image'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setInspirationFilter(value)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    inspirationFilter === value
-                      ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                      : 'border border-[hsl(var(--color-border))] text-muted hover:text-text'
-                  }`}
-                >
-                  {value === 'video' ? 'Video inspiration' : 'Image inspiration'}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {inspirationItems.slice(0, 4).map((item) => {
-                const preview =
-                  inspirationFilter === 'video'
-                    ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) || (item as InspirationVideo).thumbnail_url
-                    : (item as InspirationImage).image_url;
-                return (
-                  <div key={item.id} className="overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-                    <img src={preview} alt={item.title} className="h-28 w-full object-cover sm:h-32" />
-                    <div className="space-y-2 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="line-clamp-1 font-semibold text-text">{item.title}</p>
-                        <Badge>{item.model_key}</Badge>
-                      </div>
-                      <p className="line-clamp-2 text-xs leading-5 text-muted">{item.prompt}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {item.tags.slice(0, 3).map((tag) => (
-                          <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <Badge className="bg-[hsl(var(--color-accent)/0.16)] text-text">Workspace pulse</Badge>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">One home for image, video, and character workflows.</p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Move between studios quickly, keep your recent creations visible, and use the inspiration feed below when you need a stronger starting point.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.88)] p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Recommended next</p>
+                  <p className="mt-2 font-semibold text-text">Open the studio that matches the format you want to ship.</p>
+                </div>
+                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.88)] p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Tip</p>
+                  <p className="mt-2 font-semibold text-text">Use inspiration to calibrate output quality before generating your own assets.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -440,7 +431,13 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 ? `${(item as InspirationVideo).provider_name} • ${(item as InspirationVideo).duration_seconds}s`
                 : `${(item as InspirationImage).creator_name} • ${(item as InspirationImage).aspect_ratio}`;
             return (
-              <Card key={item.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.14)]">
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedInspirationItem(item)}
+                className="text-left"
+              >
+              <Card className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.14)]">
                 <img src={preview} alt={item.title} className="h-48 w-full object-cover sm:h-56" />
                 <div className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -456,8 +453,13 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
                     ))}
                   </div>
+                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-text">
+                    View details
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
                 </div>
               </Card>
+              </button>
             );
           })}
         </Grid>
@@ -613,6 +615,84 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         )}
       </section>
+
+      {selectedInspirationItem ? (
+        <Modal open onClose={() => setSelectedInspirationItem(null)}>
+          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+              {isVideoInspiration(selectedInspirationItem) ? (
+                <video
+                  src={toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url}
+                  poster={toAbsoluteUrl(selectedInspirationItem.thumbnail_url) ?? selectedInspirationItem.thumbnail_url}
+                  controls
+                  className="h-full max-h-[520px] w-full bg-black object-cover"
+                />
+              ) : (
+                <img src={selectedInspirationItem.image_url} alt={selectedInspirationItem.title} className="h-full max-h-[520px] w-full object-cover" />
+              )}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
+                    <p className="mt-2 text-sm text-muted">
+                      {isVideoInspiration(selectedInspirationItem)
+                        ? `${selectedInspirationItem.provider_name} • ${selectedInspirationItem.duration_seconds}s`
+                        : `${selectedInspirationItem.creator_name} • ${selectedInspirationItem.aspect_ratio}`}
+                    </p>
+                  </div>
+                  <Badge>{selectedInspirationItem.model_key}</Badge>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</p>
+                  <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspirationItem.prompt)} className="gap-2 px-3 py-1.5 text-xs">
+                    <Copy className="h-3.5 w-3.5" />
+                    {copiedPrompt ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-muted">{selectedInspirationItem.prompt}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Model</p>
+                  <p className="mt-2 text-sm font-semibold text-text">{selectedInspirationItem.model_key}</p>
+                </div>
+                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">{isVideoInspiration(selectedInspirationItem) ? 'Duration' : 'Aspect ratio'}</p>
+                  <p className="mt-2 text-sm font-semibold text-text">
+                    {isVideoInspiration(selectedInspirationItem) ? `${selectedInspirationItem.duration_seconds}s` : selectedInspirationItem.aspect_ratio}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedInspirationItem.tags.map((tag) => (
+                  <Badge key={`${selectedInspirationItem.id}-${tag}`}>{tag}</Badge>
+                ))}
+              </div>
+
+              <a
+                href={
+                  isVideoInspiration(selectedInspirationItem)
+                    ? (toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url)
+                    : selectedInspirationItem.image_url
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+              >
+                Open original
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

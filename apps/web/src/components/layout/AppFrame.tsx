@@ -164,17 +164,21 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="lg:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
-                <span className="font-heading text-xl font-bold tracking-tight text-text">{pageTitle}</span>
+                <span className="hidden truncate font-heading text-xl font-bold tracking-tight text-text sm:inline-block">{pageTitle}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <CreditChip />
-                <ToggleTheme />
+                <div className="hidden sm:block">
+                  <CreditChip />
+                </div>
+                <div className="hidden sm:block">
+                  <ToggleTheme />
+                </div>
                 <div ref={accountMenuRef} className="relative">
                   <button
                     type="button"
                     onClick={() => setAccountMenuOpen((current) => !current)}
-                    className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-1.5 text-sm text-text"
+                    className="flex list-none cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-2.5 py-1.5 text-sm text-text sm:px-3"
                     aria-expanded={accountMenuOpen}
                     aria-label="Open account menu"
                   >
@@ -185,8 +189,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         {displayName.slice(0, 1)}
                       </span>
                     )}
-                    <span className="hidden sm:inline">{displayName}</span>
-                    <ChevronDown className="h-4 w-4 text-muted" />
+                    <span className="hidden md:inline">{displayName}</span>
+                    <ChevronDown className="hidden h-4 w-4 text-muted sm:block" />
                   </button>
                   {accountMenuOpen ? (
                   <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
@@ -212,6 +216,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <Link href="/settings" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <Settings className="h-4 w-4" /> Settings
                     </Link>
+                    <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 sm:hidden">
+                      <div className="flex items-center justify-between gap-3">
+                        <CreditChip />
+                        <ToggleTheme />
+                      </div>
+                    </div>
                     <form action={logoutAction}>
                       <button type="submit" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                         Logout
@@ -235,6 +245,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="space-y-3">
                   <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
                     <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                  </div>
+                  <div className="grid grid-cols-[1fr_auto] gap-3">
+                    <div className="min-w-0">
+                      <CreditChip />
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <ToggleTheme />
+                    </div>
                   </div>
                   <nav className="grid gap-2">
                     {navItems.map((item) => {
