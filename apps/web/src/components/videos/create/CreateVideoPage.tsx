@@ -68,7 +68,9 @@ export function CreateVideoPage({
   const [voicePreviewLoadingKey, setVoicePreviewLoadingKey] = useState<string | null>(null);
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [voicePreviewVoiceKey, setVoicePreviewVoiceKey] = useState<string | null>(null);
-  const [voicePreviewText, setVoicePreviewText] = useState('');
+  const [voicePreviewText, setVoicePreviewText] = useState(
+    'Welcome to RangManch AI. Let us create something amazing for your audience today.',
+  );
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
   const [voicePreviewError, setVoicePreviewError] = useState<string | null>(null);
@@ -612,12 +614,14 @@ export function CreateVideoPage({
         await player.play();
         setVoicePreviewing(true);
         setVoicePreviewError(null);
+        setVoicePreviewMessage(null);
         return;
       } catch (playError) {
         const message = playError instanceof Error
-          ? `Preview is ready. Tap the audio player below if playback does not start automatically. ${playError.message}`
-          : 'Preview is ready. Tap the audio player below if playback does not start automatically.';
-        setVoicePreviewError(message);
+          ? `Preview is ready. Tap play below if your browser blocks autoplay. ${playError.message}`
+          : 'Preview is ready. Tap play below if your browser blocks autoplay.';
+        setVoicePreviewError(null);
+        setVoicePreviewMessage(message);
         show(message);
       }
     }
@@ -682,11 +686,13 @@ export function CreateVideoPage({
           await playResult;
         }
         setVoicePreviewing(true);
+        setVoicePreviewMessage(null);
       } catch (playError) {
         const message = playError instanceof Error
-          ? `Preview audio is ready, but autoplay was blocked. Use the player controls below. ${playError.message}`
-          : 'Preview audio is ready, but autoplay was blocked. Use the player controls below.';
-        setVoicePreviewError(message);
+          ? `Preview audio is ready. Tap play below if autoplay was blocked. ${playError.message}`
+          : 'Preview audio is ready. Tap play below if autoplay was blocked.';
+        setVoicePreviewError(null);
+        setVoicePreviewMessage(message);
         show(message);
         setVoicePreviewing(false);
       }
@@ -723,6 +729,27 @@ export function CreateVideoPage({
       setVoicePreviewError(error instanceof Error ? error.message : 'Preview text translation failed.');
     } finally {
       setVoiceTranslationLoading(false);
+    }
+  };
+
+  const playExistingVoicePreview = async () => {
+    const player = voicePreviewAudioRef.current;
+    if (!player || !voicePreviewUrl) return;
+    try {
+      const playResult = player.play();
+      if (playResult instanceof Promise) {
+        await playResult;
+      }
+      setVoicePreviewing(true);
+      setVoicePreviewError(null);
+      setVoicePreviewMessage(null);
+    } catch (error) {
+      const message = error instanceof Error
+        ? `Preview is ready, but playback is still blocked. Use the audio controls directly. ${error.message}`
+        : 'Preview is ready, but playback is still blocked. Use the audio controls directly.';
+      setVoicePreviewError(null);
+      setVoicePreviewMessage(message);
+      show(message);
     }
   };
 
@@ -1084,7 +1111,7 @@ export function CreateVideoPage({
               {!voicePreviewing ? (
                 <button
                   type="button"
-                  onClick={() => void previewVoice(voicePreviewVoiceKey ?? voice)}
+                  onClick={() => void playExistingVoicePreview()}
                   className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
                 >
                   <Mic2 className="h-3.5 w-3.5" />

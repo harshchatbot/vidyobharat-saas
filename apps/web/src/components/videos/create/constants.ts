@@ -89,7 +89,7 @@ export const LANGUAGE_OPTIONS: TTSLanguageOption[] = [
 ];
 
 export const VOICE_OPTIONS: TTSVoiceOption[] = [
-  { key: 'Shubh', label: 'Shubh', tone: 'Balanced male', gender: 'male', provider_voice: 'shubh', supported_language_codes: LANGUAGE_OPTIONS.map((item) => item.code), description: 'Versatile Sarvam voice for explainers, education, and general creator narration.' },
+  { key: 'Shubh', label: 'Shubh', tone: 'Balanced male', gender: 'male', provider_voice: 'shubh', supported_language_codes: ['en-IN'], description: 'Versatile Sarvam voice for English explainers, education, and general creator narration.' },
   { key: 'Aditya', label: 'Aditya', tone: 'Confident male', gender: 'male', provider_voice: 'aditya', supported_language_codes: ['en-IN', 'hi-IN', 'bn-IN', 'gu-IN', 'mr-IN', 'pa-IN'], description: 'Clear storyteller voice for startup, product, and tech explainers.' },
   { key: 'Rahul', label: 'Rahul', tone: 'Warm male', gender: 'male', provider_voice: 'rahul', supported_language_codes: ['en-IN', 'hi-IN', 'bn-IN', 'gu-IN', 'mr-IN', 'pa-IN'], description: 'Friendly male narration for accessible creator content.' },
   { key: 'Rohan', label: 'Rohan', tone: 'Polished male', gender: 'male', provider_voice: 'rohan', supported_language_codes: ['en-IN', 'hi-IN', 'mr-IN', 'ta-IN', 'te-IN'], description: 'Professional male delivery for branded and polished videos.' },

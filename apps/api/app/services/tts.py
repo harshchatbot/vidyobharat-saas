@@ -63,7 +63,7 @@ WEST_LANGUAGE_CODES = ('en-IN', 'hi-IN', 'gu-IN', 'mr-IN')
 PAN_INDIA_LANGUAGE_CODES = ALL_LANGUAGE_CODES
 
 VOICE_OPTIONS: tuple[VoiceOption, ...] = (
-    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'shubh', PAN_INDIA_LANGUAGE_CODES, 'Default Bulbul v3 voice with neutral, versatile delivery.'),
+    VoiceOption('Shubh', 'Shubh', 'Balanced male', 'male', 'shubh', ('en-IN',), 'Default Bulbul v3 voice with neutral, versatile English delivery.'),
     VoiceOption('Aditya', 'Aditya', 'Confident male', 'male', 'aditya', NORTH_LANGUAGE_CODES, 'Clear storyteller voice for startup, product, and tech explainers.'),
     VoiceOption('Rahul', 'Rahul', 'Warm male', 'male', 'rahul', NORTH_LANGUAGE_CODES, 'Friendly male narration for accessible creator content.'),
     VoiceOption('Rohan', 'Rohan', 'Polished male', 'male', 'rohan', BALANCED_LANGUAGE_CODES, 'Professional male delivery for branded and polished videos.'),
