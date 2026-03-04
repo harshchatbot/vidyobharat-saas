@@ -50,14 +50,11 @@ export function ScriptEditor({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-4">
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-text">Topic</span>
           <Input value={topic} onChange={(event) => onTopicChange(event.target.value)} placeholder={topicPlaceholder} maxLength={300} />
         </label>
-        <div className="rounded-[var(--radius-md)] border border-border bg-bg px-4 py-3 text-sm text-muted">
-          Generate a first draft from the chosen content direction, then refine it without leaving the page.
-        </div>
       </div>
 
       <label className="block">

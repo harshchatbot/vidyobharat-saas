@@ -48,6 +48,7 @@ export function CreateVideoPage({
   const draftKey = `rangmanch-create-draft:${userId}`;
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voicePreviewControlsRef = useRef<HTMLDivElement | null>(null);
   const lastTaggedScriptRef = useRef('');
 
   const initialTemplate = TEMPLATE_OPTIONS.find((item) => item.key === templateKey) ?? TEMPLATE_OPTIONS[0];
@@ -181,7 +182,7 @@ export function CreateVideoPage({
       ? 'Translating preview text'
       : 'Generating your video';
   const overlayDescription = initialLoading
-    ? 'Loading models, voices, images, and recent videos so the creator studio is ready.'
+    ? ''
     : voiceTranslationLoading
       ? `Converting your preview line into ${language} so the selected voice can be auditioned accurately.`
       : `Building your ${selectedModel.label} render with the selected script, voice, media, and output settings.`;
@@ -550,8 +551,9 @@ export function CreateVideoPage({
     const next = TEMPLATE_OPTIONS.find((item) => item.key === templateId);
     if (!next) return;
     setSelectedTemplate(next.key);
-    if (!topic.trim()) setTopic(next.topicHint);
-    if (!script.trim()) setScript(next.scriptHint);
+    setTopic(next.topicHint);
+    setScript(next.scriptHint);
+    setTitle(next.topicHint);
     setSubmitError(null);
     setScriptError(null);
   };
@@ -601,6 +603,10 @@ export function CreateVideoPage({
   const previewVoice = async (previewVoiceKey?: string) => {
     const activeVoice = previewVoiceKey ?? voice;
     const player = voicePreviewAudioRef.current;
+    const scrollToVoicePreviewControls = () => {
+      if (!voicePreviewControlsRef.current) return;
+      voicePreviewControlsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
     if (previewVoiceKey && previewVoiceKey !== voice) {
       setVoice(previewVoiceKey);
     }
@@ -680,6 +686,7 @@ export function CreateVideoPage({
       if (response.applied_credits > 0) {
         show(`Created! Credits Used: ${response.applied_credits} · Remaining Balance: ${response.remaining_credits ?? creditWallet?.currentCredits ?? 0}`);
       }
+      window.setTimeout(scrollToVoicePreviewControls, 60);
       try {
         const playResult = player.play();
         if (playResult instanceof Promise) {
@@ -695,6 +702,7 @@ export function CreateVideoPage({
         setVoicePreviewMessage(message);
         show(message);
         setVoicePreviewing(false);
+        window.setTimeout(scrollToVoicePreviewControls, 60);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Voice preview failed.';
@@ -1024,7 +1032,7 @@ export function CreateVideoPage({
           onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
           voiceCreditMap={voiceCreditMap}
         />
-        <div className="space-y-2">
+        <div ref={voicePreviewControlsRef} className="space-y-2">
           {voicePreviewUrl ? (
             <div className="space-y-2">
               <audio
@@ -1086,7 +1094,6 @@ export function CreateVideoPage({
         title="Background Audio"
         description="Add music, preview it, and control how it sits under narration."
         icon={<Mic2 className="h-5 w-5" />}
-        defaultOpen={false}
       >
         <MusicSelector
           mode={musicMode}

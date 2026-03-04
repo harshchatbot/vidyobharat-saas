@@ -152,7 +152,6 @@ class FirebaseStorageProvider(StorageProvider):
             version='v4',
             expiration=15 * 60,
             method='PUT',
-            content_type='application/octet-stream',
         )
         return SignedUpload(
             upload_url=upload_url,
@@ -185,6 +184,14 @@ class FirebaseStorageProvider(StorageProvider):
 
 def build_storage_provider(settings: Settings | None = None) -> StorageProvider:
     current = settings or get_settings()
+    firebase_ready = bool(
+        current.firebase_storage_bucket
+        and (current.firebase_service_account_json or current.firebase_service_account_path)
+    )
+    # Firebase is the primary storage backend for RangManch. If backend env still
+    # carries a stale Supabase flag, prefer Firebase when it is configured.
+    if firebase_ready and current.storage_backend in {'firebase', 'supabase'}:
+        return FirebaseStorageProvider(current)
     if current.storage_backend == 'firebase':
         return FirebaseStorageProvider(current)
     if current.storage_backend == 'supabase':

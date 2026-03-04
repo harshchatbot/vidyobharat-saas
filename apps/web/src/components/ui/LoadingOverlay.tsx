@@ -43,7 +43,9 @@ export function LoadingOverlay({
             <h2 className="font-heading text-2xl font-semibold tracking-tight text-text sm:text-[1.95rem]">
               {title}
             </h2>
-            <p className="mx-auto max-w-md text-sm leading-6 text-muted sm:text-[15px]">{description}</p>
+            {description ? (
+              <p className="mx-auto max-w-md text-sm leading-6 text-muted sm:text-[15px]">{description}</p>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">
