@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Link from "next/link";
+import { PublicPageTemplate } from "@/components/landing/PublicPageTemplate";
 
 const useCases = [
   {
@@ -41,21 +43,19 @@ const useCases = [
 
 export default function UseCasesPage() {
   return (
-    <main className="bg-[hsl(var(--color-bg))] py-24">
-      <div className="mx-auto max-w-6xl px-4">
-
-        {/* HERO */}
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold text-[hsl(var(--color-text))]">
-            Real-World Use Cases
-          </h1>
-          <p className="mt-4 text-lg text-[hsl(var(--color-muted))]">
-            From AI influencers to multilingual advertising pipelines.
-          </p>
-        </div>
-
-        {/* VERTICAL SECTIONS */}
-        <div className="mt-20 space-y-24">
+    <PublicPageTemplate
+      title="Real-World Use Cases"
+      subtitle="From AI influencers to multilingual advertising pipelines."
+      stats={[
+        { label: 'Creator tracks', value: '6 practical use-case lanes' },
+        { label: 'Localization', value: 'India-first language support' },
+        { label: 'Output', value: 'Image + video generation' },
+        { label: 'Workflow', value: 'From prompt to publish' },
+      ]}
+      ctaTitle="Turn your use case into a live workflow"
+      ctaSubtitle="Start with one scenario today and scale with reusable studio patterns."
+    >
+      <div className="space-y-24">
           {useCases.map((item, index) => {
             const isReversed = index % 2 !== 0;
 
@@ -91,16 +91,15 @@ export default function UseCasesPage() {
                   </p>
 
                   <div className="mt-6">
-                    <button className="rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-6 py-3 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
+                    <Link href="/signup" className="inline-flex rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-6 py-3 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
                       Explore This Use Case
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
       </div>
-    </main>
+    </PublicPageTemplate>
   );
 }
