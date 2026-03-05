@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
 import subprocess
+import re
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -33,6 +34,40 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+_origin_regex = re.compile(settings.allowed_origin_regex) if settings.allowed_origin_regex else None
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    if not origin:
+        return False
+    normalized = origin.rstrip('/')
+    if normalized in {item.rstrip('/') for item in settings.allowed_origins_list}:
+        return True
+    if _origin_regex and _origin_regex.match(normalized):
+        return True
+    # Mobile browsers may hit alternate subdomains; keep this scoped to known app domains.
+    return normalized.endswith('.vercel.app') or normalized.endswith('.techfilabs.com')
+
+
+@app.middleware('http')
+async def ensure_cors_headers(request: Request, call_next):
+    origin = request.headers.get('origin')
+    if request.method == 'OPTIONS' and _origin_allowed(origin):
+        preflight = Response(status_code=204)
+        preflight.headers['Access-Control-Allow-Origin'] = origin or ''
+        preflight.headers['Access-Control-Allow-Credentials'] = 'true'
+        preflight.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+        preflight.headers['Access-Control-Allow-Headers'] = request.headers.get('access-control-request-headers', '*')
+        preflight.headers['Vary'] = 'Origin'
+        return preflight
+
+    response = await call_next(request)
+    if _origin_allowed(origin):
+        response.headers['Access-Control-Allow-Origin'] = origin or ''
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Vary'] = 'Origin'
+    return response
 
 
 def _ensure_directories() -> None:
