@@ -19,7 +19,7 @@ type Props = {
 };
 
 type MediaFilter = 'all' | 'video' | 'image';
-type InspirationFilter = 'video' | 'image';
+type InspirationFilter = 'all' | 'video' | 'image';
 type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
 function formatStatus(status: string) {
@@ -179,7 +179,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
-  const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('video');
+  const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('all');
   const [selectedInspirationItem, setSelectedInspirationItem] = useState<DashboardInspirationItem | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
@@ -232,6 +232,16 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   }, [userId]);
 
   useEffect(() => {
+    if (inspirationFilter === 'video' && videoInspiration.length === 0 && imageInspiration.length > 0) {
+      setInspirationFilter('all');
+      return;
+    }
+    if (inspirationFilter === 'image' && imageInspiration.length === 0 && videoInspiration.length > 0) {
+      setInspirationFilter('all');
+    }
+  }, [inspirationFilter, imageInspiration.length, videoInspiration.length]);
+
+  useEffect(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const filtered = allAssets.filter((item) => {
       const matchesMedia = mediaFilter === 'all' || item.content_type === mediaFilter;
@@ -268,7 +278,15 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 6);
   }, [assets, mediaFilter]);
-  const inspirationItems = inspirationFilter === 'video' ? videoInspiration : imageInspiration;
+  const inspirationItems = useMemo(() => {
+    if (inspirationFilter === 'video') return videoInspiration;
+    if (inspirationFilter === 'image') return imageInspiration;
+    return [...videoInspiration, ...imageInspiration].sort((a, b) => {
+      const left = new Date(a.created_at).getTime();
+      const right = new Date(b.created_at).getTime();
+      return right - left;
+    });
+  }, [imageInspiration, inspirationFilter, videoInspiration]);
 
   const copyPrompt = async (prompt: string) => {
     await navigator.clipboard.writeText(prompt);
@@ -463,7 +481,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <p className="mt-1 text-sm text-muted">Reference-ready outputs to help you start faster and set quality expectations.</p>
           </div>
           <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1">
-            {(['video', 'image'] as const).map((value) => (
+            {(['all', 'video', 'image'] as const).map((value) => (
               <button
                 key={value}
                 type="button"
@@ -474,24 +492,32 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     : 'text-muted'
                 }`}
               >
-                {value === 'video' ? 'Videos' : 'Images'}
+                {value === 'all'
+                  ? `All (${videoInspiration.length + imageInspiration.length})`
+                  : value === 'video'
+                    ? `Videos (${videoInspiration.length})`
+                    : `Images (${imageInspiration.length})`}
               </button>
             ))}
           </div>
         </div>
         <Grid className="md:grid-cols-2 xl:grid-cols-3">
           {inspirationItems.map((item) => {
+            const videoItem = isVideoInspiration(item) ? item : null;
+            const imageItem = !videoItem ? (item as InspirationImage) : null;
             const preview =
-              inspirationFilter === 'video'
-                ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) ||
-                  (item as InspirationVideo).thumbnail_url ||
-                  toAbsoluteUrl((item as InspirationVideo).video_url) ||
-                  (item as InspirationVideo).video_url
-                : (item as InspirationImage).image_url;
+              videoItem
+                ? toAbsoluteUrl(videoItem.thumbnail_url) ||
+                  videoItem.thumbnail_url ||
+                  toAbsoluteUrl(videoItem.video_url) ||
+                  videoItem.video_url
+                : toAbsoluteUrl(imageItem?.image_url ?? '') ||
+                  imageItem?.image_url ||
+                  'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
             const meta =
-              inspirationFilter === 'video'
-                ? `${(item as InspirationVideo).provider_name} • ${(item as InspirationVideo).duration_seconds}s`
-                : `${(item as InspirationImage).creator_name} • ${(item as InspirationImage).aspect_ratio}`;
+              videoItem
+                ? `${videoItem.provider_name} • ${videoItem.duration_seconds}s`
+                : `${imageItem?.creator_name ?? 'Creator'} • ${imageItem?.aspect_ratio ?? '9:16'}`;
             return (
               <button
                 key={item.id}
@@ -507,7 +533,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       <p className="font-heading text-lg font-extrabold text-text sm:text-xl">{item.title}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{meta}</p>
                     </div>
-                    <Badge>{item.model_key}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge>{item.model_key}</Badge>
+                      <Badge>{videoItem ? 'Video' : 'Image'}</Badge>
+                    </div>
                   </div>
                   <p className="line-clamp-3 text-sm leading-6 text-muted">{item.prompt}</p>
                   <div className="flex flex-wrap gap-1">
@@ -525,6 +554,14 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             );
           })}
         </Grid>
+        {inspirationItems.length === 0 ? (
+          <Card className="rounded-[var(--radius-lg)] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-8 text-center">
+            <p className="font-heading text-lg font-extrabold text-text">No inspiration items yet</p>
+            <p className="mt-2 text-sm text-muted">
+              Publish a high-quality generated {inspirationFilter === 'video' ? 'video' : inspirationFilter === 'image' ? 'image' : 'image or video'} to start building this feed.
+            </p>
+          </Card>
+        ) : null}
       </section>
 
       <section className="space-y-4">
