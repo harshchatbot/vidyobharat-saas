@@ -778,25 +778,26 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 >
                   <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.84)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                  <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-1.5 opacity-0 transition group-hover:opacity-100 sm:right-3 sm:top-3 sm:gap-2">
                     <Button
                       variant="secondary"
                       className="pointer-events-auto h-8 w-8 rounded-full p-0"
                       onClick={() => void downloadAsset(asset)}
                       disabled={downloadingId === asset.id || !asset.asset_url}
+                      title="Download"
                     >
                       <Clapperboard className="h-4 w-4" strokeWidth={1.75} />
                     </Button>
                     <Button
                       variant="secondary"
-                      className="pointer-events-auto h-8 rounded-full px-3 text-xs"
+                      className="pointer-events-auto h-8 rounded-full px-3 text-xs font-semibold leading-none"
                       onClick={() => void togglePublish(asset)}
                       disabled={publishingAssetId === asset.id}
                     >
                       {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
                     </Button>
                     <Link href={openHref} className="pointer-events-auto">
-                      <Button variant="secondary" className="h-8 w-8 rounded-full p-0">
+                      <Button variant="secondary" className="h-8 w-8 rounded-full p-0" title="Open">
                         <Wand2 className="h-4 w-4" strokeWidth={1.75} />
                       </Button>
                     </Link>
