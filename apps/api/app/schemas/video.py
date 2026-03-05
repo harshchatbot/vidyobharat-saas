@@ -33,6 +33,10 @@ class VideoResponse(BaseModel):
     thumbnail_url: str | None
     output_url: str | None
     error_message: str | None
+    is_public_inspiration: bool = False
+    moderation_status: str = 'draft'
+    inspiration_score: int = 0
+    like_count: int = 0
     auto_tags: list[str] = Field(default_factory=list)
     user_tags: list[str] = Field(default_factory=list)
     created_at: datetime
@@ -70,3 +74,6 @@ class InspirationVideoResponse(BaseModel):
     duration_seconds: int
     created_at: datetime
     tags: list[str] = Field(default_factory=list)
+    like_count: int = 0
+    liked_by_user: bool = False
+    moderation_status: str = 'approved'

@@ -135,6 +135,11 @@ class Video(Base):
     thumbnail_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     output_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_public_inspiration: Mapped[bool] = mapped_column(default=False, index=True)
+    moderation_status: Mapped[str] = mapped_column(String(24), default='draft', index=True)
+    inspiration_score: Mapped[int] = mapped_column(Integer, default=0)
+    inspiration_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    like_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -154,6 +159,11 @@ class ImageGeneration(Base):
     thumbnail_url: Mapped[str] = mapped_column(String(255))
     action_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[ImageGenerationStatus] = mapped_column(Enum(ImageGenerationStatus), default=ImageGenerationStatus.completed, index=True)
+    is_public_inspiration: Mapped[bool] = mapped_column(default=False, index=True)
+    moderation_status: Mapped[str] = mapped_column(String(24), default='draft', index=True)
+    inspiration_score: Mapped[int] = mapped_column(Integer, default=0)
+    inspiration_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    like_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

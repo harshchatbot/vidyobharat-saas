@@ -24,6 +24,10 @@ class SearchAsset:
     reference_urls: list[str]
     auto_tags: list[str]
     user_tags: list[str]
+    is_public_inspiration: bool
+    moderation_status: str
+    inspiration_score: int
+    like_count: int
 
 
 class AssetSearchService:
@@ -106,6 +110,10 @@ class AssetSearchService:
                         reference_urls=self._parse_json_list(image.reference_urls),
                         auto_tags=auto_tags,
                         user_tags=user_tags,
+                        is_public_inspiration=bool(getattr(image, 'is_public_inspiration', False)),
+                        moderation_status=str(getattr(image, 'moderation_status', 'draft')),
+                        inspiration_score=int(getattr(image, 'inspiration_score', 0) or 0),
+                        like_count=int(getattr(image, 'like_count', 0) or 0),
                     )
                 )
         if content_type in {None, 'video'}:
@@ -127,6 +135,10 @@ class AssetSearchService:
                         reference_urls=self._parse_json_list(video.reference_images),
                         auto_tags=auto_tags,
                         user_tags=user_tags,
+                        is_public_inspiration=bool(getattr(video, 'is_public_inspiration', False)),
+                        moderation_status=str(getattr(video, 'moderation_status', 'draft')),
+                        inspiration_score=int(getattr(video, 'inspiration_score', 0) or 0),
+                        like_count=int(getattr(video, 'like_count', 0) or 0),
                     )
                 )
         return assets

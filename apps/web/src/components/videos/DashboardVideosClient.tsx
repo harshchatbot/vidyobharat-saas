@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clapperboard, Copy, ExternalLink, Film, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
+import { ArrowRight, Clapperboard, Copy, ExternalLink, Film, Heart, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -89,6 +89,10 @@ function toAssetFromImage(image: GeneratedImage): AssetSearchItem {
     reference_urls: image.reference_urls,
     auto_tags: image.auto_tags,
     user_tags: image.user_tags,
+    is_public_inspiration: image.is_public_inspiration,
+    moderation_status: image.moderation_status,
+    inspiration_score: image.inspiration_score,
+    like_count: image.like_count,
   };
 }
 
@@ -108,6 +112,10 @@ function toAssetFromVideo(video: Video): AssetSearchItem {
     reference_urls: video.reference_images,
     auto_tags: video.auto_tags,
     user_tags: video.user_tags,
+    is_public_inspiration: video.is_public_inspiration,
+    moderation_status: video.moderation_status,
+    inspiration_score: video.inspiration_score,
+    like_count: video.like_count,
   };
 }
 
@@ -174,6 +182,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('video');
   const [selectedInspirationItem, setSelectedInspirationItem] = useState<DashboardInspirationItem | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
+  const [likingAssetId, setLikingAssetId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +290,59 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     link.click();
     link.remove();
     window.setTimeout(() => setDownloadingId(null), 600);
+  };
+
+  const togglePublish = async (asset: AssetSearchItem) => {
+    setPublishingAssetId(asset.id);
+    try {
+      const next = await api.publishInspiration(asset.content_type === 'video' ? 'video' : 'image', asset.id, !asset.is_public_inspiration, userId);
+      setAllAssets((current) =>
+        current.map((item) =>
+          item.id === asset.id
+            ? {
+                ...item,
+                is_public_inspiration: next.is_public_inspiration,
+                moderation_status: next.moderation_status,
+                inspiration_score: next.inspiration_score,
+                like_count: next.like_count,
+              }
+            : item,
+        ),
+      );
+      if (next.moderation_status !== 'approved' && next.is_public_inspiration) {
+        setError('Submitted to inspiration review. It will appear after approval.');
+      } else {
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update inspiration publish status.');
+    } finally {
+      setPublishingAssetId(null);
+    }
+  };
+
+  const toggleLikeInspiration = async (item: DashboardInspirationItem) => {
+    const contentType = isVideoInspiration(item) ? 'video' : 'image';
+    setLikingAssetId(item.id);
+    try {
+      const next = await api.likeInspiration(contentType, item.id, !item.liked_by_user, userId);
+      if (isVideoInspiration(item)) {
+        setVideoInspiration((current) =>
+          current.map((row) => (row.id === item.id ? { ...row, liked_by_user: next.liked, like_count: next.like_count } : row)),
+        );
+      } else {
+        setImageInspiration((current) =>
+          current.map((row) => (row.id === item.id ? { ...row, liked_by_user: next.liked, like_count: next.like_count } : row)),
+        );
+      }
+      setSelectedInspirationItem((current) =>
+        current && current.id === item.id ? { ...current, liked_by_user: next.liked, like_count: next.like_count } as DashboardInspirationItem : current,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update like.');
+    } finally {
+      setLikingAssetId(null);
+    }
   };
 
   const emptyState = emptyCopy(mediaFilter);
@@ -585,6 +648,18 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                           {downloadingId === asset.id ? 'Downloading...' : 'Download'}
                         </Button>
                       )}
+                      <Button
+                        variant="secondary"
+                        className="w-full px-3 py-1 text-xs sm:w-auto"
+                        onClick={() => void togglePublish(asset)}
+                        disabled={publishingAssetId === asset.id}
+                      >
+                        {publishingAssetId === asset.id
+                          ? 'Updating...'
+                          : asset.is_public_inspiration
+                            ? 'Unpublish'
+                            : 'Publish'}
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -633,6 +708,18 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                   </div>
                   <Badge>{selectedInspirationItem.model_key}</Badge>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  className="gap-2"
+                  onClick={() => void toggleLikeInspiration(selectedInspirationItem)}
+                  disabled={likingAssetId === selectedInspirationItem.id}
+                >
+                  <Heart className={`h-4 w-4 ${selectedInspirationItem.liked_by_user ? 'fill-current' : ''}`} />
+                  {selectedInspirationItem.like_count}
+                </Button>
               </div>
 
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">

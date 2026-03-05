@@ -28,7 +28,16 @@ from app.schemas.ai import (
     ScriptResponse,
     TextResponse,
 )
-from app.schemas.asset import AssetSearchResponse, AssetSearchResponseItem, AssetTagFacet, AssetTagUpdateRequest
+from app.schemas.asset import (
+    AssetSearchResponse,
+    AssetSearchResponseItem,
+    AssetTagFacet,
+    AssetTagUpdateRequest,
+    InspirationLikeRequest,
+    InspirationLikeResponse,
+    InspirationPublishRequest,
+    InspirationPublishResponse,
+)
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.credit import (
@@ -83,6 +92,7 @@ from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.influencer_service import InfluencerService
+from app.services.inspiration_service import InspirationService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
@@ -218,6 +228,10 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         thumbnail_url=video.thumbnail_url,
         output_url=video.output_url,
         error_message=video.error_message,
+        is_public_inspiration=bool(getattr(video, 'is_public_inspiration', False)),
+        moderation_status=str(getattr(video, 'moderation_status', 'draft')),
+        inspiration_score=int(getattr(video, 'inspiration_score', 0) or 0),
+        like_count=int(getattr(video, 'like_count', 0) or 0),
         auto_tags=auto_tags,
         user_tags=user_tags,
         created_at=video.created_at,
@@ -259,6 +273,10 @@ def _to_image_generation_response(
         thumbnail_url=thumbnail_url,
         action_type=getattr(generation, 'action_type', None),
         status=generation.status.value if hasattr(generation.status, 'value') else str(getattr(generation, 'status', 'completed')),
+        is_public_inspiration=bool(getattr(generation, 'is_public_inspiration', False)),
+        moderation_status=str(getattr(generation, 'moderation_status', 'draft')),
+        inspiration_score=int(getattr(generation, 'inspiration_score', 0) or 0),
+        like_count=int(getattr(generation, 'like_count', 0) or 0),
         auto_tags=auto_tags,
         user_tags=user_tags,
         applied_credits=applied_credits,
@@ -1092,20 +1110,70 @@ def list_ai_images(
 
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
 def list_ai_image_inspiration(
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
-    return [InspirationImageResponse.model_validate(item) for item in service.list_inspiration()]
+    service = InspirationService(db)
+    return [InspirationImageResponse.model_validate(item) for item in service.list_image_inspiration(viewer_user_id=user_id)]
 
 
 @router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
 def list_ai_video_inspiration(
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    service = AIVideoCreateService(db, settings)
-    return [InspirationVideoResponse.model_validate(item) for item in service.list_inspiration()]
+    service = InspirationService(db)
+    return [InspirationVideoResponse.model_validate(item) for item in service.list_video_inspiration(viewer_user_id=user_id)]
+
+
+@router.post('/inspiration/publish', response_model=InspirationPublishResponse)
+def publish_to_inspiration(
+    payload: InspirationPublishRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = InspirationService(db)
+    try:
+        result = service.publish_asset(
+            content_type=payload.content_type,
+            asset_id=payload.asset_id,
+            user_id=user_id,
+            publish=payload.publish,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return InspirationPublishResponse(
+        asset_id=result.asset_id,
+        content_type=result.content_type,
+        is_public_inspiration=result.is_public_inspiration,
+        moderation_status=result.moderation_status,
+        inspiration_score=result.inspiration_score,
+        like_count=result.like_count,
+    )
+
+
+@router.post('/inspiration/like', response_model=InspirationLikeResponse)
+def like_inspiration_asset(
+    payload: InspirationLikeRequest,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+):
+    service = InspirationService(db)
+    try:
+        result = service.toggle_like(
+            content_type=payload.content_type,
+            asset_id=payload.asset_id,
+            user_id=user_id,
+            liked=payload.liked,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return InspirationLikeResponse(
+        asset_id=result.asset_id,
+        content_type=result.content_type,
+        liked=result.liked,
+        like_count=result.like_count,
+    )
 
 
 @router.get('/assets/tags', response_model=list[AssetTagFacet])
@@ -1170,6 +1238,10 @@ def search_assets(
                     reference_urls=item.reference_urls,
                     auto_tags=item.auto_tags,
                     user_tags=item.user_tags,
+                    is_public_inspiration=item.is_public_inspiration,
+                    moderation_status=item.moderation_status,
+                    inspiration_score=item.inspiration_score,
+                    like_count=item.like_count,
                 )
                 for item in items
             ],

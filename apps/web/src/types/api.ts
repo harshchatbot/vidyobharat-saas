@@ -83,6 +83,10 @@ export type Video = {
   thumbnail_url: string | null;
   output_url: string | null;
   error_message: string | null;
+  is_public_inspiration: boolean;
+  moderation_status: string;
+  inspiration_score: number;
+  like_count: number;
   auto_tags: string[];
   user_tags: string[];
   created_at: string;
@@ -332,6 +336,10 @@ export type GeneratedImage = {
   thumbnail_url: string;
   action_type: string | null;
   status: string;
+  is_public_inspiration: boolean;
+  moderation_status: string;
+  inspiration_score: number;
+  like_count: number;
   auto_tags: string[];
   user_tags: string[];
   applied_credits: number;
@@ -415,6 +423,9 @@ export type InspirationImage = {
   created_at: string;
   reference_urls: string[];
   tags: string[];
+  like_count: number;
+  liked_by_user: boolean;
+  moderation_status: string;
 };
 
 export type InspirationVideo = {
@@ -431,6 +442,9 @@ export type InspirationVideo = {
   duration_seconds: number;
   created_at: string;
   tags: string[];
+  like_count: number;
+  liked_by_user: boolean;
+  moderation_status: string;
 };
 
 export type AssetTagFacet = {
@@ -453,6 +467,26 @@ export type AssetSearchItem = {
   reference_urls: string[];
   auto_tags: string[];
   user_tags: string[];
+  is_public_inspiration: boolean;
+  moderation_status: string;
+  inspiration_score: number;
+  like_count: number;
+};
+
+export type InspirationPublishResponse = {
+  asset_id: string;
+  content_type: 'image' | 'video' | string;
+  is_public_inspiration: boolean;
+  moderation_status: string;
+  inspiration_score: number;
+  like_count: number;
+};
+
+export type InspirationLikeResponse = {
+  asset_id: string;
+  content_type: 'image' | 'video' | string;
+  liked: boolean;
+  like_count: number;
 };
 
 export type AssetSearchResponse = {

@@ -120,6 +120,7 @@ export function CreateVideoPage({
   const [jobStatus, setJobStatus] = useState<AIVideoStatusResponse | null>(null);
   const [jobResponseId, setJobResponseId] = useState<string | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [publishingVideoId, setPublishingVideoId] = useState<string | null>(null);
   const { wallet: creditWallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
 
@@ -498,6 +499,10 @@ export function CreateVideoPage({
       thumbnail_url: status.thumbnailUrl,
       output_url: status.videoUrl,
       error_message: status.errorMessage,
+      is_public_inspiration: false,
+      moderation_status: 'draft',
+      inspiration_score: 0,
+      like_count: 0,
       auto_tags: status.tags,
       user_tags: [],
       created_at: new Date().toISOString(),
@@ -973,6 +978,35 @@ export function CreateVideoPage({
     link.remove();
   };
 
+  const togglePublishVideo = async (videoItem: Video) => {
+    setPublishingVideoId(videoItem.id);
+    try {
+      const next = await api.publishInspiration('video', videoItem.id, !videoItem.is_public_inspiration, userId);
+      setVideos((current) =>
+        current.map((item) =>
+          item.id === videoItem.id
+            ? {
+                ...item,
+                is_public_inspiration: next.is_public_inspiration,
+                moderation_status: next.moderation_status,
+                inspiration_score: next.inspiration_score,
+                like_count: next.like_count,
+              }
+            : item,
+        ),
+      );
+      show(
+        next.is_public_inspiration
+          ? `Submitted to inspiration. Moderation: ${next.moderation_status.replace('_', ' ')}`
+          : 'Removed from inspiration.',
+      );
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to update inspiration visibility.');
+    } finally {
+      setPublishingVideoId(null);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <LoadingOverlay
@@ -1327,6 +1361,7 @@ export function CreateVideoPage({
                       <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>
                       <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.aspect_ratio}</span>
                       {videoItem.duration_seconds ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.duration_seconds}s</span> : null}
+                      {videoItem.is_public_inspiration ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">Inspiration · {videoItem.moderation_status}</span> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text">
@@ -1338,6 +1373,18 @@ export function CreateVideoPage({
                           Download
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void togglePublishVideo(videoItem)}
+                        disabled={publishingVideoId === videoItem.id}
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
+                      >
+                        {publishingVideoId === videoItem.id
+                          ? 'Updating...'
+                          : videoItem.is_public_inspiration
+                            ? 'Unpublish'
+                            : 'Publish'}
+                      </button>
                     </div>
                   </div>
                 </div>

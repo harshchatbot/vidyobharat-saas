@@ -18,6 +18,11 @@ class VideoRepository:
         kwargs['id'] = video_id
         kwargs.setdefault('created_at', utcnow())
         kwargs.setdefault('updated_at', utcnow())
+        kwargs.setdefault('is_public_inspiration', False)
+        kwargs.setdefault('moderation_status', 'draft')
+        kwargs.setdefault('inspiration_score', 0)
+        kwargs.setdefault('inspiration_published_at', None)
+        kwargs.setdefault('like_count', 0)
         self.collection.document(video_id).set(self._serialize(kwargs))
         return self._to_model(kwargs)
 
@@ -42,6 +47,29 @@ class VideoRepository:
                 continue
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items
+
+    def list_inspiration_candidates(self, limit: int = 300) -> list[Video]:
+        items: list[Video] = []
+        for row in self.collection.stream():
+            data = row.to_dict() or {}
+            if not bool(data.get('is_public_inspiration')):
+                continue
+            if str(data.get('moderation_status') or '').lower() != 'approved':
+                continue
+            data.setdefault('id', row.id)
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
+        items.sort(
+            key=lambda item: (
+                int(getattr(item, 'inspiration_score', 0) or 0),
+                int(getattr(item, 'like_count', 0) or 0),
+                item.created_at,
+            ),
+            reverse=True,
+        )
+        return items[:max(1, min(limit, 1000))]
 
     def update(self, video: Video, **kwargs) -> Video:
         kwargs['updated_at'] = utcnow()
@@ -113,6 +141,11 @@ class VideoRepository:
             thumbnail_url=data.get('thumbnail_url'),
             output_url=data.get('output_url'),
             error_message=data.get('error_message'),
+            is_public_inspiration=bool(data.get('is_public_inspiration', False)),
+            moderation_status=str(data.get('moderation_status') or 'draft'),
+            inspiration_score=int(data.get('inspiration_score') or 0),
+            inspiration_published_at=coerce_datetime(data.get('inspiration_published_at')) if data.get('inspiration_published_at') else None,
+            like_count=int(data.get('like_count') or 0),
             created_at=coerce_datetime(data.get('created_at')),
             updated_at=coerce_datetime(data.get('updated_at')),
         )

@@ -15,6 +15,7 @@ import {
   Images,
   Info,
   Lightbulb,
+  Heart,
   LoaderCircle,
   Search,
   Sparkles,
@@ -230,6 +231,8 @@ export function ImageStudioClient({ userId }: Props) {
   const [activeTab, setActiveTab] = useState<'generated' | 'inspiration'>('generated');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [selectedModel, setSelectedModel] = useState('nano_banana');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -546,6 +549,69 @@ export function ImageStudioClient({ userId }: Props) {
       await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not update tags right now.'));
+    }
+  };
+
+  const togglePublish = async (image: GeneratedImage) => {
+    setPublishingId(image.id);
+    try {
+      const result = await api.publishInspiration('image', image.id, !image.is_public_inspiration, userId);
+      setGeneratedImages((current) =>
+        current.map((item) =>
+          item.id === image.id
+            ? {
+                ...item,
+                is_public_inspiration: result.is_public_inspiration,
+                moderation_status: result.moderation_status,
+                inspiration_score: result.inspiration_score,
+                like_count: result.like_count,
+              }
+            : item,
+        ),
+      );
+      setSelectedGenerated((current) =>
+        current && current.id === image.id
+          ? {
+              ...current,
+              is_public_inspiration: result.is_public_inspiration,
+              moderation_status: result.moderation_status,
+              inspiration_score: result.inspiration_score,
+              like_count: result.like_count,
+            }
+          : current,
+      );
+      if (result.is_public_inspiration && result.moderation_status !== 'approved') {
+        show('Submitted for review. Your image will appear in inspiration after quality checks.');
+      } else if (result.is_public_inspiration) {
+        show('Published. Your image is now live in inspiration.');
+      } else {
+        show('Unpublished. Your image was removed from inspiration.');
+      }
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not update publish status.'));
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const toggleLikeInspiration = async (item: InspirationImage) => {
+    setLikingId(item.id);
+    try {
+      const result = await api.likeInspiration('image', item.id, !item.liked_by_user, userId);
+      setInspiration((current) =>
+        current.map((row) =>
+          row.id === item.id
+            ? { ...row, liked_by_user: result.liked, like_count: result.like_count }
+            : row,
+        ),
+      );
+      setSelectedInspiration((current) =>
+        current && current.id === item.id ? { ...current, liked_by_user: result.liked, like_count: result.like_count } : current,
+      );
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not update like status.'));
+    } finally {
+      setLikingId(null);
     }
   };
 
@@ -1081,6 +1147,16 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => void toggleLikeInspiration(selectedInspiration)}
+                    className="gap-2"
+                    disabled={likingId === selectedInspiration.id}
+                  >
+                    <Heart className={`h-4 w-4 ${selectedInspiration.liked_by_user ? 'fill-current' : ''}`} />
+                    {selectedInspiration.like_count}
+                  </Button>
                   <a
                     href={toAbsoluteUrl(selectedInspiration.image_url)}
                     target="_blank"
@@ -1196,6 +1272,19 @@ export function ImageStudioClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => void togglePublish(selectedGenerated)}
+                    className="gap-2"
+                    disabled={publishingId === selectedGenerated.id}
+                  >
+                    {publishingId === selectedGenerated.id
+                      ? 'Updating...'
+                      : selectedGenerated.is_public_inspiration
+                        ? 'Unpublish'
+                        : 'Publish to inspiration'}
+                  </Button>
                   <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="gap-2">
                     <Download className="h-4 w-4" />
                     Download image
@@ -1205,6 +1294,7 @@ export function ImageStudioClient({ userId }: Props) {
                     Open full image
                   </a>
                   <Badge>{selectedGenerated.status}</Badge>
+                  {selectedGenerated.is_public_inspiration ? <Badge>{selectedGenerated.moderation_status}</Badge> : null}
                 </div>
               </div>
             </div>

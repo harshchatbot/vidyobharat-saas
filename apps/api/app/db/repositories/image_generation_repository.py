@@ -17,6 +17,11 @@ class ImageGenerationRepository:
         if not kwargs.get('id'):
             kwargs['id'] = self.collection.document().id
         kwargs.setdefault('created_at', utcnow())
+        kwargs.setdefault('is_public_inspiration', False)
+        kwargs.setdefault('moderation_status', 'draft')
+        kwargs.setdefault('inspiration_score', 0)
+        kwargs.setdefault('inspiration_published_at', None)
+        kwargs.setdefault('like_count', 0)
         self.collection.document(kwargs['id']).set(self._serialize(kwargs))
         return self._to_model(kwargs)
 
@@ -42,6 +47,35 @@ class ImageGenerationRepository:
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items
 
+    def list_inspiration_candidates(self, limit: int = 300) -> list[ImageGeneration]:
+        items: list[ImageGeneration] = []
+        for row in self.collection.stream():
+            data = row.to_dict() or {}
+            if not bool(data.get('is_public_inspiration')):
+                continue
+            if str(data.get('moderation_status') or '').lower() != 'approved':
+                continue
+            data.setdefault('id', row.id)
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
+        items.sort(
+            key=lambda item: (
+                int(getattr(item, 'inspiration_score', 0) or 0),
+                int(getattr(item, 'like_count', 0) or 0),
+                item.created_at,
+            ),
+            reverse=True,
+        )
+        return items[:max(1, min(limit, 1000))]
+
+    def update(self, generation: ImageGeneration, **kwargs) -> ImageGeneration:
+        self.collection.document(generation.id).set(self._serialize(kwargs), merge=True)
+        data = {**generation.__dict__, **kwargs}
+        data.pop('_sa_instance_state', None)
+        return self._to_model(data)
+
     def _serialize(self, fields: dict) -> dict:
         return {
             **fields,
@@ -63,5 +97,10 @@ class ImageGenerationRepository:
             thumbnail_url=data.get('thumbnail_url'),
             action_type=data.get('action_type'),
             status=coerce_enum(ImageGenerationStatus, data.get('status') or ImageGenerationStatus.completed.value),
+            is_public_inspiration=bool(data.get('is_public_inspiration', False)),
+            moderation_status=str(data.get('moderation_status') or 'draft'),
+            inspiration_score=int(data.get('inspiration_score') or 0),
+            inspiration_published_at=coerce_datetime(data.get('inspiration_published_at')) if data.get('inspiration_published_at') else None,
+            like_count=int(data.get('like_count') or 0),
             created_at=coerce_datetime(data.get('created_at')),
         )

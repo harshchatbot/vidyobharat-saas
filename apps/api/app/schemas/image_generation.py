@@ -27,6 +27,10 @@ class ImageGenerationResponse(BaseModel):
     thumbnail_url: str
     action_type: str | None = None
     status: str
+    is_public_inspiration: bool = False
+    moderation_status: str = 'draft'
+    inspiration_score: int = 0
+    like_count: int = 0
     auto_tags: list[str] = Field(default_factory=list)
     user_tags: list[str] = Field(default_factory=list)
     applied_credits: int = 0
@@ -46,6 +50,9 @@ class InspirationImageResponse(BaseModel):
     created_at: datetime
     reference_urls: list[str]
     tags: list[str] = Field(default_factory=list)
+    like_count: int = 0
+    liked_by_user: bool = False
+    moderation_status: str = 'approved'
 
 
 class ImageGenerationCreateRequest(BaseModel):

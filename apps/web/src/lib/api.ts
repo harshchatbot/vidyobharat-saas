@@ -15,6 +15,8 @@ import type {
   ImageActionResponse,
   ImageModel,
   InspirationImage,
+  InspirationLikeResponse,
+  InspirationPublishResponse,
   InspirationVideo,
   CreditEstimateResponse,
   CreditHistoryItem,
@@ -314,6 +316,26 @@ export const api = {
   },
   listVideoInspiration(userId: string) {
     return request<InspirationVideo[]>('/api/videos/inspiration', {}, { userId, cache: 'no-store' });
+  },
+  publishInspiration(contentType: 'image' | 'video', assetId: string, publish: boolean, userId: string) {
+    return request<InspirationPublishResponse>('/inspiration/publish', {
+      method: 'POST',
+      body: JSON.stringify({
+        content_type: contentType,
+        asset_id: assetId,
+        publish,
+      }),
+    }, { userId, cache: 'no-store' });
+  },
+  likeInspiration(contentType: 'image' | 'video', assetId: string, liked: boolean | null, userId: string) {
+    return request<InspirationLikeResponse>('/inspiration/like', {
+      method: 'POST',
+      body: JSON.stringify({
+        content_type: contentType,
+        asset_id: assetId,
+        liked,
+      }),
+    }, { userId, cache: 'no-store' });
   },
   listAssetTags(
     userId: string,
