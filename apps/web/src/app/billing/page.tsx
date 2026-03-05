@@ -185,7 +185,7 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <Card className="flex items-center gap-3">
+      <Card className="flex items-center gap-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] backdrop-blur-md">
         <LoaderCircle className="h-4 w-4 animate-spin text-[hsl(var(--color-accent))]" />
         <p className="text-sm text-muted">Loading billing data...</p>
       </Card>
@@ -193,11 +193,17 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <Card className="space-y-4">
+    <div className="space-y-6 sm:space-y-8">
+      <Card
+        className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] backdrop-blur-md"
+        style={{
+          background:
+            'radial-gradient(circle at top right, hsl(var(--color-accent)/0.18), transparent 42%), linear-gradient(145deg, hsl(var(--color-surface)/0.8), hsl(var(--color-elevated)/0.75))',
+        }}
+      >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="font-heading text-2xl font-extrabold tracking-tight text-text">Billing & Credits</h1>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Billing & Credits</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted">
               Pick a plan, buy credits in your region, and keep premium generation predictable. Pricing is always validated on the backend.
             </p>
@@ -216,28 +222,28 @@ export default function BillingPage() {
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card className="space-y-2">
+            <Card className="space-y-2 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
                 <Wallet className="h-5 w-5" />
               </div>
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Current balance</p>
               <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{wallet?.currentCredits ?? 0}</p>
             </Card>
-            <Card className="space-y-2">
+            <Card className="space-y-2 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
                 <Coins className="h-5 w-5" />
               </div>
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Monthly credits</p>
               <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{wallet?.monthlyCredits ?? 0}</p>
             </Card>
-            <Card className="space-y-2">
+            <Card className="space-y-2 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
                 <Receipt className="h-5 w-5" />
               </div>
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Used this cycle</p>
               <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{wallet?.usedCredits ?? 0}</p>
             </Card>
-            <Card className="space-y-2">
+            <Card className="space-y-2 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
                 <ArrowRight className="h-5 w-5" />
               </div>
@@ -246,7 +252,7 @@ export default function BillingPage() {
             </Card>
           </div>
 
-          <Card className="space-y-4">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <div>
@@ -265,7 +271,7 @@ export default function BillingPage() {
                   className={`rounded-[var(--radius-md)] border px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 ${
                     selectedPlan === plan.key
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)]'
-                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -280,7 +286,7 @@ export default function BillingPage() {
                 </button>
               ))}
             </div>
-            <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted">
                 {pricing ? (
                   <>
@@ -297,7 +303,7 @@ export default function BillingPage() {
           </Card>
         </div>
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-text">Recent credit activity</p>
@@ -312,7 +318,7 @@ export default function BillingPage() {
           ) : (
             <div className="space-y-3">
               {history.map((item) => (
-                <div key={item.id} className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div key={item.id} className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     <p className="text-sm font-semibold text-text">{item.featureName}</p>
                     <span className="text-sm font-semibold text-text">

@@ -70,7 +70,7 @@ export function SettingsClient({ userId }: { userId: string }) {
 
   if (loading || !settings) {
     return (
-      <Card className="flex items-center gap-3">
+      <Card className="flex items-center gap-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
         <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
         <p className="text-sm text-muted">Loading settings...</p>
       </Card>
@@ -79,7 +79,13 @@ export function SettingsClient({ userId }: { userId: string }) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <Card className="space-y-3">
+      <Card
+        className="space-y-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md"
+        style={{
+          background:
+            'radial-gradient(circle at top right, hsl(var(--color-accent)/0.15), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface)/0.82), hsl(var(--color-elevated)/0.72))',
+        }}
+      >
         <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text">Settings</h1>
         <p className="text-sm text-muted">Set your default creative preferences and communication controls for RangManch AI.</p>
       </Card>
@@ -88,7 +94,7 @@ export function SettingsClient({ userId }: { userId: string }) {
       {success ? <p className="rounded-[var(--radius-md)] border border-[hsl(var(--color-success)/0.25)] bg-[hsl(var(--color-success)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-success))]">{success}</p> : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="space-y-5">
+        <Card className="space-y-5 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
           <div className="flex items-center gap-2">
             <WandSparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
             <p className="text-sm font-semibold text-text">Creative defaults</p>
@@ -119,7 +125,7 @@ export function SettingsClient({ userId }: { userId: string }) {
         </Card>
 
         <div className="space-y-5">
-          <Card className="space-y-4">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="text-sm font-semibold text-text">Notifications</p>
@@ -140,7 +146,7 @@ export function SettingsClient({ userId }: { userId: string }) {
             </label>
           </Card>
 
-          <Card className="space-y-4">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="h-5 w-5 text-[hsl(var(--color-accent))]" />
               <p className="text-sm font-semibold text-text">Render defaults</p>

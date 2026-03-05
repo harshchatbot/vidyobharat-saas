@@ -176,7 +176,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="lg:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
-                <span className="hidden truncate font-heading text-xl font-bold tracking-tight text-text sm:inline-block">{pageTitle}</span>
+                <span className="hidden truncate font-heading text-2xl font-extrabold tracking-tight text-text sm:inline-block">{pageTitle}</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -316,7 +316,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</main>
+          <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
         </div>
       </div>
       </CreditProvider>
@@ -330,7 +330,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           <TopNav userId={userId} accountLabel={accountLabel} />
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }

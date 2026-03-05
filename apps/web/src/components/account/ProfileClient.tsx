@@ -184,7 +184,7 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
 
   if (loading) {
     return (
-      <Card className="flex items-center gap-3">
+      <Card className="flex items-center gap-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
         <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
         <p className="text-sm text-muted">Loading profile...</p>
       </Card>
@@ -193,9 +193,15 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md"
+        style={{
+          background:
+            'radial-gradient(circle at top right, hsl(var(--color-accent)/0.16), transparent 48%), linear-gradient(145deg, hsl(var(--color-surface)/0.82), hsl(var(--color-elevated)/0.72))',
+        }}
+      >
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="rounded-[var(--radius-lg)] border border-border bg-[hsl(var(--color-bg))] p-5">
+          <div className="rounded-[var(--radius-lg)] border border-border bg-[hsl(var(--color-bg)/0.72)] p-5">
             <div className="flex flex-col items-center text-center">
               {avatarPreview ? (
                 <img src={avatarPreview} alt={form.display_name ?? 'Profile'} className="h-28 w-28 rounded-full border border-border object-cover shadow-soft" />

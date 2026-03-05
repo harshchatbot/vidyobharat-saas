@@ -158,7 +158,7 @@ export function AuthFormClient({ mode }: Props) {
               <Mail className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h1 className="text-2xl font-semibold text-[hsl(var(--color-text))]">Check your email</h1>
+              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Check your email</h1>
               <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
                 {message || `We sent a confirmation email to ${email}. Open it and verify your account to continue.`}
               </p>
@@ -216,14 +216,20 @@ export function AuthFormClient({ mode }: Props) {
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
       <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
-        <Card>
+        <Card
+          className="border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md"
+          style={{
+            background:
+              'radial-gradient(circle at top right, hsl(var(--color-accent)/0.14), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface)/0.82), hsl(var(--color-elevated)/0.72))',
+          }}
+        >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-md">
-            <h1 className="text-2xl font-semibold text-[hsl(var(--color-text))]">{title}</h1>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">{title}</h1>
             <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{subtitle}</p>
           </div>
           {!isLogin ? (
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px]">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px]">
               <div className="font-medium text-[hsl(var(--color-text))]">Account setup</div>
               <div className="mt-1">Create account, verify your email, then sign in to activate your workspace.</div>
             </div>
@@ -243,7 +249,7 @@ export function AuthFormClient({ mode }: Props) {
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-bg))]"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-bg))]"
         >
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-xs font-bold">
             G
@@ -313,7 +319,7 @@ export function AuthFormClient({ mode }: Props) {
               </p>
             </>
           ) : null}
-          <Button type="submit" disabled={submitting} className="min-h-11 w-full">
+          <Button type="submit" disabled={submitting} className="min-h-11 w-full shadow-soft">
             {submitting ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
           </Button>
         </form>
