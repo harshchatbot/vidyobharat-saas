@@ -27,15 +27,33 @@ export async function GET(request: NextRequest) {
     return new Response('Unsupported protocol', { status: 400 });
   }
 
+  const isFirebaseStorageHost = (hostname: string) =>
+    hostname === 'firebasestorage.googleapis.com' ||
+    hostname === 'storage.googleapis.com' ||
+    hostname.endsWith('.firebasestorage.app') ||
+    hostname.endsWith('.appspot.com');
+
+  const firebaseBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '').replace(/\/+$/, '');
+  const isBucketHostMatch = firebaseBucket ? parsed.hostname === firebaseBucket : false;
+
   const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (configuredApiUrl) {
     try {
       const configuredOrigin = new URL(configuredApiUrl).origin;
-      if (parsed.origin !== configuredOrigin) {
+      const allowed =
+        parsed.origin === configuredOrigin ||
+        isFirebaseStorageHost(parsed.hostname) ||
+        isBucketHostMatch;
+      if (!allowed) {
         return new Response('Blocked origin', { status: 400 });
       }
     } catch {
       return new Response('Invalid API URL configuration', { status: 500 });
+    }
+  } else {
+    const allowed = isFirebaseStorageHost(parsed.hostname) || isBucketHostMatch;
+    if (!allowed) {
+      return new Response('Blocked origin', { status: 400 });
     }
   }
 
