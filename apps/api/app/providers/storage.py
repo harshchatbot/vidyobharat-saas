@@ -8,7 +8,7 @@ from uuid import uuid4
 import httpx
 
 from app.core.config import Settings, get_settings
-from app.providers.firebase import get_firebase_app
+from app.providers.firebase import get_firebase_app, normalize_firebase_bucket
 
 
 @dataclass
@@ -127,7 +127,10 @@ class FirebaseStorageProvider(StorageProvider):
         self.settings = settings or get_settings()
         if not self.settings.firebase_storage_bucket:
             raise RuntimeError('Firebase storage is configured as primary backend but FIREBASE_STORAGE_BUCKET is missing.')
-        self.bucket_name = self.settings.firebase_storage_bucket
+        normalized_bucket = normalize_firebase_bucket(self.settings.firebase_storage_bucket)
+        if not normalized_bucket:
+            raise RuntimeError('FIREBASE_STORAGE_BUCKET is set but invalid. Use only the bucket host name.')
+        self.bucket_name = normalized_bucket
         self.bucket = self._get_bucket()
 
     def _get_bucket(self):

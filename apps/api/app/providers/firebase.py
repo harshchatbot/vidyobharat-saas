@@ -4,6 +4,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 import logging
+from urllib.parse import urlparse
 
 from app.core.config import get_settings
 
@@ -13,6 +14,35 @@ class FirebaseNotConfiguredError(RuntimeError):
 
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_firebase_bucket(raw_bucket: str | None) -> str | None:
+    """Normalize bucket env values like gs://bucket or https://.../bucket."""
+    if not raw_bucket:
+        return None
+    bucket = raw_bucket.strip()
+    if not bucket:
+        return None
+
+    if bucket.startswith('gs://'):
+        bucket = bucket[5:]
+    elif bucket.startswith('http://') or bucket.startswith('https://'):
+        parsed = urlparse(bucket)
+        host = parsed.netloc
+        path = parsed.path.strip('/')
+        segments = [seg for seg in path.split('/') if seg]
+        # Firebase REST URLs usually look like /v0/b/<bucket>/o
+        if 'b' in segments:
+            idx = segments.index('b')
+            bucket = segments[idx + 1] if len(segments) > idx + 1 else ''
+        else:
+            # Prefer explicit bucket path if present, else fallback to host.
+            bucket = path or host
+            if bucket.startswith('b/'):
+                bucket = bucket[2:]
+
+    bucket = bucket.strip('/').strip()
+    return bucket or None
 
 
 @lru_cache(maxsize=1)
@@ -47,8 +77,9 @@ def get_firebase_app():
         ) from exc
 
     options: dict[str, str] = {'projectId': settings.firebase_project_id}
-    if settings.firebase_storage_bucket:
-        options['storageBucket'] = settings.firebase_storage_bucket
+    normalized_bucket = normalize_firebase_bucket(settings.firebase_storage_bucket)
+    if normalized_bucket:
+        options['storageBucket'] = normalized_bucket
 
     try:
         return firebase_admin.initialize_app(cred, options)
