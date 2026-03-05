@@ -36,11 +36,10 @@ class VideoRepository:
 
     def list_by_user(self, user_id: str) -> list[Video]:
         items: list[Video] = []
-        for row in self.collection.stream():
-            data = row.to_dict() or {}
-            if data.get('user_id') != user_id:
+        for data in self._stream_video_docs():
+            owner_id = data.get('user_id') or data.get('userId')
+            if owner_id != user_id:
                 continue
-            data.setdefault('id', row.id)
             try:
                 items.append(self._to_model(data))
             except Exception:
@@ -50,8 +49,7 @@ class VideoRepository:
 
     def list_inspiration_candidates(self, limit: int = 300) -> list[Video]:
         items: list[Video] = []
-        for row in self.collection.stream():
-            data = row.to_dict() or {}
+        for data in self._stream_video_docs():
             is_public = data.get('is_public_inspiration')
             if is_public is None:
                 is_public = data.get('isPublicInspiration')
@@ -62,7 +60,6 @@ class VideoRepository:
                 continue
             if str(moderation_status or '').lower() != 'approved':
                 continue
-            data.setdefault('id', row.id)
             try:
                 items.append(self._to_model(data))
             except Exception:
@@ -76,6 +73,30 @@ class VideoRepository:
             reverse=True,
         )
         return items[:max(1, min(limit, 1000))]
+
+    def _stream_video_docs(self) -> list[dict]:
+        merged_by_id: dict[str, dict] = {}
+
+        # Primary store: root videos collection.
+        for row in self.collection.stream():
+            data = row.to_dict() or {}
+            data.setdefault('id', row.id)
+            merged_by_id[data['id']] = data
+
+        # Compatibility path: users/{uid}/videos sub-collections.
+        # Use collection_group so community/inspiration works even if a video exists
+        # only in user-scoped documents.
+        try:
+            for row in self.firestore.collection_group('videos').stream():
+                data = row.to_dict() or {}
+                doc_id = str(data.get('id') or row.id)
+                existing = merged_by_id.get(doc_id) or {}
+                merged_by_id[doc_id] = {**existing, **data, 'id': doc_id}
+        except Exception:
+            # Do not break core flows if collection_group isn't available.
+            pass
+
+        return list(merged_by_id.values())
 
     def update(self, video: Video, **kwargs) -> Video:
         kwargs['updated_at'] = utcnow()
@@ -119,39 +140,39 @@ class VideoRepository:
         return model_from_fields(
             Video,
             id=data.get('id'),
-            user_id=data.get('user_id'),
+            user_id=data.get('user_id', data.get('userId')),
             title=data.get('title'),
             template=data.get('template'),
             language=data.get('language'),
             script=data.get('script') or '',
             voice=data.get('voice') or 'Shubh',
-            aspect_ratio=data.get('aspect_ratio') or '9:16',
+            aspect_ratio=data.get('aspect_ratio', data.get('aspectRatio')) or '9:16',
             resolution=data.get('resolution') or '1080p',
-            duration_mode=data.get('duration_mode') or 'auto',
-            duration_seconds=data.get('duration_seconds'),
-            captions_enabled=bool(data.get('captions_enabled', True)),
-            caption_style=data.get('caption_style'),
-            audio_sample_rate_hz=int(data.get('audio_sample_rate_hz') or 22050),
+            duration_mode=data.get('duration_mode', data.get('durationMode')) or 'auto',
+            duration_seconds=data.get('duration_seconds', data.get('durationSeconds')),
+            captions_enabled=bool(data.get('captions_enabled', data.get('captionsEnabled', True))),
+            caption_style=data.get('caption_style', data.get('captionStyle')),
+            audio_sample_rate_hz=int(data.get('audio_sample_rate_hz', data.get('audioSampleRateHz')) or 22050),
             status=coerce_enum(VideoStatus, data.get('status') or VideoStatus.draft.value),
             progress=int(data.get('progress') or 0),
-            image_urls=data.get('image_urls') or '[]',
-            selected_model=data.get('selected_model'),
-            provider_name=data.get('provider_name'),
-            source_image_url=data.get('source_image_url'),
-            reference_images=data.get('reference_images') or '[]',
+            image_urls=data.get('image_urls', data.get('imageUrls')) or '[]',
+            selected_model=data.get('selected_model', data.get('selectedModel')),
+            provider_name=data.get('provider_name', data.get('providerName')),
+            source_image_url=data.get('source_image_url', data.get('sourceImageUrl')),
+            reference_images=data.get('reference_images', data.get('referenceImages')) or '[]',
             music_mode=data.get('music_mode') or 'none',
-            music_track_id=data.get('music_track_id'),
-            music_file_url=data.get('music_file_url'),
-            music_volume=int(data.get('music_volume') or 20),
-            duck_music=bool(data.get('duck_music', True)),
-            thumbnail_url=data.get('thumbnail_url'),
-            output_url=data.get('output_url'),
-            error_message=data.get('error_message'),
+            music_track_id=data.get('music_track_id', data.get('musicTrackId')),
+            music_file_url=data.get('music_file_url', data.get('musicFileUrl')),
+            music_volume=int(data.get('music_volume', data.get('musicVolume')) or 20),
+            duck_music=bool(data.get('duck_music', data.get('duckMusic', True))),
+            thumbnail_url=data.get('thumbnail_url', data.get('thumbnailUrl')),
+            output_url=data.get('output_url', data.get('outputUrl')),
+            error_message=data.get('error_message', data.get('errorMessage')),
             is_public_inspiration=bool(data.get('is_public_inspiration', data.get('isPublicInspiration', False))),
             moderation_status=str(data.get('moderation_status', data.get('moderationStatus')) or 'draft'),
             inspiration_score=int(data.get('inspiration_score', data.get('inspirationScore')) or 0),
             inspiration_published_at=coerce_datetime(data.get('inspiration_published_at', data.get('inspirationPublishedAt'))) if (data.get('inspiration_published_at') or data.get('inspirationPublishedAt')) else None,
             like_count=int(data.get('like_count', data.get('likeCount')) or 0),
-            created_at=coerce_datetime(data.get('created_at')),
-            updated_at=coerce_datetime(data.get('updated_at')),
+            created_at=coerce_datetime(data.get('created_at', data.get('createdAt'))),
+            updated_at=coerce_datetime(data.get('updated_at', data.get('updatedAt'))),
         )
