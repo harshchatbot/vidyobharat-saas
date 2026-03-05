@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     celery_task_always_eager: bool = True
 
     allowed_origins: str = Field(default='http://localhost:3000')
+    allowed_origin_regex: str | None = r'https://.*\.vercel\.app'
     log_level: str = 'INFO'
 
     storage_backend: str = 'firebase'

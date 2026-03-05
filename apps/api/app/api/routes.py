@@ -1874,11 +1874,14 @@ def get_render(
 def sign_upload(
     payload: UploadSignRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
 ):
     try:
+        if payload.user_id and payload.user_id != user_id:
+            raise HTTPException(status_code=403, detail='Forbidden user_id')
+        resolved_payload = payload.model_copy(update={'user_id': payload.user_id or user_id})
         service = UploadService(db)
-        asset, signed = service.sign_upload(payload)
+        asset, signed = service.sign_upload(resolved_payload)
         return UploadSignResponse(
             asset_id=asset.id,
             upload_url=signed.upload_url,
@@ -1886,6 +1889,42 @@ def sign_upload(
             method=signed.method,
             headers=signed.headers,
         )
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post('/uploads/direct', response_model=UploadSignResponse)
+async def direct_upload(
+    file: UploadFile = File(...),
+    kind: str = Form('brand_asset'),
+    project_id: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail='Uploaded file is empty')
+        service = UploadService(db)
+        asset, signed = service.upload_direct(
+            user_id=user_id,
+            filename=file.filename or 'upload.bin',
+            content=content,
+            content_type=file.content_type or 'application/octet-stream',
+            kind=kind,
+            project_id=project_id,
+        )
+        return UploadSignResponse(
+            asset_id=asset.id,
+            upload_url='',
+            public_url=asset.public_url,
+            method='PUT',
+            headers={},
+        )
+    except HTTPException:
+        raise
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

@@ -35,11 +35,10 @@ class ImageGenerationRepository:
 
     def list_by_user(self, user_id: str) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
-        for row in self.collection.stream():
-            data = row.to_dict() or {}
-            if data.get('user_id') != user_id:
+        for data in self._stream_image_docs():
+            owner_id = data.get('user_id') or data.get('userId')
+            if owner_id != user_id:
                 continue
-            data.setdefault('id', row.id)
             try:
                 items.append(self._to_model(data))
             except Exception:
@@ -49,8 +48,7 @@ class ImageGenerationRepository:
 
     def list_inspiration_candidates(self, limit: int = 300) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
-        for row in self.collection.stream():
-            data = row.to_dict() or {}
+        for data in self._stream_image_docs():
             is_public = data.get('is_public_inspiration')
             if is_public is None:
                 is_public = data.get('isPublicInspiration')
@@ -61,7 +59,6 @@ class ImageGenerationRepository:
                 continue
             if str(moderation_status or '').lower() != 'approved':
                 continue
-            data.setdefault('id', row.id)
             try:
                 items.append(self._to_model(data))
             except Exception:
@@ -75,6 +72,25 @@ class ImageGenerationRepository:
             reverse=True,
         )
         return items[:max(1, min(limit, 1000))]
+
+    def _stream_image_docs(self) -> list[dict]:
+        merged_by_id: dict[str, dict] = {}
+
+        for row in self.collection.stream():
+            data = row.to_dict() or {}
+            data.setdefault('id', row.id)
+            merged_by_id[data['id']] = data
+
+        try:
+            for row in self.firestore.collection_group('images').stream():
+                data = row.to_dict() or {}
+                doc_id = str(data.get('id') or row.id)
+                existing = merged_by_id.get(doc_id) or {}
+                merged_by_id[doc_id] = {**existing, **data, 'id': doc_id}
+        except Exception:
+            pass
+
+        return list(merged_by_id.values())
 
     def update(self, generation: ImageGeneration, **kwargs) -> ImageGeneration:
         self.collection.document(generation.id).set(self._serialize(kwargs), merge=True)
@@ -92,21 +108,21 @@ class ImageGenerationRepository:
         return model_from_fields(
             ImageGeneration,
             id=data.get('id'),
-            user_id=data.get('user_id'),
-            parent_image_id=data.get('parent_image_id'),
-            model_key=data.get('model_key'),
+            user_id=data.get('user_id', data.get('userId')),
+            parent_image_id=data.get('parent_image_id', data.get('parentImageId')),
+            model_key=data.get('model_key', data.get('modelKey')),
             prompt=data.get('prompt'),
-            aspect_ratio=data.get('aspect_ratio') or '9:16',
+            aspect_ratio=data.get('aspect_ratio', data.get('aspectRatio')) or '9:16',
             resolution=data.get('resolution') or '1024',
-            reference_urls=data.get('reference_urls') or '[]',
-            image_url=data.get('image_url'),
-            thumbnail_url=data.get('thumbnail_url'),
-            action_type=data.get('action_type'),
+            reference_urls=data.get('reference_urls', data.get('referenceUrls')) or '[]',
+            image_url=data.get('image_url', data.get('imageUrl')),
+            thumbnail_url=data.get('thumbnail_url', data.get('thumbnailUrl')),
+            action_type=data.get('action_type', data.get('actionType')),
             status=coerce_enum(ImageGenerationStatus, data.get('status') or ImageGenerationStatus.completed.value),
             is_public_inspiration=bool(data.get('is_public_inspiration', data.get('isPublicInspiration', False))),
             moderation_status=str(data.get('moderation_status', data.get('moderationStatus')) or 'draft'),
             inspiration_score=int(data.get('inspiration_score', data.get('inspirationScore')) or 0),
             inspiration_published_at=coerce_datetime(data.get('inspiration_published_at', data.get('inspirationPublishedAt'))) if (data.get('inspiration_published_at') or data.get('inspirationPublishedAt')) else None,
             like_count=int(data.get('like_count', data.get('likeCount')) or 0),
-            created_at=coerce_datetime(data.get('created_at')),
+            created_at=coerce_datetime(data.get('created_at', data.get('createdAt'))),
         )

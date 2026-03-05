@@ -333,12 +333,21 @@ export function ImageStudioClient({ userId }: Props) {
         if (!cancelled) setEstimate(result);
       })
       .catch(() => {
-        if (!cancelled) setEstimate(null);
+        if (!cancelled) {
+          setEstimate({
+            estimatedCredits: 0,
+            breakdown: [],
+            currentCredits: wallet?.currentCredits ?? 0,
+            remainingCredits: wallet?.currentCredits ?? 0,
+            sufficient: true,
+            premium: false,
+          });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [userId, selectedModel, resolution, referenceUrls]);
+  }, [userId, selectedModel, resolution, referenceUrls, wallet?.currentCredits]);
 
   useEffect(() => {
     setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
@@ -449,25 +458,13 @@ export function ImageStudioClient({ userId }: Props) {
     try {
       const nextUploads: Array<{ id: string; url: string; name: string }> = [];
       for (const file of Array.from(files).slice(0, Math.max(0, 4 - referenceUploads.length))) {
-        const signed = await api.signUpload(
+        const signed = await api.uploadFileDirect(
           {
-            user_id: userId,
-            filename: file.name,
+            file,
             kind: 'image_reference',
           },
           userId,
         );
-        const uploadResponse = await fetch(signed.upload_url, {
-          method: signed.method || 'PUT',
-          headers: {
-            ...(signed.headers ?? {}),
-            'Content-Type': file.type || 'application/octet-stream',
-          },
-          body: file,
-        });
-        if (!uploadResponse.ok) {
-          throw new Error('Reference upload failed.');
-        }
         nextUploads.push({
           id: signed.asset_id,
           url: signed.public_url,

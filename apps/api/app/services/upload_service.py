@@ -22,6 +22,26 @@ class UploadService:
         )
         return asset, signed
 
+    def upload_direct(
+        self,
+        *,
+        user_id: str,
+        filename: str,
+        content: bytes,
+        content_type: str,
+        kind: str = 'brand_asset',
+        project_id: str | None = None,
+    ):
+        signed = self.storage.upload_bytes(filename, content, content_type=content_type, kind=kind)
+        asset = self.asset_repo.create(
+            user_id=user_id,
+            project_id=project_id,
+            kind=kind,
+            path=signed.storage_path,
+            public_url=signed.public_url,
+        )
+        return asset, signed
+
     def delete_asset(self, asset_id: str) -> bool:
         asset = self.asset_repo.get(asset_id)
         if not asset:

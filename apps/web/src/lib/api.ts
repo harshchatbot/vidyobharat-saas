@@ -196,6 +196,18 @@ export const api = {
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },
+  uploadFileDirect(payload: { file: File; kind: string; project_id?: string }, userId: string) {
+    const body = new FormData();
+    body.append('file', payload.file);
+    body.append('kind', payload.kind);
+    if (payload.project_id) {
+      body.append('project_id', payload.project_id);
+    }
+    return request<{ asset_id: string; upload_url: string; public_url: string; method: string; headers: Record<string, string> }>('/uploads/direct', {
+      method: 'POST',
+      body,
+    }, { userId, cache: 'no-store' });
+  },
   deleteUpload(assetId: string, userId: string) {
     return request<{ asset_id: string; deleted: boolean }>(`/uploads/${assetId}`, {
       method: 'DELETE',
