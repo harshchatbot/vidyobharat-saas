@@ -254,9 +254,19 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 className="absolute inset-0 bg-[hsl(var(--color-bg)/0.78)] backdrop-blur-sm"
               />
               <div className="absolute inset-x-4 top-3 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft">
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                    <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                    <div className="flex items-center justify-between gap-3">
+                      <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                      <button
+                        type="button"
+                        aria-label="Close navigation menu"
+                        onClick={() => setMobileNavOpen(false)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-[1fr_auto] gap-3">
                     <div className="min-w-0">
@@ -266,32 +276,42 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       <ToggleTheme />
                     </div>
                   </div>
-                  <nav className="grid gap-2">
-                    {navItems.map((item) => {
-                      const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.label}
-                          href={item.href}
-                          onClick={() => setMobileNavOpen(false)}
-                          className={`inline-flex items-center gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-sm font-medium ${
-                            active
-                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted'
-                          }`}
-                        >
-                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-text">{item.label}</span>
-                            <span className="block text-xs text-muted">{item.hint}</span>
-                          </span>
-                        </Link>
-                      );
-                    })}
-                  </nav>
+
+                  <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+                    <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
+                    <nav className="grid gap-1.5">
+                      {navItems.map((item) => {
+                        const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.label}
+                            href={item.href}
+                            onClick={() => setMobileNavOpen(false)}
+                            className={`inline-flex items-center gap-3 rounded-[var(--radius-md)] px-2.5 py-2.5 text-sm font-medium transition ${
+                              active
+                                ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
+                                : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
+                            }`}
+                          >
+                            <span
+                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${
+                                active
+                                  ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                                  : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
+                              }`}
+                            >
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-semibold text-text">{item.label}</span>
+                              <span className="block text-xs text-muted">{item.hint}</span>
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </div>
                 </div>
               </div>
             </div>

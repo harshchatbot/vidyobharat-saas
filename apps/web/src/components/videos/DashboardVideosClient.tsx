@@ -478,11 +478,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
           <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 rounded-full border border-[hsl(var(--color-border))/0.8] bg-[hsl(var(--color-surface)/0.46)] px-3 py-2 backdrop-blur-xl">
             {[
-              { label: 'Story', Icon: Sparkles },
+              //{ label: 'Story', Icon: Sparkles },
               { label: 'Video', Icon: Film },
               { label: 'Image', Icon: ImageIcon },
               { label: 'Character', Icon: Wand2 },
-              { label: 'Audio', Icon: AudioLines },
+              //{ label: 'Audio', Icon: AudioLines },
             ].map(({ label, Icon }) => (
               <button
                 key={label}
@@ -496,7 +496,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
 
-          <div className="mx-auto w-full max-w-3xl">
+      {/*    <div className="mx-auto w-full max-w-3xl">
             <label className="sr-only" htmlFor="dashboard-search">Search creations</label>
             <div className="flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3 shadow-soft backdrop-blur-xl">
               <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" strokeWidth={1.5} />
@@ -509,12 +509,14 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               />
             </div>
           </div>
+      
 
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/create"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
             <Link href="/images"><Button variant="secondary" className="gap-2">Generate image <ImageIcon className="h-4 w-4" /></Button></Link>
             <Link href="/influencer"><Button variant="secondary" className="gap-2">Influencer studio <Sparkles className="h-4 w-4" /></Button></Link>
           </div>
+        */}  
 
           <div className="mx-auto grid w-full max-w-2xl gap-3 sm:grid-cols-3">
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
@@ -539,7 +541,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Create Story</h2>
             <p className="mt-1 text-sm text-muted">High-impact starting points with production-ready defaults.</p>
           </div>
-          <Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button>
+          {/*<Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button> */}
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2">
           {storyCards.map((item) => (
@@ -560,38 +562,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">AI Tools</h2>
-            <p className="mt-1 text-sm text-muted">Compact, task-focused utilities for production workflows.</p>
-          </div>
-          <Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {aiToolRows.map((tool) => {
-            const Icon = tool.icon;
-            return (
-              <Link
-                key={tool.title}
-                href={tool.href}
-                className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] p-3 backdrop-blur-md transition hover:border-[hsl(var(--color-accent)/0.45)]"
-              >
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--color-bg)/0.7)]">
-                  <Icon className="h-5 w-5 text-[hsl(var(--color-accent))]" strokeWidth={1.5} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-text">{tool.title}</p>
-                  <p className="truncate text-xs text-muted">{tool.description}</p>
-                </div>
-                <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-3 py-1 text-xs font-semibold text-text">
-                  Start
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+
 
       <section id="inspiration" className="space-y-4">
         <div className="flex items-center justify-between gap-4">
