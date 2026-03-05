@@ -642,7 +642,18 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 className="group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] text-left shadow-soft"
                 style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
-                <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                {videoItem ? (
+                  <video
+                    src={toAbsoluteUrl(videoItem.video_url) ?? videoItem.video_url}
+                    poster={toAbsoluteUrl(videoItem.thumbnail_url) ?? videoItem.thumbnail_url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  />
+                ) : (
+                  <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                )}
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.8)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
                 <span className="absolute right-3 top-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
                   {meta}
