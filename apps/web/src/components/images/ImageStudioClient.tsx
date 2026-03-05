@@ -375,6 +375,9 @@ export function ImageStudioClient({ userId }: Props) {
       setError('Prompt is required.');
       return;
     }
+    if (!window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -567,7 +570,6 @@ export function ImageStudioClient({ userId }: Props) {
       title="Generating your image"
       description=""
       progress={submitProgress}
-      remainingLabel={`${Math.max(0, 100 - submitProgress)}% remaining`}
     />
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">

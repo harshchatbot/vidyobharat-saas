@@ -175,7 +175,7 @@ export function CreateVideoPage({
         ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
         : null);
   const generationOverlayVisible = submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing';
-  const overlayVisible = initialLoading || voiceTranslationLoading || generationOverlayVisible;
+  const overlayVisible = generationOverlayVisible;
   const overlayTitle = initialLoading
     ? 'Preparing your studio'
     : voiceTranslationLoading
@@ -200,20 +200,13 @@ export function CreateVideoPage({
     : voiceTranslationLoading
       ? 'Language Update'
       : 'Video Render';
-  const overlayProgress = initialLoading
-    ? 22
-    : voiceTranslationLoading
-      ? 34
-      : submitting
-        ? 12
-        : jobStatus?.status === 'queued'
-          ? 20
-          : jobStatus?.status === 'processing'
-            ? Math.max(20, Math.min(95, jobStatus.progress ?? 42))
-            : null;
-  const overlayRemainingLabel = typeof overlayProgress === 'number'
-    ? `${Math.max(0, 100 - overlayProgress)}% remaining`
-    : undefined;
+  const overlayProgress = submitting
+    ? 12
+    : jobStatus?.status === 'queued'
+      ? 20
+      : jobStatus?.status === 'processing'
+        ? Math.max(20, Math.min(95, jobStatus.progress ?? 42))
+        : null;
   const voiceCreditMap = useMemo(() => {
     const allVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
     const premiumCredits = premiumVoiceEstimate?.estimatedCredits ?? null;
@@ -902,6 +895,9 @@ export function CreateVideoPage({
       setSubmitError(validationError);
       return;
     }
+    if (!window.confirm('Generate this video now? Credits will be charged only if generation succeeds.')) {
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -986,7 +982,6 @@ export function CreateVideoPage({
         stepLabel={overlayStepLabel}
         accentLabel={overlayAccentLabel}
         progress={overlayProgress ?? undefined}
-        remainingLabel={overlayRemainingLabel}
       />
 
       <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">

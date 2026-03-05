@@ -973,6 +973,8 @@ def create_ai_video(
             captions_enabled=payload.captionsEnabled,
             caption_style=payload.captionStyle,
         )
+        # Persist charged credits on the video document so async failure refunds are exact.
+        service.repo.update(video, applied_credits=estimate.required_credits, request_quality=payload.quality)
         logger.info(
             'ai_video_created',
             extra={
@@ -1253,6 +1255,17 @@ def generate_ai_image(
             resolution=payload.resolution,
             reference_urls=payload.reference_urls,
         )
+        if deduction_amount > 0 and getattr(generation, 'status', None) == ImageGenerationStatus.failed:
+            CreditService(db).top_up_credits(
+                user_id=user_id,
+                credits=deduction_amount,
+                metadata={
+                    'refund_for': 'image_generate_failed_status',
+                    'generation_id': generation.id,
+                    'model_key': payload.model_key,
+                },
+            )
+            deduction_amount = 0
         return _to_image_generation_response(
             generation,
             db,

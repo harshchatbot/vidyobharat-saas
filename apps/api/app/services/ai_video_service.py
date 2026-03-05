@@ -16,6 +16,7 @@ from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.credit_service import CreditService
 from app.services.render_service import celery_app
 from app.services.video_pipeline import VideoPipelineService
 
@@ -635,6 +636,40 @@ def celery_process_ai_video(video_id: str) -> None:
         target = repo.get_by_id(video_id)
         if target:
             repo.update(target, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
+            try:
+                raw = repo.collection.document(video_id).get()
+                raw_data = raw.to_dict() or {}
+                charged_credits = int(raw_data.get('applied_credits') or 0)
+                estimate_payload = {
+                    'modelKey': target.selected_model,
+                    'resolution': target.resolution,
+                    'durationSeconds': target.duration_seconds or 8,
+                    'quality': str(raw_data.get('request_quality') or ('high' if (target.resolution or '').lower() == '1080p' else 'standard')),
+                    'captionsEnabled': bool(target.captions_enabled),
+                    'voice': target.voice,
+                    'imageUrls': json.loads(target.image_urls or '[]'),
+                    'audioSettings': {'sampleRateHz': target.audio_sample_rate_hz or 22050},
+                }
+                credit_service = CreditService(None)
+                if charged_credits <= 0:
+                    estimate = credit_service.estimate('video_create', estimate_payload)
+                    charged_credits = estimate.required_credits
+                if charged_credits > 0:
+                    credit_service.top_up_credits(
+                        user_id=target.user_id,
+                        credits=charged_credits,
+                        metadata={
+                            'refund_for': 'video_create_failed_status',
+                            'video_id': target.id,
+                            'model_key': target.selected_model,
+                        },
+                    )
+                    logger.info(
+                        'ai_video_job_refunded',
+                        extra={'render_id': video_id, 'user_id': target.user_id, 'credits': charged_credits},
+                    )
+            except Exception:
+                logger.exception('ai_video_refund_failed', extra={'render_id': video_id})
 
 
 def _persist_generated_video(storage, user_id: str, model_key: str, source_url: str) -> str:

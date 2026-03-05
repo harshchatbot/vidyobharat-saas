@@ -5,7 +5,6 @@ export function LoadingOverlay({
   stepLabel: _stepLabel,
   accentLabel: _accentLabel,
   progress,
-  remainingLabel,
 }: {
   open: boolean;
   title: string;
@@ -13,7 +12,6 @@ export function LoadingOverlay({
   stepLabel?: string;
   accentLabel?: string;
   progress?: number;
-  remainingLabel?: string;
 }) {
   if (!open) return null;
   const normalizedProgress = typeof progress === 'number'
@@ -55,7 +53,7 @@ export function LoadingOverlay({
           </div>
           {normalizedProgress !== null ? (
             <p className="text-xs font-medium text-muted">
-              {normalizedProgress}% complete{remainingLabel ? ` • ${remainingLabel}` : ''}
+              {normalizedProgress}% complete
             </p>
           ) : null}
         </div>
