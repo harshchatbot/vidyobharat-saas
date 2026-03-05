@@ -2,12 +2,27 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clapperboard, Copy, ExternalLink, Film, Heart, ImageIcon, Layers3, Search, Sparkles, Tag, Wand2 } from 'lucide-react';
+import {
+  ArrowRight,
+  AudioLines,
+  Bot,
+  ChevronDown,
+  Clapperboard,
+  Copy,
+  ExternalLink,
+  Film,
+  Heart,
+  ImageIcon,
+  MessageSquare,
+  Search,
+  Sparkles,
+  Tag,
+  Wand2,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Grid } from '@/components/ui/Grid';
 import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
@@ -139,38 +154,80 @@ function buildTagFacets(assets: AssetSearchItem[]): AssetTagFacet[] {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-const workflowCards = [
+const storyCards = [
   {
-    title: 'Create Reel Video',
-    description: 'Script, voice, scene, and render in one guided studio.',
+    title: 'Music Video',
+    description: 'Beat-synced scenes and stylized visuals.',
     href: '/create',
-    cta: 'Open video studio',
-    gradient: 'radial-gradient(circle at top left, hsl(var(--color-accent) / 0.34), transparent 38%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    gradient:
+      'radial-gradient(circle at top right, hsl(265 88% 66% / 0.42), transparent 52%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+  },
+  {
+    title: 'Explainer Video',
+    description: 'Clear business storytelling with voice.',
+    href: '/create',
+    gradient:
+      'radial-gradient(circle at top left, hsl(160 82% 45% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+  },
+  {
+    title: 'Character Vlog',
+    description: 'Consistent persona-led short videos.',
+    href: '/influencer',
+    gradient:
+      'radial-gradient(circle at top right, hsl(193 87% 60% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+  },
+  {
+    title: 'ASMR Video',
+    description: 'Mood-centric, calming cinematic cuts.',
+    href: '/create',
+    gradient:
+      'radial-gradient(circle at top left, hsl(190 84% 58% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+  },
+  {
+    title: 'Build Storyboard',
+    description: 'Turn your idea into scene-by-scene flow.',
+    href: '/images',
+    gradient:
+      'radial-gradient(circle at top right, hsl(275 72% 60% / 0.3), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+  },
+];
+
+const aiToolRows = [
+  {
+    title: 'Lip-Sync Video',
+    description: 'Make any avatar or subject talk naturally.',
+    href: '/create',
+    icon: AudioLines,
+  },
+  {
+    title: 'Motion-Sync Video',
+    description: 'Drive shots with expressive movement energy.',
+    href: '/create',
     icon: Film,
   },
   {
-    title: 'Generate Premium Visuals',
-    description: 'Posters, thumbnails, and scene-rich image generations.',
+    title: 'Video Upscale',
+    description: 'Improve clarity and output quality quickly.',
+    href: '/create',
+    icon: Sparkles,
+  },
+  {
+    title: 'Chat to Edit',
+    description: 'Refine prompt and composition conversationally.',
     href: '/images',
-    cta: 'Open image studio',
-    gradient: 'radial-gradient(circle at top left, hsl(190 88% 58% / 0.22), transparent 36%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
+    icon: MessageSquare,
+  },
+  {
+    title: 'Edit Image',
+    description: 'Touch up style, framing, and creative details.',
+    href: '/images',
     icon: ImageIcon,
   },
   {
-    title: 'Build AI Influencer',
-    description: 'Lock a persona, keep style memory, and generate consistently.',
-    href: '/influencer',
-    cta: 'Open influencer studio',
-    gradient: 'radial-gradient(circle at top left, hsl(142 71% 45% / 0.2), transparent 34%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
-    icon: Wand2,
-  },
-  {
-    title: 'Start From Inspiration',
-    description: 'Study reference outputs before jumping into your own workflow.',
-    href: '#inspiration',
-    cta: 'Browse inspiration',
-    gradient: 'radial-gradient(circle at top left, hsl(275 70% 62% / 0.18), transparent 34%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
-    icon: Layers3,
+    title: 'Image to Prompt',
+    description: 'Extract reusable creative directions from images.',
+    href: '/images',
+    icon: Bot,
   },
 ];
 
@@ -403,26 +460,46 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     <div className="space-y-6 sm:space-y-8">
       <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] px-4 py-6 shadow-soft sm:px-6 sm:py-8">
         <div
-          className="space-y-5 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5 backdrop-blur-md sm:p-7"
+          className="space-y-5 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] p-5 backdrop-blur-md sm:p-8"
           style={{
             background:
-              'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.2), transparent 32%), linear-gradient(145deg, hsl(var(--color-surface) / 0.75), hsl(var(--color-elevated) / 0.72))',
+              'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 32%), radial-gradient(circle at 20% 80%, hsl(260 80% 62% / 0.18), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface) / 0.76), hsl(var(--color-elevated) / 0.73))',
           }}
         >
           <div className="space-y-3 text-center">
-            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Discovery dashboard</Badge>
-            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl xl:text-5xl">
-              What would you like to create today, {userName.split(' ')[0] || 'Creator'}?
+            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator workspace</Badge>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-5xl xl:text-6xl">
+              What would you like to create today?
             </h1>
             <p className="mx-auto max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7">
-              Explore creations, remix inspiration, and jump straight into studios.
+              Explore community inspiration, remix faster, and launch from one premium dashboard.
             </p>
+          </div>
+
+          <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 rounded-full border border-[hsl(var(--color-border))/0.8] bg-[hsl(var(--color-surface)/0.46)] px-3 py-2 backdrop-blur-xl">
+            {[
+              { label: 'Story', Icon: Sparkles },
+              { label: 'Video', Icon: Film },
+              { label: 'Image', Icon: ImageIcon },
+              { label: 'Character', Icon: Wand2 },
+              { label: 'Audio', Icon: AudioLines },
+            ].map(({ label, Icon }) => (
+              <button
+                key={label}
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full border border-transparent px-3 py-2 text-sm font-semibold text-text transition hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.4)]"
+              >
+                <Icon className="h-4 w-4 text-[hsl(var(--color-accent))]" strokeWidth={1.5} />
+                {label}
+                <ChevronDown className="h-3.5 w-3.5 text-muted" strokeWidth={1.5} />
+              </button>
+            ))}
           </div>
 
           <div className="mx-auto w-full max-w-3xl">
             <label className="sr-only" htmlFor="dashboard-search">Search creations</label>
-            <div className="flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3 shadow-soft backdrop-blur-md">
-              <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <div className="flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3 shadow-soft backdrop-blur-xl">
+              <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" strokeWidth={1.5} />
               <input
                 id="dashboard-search"
                 value={searchQuery}
@@ -459,53 +536,70 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Featured workflows</h2>
-            <p className="mt-1 text-sm text-muted">Start with a polished studio path instead of a blank page.</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Create Story</h2>
+            <p className="mt-1 text-sm text-muted">High-impact starting points with production-ready defaults.</p>
           </div>
+          <Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button>
         </div>
-        <Grid className="md:grid-cols-2 xl:grid-cols-4">
-          {workflowCards.map((item) => {
-            const Icon = item.icon;
-            const content = (
-              <Card
-                className="flex h-full flex-col justify-between border-[hsl(var(--color-border))] p-4 sm:p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.16)]"
-                style={{ background: item.gradient }}
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {storyCards.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className="group min-w-[250px] flex-1 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-4 shadow-soft transition hover:-translate-y-0.5 sm:min-w-[280px]"
+              style={{ background: item.gradient }}
+            >
+              <p className="font-heading text-2xl font-extrabold text-text">{item.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+              <div className="mt-8 inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-bg)/0.6)] px-3 py-1.5 text-sm font-semibold text-text backdrop-blur-md">
+                Create
+                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" strokeWidth={1.5} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">AI Tools</h2>
+            <p className="mt-1 text-sm text-muted">Compact, task-focused utilities for production workflows.</p>
+          </div>
+          <Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {aiToolRows.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <Link
+                key={tool.title}
+                href={tool.href}
+                className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] p-3 backdrop-blur-md transition hover:border-[hsl(var(--color-accent)/0.45)]"
               >
-                <div className="space-y-4">
-                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
-                    <Icon className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-                  </div>
-                  <div>
-                    <p className="font-heading text-lg font-extrabold text-text sm:text-xl">{item.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
-                  </div>
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--color-bg)/0.7)]">
+                  <Icon className="h-5 w-5 text-[hsl(var(--color-accent))]" strokeWidth={1.5} />
                 </div>
-                <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-text">
-                  {item.cta}
-                  <ArrowRight className="h-4 w-4" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text">{tool.title}</p>
+                  <p className="truncate text-xs text-muted">{tool.description}</p>
                 </div>
-              </Card>
-            );
-            return item.href.startsWith('#') ? (
-              <a key={item.title} href={item.href} className="block">
-                {content}
-              </a>
-            ) : (
-              <Link key={item.title} href={item.href} className="block">
-                {content}
+                <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-3 py-1 text-xs font-semibold text-text">
+                  Start
+                </span>
               </Link>
             );
           })}
-        </Grid>
+        </div>
       </section>
 
       <section id="inspiration" className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Inspiration feed</h2>
-            <p className="mt-1 text-sm text-muted">Reference-ready outputs to help you start faster and set quality expectations.</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Community</h2>
+            <p className="mt-1 text-sm text-muted">Trending inspiration from approved, high-quality public creations.</p>
           </div>
-          <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1">
+          <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] p-1 backdrop-blur-md">
             {(['all', 'video', 'image'] as const).map((value) => (
               <button
                 key={value}
@@ -526,7 +620,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         </div>
-        <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4 2xl:columns-5">
+        <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
           {inspirationItems.map((item) => {
             const videoItem = isVideoInspiration(item) ? item : null;
             const imageItem = !videoItem ? (item as InspirationImage) : null;
@@ -539,10 +633,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 : toAbsoluteUrl(imageItem?.image_url ?? '') ||
                   imageItem?.image_url ||
                   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
-            const meta =
-              videoItem
-                ? `${videoItem.provider_name} • ${videoItem.duration_seconds}s`
-                : `${imageItem?.creator_name ?? 'Creator'} • ${imageItem?.aspect_ratio ?? '9:16'}`;
+            const meta = videoItem ? `${videoItem.duration_seconds}s` : timeAgo(item.created_at);
             return (
               <button
                 key={item.id}
@@ -553,7 +644,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               >
                 <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.8)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                <span className="absolute right-3 top-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                  {meta}
+                </span>
+                <div className="absolute left-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"
                     className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
@@ -585,14 +679,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     <Wand2 className="h-4 w-4 text-text" strokeWidth={1.75} />
                   </button>
                 </div>
-                <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <div className="inline-flex items-center gap-2">
-                      <Badge>{videoItem ? 'Video' : 'Image'}</Badge>
-                      <Badge>{item.model_key}</Badge>
-                    </div>
-                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{meta}</p>
-                  </div>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.9)] to-transparent p-3">
+                  <p className="line-clamp-1 text-sm font-semibold text-text">{item.title}</p>
+                </div>
+                <div className="absolute inset-x-3 bottom-12 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                   <p className="line-clamp-2 text-xs leading-5 text-text">{item.prompt}</p>
                 </div>
               </button>
@@ -612,8 +702,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Your recent creations</h2>
-            <p className="mt-1 text-sm text-muted">Filter images and videos from one unified studio feed.</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Your Studio Feed</h2>
+            <p className="mt-1 text-sm text-muted">Manage, publish, and download your latest creations.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/images"><Button variant="secondary">Create image</Button></Link>
@@ -676,11 +766,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         </Card>
 
         {loading ? (
-          <Grid className="md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={`asset-skeleton-${index}`} className="h-64 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
             ))}
-          </Grid>
+          </div>
         ) : assets.length === 0 ? (
           <Card className="text-center">
             <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border))]">
