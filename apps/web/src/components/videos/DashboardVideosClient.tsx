@@ -483,7 +483,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           {inspirationItems.map((item) => {
             const preview =
               inspirationFilter === 'video'
-                ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) || (item as InspirationVideo).thumbnail_url
+                ? toAbsoluteUrl((item as InspirationVideo).thumbnail_url) ||
+                  (item as InspirationVideo).thumbnail_url ||
+                  toAbsoluteUrl((item as InspirationVideo).video_url) ||
+                  (item as InspirationVideo).video_url
                 : (item as InspirationImage).image_url;
             const meta =
               inspirationFilter === 'video'

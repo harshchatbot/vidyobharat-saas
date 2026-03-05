@@ -51,9 +51,15 @@ class ImageGenerationRepository:
         items: list[ImageGeneration] = []
         for row in self.collection.stream():
             data = row.to_dict() or {}
-            if not bool(data.get('is_public_inspiration')):
+            is_public = data.get('is_public_inspiration')
+            if is_public is None:
+                is_public = data.get('isPublicInspiration')
+            moderation_status = data.get('moderation_status')
+            if moderation_status is None:
+                moderation_status = data.get('moderationStatus')
+            if not bool(is_public):
                 continue
-            if str(data.get('moderation_status') or '').lower() != 'approved':
+            if str(moderation_status or '').lower() != 'approved':
                 continue
             data.setdefault('id', row.id)
             try:
@@ -97,10 +103,10 @@ class ImageGenerationRepository:
             thumbnail_url=data.get('thumbnail_url'),
             action_type=data.get('action_type'),
             status=coerce_enum(ImageGenerationStatus, data.get('status') or ImageGenerationStatus.completed.value),
-            is_public_inspiration=bool(data.get('is_public_inspiration', False)),
-            moderation_status=str(data.get('moderation_status') or 'draft'),
-            inspiration_score=int(data.get('inspiration_score') or 0),
-            inspiration_published_at=coerce_datetime(data.get('inspiration_published_at')) if data.get('inspiration_published_at') else None,
-            like_count=int(data.get('like_count') or 0),
+            is_public_inspiration=bool(data.get('is_public_inspiration', data.get('isPublicInspiration', False))),
+            moderation_status=str(data.get('moderation_status', data.get('moderationStatus')) or 'draft'),
+            inspiration_score=int(data.get('inspiration_score', data.get('inspirationScore')) or 0),
+            inspiration_published_at=coerce_datetime(data.get('inspiration_published_at', data.get('inspirationPublishedAt'))) if (data.get('inspiration_published_at') or data.get('inspirationPublishedAt')) else None,
+            like_count=int(data.get('like_count', data.get('likeCount')) or 0),
             created_at=coerce_datetime(data.get('created_at')),
         )
