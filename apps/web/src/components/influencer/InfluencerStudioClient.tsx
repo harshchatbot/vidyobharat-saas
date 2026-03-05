@@ -435,7 +435,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <LoadingOverlay
         open={loading}
         title="Preparing Influencer Studio"
@@ -464,7 +464,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       </div>
 
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
-        <div className="space-y-5">
+        <div className="space-y-6">
           {personaError ? (
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
               {personaError}

@@ -637,7 +637,7 @@ export function ImageStudioClient({ userId }: Props) {
       description=""
       progress={submitProgress}
     />
-    <div className="space-y-6">
+    <div className="space-y-7">
       <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -646,7 +646,7 @@ export function ImageStudioClient({ userId }: Props) {
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
               Create Image
             </div>
-            <h1 className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-text sm:text-3xl">
+            <h1 className="mt-2.5 font-heading text-[1.9rem] font-extrabold tracking-tight text-text sm:text-[2.25rem]">
               Prompt, reference, and generate in one compact studio.
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted">
@@ -916,7 +916,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>

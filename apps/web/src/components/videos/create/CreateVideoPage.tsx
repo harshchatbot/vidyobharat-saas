@@ -1008,7 +1008,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-7">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -1027,7 +1027,7 @@ export function CreateVideoPage({
             <Clapperboard className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
             Video Studio
           </p>
-          <h1 className="mt-4 max-w-2xl font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">Build premium video outputs with one focused studio.</h1>
+          <h1 className="mt-3 max-w-2xl font-heading text-[1.9rem] font-extrabold tracking-tight text-text sm:text-[2.25rem]">Build premium video outputs with one focused studio.</h1>
           <p className="mt-3 max-w-2xl text-sm text-muted sm:text-base">
             Keep the control stack compact on the left, monitor your output on the right, and move from concept to render without scanning a long settings page.
           </p>
