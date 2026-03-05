@@ -177,58 +177,67 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    void Promise.allSettled([
-      api.listGeneratedImages(userId),
-      api.listVideos(userId),
-      api.listAssetTags(userId, {
-        content_type: mediaFilter === 'all' ? undefined : mediaFilter,
-      }),
-      api.listImageInspiration(userId),
-      api.listVideoInspiration(userId),
-    ])
-      .then(([imageResults, videoResults, facets, imageRefs, videoRefs]) => {
-        if (cancelled) return;
-        if (imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled') {
-          const nextAssets = [
-            ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
-            ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
-          ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          setAllAssets(nextAssets);
-          setError(null);
-          const normalizedQuery = searchQuery.trim().toLowerCase();
-          const filtered = nextAssets.filter((item) => {
-            const matchesMedia = mediaFilter === 'all' || item.content_type === mediaFilter;
-            const searchable = `${item.title} ${item.prompt} ${item.auto_tags.join(' ')} ${item.user_tags.join(' ')}`.toLowerCase();
-            const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
-            const allTags = [...item.auto_tags, ...item.user_tags].map((tag) => tag.toLowerCase());
-            const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => allTags.includes(tag.toLowerCase()));
-            return matchesMedia && matchesQuery && matchesTags;
-          });
-          setAssets(filtered);
-        } else {
-          setAllAssets([]);
-          setAssets([]);
-          setError('Failed to load creations. Please refresh.');
+
+    const loadDashboardData = async (attempt = 1) => {
+      setLoading(true);
+      const [imageResults, videoResults, imageRefs, videoRefs] = await Promise.allSettled([
+        api.listGeneratedImages(userId),
+        api.listVideos(userId),
+        api.listImageInspiration(userId),
+        api.listVideoInspiration(userId),
+      ]);
+      if (cancelled) return;
+
+      const creationsLoaded = imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled';
+      if (!creationsLoaded && attempt < 2) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        if (!cancelled) {
+          await loadDashboardData(attempt + 1);
         }
+        return;
+      }
 
-        setTagFacets(facets.status === 'fulfilled' ? facets.value : buildTagFacets(imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled'
-          ? [
-              ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
-              ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
-            ].filter((item) => mediaFilter === 'all' || item.content_type === mediaFilter)
-          : []));
-        setImageInspiration(imageRefs.status === 'fulfilled' ? imageRefs.value : []);
-        setVideoInspiration(videoRefs.status === 'fulfilled' ? videoRefs.value : []);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      if (creationsLoaded) {
+        const nextAssets = [
+          ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
+          ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setAllAssets(nextAssets);
+        setError(null);
+      } else {
+        setAllAssets([]);
+        setAssets([]);
+        setError('Failed to load creations. Please refresh.');
+      }
 
+      setImageInspiration(imageRefs.status === 'fulfilled' ? imageRefs.value : []);
+      setVideoInspiration(videoRefs.status === 'fulfilled' ? videoRefs.value : []);
+      setLoading(false);
+    };
+
+    void loadDashboardData();
     return () => {
       cancelled = true;
     };
-  }, [userId, searchQuery, selectedTags, mediaFilter]);
+  }, [userId]);
+
+  useEffect(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filtered = allAssets.filter((item) => {
+      const matchesMedia = mediaFilter === 'all' || item.content_type === mediaFilter;
+      const searchable = `${item.title} ${item.prompt} ${item.auto_tags.join(' ')} ${item.user_tags.join(' ')}`.toLowerCase();
+      const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+      const allTags = [...item.auto_tags, ...item.user_tags].map((tag) => tag.toLowerCase());
+      const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => allTags.includes(tag.toLowerCase()));
+      return matchesMedia && matchesQuery && matchesTags;
+    });
+    setAssets(filtered);
+  }, [allAssets, searchQuery, selectedTags, mediaFilter]);
+
+  useEffect(() => {
+    const scoped = allAssets.filter((item) => mediaFilter === 'all' || item.content_type === mediaFilter);
+    setTagFacets(buildTagFacets(scoped));
+  }, [allAssets, mediaFilter]);
 
   const assetCounts = useMemo(
     () => ({

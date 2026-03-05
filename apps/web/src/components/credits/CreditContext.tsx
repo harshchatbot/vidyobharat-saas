@@ -27,26 +27,26 @@ export function CreditProvider({
   const [lowBalanceOpen, setLowBalanceOpen] = useState(false);
   const [requiredCredits, setRequiredCredits] = useState<number | undefined>(undefined);
 
-  const refresh = async () => {
+  const refresh = async (silent = false) => {
     if (!userId) {
       setWallet(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const nextWallet = await api.getCreditWallet(userId);
       setWallet(nextWallet);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    void refresh();
+    void refresh(false);
     if (!userId) return;
     const interval = window.setInterval(() => {
-      void refresh();
+      void refresh(true);
     }, 30000);
     return () => window.clearInterval(interval);
   }, [userId]);
