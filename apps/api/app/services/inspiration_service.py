@@ -132,6 +132,16 @@ class InspirationService:
 
     def list_image_inspiration(self, *, viewer_user_id: str, limit: int = 60) -> list[dict[str, object]]:
         items = self.images.list_inspiration_candidates(limit=limit * 3)
+        viewer_pending = [
+            row
+            for row in self.images.list_by_user(viewer_user_id)
+            if bool(getattr(row, 'is_public_inspiration', False))
+            and str(getattr(row, 'moderation_status', '')).lower() in {'pending_review', 'approved'}
+        ]
+        by_id = {item.id: item for item in items}
+        for row in viewer_pending:
+            by_id[row.id] = row
+        items = list(by_id.values())
         ranked = self._diverse_rank(items, key_fn=lambda item: str(getattr(item, 'model_key', 'image')))
         result: list[dict[str, object]] = []
         for item in ranked[:limit]:
@@ -159,6 +169,16 @@ class InspirationService:
 
     def list_video_inspiration(self, *, viewer_user_id: str, limit: int = 60) -> list[dict[str, object]]:
         items = self.videos.list_inspiration_candidates(limit=limit * 3)
+        viewer_pending = [
+            row
+            for row in self.videos.list_by_user(viewer_user_id)
+            if bool(getattr(row, 'is_public_inspiration', False))
+            and str(getattr(row, 'moderation_status', '')).lower() in {'pending_review', 'approved'}
+        ]
+        by_id = {item.id: item for item in items}
+        for row in viewer_pending:
+            by_id[row.id] = row
+        items = list(by_id.values())
         ranked = self._diverse_rank(items, key_fn=lambda item: str(getattr(item, 'selected_model', 'video')))
         result: list[dict[str, object]] = []
         for item in ranked[:limit]:

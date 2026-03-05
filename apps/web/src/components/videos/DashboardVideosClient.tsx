@@ -314,6 +314,13 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       } else {
         setError(null);
       }
+      if (asset.content_type === 'video') {
+        const refreshed = await api.listVideoInspiration(userId).catch(() => null);
+        if (refreshed) setVideoInspiration(refreshed);
+      } else {
+        const refreshed = await api.listImageInspiration(userId).catch(() => null);
+        if (refreshed) setImageInspiration(refreshed);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update inspiration publish status.');
     } finally {
