@@ -46,6 +46,13 @@ function toAbsoluteUrl(url: string | null) {
   return `${API_URL}${url}`;
 }
 
+function aspectRatioToCss(value: string | null | undefined) {
+  if (!value) return '1 / 1';
+  const [w, h] = value.split(':');
+  if (!w || !h) return '1 / 1';
+  return `${w} / ${h}`;
+}
+
 function mediaLabel(contentType: string) {
   return contentType === 'image' ? 'Image' : 'Video';
 }
@@ -294,6 +301,26 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     window.setTimeout(() => setCopiedPrompt(false), 1500);
   };
 
+  const downloadFromUrl = (url: string | null, fallbackName: string, extension: 'png' | 'mp4') => {
+    const resolved = toAbsoluteUrl(url);
+    if (!resolved) return;
+    const safeName = fallbackName.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || extension;
+    const link = document.createElement('a');
+    link.href = `/api/download?url=${encodeURIComponent(resolved)}&filename=${encodeURIComponent(`${safeName}.${extension}`)}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const remixInStudio = async (item: DashboardInspirationItem) => {
+    await copyPrompt(item.prompt);
+    if (isVideoInspiration(item)) {
+      window.location.href = '/create';
+      return;
+    }
+    window.location.href = '/images';
+  };
+
   const downloadAsset = async (asset: AssetSearchItem) => {
     const url = toAbsoluteUrl(asset.asset_url);
     if (!url) return;
@@ -374,60 +401,58 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <section
-        className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-5 shadow-soft sm:p-7"
-        style={{
-          background:
-            'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 26%), radial-gradient(circle at bottom left, hsl(196 80% 58% / 0.12), transparent 28%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
-        }}
-      >
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-5">
-            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator home</Badge>
-            <div>
-              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl xl:text-5xl">
-                What would you like to create today, {userName.split(' ')[0] || 'Creator'}?
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7 lg:text-lg">
-                Jump into video, image, or influencer workflows, then pick up your latest creations and fresh inspiration without leaving the studio.
-              </p>
-            </div>
+      <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] px-4 py-6 shadow-soft sm:px-6 sm:py-8">
+        <div
+          className="space-y-5 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5 backdrop-blur-md sm:p-7"
+          style={{
+            background:
+              'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.2), transparent 32%), linear-gradient(145deg, hsl(var(--color-surface) / 0.75), hsl(var(--color-elevated) / 0.72))',
+          }}
+        >
+          <div className="space-y-3 text-center">
+            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Discovery dashboard</Badge>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl xl:text-5xl">
+              What would you like to create today, {userName.split(' ')[0] || 'Creator'}?
+            </h1>
+            <p className="mx-auto max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7">
+              Explore creations, remix inspiration, and jump straight into studios.
+            </p>
+          </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Link href="/create"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
-              <Link href="/images"><Button variant="secondary" className="gap-2">Generate image <ImageIcon className="h-4 w-4" /></Button></Link>
-              <Link href="/influencer"><Button variant="secondary" className="gap-2">Influencer studio <Sparkles className="h-4 w-4" /></Button></Link>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">All creations</p>
-                {loading ? (
-                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
-                ) : (
-                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.all}</p>
-                )}
-              </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">Videos</p>
-                {loading ? (
-                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
-                ) : (
-                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.video}</p>
-                )}
-              </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] p-3.5 sm:p-4">
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">Images</p>
-                {loading ? (
-                  <div className="mt-2 h-9 w-16 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
-                ) : (
-                  <p className="mt-2 font-heading text-2xl font-extrabold text-text sm:text-3xl">{assetCounts.image}</p>
-                )}
-              </div>
+          <div className="mx-auto w-full max-w-3xl">
+            <label className="sr-only" htmlFor="dashboard-search">Search creations</label>
+            <div className="flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3 shadow-soft backdrop-blur-md">
+              <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+              <input
+                id="dashboard-search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search prompts, tags, styles, scenes..."
+                className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+              />
             </div>
           </div>
 
-          
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/create"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
+            <Link href="/images"><Button variant="secondary" className="gap-2">Generate image <ImageIcon className="h-4 w-4" /></Button></Link>
+            <Link href="/influencer"><Button variant="secondary" className="gap-2">Influencer studio <Sparkles className="h-4 w-4" /></Button></Link>
+          </div>
+
+          <div className="mx-auto grid w-full max-w-2xl gap-3 sm:grid-cols-3">
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">All</p>
+              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.all}</p>}
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">Videos</p>
+              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.video}</p>}
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">Images</p>
+              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.image}</p>}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -501,7 +526,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         </div>
-        <Grid className="md:grid-cols-2 xl:grid-cols-3">
+        <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4 2xl:columns-5">
           {inspirationItems.map((item) => {
             const videoItem = isVideoInspiration(item) ? item : null;
             const imageItem = !videoItem ? (item as InspirationImage) : null;
@@ -523,37 +548,57 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedInspirationItem(item)}
-                className="text-left"
+                className="group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] text-left shadow-soft"
+                style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
-              <Card className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_hsl(var(--color-accent)/0.14)]">
-                <img src={preview} alt={item.title} className="h-48 w-full object-cover sm:h-56" />
-                <div className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-heading text-lg font-extrabold text-text sm:text-xl">{item.title}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{meta}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge>{item.model_key}</Badge>
-                      <Badge>{videoItem ? 'Video' : 'Image'}</Badge>
-                    </div>
-                  </div>
-                  <p className="line-clamp-3 text-sm leading-6 text-muted">{item.prompt}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {item.tags.slice(0, 4).map((tag) => (
-                      <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
-                    ))}
-                  </div>
-                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-text">
-                    View details
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
+                <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.8)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+                <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void toggleLikeInspiration(item);
+                    }}
+                  >
+                    <Heart className={`h-4 w-4 text-text ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
+                  </button>
+                  <button
+                    type="button"
+                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      downloadFromUrl(videoItem ? videoItem.video_url : imageItem?.image_url ?? null, item.title, videoItem ? 'mp4' : 'png');
+                    }}
+                  >
+                    <Clapperboard className="h-4 w-4 text-text" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    type="button"
+                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void remixInStudio(item);
+                    }}
+                  >
+                    <Wand2 className="h-4 w-4 text-text" strokeWidth={1.75} />
+                  </button>
                 </div>
-              </Card>
+                <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <div className="inline-flex items-center gap-2">
+                      <Badge>{videoItem ? 'Video' : 'Image'}</Badge>
+                      <Badge>{item.model_key}</Badge>
+                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{meta}</p>
+                  </div>
+                  <p className="line-clamp-2 text-xs leading-5 text-text">{item.prompt}</p>
+                </div>
               </button>
             );
           })}
-        </Grid>
+        </div>
         {inspirationItems.length === 0 ? (
           <Card className="rounded-[var(--radius-lg)] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-8 text-center">
             <p className="font-heading text-lg font-extrabold text-text">No inspiration items yet</p>
@@ -578,7 +623,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
         {error && <Card><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.6)] backdrop-blur-md">
           <div className="flex flex-wrap items-center gap-2">
             {([
               ['all', `All · ${assetCounts.all}`],
@@ -600,19 +645,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div>
-              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
-                <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                Search {mediaFilter === 'all' ? 'creations' : mediaFilter === 'image' ? 'images' : 'videos'}
-              </label>
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search titles, prompts, scripts, and tags..."
-                className="w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
-              />
-            </div>
+          <div className="grid gap-4">
             <div>
               <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -661,58 +694,55 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             </div>
           </Card>
         ) : (
-          <Grid className="md:grid-cols-2 xl:grid-cols-4">
+          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4 2xl:columns-5">
             {highlightedAssets.map((asset) => {
               const preview = toAbsoluteUrl(asset.thumbnail_url) ?? toAbsoluteUrl(asset.asset_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
               const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
               return (
-                <Card key={asset.id} className="overflow-hidden p-0 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_hsl(var(--color-accent)/0.16)]">
-                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-40 w-full object-cover sm:h-44" />
-                  <div className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="line-clamp-2 font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                        <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-muted">{mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution}</p>
-                      </div>
+                <div
+                  key={asset.id}
+                  className="group relative mb-4 block break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] shadow-soft"
+                  style={{ aspectRatio: aspectRatioToCss(asset.aspect_ratio) }}
+                >
+                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.84)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+                  <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                    <Button
+                      variant="secondary"
+                      className="pointer-events-auto h-8 w-8 rounded-full p-0"
+                      onClick={() => void downloadAsset(asset)}
+                      disabled={downloadingId === asset.id || !asset.asset_url}
+                    >
+                      <Clapperboard className="h-4 w-4" strokeWidth={1.75} />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="pointer-events-auto h-8 rounded-full px-3 text-xs"
+                      onClick={() => void togglePublish(asset)}
+                      disabled={publishingAssetId === asset.id}
+                    >
+                      {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
+                    </Button>
+                    <Link href={openHref} className="pointer-events-auto">
+                      <Button variant="secondary" className="h-8 w-8 rounded-full p-0">
+                        <Wand2 className="h-4 w-4" strokeWidth={1.75} />
+                      </Button>
+                    </Link>
+                  </div>
+                  <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="line-clamp-1 text-xs font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
                       <Badge>{formatStatus(asset.status)}</Badge>
                     </div>
-                    <div className="min-h-6 flex flex-wrap gap-1">
-                      {[...asset.auto_tags.slice(0, 3), ...asset.user_tags.slice(0, 2)].map((tag) => (
-                        <Badge key={`${asset.id}-${tag}`}>{tag}</Badge>
-                      ))}
-                    </div>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">{timeAgo(asset.created_at)}</p>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      <Link href={openHref} className="sm:flex-1">
-                        <Button variant="secondary" className="w-full px-3 py-1 text-xs">{asset.content_type === 'video' ? 'Open' : 'Open images'}</Button>
-                      </Link>
-                      {asset.asset_url && (
-                        <Button
-                          className="w-full px-3 py-1 text-xs sm:w-auto"
-                          onClick={() => void downloadAsset(asset)}
-                          disabled={downloadingId === asset.id}
-                        >
-                          {downloadingId === asset.id ? 'Downloading...' : 'Download'}
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        className="w-full px-3 py-1 text-xs sm:w-auto"
-                        onClick={() => void togglePublish(asset)}
-                        disabled={publishingAssetId === asset.id}
-                      >
-                        {publishingAssetId === asset.id
-                          ? 'Updating...'
-                          : asset.is_public_inspiration
-                            ? 'Unpublish'
-                            : 'Publish'}
-                      </Button>
-                    </div>
+                    <p className="line-clamp-2 text-xs leading-5 text-text">{asset.prompt}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted">
+                      {mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution} • {timeAgo(asset.created_at)}
+                    </p>
                   </div>
-                </Card>
+                </div>
               );
             })}
-          </Grid>
+          </div>
         )}
 
         {!loading && assets.length > highlightedAssets.length && (
