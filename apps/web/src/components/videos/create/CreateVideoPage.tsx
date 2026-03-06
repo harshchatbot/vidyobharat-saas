@@ -27,6 +27,7 @@ import { VoiceSelector } from './VoiceSelector';
 
 const DRAFT_VERSION = 2;
 const FREE_VOICE_KEYS = new Set(['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya']);
+const VIDEO_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 
 function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
@@ -45,6 +46,7 @@ export function CreateVideoPage({
   initialScript?: string;
   initialTitle?: string;
 }) {
+  const cacheKey = `rangmanch:video-studio:v1:${userId}`;
   const draftKey = `rangmanch-create-draft:${userId}`;
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -220,9 +222,47 @@ export function CreateVideoPage({
   }, [filteredVoiceOptions, voiceOptions, premiumVoiceEstimate]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as {
+        ts: number;
+        videoModels: AIVideoModel[];
+        ttsCatalog: {
+          voices: TTSVoiceOption[];
+          languages: TTSLanguageOption[];
+        } | null;
+        userImages: GeneratedImage[];
+        userVideos: Video[];
+      };
+      if (!cached.ts || Date.now() - cached.ts > VIDEO_STUDIO_CACHE_TTL_MS) return;
+      const warmModels = cached.videoModels?.length ? cached.videoModels : FALLBACK_VIDEO_MODELS;
+      setModels(warmModels);
+      if (cached.ttsCatalog) {
+        setLanguageOptions(cached.ttsCatalog.languages.length > 0 ? cached.ttsCatalog.languages : LANGUAGE_OPTIONS);
+        setVoiceOptions(cached.ttsCatalog.voices.length > 0 ? cached.ttsCatalog.voices : VOICE_OPTIONS);
+      }
+      setGeneratedImages(cached.userImages ?? []);
+      setVideos(cached.userVideos ?? []);
+      if (warmModels.length > 0) {
+        setModelKey((current) =>
+          warmModels.some((item) => item.key === current)
+            ? current
+            : ((warmModels[0].key as VideoModelKey) ?? 'sora2'),
+        );
+      }
+      setInitialLoading(false);
+    } catch {
+      // ignore malformed cache
+    }
+  }, [cacheKey]);
+
+  useEffect(() => {
     let cancelled = false;
-    setModelsLoading(true);
-    setInitialLoading(true);
+    const hasWarmCache = typeof window !== 'undefined' && Boolean(window.sessionStorage.getItem(cacheKey));
+    setModelsLoading(!hasWarmCache);
+    setInitialLoading(!hasWarmCache);
     void Promise.all([
       api.listAIVideoModels(userId).catch(() => FALLBACK_VIDEO_MODELS),
       api.getTtsCatalog(userId).catch(() => null),
@@ -237,8 +277,33 @@ export function CreateVideoPage({
       }
       setGeneratedImages(userImages);
       setVideos(userVideos);
-      if (videoModels.length > 0 && !videoModels.some((item) => item.key === modelKey)) {
-        setModelKey((videoModels[0].key as VideoModelKey) ?? 'sora2');
+      if (videoModels.length > 0) {
+        setModelKey((current) =>
+          videoModels.some((item) => item.key === current)
+            ? current
+            : ((videoModels[0].key as VideoModelKey) ?? 'sora2'),
+        );
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              ts: Date.now(),
+              videoModels: videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS,
+              ttsCatalog: ttsCatalog
+                ? {
+                    voices: ttsCatalog.voices.length > 0 ? ttsCatalog.voices : VOICE_OPTIONS,
+                    languages: ttsCatalog.languages.length > 0 ? ttsCatalog.languages : LANGUAGE_OPTIONS,
+                  }
+                : null,
+              userImages,
+              userVideos,
+            }),
+          );
+        } catch {
+          // ignore cache write issues
+        }
       }
     }).finally(() => {
       if (!cancelled) {
@@ -250,7 +315,7 @@ export function CreateVideoPage({
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [cacheKey, userId]);
 
   useEffect(() => {
     const availableVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;

@@ -230,6 +230,14 @@ export async function persistAppSession(payload: {
     const body = await response.text();
     throw new Error(body || 'Failed to persist app session');
   }
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem('vidyo_access_token', payload.accessToken);
+      window.localStorage.setItem('vidyo_user_id', payload.userId);
+    } catch {
+      // Ignore storage errors in strict/private browsing contexts.
+    }
+  }
 }
 
 async function loadGoogleIdentityScript() {

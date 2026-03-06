@@ -35,34 +35,91 @@ class ImageGenerationRepository:
 
     def list_by_user(self, user_id: str) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
-        for data in self._stream_image_docs():
-            owner_id = data.get('user_id') or data.get('userId')
-            if owner_id != user_id:
-                continue
-            try:
-                items.append(self._to_model(data))
-            except Exception:
-                continue
+        by_id: dict[str, ImageGeneration] = {}
+        try:
+            root_query = self.collection.where('user_id', '==', user_id).limit(800)
+            for row in root_query.stream():
+                data = row.to_dict() or {}
+                data.setdefault('id', row.id)
+                try:
+                    model = self._to_model(data)
+                    by_id[model.id] = model
+                except Exception:
+                    continue
+
+            group_query = self.firestore.collection_group('images').where('userId', '==', user_id).limit(800)
+            for row in group_query.stream():
+                data = row.to_dict() or {}
+                data.setdefault('id', data.get('id') or row.id)
+                try:
+                    model = self._to_model(data)
+                    by_id[model.id] = model
+                except Exception:
+                    continue
+            items = list(by_id.values())
+        except Exception:
+            for data in self._stream_image_docs():
+                owner_id = data.get('user_id') or data.get('userId')
+                if owner_id != user_id:
+                    continue
+                try:
+                    items.append(self._to_model(data))
+                except Exception:
+                    continue
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items
 
     def list_inspiration_candidates(self, limit: int = 300) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
-        for data in self._stream_image_docs():
-            is_public = data.get('is_public_inspiration')
-            if is_public is None:
-                is_public = data.get('isPublicInspiration')
-            moderation_status = data.get('moderation_status')
-            if moderation_status is None:
-                moderation_status = data.get('moderationStatus')
-            if not bool(is_public):
-                continue
-            if str(moderation_status or '').lower() != 'approved':
-                continue
-            try:
-                items.append(self._to_model(data))
-            except Exception:
-                continue
+        by_id: dict[str, ImageGeneration] = {}
+        bounded_limit = max(1, min(limit, 1000))
+        try:
+            root_query = (
+                self.collection
+                .where('is_public_inspiration', '==', True)
+                .where('moderation_status', '==', 'approved')
+                .limit(bounded_limit)
+            )
+            for row in root_query.stream():
+                data = row.to_dict() or {}
+                data.setdefault('id', row.id)
+                try:
+                    model = self._to_model(data)
+                    by_id[model.id] = model
+                except Exception:
+                    continue
+
+            group_query = (
+                self.firestore.collection_group('images')
+                .where('isPublicInspiration', '==', True)
+                .where('moderationStatus', '==', 'approved')
+                .limit(bounded_limit)
+            )
+            for row in group_query.stream():
+                data = row.to_dict() or {}
+                data.setdefault('id', data.get('id') or row.id)
+                try:
+                    model = self._to_model(data)
+                    by_id[model.id] = model
+                except Exception:
+                    continue
+            items = list(by_id.values())
+        except Exception:
+            for data in self._stream_image_docs():
+                is_public = data.get('is_public_inspiration')
+                if is_public is None:
+                    is_public = data.get('isPublicInspiration')
+                moderation_status = data.get('moderation_status')
+                if moderation_status is None:
+                    moderation_status = data.get('moderationStatus')
+                if not bool(is_public):
+                    continue
+                if str(moderation_status or '').lower() != 'approved':
+                    continue
+                try:
+                    items.append(self._to_model(data))
+                except Exception:
+                    continue
         items.sort(
             key=lambda item: (
                 int(getattr(item, 'inspiration_score', 0) or 0),
@@ -71,7 +128,7 @@ class ImageGenerationRepository:
             ),
             reverse=True,
         )
-        return items[:max(1, min(limit, 1000))]
+        return items[:bounded_limit]
 
     def _stream_image_docs(self) -> list[dict]:
         merged_by_id: dict[str, dict] = {}

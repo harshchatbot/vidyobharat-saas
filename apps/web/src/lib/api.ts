@@ -68,13 +68,28 @@ function getBrowserCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function getStoredAccessToken(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const value = window.localStorage.getItem('vidyo_access_token');
+    return value && value.trim() ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
   const isFormData = init.body instanceof FormData;
   if (!isFormData) {
     headers.set('Content-Type', 'application/json');
   }
-  const accessToken = options.accessToken ?? getBrowserCookie('vidyo_access_token');
+  const accessToken =
+    options.accessToken ??
+    getBrowserCookie('vidyo_access_token') ??
+    getStoredAccessToken();
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }

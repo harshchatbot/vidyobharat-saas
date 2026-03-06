@@ -42,6 +42,8 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
   { key: 'seedream', label: 'Seedream', description: 'Editorial visuals with premium polish.', frontend_hint: 'Good for elevated influencer scenes.' },
 ];
 
+const INFLUENCER_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
+
 type TabKey = 'persona' | 'content' | 'images' | 'scenes' | 'settings';
 
 type PersonaDraft = {
@@ -77,6 +79,7 @@ function toAbsoluteUrl(url: string | null | undefined) {
 }
 
 export function InfluencerStudioClient({ userId }: { userId: string }) {
+  const cacheKey = `rangmanch:influencer-studio:v1:${userId}`;
   const draftKey = `rangmanch-influencer-draft:${userId}`;
   const [activeTab, setActiveTab] = useState<TabKey>('persona');
   const [personas, setPersonas] = useState<InfluencerPersona[]>([]);
@@ -148,8 +151,50 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   }, [draftKey, draft]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as {
+        ts: number;
+        personas: InfluencerPersona[];
+        poses: InfluencerPoseOption[];
+        scenes: InfluencerScenePreset[];
+        models: ImageModel[];
+        contentCost: CreditEstimateResponse | null;
+        referenceCost: CreditEstimateResponse | null;
+      };
+      if (!cached.ts || Date.now() - cached.ts > INFLUENCER_STUDIO_CACHE_TTL_MS) return;
+      setPersonas(cached.personas ?? []);
+      if (cached.personas?.[0]) {
+        setSelectedPersonaId(cached.personas[0].id);
+        setDraft({
+          name: cached.personas[0].name,
+          gender_identity: cached.personas[0].gender_identity ?? '',
+          niche: cached.personas[0].niche ?? '',
+          tone: cached.personas[0].tone ?? '',
+          catchphrase: cached.personas[0].catchphrase ?? '',
+          personality_traits: cached.personas[0].personality_traits,
+          backstory: cached.personas[0].backstory ?? '',
+          visual_description: cached.personas[0].visual_description,
+          character_locked: cached.personas[0].character_locked,
+        });
+      }
+      setPoseOptions(cached.poses ?? []);
+      setScenePresets(cached.scenes ?? []);
+      setImageModels(cached.models?.length ? cached.models : IMAGE_MODEL_FALLBACK);
+      setContentEstimate(cached.contentCost ?? null);
+      setReferenceEstimate(cached.referenceCost ?? null);
+      setLoading(false);
+    } catch {
+      // ignore malformed cache
+    }
+  }, [cacheKey]);
+
+  useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const hasWarmCache = typeof window !== 'undefined' && Boolean(window.sessionStorage.getItem(cacheKey));
+    setLoading(!hasWarmCache);
     void Promise.all([
       api.listInfluencerPersonas(userId).catch(() => []),
       api.listInfluencerPoses(userId).catch(() => []),
@@ -179,6 +224,24 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       setImageModels(models.length > 0 ? models : IMAGE_MODEL_FALLBACK);
       setContentEstimate(contentCost);
       setReferenceEstimate(referenceCost);
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              ts: Date.now(),
+              personas: loadedPersonas,
+              poses,
+              scenes,
+              models: models.length > 0 ? models : IMAGE_MODEL_FALLBACK,
+              contentCost,
+              referenceCost,
+            }),
+          );
+        } catch {
+          // ignore cache write issues
+        }
+      }
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
@@ -186,7 +249,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [cacheKey, userId]);
 
   useEffect(() => {
     void api.listInfluencerScenes(userId, selectedPersonaId || undefined).then(setScenePresets).catch(() => undefined);

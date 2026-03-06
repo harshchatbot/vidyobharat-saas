@@ -41,6 +41,8 @@ _origin_regex = re.compile(settings.allowed_origin_regex) if settings.allowed_or
 def _origin_allowed(origin: str | None) -> bool:
     if not origin:
         return False
+    if origin == 'null':
+        return True
     normalized = origin.rstrip('/')
     if normalized in {item.rstrip('/') for item in settings.allowed_origins_list}:
         return True

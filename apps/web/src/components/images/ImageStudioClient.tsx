@@ -47,6 +47,8 @@ type Props = {
   userId: string;
 };
 
+const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
+
 const fallbackModels: ImageModel[] = [
   {
     key: 'nano_banana',
@@ -217,6 +219,7 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 }
 
 export function ImageStudioClient({ userId }: Props) {
+  const cacheKey = `rangmanch:image-studio:v1:${userId}`;
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
@@ -250,14 +253,13 @@ export function ImageStudioClient({ userId }: Props) {
   const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
 
-  const refreshGeneratedFeed = async (
+  const applyGeneratedFilters = (
+    items: GeneratedImage[],
     nextQuery = searchQuery,
     nextTags = selectedTags,
     nextModels = selectedModelFilters,
     nextResolutions = selectedResolutionFilters,
   ) => {
-    const items = await api.listGeneratedImages(userId);
-    setAllGeneratedImages(items);
     const normalizedQuery = nextQuery.trim().toLowerCase();
     const filtered = items.filter((item) => {
       const searchable = `${item.prompt} ${item.auto_tags.join(' ')} ${item.user_tags.join(' ')}`.toLowerCase();
@@ -269,6 +271,17 @@ export function ImageStudioClient({ userId }: Props) {
       return matchesQuery && matchesTags && matchesModel && matchesResolution;
     });
     setGeneratedImages(filtered);
+  };
+
+  const refreshGeneratedFeed = async (
+    nextQuery = searchQuery,
+    nextTags = selectedTags,
+    nextModels = selectedModelFilters,
+    nextResolutions = selectedResolutionFilters,
+  ) => {
+    const items = await api.listGeneratedImages(userId);
+    setAllGeneratedImages(items);
+    applyGeneratedFilters(items, nextQuery, nextTags, nextModels, nextResolutions);
     return items;
   };
 
@@ -280,6 +293,38 @@ export function ImageStudioClient({ userId }: Props) {
       setTagFacets(buildTagFacets(itemsOverride ?? allGeneratedImages));
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as {
+        ts: number;
+        models: ImageModel[];
+        inspiration: InspirationImage[];
+        imageData: GeneratedImage[];
+        tagData: AssetTagFacet[];
+      };
+      if (!cached.ts || Date.now() - cached.ts > IMAGE_STUDIO_CACHE_TTL_MS) return;
+      const nextModels = cached.models?.length ? cached.models : fallbackModels;
+      setModels(nextModels);
+      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
+      setInspiration(cached.inspiration ?? []);
+      setAllGeneratedImages(cached.imageData ?? []);
+      applyGeneratedFilters(
+        cached.imageData ?? [],
+        searchQuery,
+        selectedTags,
+        selectedModelFilters,
+        selectedResolutionFilters,
+      );
+      setTagFacets(cached.tagData ?? []);
+      setLoading(false);
+    } catch {
+      // ignore malformed cache
+    }
+  }, [cacheKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,26 +340,35 @@ export function ImageStudioClient({ userId }: Props) {
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
+      applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
       setTagFacets(tagData);
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              ts: Date.now(),
+              models: nextModels,
+              inspiration: inspirationData,
+              imageData,
+              tagData,
+            }),
+          );
+        } catch {
+          // ignore cache write issues
+        }
+      }
       setLoading(false);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [cacheKey, userId]);
 
   useEffect(() => {
-    let cancelled = false;
-    void refreshGeneratedFeed(searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters)
-      .catch((error) => {
-        if (cancelled) return;
-        setError(toErrorMessage(error, 'Failed to load filtered images.'));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
+    applyGeneratedFilters(allGeneratedImages, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
+  }, [allGeneratedImages, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
 
   const referenceUrls = useMemo(() => referenceUploads.map((item) => item.url), [referenceUploads]);
 
