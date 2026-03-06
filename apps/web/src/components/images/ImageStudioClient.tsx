@@ -94,6 +94,7 @@ const resolutionOptions = [
   { value: '1536', label: '1536 px', helper: 'Balanced quality' },
   { value: '2048', label: '2048 px', helper: 'High detail' },
 ];
+const MAX_PROMPT_CHARS = 2000;
 
 const powerWords = [
   'Cinematic',
@@ -461,8 +462,13 @@ export function ImageStudioClient({ userId }: Props) {
   });
 
   const submit = async () => {
-    if (!prompt.trim()) {
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt) {
       setError('Prompt is required.');
+      return;
+    }
+    if (trimmedPrompt.length > MAX_PROMPT_CHARS) {
+      setError(`Prompt is too long. Keep it under ${MAX_PROMPT_CHARS} characters.`);
       return;
     }
     if (!window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
@@ -475,7 +481,7 @@ export function ImageStudioClient({ userId }: Props) {
       const item = await api.generateImage(
         {
           model_key: selectedModel,
-          prompt: prompt.trim(),
+          prompt: trimmedPrompt,
           aspect_ratio: aspectRatio,
           resolution,
           reference_urls: referenceUrls,
@@ -503,14 +509,19 @@ export function ImageStudioClient({ userId }: Props) {
   };
 
   const enhancePrompt = async () => {
-    if (!prompt.trim()) {
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt) {
       setError('Write a base prompt first.');
+      return;
+    }
+    if (trimmedPrompt.length > MAX_PROMPT_CHARS) {
+      setError(`Prompt is too long to enhance. Keep it under ${MAX_PROMPT_CHARS} characters.`);
       return;
     }
     setEnhancing(true);
     setError(null);
     try {
-      const response = await api.enhanceImagePrompt({ prompt, model_key: selectedModel }, userId);
+      const response = await api.enhanceImagePrompt({ prompt: trimmedPrompt, model_key: selectedModel }, userId);
       setPrompt(response.prompt);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not enhance the prompt right now.'));
@@ -806,8 +817,10 @@ export function ImageStudioClient({ userId }: Props) {
                 rows={7}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
+                maxLength={MAX_PROMPT_CHARS}
                 placeholder="Describe the subject, mood, environment, camera feel, lighting, and final style you want."
               />
+              <p className="text-right text-[11px] text-muted">{prompt.length}/{MAX_PROMPT_CHARS}</p>
               <div className="flex flex-wrap gap-2">
                 {powerWords.map((word) => (
                   <button

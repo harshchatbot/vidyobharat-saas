@@ -85,7 +85,7 @@ class ImageGenerationCreateRequest(BaseModel):
 
 
 class ImagePromptEnhanceRequest(BaseModel):
-    prompt: str = Field(min_length=3, max_length=1000)
+    prompt: str = Field(min_length=3, max_length=2000)
     model_key: str | None = Field(default=None, max_length=64)
 
 
