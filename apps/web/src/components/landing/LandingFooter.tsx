@@ -42,7 +42,15 @@ export function LandingFooter() {
       <div className="mt-5 flex flex-col gap-3 border-t border-[hsl(var(--color-border))] pt-4 text-xs text-[hsl(var(--color-muted))] sm:flex-row sm:items-center sm:justify-between">
         <p>© {new Date().getFullYear()} RangManch AI. All rights reserved.</p>
         <span className="inline-flex w-fit rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-1 font-medium text-[hsl(var(--color-text))]">
-          Made with ❤️ in India
+          Made with ❤️ in India by&nbsp;
+          <a
+            href="https://techfilabs.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[hsl(var(--color-primary))] hover:underline decoration-[hsl(var(--color-primary))] underline-offset-4 transition-all"
+          >
+            TechFi Labs
+          </a>
         </span>
       </div>
     </motion.footer>

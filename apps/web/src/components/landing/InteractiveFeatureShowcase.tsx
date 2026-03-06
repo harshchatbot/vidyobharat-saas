@@ -12,21 +12,21 @@ type FeatureTab = {
 
 const tabs: FeatureTab[] = [
   {
-    key: 'avatars',
-    title: 'AI Avatars',
-    subtitle: 'Create presenter-style videos with expressive avatar scenes and regional voice adaptation.',
+    key: 'script-assist',
+    title: 'AI Script Assist',
+    subtitle: 'Generate and enhance scripts from templates, auto-fill title/topic, and keep everything ready for one-click rendering.',
     preview: '/videos/samples/english-startup-16x9.mp4',
   },
   {
-    key: 'broll',
-    title: 'B-Roll Engine',
-    subtitle: 'Auto-select context-aware supporting visuals that fit script mood and timing.',
+    key: 'voice-language',
+    title: 'Regional Voice Preview',
+    subtitle: 'Preview multilingual voices, translate preview text by language, and choose sample rate before final video generation.',
     preview: '/videos/samples/hindi-festival-9x16.mp4',
   },
   {
-    key: 'script',
-    title: 'Script-to-Video',
-    subtitle: 'Turn plain text into polished video scenes with captions, narration, and music.',
+    key: 'render-controls',
+    title: 'Image-to-Video + Output Controls',
+    subtitle: 'Use reference images or pure text, then set ratio, resolution, duration, captions, and background music in one flow.',
     preview: '/videos/samples/tamil-education-9x16.mp4',
   },
 ];
@@ -43,7 +43,7 @@ export function InteractiveFeatureShowcase() {
               Featured Video Capabilities
             </h2>
             <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-              Explore the core workflows powering RangManch AI.
+              Built around the workflows currently live in RangManch AI.
             </p>
 
             <div className="mt-6 space-y-2">

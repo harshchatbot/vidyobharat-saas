@@ -3,12 +3,15 @@ import logging
 import mimetypes
 import subprocess
 import time
+from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import httpx
+from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -439,7 +442,14 @@ class AIVideoCreateService:
     ) -> tuple[str, str]:
         render_id = f'{render_id_prefix}-{Path.cwd().name}-{Path(script[:32]).stem}'.replace(' ', '-')
         render_id = f'{render_id_prefix}-{abs(hash((script, image_url, voice, aspect_ratio, resolution, duration_seconds))) % 10**10}'
-        image_urls = [image_url] if image_url else []
+        seed_image_url = self._ensure_proxy_seed_image(
+            render_id=render_id,
+            script=script,
+            image_url=image_url,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+        )
+        image_urls = [seed_image_url] if seed_image_url else []
         self.pipeline.render_video_from_assets(
             video_id=render_id,
             title='AI Generated Video',
@@ -460,6 +470,124 @@ class AIVideoCreateService:
             duck_music=False,
         )
         return (f'/static/renders/{render_id}.mp4', f'/static/renders/{render_id}.jpg')
+
+    def _ensure_proxy_seed_image(
+        self,
+        *,
+        render_id: str,
+        script: str,
+        image_url: str | None,
+        aspect_ratio: str,
+        resolution: str,
+    ) -> str | None:
+        if image_url:
+            return image_url
+
+        generated = self._generate_proxy_seed_with_openai(
+            render_id=render_id,
+            script=script,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+        )
+        if generated:
+            return generated
+
+        placeholder = self._generate_proxy_seed_placeholder(
+            render_id=render_id,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+        )
+        return placeholder
+
+    def _generate_proxy_seed_with_openai(
+        self,
+        *,
+        render_id: str,
+        script: str,
+        aspect_ratio: str,
+        resolution: str,
+    ) -> str | None:
+        if not self.settings.openai_api_key:
+            return None
+        try:
+            size = self._openai_image_size_for_proxy(aspect_ratio=aspect_ratio, resolution=resolution)
+            client = OpenAI(api_key=self.settings.openai_api_key)
+            response = client.images.generate(
+                model=self.settings.openai_image_model,
+                prompt=(
+                    f'Create a cinematic video keyframe for this scene: {script}. '
+                    f'Keep composition rich, detailed, realistic, and suitable as a storyboard frame for {aspect_ratio}.'
+                ),
+                size=size,
+            )
+            if not response.data:
+                return None
+
+            output_path = Path('data/renders') / f'{render_id}-seed.png'
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            image_base64 = getattr(response.data[0], 'b64_json', None)
+            if image_base64:
+                output_path.write_bytes(b64decode(image_base64))
+                return f'/static/renders/{output_path.name}'
+
+            remote_url = getattr(response.data[0], 'url', None)
+            if isinstance(remote_url, str) and remote_url.strip():
+                return remote_url.strip()
+        except Exception:
+            logger.warning('proxy_seed_openai_generation_failed', extra={'render_id': render_id})
+        return None
+
+    def _generate_proxy_seed_placeholder(
+        self,
+        *,
+        render_id: str,
+        aspect_ratio: str,
+        resolution: str,
+    ) -> str | None:
+        try:
+            width, height = self._proxy_dimensions(aspect_ratio=aspect_ratio, resolution=resolution)
+            output_path = Path('data/renders') / f'{render_id}-seed.png'
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                [
+                    'ffmpeg',
+                    '-y',
+                    '-f',
+                    'lavfi',
+                    '-i',
+                    f'color=c=0x1f2937:s={width}x{height}',
+                    '-frames:v',
+                    '1',
+                    str(output_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            return f'/static/renders/{output_path.name}'
+        except Exception:
+            logger.warning('proxy_seed_placeholder_generation_failed', extra={'render_id': render_id})
+            return None
+
+    def _proxy_dimensions(self, *, aspect_ratio: str, resolution: str) -> tuple[int, int]:
+        matrix = {
+            ('9:16', '720p'): (720, 1280),
+            ('9:16', '1080p'): (1080, 1920),
+            ('16:9', '720p'): (1280, 720),
+            ('16:9', '1080p'): (1920, 1080),
+            ('1:1', '720p'): (720, 720),
+            ('1:1', '1080p'): (1080, 1080),
+        }
+        return matrix.get((aspect_ratio, resolution), (720, 1280))
+
+    def _openai_image_size_for_proxy(self, *, aspect_ratio: str, resolution: str) -> str:
+        _ = resolution
+        if aspect_ratio in {'9:16', '4:5'}:
+            return '1024x1536'
+        if aspect_ratio == '16:9':
+            return '1536x1024'
+        return '1024x1024'
 
     def _map_openai_video_size(self, aspect_ratio: str, resolution: str) -> str:
         if aspect_ratio == '1:1':
