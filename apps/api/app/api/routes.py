@@ -12,6 +12,7 @@ from app.api.deps import get_user_id
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
 from app.db.session import get_db
+from app.models.entities import ImageGenerationStatus
 from app.schemas.ai import (
     AIVideoCreateRequest,
     AIVideoCreateResponse,

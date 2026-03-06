@@ -183,16 +183,40 @@ function formatCreatedAt(value: string) {
 }
 
 function toErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object') {
+    const maybeDetail = (error as { detail?: unknown }).detail;
+    if (typeof maybeDetail === 'string' && maybeDetail.trim()) return maybeDetail;
+    if (maybeDetail && typeof maybeDetail === 'object') {
+      const message = (maybeDetail as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message;
+      try {
+        return JSON.stringify(maybeDetail);
+      } catch {
+        return fallback;
+      }
+    }
+  }
+
   if (!(error instanceof Error) || !error.message) {
     return fallback;
   }
   try {
-    const parsed = JSON.parse(error.message) as { detail?: string };
-    if (parsed.detail) return parsed.detail;
+    const parsed = JSON.parse(error.message) as {
+      detail?: string | { message?: string };
+      message?: string;
+      error?: string;
+    };
+    if (typeof parsed.detail === 'string' && parsed.detail.trim()) return parsed.detail;
+    if (parsed.detail && typeof parsed.detail === 'object' && typeof parsed.detail.message === 'string' && parsed.detail.message.trim()) {
+      return parsed.detail.message;
+    }
+    if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message;
+    if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error;
   } catch {
-    return error.message;
+    // fall through
   }
-  return error.message;
+  if (error.message === '[object Object]') return fallback;
+  return error.message || fallback;
 }
 
 function getPreviewImageUrl(item: GeneratedImage | InspirationImage | null) {

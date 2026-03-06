@@ -117,6 +117,8 @@ export function CreateVideoPage({
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitStartedAt, setSubmitStartedAt] = useState<number | null>(null);
+  const [uiRenderProgress, setUiRenderProgress] = useState(0);
   const [creditEstimate, setCreditEstimate] = useState<CreditEstimateResponse | null>(null);
   const [job, setJob] = useState<Video | null>(null);
   const [jobStatus, setJobStatus] = useState<AIVideoStatusResponse | null>(null);
@@ -193,23 +195,25 @@ export function CreateVideoPage({
     ? 'Fetching studio data'
     : voiceTranslationLoading
       ? `Localizing text for ${language}`
-      : submitting
+      : uiRenderProgress < 25
         ? 'Submitting render job'
-        : jobStatus?.status === 'queued'
+        : uiRenderProgress < 45
           ? 'Queued in the render pipeline'
-          : 'Rendering visuals and audio';
+          : uiRenderProgress < 75
+            ? 'Generating scenes and motion'
+            : uiRenderProgress < 90
+              ? 'Mixing voice and audio'
+              : 'Finalizing output';
   const overlayAccentLabel = initialLoading
     ? 'Studio Load'
     : voiceTranslationLoading
       ? 'Language Update'
       : 'Video Render';
   const overlayProgress = submitting
-    ? 12
-    : jobStatus?.status === 'queued'
-      ? 20
-      : jobStatus?.status === 'processing'
-        ? Math.max(20, Math.min(95, jobStatus.progress ?? 42))
-        : null;
+    ? Math.max(12, uiRenderProgress)
+    : jobStatus?.status === 'queued' || jobStatus?.status === 'processing'
+      ? Math.max(18, Math.min(96, uiRenderProgress))
+      : null;
   const voiceCreditMap = useMemo(() => {
     const allVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
     const premiumCredits = premiumVoiceEstimate?.estimatedCredits ?? null;
@@ -220,6 +224,50 @@ export function CreateVideoPage({
       ]),
     );
   }, [filteredVoiceOptions, voiceOptions, premiumVoiceEstimate]);
+
+  useEffect(() => {
+    if (initialLoading || voiceTranslationLoading) return;
+    if (!generationOverlayVisible) {
+      setUiRenderProgress(0);
+      return;
+    }
+
+    const tick = () => {
+      const elapsedSeconds = submitStartedAt ? Math.floor((Date.now() - submitStartedAt) / 1000) : 0;
+      const providerProgress = jobStatus?.status === 'processing' && typeof jobStatus.progress === 'number'
+        ? Math.max(35, Math.min(95, jobStatus.progress))
+        : null;
+
+      const stageTarget = submitting
+        ? Math.min(28, 12 + Math.floor(elapsedSeconds / 2))
+        : jobStatus?.status === 'queued'
+          ? Math.min(46, 28 + Math.floor(elapsedSeconds / 2))
+          : jobStatus?.status === 'processing'
+            ? Math.min(94, 46 + Math.floor(elapsedSeconds * 1.4))
+            : 0;
+
+      const target = providerProgress !== null ? Math.max(stageTarget, providerProgress) : stageTarget;
+
+      setUiRenderProgress((current) => {
+        if (target <= 0) return current;
+        if (current >= target) return current;
+        const delta = Math.max(1, Math.ceil((target - current) * 0.18));
+        return Math.min(target, current + delta);
+      });
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 500);
+    return () => window.clearInterval(interval);
+  }, [
+    generationOverlayVisible,
+    initialLoading,
+    voiceTranslationLoading,
+    submitting,
+    jobStatus?.status,
+    jobStatus?.progress,
+    submitStartedAt,
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -970,6 +1018,8 @@ export function CreateVideoPage({
     }
 
     setSubmitting(true);
+    setSubmitStartedAt(Date.now());
+    setUiRenderProgress(12);
     setSubmitError(null);
     setJob(null);
     setJobStatus(null);
