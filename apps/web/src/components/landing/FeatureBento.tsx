@@ -3,7 +3,7 @@
 import Link from 'next/link';
 
 import { motion } from 'framer-motion';
-import { ArrowRight, Languages, ShieldCheck, Smile, Zap } from 'lucide-react';
+import { ArrowRight, AudioLines, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
 export function FeatureBento() {
   return (
@@ -56,10 +56,10 @@ export function FeatureBento() {
           <div className="relative h-full rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 shadow-soft">
             <div className="pb-12">
               <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,hsl(210_100%_85%),hsl(210_100%_60%))] text-[hsl(220_35%_18%)] shadow-soft blur-[0.1px]">
-                <Languages className="h-5 w-5" strokeWidth={1.8} />
+                <AudioLines className="h-5 w-5" strokeWidth={1.8} />
               </div>
-              <h3 className="font-heading text-xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Video Translator.</h3>
-              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Translate to Hindi, Tamil, and 20+ dialects.</p>
+              <h3 className="font-heading text-xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Regional Voice Narration.</h3>
+              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Preview and render multilingual voiceovers with Sarvam AI and fallback safety.</p>
               <div
                 className="mt-3 h-24 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]"
                 style={{
@@ -68,11 +68,12 @@ export function FeatureBento() {
                 }}
               >
                 <div className="relative h-full w-full">
-                  <span className="absolute left-[22%] top-[44%] h-2 w-2 rounded-full bg-[hsl(210_100%_62%)]" />
-                  <span className="absolute left-[52%] top-[30%] h-2 w-2 rounded-full bg-[hsl(210_100%_62%)]" />
-                  <span className="absolute left-[76%] top-[56%] h-2 w-2 rounded-full bg-[hsl(210_100%_62%)]" />
-                  <span className="absolute left-[24%] top-[45%] h-px w-24 -rotate-12 bg-[hsl(210_100%_62%/0.6)]" />
-                  <span className="absolute left-[53%] top-[33%] h-px w-16 rotate-[18deg] bg-[hsl(210_100%_62%/0.6)]" />
+                  <span className="absolute left-[18%] top-[48%] h-10 w-1 rounded bg-[hsl(210_100%_62%/0.8)]" />
+                  <span className="absolute left-[28%] top-[42%] h-14 w-1 rounded bg-[hsl(210_100%_62%/0.7)]" />
+                  <span className="absolute left-[38%] top-[50%] h-8 w-1 rounded bg-[hsl(210_100%_62%/0.8)]" />
+                  <span className="absolute left-[48%] top-[38%] h-16 w-1 rounded bg-[hsl(210_100%_62%/0.75)]" />
+                  <span className="absolute left-[58%] top-[46%] h-11 w-1 rounded bg-[hsl(210_100%_62%/0.8)]" />
+                  <span className="absolute left-[68%] top-[40%] h-15 w-1 rounded bg-[hsl(210_100%_62%/0.7)]" />
                 </div>
               </div>
             </div>
@@ -88,26 +89,14 @@ export function FeatureBento() {
           <div className="relative h-full rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 shadow-soft">
             <div className="pb-12">
               <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,hsl(330_90%_84%),hsl(330_90%_68%))] text-[hsl(330_60%_22%)] shadow-soft blur-[0.1px]">
-                <Smile className="h-5 w-5" strokeWidth={1.8} />
+                <Sparkles className="h-5 w-5" strokeWidth={1.8} />
               </div>
-              <h3 className="font-heading text-xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Avatar Studio.</h3>
-              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">100+ culturally relevant Indian avatars.</p>
-              <div className="mt-3 flex items-center">
-                <img
-                  src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=300&q=80"
-                  alt="Avatar 1"
-                  className="h-12 w-12 rounded-full border-2 border-[hsl(var(--color-surface))] object-cover"
-                />
-                <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80"
-                  alt="Avatar 2"
-                  className="-ml-3 h-12 w-12 rounded-full border-2 border-[hsl(var(--color-surface))] object-cover"
-                />
-                <img
-                  src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80"
-                  alt="Avatar 3"
-                  className="-ml-3 h-12 w-12 rounded-full border-2 border-[hsl(var(--color-surface))] object-cover"
-                />
+              <h3 className="font-heading text-xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">AI Influencer Studio.</h3>
+              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">Build consistent personas with lock mode, scene controls, and reusable style memory.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-1 text-xs font-semibold text-[hsl(var(--color-text))]">Persona Builder</span>
+                <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-1 text-xs font-semibold text-[hsl(var(--color-text))]">Identity Lock</span>
+                <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-1 text-xs font-semibold text-[hsl(var(--color-text))]">Scene Presets</span>
               </div>
             </div>
 
