@@ -1126,6 +1126,22 @@ def list_ai_video_inspiration(
     return [InspirationVideoResponse.model_validate(item) for item in service.list_video_inspiration(viewer_user_id=user_id)]
 
 
+@router.get('/public/images/inspiration', response_model=list[InspirationImageResponse])
+def list_public_image_inspiration(
+    db: Session = Depends(get_db),
+):
+    service = InspirationService(db)
+    return [InspirationImageResponse.model_validate(item) for item in service.list_image_inspiration(viewer_user_id='public')]
+
+
+@router.get('/public/videos/inspiration', response_model=list[InspirationVideoResponse])
+def list_public_video_inspiration(
+    db: Session = Depends(get_db),
+):
+    service = InspirationService(db)
+    return [InspirationVideoResponse.model_validate(item) for item in service.list_video_inspiration(viewer_user_id='public')]
+
+
 @router.post('/inspiration/publish', response_model=InspirationPublishResponse)
 def publish_to_inspiration(
     payload: InspirationPublishRequest,
