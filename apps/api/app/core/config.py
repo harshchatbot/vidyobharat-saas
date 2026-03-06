@@ -41,9 +41,12 @@ class Settings(BaseSettings):
     sarvam_api_key: str | None = None
     sarvam_model: str = 'bulbul:v3'
     kling_api_key: str | None = None
+    kling_api_secret: str | None = None
     kling_api_base: str = 'https://api.klingai.com'
     gemini_api_key: str | None = None
     gemini_api_base: str = 'https://generativelanguage.googleapis.com/v1beta'
+    gemini_image_model_primary: str = 'gemini-3.1-flash-image-preview'
+    gemini_image_model_fallback: str = 'gemini-2.5-flash-image-preview'
     together_api_key: str | None = None
     together_api_base: str = 'https://api.together.xyz/v1'
     heygen_api_key: str | None = None

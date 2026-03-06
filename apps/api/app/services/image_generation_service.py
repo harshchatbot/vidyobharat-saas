@@ -19,6 +19,7 @@ from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.firestore_sync_service import FirestoreSyncService
+from app.services.smart_model_router import SmartModelRouter, TierModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,6 @@ TOGETHER_IMAGE_MODELS = {
     'flux_spark': 'black-forest-labs/FLUX.1-schnell-Free',
     'recraft_studio': 'black-forest-labs/FLUX.1-schnell-Free',
 }
-GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image-preview'
-
 INSPIRATION_ITEMS = [
     {
         'id': 'insp-1',
@@ -138,6 +137,16 @@ class ImageGenerationService:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.settings = get_settings()
         self.storage = build_storage_provider(self.settings)
+        self.model_router = SmartModelRouter(
+            tier_registry={
+                'fast': TierModelConfig(
+                    tier='fast',
+                    current_model_id=self.settings.gemini_image_model_primary,
+                    status='stable',
+                    fallback_model_id=self.settings.gemini_image_model_fallback,
+                )
+            }
+        )
 
     def list_models(self) -> list[ImageModelEntry]:
         return list(IMAGE_MODEL_REGISTRY.values())
@@ -204,43 +213,15 @@ class ImageGenerationService:
         model = IMAGE_MODEL_REGISTRY[model_key]
         image_url: str
         thumbnail_url: str
-        if model_key == 'openai_image':
-            if not self.settings.openai_api_key:
-                raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
-            logger.info('image_generation_provider_selected', extra={'provider': 'openai_images', 'model_key': model_key})
-            image_url, thumbnail_url = self._generate_with_openai_image(
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-            )
-        elif model_key == 'nano_banana' and self.settings.gemini_api_key:
-            logger.info('image_generation_provider_selected', extra={'provider': 'gemini', 'model_key': model_key})
-            image_url, thumbnail_url = self._generate_with_gemini(
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-            )
-        elif self.settings.together_api_key:
-            try:
-                logger.info('image_generation_provider_selected', extra={'provider': 'together', 'model_key': model_key})
-                remote_url = self._generate_with_together(
-                    model_key=model_key,
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    reference_urls=reference_urls,
-                )
-                image_url = remote_url
-                thumbnail_url = remote_url
-            except Exception as exc:
-                logger.warning('together_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
-                image_url, thumbnail_url = self._create_local_placeholder(
-                    model=model,
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    reference_urls=reference_urls,
-                )
+        provider_result = self._generate_with_router(
+            model_key=model_key,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            reference_urls=reference_urls,
+        )
+        if provider_result:
+            image_url, thumbnail_url = provider_result
         else:
             image_url, thumbnail_url = self._create_local_placeholder(
                 model=model,
@@ -274,6 +255,71 @@ class ImageGenerationService:
         self.sync.sync_image(generation, auto_tags=auto_tags, user_tags=user_tags)
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
+
+    def _generate_with_router(
+        self,
+        *,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        reference_urls: list[str],
+    ) -> tuple[str, str] | None:
+        if model_key == 'openai_image':
+            if not self.settings.openai_api_key:
+                raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
+            logger.info('image_generation_provider_selected', extra={'provider': 'openai_images', 'model_key': model_key})
+            return self._generate_with_openai_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+
+        if model_key == 'nano_banana' and self.settings.gemini_api_key:
+            tier = self.model_router.resolve_tier('fast')
+            if tier:
+                fallback_ids = [tier.fallback_model_id] if tier.fallback_model_id else []
+                route = self.model_router.resolve_and_execute(
+                    requested_model_id=tier.current_model_id,
+                    fallback_model_ids=[item for item in fallback_ids if item],
+                    execute=lambda model_id: self._generate_with_gemini(
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                        model_id=model_id,
+                    ),
+                )
+                if route.fallback_used:
+                    logger.warning(
+                        'image_generation_model_fallback_used',
+                        extra={
+                            'model_key': model_key,
+                            'primary_model': tier.current_model_id,
+                            'resolved_model': route.resolved_model_id,
+                        },
+                    )
+                else:
+                    logger.info(
+                        'image_generation_provider_selected',
+                        extra={'provider': 'gemini', 'model_key': model_key, 'resolved_model': route.resolved_model_id},
+                    )
+                return route.value
+
+        if self.settings.together_api_key:
+            try:
+                logger.info('image_generation_provider_selected', extra={'provider': 'together', 'model_key': model_key})
+                remote_url = self._generate_with_together(
+                    model_key=model_key,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+                return remote_url, remote_url
+            except Exception as exc:
+                logger.warning('together_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
+
+        return None
 
     def apply_action(self, user_id: str, generation_id: str, action: str) -> list[ImageGeneration]:
         generation = self.repo.get_by_id(generation_id)
@@ -734,6 +780,7 @@ class ImageGenerationService:
         prompt: str,
         aspect_ratio: str,
         resolution: str,
+        model_id: str,
     ) -> tuple[str, str]:
         image_id = str(uuid4())
         output_file = self.output_dir / f'{image_id}.png'
@@ -757,7 +804,7 @@ class ImageGenerationService:
             },
         }
         request = urllib.request.Request(
-            url=f'{self.settings.gemini_api_base.rstrip("/")}/models/{GEMINI_IMAGE_MODEL}:generateContent',
+            url=f'{self.settings.gemini_api_base.rstrip("/")}/models/{model_id}:generateContent',
             data=json.dumps(payload).encode('utf-8'),
             headers={
                 'Content-Type': 'application/json',

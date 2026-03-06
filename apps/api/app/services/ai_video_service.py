@@ -18,6 +18,7 @@ from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService
 from app.services.render_service import celery_app
+from app.services.smart_model_router import SmartModelRouter
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,13 @@ class AIVideoCreateService:
             'sora2': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
             'kling3': self.generate_with_kling3,
+        }
+        self.model_router = SmartModelRouter()
+        # Keep fallbacks conservative: only retry with another compatible short-form provider.
+        self.video_fallbacks: dict[str, list[str]] = {
+            'sora2': [],
+            'veo3': ['kling3'],
+            'kling3': ['veo3'],
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
@@ -363,6 +371,7 @@ class AIVideoCreateService:
     def generate_with_kling3(self, params: dict[str, Any]) -> ProviderResult:
         # Environment variables for real integration:
         # - KLING_API_KEY
+        # - KLING_API_SECRET
         # - KLING_API_BASE
         #
         # Insert the real Kling 3.0 API request here. The normalized response should
@@ -370,6 +379,8 @@ class AIVideoCreateService:
         # does not care which provider produced the clip.
         if not self.settings.kling_api_key:
             raise ProviderError('KLING_API_KEY is not configured for Kling 3.0')
+        if not self.settings.kling_api_secret:
+            raise ProviderError('KLING_API_SECRET is not configured for Kling 3.0')
         output_path, _ = self._render_local_proxy(
             render_id_prefix='kling3',
             script=params['script'],
@@ -387,6 +398,31 @@ class AIVideoCreateService:
             video_url=output_path,
             metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
         )
+
+    def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
+        requested_model = str(payload.get('modelKey') or '')
+        if requested_model not in self.providers:
+            raise ProviderError(f'Unsupported model: {requested_model}')
+
+        fallback_models = self.video_fallbacks.get(requested_model, [])
+        routed = self.model_router.resolve_and_execute(
+            requested_model_id=requested_model,
+            fallback_model_ids=fallback_models,
+            execute=lambda model_id: self.providers[model_id]({**payload, 'modelKey': model_id}),
+        )
+        result = routed.value
+        result.metadata = {
+            **(result.metadata or {}),
+            'requested_model': requested_model,
+            'resolved_model': routed.resolved_model_id,
+            'fallback_used': routed.fallback_used,
+        }
+        if routed.fallback_used:
+            logger.warning(
+                'video_generation_model_fallback_used',
+                extra={'requested_model': requested_model, 'resolved_model': routed.resolved_model_id},
+            )
+        return result
 
     def _render_local_proxy(
         self,
@@ -577,6 +613,76 @@ class AIVideoCreateService:
             return
         self.repo.update(video, status=VideoStatus.processing, progress=progress)
 
+    def _reconcile_video_credits_for_resolved_model(self, *, video: Video, result: ProviderResult) -> None:
+        resolved_model = str((result.metadata or {}).get('resolved_model') or video.selected_model or '')
+        requested_model = str(video.selected_model or resolved_model)
+        if not resolved_model or resolved_model == requested_model:
+            return
+
+        try:
+            credit_service = CreditService(None)
+            charged_credits = int(getattr(video, 'applied_credits', 0) or 0)
+            estimate_payload = {
+                'modelKey': resolved_model,
+                'resolution': video.resolution,
+                'durationSeconds': video.duration_seconds or 8,
+                'quality': str(getattr(video, 'request_quality', None) or ('high' if (video.resolution or '').lower() == '1080p' else 'standard')),
+                'captionsEnabled': bool(video.captions_enabled),
+                'voice': video.voice,
+                'imageUrls': json.loads(video.image_urls or '[]'),
+                'audioSettings': {'sampleRateHz': video.audio_sample_rate_hz or 22050},
+            }
+            expected_credits = credit_service.estimate('video_create', estimate_payload).required_credits
+            delta = expected_credits - charged_credits
+
+            if delta > 0:
+                try:
+                    credit_service.deduct_credits(
+                        user_id=video.user_id,
+                        amount=delta,
+                        feature_key='video_create_model_reconcile',
+                        metadata={'video_id': video.id, 'requested_model': requested_model, 'resolved_model': resolved_model},
+                        source='premium',
+                        idempotency_key=credit_service.make_idempotency_key(
+                            'video_create_model_reconcile',
+                            {'video_id': video.id, 'requested_model': requested_model, 'resolved_model': resolved_model, 'delta': delta},
+                        ),
+                    )
+                except Exception:
+                    # Keep generation successful even if reconcile deduction cannot be applied.
+                    logger.warning(
+                        'video_generation_model_reconcile_deduct_failed',
+                        extra={'render_id': video.id, 'requested_model': requested_model, 'resolved_model': resolved_model, 'delta': delta},
+                    )
+            elif delta < 0:
+                credit_service.top_up_credits(
+                    user_id=video.user_id,
+                    credits=abs(delta),
+                    metadata={
+                        'refund_for': 'video_create_model_reconcile',
+                        'video_id': video.id,
+                        'requested_model': requested_model,
+                        'resolved_model': resolved_model,
+                    },
+                )
+
+            self.repo.update(video, applied_credits=expected_credits)
+            logger.info(
+                'video_generation_model_reconciled',
+                extra={
+                    'render_id': video.id,
+                    'requested_model': requested_model,
+                    'resolved_model': resolved_model,
+                    'charged_before': charged_credits,
+                    'charged_after': expected_credits,
+                },
+            )
+        except Exception:
+            logger.exception(
+                'video_generation_model_reconcile_failed',
+                extra={'render_id': video.id, 'requested_model': requested_model, 'resolved_model': resolved_model},
+            )
+
 
 @celery_app.task(name='process_ai_video')
 def celery_process_ai_video(video_id: str) -> None:
@@ -605,11 +711,9 @@ def celery_process_ai_video(video_id: str) -> None:
                 'sampleRateHz': video.audio_sample_rate_hz or 22050,
             },
         }
-        adapter = service.providers.get(video.selected_model or '')
-        if not adapter:
-            raise ProviderError(f'Unsupported model: {video.selected_model}')
         repo.update(video, progress=55)
-        result = adapter(payload)
+        result = service.execute_model_with_router(payload)
+        service._reconcile_video_credits_for_resolved_model(video=video, result=result)
         stored_video_url = _persist_generated_video(storage, video.user_id, video.selected_model or 'video', result.video_url)
         stored_thumb_url = _persist_generated_thumbnail(
             storage=storage,
@@ -670,7 +774,6 @@ def celery_process_ai_video(video_id: str) -> None:
                     )
             except Exception:
                 logger.exception('ai_video_refund_failed', extra={'render_id': video_id})
-
 
 def _persist_generated_video(storage, user_id: str, model_key: str, source_url: str) -> str:
     source_path = _resolve_local_generated_file(source_url)
