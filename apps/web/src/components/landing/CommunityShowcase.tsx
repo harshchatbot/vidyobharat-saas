@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Download, Heart, Wand2 } from 'lucide-react';
