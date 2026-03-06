@@ -322,7 +322,8 @@ def generate_voiceover_detailed(
     fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
     output_path = cache_dir / f'{fallback_key}.mp3'
     if output_path.exists() and output_path.stat().st_size > 0:
-        return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', True, None)
+        message = f'Sarvam TTS failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
+        return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', True, message)
 
     edge_error: Exception | None = None
     try:
@@ -347,7 +348,7 @@ def generate_voiceover_detailed(
         raise RuntimeError('TTS output file was not generated')
 
     output_path = _resample_audio_file(output_path, normalized_sample_rate)
-    message = f'Sarvam preview failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
+    message = f'Sarvam TTS failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
     return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', False, message)
 
 

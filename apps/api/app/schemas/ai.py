@@ -161,6 +161,10 @@ class AIVideoStatusResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
     errorMessage: str | None = None
     thumbnailUrl: str | None = None
+    ttsProvider: str | None = None
+    ttsResolvedVoice: str | None = None
+    ttsProviderMessage: str | None = None
+    ttsFallbackUsed: bool = False
 
 
 class ScriptGenerateRequest(BaseModel):

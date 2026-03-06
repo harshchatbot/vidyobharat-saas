@@ -74,6 +74,20 @@ export function VideoPreview({
       {error ? <p className="text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
       {job?.status === 'failed' ? <p className="text-sm text-[hsl(var(--color-danger))]">{job.error_message ?? 'Generation failed.'}</p> : null}
 
+      {job?.tts_provider ? (
+        <div className="rounded-[var(--radius-md)] border border-border bg-bg/70 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration Provider</p>
+          <p className="mt-1 text-sm font-semibold text-text">
+            {job.tts_provider}
+            {job.tts_resolved_voice ? ` · ${job.tts_resolved_voice}` : ''}
+            {job.tts_fallback_used ? ' · fallback used' : ''}
+          </p>
+          {job.tts_provider_message ? (
+            <p className="mt-1 text-xs text-muted">{job.tts_provider_message}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       {videoUrl ? (
         <div className="space-y-4">
           <video src={videoUrl} poster={thumbnailUrl ?? undefined} controls className="w-full rounded-[var(--radius-lg)] border border-border bg-black" />

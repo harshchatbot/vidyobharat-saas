@@ -73,6 +73,10 @@ export type Video = {
   image_urls: string[];
   selected_model: string | null;
   provider_name: string | null;
+  tts_provider?: string | null;
+  tts_resolved_voice?: string | null;
+  tts_provider_message?: string | null;
+  tts_fallback_used?: boolean;
   source_image_url: string | null;
   reference_images: string[];
   music_mode: 'none' | 'library' | 'upload' | string;
@@ -315,6 +319,10 @@ export type AIVideoStatusResponse = {
   tags: string[];
   errorMessage: string | null;
   thumbnailUrl: string | null;
+  ttsProvider: string | null;
+  ttsResolvedVoice: string | null;
+  ttsProviderMessage: string | null;
+  ttsFallbackUsed: boolean;
 };
 
 export type ImageModel = {

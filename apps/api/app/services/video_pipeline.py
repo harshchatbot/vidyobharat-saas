@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.providers.broll import BrollProvider
-from app.services.tts import generate_voiceover
+from app.services.tts import generate_voiceover_detailed
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +84,17 @@ class VideoPipelineService:
         music_file_url: str | None,
         music_volume: int,
         duck_music: bool,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, dict[str, object]]:
         output_path = self.renders_dir / f'{video_id}.mp4'
         thumb_path = self.renders_dir / f'{video_id}.jpg'
         slideshow_path = self.renders_dir / f'{video_id}_slideshow.mp4'
         voice_path: Path | None = None
+        tts_diagnostics: dict[str, object] = {
+            'tts_provider': None,
+            'tts_resolved_voice': None,
+            'tts_provider_message': None,
+            'tts_fallback_used': False,
+        }
 
         image_paths = self._urls_to_local_paths(image_urls)
         voice_exists = bool(script.strip())
@@ -97,18 +103,31 @@ class VideoPipelineService:
 
         voice_duration = 0.0
         if voice_exists:
-            voice_path, resolved_voice = generate_voiceover(
+            voice_result = generate_voiceover_detailed(
                 script=script,
                 voice=voice_name,
                 cache_dir=self.tts_cache_dir,
                 language=language_name,
                 sample_rate_hz=audio_sample_rate_hz,
             )
+            voice_path = voice_result.path
+            resolved_voice = voice_result.resolved_voice
             voice_duration = self._probe_duration(voice_path)
             real_voice_exists = True
+            tts_diagnostics = {
+                'tts_provider': voice_result.provider,
+                'tts_resolved_voice': voice_result.resolved_voice,
+                'tts_provider_message': voice_result.provider_message,
+                'tts_fallback_used': voice_result.provider != 'Sarvam AI',
+            }
             logger.info(
                 f'TTS generated voiceover at {voice_path}',
-                extra={'render_id': video_id, 'voice': resolved_voice},
+                extra={
+                    'render_id': video_id,
+                    'voice': resolved_voice,
+                    'tts_provider': voice_result.provider,
+                    'tts_fallback_used': voice_result.provider != 'Sarvam AI',
+                },
             )
 
         total_duration, per_image_duration = self._resolve_timing(
@@ -143,7 +162,7 @@ class VideoPipelineService:
         )
 
         self._make_thumbnail(output_path, thumb_path)
-        return str(output_path), str(thumb_path)
+        return str(output_path), str(thumb_path), tts_diagnostics
 
     def _resolve_timing(
         self,

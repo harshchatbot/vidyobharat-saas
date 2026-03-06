@@ -23,6 +23,10 @@ class VideoResponse(BaseModel):
     image_urls: list[str] = Field(default_factory=list)
     selected_model: str | None = None
     provider_name: str | None = None
+    tts_provider: str | None = None
+    tts_resolved_voice: str | None = None
+    tts_provider_message: str | None = None
+    tts_fallback_used: bool = False
     source_image_url: str | None = None
     reference_images: list[str] = Field(default_factory=list)
     music_mode: str

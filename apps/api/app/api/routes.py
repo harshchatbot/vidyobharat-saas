@@ -219,6 +219,10 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         image_urls=image_urls,
         selected_model=video.selected_model,
         provider_name=video.provider_name,
+        tts_provider=getattr(video, 'tts_provider', None),
+        tts_resolved_voice=getattr(video, 'tts_resolved_voice', None),
+        tts_provider_message=getattr(video, 'tts_provider_message', None),
+        tts_fallback_used=bool(getattr(video, 'tts_fallback_used', False)),
         source_image_url=video.source_image_url,
         reference_images=reference_images,
         music_mode=video.music_mode,
@@ -1087,6 +1091,10 @@ def get_ai_video_status(
         tags=[*auto_tags, *user_tags],
         errorMessage=video.error_message,
         thumbnailUrl=video.thumbnail_url,
+        ttsProvider=getattr(video, 'tts_provider', None),
+        ttsResolvedVoice=getattr(video, 'tts_resolved_voice', None),
+        ttsProviderMessage=getattr(video, 'tts_provider_message', None),
+        ttsFallbackUsed=bool(getattr(video, 'tts_fallback_used', False)),
     )
 
 

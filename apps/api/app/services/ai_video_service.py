@@ -353,7 +353,7 @@ class AIVideoCreateService:
         # - aspect ratio / duration / voice mapped to the provider payload
         if not self.settings.gemini_api_key:
             raise ProviderError('GEMINI_API_KEY is not configured for Veo 3.1')
-        output_path, _ = self._render_local_proxy(
+        output_path, _, tts_diagnostics = self._render_local_proxy(
             render_id_prefix='veo3',
             script=params['script'],
             image_url=params.get('imageUrl'),
@@ -368,7 +368,7 @@ class AIVideoCreateService:
             provider='Google Veo 3.1',
             model_key='veo3',
             video_url=output_path,
-            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
+            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
         )
 
     def generate_with_kling3(self, params: dict[str, Any]) -> ProviderResult:
@@ -384,7 +384,7 @@ class AIVideoCreateService:
             raise ProviderError('KLING_API_KEY is not configured for Kling 3.0')
         if not self.settings.kling_api_secret:
             raise ProviderError('KLING_API_SECRET is not configured for Kling 3.0')
-        output_path, _ = self._render_local_proxy(
+        output_path, _, tts_diagnostics = self._render_local_proxy(
             render_id_prefix='kling3',
             script=params['script'],
             image_url=params.get('imageUrl'),
@@ -399,7 +399,7 @@ class AIVideoCreateService:
             provider='Kling 3.0',
             model_key='kling3',
             video_url=output_path,
-            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice']},
+            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
         )
 
     def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
@@ -439,7 +439,7 @@ class AIVideoCreateService:
         aspect_ratio: str,
         resolution: str,
         duration_seconds: int,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, dict[str, object]]:
         render_id = f'{render_id_prefix}-{Path.cwd().name}-{Path(script[:32]).stem}'.replace(' ', '-')
         render_id = f'{render_id_prefix}-{abs(hash((script, image_url, voice, aspect_ratio, resolution, duration_seconds))) % 10**10}'
         seed_image_url = self._ensure_proxy_seed_image(
@@ -450,7 +450,7 @@ class AIVideoCreateService:
             resolution=resolution,
         )
         image_urls = [seed_image_url] if seed_image_url else []
-        self.pipeline.render_video_from_assets(
+        _, _, tts_diagnostics = self.pipeline.render_video_from_assets(
             video_id=render_id,
             title='AI Generated Video',
             script=script,
@@ -469,7 +469,11 @@ class AIVideoCreateService:
             music_volume=0,
             duck_music=False,
         )
-        return (f'/static/renders/{render_id}.mp4', f'/static/renders/{render_id}.jpg')
+        return (
+            f'/static/renders/{render_id}.mp4',
+            f'/static/renders/{render_id}.jpg',
+            tts_diagnostics,
+        )
 
     def _ensure_proxy_seed_image(
         self,
@@ -856,6 +860,10 @@ def celery_process_ai_video(video_id: str) -> None:
             provider_name=result.provider,
             output_url=stored_video_url,
             thumbnail_url=stored_thumb_url,
+            tts_provider=(result.metadata or {}).get('tts_provider'),
+            tts_resolved_voice=(result.metadata or {}).get('tts_resolved_voice'),
+            tts_provider_message=(result.metadata or {}).get('tts_provider_message'),
+            tts_fallback_used=bool((result.metadata or {}).get('tts_fallback_used', False)),
             progress=100,
             status=VideoStatus.completed,
             error_message=None,
