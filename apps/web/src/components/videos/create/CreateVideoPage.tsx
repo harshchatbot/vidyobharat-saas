@@ -1083,7 +1083,7 @@ export function CreateVideoPage({
         progress={overlayProgress ?? undefined}
       />
 
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
+  {/*    <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
         <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -1132,7 +1132,7 @@ export function CreateVideoPage({
         </div>
         </div>
       </section>
-
+*/}
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
         <div className="space-y-6">
           

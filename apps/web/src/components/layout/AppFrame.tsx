@@ -324,13 +324,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--color-bg))]">
-      <header className="sticky top-0 z-50 bg-[hsl(var(--color-bg)/0.92)] backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6 sm:pt-4">
-          <TopNav userId={userId} accountLabel={accountLabel} />
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
-    </div>
+    <CreditProvider userId={userId}>
+      <div className="min-h-screen bg-[hsl(var(--color-bg))]">
+        <header className="sticky top-0 z-50 bg-[hsl(var(--color-bg)/0.92)] backdrop-blur">
+          <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6 sm:pt-4">
+            <TopNav userId={userId} accountLabel={accountLabel} />
+          </div>
+        </header>
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      </div>
+    </CreditProvider>
   );
 }
