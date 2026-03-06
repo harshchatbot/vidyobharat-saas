@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
@@ -30,6 +31,7 @@ function getInitials(label: string | null) {
 }
 
 export function TopNav({ userId, accountLabel }: TopNavProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const initials = getInitials(accountLabel);
@@ -56,7 +58,17 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
       <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandLogo href="/" variant="full" size="md" className="max-w-[240px] sm:max-w-[290px]" />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                router.push('/');
+              }}
+              className="inline-flex"
+              aria-label="Go to landing page"
+            >
+              <BrandLogo disableLink variant="full" size="md" className="max-w-[240px] sm:max-w-[290px]" />
+            </button>
             <span className="hidden h-6 w-px bg-[hsl(var(--color-border))] lg:block" />
           </div>
 

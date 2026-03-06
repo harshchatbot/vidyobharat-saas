@@ -79,6 +79,7 @@ class VideoPipelineService:
         duration_mode: str,
         duration_seconds: int | None,
         captions_enabled: bool,
+        caption_style: str | None,
         music_mode: str,
         music_track_id: str | None,
         music_file_url: str | None,
@@ -145,6 +146,7 @@ class VideoPipelineService:
             title=title,
             script=script,
             captions_enabled=captions_enabled,
+            caption_style=caption_style,
             target_size=target_size,
         )
 
@@ -163,6 +165,60 @@ class VideoPipelineService:
 
         self._make_thumbnail(output_path, thumb_path)
         return str(output_path), str(thumb_path), tts_diagnostics
+
+    def burn_overlays_on_video(
+        self,
+        *,
+        input_video_path: Path,
+        output_video_path: Path,
+        title: str | None,
+        script: str,
+        captions_enabled: bool,
+        caption_style: str | None = None,
+    ) -> Path:
+        if not input_video_path.exists():
+            raise FileNotFoundError(f'Input video not found: {input_video_path}')
+
+        duration = max(0.1, self._probe_duration(input_video_path))
+        title_text = self._escape_drawtext(title or '')
+        text_filters: list[str] = []
+        if title_text:
+            title_font = self._font_clause(title or '')
+            text_filters.append(
+                f"drawtext=text='{title_text}'{title_font}:fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
+            )
+        if captions_enabled and script.strip():
+            text_filters.extend(self._build_caption_filters(script=script, total_duration=duration, caption_style=caption_style))
+        text_filters.append("drawtext=text='RangManch AI':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24")
+
+        if not text_filters:
+            return input_video_path
+
+        output_video_path.parent.mkdir(parents=True, exist_ok=True)
+        self._run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(input_video_path),
+                '-vf',
+                ','.join(text_filters),
+                '-c:v',
+                'libx264',
+                '-preset',
+                'medium',
+                '-pix_fmt',
+                'yuv420p',
+                '-c:a',
+                'aac',
+                '-b:a',
+                '192k',
+                '-movflags',
+                '+faststart',
+                str(output_video_path),
+            ]
+        )
+        return output_video_path
 
     def _resolve_timing(
         self,
@@ -193,6 +249,7 @@ class VideoPipelineService:
         title: str | None,
         script: str,
         captions_enabled: bool,
+        caption_style: str | None,
         target_size: tuple[int, int],
     ) -> None:
         target_w, target_h = target_size
@@ -204,7 +261,7 @@ class VideoPipelineService:
                 f"drawtext=text='{title_text}'{title_font}:fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
             )
         if captions_enabled and script.strip():
-            text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration))
+            text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration, caption_style=caption_style))
         text_filters.append(
             "drawtext=text='RangManch AI':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24"
         )
@@ -526,10 +583,26 @@ class VideoPipelineService:
             return 'unicode'
         return 'unicode'
 
-    def _build_caption_filters(self, script: str, total_duration: float) -> list[str]:
+    def _build_caption_filters(self, script: str, total_duration: float, caption_style: str | None) -> list[str]:
         parts = [value.strip() for value in re.split(r'(?<=[.!?])\s+', script.strip()) if value.strip()]
         if not parts:
             return []
+        style = (caption_style or 'classic').strip().lower()
+        if style == 'bold':
+            style_tail = (
+                "fontcolor=white:fontsize=38:x=(w-text_w)/2:y=h-th-96:"
+                "box=1:boxcolor=black@0.72:boxborderw=14:shadowcolor=black@0.9:shadowx=2:shadowy=2:"
+            )
+        elif style == 'minimal':
+            style_tail = (
+                "fontcolor=white@0.95:fontsize=26:x=(w-text_w)/2:y=h-th-76:"
+                "box=0:shadowcolor=black@0.8:shadowx=1:shadowy=1:"
+            )
+        else:
+            style_tail = (
+                "fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
+                "box=1:boxcolor=black@0.55:boxborderw=10:shadowcolor=black@0.7:shadowx=1:shadowy=1:"
+            )
         segment = max(0.8, total_duration / len(parts))
         filters: list[str] = []
         for index, sentence in enumerate(parts):
@@ -539,8 +612,7 @@ class VideoPipelineService:
             font_clause = self._font_clause(sentence)
             filters.append(
                 "drawtext="
-                f"text='{text}'{font_clause}:fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
-                "box=1:boxcolor=black@0.55:boxborderw=10:shadowcolor=black@0.7:shadowx=1:shadowy=1:"
+                f"text='{text}'{font_clause}:{style_tail}"
                 f"enable='between(t,{start:.2f},{end:.2f})'"
             )
         return filters

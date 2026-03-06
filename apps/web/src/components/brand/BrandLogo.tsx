@@ -6,6 +6,7 @@ type Props = {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
   priority?: 'nav' | 'sidebar' | 'footer';
+  disableLink?: boolean;
 };
 
 const sizeClasses = {
@@ -21,7 +22,7 @@ const sizeClasses = {
   },
 } as const;
 
-export function BrandLogo({ href = '/', variant = 'full', size = 'md', className = '', priority = 'nav' }: Props) {
+export function BrandLogo({ href = '/', variant = 'full', size = 'md', className = '', priority = 'nav', disableLink = false }: Props) {
   const dimensions = sizeClasses[variant][size];
   const label = priority === 'footer' ? 'RangManch AI footer logo' : 'RangManch AI logo';
   const lightSrc = variant === 'full' ? '/brand/logo-light.png' : '/brand/logo-mark-light.svg';
@@ -34,6 +35,19 @@ export function BrandLogo({ href = '/', variant = 'full', size = 'md', className
     variant === 'full'
       ? `${dimensions} origin-left scale-[1.18] transform-gpu`
       : dimensions;
+
+  const content = (
+    <span className={`inline-flex shrink-0 items-center ${className}`.trim()} aria-label="RangManch AI">
+      <span className={wrapperClass}>
+        <img src={lightSrc} alt={label} className={`${imageClass} block dark:hidden`} />
+        <img src={darkSrc} alt={label} className={`${imageClass} hidden dark:block`} />
+      </span>
+    </span>
+  );
+
+  if (disableLink) {
+    return content;
+  }
 
   return (
     <Link href={href} aria-label="RangManch AI" className={`inline-flex shrink-0 items-center ${className}`.trim()}>

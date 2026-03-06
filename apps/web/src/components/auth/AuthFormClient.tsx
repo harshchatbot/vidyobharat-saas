@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Mail, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -216,6 +217,12 @@ export function AuthFormClient({ mode }: Props) {
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
       <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
+        <div className="mb-4 flex items-center justify-between">
+          <BrandLogo href="/" variant="mark" size="sm" />
+          <Link href="/" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+            Back to home
+          </Link>
+        </div>
         <Card
           className="border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md"
           style={{

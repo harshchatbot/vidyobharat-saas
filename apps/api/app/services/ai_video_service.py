@@ -363,6 +363,8 @@ class AIVideoCreateService:
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
+            captions_enabled=bool(params.get('captionsEnabled', True)),
+            caption_style=params.get('captionStyle'),
         )
         return ProviderResult(
             provider='Google Veo 3.1',
@@ -394,6 +396,8 @@ class AIVideoCreateService:
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
+            captions_enabled=bool(params.get('captionsEnabled', True)),
+            caption_style=params.get('captionStyle'),
         )
         return ProviderResult(
             provider='Kling 3.0',
@@ -439,6 +443,8 @@ class AIVideoCreateService:
         aspect_ratio: str,
         resolution: str,
         duration_seconds: int,
+        captions_enabled: bool,
+        caption_style: str | None,
     ) -> tuple[str, str, dict[str, object]]:
         render_id = f'{render_id_prefix}-{Path.cwd().name}-{Path(script[:32]).stem}'.replace(' ', '-')
         render_id = f'{render_id_prefix}-{abs(hash((script, image_url, voice, aspect_ratio, resolution, duration_seconds))) % 10**10}'
@@ -462,7 +468,8 @@ class AIVideoCreateService:
             resolution=resolution,
             duration_mode='custom',
             duration_seconds=duration_seconds,
-            captions_enabled=True,
+            captions_enabled=captions_enabled,
+            caption_style=caption_style,
             music_mode='none',
             music_track_id=None,
             music_file_url=None,
@@ -839,12 +846,44 @@ def celery_process_ai_video(video_id: str) -> None:
             'resolution': video.resolution,
             'durationSeconds': video.duration_seconds or 8,
             'voice': video.voice,
+            'captionsEnabled': bool(video.captions_enabled),
+            'captionStyle': video.caption_style,
             'audioSettings': {
                 'sampleRateHz': video.audio_sample_rate_hz or 22050,
             },
         }
         repo.update(video, progress=55)
         result = service.execute_model_with_router(payload)
+        local_result_path = _resolve_local_generated_file(result.video_url)
+        if local_result_path and local_result_path.exists() and (bool(video.captions_enabled) or bool((video.title or '').strip())):
+            overlay_output = Path('data/renders') / f'{video.id}-overlay.mp4'
+            try:
+                final_overlay_path = service.pipeline.burn_overlays_on_video(
+                    input_video_path=local_result_path,
+                    output_video_path=overlay_output,
+                    title=video.title,
+                    script=video.script,
+                    captions_enabled=bool(video.captions_enabled),
+                    caption_style=video.caption_style,
+                )
+                result.video_url = f'/static/renders/{final_overlay_path.name}'
+            except Exception:
+                logger.exception('ai_video_overlay_burn_failed', extra={'render_id': video.id})
+        final_duration_seconds = _probe_video_duration_seconds(result.video_url)
+        logger.info(
+            'ai_video_render_diagnostics',
+            extra={
+                'render_id': video.id,
+                'requested_duration_seconds': int(payload.get('durationSeconds') or 0),
+                'final_video_duration_seconds': final_duration_seconds,
+                'provider': result.provider,
+                'requested_model': video.selected_model,
+                'resolved_model': (result.metadata or {}).get('resolved_model'),
+                'fallback_used': bool((result.metadata or {}).get('fallback_used', False)),
+                'tts_provider': (result.metadata or {}).get('tts_provider'),
+                'tts_fallback_used': bool((result.metadata or {}).get('tts_fallback_used', False)),
+            },
+        )
         service._reconcile_video_credits_for_resolved_model(video=video, result=result)
         stored_video_url = _persist_generated_video(storage, video.user_id, video.selected_model or 'video', result.video_url)
         stored_thumb_url = _persist_generated_thumbnail(
@@ -983,3 +1022,30 @@ def _resolve_local_generated_file(url: str) -> Path | None:
     if path.exists():
         return path
     return None
+
+
+def _probe_video_duration_seconds(url_or_path: str) -> float | None:
+    local_file = _resolve_local_generated_file(url_or_path)
+    if not local_file or not local_file.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [
+                'ffprobe',
+                '-v',
+                'error',
+                '-show_entries',
+                'format=duration',
+                '-of',
+                'default=noprint_wrappers=1:nokey=1',
+                str(local_file),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        value = float((result.stdout or '').strip() or '0')
+        return round(max(0.0, value), 3)
+    except Exception:
+        logger.warning('ai_video_duration_probe_failed', extra={'path': str(local_file)})
+        return None
