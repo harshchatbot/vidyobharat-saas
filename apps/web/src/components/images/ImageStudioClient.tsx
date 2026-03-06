@@ -662,6 +662,10 @@ export function ImageStudioClient({ userId }: Props) {
       } else {
         show('Unpublished. Your image was removed from inspiration.');
       }
+      const refreshedInspiration = await api.listImageInspiration(userId).catch(() => null);
+      if (refreshedInspiration) {
+        setInspiration(refreshedInspiration);
+      }
     } catch (error) {
       setError(toErrorMessage(error, 'Could not update publish status.'));
     } finally {

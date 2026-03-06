@@ -1118,7 +1118,17 @@ def list_ai_image_inspiration(
     db: Session = Depends(get_db),
 ):
     service = InspirationService(db)
-    return [InspirationImageResponse.model_validate(item) for item in service.list_image_inspiration(viewer_user_id=user_id)]
+    result: list[InspirationImageResponse] = []
+    for item in service.list_image_inspiration(viewer_user_id=user_id):
+        try:
+            result.append(InspirationImageResponse.model_validate(item))
+        except Exception:
+            logger.warning(
+                'inspiration_image_item_skipped',
+                extra={'request_id': get_request_id(), 'user_id': user_id, 'asset_id': item.get('id') if isinstance(item, dict) else None},
+            )
+            continue
+    return result
 
 
 @router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
@@ -1127,7 +1137,17 @@ def list_ai_video_inspiration(
     db: Session = Depends(get_db),
 ):
     service = InspirationService(db)
-    return [InspirationVideoResponse.model_validate(item) for item in service.list_video_inspiration(viewer_user_id=user_id)]
+    result: list[InspirationVideoResponse] = []
+    for item in service.list_video_inspiration(viewer_user_id=user_id):
+        try:
+            result.append(InspirationVideoResponse.model_validate(item))
+        except Exception:
+            logger.warning(
+                'inspiration_video_item_skipped',
+                extra={'request_id': get_request_id(), 'user_id': user_id, 'asset_id': item.get('id') if isinstance(item, dict) else None},
+            )
+            continue
+    return result
 
 
 @router.get('/public/images/inspiration', response_model=list[InspirationImageResponse])
@@ -1135,7 +1155,17 @@ def list_public_image_inspiration(
     db: Session = Depends(get_db),
 ):
     service = InspirationService(db)
-    return [InspirationImageResponse.model_validate(item) for item in service.list_image_inspiration(viewer_user_id='public')]
+    result: list[InspirationImageResponse] = []
+    for item in service.list_image_inspiration(viewer_user_id='public'):
+        try:
+            result.append(InspirationImageResponse.model_validate(item))
+        except Exception:
+            logger.warning(
+                'public_inspiration_image_item_skipped',
+                extra={'request_id': get_request_id(), 'asset_id': item.get('id') if isinstance(item, dict) else None},
+            )
+            continue
+    return result
 
 
 @router.get('/public/videos/inspiration', response_model=list[InspirationVideoResponse])
@@ -1143,7 +1173,17 @@ def list_public_video_inspiration(
     db: Session = Depends(get_db),
 ):
     service = InspirationService(db)
-    return [InspirationVideoResponse.model_validate(item) for item in service.list_video_inspiration(viewer_user_id='public')]
+    result: list[InspirationVideoResponse] = []
+    for item in service.list_video_inspiration(viewer_user_id='public'):
+        try:
+            result.append(InspirationVideoResponse.model_validate(item))
+        except Exception:
+            logger.warning(
+                'public_inspiration_video_item_skipped',
+                extra={'request_id': get_request_id(), 'asset_id': item.get('id') if isinstance(item, dict) else None},
+            )
+            continue
+    return result
 
 
 @router.post('/inspiration/publish', response_model=InspirationPublishResponse)
