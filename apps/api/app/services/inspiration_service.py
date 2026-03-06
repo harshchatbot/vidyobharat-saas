@@ -146,7 +146,7 @@ class InspirationService:
         result: list[dict[str, object]] = []
         for item in ranked[:limit]:
             auto_tags, user_tags = self._tags_for(asset_id=item.id, asset_type='image')
-            owner = self.users.get_by_id(item.user_id)
+            owner = self.users.get(item.user_id)
             result.append(
                 {
                     'id': item.id,
@@ -183,7 +183,7 @@ class InspirationService:
         result: list[dict[str, object]] = []
         for item in ranked[:limit]:
             auto_tags, user_tags = self._tags_for(asset_id=item.id, asset_type='video')
-            owner = self.users.get_by_id(item.user_id)
+            owner = self.users.get(item.user_id)
             result.append(
                 {
                     'id': item.id,
