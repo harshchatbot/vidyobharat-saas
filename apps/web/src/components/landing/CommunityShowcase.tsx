@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Download, Heart, Wand2 } from 'lucide-react';
 
 type InspirationVideo = {
   id: string;
@@ -74,14 +76,18 @@ export function CommunityShowcase({ videos, images }: Props) {
       ) : null}
 
       {hasAny ? (
-        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-          {merged.map((entry) => {
+        <div className="columns-1 gap-4 sm:columns-2 lg:columns-4">
+          {merged.map((entry, index) => {
             if (entry.type === 'video') {
               const video = entry.item;
               return (
-                <article
+                <motion.article
                   key={`video-${video.id}`}
-                  className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid"
+                  initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
+                  className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
                 >
                   <div className="relative aspect-[9/16] w-full bg-[hsl(var(--color-bg))]">
                     <video
@@ -100,20 +106,39 @@ export function CommunityShowcase({ videos, images }: Props) {
                     <div className="absolute right-2 top-2 rounded-full bg-[hsl(var(--color-bg)/0.75)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
                       {video.duration_seconds}s
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.9),transparent)] p-3">
+                    <div className="pointer-events-none absolute right-2 top-10 z-10 flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-1.5 py-1 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                      <button type="button" aria-label="Like" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                        <Heart className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" aria-label="Download" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" aria-label="Remix" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="absolute inset-x-2 bottom-2 z-10 rounded-[var(--radius-md)] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.56)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                      <p className="line-clamp-1 text-sm font-semibold text-[hsl(var(--color-text))]">{video.title}</p>
+                      <p className="line-clamp-2 text-xs text-[hsl(var(--color-muted))]">{video.prompt}</p>
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.9),transparent)] p-3 transition group-hover:opacity-0">
                       <p className="line-clamp-1 text-sm font-semibold text-[hsl(var(--color-text))]">{video.title}</p>
                       <p className="line-clamp-2 text-xs text-[hsl(var(--color-muted))]">{video.prompt}</p>
                     </div>
                   </div>
-                </article>
+                </motion.article>
               );
             }
 
             const image = entry.item;
             return (
-              <article
+              <motion.article
                 key={`image-${image.id}`}
-                className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid"
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
+                className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
               >
                 <img
                   src={image.image_url}
@@ -124,11 +149,26 @@ export function CommunityShowcase({ videos, images }: Props) {
                 <div className="absolute left-2 top-2 rounded-full bg-[hsl(var(--color-bg)/0.75)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
                   {image.model_key}
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.9),transparent)] p-3">
+                <div className="pointer-events-none absolute right-2 top-10 z-10 flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-1.5 py-1 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                  <button type="button" aria-label="Like" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                    <Heart className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" aria-label="Download" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" aria-label="Remix" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
+                    <Wand2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="absolute inset-x-2 bottom-2 z-10 rounded-[var(--radius-md)] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.56)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                   <p className="line-clamp-1 text-sm font-semibold text-[hsl(var(--color-text))]">{image.title}</p>
                   <p className="line-clamp-2 text-xs text-[hsl(var(--color-muted))]">{image.prompt}</p>
                 </div>
-              </article>
+                <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.9),transparent)] p-3 transition group-hover:opacity-0">
+                  <p className="line-clamp-1 text-sm font-semibold text-[hsl(var(--color-text))]">{image.title}</p>
+                  <p className="line-clamp-2 text-xs text-[hsl(var(--color-muted))]">{image.prompt}</p>
+                </div>
+              </motion.article>
             );
           })}
         </div>
