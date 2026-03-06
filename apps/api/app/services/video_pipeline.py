@@ -233,6 +233,28 @@ class VideoPipelineService:
             ])
             return
 
+        if len(image_paths) == 1:
+            self._run([
+                'ffmpeg',
+                '-y',
+                '-loop',
+                '1',
+                '-i',
+                str(image_paths[0]),
+                '-vf',
+                video_filter,
+                '-r',
+                '30',
+                '-c:v',
+                'libx264',
+                '-pix_fmt',
+                'yuv420p',
+                '-t',
+                f'{total_duration:.2f}',
+                str(slideshow_path),
+            ])
+            return
+
         concat_file = self.renders_dir / f'{slideshow_path.stem}.txt'
         lines: list[str] = []
         for path in image_paths:
@@ -319,12 +341,13 @@ class VideoPipelineService:
 
         if voice_input_index is not None and music_input_index is not None:
             filter_parts.append(f'[{music_input_index}:a]atrim=0:{total_duration:.2f},asetpts=N/SR/TB,volume={music_gain:.3f}[bg]')
-            filter_parts.append(f'[{voice_input_index}:a]atrim=0:{total_duration:.2f},asetpts=N/SR/TB[voice]')
+            filter_parts.append(f'[{voice_input_index}:a]apad=pad_dur={total_duration:.2f},atrim=0:{total_duration:.2f},asetpts=N/SR/TB[voice]')
             filter_parts.append('[voice][bg]amix=inputs=2:duration=first:dropout_transition=0[aout]')
             map_audio = '[aout]'
             logger.info(f'Muxed voice + bg music for render {render_id}', extra={'render_id': render_id})
         elif voice_input_index is not None:
-            map_audio = f'{voice_input_index}:a'
+            filter_parts.append(f'[{voice_input_index}:a]apad=pad_dur={total_duration:.2f},atrim=0:{total_duration:.2f},asetpts=N/SR/TB[aout]')
+            map_audio = '[aout]'
         elif music_input_index is not None:
             filter_parts.append(f'[{music_input_index}:a]atrim=0:{total_duration:.2f},asetpts=N/SR/TB,volume={music_gain:.3f}[aout]')
             map_audio = '[aout]'
@@ -343,7 +366,8 @@ class VideoPipelineService:
             'aac',
             '-b:a',
             '128k',
-            '-shortest',
+            '-t',
+            f'{total_duration:.2f}',
             str(output_path),
         ])
 

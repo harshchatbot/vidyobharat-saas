@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Coins, LoaderCircle, Receipt, Wallet } from 'lucide-react';
@@ -37,6 +38,7 @@ function formatMoney(currency: string, amount: number) {
 }
 
 export default function BillingPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
   const [wallet, setWallet] = useState<CreditWallet | null>(null);
@@ -127,7 +129,8 @@ export default function BillingPage() {
 
   const handleTopup = async () => {
     if (!userId) {
-      setError('Please sign in again before starting checkout.');
+      const next = `/billing?plan=${encodeURIComponent(selectedPlan)}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
     if (!pricing) {
@@ -295,7 +298,7 @@ export default function BillingPage() {
                   </>
                 ) : null}
               </div>
-              <Button onClick={() => void handleTopup()} disabled={submitting || !pricing || !userId} className="w-full sm:min-w-44 sm:w-auto">
+              <Button onClick={() => void handleTopup()} disabled={submitting || !pricing} className="w-full sm:min-w-44 sm:w-auto">
                 {submitting ? 'Preparing checkout...' : pricing?.paymentProvider === 'stripe' ? 'Prepare checkout' : 'Proceed to checkout'}
               </Button>
             </div>

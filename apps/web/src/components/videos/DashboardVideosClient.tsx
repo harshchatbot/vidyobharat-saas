@@ -158,35 +158,40 @@ const storyCards = [
   {
     title: 'Music Video',
     description: 'Beat-synced scenes and stylized visuals.',
-    href: '/create',
+    templateKey: 'mythology',
+    titleHint: 'Music Video Concept',
     gradient:
       'radial-gradient(circle at top right, hsl(265 88% 66% / 0.42), transparent 52%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
   },
   {
     title: 'Explainer Video',
     description: 'Clear business storytelling with voice.',
-    href: '/create',
+    templateKey: 'tech',
+    titleHint: 'Explainer Video',
     gradient:
       'radial-gradient(circle at top left, hsl(160 82% 45% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
   },
   {
     title: 'Character Vlog',
     description: 'Consistent persona-led short videos.',
-    href: '/influencer',
+    templateKey: 'startup',
+    titleHint: 'Character Vlog',
     gradient:
       'radial-gradient(circle at top right, hsl(193 87% 60% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
   },
   {
     title: 'ASMR Video',
     description: 'Mood-centric, calming cinematic cuts.',
-    href: '/create',
+    templateKey: 'mythology',
+    titleHint: 'ASMR Video',
     gradient:
       'radial-gradient(circle at top left, hsl(190 84% 58% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
   },
   {
     title: 'Build Storyboard',
     description: 'Turn your idea into scene-by-scene flow.',
-    href: '/images',
+    templateKey: 'history',
+    titleHint: 'Storyboard Draft',
     gradient:
       'radial-gradient(circle at top right, hsl(275 72% 60% / 0.3), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
   },
@@ -547,7 +552,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           {storyCards.map((item) => (
             <Link
               key={item.title}
-              href={item.href}
+              href={`/create?template=${encodeURIComponent(item.templateKey)}&title=${encodeURIComponent(item.titleHint)}`}
               className="group min-w-[250px] flex-1 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-4 shadow-soft transition hover:-translate-y-0.5 sm:min-w-[280px]"
               style={{ background: item.gradient }}
             >
