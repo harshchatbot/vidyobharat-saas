@@ -116,8 +116,20 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const body = await response.json();
-      const message = body?.message || body?.detail?.message || body?.detail || body?.error || 'Request failed';
-      throw new Error(message);
+      const detail = body?.detail;
+      const messageCandidate =
+        body?.message ||
+        (detail && typeof detail === 'object' ? detail?.message : null) ||
+        detail ||
+        body?.error ||
+        'Request failed';
+      const message =
+        typeof messageCandidate === 'string'
+          ? messageCandidate
+          : typeof messageCandidate?.message === 'string'
+            ? messageCandidate.message
+            : JSON.stringify(messageCandidate);
+      throw new Error(message || 'Request failed');
     }
     const body = await response.text();
     throw new Error(body || 'Request failed');

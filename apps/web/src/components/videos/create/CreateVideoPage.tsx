@@ -799,11 +799,19 @@ export function CreateVideoPage({
 
   const previewVoice = async (previewVoiceKey?: string) => {
     const activeVoice = previewVoiceKey ?? voice;
+    const previewText = voicePreviewText.trim();
     const player = voicePreviewAudioRef.current;
     const scrollToVoicePreviewControls = () => {
       if (!voicePreviewControlsRef.current) return;
       voicePreviewControlsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
+    if (!previewText) {
+      const message = 'Please add some text in Preview Text before trying voice preview.';
+      setVoicePreviewError(message);
+      setVoicePreviewMessage(null);
+      show(message);
+      return;
+    }
     if (previewVoiceKey && previewVoiceKey !== voice) {
       setVoice(previewVoiceKey);
     }
@@ -846,7 +854,7 @@ export function CreateVideoPage({
     try {
       const response = await api.previewTts(
         {
-          text: voicePreviewText.trim(),
+          text: previewText,
           language,
           voice: activeVoice,
           sample_rate_hz: audioSampleRateHz,

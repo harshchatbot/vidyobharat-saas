@@ -1032,7 +1032,17 @@ def create_ai_video(
             'ai_video_create_provider_error',
             extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
         )
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        error_text = str(exc)
+        normalized_error = error_text.lower()
+        if 'moderation_blocked' in normalized_error or 'blocked by our moderation system' in normalized_error:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    'error': 'MODERATION_BLOCKED',
+                    'message': 'Your prompt was blocked by provider moderation. Please revise wording to remove sensitive, harmful, or policy-restricted content and try again.',
+                },
+            ) from exc
+        raise HTTPException(status_code=502, detail=error_text) from exc
     except Exception as exc:
         if deduction_amount > 0:
             CreditService(db).top_up_credits(
