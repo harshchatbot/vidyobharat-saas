@@ -449,6 +449,9 @@ def create_topup_order(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('topup_order_create_failed', extra={'request_id': get_request_id(), 'user_id': user_id})
+        raise HTTPException(status_code=502, detail='Could not connect to payment provider. Please try again.') from exc
     return CreditTopUpOrderResponse(
         provider=result.provider,
         region=result.region,

@@ -722,16 +722,21 @@ class CreditService:
                 'pricing_region': selection.region,
             },
         }
-        response = httpx.post(
-            f'{self.settings.razorpay_api_base}/orders',
-            auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
-            json=payload,
-            timeout=20.0,
-        )
+        try:
+            response = httpx.post(
+                f'{self.settings.razorpay_api_base}/orders',
+                auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
+                json=payload,
+                timeout=20.0,
+            )
+        except httpx.RequestError as exc:
+            raise RuntimeError(f'Razorpay network error: {exc}') from exc
         if response.status_code >= 400:
             raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
         data = response.json()
-        provider_order_id = str(data['id'])
+        provider_order_id = str(data.get('id') or '')
+        if not provider_order_id:
+            raise RuntimeError('Razorpay order create failed: provider did not return an order id')
         with self._transaction():
             self.repo.create_topup_order(
                 user_id=user_id,
