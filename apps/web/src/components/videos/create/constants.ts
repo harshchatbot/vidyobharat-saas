@@ -24,6 +24,46 @@ export type TemplateOption = {
 
 export const TEMPLATE_OPTIONS: TemplateOption[] = [
   {
+    key: 'music-video',
+    label: 'Music Video',
+    description: 'Beat-led visuals, performance energy, and rhythmic scene flow.',
+    icon: Sparkles,
+    scriptHint: 'Open with a strong mood hook, describe beat shifts and scene transitions, build momentum, and end with a memorable drop or signature close.',
+    topicHint: 'A late-night rooftop performance with neon city lights and cinematic beat drops',
+  },
+  {
+    key: 'explainer-video',
+    label: 'Explainer Video',
+    description: 'Simple step-by-step explainers for product, business, or education.',
+    icon: ScrollText,
+    scriptHint: 'Start with the core problem, explain the concept in simple steps, show practical value, and close with a clear next action.',
+    topicHint: 'How AI video generation helps creators publish faster',
+  },
+  {
+    key: 'character-vlog',
+    label: 'Character Vlog',
+    description: 'Persona-led monologue format with expressive first-person storytelling.',
+    icon: Crown,
+    scriptHint: 'Write in first person, establish the character voice quickly, narrate one focused moment, and end with a punchy personality-led CTA.',
+    topicHint: 'A creator sharing one breakthrough lesson from their daily content routine',
+  },
+  {
+    key: 'asmr-video',
+    label: 'ASMR Video',
+    description: 'Calm, sensory-rich scripts with soft pacing and immersive ambience.',
+    icon: WandSparkles,
+    scriptHint: 'Use gentle sensory language, keep sentence rhythm slow and soothing, describe texture and sound cues, and close softly.',
+    topicHint: 'Rain on window glass with soft lamp light and whispered narration',
+  },
+  {
+    key: 'storyboard',
+    label: 'Build Storyboard',
+    description: 'Scene-by-scene planning format for structured video production.',
+    icon: MonitorSmartphone,
+    scriptHint: 'Break the idea into sequential scenes, define visual intent per scene, include transitions, and end with final shot direction.',
+    topicHint: 'A 6-scene storyboard for launching a new creator tool',
+  },
+  {
     key: 'history',
     label: 'History',
     description: 'Dramatic stories, timelines, and big turning points.',

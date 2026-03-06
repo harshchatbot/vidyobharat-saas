@@ -158,7 +158,7 @@ const storyCards = [
   {
     title: 'Music Video',
     description: 'Beat-synced scenes and stylized visuals.',
-    templateKey: 'mythology',
+    templateKey: 'music-video',
     titleHint: 'Music Video Concept',
     gradient:
       'radial-gradient(circle at top right, hsl(265 88% 66% / 0.42), transparent 52%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
@@ -166,7 +166,7 @@ const storyCards = [
   {
     title: 'Explainer Video',
     description: 'Clear business storytelling with voice.',
-    templateKey: 'tech',
+    templateKey: 'explainer-video',
     titleHint: 'Explainer Video',
     gradient:
       'radial-gradient(circle at top left, hsl(160 82% 45% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
@@ -174,7 +174,7 @@ const storyCards = [
   {
     title: 'Character Vlog',
     description: 'Consistent persona-led short videos.',
-    templateKey: 'startup',
+    templateKey: 'character-vlog',
     titleHint: 'Character Vlog',
     gradient:
       'radial-gradient(circle at top right, hsl(193 87% 60% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
@@ -182,7 +182,7 @@ const storyCards = [
   {
     title: 'ASMR Video',
     description: 'Mood-centric, calming cinematic cuts.',
-    templateKey: 'mythology',
+    templateKey: 'asmr-video',
     titleHint: 'ASMR Video',
     gradient:
       'radial-gradient(circle at top left, hsl(190 84% 58% / 0.33), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
@@ -190,7 +190,7 @@ const storyCards = [
   {
     title: 'Build Storyboard',
     description: 'Turn your idea into scene-by-scene flow.',
-    templateKey: 'history',
+    templateKey: 'storyboard',
     titleHint: 'Storyboard Draft',
     gradient:
       'radial-gradient(circle at top right, hsl(275 72% 60% / 0.3), transparent 56%), linear-gradient(145deg, hsl(var(--color-surface)), hsl(var(--color-elevated)))',
