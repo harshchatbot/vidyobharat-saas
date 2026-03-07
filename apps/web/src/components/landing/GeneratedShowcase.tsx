@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { motion } from 'framer-motion';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 
 type Language = 'Hindi' | 'English' | 'Tamil';
 type Ratio = '9:16' | '16:9';
@@ -130,14 +131,9 @@ export function GeneratedShowcase() {
             className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-soft"
           >
             <div className="border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2">
-              <video
+              <LandingVideo
                 className="h-52 w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] object-cover"
                 src={video.src}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
               />
             </div>
             <div className="space-y-2 p-4">

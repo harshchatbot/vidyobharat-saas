@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Download, Heart, Wand2 } from 'lucide-react';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 
 type InspirationVideo = {
   id: string;
@@ -92,15 +93,10 @@ export function CommunityShowcase({ videos, images }: Props) {
                   className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
                 >
                   <div className="relative aspect-[9/16] w-full bg-[hsl(var(--color-bg))]">
-                    <video
+                    <LandingVideo
                       src={video.video_url}
                       poster={video.thumbnail_url || undefined}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                      muted
-                      autoPlay
-                      loop
-                      playsInline
-                      preload="metadata"
                     />
                     <div className="absolute left-2 top-2 rounded-full bg-[hsl(var(--color-bg)/0.75)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
                       {video.model_key}

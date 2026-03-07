@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { motion } from 'framer-motion';
 import { ArrowRight, AudioLines, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 
 export function FeatureBento() {
   return (
@@ -32,14 +33,9 @@ export function FeatureBento() {
                   <span>Editor Preview</span>
                   <span>Render 92%</span>
                 </div>
-                <video
+                <LandingVideo
                   className="h-52 w-full rounded-[var(--radius-md)] object-cover"
                   src="/videos/samples/english-startup-16x9.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
                 />
                 <div className="pointer-events-none mt-2 h-1 w-3/4 rounded-full bg-[linear-gradient(90deg,hsl(var(--color-accent)),transparent)]" />
               </div>

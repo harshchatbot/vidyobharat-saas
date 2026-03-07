@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 
 export function HeroVisual() {
   return (
@@ -30,14 +31,9 @@ export function HeroVisual() {
         </div>
         <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--color-muted))]">Preview</p>
-          <video
+          <LandingVideo
             className="h-52 w-full rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] object-cover"
             src="/videos/samples/hindi-festival-9x16.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
           />
           <div className="mt-3">
             <div className="h-1.5 w-full rounded-full bg-[hsl(var(--color-border))]" />

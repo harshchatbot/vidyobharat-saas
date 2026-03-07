@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 
 type FeatureTab = {
   key: string;
@@ -70,20 +71,15 @@ export function InteractiveFeatureShowcase() {
 
           <div className="relative rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
             <AnimatePresence mode="wait">
-              <motion.video
+              <motion.div
                 key={active.key}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                className="h-[340px] w-full rounded-[var(--radius-md)] object-cover"
-                src={active.preview}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-              />
+              >
+                <LandingVideo className="h-[340px] w-full rounded-[var(--radius-md)] object-cover" src={active.preview} />
+              </motion.div>
             </AnimatePresence>
           </div>
         </div>
