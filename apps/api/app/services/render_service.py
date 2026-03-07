@@ -14,8 +14,17 @@ from app.schemas.render import CreateRenderRequest
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-celery_app = Celery('vidyobharat', broker=settings.redis_url, backend=settings.redis_url)
+celery_app = Celery(
+    'vidyobharat',
+    broker=settings.redis_url,
+    backend=settings.redis_url,
+    include=[
+        # Explicit imports ensure worker process registers all task modules.
+        'app.services.ai_video_service',
+    ],
+)
 celery_app.conf.task_always_eager = bool(settings.celery_task_always_eager and settings.env != 'production')
+celery_app.conf.task_default_queue = 'celery'
 
 
 class RenderService:

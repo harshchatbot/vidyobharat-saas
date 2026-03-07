@@ -2,6 +2,7 @@ import json
 import logging
 import mimetypes
 import subprocess
+import threading
 import time
 from base64 import b64decode
 from dataclasses import dataclass
@@ -227,16 +228,36 @@ class AIVideoCreateService:
         if tags:
             self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
         try:
-            celery_process_ai_video.delay(video.id)
-        except Exception as exc:
-            # If enqueue fails, mark terminal status so UI does not spin indefinitely.
-            self.repo.update(
-                video,
-                status=VideoStatus.provider_failed,
-                progress=100,
-                error_message=f'Failed to enqueue render job: {str(exc)[:180]}',
+            async_result = celery_process_ai_video.apply_async(args=[video.id])
+            logger.info(
+                'ai_video_enqueue_success',
+                extra={
+                    'render_id': video.id,
+                    'task_name': 'process_ai_video',
+                    'task_id': async_result.id,
+                    'queue': getattr(celery_app.conf, 'task_default_queue', 'celery'),
+                },
             )
-            raise ProviderError('Video worker queue is unavailable right now. Please try again shortly.') from exc
+        except Exception as exc:
+            logger.exception('ai_video_enqueue_failed', extra={'render_id': video.id})
+            # Redis/Celery may be temporarily unavailable in production.
+            # Fall back to a detached in-process worker so requests remain non-blocking.
+            try:
+                self.repo.update(video, status=VideoStatus.processing, progress=15, error_message=None)
+                logger.info(
+                    'ai_video_local_runner_activated',
+                    extra={'render_id': video.id, 'reason': str(exc)[:180]},
+                )
+                _launch_local_video_job(video.id)
+                return video
+            except Exception as fallback_exc:
+                self.repo.update(
+                    video,
+                    status=VideoStatus.provider_failed,
+                    progress=100,
+                    error_message=f'Failed to enqueue render job: {str(exc)[:180]}',
+                )
+                raise ProviderError('Video worker queue is unavailable right now. Please try again shortly.') from fallback_exc
         return video
 
     def get_video(self, video_id: str, user_id: str) -> Video | None:
@@ -843,11 +864,23 @@ def celery_process_ai_video(video_id: str) -> None:
     service = AIVideoCreateService(None, settings)
     repo = VideoRepository(None)
     storage = build_storage_provider(settings)
+    logger.info(
+        'ai_video_worker_task_received',
+        extra={'render_id': video_id, 'task_name': 'process_ai_video'},
+    )
     try:
         video = repo.get_by_id(video_id)
         if not video:
             return
+        logger.info(
+            'ai_video_worker_task_start',
+            extra={'render_id': video_id, 'current_status': str(video.status.value if hasattr(video.status, "value") else video.status)},
+        )
         repo.update(video, status=VideoStatus.processing, progress=20)
+        logger.info(
+            'ai_video_status_transition',
+            extra={'render_id': video_id, 'from_status': 'queued', 'to_status': 'processing', 'progress': 20},
+        )
         payload = {
             'videoId': video.id,
             'imageUrl': video.source_image_url,
@@ -1010,6 +1043,21 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
     if any(marker in text for marker in provider_markers):
         return VideoStatus.provider_failed
     return VideoStatus.failed
+
+
+def _launch_local_video_job(video_id: str) -> None:
+    def _runner() -> None:
+        try:
+            celery_process_ai_video(video_id)
+        except Exception:
+            logger.exception('ai_video_local_job_failed', extra={'render_id': video_id})
+
+    thread = threading.Thread(
+        target=_runner,
+        name=f'ai-video-fallback-{video_id[:8]}',
+        daemon=True,
+    )
+    thread.start()
 
 def _persist_generated_video(storage, user_id: str, model_key: str, source_url: str) -> str:
     source_path = _resolve_local_generated_file(source_url)
