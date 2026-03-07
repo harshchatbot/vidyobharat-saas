@@ -1,4 +1,5 @@
 const envApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const envApiFallbackUrl = process.env.NEXT_PUBLIC_API_FALLBACK_URL?.trim();
 const envFirebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim();
 const envFirebaseAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim();
 const envFirebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim();
@@ -26,6 +27,7 @@ if ((!envFirebaseApiKey || !envFirebaseAuthDomain || !envFirebaseProjectId || !e
 }
 
 export const API_URL = envApiUrl || 'http://localhost:8000';
+export const API_FALLBACK_URL = envApiFallbackUrl || '';
 export const FIREBASE_API_KEY = envFirebaseApiKey || '';
 export const FIREBASE_AUTH_DOMAIN = envFirebaseAuthDomain || '';
 export const FIREBASE_PROJECT_ID = envFirebaseProjectId || '';

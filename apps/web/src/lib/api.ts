@@ -1,4 +1,4 @@
-import { API_URL } from '@/lib/env';
+import { API_FALLBACK_URL, API_URL } from '@/lib/env';
 import type {
   Avatar,
   AIVideoModel,
@@ -156,17 +156,34 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     headers.set('X-User-ID', options.userId);
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers,
-      cache: options.cache,
-      next: options.next,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Network request failed for ${path}. Please check API availability/CORS and try again.`);
+  const baseCandidates = [API_URL, API_FALLBACK_URL].filter(Boolean);
+  const tried: string[] = [];
+  let response: Response | null = null;
+  let lastNetworkError: unknown = null;
+
+  for (const base of baseCandidates) {
+    tried.push(base);
+    try {
+      response = await fetch(`${base}${path}`, {
+        ...init,
+        headers,
+        cache: options.cache,
+        next: options.next,
+      });
+    } catch (error) {
+      lastNetworkError = error;
+      continue;
+    }
+
+    if (response.ok) break;
+    if (![502, 503, 504].includes(response.status)) break;
+  }
+
+  if (!response) {
+    if (lastNetworkError instanceof Error) {
+      throw new Error(
+        `Network request failed for ${path}. Please check API availability/CORS and try again.`,
+      );
     }
     throw new Error(`Network request failed for ${path}.`);
   }
@@ -191,7 +208,11 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
       throw new Error(message || 'Request failed');
     }
     const body = await response.text();
-    throw new Error(body || 'Request failed');
+    const fallbackHint =
+      response.status >= 500 && tried.length > 1
+        ? ' API gateway had issues; fallback was also unavailable.'
+        : '';
+    throw new Error((body || 'Request failed') + fallbackHint);
   }
 
   return response.json() as Promise<T>;
