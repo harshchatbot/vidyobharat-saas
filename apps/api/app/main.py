@@ -23,19 +23,31 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
 
+_always_allowed_origins = {
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://rangmanch.techfilabs.com',
+    'https://vidyobharat-saas.vercel.app',
+}
+_configured_origins = {item.rstrip('/') for item in settings.allowed_origins_list}
+_effective_allowed_origins = sorted(_configured_origins.union(_always_allowed_origins))
+_effective_origin_regex = r'https://([a-zA-Z0-9-]+\.)*(vercel\.app|techfilabs\.com)$'
+if settings.allowed_origin_regex:
+    _effective_origin_regex = f'(?:{settings.allowed_origin_regex})|(?:{_effective_origin_regex})'
+
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitStubMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins_list,
-    allow_origin_regex=settings.allowed_origin_regex,
+    allow_origins=_effective_allowed_origins,
+    allow_origin_regex=_effective_origin_regex,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
 
-_origin_regex = re.compile(settings.allowed_origin_regex) if settings.allowed_origin_regex else None
+_origin_regex = re.compile(_effective_origin_regex) if _effective_origin_regex else None
 
 
 def _origin_allowed(origin: str | None) -> bool:
@@ -44,7 +56,7 @@ def _origin_allowed(origin: str | None) -> bool:
     if origin == 'null':
         return True
     normalized = origin.rstrip('/')
-    if normalized in {item.rstrip('/') for item in settings.allowed_origins_list}:
+    if normalized in _effective_allowed_origins:
         return True
     if _origin_regex and _origin_regex.match(normalized):
         return True
