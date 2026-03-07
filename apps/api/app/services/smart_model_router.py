@@ -19,6 +19,7 @@ class ModelExecutionResult[T]:
     value: T
     resolved_model_id: str
     fallback_used: bool
+    retry_errors: list[str]
 
 
 class SmartModelRouter:
@@ -38,6 +39,7 @@ class SmartModelRouter:
         fallback_model_ids: list[str] | None = None,
     ) -> ModelExecutionResult[T]:
         attempted: list[str] = []
+        retry_errors: list[str] = []
         candidates = [requested_model_id, *(fallback_model_ids or [])]
         last_exc: Exception | None = None
 
@@ -51,11 +53,13 @@ class SmartModelRouter:
                     value=value,
                     resolved_model_id=candidate,
                     fallback_used=(candidate != requested_model_id),
+                    retry_errors=retry_errors,
                 )
             except Exception as exc:  # noqa: BLE001
                 if not self._is_retryable_provider_error(exc):
                     raise
                 last_exc = exc
+                retry_errors.append(str(exc))
 
         if last_exc is not None:
             raise last_exc

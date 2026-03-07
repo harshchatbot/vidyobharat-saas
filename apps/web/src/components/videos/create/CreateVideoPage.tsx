@@ -966,21 +966,36 @@ export function CreateVideoPage({
   };
 
   const handleLanguageChange = async (nextLanguage: string) => {
+    if (nextLanguage === language) return;
+    const previousLanguage = language;
+    const sourceText = voicePreviewText.trim();
     setLanguage(nextLanguage);
-    if (!voicePreviewText.trim()) return;
+    if (!sourceText) return;
     setVoiceTranslationLoading(true);
     setVoicePreviewError(null);
+    setVoicePreviewMessage(null);
     try {
       const result = await api.translateScriptText(
         {
-          text: voicePreviewText.trim(),
+          text: sourceText,
           target_language: nextLanguage,
         },
         userId,
       );
-      setVoicePreviewText(result.text);
+      const translated = (result.text || '').trim();
+      if (!translated) {
+        setVoicePreviewError('Translation returned empty text. Please try again.');
+        setLanguage(previousLanguage);
+        return;
+      }
+      setVoicePreviewText(translated);
+      if (translated.toLowerCase() === sourceText.toLowerCase()) {
+        const unchangedMessage = `Preview text stayed unchanged after translation to ${nextLanguage}.`;
+        setVoicePreviewMessage(unchangedMessage);
+      }
     } catch (error) {
       setVoicePreviewError(error instanceof Error ? error.message : 'Preview text translation failed.');
+      setLanguage(previousLanguage);
     } finally {
       setVoiceTranslationLoading(false);
     }

@@ -423,6 +423,8 @@ class AIVideoCreateService:
             'requested_model': requested_model,
             'resolved_model': routed.resolved_model_id,
             'fallback_used': routed.fallback_used,
+            'retry_errors': routed.retry_errors,
+            'fallback_reason': routed.retry_errors[-1] if routed.retry_errors else None,
         }
         if routed.fallback_used:
             logger.warning(
@@ -884,6 +886,26 @@ def celery_process_ai_video(video_id: str) -> None:
                 'tts_fallback_used': bool((result.metadata or {}).get('tts_fallback_used', False)),
             },
         )
+        existing_provider_message = (result.metadata or {}).get('tts_provider_message')
+        provider_notes: list[str] = []
+        mode = str((result.metadata or {}).get('mode') or '')
+        requested_model = str((result.metadata or {}).get('requested_model') or video.selected_model or '')
+        resolved_model = str((result.metadata or {}).get('resolved_model') or requested_model)
+        if mode == 'local-proxy-placeholder':
+            provider_notes.append(
+                f'{requested_model.upper()} generation is currently running via local proxy render mode.'
+            )
+        if bool((result.metadata or {}).get('fallback_used', False)):
+            fallback_reason = str((result.metadata or {}).get('fallback_reason') or '').strip()
+            if fallback_reason:
+                provider_notes.append(
+                    f'Model fallback used: {requested_model} -> {resolved_model}. Reason: {fallback_reason}'
+                )
+            else:
+                provider_notes.append(f'Model fallback used: {requested_model} -> {resolved_model}.')
+        combined_provider_message = ' '.join(
+            [part for part in [str(existing_provider_message or '').strip(), *provider_notes] if part]
+        ) or None
         service._reconcile_video_credits_for_resolved_model(video=video, result=result)
         stored_video_url = _persist_generated_video(storage, video.user_id, video.selected_model or 'video', result.video_url)
         stored_thumb_url = _persist_generated_thumbnail(
@@ -901,7 +923,7 @@ def celery_process_ai_video(video_id: str) -> None:
             thumbnail_url=stored_thumb_url,
             tts_provider=(result.metadata or {}).get('tts_provider'),
             tts_resolved_voice=(result.metadata or {}).get('tts_resolved_voice'),
-            tts_provider_message=(result.metadata or {}).get('tts_provider_message'),
+            tts_provider_message=combined_provider_message,
             tts_fallback_used=bool((result.metadata or {}).get('tts_fallback_used', False)),
             progress=100,
             status=VideoStatus.completed,

@@ -147,13 +147,28 @@ export function VoiceSelector({
       <div className="grid gap-4 lg:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-text">Language</span>
-          <Dropdown value={language} onChange={(event) => onLanguageChange(event.target.value)}>
+          <div className="relative">
+            <Dropdown
+              value={language}
+              onChange={(event) => onLanguageChange(event.target.value)}
+              disabled={translating}
+            >
             {languageOptions.map((option) => (
               <option key={`${option.label}-${option.code}`} value={option.label}>
                 {option.label}
               </option>
             ))}
-          </Dropdown>
+            </Dropdown>
+            {translating ? (
+              <span className="pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-xs font-medium text-muted">
+                <Spinner className="h-3.5 w-3.5" />
+                Translating
+              </span>
+            ) : null}
+          </div>
+          {translating ? (
+            <p className="mt-2 text-xs text-muted">Updating preview text for the selected language…</p>
+          ) : null}
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-text">Voice</span>

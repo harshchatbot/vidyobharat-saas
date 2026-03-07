@@ -929,32 +929,36 @@ def translate_script_text_v2(
     payload: ScriptTranslateRequest,
     _: str = Depends(get_user_id),
 ):
-    translated_text = ''
-    if settings.openai_api_key:
-        try:
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                temperature=0.2,
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': 'Translate the provided text accurately into the requested target language. Return only the translated text with no explanation.',
-                    },
-                    {
-                        'role': 'user',
-                        'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
-                    },
-                ],
-            )
-            translated_text = (response.choices[0].message.content or '').strip()
-        except Exception:
-            logger.exception(
-                'ai_script_translate_provider_failed',
-                extra={'target_language': payload.target_language},
-            )
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail='Translation provider is not configured.')
+    try:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            temperature=0.2,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        'Translate the provided text accurately into the requested target language. '
+                        'Return only the translated text. Do not explain. Keep names unchanged where appropriate.'
+                    ),
+                },
+                {
+                    'role': 'user',
+                    'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
+                },
+            ],
+        )
+        translated_text = (response.choices[0].message.content or '').strip()
+    except Exception as exc:
+        logger.exception(
+            'ai_script_translate_provider_failed',
+            extra={'target_language': payload.target_language},
+        )
+        raise HTTPException(status_code=502, detail='Translation failed. Please try again.') from exc
     if not translated_text:
-        translated_text = payload.text
+        raise HTTPException(status_code=502, detail='Translation returned empty output. Please retry.')
     return TextResponse(text=translated_text)
 
 
