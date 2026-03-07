@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, ChevronRight, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
+import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -16,7 +17,6 @@ import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type {
-  CreditEstimateResponse,
   GeneratedImage,
   ImageModel,
   InfluencerContentResponse,
@@ -112,9 +112,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   const [resolution, setResolution] = useState('1536');
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [personaError, setPersonaError] = useState<string | null>(null);
-  const [contentEstimate, setContentEstimate] = useState<CreditEstimateResponse | null>(null);
-  const [referenceEstimate, setReferenceEstimate] = useState<CreditEstimateResponse | null>(null);
-  const [imageEstimate, setImageEstimate] = useState<CreditEstimateResponse | null>(null);
+  const [estimateErrorShown, setEstimateErrorShown] = useState<string | null>(null);
   const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
   const sectionRefs: Record<TabKey, React.RefObject<HTMLDivElement | null>> = {
@@ -133,6 +131,29 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
     () => scenePresets.find((item) => item.key === selectedScene) ?? null,
     [scenePresets, selectedScene],
   );
+  const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(
+    [
+      {
+        key: 'content',
+        action: 'influencer_content_generate',
+        payload: {},
+      },
+      {
+        key: 'reference',
+        action: 'influencer_reference_lock',
+        payload: {},
+      },
+      {
+        key: 'image',
+        action: 'influencer_image_generate',
+        payload: { model: selectedImageModel, resolution },
+      },
+    ],
+    { currentCredits: wallet?.currentCredits ?? 0 },
+  );
+  const contentEstimate = estimates.content ?? null;
+  const referenceEstimate = estimates.reference ?? null;
+  const imageEstimate = estimates.image ?? null;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -161,8 +182,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         poses: InfluencerPoseOption[];
         scenes: InfluencerScenePreset[];
         models: ImageModel[];
-        contentCost: CreditEstimateResponse | null;
-        referenceCost: CreditEstimateResponse | null;
       };
       if (!cached.ts || Date.now() - cached.ts > INFLUENCER_STUDIO_CACHE_TTL_MS) return;
       setPersonas(cached.personas ?? []);
@@ -183,8 +202,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       setPoseOptions(cached.poses ?? []);
       setScenePresets(cached.scenes ?? []);
       setImageModels(cached.models?.length ? cached.models : IMAGE_MODEL_FALLBACK);
-      setContentEstimate(cached.contentCost ?? null);
-      setReferenceEstimate(cached.referenceCost ?? null);
       setLoading(false);
     } catch {
       // ignore malformed cache
@@ -200,9 +217,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       api.listInfluencerPoses(userId).catch(() => []),
       api.listInfluencerScenes(userId).catch(() => []),
       api.listImageModels(userId).catch(() => IMAGE_MODEL_FALLBACK),
-      api.estimateCredits('influencer_content_generate', {}, userId).catch(() => null),
-      api.estimateCredits('influencer_reference_lock', {}, userId).catch(() => null),
-    ]).then(([loadedPersonas, poses, scenes, models, contentCost, referenceCost]) => {
+    ]).then(([loadedPersonas, poses, scenes, models]) => {
       if (cancelled) return;
       setPersonas(loadedPersonas);
       if (loadedPersonas[0]) {
@@ -222,8 +237,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       setPoseOptions(poses);
       setScenePresets(scenes);
       setImageModels(models.length > 0 ? models : IMAGE_MODEL_FALLBACK);
-      setContentEstimate(contentCost);
-      setReferenceEstimate(referenceCost);
       if (typeof window !== 'undefined') {
         try {
           window.sessionStorage.setItem(
@@ -234,8 +247,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               poses,
               scenes,
               models: models.length > 0 ? models : IMAGE_MODEL_FALLBACK,
-              contentCost,
-              referenceCost,
             }),
           );
         } catch {
@@ -256,11 +267,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   }, [userId, selectedPersonaId]);
 
   useEffect(() => {
-    void api
-      .estimateCredits('influencer_image_generate', { model: selectedImageModel, resolution }, userId)
-      .then(setImageEstimate)
-      .catch(() => setImageEstimate(null));
-  }, [selectedImageModel, resolution, userId]);
+    if (!estimateError) {
+      if (estimateErrorShown) setEstimateErrorShown(null);
+      return;
+    }
+    if (estimateErrorShown === estimateError) return;
+    setEstimateErrorShown(estimateError);
+    show('Could not estimate credits right now.');
+  }, [estimateError, estimateErrorShown, show]);
 
   function syncDraftFromPersona(persona: InfluencerPersona) {
     setSelectedPersonaId(persona.id);
@@ -724,7 +738,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 <Card className="px-4 py-3 text-sm">
                   <div className="font-semibold text-text">Generate Content</div>
                   <div className="mt-1 text-muted">
-                    {contentEstimate ? `${contentEstimate.estimatedCredits} credits` : '—'}
+                    {contentEstimate ? `${contentEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}
                   </div>
                 </Card>
                 <Button type="button" onClick={onGenerateContent} disabled={generatingContent || !contentIntent.trim()}>
@@ -732,6 +746,12 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </Button>
               </div>
             </div>
+            {estimateError ? (
+              <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
+            ) : null}
+            {!estimateError && isUsingFallback ? (
+              <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
+            ) : null}
 
             {contentResult ? (
               <Card className="px-5 py-5">
@@ -853,7 +873,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       {aspectRatio} • {resolution} px • {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Selected model'}
                     </p>
                   </div>
-                  <Badge variant="outline">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : 'Estimating...'}</Badge>
+                  <Badge variant="outline">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}</Badge>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-text">Aspect ratio</p>
@@ -957,6 +977,12 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   <Badge variant="outline">Identity unlocked</Badge>
                 )}
               </div>
+              {estimateError ? (
+                <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
+              ) : null}
+              {!estimateError && isUsingFallback ? (
+                <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
+              ) : null}
 
               {generatedImage ? (
                 <Card className="overflow-hidden p-0">

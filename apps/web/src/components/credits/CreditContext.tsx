@@ -3,6 +3,7 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { LowBalanceModal } from '@/components/credits/LowBalanceModal';
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import type { CreditWallet } from '@/types/api';
 
@@ -24,12 +25,14 @@ export function CreditProvider({
 }: PropsWithChildren<{
   userId: string | null;
 }>) {
+  const { show } = useToast();
   const [wallet, setWallet] = useState<CreditWallet | null>(null);
   const [loading, setLoading] = useState(Boolean(userId));
   const [lowBalanceOpen, setLowBalanceOpen] = useState(false);
   const [requiredCredits, setRequiredCredits] = useState<number | undefined>(undefined);
   const inFlightRef = useRef<Promise<CreditWallet | null> | null>(null);
   const lastFetchedAtRef = useRef<number>(0);
+  const walletErrorShownRef = useRef<string | null>(null);
   const cacheKey = userId ? `rangmanch:credit-wallet:${userId}` : null;
 
   const persistWalletCache = (nextWallet: CreditWallet) => {
@@ -92,6 +95,13 @@ export function CreditProvider({
     inFlightRef.current = request;
     try {
       return await request;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load wallet balance.';
+      if (walletErrorShownRef.current !== message) {
+        walletErrorShownRef.current = message;
+        show('Unable to load wallet balance.');
+      }
+      return wallet;
     } finally {
       inFlightRef.current = null;
       if (!silent) setLoading(false);

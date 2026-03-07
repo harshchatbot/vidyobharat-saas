@@ -39,9 +39,10 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
+import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetTagFacet, CreditEstimateResponse, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
+import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -255,7 +256,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [enhancing, setEnhancing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [estimate, setEstimate] = useState<CreditEstimateResponse | null>(null);
+  const [estimateErrorShown, setEstimateErrorShown] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generated' | 'inspiration'>('generated');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
@@ -397,36 +398,31 @@ export function ImageStudioClient({ userId }: Props) {
 
   const referenceUrls = useMemo(() => referenceUploads.map((item) => item.url), [referenceUploads]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void api.estimateCredits(
-      'image_generate',
+  const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(
+    [
       {
-        model_key: selectedModel,
-        resolution,
-        reference_urls: referenceUrls,
+        key: 'imageGenerate',
+        action: 'image_generate',
+        payload: {
+          model_key: selectedModel,
+          resolution,
+          reference_urls: referenceUrls,
+        },
       },
-      userId,
-    )
-      .then((result) => {
-        if (!cancelled) setEstimate(result);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setEstimate({
-            estimatedCredits: 0,
-            breakdown: [],
-            currentCredits: wallet?.currentCredits ?? 0,
-            remainingCredits: wallet?.currentCredits ?? 0,
-            sufficient: true,
-            premium: false,
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, selectedModel, resolution, referenceUrls, wallet?.currentCredits]);
+    ],
+    { currentCredits: wallet?.currentCredits ?? 0 },
+  );
+  const estimate = estimates.imageGenerate ?? null;
+
+  useEffect(() => {
+    if (!estimateError) {
+      if (estimateErrorShown) setEstimateErrorShown(null);
+      return;
+    }
+    if (estimateErrorShown === estimateError) return;
+    setEstimateErrorShown(estimateError);
+    show('Could not estimate credits right now.');
+  }, [estimateError, estimateErrorShown, show]);
 
   useEffect(() => {
     setManualTagInput(selectedGenerated?.user_tags.join(', ') ?? '');
@@ -932,7 +928,9 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
-                  <p className="mt-1 text-xs text-muted">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`} • {estimate ? `${estimate.estimatedCredits} credits estimated` : 'Estimating credits...'}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`} • {estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}
+                  </p>
                 </div>
                 <Button
                   onClick={() => void submit()}
@@ -960,6 +958,12 @@ export function ImageStudioClient({ userId }: Props) {
                   <a href="/billing">Top up</a>
                   <a href="/pricing">View plans</a>
                 </div>
+              ) : null}
+              {estimateError ? (
+                <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
+              ) : null}
+              {!estimateError && isUsingFallback ? (
+                <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
               ) : null}
             </div>
           </div>
