@@ -227,15 +227,22 @@ class CreditRepository:
         }
 
     def _to_wallet(self, data: dict[str, Any]) -> CreditWallet:
+        # Support both snake_case and camelCase documents during migration/ops edits.
+        current_credits_raw = data.get('current_credits', data.get('currentCredits'))
+        monthly_credits_raw = data.get('monthly_credits', data.get('monthlyCredits'))
+        plan_type_raw = data.get('plan_type', data.get('planType'))
+        last_reset_raw = data.get('last_reset', data.get('lastReset'))
+        premium_usage_raw = data.get('premium_usage_count', data.get('premiumUsageCount'))
+        free_usage_raw = data.get('free_usage_count', data.get('freeUsageCount'))
         return model_from_fields(
             CreditWallet,
             user_id=data.get('user_id'),
-            current_credits=int(data.get('current_credits') or 0),
-            plan_type=data.get('plan_type') or 'free',
-            monthly_credits=int(data.get('monthly_credits') or 0),
-            last_reset=coerce_datetime(data.get('last_reset')),
-            premium_usage_count=int(data.get('premium_usage_count') or 0),
-            free_usage_count=int(data.get('free_usage_count') or 0),
+            current_credits=int(current_credits_raw or 0),
+            plan_type=plan_type_raw or 'free',
+            monthly_credits=int(monthly_credits_raw or 0),
+            last_reset=coerce_datetime(last_reset_raw),
+            premium_usage_count=int(premium_usage_raw or 0),
+            free_usage_count=int(free_usage_raw or 0),
         )
 
     def _to_transaction(self, data: dict[str, Any]) -> CreditTransaction:

@@ -236,14 +236,20 @@ def _extract_json_payload(value: str) -> dict:
 def _to_video_response(video, db: Session) -> VideoResponse:
     image_urls: list[str] = []
     reference_images: list[str] = []
-    try:
-        image_urls = json.loads(video.image_urls or '[]')
-    except json.JSONDecodeError:
-        image_urls = []
-    try:
-        reference_images = json.loads(video.reference_images or '[]')
-    except json.JSONDecodeError:
-        reference_images = []
+    if isinstance(video.image_urls, list):
+        image_urls = [str(item) for item in video.image_urls if item]
+    else:
+        try:
+            image_urls = json.loads(video.image_urls or '[]')
+        except (json.JSONDecodeError, TypeError):
+            image_urls = []
+    if isinstance(video.reference_images, list):
+        reference_images = [str(item) for item in video.reference_images if item]
+    else:
+        try:
+            reference_images = json.loads(video.reference_images or '[]')
+        except (json.JSONDecodeError, TypeError):
+            reference_images = []
     asset_tagging = AssetTaggingService(db)
     auto_tags, user_tags = asset_tagging.list_tags(video.id, 'video')
     return VideoResponse(
@@ -402,12 +408,15 @@ def _to_influencer_persona_response(persona) -> InfluencerPersonaResponse:
 
 
 def _to_credit_wallet_response(wallet) -> CreditWalletResponse:
-    used_credits = max(wallet.monthly_credits - wallet.current_credits, 0)
+    current_credits = int(getattr(wallet, 'current_credits', 0) or 0)
+    monthly_credits = int(getattr(wallet, 'monthly_credits', 0) or 0)
+    used_credits = max(monthly_credits - current_credits, 0)
+    plan_name = str(getattr(wallet, 'plan_type', None) or 'free').title()
     return CreditWalletResponse(
-        currentCredits=wallet.current_credits,
-        monthlyCredits=wallet.monthly_credits,
+        currentCredits=current_credits,
+        monthlyCredits=monthly_credits,
         usedCredits=used_credits,
-        planName=wallet.plan_type.title(),
+        planName=plan_name,
         lastReset=wallet.last_reset,
     )
 
