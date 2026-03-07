@@ -63,9 +63,16 @@ function toAbsoluteUrl(url: string | null) {
 
 function aspectRatioToCss(value: string | null | undefined) {
   if (!value) return '1 / 1';
-  const [w, h] = value.split(':');
-  if (!w || !h) return '1 / 1';
-  return `${w} / ${h}`;
+  const normalized = value.replace(/\s+/g, '');
+  const separator = normalized.includes(':') ? ':' : normalized.includes('/') ? '/' : null;
+  if (!separator) return '1 / 1';
+  const [w, h] = normalized.split(separator);
+  const width = Number(w);
+  const height = Number(h);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return '1 / 1';
+  }
+  return `${width} / ${height}`;
 }
 
 function mediaLabel(contentType: string) {
@@ -644,7 +651,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 <span className="absolute right-3 top-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
                   {meta}
                 </span>
-                <div className="absolute left-3 top-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                  <Heart className={`h-3.5 w-3.5 ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
+                  {item.like_count}
+                </span>
+                <div className="absolute left-3 top-12 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"
                     className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"

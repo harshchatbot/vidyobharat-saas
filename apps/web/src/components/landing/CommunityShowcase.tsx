@@ -41,6 +41,20 @@ type Props = {
   images: InspirationImage[];
 };
 
+function aspectRatioToCss(value: string | null | undefined) {
+  if (!value) return '9 / 16';
+  const normalized = value.replace(/\s+/g, '');
+  const separator = normalized.includes(':') ? ':' : normalized.includes('/') ? '/' : null;
+  if (!separator) return '9 / 16';
+  const [w, h] = normalized.split(separator);
+  const width = Number(w);
+  const height = Number(h);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return '9 / 16';
+  }
+  return `${width} / ${height}`;
+}
+
 export function CommunityShowcase({ videos, images }: Props) {
   const hasAny = videos.length > 0 || images.length > 0;
   const merged = [
@@ -92,7 +106,10 @@ export function CommunityShowcase({ videos, images }: Props) {
                   transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
                   className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
                 >
-                  <div className="relative aspect-[9/16] w-full bg-[hsl(var(--color-bg))]">
+                  <div
+                    className="relative w-full bg-[hsl(var(--color-bg))]"
+                    style={{ aspectRatio: aspectRatioToCss(video.aspect_ratio) }}
+                  >
                     <LandingVideo
                       src={video.video_url}
                       poster={video.thumbnail_url || undefined}
@@ -103,6 +120,10 @@ export function CommunityShowcase({ videos, images }: Props) {
                     </div>
                     <div className="absolute right-2 top-2 rounded-full bg-[hsl(var(--color-bg)/0.75)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
                       {video.duration_seconds}s
+                    </div>
+                    <div className="absolute left-2 top-10 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-bg)/0.78)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
+                      <Heart className="h-3.5 w-3.5" />
+                      {video.like_count}
                     </div>
                     <div className="pointer-events-none absolute right-2 top-10 z-10 flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-1.5 py-1 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                       <button type="button" aria-label="Like" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
@@ -138,14 +159,20 @@ export function CommunityShowcase({ videos, images }: Props) {
                 transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
                 className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
               >
-                <img
-                  src={image.image_url}
-                  alt={image.title}
-                  className="h-auto w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                />
+                <div style={{ aspectRatio: aspectRatioToCss(image.aspect_ratio) }}>
+                  <img
+                    src={image.image_url}
+                    alt={image.title}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                    loading="lazy"
+                  />
+                </div>
                 <div className="absolute left-2 top-2 rounded-full bg-[hsl(var(--color-bg)/0.75)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
                   {image.model_key}
+                </div>
+                <div className="absolute left-2 top-10 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-bg)/0.78)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--color-text))] backdrop-blur-md">
+                  <Heart className="h-3.5 w-3.5" />
+                  {image.like_count}
                 </div>
                 <div className="pointer-events-none absolute right-2 top-10 z-10 flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-1.5 py-1 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                   <button type="button" aria-label="Like" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-accent)/0.2)]">
