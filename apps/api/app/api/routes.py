@@ -697,9 +697,20 @@ def generate_script_v2(
     db: Session = Depends(get_db),
 ):
     prompt = (
-        f'Write a short creator-ready video script for template {payload.template}. '
-        f'Topic: {payload.topic}. Language: {payload.language}. '
-        'Return only the script text.'
+        'Create a production-ready short video script with this exact structure and return plain text only.\n'
+        'Structure:\n'
+        '1) Narrator: one strong opening narration line\n'
+        '2) Scene 1-4 blocks\n'
+        '   - Scene Title\n'
+        '   - Visual Direction\n'
+        '   - On-screen Line / Dialogue\n'
+        '   - Camera Cue\n'
+        '   - Mood Cue\n'
+        '3) CTA Ending: one clear creator CTA line\n\n'
+        'Keep it concise, cinematic, and usable directly for text-to-video generation.\n'
+        f'Template: {payload.template}\n'
+        f'Topic: {payload.topic}\n'
+        f'Language: {payload.language}\n'
     )
     script_text = ''
     if settings.openai_api_key:
@@ -709,7 +720,14 @@ def generate_script_v2(
                 model=settings.openai_model,
                 temperature=0.7,
                 messages=[
-                    {'role': 'system', 'content': 'Write concise creator-ready video scripts.'},
+                    {
+                        'role': 'system',
+                        'content': (
+                            'You are a senior short-video scriptwriter. '
+                            'Always output structured scripts with narrator line, scene-wise blocks, camera and mood cues, and a CTA ending. '
+                            'Return plain text only.'
+                        ),
+                    },
                     {'role': 'user', 'content': prompt},
                 ],
             )
@@ -717,7 +735,34 @@ def generate_script_v2(
         except Exception:
             logger.exception('ai_script_generate_provider_failed')
     if not script_text:
-        script_text = f'{payload.topic}. Start with a sharp hook, explain the core idea, and close with a memorable CTA.'
+        script_text = (
+            f'Narrator: {payload.topic} starts now.\n\n'
+            'Scene 1\n'
+            '- Scene Title: Hook Shot\n'
+            '- Visual Direction: Quick, high-contrast opener relevant to the topic.\n'
+            '- On-screen Line / Dialogue: Lead with a punchy one-line hook.\n'
+            '- Camera Cue: Fast push-in.\n'
+            '- Mood Cue: Energetic.\n\n'
+            'Scene 2\n'
+            '- Scene Title: Core Insight\n'
+            '- Visual Direction: Show the main context and key point.\n'
+            '- On-screen Line / Dialogue: Explain the core idea clearly.\n'
+            '- Camera Cue: Medium tracking shot.\n'
+            '- Mood Cue: Confident.\n\n'
+            'Scene 3\n'
+            '- Scene Title: Proof / Example\n'
+            '- Visual Direction: Show one practical example or result.\n'
+            '- On-screen Line / Dialogue: Highlight why this matters now.\n'
+            '- Camera Cue: Cutaways with close-ups.\n'
+            '- Mood Cue: Inspiring.\n\n'
+            'Scene 4\n'
+            '- Scene Title: Wrap\n'
+            '- Visual Direction: Strong closing visual tied to the topic.\n'
+            '- On-screen Line / Dialogue: Summarize in one memorable line.\n'
+            '- Camera Cue: Slow pull-back.\n'
+            '- Mood Cue: Premium cinematic.\n\n'
+            'CTA Ending: Follow for more creator-ready videos.'
+        )
     tags = AssetTaggingService(db).tag_script(script_text)
     return ScriptResponse(script=script_text, tags=tags)
 
@@ -730,35 +775,33 @@ def enhance_script_v2(
 ):
     credit_service = CreditService(db)
     estimate = credit_service.estimate('script_enhance', {})
-    if estimate.required_credits > 0:
-        try:
-            credit_service.deduct_credits(
-                user_id=user_id,
-                amount=estimate.required_credits,
-                feature_key='script_enhance',
-                metadata={'template': payload.template or 'general', 'language': payload.language},
-                source='premium',
-                idempotency_key=credit_service.make_idempotency_key(
-                    'script_enhance',
-                    {
-                        'user_id': user_id,
-                        'template': payload.template or 'general',
-                        'language': payload.language,
-                        'script_hash': hashlib.sha256(payload.script.encode('utf-8')).hexdigest(),
-                    },
-                ),
-            )
-        except InsufficientCreditsError as exc:
-            raise HTTPException(
-                status_code=402,
-                detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
-            ) from exc
+    idempotency_key = credit_service.make_idempotency_key(
+        'script_enhance',
+        {
+            'user_id': user_id,
+            'template': payload.template or 'general',
+            'language': payload.language,
+            'script_hash': hashlib.sha256(payload.script.encode('utf-8')).hexdigest(),
+        },
+    )
     prompt = (
-        f'Enhance this video script for clarity, flow, and stronger storytelling. '
-        f'Template: {payload.template or "general"}. Language: {payload.language}. '
+        'Enhance the following script into a production-ready format while preserving core meaning. '
+        'Return plain text in this exact structure:\n'
+        '1) Narrator (single powerful opener)\n'
+        '2) Scene 1-4 blocks with:\n'
+        '   - Scene Title\n'
+        '   - Visual Direction\n'
+        '   - On-screen Line / Dialogue\n'
+        '   - Camera Cue\n'
+        '   - Mood Cue\n'
+        '3) CTA Ending\n'
+        'Keep language natural, concise, and creator-ready.\n'
+        f'Template: {payload.template or "general"}\n'
+        f'Language: {payload.language}\n'
         f'Script: {payload.script}'
     )
     script_text = ''
+    provider_success = False
     if settings.openai_api_key:
         try:
             client = OpenAI(api_key=settings.openai_api_key)
@@ -766,15 +809,38 @@ def enhance_script_v2(
                 model=settings.openai_model,
                 temperature=0.5,
                 messages=[
-                    {'role': 'system', 'content': 'Improve creator video scripts without changing the core meaning.'},
+                    {
+                        'role': 'system',
+                        'content': (
+                            'You are a senior video script editor. '
+                            'Improve flow and cinematic quality while preserving intent. '
+                            'Always return structured narrator + scenes + camera/mood + CTA in plain text.'
+                        ),
+                    },
                     {'role': 'user', 'content': prompt},
                 ],
             )
             script_text = (response.choices[0].message.content or '').strip()
+            provider_success = bool(script_text)
         except Exception:
             logger.exception('ai_script_enhance_provider_failed')
     if not script_text:
         script_text = payload.script
+    if provider_success and estimate.required_credits > 0:
+        try:
+            credit_service.deduct_credits(
+                user_id=user_id,
+                amount=estimate.required_credits,
+                feature_key='script_enhance',
+                metadata={'template': payload.template or 'general', 'language': payload.language},
+                source='premium',
+                idempotency_key=idempotency_key,
+            )
+        except InsufficientCreditsError as exc:
+            raise HTTPException(
+                status_code=402,
+                detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+            ) from exc
     tags = AssetTaggingService(db).tag_script(script_text)
     return ScriptResponse(script=script_text, tags=tags)
 
