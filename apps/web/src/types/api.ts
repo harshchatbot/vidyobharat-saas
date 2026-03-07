@@ -68,7 +68,7 @@ export type Video = {
   captions_enabled: boolean;
   caption_style?: string | null;
   audio_sample_rate_hz?: number | null;
-  status: 'draft' | 'processing' | 'completed' | 'failed';
+  status: 'draft' | 'processing' | 'completed' | 'failed' | 'timed_out' | 'provider_failed';
   progress: number;
   image_urls: string[];
   selected_model: string | null;

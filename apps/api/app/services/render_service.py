@@ -15,7 +15,7 @@ from app.schemas.render import CreateRenderRequest
 logger = logging.getLogger(__name__)
 settings = get_settings()
 celery_app = Celery('vidyobharat', broker=settings.redis_url, backend=settings.redis_url)
-celery_app.conf.task_always_eager = settings.celery_task_always_eager
+celery_app.conf.task_always_eager = bool(settings.celery_task_always_eager and settings.env != 'production')
 
 
 class RenderService:

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'
-    celery_task_always_eager: bool = True
+    celery_task_always_eager: bool = False
 
     allowed_origins: str = Field(
         default='http://localhost:3000,http://127.0.0.1:3000,https://rangmanch.techfilabs.com,https://vidyobharat-saas.vercel.app'

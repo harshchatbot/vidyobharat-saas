@@ -580,7 +580,16 @@ export function CreateVideoPage({
       captions_enabled: captionsEnabled,
       caption_style: captionStyle,
       audio_sample_rate_hz: audioSampleRateHz,
-      status: status.status === 'success' ? 'completed' : status.status === 'failed' ? 'failed' : 'processing',
+      status:
+        status.status === 'success'
+          ? 'completed'
+          : status.status === 'timed_out'
+            ? 'timed_out'
+            : status.status === 'provider_failed'
+              ? 'provider_failed'
+              : status.status === 'failed'
+                ? 'failed'
+                : 'processing',
       progress: status.progress ?? (status.status === 'success' ? 100 : 50),
       image_urls: selectedImageUrls,
       selected_model: status.modelKey,
@@ -631,15 +640,24 @@ export function CreateVideoPage({
             }
           }
           if (interval) window.clearInterval(interval);
-        } else if (status.status === 'failed') {
+        } else if (status.status === 'failed' || status.status === 'timed_out' || status.status === 'provider_failed') {
           setJob((current) => current ?? statusToVideo(status));
+          const terminalMessage =
+            status.errorMessage ||
+            (status.status === 'timed_out'
+              ? 'Generation timed out before completion.'
+              : status.status === 'provider_failed'
+                ? 'Video provider failed to complete generation.'
+                : 'Generation failed.');
+          setSubmitError(terminalMessage);
           if (interval) window.clearInterval(interval);
         }
       } catch (error) {
         if (cancelled) return;
         consecutiveFailures += 1;
         if (consecutiveFailures >= 3) {
-          setSubmitError(error instanceof Error ? error.message : 'Failed to refresh job status.');
+          const message = normalizeVideoCreateError(error);
+          setSubmitError(message || 'Failed to refresh job status.');
         }
       }
     };
@@ -1054,6 +1072,29 @@ export function CreateVideoPage({
     return null;
   };
 
+  const normalizeVideoCreateError = (error: unknown): string => {
+    if (error instanceof Error) {
+      const lowered = error.message.toLowerCase();
+      if (lowered.includes('authentication required') || lowered.includes('invalid or expired auth token')) {
+        return 'Session expired. Please log in again.';
+      }
+      if (lowered.includes('timed out') || lowered.includes('timeout')) {
+        return 'Generation timed out. Please try again.';
+      }
+      if (lowered.includes('provider') || lowered.includes('moderation') || lowered.includes('openai') || lowered.includes('gemini') || lowered.includes('kling')) {
+        return `Provider failed: ${error.message}`;
+      }
+      if (lowered.includes('network request failed')) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          return 'Network issue detected. Please check your internet connection.';
+        }
+        return 'Network issue while creating the video job. Please retry.';
+      }
+      return error.message;
+    }
+    return 'Failed to create video job.';
+  };
+
   const submit = async () => {
     const validationError = validate();
     if (validationError) {
@@ -1111,7 +1152,9 @@ export function CreateVideoPage({
       show(`Created! Credits Used: ${result.appliedCredits} · Remaining Balance: ${result.remainingCredits ?? creditWallet?.currentCredits ?? 0}`);
       setJobResponseId(result.id);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to create video job.');
+      const message = normalizeVideoCreateError(error);
+      setSubmitError(message);
+      show(message);
     } finally {
       setSubmitting(false);
     }

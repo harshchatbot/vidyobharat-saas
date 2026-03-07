@@ -20,6 +20,8 @@ class VideoStatus(str, enum.Enum):
     processing = 'processing'
     completed = 'completed'
     failed = 'failed'
+    timed_out = 'timed_out'
+    provider_failed = 'provider_failed'
 
 
 class ImageGenerationStatus(str, enum.Enum):

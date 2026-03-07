@@ -226,7 +226,17 @@ class AIVideoCreateService:
         self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=self.tagging.tag_script(script), source='auto')
         if tags:
             self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
-        celery_process_ai_video.delay(video.id)
+        try:
+            celery_process_ai_video.delay(video.id)
+        except Exception as exc:
+            # If enqueue fails, mark terminal status so UI does not spin indefinitely.
+            self.repo.update(
+                video,
+                status=VideoStatus.provider_failed,
+                progress=100,
+                error_message=f'Failed to enqueue render job: {str(exc)[:180]}',
+            )
+            raise ProviderError('Video worker queue is unavailable right now. Please try again shortly.') from exc
         return video
 
     def get_video(self, video_id: str, user_id: str) -> Video | None:
@@ -936,7 +946,8 @@ def celery_process_ai_video(video_id: str) -> None:
         logger.exception('ai_video_job_failed', extra={'render_id': video_id})
         target = repo.get_by_id(video_id)
         if target:
-            repo.update(target, status=VideoStatus.failed, progress=100, error_message=str(exc)[:255])
+            failure_status = _classify_video_failure_status(exc)
+            repo.update(target, status=failure_status, progress=100, error_message=str(exc)[:255])
             try:
                 raw = repo.collection.document(video_id).get()
                 raw_data = raw.to_dict() or {}
@@ -971,6 +982,34 @@ def celery_process_ai_video(video_id: str) -> None:
                     )
             except Exception:
                 logger.exception('ai_video_refund_failed', extra={'render_id': video_id})
+
+
+def _classify_video_failure_status(exc: Exception) -> VideoStatus:
+    text = str(exc or '').lower()
+    timeout_markers = (
+        'timed out',
+        'timeout',
+        'time out',
+        'deadline',
+    )
+    provider_markers = (
+        'provider',
+        'openai',
+        'sora',
+        'gemini',
+        'veo',
+        'kling',
+        'moderation',
+        'rate limit',
+        'resourceexhausted',
+        '503',
+        '429',
+    )
+    if any(marker in text for marker in timeout_markers):
+        return VideoStatus.timed_out
+    if any(marker in text for marker in provider_markers):
+        return VideoStatus.provider_failed
+    return VideoStatus.failed
 
 def _persist_generated_video(storage, user_id: str, model_key: str, source_url: str) -> str:
     source_path = _resolve_local_generated_file(source_url)

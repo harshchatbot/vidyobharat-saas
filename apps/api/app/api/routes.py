@@ -2,6 +2,7 @@ import logging
 import json
 import hashlib
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -1234,9 +1235,43 @@ def get_ai_video_status(
     video = service.get_video(video_id, user_id)
     if not video:
         raise HTTPException(status_code=404, detail='Video job not found')
+
+    # Guardrail: prevent jobs from staying "queued/processing" forever if the worker
+    # is unavailable or provider polling stalls.
+    status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
+    if status_value in {'draft', 'processing'}:
+        created_at = getattr(video, 'created_at', None)
+        now = datetime.now(UTC)
+        if created_at and getattr(created_at, 'tzinfo', None) is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        age_seconds = int((now - created_at).total_seconds()) if created_at else 0
+        if age_seconds > 20 * 60:
+            raw = service.repo.collection.document(video_id).get()
+            raw_data = raw.to_dict() or {}
+            if not bool(raw_data.get('timed_out_refunded', False)):
+                charged_credits = int(raw_data.get('applied_credits') or 0)
+                if charged_credits > 0:
+                    CreditService(db).top_up_credits(
+                        user_id=user_id,
+                        credits=charged_credits,
+                        metadata={'refund_for': 'video_create_timed_out', 'video_id': video_id},
+                    )
+            video = service.repo.update(
+                video,
+                status='timed_out',
+                progress=100,
+                error_message='Generation timed out while waiting for provider completion.',
+                timed_out_refunded=True,
+            )
+
     auto_tags, user_tags = AssetTaggingService(db).list_tags(video.id, 'video')
     status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
-    mapped_status = 'success' if status_value == 'completed' else 'failed' if status_value == 'failed' else 'processing'
+    if status_value == 'completed':
+        mapped_status = 'success'
+    elif status_value in {'failed', 'timed_out', 'provider_failed'}:
+        mapped_status = status_value
+    else:
+        mapped_status = 'processing'
     return AIVideoStatusResponse(
         id=video.id,
         status='queued' if status_value == 'draft' else mapped_status,
