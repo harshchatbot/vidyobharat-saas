@@ -325,6 +325,7 @@ class AIVideoCreateService:
 
             start = time.time()
             last_progress = 30
+            final_status_payload: dict[str, Any] | None = None
             while True:
                 status_response = client.get(
                     f'https://api.openai.com/v1/videos/{openai_video_id}',
@@ -340,10 +341,23 @@ class AIVideoCreateService:
                     current_progress = max(30, min(95, progress))
                 else:
                     current_progress = min(last_progress + 8, 92)
+                logger.info(
+                    'provider_poll_status',
+                    extra={
+                        'render_id': params['videoId'],
+                        'provider': 'openai_sora2',
+                        'provider_video_id': openai_video_id,
+                        'status': status_value,
+                        'provider_progress': progress if isinstance(progress, int) else None,
+                        'local_progress': current_progress,
+                        'payload_keys': sorted([str(k) for k in status_payload.keys()]),
+                    },
+                )
                 last_progress = current_progress
                 self._update_video_progress(params['videoId'], current_progress)
 
                 if status_value in {'completed', 'succeeded', 'success'}:
+                    final_status_payload = status_payload
                     break
                 if status_value in {'failed', 'error', 'cancelled', 'canceled'}:
                     error_message = status_payload.get('error') or status_payload.get('last_error') or 'OpenAI Sora generation failed'
@@ -356,10 +370,40 @@ class AIVideoCreateService:
                 f'https://api.openai.com/v1/videos/{openai_video_id}/content',
                 headers=headers,
             )
-            if content_response.status_code >= 400:
-                raise ProviderError(f'OpenAI Sora content download failed ({content_response.status_code}): {self._truncate_error(content_response.text)}')
-
-            local_video_path.write_bytes(content_response.content)
+            if content_response.status_code < 400 and content_response.content:
+                local_video_path.write_bytes(content_response.content)
+                logger.info(
+                    'provider_output_ready',
+                    extra={
+                        'render_id': params['videoId'],
+                        'provider': 'openai_sora2',
+                        'provider_video_id': openai_video_id,
+                        'output_mode': 'content_endpoint',
+                        'bytes': len(content_response.content),
+                    },
+                )
+            else:
+                content_url = _extract_openai_output_url(final_status_payload or {})
+                if not content_url:
+                    raise ProviderError(
+                        f'OpenAI Sora content download failed ({content_response.status_code}) and no output URL was found in completion payload'
+                    )
+                direct_response = client.get(content_url)
+                if direct_response.status_code >= 400 or not direct_response.content:
+                    raise ProviderError(
+                        f'OpenAI Sora output URL fetch failed ({direct_response.status_code}): {self._truncate_error(direct_response.text)}'
+                    )
+                local_video_path.write_bytes(direct_response.content)
+                logger.info(
+                    'provider_output_ready',
+                    extra={
+                        'render_id': params['videoId'],
+                        'provider': 'openai_sora2',
+                        'provider_video_id': openai_video_id,
+                        'output_mode': 'completion_payload_url',
+                        'bytes': len(direct_response.content),
+                    },
+                )
 
         return ProviderResult(
             provider='OpenAI Sora 2',
@@ -972,10 +1016,23 @@ def celery_process_ai_video(video_id: str) -> None:
             status=VideoStatus.completed,
             error_message=None,
         )
+        logger.info(
+            'local_video_completed',
+            extra={
+                'render_id': video.id,
+                'provider': result.provider,
+                'model_key': video.selected_model,
+                'output_url_present': bool(stored_video_url),
+            },
+        )
         refreshed = repo.get_by_id(video_id)
         if refreshed:
             service.tagging.auto_tag_video(refreshed)
     except Exception as exc:
+        logger.exception(
+            'local_video_completion_failed',
+            extra={'render_id': video_id, 'error': str(exc)[:255]},
+        )
         logger.exception('ai_video_job_failed', extra={'render_id': video_id})
         target = repo.get_by_id(video_id)
         if target:
@@ -1043,6 +1100,37 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
     if any(marker in text for marker in provider_markers):
         return VideoStatus.provider_failed
     return VideoStatus.failed
+
+
+def _extract_openai_output_url(payload: dict[str, Any]) -> str | None:
+    if not payload:
+        return None
+    direct_candidates = (
+        payload.get('url'),
+        payload.get('video_url'),
+        payload.get('output_url'),
+        payload.get('result_url'),
+    )
+    for candidate in direct_candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+
+    nested = payload.get('output')
+    if isinstance(nested, dict):
+        for key in ('url', 'video_url', 'output_url', 'result_url'):
+            value = nested.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    if isinstance(nested, list):
+        for item in nested:
+            if isinstance(item, dict):
+                for key in ('url', 'video_url', 'output_url', 'result_url'):
+                    value = item.get(key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
+            elif isinstance(item, str) and item.strip():
+                return item.strip()
+    return None
 
 
 def _launch_local_video_job(video_id: str) -> None:
