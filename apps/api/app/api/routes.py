@@ -703,16 +703,19 @@ def generate_script_v2(
     )
     script_text = ''
     if settings.openai_api_key:
-        client = OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model=settings.openai_model,
-            temperature=0.7,
-            messages=[
-                {'role': 'system', 'content': 'Write concise creator-ready video scripts.'},
-                {'role': 'user', 'content': prompt},
-            ],
-        )
-        script_text = (response.choices[0].message.content or '').strip()
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                temperature=0.7,
+                messages=[
+                    {'role': 'system', 'content': 'Write concise creator-ready video scripts.'},
+                    {'role': 'user', 'content': prompt},
+                ],
+            )
+            script_text = (response.choices[0].message.content or '').strip()
+        except Exception:
+            logger.exception('ai_script_generate_provider_failed')
     if not script_text:
         script_text = f'{payload.topic}. Start with a sharp hook, explain the core idea, and close with a memorable CTA.'
     tags = AssetTaggingService(db).tag_script(script_text)
@@ -757,16 +760,19 @@ def enhance_script_v2(
     )
     script_text = ''
     if settings.openai_api_key:
-        client = OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model=settings.openai_model,
-            temperature=0.5,
-            messages=[
-                {'role': 'system', 'content': 'Improve creator video scripts without changing the core meaning.'},
-                {'role': 'user', 'content': prompt},
-            ],
-        )
-        script_text = (response.choices[0].message.content or '').strip()
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                temperature=0.5,
+                messages=[
+                    {'role': 'system', 'content': 'Improve creator video scripts without changing the core meaning.'},
+                    {'role': 'user', 'content': prompt},
+                ],
+            )
+            script_text = (response.choices[0].message.content or '').strip()
+        except Exception:
+            logger.exception('ai_script_enhance_provider_failed')
     if not script_text:
         script_text = payload.script
     tags = AssetTaggingService(db).tag_script(script_text)
