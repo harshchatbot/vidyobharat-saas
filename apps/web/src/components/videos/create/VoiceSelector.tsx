@@ -78,6 +78,14 @@ export function VoiceSelector({
             <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
             Preview any custom line before generating. Exact repeated previews are served from cache.
           </div>
+          <div className="space-y-1 text-xs text-muted">
+            <p>
+              Default behavior: if no explicit speaker is chosen, <span className="font-semibold text-text">Shubh</span> is used.
+            </p>
+            <p>
+              Current mode: one narrator voice per video render. Multi-character voice casting (Heart/Lungs/Brain in different voices) is not enabled yet.
+            </p>
+          </div>
         </div>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-text">Preview text</span>
