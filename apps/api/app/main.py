@@ -15,6 +15,7 @@ from app.core.request_context import get_request_id
 from app.middleware.rate_limit import RateLimitStubMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
+from app.providers.firebase import FirebaseNotConfiguredError, get_firestore_client
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 
 settings = get_settings()
@@ -139,6 +140,12 @@ def _ensure_builtin_music_previews() -> None:
 
 _ensure_directories()
 _ensure_builtin_music_previews()
+try:
+    get_firestore_client()
+    logger.info('firebase_firestore_ready', extra={'request_id': 'system'})
+except FirebaseNotConfiguredError:
+    logger.exception('firebase_firestore_not_configured')
+    raise
 
 logger.info(
     'persistence_initialized',

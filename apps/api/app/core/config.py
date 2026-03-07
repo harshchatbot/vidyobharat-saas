@@ -34,7 +34,13 @@ class Settings(BaseSettings):
     firebase_web_api_key: str | None = None
     firebase_auth_domain: str | None = None
     firebase_service_account_json: str | None = None
+    firebase_service_account_json_b64: str | None = None
     firebase_service_account_path: str | None = None
+    firebase_private_key_id: str | None = None
+    firebase_private_key: str | None = None
+    firebase_client_email: str | None = None
+    firebase_client_id: str | None = None
+    firebase_client_x509_cert_url: str | None = None
     firebase_storage_bucket: str | None = None
     openai_api_key: str | None = None
     openai_model: str = 'gpt-4.1-mini'

@@ -3,6 +3,7 @@ import mimetypes
 from pathlib import Path
 
 from celery import Celery
+from celery.signals import worker_ready
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -10,6 +11,7 @@ from app.db.repositories.project_repository import ProjectRepository
 from app.db.repositories.render_repository import RenderRepository
 from app.models.entities import RenderStatus
 from app.providers.storage import build_storage_provider
+from app.providers.firebase import FirebaseNotConfiguredError, get_firestore_client
 from app.schemas.render import CreateRenderRequest
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,16 @@ celery_app = Celery(
 )
 celery_app.conf.task_always_eager = bool(settings.celery_task_always_eager and settings.env != 'production')
 celery_app.conf.task_default_queue = 'celery'
+
+
+@worker_ready.connect
+def _validate_worker_firebase(*_args, **_kwargs):
+    try:
+        get_firestore_client()
+        logger.info('worker_firebase_firestore_ready', extra={'request_id': 'system'})
+    except FirebaseNotConfiguredError:
+        logger.exception('worker_firebase_firestore_not_configured')
+        raise
 
 
 class RenderService:
