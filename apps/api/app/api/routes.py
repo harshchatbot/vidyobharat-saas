@@ -796,22 +796,28 @@ def translate_script_text_v2(
 ):
     translated_text = ''
     if settings.openai_api_key:
-        client = OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model=settings.openai_model,
-            temperature=0.2,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': 'Translate the provided text accurately into the requested target language. Return only the translated text with no explanation.',
-                },
-                {
-                    'role': 'user',
-                    'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
-                },
-            ],
-        )
-        translated_text = (response.choices[0].message.content or '').strip()
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                temperature=0.2,
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': 'Translate the provided text accurately into the requested target language. Return only the translated text with no explanation.',
+                    },
+                    {
+                        'role': 'user',
+                        'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
+                    },
+                ],
+            )
+            translated_text = (response.choices[0].message.content or '').strip()
+        except Exception:
+            logger.exception(
+                'ai_script_translate_provider_failed',
+                extra={'target_language': payload.target_language},
+            )
     if not translated_text:
         translated_text = payload.text
     return TextResponse(text=translated_text)
