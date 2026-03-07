@@ -22,7 +22,7 @@ export function TemplateSelector({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
         <div>
           <p className="text-sm font-semibold text-text">Content direction</p>
-          <p className="mt-1 text-sm text-muted">Select a starting point to shape topic hints and script assistance.</p>
+          <p className="mt-1 text-sm text-muted">Optional. Pick a template for faster starts, or choose No Template to write from scratch.</p>
         </div>
         <label className="block">
           <span className="mb-1 flex items-center gap-2 text-sm font-semibold text-text">

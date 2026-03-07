@@ -751,30 +751,67 @@ export function CreateVideoPage({
   const applyTemplate = (templateId: string) => {
     const next = TEMPLATE_OPTIONS.find((item) => item.key === templateId);
     if (!next) return;
+
+    const previousTemplate = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate);
+    const topicLooksTemplateDriven =
+      !topic.trim() || topic === previousTemplate?.topicHint || topic === previousTemplate?.label;
+    const scriptLooksTemplateDriven =
+      !script.trim() || script === previousTemplate?.scriptHint;
+
     setSelectedTemplate(next.key);
-    setTopic(next.topicHint);
-    setScript(next.scriptHint);
-    setTitle(next.topicHint);
+
+    if (next.key === 'custom') {
+      setTopic('');
+      setScript('');
+      setTitle('');
+    } else {
+      if (topicLooksTemplateDriven) {
+        setTopic(next.topicHint);
+      }
+      if (scriptLooksTemplateDriven) {
+        setScript(next.scriptHint);
+      }
+      if (!title.trim() || title === previousTemplate?.topicHint) {
+        setTitle(next.topicHint);
+      }
+    }
+
     setSubmitError(null);
     setScriptError(null);
   };
 
   const generateScript = async () => {
-    if (!topic.trim()) {
-      setScriptError('Enter a topic first.');
-      return;
-    }
+    const hasScriptInput = script.trim().length > 0;
+    const effectiveTemplate = selectedTemplate === 'custom' ? 'General' : template.label;
+    const effectiveTopic = topic.trim() || (selectedTemplate === 'custom' ? 'General creator video concept' : template.topicHint);
+
     setScriptLoading(true);
     setScriptError(null);
     try {
-      const result = await api.generateScriptV2({
-        template: template.label,
-        topic: topic.trim(),
-        language,
-      }, userId);
+      const result = hasScriptInput
+        ? await api.enhanceScriptV2(
+            {
+              script: script.trim(),
+              template: effectiveTemplate,
+              language,
+            },
+            userId,
+          )
+        : await api.generateScriptV2(
+            {
+              template: effectiveTemplate,
+              topic: effectiveTopic,
+              language,
+            },
+            userId,
+          );
       setScript(result.script);
       setScriptTags(result.tags);
-      setTitle(topic.trim());
+      if (topic.trim()) {
+        setTitle(topic.trim());
+      } else if (!title.trim()) {
+        setTitle(effectiveTopic);
+      }
     } catch (error) {
       setScriptError(error instanceof Error ? error.message : 'Failed to generate script.');
     } finally {

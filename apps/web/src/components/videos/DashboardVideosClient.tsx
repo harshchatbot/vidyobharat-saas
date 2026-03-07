@@ -596,8 +596,18 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         </div>
-        <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
-          {inspirationItems.map((item) => {
+        {loading ? (
+          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={`inspiration-skeleton-${index}`}
+                className="mb-4 h-56 break-inside-avoid animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
+            {inspirationItems.map((item) => {
             const videoItem = isVideoInspiration(item) ? item : null;
             const imageItem = !videoItem ? (item as InspirationImage) : null;
             const preview =
@@ -674,9 +684,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 </div>
               </button>
             );
-          })}
-        </div>
-        {inspirationItems.length === 0 ? (
+            })}
+          </div>
+        )}
+        {!loading && inspirationItems.length === 0 ? (
           <Card className="rounded-[var(--radius-lg)] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-8 text-center">
             <p className="font-heading text-lg font-extrabold text-text">No inspiration items yet</p>
             <p className="mt-2 text-sm text-muted">

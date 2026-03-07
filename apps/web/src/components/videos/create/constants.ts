@@ -24,6 +24,14 @@ export type TemplateOption = {
 
 export const TEMPLATE_OPTIONS: TemplateOption[] = [
   {
+    key: 'custom',
+    label: 'No Template',
+    description: 'Start fully from scratch with your own topic and script.',
+    icon: WandSparkles,
+    scriptHint: 'Write your own script. If you click Generate Script with existing text, it will be enhanced into narrator + scene blocks + camera/mood cues + CTA.',
+    topicHint: 'Describe your video idea (optional if script is already written)',
+  },
+  {
     key: 'music-video',
     label: 'Music Video',
     description: 'Beat-led visuals, performance energy, and rhythmic scene flow.',
