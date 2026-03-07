@@ -64,7 +64,16 @@ async def ensure_cors_headers(request: Request, call_next):
         preflight.headers['Vary'] = 'Origin'
         return preflight
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        request_id = get_request_id() or 'system'
+        logger.exception('unhandled_exception', extra={'request_id': request_id, 'path': str(request.url.path)})
+        response = JSONResponse(
+            status_code=500,
+            content={'detail': 'Internal server error', 'request_id': request_id},
+        )
+
     if _origin_allowed(origin):
         response.headers['Access-Control-Allow-Origin'] = origin or ''
         response.headers['Access-Control-Allow-Credentials'] = 'true'

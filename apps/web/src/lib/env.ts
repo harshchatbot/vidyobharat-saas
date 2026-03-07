@@ -26,8 +26,13 @@ if ((!envFirebaseApiKey || !envFirebaseAuthDomain || !envFirebaseProjectId || !e
   );
 }
 
+const derivedFallbackUrl =
+  !envApiFallbackUrl && envApiUrl?.includes('onrender.com')
+    ? 'https://api.rangmanch.techfilabs.com'
+    : '';
+
 export const API_URL = envApiUrl || 'http://localhost:8000';
-export const API_FALLBACK_URL = envApiFallbackUrl || '';
+export const API_FALLBACK_URL = envApiFallbackUrl || derivedFallbackUrl;
 export const FIREBASE_API_KEY = envFirebaseApiKey || '';
 export const FIREBASE_AUTH_DOMAIN = envFirebaseAuthDomain || '';
 export const FIREBASE_PROJECT_ID = envFirebaseProjectId || '';
