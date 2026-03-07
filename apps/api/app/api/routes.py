@@ -1,6 +1,7 @@
 import logging
 import json
 import hashlib
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -129,6 +130,52 @@ REEL_PROMPT_TEMPLATES: dict[str, str] = {
     'Roman_Soldier_POV': 'Use first-person Roman soldier POV with tactical and emotional realism.',
     'Historical_Fact_Reel': 'Use concise fact-led reel style with clear, surprising insight.',
 }
+
+
+def _split_sentences(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r'(?<=[.!?।])\s+', text.strip()) if part.strip()]
+
+
+def _build_structured_script_fallback(
+    *,
+    topic: str,
+    template: str,
+    language: str,
+    source_script: str | None = None,
+) -> str:
+    base_lines = _split_sentences(source_script or '')
+    if not base_lines:
+        base_lines = [
+            f'{topic} is the core focus of this story.',
+            'Show the core pain point clearly.',
+            'Reveal the practical solution in simple language.',
+            'Close with a strong and actionable call to action.',
+        ]
+    while len(base_lines) < 4:
+        base_lines.append(base_lines[-1])
+    scene_lines = base_lines[:4]
+    return (
+        f"[Opening shot: Cinematic hook visual aligned with {template}]\n"
+        f"Narrator (energetic): \"{scene_lines[0]}\"\n\n"
+        f"[Scene 1: Context and problem framing]\n"
+        f"Narrator: \"{scene_lines[1]}\"\n"
+        "Visual cue: Show the real-world setup and the user pain.\n"
+        "Camera cue: Smooth push-in with medium close-up.\n"
+        "Mood cue: Urgent but hopeful.\n\n"
+        f"[Scene 2: Solution reveal and explanation]\n"
+        f"Narrator: \"{scene_lines[2]}\"\n"
+        "Visual cue: Demonstrate how the workflow/product solves the problem.\n"
+        "Camera cue: Alternating wide + UI close-up shots.\n"
+        "Mood cue: Confident and premium.\n\n"
+        f"[Scene 3: Outcome and transformation]\n"
+        f"Narrator: \"{scene_lines[3]}\"\n"
+        "Visual cue: Before/after proof, engagement, and positive reaction.\n"
+        "Camera cue: Dynamic cuts with gentle motion.\n"
+        "Mood cue: Inspiring and uplifting.\n\n"
+        "[Closing shot: Brand lockup with clear end frame]\n"
+        "Narrator: \"Follow for more creator-ready videos and start creating now.\"\n"
+        f"Language note: Keep narration natural in {language}."
+    )
 
 
 def _build_reel_prompt(payload: ReelScriptRequest) -> str:
@@ -697,17 +744,37 @@ def generate_script_v2(
     db: Session = Depends(get_db),
 ):
     prompt = (
-        'Create a production-ready short video script with this exact structure and return plain text only.\n'
-        'Structure:\n'
-        '1) Narrator: one strong opening narration line\n'
-        '2) Scene 1-4 blocks\n'
-        '   - Scene Title\n'
-        '   - Visual Direction\n'
-        '   - On-screen Line / Dialogue\n'
-        '   - Camera Cue\n'
-        '   - Mood Cue\n'
-        '3) CTA Ending: one clear creator CTA line\n\n'
-        'Keep it concise, cinematic, and usable directly for text-to-video generation.\n'
+        'Write a high-quality short-form video script in plain text only.\n'
+        'Return exactly this pattern:\n'
+        '[Opening shot: ...]\n'
+        'Narrator (tone): "..."\n'
+        '\n'
+        '[Scene 1: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Scene 2: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Scene 3: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Closing shot: ...]\n'
+        'Narrator: "..."\n'
+        '\n'
+        'Quality rules:\n'
+        '- Script must be production-ready and scene-aligned.\n'
+        '- Keep narration in the requested language only.\n'
+        '- Keep it cinematic and creator-focused.\n'
+        '- End with a clear CTA.\n'
         f'Template: {payload.template}\n'
         f'Topic: {payload.topic}\n'
         f'Language: {payload.language}\n'
@@ -724,7 +791,7 @@ def generate_script_v2(
                         'role': 'system',
                         'content': (
                             'You are a senior short-video scriptwriter. '
-                            'Always output structured scripts with narrator line, scene-wise blocks, camera and mood cues, and a CTA ending. '
+                            'Always output scene-wise scripts using Opening shot, Scene 1/2/3, Closing shot, narrator lines, visual/camera/mood cues, and CTA ending. '
                             'Return plain text only.'
                         ),
                     },
@@ -735,33 +802,10 @@ def generate_script_v2(
         except Exception:
             logger.exception('ai_script_generate_provider_failed')
     if not script_text:
-        script_text = (
-            f'Narrator: {payload.topic} starts now.\n\n'
-            'Scene 1\n'
-            '- Scene Title: Hook Shot\n'
-            '- Visual Direction: Quick, high-contrast opener relevant to the topic.\n'
-            '- On-screen Line / Dialogue: Lead with a punchy one-line hook.\n'
-            '- Camera Cue: Fast push-in.\n'
-            '- Mood Cue: Energetic.\n\n'
-            'Scene 2\n'
-            '- Scene Title: Core Insight\n'
-            '- Visual Direction: Show the main context and key point.\n'
-            '- On-screen Line / Dialogue: Explain the core idea clearly.\n'
-            '- Camera Cue: Medium tracking shot.\n'
-            '- Mood Cue: Confident.\n\n'
-            'Scene 3\n'
-            '- Scene Title: Proof / Example\n'
-            '- Visual Direction: Show one practical example or result.\n'
-            '- On-screen Line / Dialogue: Highlight why this matters now.\n'
-            '- Camera Cue: Cutaways with close-ups.\n'
-            '- Mood Cue: Inspiring.\n\n'
-            'Scene 4\n'
-            '- Scene Title: Wrap\n'
-            '- Visual Direction: Strong closing visual tied to the topic.\n'
-            '- On-screen Line / Dialogue: Summarize in one memorable line.\n'
-            '- Camera Cue: Slow pull-back.\n'
-            '- Mood Cue: Premium cinematic.\n\n'
-            'CTA Ending: Follow for more creator-ready videos.'
+        script_text = _build_structured_script_fallback(
+            topic=payload.topic,
+            template=payload.template,
+            language=payload.language,
         )
     tags = AssetTaggingService(db).tag_script(script_text)
     return ScriptResponse(script=script_text, tags=tags)
@@ -785,17 +829,37 @@ def enhance_script_v2(
         },
     )
     prompt = (
-        'Enhance the following script into a production-ready format while preserving core meaning. '
-        'Return plain text in this exact structure:\n'
-        '1) Narrator (single powerful opener)\n'
-        '2) Scene 1-4 blocks with:\n'
-        '   - Scene Title\n'
-        '   - Visual Direction\n'
-        '   - On-screen Line / Dialogue\n'
-        '   - Camera Cue\n'
-        '   - Mood Cue\n'
-        '3) CTA Ending\n'
-        'Keep language natural, concise, and creator-ready.\n'
+        'Enhance the following user-provided script into a production-ready scene script while preserving intent.\n'
+        'Return plain text using this exact pattern:\n'
+        '[Opening shot: ...]\n'
+        'Narrator (tone): "..."\n'
+        '\n'
+        '[Scene 1: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Scene 2: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Scene 3: ...]\n'
+        'Narrator: "..."\n'
+        'Visual cue: ...\n'
+        'Camera cue: ...\n'
+        'Mood cue: ...\n'
+        '\n'
+        '[Closing shot: ...]\n'
+        'Narrator: "..."\n'
+        '\n'
+        'Rules:\n'
+        '- Keep requested language naturally.\n'
+        '- Keep user meaning intact.\n'
+        '- Improve flow, scene pacing, and cinematic clarity.\n'
+        '- End with a strong CTA.\n'
         f'Template: {payload.template or "general"}\n'
         f'Language: {payload.language}\n'
         f'Script: {payload.script}'
@@ -814,7 +878,7 @@ def enhance_script_v2(
                         'content': (
                             'You are a senior video script editor. '
                             'Improve flow and cinematic quality while preserving intent. '
-                            'Always return structured narrator + scenes + camera/mood + CTA in plain text.'
+                            'Always return Opening shot, Scene blocks, narrator lines, visual/camera/mood cues, and CTA in plain text.'
                         ),
                     },
                     {'role': 'user', 'content': prompt},
@@ -825,7 +889,12 @@ def enhance_script_v2(
         except Exception:
             logger.exception('ai_script_enhance_provider_failed')
     if not script_text:
-        script_text = payload.script
+        script_text = _build_structured_script_fallback(
+            topic=payload.template or 'General video',
+            template=payload.template or 'general',
+            language=payload.language,
+            source_script=payload.script,
+        )
     if provider_success and estimate.required_credits > 0:
         try:
             credit_service.deduct_credits(
