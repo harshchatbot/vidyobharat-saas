@@ -60,6 +60,65 @@ export type ApiOptions = {
   next?: { revalidate?: number };
 };
 
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+const responseCache = new Map<string, CacheEntry<unknown>>();
+const inFlightCache = new Map<string, Promise<unknown>>();
+
+function makeCacheKey(path: string, userId: string | undefined, payload?: unknown): string {
+  const payloadKey = payload ? JSON.stringify(payload) : '';
+  return `${userId ?? 'anon'}::${path}::${payloadKey}`;
+}
+
+function invalidateUserCache(userId: string, pathIncludes: string[] = []): void {
+  const prefix = `${userId}::`;
+  for (const key of responseCache.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    if (pathIncludes.length > 0 && !pathIncludes.some((part) => key.includes(part))) continue;
+    responseCache.delete(key);
+  }
+  for (const key of inFlightCache.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    if (pathIncludes.length > 0 && !pathIncludes.some((part) => key.includes(part))) continue;
+    inFlightCache.delete(key);
+  }
+}
+
+async function cachedRequest<T>(
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = responseCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  const inFlight = inFlightCache.get(key);
+  if (inFlight) {
+    return inFlight as Promise<T>;
+  }
+
+  const requestPromise = fetcher()
+    .then((result) => {
+      responseCache.set(key, {
+        expiresAt: Date.now() + ttlMs,
+        value: result,
+      });
+      return result;
+    })
+    .finally(() => {
+      inFlightCache.delete(key);
+    });
+
+  inFlightCache.set(key, requestPromise as Promise<unknown>);
+  return requestPromise;
+}
+
 function getBrowserCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null;
@@ -259,7 +318,10 @@ export const api = {
     return request<{ id: string; status: string }>('/videos', {
       method: 'POST',
       body: payload,
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/api/credits/wallet', '/videos', '/assets/search', '/assets/tags']);
+      return result;
+    });
   },
   getVideo(videoId: string, userId: string) {
     return request<Video>(`/videos/${videoId}`, {}, { userId, cache: 'no-store' });
@@ -364,7 +426,10 @@ export const api = {
         asset_id: assetId,
         publish,
       }),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/assets/search', '/assets/tags', '/api/videos/inspiration', '/ai/images/inspiration']);
+      return result;
+    });
   },
   likeInspiration(contentType: 'image' | 'video', assetId: string, liked: boolean | null, userId: string) {
     return request<InspirationLikeResponse>('/inspiration/like', {
@@ -374,7 +439,10 @@ export const api = {
         asset_id: assetId,
         liked,
       }),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/assets/search', '/api/videos/inspiration', '/ai/images/inspiration']);
+      return result;
+    });
   },
   listAssetTags(
     userId: string,
@@ -384,7 +452,11 @@ export const api = {
     if (params?.query) query.set('query', params.query);
     if (params?.content_type) query.set('content_type', params.content_type);
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<AssetTagFacet[]>(`/assets/tags${suffix}`, {}, { userId, cache: 'no-store' });
+    const path = `/assets/tags${suffix}`;
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 8_000, () =>
+      request<AssetTagFacet[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   searchAssets(
     userId: string,
@@ -409,7 +481,11 @@ export const api = {
     if (params.page) query.set('page', String(params.page));
     if (params.page_size) query.set('page_size', String(params.page_size));
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<AssetSearchResponse>(`/assets/search${suffix}`, {}, { userId, cache: 'no-store' });
+    const path = `/assets/search${suffix}`;
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 6_000, () =>
+      request<AssetSearchResponse>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   updateAssetTags(contentType: 'image' | 'video', assetId: string, userTags: string[], userId: string) {
     return request<{ asset_id: string; content_type: string; auto_tags: string[]; user_tags: string[] }>(
@@ -434,7 +510,10 @@ export const api = {
     return request<GeneratedImage>('/ai/image/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/api/credits/wallet', '/ai/images', '/assets/search', '/assets/tags']);
+      return result;
+    });
   },
   enhanceImagePrompt(payload: { prompt: string; model_key?: string }, userId: string) {
     return request<{ prompt: string }>('/ai/image/prompt-enhance', {
@@ -449,19 +528,31 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   getCreditWallet(userId: string) {
-    return request<CreditWallet>('/api/credits/wallet', {}, { userId, cache: 'no-store' });
+    const path = '/api/credits/wallet';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 8_000, () =>
+      request<CreditWallet>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   estimateCredits(action: string, payload: Record<string, unknown>, userId: string) {
-    return request<CreditEstimateResponse>('/api/estimateCredits', {
-      method: 'POST',
-      body: JSON.stringify({ action, payload }),
-    }, { userId, cache: 'no-store' });
+    const path = '/api/estimateCredits';
+    const body = { action, payload };
+    const cacheKey = makeCacheKey(path, userId, body);
+    return cachedRequest(cacheKey, 2_500, () =>
+      request<CreditEstimateResponse>(path, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }, { userId, cache: 'no-store' }),
+    );
   },
   topupCredits(credits: number, userId: string) {
     return request<{ wallet: CreditWallet; addedCredits: number }>('/api/topupCredits', {
       method: 'POST',
       body: JSON.stringify({ credits }),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/api/credits/wallet', '/api/creditHistory']);
+      return result;
+    });
   },
   getPricing() {
     return request<PricingResponse>('/api/pricing', {}, { cache: 'no-store' });
@@ -479,7 +570,10 @@ export const api = {
     return request<{ wallet: CreditWallet; addedCredits: number }>('/api/topupCredits/verify', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/api/credits/wallet', '/api/creditHistory']);
+      return result;
+    });
   },
   getCreditHistory(userId: string, limit = 100) {
     return request<{ items: CreditHistoryItem[] }>(`/api/creditHistory?limit=${limit}`, {}, { userId, cache: 'no-store' });
