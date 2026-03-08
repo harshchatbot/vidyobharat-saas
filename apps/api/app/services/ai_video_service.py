@@ -110,7 +110,7 @@ class ProviderResult:
 
 
 class AIVideoCreateService:
-    _VIDEO_MODELS_CONFIG = load_shared_json('apps/web/src/config/video-models.json').get('models', [])
+    _VIDEO_MODELS_CONFIG = load_shared_json('shared/config/video-models.json').get('models', [])
     VIDEO_MODEL_REGISTRY: dict[str, ModelRegistryEntry] = {
         str(model['key']): ModelRegistryEntry(
             key=str(model['key']),

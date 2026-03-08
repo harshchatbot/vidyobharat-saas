@@ -12,7 +12,7 @@ SUPPORTED_REEL_TEMPLATES = {
 }
 SUPPORTED_VIDEO_MODELS = {
     str(model.get('key'))
-    for model in load_shared_json('apps/web/src/config/video-models.json').get('models', [])
+    for model in load_shared_json('shared/config/video-models.json').get('models', [])
     if model.get('key')
 }
 

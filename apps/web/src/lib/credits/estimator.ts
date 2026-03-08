@@ -1,5 +1,5 @@
 import type { CreditEstimateResponse, EstimateBreakdownItem } from '@/types/api';
-import creditEngine from '@/config/credit-engine.json';
+import creditEngine from '@/config/creditEngine';
 
 const VIDEO_MULTIPLIERS = {
   baseDuration: creditEngine.video.baseDuration,

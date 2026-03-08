@@ -89,7 +89,7 @@ class CreditService:
         self.settings = get_settings()
         self.pricing_service = PricingService()
         self.sync = FirestoreSyncService()
-        self.credit_engine = load_shared_json('apps/web/src/config/credit-engine.json')
+        self.credit_engine = load_shared_json('shared/config/credit-engine.json')
         self.credit_costs = self.credit_engine['fixedCosts']
         self.credit_plans = _load_json_config('credit_plans.json')
         self.credit_multipliers = {

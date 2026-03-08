@@ -1,6 +1,6 @@
 import type { AIVideoModel } from '@/types/api';
 
-import videoModelsConfig from './video-models.json';
+import videoModelsConfig from '../../../../shared/config/video-models.json';
 
 type RawVideoModelConfig = {
   key: string;
