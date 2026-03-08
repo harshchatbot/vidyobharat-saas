@@ -4,6 +4,7 @@ import math
 import hashlib
 import hmac
 import json
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -746,6 +747,13 @@ class CreditService:
         normalized = json.dumps(metadata, sort_keys=True, separators=(',', ':'), default=str)
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return f'{prefix}:{digest}'
+
+    @contextmanager
+    def _transaction(self):
+        context = nullcontext() if self.db.in_transaction() else self.db.begin()
+        with context:
+            yield
+
     def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
             raise RuntimeError('Razorpay is not configured')
