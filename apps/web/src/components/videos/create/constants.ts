@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import type { AIVideoModel, TTSLanguageOption, TTSVoiceOption } from '@/types/api';
+import { buildVideoModelsForApiFallback, getVideoModelMap } from '@/config/videoModels';
 
 export type TemplateOption = {
   key: string;
@@ -208,82 +209,38 @@ export const AUDIO_QUALITY_OPTIONS = [
   { value: 48000, label: '48 kHz', description: 'Highest fidelity. Best for premium narration output.' },
 ] as const;
 
-export const VIDEO_OUTPUT_RULES = {
-  sora2: {
-    aspects: ['9:16', '16:9'],
-    resolutions: ['720p'],
-    sizes: {
-      '9:16': { '720p': '720x1280' },
-      '16:9': { '720p': '1280x720' },
-    },
-  },
-  veo3: {
-    aspects: ['9:16', '16:9', '1:1'],
-    resolutions: ['720p', '1080p'],
-    sizes: {
-      '9:16': { '720p': '720x1280', '1080p': '1080x1920' },
-      '16:9': { '720p': '1280x720', '1080p': '1920x1080' },
-      '1:1': { '720p': '720x720', '1080p': '1080x1080' },
-    },
-  },
-  kling3: {
-    aspects: ['9:16', '16:9', '1:1'],
-    resolutions: ['720p', '1080p'],
-    sizes: {
-      '9:16': { '720p': '720x1280', '1080p': '1080x1920' },
-      '16:9': { '720p': '1280x720', '1080p': '1920x1080' },
-      '1:1': { '720p': '720x720', '1080p': '1080x1080' },
-    },
-  },
-} as const;
+const VIDEO_MODEL_MAP = getVideoModelMap();
 
-export const VIDEO_DURATION_RULES = {
-  sora2: {
-    defaultSeconds: 8,
-    presetSeconds: [4, 8, 12],
-    helperText: 'Sora 2 supports 4s, 8s, and 12s clips.',
-  },
-  veo3: {
-    defaultSeconds: 8,
-    presetSeconds: [4, 6, 8],
-    seededSeconds: 8,
-    helperText: 'Veo 3.1 supports 4s, 6s, and 8s clips. Image-seeded clips are fixed to 8s.',
-  },
-  kling3: {
-    defaultSeconds: 5,
-    presetSeconds: [3, 5, 8, 10],
-    minSeconds: 3,
-    maxSeconds: 10,
-    helperText: 'Kling 3.0 supports flexible durations from 3s to 10s.',
-  },
-} as const;
+export const VIDEO_OUTPUT_RULES = Object.fromEntries(
+  Object.entries(VIDEO_MODEL_MAP).map(([key, model]) => [
+    key,
+    {
+      aspects: model.supportedAspectRatios,
+      resolutions: model.supportedResolutions,
+      sizes: model.sizes,
+    },
+  ]),
+) as Record<string, { aspects: string[]; resolutions: string[]; sizes: Record<string, Record<string, string>> }>;
 
-export const FALLBACK_VIDEO_MODELS: AIVideoModel[] = [
-  {
-    key: 'sora2',
-    label: 'Cinematic Storytelling (Sora 2)',
-    description: 'Best for realistic narrative videos with synced audio.',
-    frontendHint: 'Choose this for story-led videos with premium realism and motion continuity.',
-    apiAdapter: 'generate_with_sora2',
-  },
-  {
-    key: 'veo3',
-    label: 'High-Quality Cinematics (Veo 3.1)',
-    description: 'Best for polished videos with native audio.',
-    frontendHint: 'Choose this for visually refined short-form videos with cinematic finish.',
-    apiAdapter: 'generate_with_veo3',
-  },
-  {
-    key: 'kling3',
-    label: 'Stylized Rapid Drafts (Kling 3.0)',
-    description: 'Best for expressive, stylized clips and fast iteration.',
-    frontendHint: 'Choose this for shorter stylized videos where speed and experimentation matter.',
-    apiAdapter: 'generate_with_kling3',
-  },
-];
+export const VIDEO_DURATION_RULES = Object.fromEntries(
+  Object.entries(VIDEO_MODEL_MAP).map(([key, model]) => [
+    key,
+    {
+      defaultSeconds: model.defaultDurationSeconds,
+      presetSeconds: model.durationPresets,
+      seededSeconds: model.seededDurationSeconds,
+      minSeconds: model.minDurationSeconds,
+      maxSeconds: model.maxDurationSeconds,
+      helperText: model.durationHelperText,
+    },
+  ]),
+) as Record<string, { defaultSeconds: number; presetSeconds: number[]; seededSeconds?: number; minSeconds?: number; maxSeconds?: number; helperText: string }>;
+
+export const FALLBACK_VIDEO_MODELS: AIVideoModel[] = buildVideoModelsForApiFallback();
 
 export const MODEL_ICONS: Record<string, typeof Crown> = {
   sora2: Crown,
+  sora2_pro: Sparkles,
   veo3: MonitorSmartphone,
   kling3: WandSparkles,
 };

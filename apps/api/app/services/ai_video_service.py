@@ -16,6 +16,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.core.shared_config import load_shared_json
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.providers.storage import build_storage_provider
@@ -89,6 +90,15 @@ class ModelRegistryEntry:
     description: str
     frontend_hint: str
     api_adapter: str
+    short_label: str | None = None
+    tier: str | None = None
+    enabled: bool = True
+    featured: bool = False
+    feature_gate: str | None = None
+    quality_badge: str | None = None
+    speed_badge: str | None = None
+    credit_badge: str | None = None
+    resolution_labels: list[str] | None = None
 
 
 @dataclass
@@ -100,40 +110,44 @@ class ProviderResult:
 
 
 class AIVideoCreateService:
+    _VIDEO_MODELS_CONFIG = load_shared_json('apps/web/src/config/video-models.json').get('models', [])
     VIDEO_MODEL_REGISTRY: dict[str, ModelRegistryEntry] = {
-        'sora2': ModelRegistryEntry(
-            key='sora2',
-            label='Cinematic Storytelling (Sora 2)',
-            description='Best for realistic narrative videos with synced audio and premium motion realism.',
-            frontend_hint='Use this when story continuity and high-end realism matter most.',
-            api_adapter='generate_with_sora2',
-        ),
-        'veo3': ModelRegistryEntry(
-            key='veo3',
-            label='High-Quality Cinematics (Veo 3.1)',
-            description='Best for polished short-form videos with native audio and cinematic motion.',
-            frontend_hint='Use this for strong cinematic finish and premium short-form outputs.',
-            api_adapter='generate_with_veo3',
-        ),
-        'kling3': ModelRegistryEntry(
-            key='kling3',
-            label='Stylized Rapid Drafts (Kling 3.0)',
-            description='Best for quick stylized clips, fast iteration, and visually expressive drafts.',
-            frontend_hint='Use this when you want creative motion fast and need tighter control over short clip length.',
-            api_adapter='generate_with_kling3',
-        ),
+        str(model['key']): ModelRegistryEntry(
+            key=str(model['key']),
+            label=str(model.get('fullLabel') or model['label']),
+            description=str(model['description']),
+            frontend_hint=str(model['frontendHint']),
+            api_adapter=str(model['apiAdapter']),
+            short_label=str(model.get('label') or model['key']),
+            tier=str(model.get('tier') or 'premium'),
+            enabled=bool(model.get('enabled', True)),
+            featured=bool(model.get('featured', False)),
+            feature_gate=model.get('featureGate'),
+            quality_badge=model.get('qualityBadge'),
+            speed_badge=model.get('speedBadge'),
+            credit_badge=model.get('creditBadge'),
+            resolution_labels=list(model.get('resolutionLabels') or []),
+        )
+        for model in _VIDEO_MODELS_CONFIG
     }
 
     DURATION_RULES: dict[str, dict[str, Any]] = {
-        'sora2': {'presets': {4, 8, 12}, 'default': 8},
-        'veo3': {'presets': {4, 6, 8}, 'default': 8, 'seeded_only': 8},
-        'kling3': {'min': 3, 'max': 10, 'default': 5},
+        str(model['key']): {
+            'presets': set(model.get('durationPresets') or []),
+            'default': int(model.get('defaultDurationSeconds') or 8),
+            **({'seeded_only': int(model['seededDurationSeconds'])} if model.get('seededDurationSeconds') is not None else {}),
+            **({'min': int(model['minDurationSeconds'])} if model.get('minDurationSeconds') is not None else {}),
+            **({'max': int(model['maxDurationSeconds'])} if model.get('maxDurationSeconds') is not None else {}),
+        }
+        for model in _VIDEO_MODELS_CONFIG
     }
 
     OUTPUT_RULES: dict[str, dict[str, Any]] = {
-        'sora2': {'aspects': {'9:16', '16:9'}, 'resolutions': {'720p'}},
-        'veo3': {'aspects': {'9:16', '16:9', '1:1'}, 'resolutions': {'720p', '1080p'}},
-        'kling3': {'aspects': {'9:16', '16:9', '1:1'}, 'resolutions': {'720p', '1080p'}},
+        str(model['key']): {
+            'aspects': set(model.get('supportedAspectRatios') or []),
+            'resolutions': set(model.get('supportedResolutions') or []),
+        }
+        for model in _VIDEO_MODELS_CONFIG
     }
 
     def __init__(self, db: Session, settings: Settings) -> None:
@@ -144,6 +158,7 @@ class AIVideoCreateService:
         self.tagging = AssetTaggingService(db)
         self.providers = {
             'sora2': self.generate_with_sora2,
+            'sora2_pro': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
             'kling3': self.generate_with_kling3,
         }
@@ -151,6 +166,7 @@ class AIVideoCreateService:
         # Keep fallbacks conservative: only retry with another compatible short-form provider.
         self.video_fallbacks: dict[str, list[str]] = {
             'sora2': [],
+            'sora2_pro': [],
             'veo3': ['kling3'],
             'kling3': ['veo3'],
         }
@@ -185,6 +201,11 @@ class AIVideoCreateService:
         adapter = self.providers.get(model_key)
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
+        if not registry_entry.enabled:
+            raise ProviderError(
+                f'{registry_entry.short_label or registry_entry.label} is not available yet. '
+                'Keep it visible in UI, but enable backend routing before allowing generation.'
+            )
 
         self._validate_output_settings(model_key=model_key, aspect_ratio=aspect_ratio, resolution=resolution)
 

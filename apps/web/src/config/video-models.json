@@ -1,0 +1,109 @@
+{
+  "models": [
+    {
+      "key": "sora2",
+      "label": "Sora 2",
+      "fullLabel": "Cinematic Storytelling (Sora 2)",
+      "description": "Best for polished narrative videos with realistic motion and premium social-first framing.",
+      "frontendHint": "Use this for launch films, polished explainers, and cinematic creator stories.",
+      "apiAdapter": "generate_with_sora2",
+      "tier": "premium",
+      "enabled": true,
+      "featured": true,
+      "featureGate": null,
+      "qualityBadge": "Premium realism",
+      "speedBadge": "Balanced speed",
+      "creditBadge": "Standard credits",
+      "resolutionLabels": ["720p", "1K"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" }
+      },
+      "durationPresets": [4, 8, 12],
+      "defaultDurationSeconds": 8,
+      "durationHelperText": "Sora 2 supports 4s, 8s, and 12s clips."
+    },
+    {
+      "key": "sora2_pro",
+      "label": "Sora 2 Pro",
+      "fullLabel": "Sora 2 Pro",
+      "description": "Reserved for higher-resolution premium renders and campaign-grade output.",
+      "frontendHint": "Best for top-tier ad creatives and hero campaign work when Pro routing is enabled.",
+      "apiAdapter": "generate_with_sora2_pro",
+      "tier": "signature",
+      "enabled": false,
+      "featured": true,
+      "featureGate": "coming_soon",
+      "qualityBadge": "Highest fidelity",
+      "speedBadge": "Slower render",
+      "creditBadge": "Premium credits",
+      "resolutionLabels": ["2K", "4K"],
+      "supportedResolutions": ["1440p", "2160p"],
+      "supportedAspectRatios": ["9:16", "16:9"],
+      "sizes": {
+        "9:16": { "1440p": "1440x2560", "2160p": "2160x3840" },
+        "16:9": { "1440p": "2560x1440", "2160p": "3840x2160" }
+      },
+      "durationPresets": [4, 8, 12],
+      "defaultDurationSeconds": 8,
+      "durationHelperText": "Sora 2 Pro will unlock 2K and 4K premium renders when backend routing is enabled."
+    },
+    {
+      "key": "veo3",
+      "label": "Veo 3.1",
+      "fullLabel": "High-Quality Cinematics (Veo 3.1)",
+      "description": "Best for polished short-form videos with cinematic finish and multi-format support.",
+      "frontendHint": "Use this for premium short-form visuals when you want flexibility in framing.",
+      "apiAdapter": "generate_with_veo3",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "featureGate": null,
+      "qualityBadge": "Cinematic output",
+      "speedBadge": "Balanced speed",
+      "creditBadge": "Standard credits",
+      "resolutionLabels": ["720p", "1080p"],
+      "supportedResolutions": ["720p", "1080p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280", "1080p": "1080x1920" },
+        "16:9": { "720p": "1280x720", "1080p": "1920x1080" },
+        "1:1": { "720p": "720x720", "1080p": "1080x1080" }
+      },
+      "durationPresets": [4, 6, 8],
+      "defaultDurationSeconds": 8,
+      "seededDurationSeconds": 8,
+      "durationHelperText": "Veo 3.1 supports 4s, 6s, and 8s clips. Image-seeded renders are fixed to 8s."
+    },
+    {
+      "key": "kling3",
+      "label": "Kling 3.0",
+      "fullLabel": "Stylized Rapid Drafts (Kling 3.0)",
+      "description": "Best for expressive draft clips, fast stylized experiments, and short creative iterations.",
+      "frontendHint": "Use this when speed matters and you want fast visual exploration.",
+      "apiAdapter": "generate_with_kling3",
+      "tier": "fast",
+      "enabled": true,
+      "featured": false,
+      "featureGate": null,
+      "qualityBadge": "Stylized motion",
+      "speedBadge": "Fastest",
+      "creditBadge": "Lower credits",
+      "resolutionLabels": ["720p", "1080p"],
+      "supportedResolutions": ["720p", "1080p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280", "1080p": "1080x1920" },
+        "16:9": { "720p": "1280x720", "1080p": "1920x1080" },
+        "1:1": { "720p": "720x720", "1080p": "1080x1080" }
+      },
+      "durationPresets": [3, 5, 8, 10],
+      "minDurationSeconds": 3,
+      "maxDurationSeconds": 10,
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling 3.0 supports flexible durations from 3s to 10s."
+    }
+  ]
+}

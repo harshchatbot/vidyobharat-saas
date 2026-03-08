@@ -3,6 +3,15 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
+from app.core.shared_config import load_shared_json
+
+
+SUPPORTED_VIDEO_MODELS = {
+    str(model.get('key'))
+    for model in load_shared_json('apps/web/src/config/video-models.json').get('models', [])
+    if model.get('key')
+}
+
 
 class CreditBreakdownItem(BaseModel):
     feature: str
@@ -136,14 +145,14 @@ class VideoEstimatePayload(BaseModel):
     @field_validator('model')
     @classmethod
     def validate_model(cls, value: str) -> str:
-        if value not in {'sora2', 'veo3', 'kling3'}:
+        if value not in SUPPORTED_VIDEO_MODELS:
             raise ValueError('Unsupported model')
         return value
 
     @field_validator('resolution')
     @classmethod
     def validate_resolution(cls, value: str) -> str:
-        if value not in {'720p', '1080p'}:
+        if value not in {'720p', '1080p', '1440p', '2160p'}:
             raise ValueError('Unsupported resolution')
         return value
 

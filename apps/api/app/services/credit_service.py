@@ -14,6 +14,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.shared_config import load_shared_json
 from app.db.repositories.credit_repository import CreditRepository
 from app.models.entities import CreditTransaction, CreditWallet
 from app.services.firestore_sync_service import FirestoreSyncService
@@ -74,24 +75,6 @@ class CreditTopUpOrderResult:
 
 class CreditService:
     FREE_PLAN_MONTHLY_CREDITS = 25
-    FREE_VOICE_KEYS = {'Aarav', 'Mira', 'Dev', 'Shubh', 'Priya'}
-    FREE_IMAGE_MODELS = {'nano_banana'}
-    FREE_IMAGE_RESOLUTIONS = {'1024'}
-    VIDEO_MODEL_ALIASES = {
-        'kling3': 'kling',
-        'kling': 'kling',
-        'veo3': 'veo',
-        'veo': 'veo',
-        'sora2': 'sora',
-        'sora': 'sora',
-    }
-    IMAGE_MODEL_TIERS = {
-        'nano_banana': 'standard',
-        'openai_image': 'premium',
-        'seedream': 'premium',
-        'flux_spark': 'premium',
-        'recraft_studio': 'premium',
-    }
     VOICE_PROVIDER_ALIASES = {
         'sarvam ai': 'sarvam',
         'sarvam': 'sarvam',
@@ -106,9 +89,36 @@ class CreditService:
         self.settings = get_settings()
         self.pricing_service = PricingService()
         self.sync = FirestoreSyncService()
-        self.credit_costs = _load_json_config('credit_pricing.json')
+        self.credit_engine = load_shared_json('apps/web/src/config/credit-engine.json')
+        self.credit_costs = self.credit_engine['fixedCosts']
         self.credit_plans = _load_json_config('credit_plans.json')
-        self.credit_multipliers = _load_json_config('credit_multipliers.json')
+        self.credit_multipliers = {
+            'video': {
+                'base_credits': self.credit_engine['video']['baseCredits'],
+                'base_duration': self.credit_engine['video']['baseDuration'],
+                'model_multiplier': self.credit_engine['video']['modelMultiplier'],
+                'resolution_multiplier': self.credit_engine['video']['resolutionMultiplier'],
+                'quality_multiplier': self.credit_engine['video']['qualityMultiplier'],
+                'max_credits_cap': self.credit_engine['video']['maxCreditsCap'],
+            },
+            'image': {
+                'base_credits': self.credit_engine['image']['baseCredits'],
+                'resolution_multiplier': self.credit_engine['image']['resolutionMultiplier'],
+                'model_multiplier': self.credit_engine['image']['modelMultiplier'],
+                'max_credits_cap': self.credit_engine['image']['maxCreditsCap'],
+            },
+            'voice': {
+                'base_credits': self.credit_engine['voice']['baseCredits'],
+                'provider_multiplier': self.credit_engine['voice']['providerMultiplier'],
+                'sample_rate_multiplier': self.credit_engine['voice']['sampleRateMultiplier'],
+                'max_credits_cap': self.credit_engine['voice']['maxCreditsCap'],
+            },
+        }
+        self.free_voice_keys = set(self.credit_engine['freeVoiceKeys'])
+        self.free_image_models = set(self.credit_engine['freeImageModels'])
+        self.free_image_resolutions = set(self.credit_engine['freeImageResolutions'])
+        self.video_model_aliases = self.credit_engine['videoModelAliases']
+        self.image_model_tiers = self.credit_engine['imageModelTiers']
 
     def ensure_wallet(self, user_id: str) -> CreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -389,7 +399,7 @@ class CreditService:
         resolution = str(payload.get('resolution') or '')
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
-        if model_key not in self.FREE_IMAGE_MODELS or resolution not in self.FREE_IMAGE_RESOLUTIONS:
+        if model_key not in self.free_image_models or resolution not in self.free_image_resolutions:
             dynamic_total, dynamic_items = self._calculate_image_credits_with_breakdown(
                 resolution=resolution,
                 model=self._resolve_image_model_tier(model_key),
@@ -543,21 +553,21 @@ class CreditService:
         return total, breakdown
 
     def _normalize_video_model(self, value: str) -> str:
-        normalized = self.VIDEO_MODEL_ALIASES.get(value.strip().lower())
+        normalized = self.video_model_aliases.get(value.strip().lower())
         if not normalized:
             raise ValueError('Unsupported video model for credit calculation')
         return normalized
 
     def _resolve_image_model_tier(self, model_key: str) -> str:
-        return self.IMAGE_MODEL_TIERS.get(model_key, 'premium')
+        return self.image_model_tiers.get(model_key, 'premium')
 
     def _resolve_voice_provider(self, *, voice: str, provider: Any | None) -> str:
         if provider:
             normalized = self._normalize_voice_provider(str(provider))
-            if normalized == 'free' or voice in self.FREE_VOICE_KEYS:
+            if normalized == 'free' or voice in self.free_voice_keys:
                 return 'free'
             return normalized
-        return 'free' if voice in self.FREE_VOICE_KEYS else 'sarvam'
+        return 'free' if voice in self.free_voice_keys else 'sarvam'
 
     def _normalize_voice_provider(self, value: str) -> str:
         normalized = self.VOICE_PROVIDER_ALIASES.get(value.strip().lower())

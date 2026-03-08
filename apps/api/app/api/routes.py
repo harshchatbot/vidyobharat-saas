@@ -1097,6 +1097,15 @@ def list_ai_video_models(_: str = Depends(get_user_id), db: Session = Depends(ge
             description=model.description,
             frontendHint=model.frontend_hint,
             apiAdapter=model.api_adapter,
+            shortLabel=model.short_label,
+            tier=model.tier,
+            enabled=model.enabled,
+            featured=model.featured,
+            featureGate=model.feature_gate,
+            qualityBadge=model.quality_badge,
+            speedBadge=model.speed_badge,
+            creditBadge=model.credit_badge,
+            resolutionLabels=model.resolution_labels or [],
         )
         for model in service.list_models()
     ]
@@ -1205,6 +1214,14 @@ def create_ai_video(
                 detail={
                     'error': 'MODERATION_BLOCKED',
                     'message': 'Your prompt was blocked by provider moderation. Please revise wording to remove sensitive, harmful, or policy-restricted content and try again.',
+                },
+            ) from exc
+        if 'not available yet' in normalized_error or 'backend routing' in normalized_error:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    'error': 'MODEL_NOT_ENABLED',
+                    'message': error_text,
                 },
             ) from exc
         raise HTTPException(status_code=502, detail=error_text) from exc

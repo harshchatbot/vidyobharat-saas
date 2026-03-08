@@ -183,6 +183,15 @@ export type AIVideoModel = {
   description: string;
   frontendHint: string;
   apiAdapter: string;
+  shortLabel?: string;
+  tier?: string;
+  enabled?: boolean;
+  featured?: boolean;
+  featureGate?: string | null;
+  qualityBadge?: string;
+  speedBadge?: string;
+  creditBadge?: string;
+  resolutionLabels?: string[];
 };
 
 export type ScriptGenerateRequest = {
@@ -273,7 +282,7 @@ export type VideoCreateRequest = {
   template: string;
   script: string;
   tags: string[];
-  modelKey: 'sora2' | 'veo3' | 'kling3';
+  modelKey: 'sora2' | 'sora2_pro' | 'veo3' | 'kling3';
   language: string;
   voice: string;
   imageUrls: string[];
@@ -310,7 +319,7 @@ export type AIVideoStatusResponse = {
   status: 'queued' | 'processing' | 'success' | 'failed' | string;
   progress: number;
   videoUrl: string | null;
-  modelKey: 'sora2' | 'veo3' | 'kling3' | string | null;
+  modelKey: 'sora2' | 'sora2_pro' | 'veo3' | 'kling3' | string | null;
   modelLabel: string | null;
   provider: string | null;
   resolution: string;

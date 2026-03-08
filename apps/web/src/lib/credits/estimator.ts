@@ -1,90 +1,38 @@
 import type { CreditEstimateResponse, EstimateBreakdownItem } from '@/types/api';
+import creditEngine from '@/config/credit-engine.json';
 
 const VIDEO_MULTIPLIERS = {
-  baseDuration: 15,
-  baseCredits: 10,
-  model: {
-    kling: 1.0,
-    veo: 1.3,
-    sora: 1.8,
-  },
-  resolution: {
-    '720p': 1.0,
-    '1080p': 1.4,
-  },
-  quality: {
-    standard: 1.0,
-    high: 1.3,
-  },
-  cap: 150,
+  baseDuration: creditEngine.video.baseDuration,
+  baseCredits: creditEngine.video.baseCredits,
+  model: creditEngine.video.modelMultiplier,
+  resolution: creditEngine.video.resolutionMultiplier,
+  quality: creditEngine.video.qualityMultiplier,
+  cap: creditEngine.video.maxCreditsCap,
 } as const;
 
 const IMAGE_MULTIPLIERS = {
-  baseCredits: 2,
-  resolution: {
-    '512': 1.0,
-    '1024': 1.5,
-    '1536': 1.75,
-    '2048': 2.0,
-  },
-  model: {
-    standard: 1.0,
-    premium: 2.0,
-  },
-  cap: 50,
+  baseCredits: creditEngine.image.baseCredits,
+  resolution: creditEngine.image.resolutionMultiplier,
+  model: creditEngine.image.modelMultiplier,
+  cap: creditEngine.image.maxCreditsCap,
 } as const;
 
 const VOICE_MULTIPLIERS = {
-  baseCredits: 1,
-  provider: {
-    free: 0.0,
-    sarvam: 2.0,
-    elevenlabs: 3.0,
-  },
-  sampleRate: {
-    '22050': 1.0,
-    '48000': 1.4,
-  },
-  cap: 20,
+  baseCredits: creditEngine.voice.baseCredits,
+  provider: creditEngine.voice.providerMultiplier,
+  sampleRate: creditEngine.voice.sampleRateMultiplier,
+  cap: creditEngine.voice.maxCreditsCap,
 } as const;
 
-const CREDIT_COSTS = {
-  premium_voice: 3,
-  premium_voice_preview: 1,
-  voice_retry: 2,
-  premium_image: 3,
-  image_upscale: 1,
-  premium_video_720p_15s: 12,
-  premium_video_1080p_15s: 18,
-  character_consistency: 5,
-  influencer_reference_lock: 8,
-  influencer_content_generate: 2,
-  script_enhance: 1,
-  auto_caption: 1,
-  auto_tag: 1,
-  audio_quality_48khz_modifier: 1,
-} as const;
+const CREDIT_COSTS = creditEngine.fixedCosts;
 
-const FREE_VOICE_KEYS = new Set(['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya']);
-const FREE_IMAGE_MODELS = new Set(['nano_banana']);
-const FREE_IMAGE_RESOLUTIONS = new Set(['1024']);
+const FREE_VOICE_KEYS = new Set(creditEngine.freeVoiceKeys);
+const FREE_IMAGE_MODELS = new Set(creditEngine.freeImageModels);
+const FREE_IMAGE_RESOLUTIONS = new Set(creditEngine.freeImageResolutions);
 
-const VIDEO_MODEL_ALIASES: Record<string, 'sora' | 'veo' | 'kling'> = {
-  sora2: 'sora',
-  sora: 'sora',
-  veo3: 'veo',
-  veo: 'veo',
-  kling3: 'kling',
-  kling: 'kling',
-};
+const VIDEO_MODEL_ALIASES = creditEngine.videoModelAliases as Record<string, 'sora' | 'sora_pro' | 'veo' | 'kling'>;
 
-const IMAGE_MODEL_TIERS: Record<string, 'standard' | 'premium'> = {
-  nano_banana: 'standard',
-  openai_image: 'premium',
-  seedream: 'premium',
-  flux_spark: 'premium',
-  recraft_studio: 'premium',
-};
+const IMAGE_MODEL_TIERS = creditEngine.imageModelTiers as Record<string, 'standard' | 'premium'>;
 
 function item(component: string, value: number, label?: string): EstimateBreakdownItem {
   return { component, value, label };

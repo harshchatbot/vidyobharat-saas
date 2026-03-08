@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.shared_config import load_shared_json
+
 
 SUPPORTED_REEL_TEMPLATES = {
     'History_POV',
@@ -8,7 +10,11 @@ SUPPORTED_REEL_TEMPLATES = {
     'Roman_Soldier_POV',
     'Historical_Fact_Reel',
 }
-SUPPORTED_VIDEO_MODELS = {'sora2', 'veo3', 'kling3'}
+SUPPORTED_VIDEO_MODELS = {
+    str(model.get('key'))
+    for model in load_shared_json('apps/web/src/config/video-models.json').get('models', [])
+    if model.get('key')
+}
 
 
 class ReelScriptRequest(BaseModel):
@@ -63,6 +69,15 @@ class AIVideoModelResponse(BaseModel):
     description: str
     frontendHint: str
     apiAdapter: str
+    shortLabel: str | None = None
+    tier: str | None = None
+    enabled: bool = True
+    featured: bool = False
+    featureGate: str | None = None
+    qualityBadge: str | None = None
+    speedBadge: str | None = None
+    creditBadge: str | None = None
+    resolutionLabels: list[str] = Field(default_factory=list)
 
 
 class VideoMusicSettings(BaseModel):
@@ -111,7 +126,7 @@ class AIVideoCreateRequest(BaseModel):
     @field_validator('resolution')
     @classmethod
     def validate_resolution(cls, value: str) -> str:
-        if value not in {'720p', '1080p'}:
+        if value not in {'720p', '1080p', '1440p', '2160p'}:
             raise ValueError('Unsupported resolution')
         return value
 

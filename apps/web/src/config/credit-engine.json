@@ -1,0 +1,86 @@
+{
+  "fixedCosts": {
+    "premium_voice": 3,
+    "premium_voice_preview": 1,
+    "voice_retry": 2,
+    "premium_image": 3,
+    "image_upscale": 1,
+    "premium_video_720p_15s": 12,
+    "premium_video_1080p_15s": 18,
+    "character_consistency": 5,
+    "influencer_reference_lock": 8,
+    "influencer_content_generate": 2,
+    "script_enhance": 1,
+    "auto_caption": 1,
+    "auto_tag": 1,
+    "audio_quality_48khz_modifier": 1
+  },
+  "video": {
+    "baseDuration": 15,
+    "baseCredits": 10,
+    "modelMultiplier": {
+      "kling": 1.0,
+      "veo": 1.3,
+      "sora": 1.8,
+      "sora_pro": 3.1
+    },
+    "resolutionMultiplier": {
+      "720p": 1.0,
+      "1080p": 1.4,
+      "1440p": 2.2,
+      "2160p": 3.2
+    },
+    "qualityMultiplier": {
+      "standard": 1.0,
+      "high": 1.3
+    },
+    "maxCreditsCap": 150
+  },
+  "image": {
+    "baseCredits": 2,
+    "resolutionMultiplier": {
+      "512": 1.0,
+      "1024": 1.5,
+      "1536": 1.75,
+      "2048": 2.0
+    },
+    "modelMultiplier": {
+      "standard": 1.0,
+      "premium": 2.0
+    },
+    "maxCreditsCap": 50
+  },
+  "voice": {
+    "baseCredits": 1,
+    "providerMultiplier": {
+      "free": 0.0,
+      "sarvam": 2.0,
+      "elevenlabs": 3.0
+    },
+    "sampleRateMultiplier": {
+      "22050": 1.0,
+      "48000": 1.4
+    },
+    "maxCreditsCap": 20
+  },
+  "videoModelAliases": {
+    "sora2": "sora",
+    "sora": "sora",
+    "sora2_pro": "sora_pro",
+    "sora_pro": "sora_pro",
+    "veo3": "veo",
+    "veo": "veo",
+    "kling3": "kling",
+    "kling": "kling"
+  },
+  "imageModelTiers": {
+    "nano_banana": "standard",
+    "openai_image": "premium",
+    "seedream": "premium",
+    "flux_spark": "premium",
+    "recraft_studio": "premium"
+  },
+  "freeVoiceKeys": ["Aarav", "Mira", "Dev", "Shubh", "Priya"],
+  "freeImageModels": ["nano_banana"],
+  "freeImageResolutions": ["1024"]
+}

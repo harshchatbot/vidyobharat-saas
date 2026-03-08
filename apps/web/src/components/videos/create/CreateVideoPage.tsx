@@ -34,7 +34,7 @@ function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
 }
 
-type VideoModelKey = 'sora2' | 'veo3' | 'kling3';
+type VideoModelKey = 'sora2' | 'sora2_pro' | 'veo3' | 'kling3';
 
 export function CreateVideoPage({
   userId,
@@ -132,7 +132,8 @@ export function CreateVideoPage({
     return `${item.label} ${item.description}`.toLowerCase().includes(query);
   });
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
-  const selectedModel = models.find((model) => model.key === modelKey) ?? models[0];
+  const selectedModel = models.find((model) => model.key === modelKey) ?? models.find((model) => model.enabled !== false) ?? models[0];
+  const selectedModelDisabled = selectedModel?.enabled === false;
   const selectedLanguageCode =
     languageOptions.find((item) => item.label === language)?.code ??
     LANGUAGE_OPTIONS.find((item) => item.label === language)?.code ??
@@ -213,10 +214,10 @@ export function CreateVideoPage({
   const supportedAspects = [...outputRule.aspects] as string[];
   const supportedResolutions = [...outputRule.resolutions] as string[];
   const hasReferenceImages = selectedImageUrls.length > 0;
-  const seededDuration = modelKey === 'veo3' ? VIDEO_DURATION_RULES.veo3.seededSeconds : undefined;
-  const klingMinDuration = modelKey === 'kling3' ? VIDEO_DURATION_RULES.kling3.minSeconds : undefined;
-  const klingMaxDuration = modelKey === 'kling3' ? VIDEO_DURATION_RULES.kling3.maxSeconds : undefined;
-  const availableDurations: number[] = modelKey === 'veo3' && hasReferenceImages && seededDuration
+  const seededDuration = durationRule.seededSeconds;
+  const klingMinDuration = durationRule.minSeconds;
+  const klingMaxDuration = durationRule.maxSeconds;
+  const availableDurations: number[] = hasReferenceImages && seededDuration
     ? [seededDuration]
     : [...durationRule.presetSeconds];
   const availableAspectRatios = ASPECT_OPTIONS.filter((option) =>
@@ -235,7 +236,7 @@ export function CreateVideoPage({
     '';
   const estimatedTime = modelKey === 'sora2' ? '2-4 min' : modelKey === 'veo3' ? '1-3 min' : '1-2 min';
   const durationError =
-    modelKey === 'kling3'
+    durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined
       ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)
         ? `Enter a duration between ${klingMinDuration}s and ${klingMaxDuration}s.`
         : null)
@@ -693,14 +694,14 @@ export function CreateVideoPage({
   useEffect(() => {
     setDurationMode('custom');
     const currentSeconds = Number(durationSeconds);
-    if (modelKey === 'veo3' && hasReferenceImages && seededDuration) {
+    if (hasReferenceImages && seededDuration) {
       if (currentSeconds !== seededDuration) {
         setDurationSeconds(String(seededDuration));
       }
       return;
     }
 
-    if (modelKey === 'kling3') {
+    if (durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined) {
       const minimum = klingMinDuration ?? 3;
       const maximum = klingMaxDuration ?? 10;
       if (!Number.isFinite(currentSeconds) || currentSeconds < minimum || currentSeconds > maximum) {
@@ -1458,11 +1459,11 @@ export function CreateVideoPage({
           durationSeconds={durationSeconds}
           onDurationSecondsChange={setDurationSeconds}
           availableDurations={availableDurations}
-          supportsCustomDuration={modelKey === 'kling3'}
+          supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
           minDuration={klingMinDuration}
           maxDuration={klingMaxDuration}
-          durationHelperText={modelKey === 'veo3' && hasReferenceImages && seededDuration
-            ? 'Veo 3.1 image-seeded clips are currently limited to 8 seconds.'
+          durationHelperText={hasReferenceImages && seededDuration
+            ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
             : durationRule.helperText}
           durationError={durationError}
           captionsEnabled={captionsEnabled}
@@ -1481,7 +1482,7 @@ export function CreateVideoPage({
                 <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
-                {selectedModel?.label ?? 'Model'}
+                {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
@@ -1505,17 +1506,22 @@ export function CreateVideoPage({
               estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
               estimatedTime={estimatedTime}
               currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-              disabled={Boolean(durationError)}
+              disabled={Boolean(durationError) || selectedModelDisabled}
               insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
               onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
               helperText={
-                creditEstimate
+                selectedModelDisabled
+                  ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
+                  : creditEstimate
                   ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
                   : isEstimating
                     ? 'Estimating credits for selected settings.'
                     : `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'}`
               }
             />
+            {selectedModelDisabled ? (
+              <p className="text-xs text-muted">Feature-gated for now. Enable backend routing before allowing generation.</p>
+            ) : null}
             {estimateError ? (
               <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
             ) : null}
