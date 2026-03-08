@@ -7,7 +7,17 @@ from typing import Any
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
+    current = Path(__file__).resolve()
+
+    for parent in [current.parent, *current.parents]:
+        if (parent / "apps" / "web" / "src" / "config").exists():
+            return parent
+        if (parent / "shared" / "config").exists():
+            return parent
+        if (parent / "pyproject.toml").exists():
+            return parent
+
+    return current.parents[2] if len(current.parents) > 2 else current.parent
 
 
 def _shared_config_path(relative_path: str) -> Path:
@@ -17,5 +27,7 @@ def _shared_config_path(relative_path: str) -> Path:
 @lru_cache(maxsize=16)
 def load_shared_json(relative_path: str) -> dict[str, Any]:
     path = _shared_config_path(relative_path)
-    with path.open('r', encoding='utf-8') as handle:
+    if not path.exists():
+        raise FileNotFoundError(f"Shared config not found: {path}")
+    with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
