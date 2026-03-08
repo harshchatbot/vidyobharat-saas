@@ -78,14 +78,14 @@ const toolTiles = [
     title: 'Shorts',
     subtitle: 'High-frequency vertical reel workflows',
     href: '/signup',
-    media: { type: 'video', src: '/videos/samples/hindi-festival-9x16.mp4' } satisfies SurfaceMedia,
+    media: { type: 'video', src: '/videos/samples/lip-sync.mp4' } satisfies SurfaceMedia,
     icon: Sparkles,
   },
   {
     title: 'Video Editor',
     subtitle: 'Polish voice, captions, and pacing',
     href: '/signup',
-    media: { type: 'image', src: '/illustrations/marketing.png' } satisfies SurfaceMedia,
+    media: { type: 'image', src: '/illustrations/earth.png' } satisfies SurfaceMedia,
     icon: PlaySquare,
   },
 ];
@@ -119,17 +119,17 @@ const heroGalleryTiles: Array<{
   {
     title: 'Creator launch',
     note: 'Campaign frame',
-    media: { type: 'image', src: '/illustrations/startup.png' },
+    media: { type: 'image', src: '/videos/samples/creator111.mp4' },
   },
   {
     title: 'Influencer persona',
     note: 'Character memory',
-    media: { type: 'image', src: '/illustrations/ai-influencer.png' },
+    media: { type: 'image', src: '/videos/samples/influncer-persona.png' },
   },
   {
     title: 'Product motion',
     note: 'Ad visual',
-    media: { type: 'image', src: '/illustrations/product-ads.png' },
+    media: { type: 'image', src: '/videos/samples/product-ads.png' },
   },
   {
     title: 'Shorts pipeline',
