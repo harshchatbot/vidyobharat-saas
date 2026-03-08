@@ -114,8 +114,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={userId}>
-      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] lg:grid-cols-[108px_1fr]">
-        <aside className="hidden border-r border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] px-2 py-4 lg:block">
+      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] xl:grid-cols-[112px_1fr]">
+        <aside className="rangmanch-app-rail hidden px-2 py-4 xl:block">
           <div className="flex items-center justify-center">
             <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
           </div>
@@ -162,18 +162,18 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         </aside>
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-40 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.94)] backdrop-blur">
-            <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6 xl:px-8">
+            <div className="rangmanch-app-header mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
                   aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   onClick={() => setMobileNavOpen((current) => !current)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text lg:hidden"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-glass)/0.72)] text-text xl:hidden"
                 >
                   {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>
-                <div className="lg:hidden">
+                <div className="xl:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
                 <span className="hidden truncate font-heading text-2xl font-extrabold tracking-tight text-text sm:inline-block">{pageTitle}</span>
@@ -246,7 +246,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </header>
           {mobileNavOpen ? (
-            <div className="fixed inset-x-0 bottom-0 top-[65px] z-40 lg:hidden">
+            <div className="fixed inset-x-0 bottom-0 top-[76px] z-40 xl:hidden">
               <button
                 type="button"
                 aria-label="Close navigation menu"
@@ -316,7 +316,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+          <main className="mx-auto max-w-[1500px] px-4 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8">{children}</main>
         </div>
       </div>
       </CreditProvider>
@@ -330,12 +330,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   return (
     <CreditProvider userId={userId}>
       <div className="min-h-screen bg-[hsl(var(--color-bg))]">
-        <header className="sticky top-0 z-50 bg-[hsl(var(--color-bg)/0.92)] backdrop-blur">
-          <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6 sm:pt-4">
+        <header className="sticky top-0 z-50 px-4 pt-3 sm:px-6 sm:pt-4">
+          <div className="mx-auto max-w-[1500px]">
             <TopNav userId={userId} accountLabel={accountLabel} />
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+        <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </CreditProvider>
   );

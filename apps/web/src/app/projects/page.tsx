@@ -1,6 +1,6 @@
 import { ProjectsClient } from '@/components/projects/ProjectsClient';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
+import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { getUserIdFromCookie } from '@/lib/session';
 import { api } from '@/lib/api';
 import Link from 'next/link';
@@ -12,13 +12,23 @@ export default async function ProjectsPage() {
   return (
     <div className="space-y-6">
       {!userId && (
-        <Card>
-          <p className="mb-3 text-sm text-muted">Please login or create your account to manage projects.</p>
+        <div className="rangmanch-studio-panel rounded-[28px] px-5 py-6 sm:px-6">
+          <StudioPageHeader
+            eyebrow="Projects"
+            title="Save drafts after you sign in"
+            description="Projects let you keep scripts, voice preferences, and working concepts organized before you move into final renders."
+            actions={
+              <>
+                <Link href="/login"><Button>Login</Button></Link>
+                <Link href="/signup"><Button variant="secondary">Sign Up</Button></Link>
+              </>
+            }
+            className="border-none bg-transparent px-0 py-0 shadow-none"
+          />
           <div className="flex flex-wrap gap-2">
-            <Link href="/login"><Button>Login</Button></Link>
-            <Link href="/signup"><Button variant="secondary">Sign Up</Button></Link>
+            <p className="text-sm text-muted">Please login or create your account to manage projects.</p>
           </div>
-        </Card>
+        </div>
       )}
       {userId && <ProjectsClient initialProjects={projects} userId={userId} />}
     </div>

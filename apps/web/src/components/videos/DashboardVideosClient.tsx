@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AssetSearchItem, AssetTagFacet, GeneratedImage, InspirationImage, InspirationVideo, Video } from '@/types/api';
@@ -470,22 +471,45 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] px-4 py-6 shadow-soft sm:px-6 sm:py-8">
+      <section className="overflow-hidden rounded-[32px]">
         <div
-          className="space-y-5 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] p-5 backdrop-blur-md sm:p-8"
+          className="rangmanch-studio-panel-strong space-y-5 rounded-[32px] p-5 sm:p-8"
           style={{
             background:
               'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 32%), radial-gradient(circle at 20% 80%, hsl(260 80% 62% / 0.18), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface) / 0.76), hsl(var(--color-elevated) / 0.73))',
           }}
         >
-          <div className="space-y-3 text-center">
-            <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator workspace</Badge>
-            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-5xl xl:text-6xl">
-              What would you like to create today?
-            </h1>
-            <p className="mx-auto max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7">
-              Explore community inspiration, remix faster, and launch from one premium dashboard.
-            </p>
+          <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr] xl:items-end">
+            <div className="space-y-4">
+              <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator workspace</Badge>
+              <div className="space-y-3">
+                <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text sm:text-5xl xl:text-6xl">
+                  Welcome back, {userName}
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-muted sm:text-base sm:leading-7">
+                  Launch a new render, resume recent work, and browse community inspiration from one calmer studio home.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/create"><Button className="gap-2">New video <ArrowRight className="h-4 w-4" /></Button></Link>
+                <Link href="/images"><Button variant="secondary" className="gap-2">Create image <ImageIcon className="h-4 w-4" /></Button></Link>
+                <Link href="/influencer"><Button variant="secondary" className="gap-2">AI Influencer <Sparkles className="h-4 w-4" /></Button></Link>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="rangmanch-matte-surface rounded-[24px] p-4">
+                <p className="rangmanch-section-eyebrow">All creations</p>
+                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>}
+              </div>
+              <div className="rangmanch-matte-surface rounded-[24px] p-4">
+                <p className="rangmanch-section-eyebrow">Videos</p>
+                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>}
+              </div>
+              <div className="rangmanch-matte-surface rounded-[24px] p-4">
+                <p className="rangmanch-section-eyebrow">Images</p>
+                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>}
+              </div>
+            </div>
           </div>
 
           <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 rounded-full border border-[hsl(var(--color-border))/0.8] bg-[hsl(var(--color-surface)/0.46)] px-3 py-2 backdrop-blur-xl">
@@ -530,27 +554,14 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         */}  
 
-          <div className="mx-auto grid w-full max-w-2xl gap-3 sm:grid-cols-3">
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">All</p>
-              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.all}</p>}
-            </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">Videos</p>
-              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.video}</p>}
-            </div>
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3 text-center">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-muted">Images</p>
-              {loading ? <div className="mx-auto mt-2 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-2 font-heading text-2xl font-extrabold text-text">{assetCounts.image}</p>}
-            </div>
-          </div>
         </div>
       </section>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Create Story</h2>
+            <p className="rangmanch-section-eyebrow">Start points</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Create story</h2>
             <p className="mt-1 text-sm text-muted">High-impact starting points with production-ready defaults.</p>
           </div>
           {/*<Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button> */}
@@ -579,6 +590,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       <section id="inspiration" className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
+            <p className="rangmanch-section-eyebrow">Discover</p>
             <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Community</h2>
             <p className="mt-1 text-sm text-muted">Trending inspiration from approved, high-quality public creations.</p>
           </div>
@@ -699,7 +711,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         )}
         {!loading && inspirationItems.length === 0 ? (
-          <Card className="rounded-[var(--radius-lg)] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-8 text-center">
+          <Card className="rangmanch-studio-panel rounded-[28px] border border-dashed border-[hsl(var(--color-border))] bg-transparent p-8 text-center">
             <p className="font-heading text-lg font-extrabold text-text">No inspiration items yet</p>
             <p className="mt-2 text-sm text-muted">
               Publish a high-quality generated {inspirationFilter === 'video' ? 'video' : inspirationFilter === 'image' ? 'image' : 'image or video'} to start building this feed.
@@ -711,7 +723,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Your Studio Feed</h2>
+            <p className="rangmanch-section-eyebrow">Library</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Your studio feed</h2>
             <p className="mt-1 text-sm text-muted">Manage, publish, and download your latest creations.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -720,9 +733,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         </div>
 
-        {error && <Card><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
+        {error && <Card className="rangmanch-studio-panel border-none bg-transparent"><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
 
-        <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.6)] backdrop-blur-md">
+        <Card className="rangmanch-studio-panel space-y-4 border-none bg-transparent backdrop-blur-md">
           <div className="flex flex-wrap items-center gap-2">
             {([
               ['all', `All · ${assetCounts.all}`],
@@ -745,7 +758,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
 
           <div className="grid gap-4">
-            <div>
+            <div className="rangmanch-filter-bar rounded-[24px] p-4">
               <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Tag className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                 Filter by tags
@@ -781,7 +794,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         ) : assets.length === 0 ? (
-          <Card className="text-center">
+          <Card className="rangmanch-studio-panel text-center border-none bg-transparent">
             <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border))]">
               {mediaFilter === 'image' ? <ImageIcon className="h-5 w-5 text-muted" /> : <Film className="h-5 w-5 text-muted" />}
             </div>
@@ -832,7 +845,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                   <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <p className="line-clamp-1 text-xs font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                      <Badge>{formatStatus(asset.status)}</Badge>
+                      <StatusChip variant={asset.status === 'completed' ? 'success' : asset.status === 'failed' ? 'danger' : 'warning'}>
+                        {formatStatus(asset.status)}
+                      </StatusChip>
                     </div>
                     <p className="line-clamp-2 text-xs leading-5 text-text">{asset.prompt}</p>
                     <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted">

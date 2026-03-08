@@ -93,6 +93,49 @@ p {
   backdrop-filter: blur(calc(var(--blur-glass) + 2px));
 }
 
+.rangmanch-app-rail {
+  background:
+    linear-gradient(180deg, hsl(var(--color-surface-glass-strong) / 0.84), hsl(var(--color-bg) / 0.98));
+  border-right: 1px solid hsl(var(--color-border) / 0.46);
+  backdrop-filter: blur(calc(var(--blur-glass) + 1px));
+}
+
+.rangmanch-app-header {
+  background: hsl(var(--color-bg) / 0.76);
+  backdrop-filter: blur(calc(var(--blur-glass) + 2px));
+  border-bottom: 1px solid hsl(var(--color-border) / 0.46);
+}
+
+.rangmanch-studio-panel {
+  background:
+    linear-gradient(180deg, hsl(var(--color-surface-glass) / 0.58), hsl(var(--color-elevated) / 0.42));
+  border: 1px solid hsl(var(--color-border) / 0.56);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+.rangmanch-studio-panel-strong {
+  background:
+    radial-gradient(circle at top right, hsl(var(--color-accent) / 0.14), transparent 38%),
+    linear-gradient(145deg, hsl(var(--color-surface-glass-strong) / 0.8), hsl(var(--color-elevated) / 0.56));
+  border: 1px solid hsl(var(--color-border) / 0.58);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(calc(var(--blur-glass) + 2px));
+}
+
+.rangmanch-filter-bar {
+  background: hsl(var(--color-surface-glass) / 0.38);
+  border: 1px solid hsl(var(--color-border) / 0.48);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+.rangmanch-poster-card {
+  background: hsl(var(--color-surface-glass) / 0.2);
+  border: 1px solid hsl(var(--color-border) / 0.42);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(calc(var(--blur-glass) - 2px));
+}
+
 .rangmanch-section-eyebrow {
   @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-muted;
 }

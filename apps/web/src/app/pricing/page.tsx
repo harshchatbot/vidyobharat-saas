@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Coins, LoaderCircle } from 'lucide-react';
 
+import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
 import type { PricingResponse } from '@/types/api';
 
@@ -98,40 +99,32 @@ export default function PricingPage() {
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--color-accent))]">
-            Pricing
-          </p>
-
-          <h1 className="mt-3 text-4xl font-semibold text-[hsl(var(--color-text))]">
-            Flexible plans for creators and teams
-          </h1>
-
-          <p className="mt-4 text-lg text-[hsl(var(--color-muted))]">
-            Choose a plan that fits your content volume, then scale with credits as you grow.
-          </p>
-
-          {pricing && (
-            <div className="mt-6 inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-5 py-2 text-sm text-[hsl(var(--color-muted))] shadow-[var(--shadow-soft)]">
+        <StudioPageHeader
+          eyebrow="Plans"
+          title="Flexible plans for creators and teams"
+          description="Choose a plan that fits your content volume, then scale with credits as you grow. Pricing stays region-aware while usage stays transparent."
+          className="mx-auto max-w-5xl"
+          actions={pricing ? (
+            <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface-glass)/0.62)] px-4 py-2 text-sm text-muted">
               <span>
-                Billing region: <strong className="text-[hsl(var(--color-text))]">{pricing.region}</strong>
+                Billing region: <strong className="text-text">{pricing.region}</strong>
               </span>
               <span>•</span>
               <span>
-                Currency: <strong className="text-[hsl(var(--color-text))]">{pricing.currency}</strong>
+                Currency: <strong className="text-text">{pricing.currency}</strong>
               </span>
             </div>
-          )}
+          ) : undefined}
+        />
 
-          {error && (
-            <p className="mt-4 text-sm text-[hsl(var(--color-danger))]">
-              {error}
-            </p>
-          )}
-        </div>
+        {error && (
+          <p className="mx-auto mt-4 max-w-5xl text-sm text-[hsl(var(--color-danger))]">
+            {error}
+          </p>
+        )}
 
         {!pricing ? (
-          <div className="mt-12 flex items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-6 shadow-[var(--shadow-soft)]">
+          <div className="rangmanch-studio-panel mx-auto mt-12 flex max-w-5xl items-center justify-center gap-3 rounded-[28px] p-6">
             <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
             <span className="text-[hsl(var(--color-muted))]">
               Loading region-aware pricing...
@@ -143,7 +136,7 @@ export default function PricingPage() {
               <button
                 type="button"
                 onClick={() => router.push('/signup')}
-                className="relative flex h-full flex-col rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 text-left shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)] sm:p-6 lg:p-8"
+                className="rangmanch-studio-panel relative flex h-full flex-col rounded-[28px] border-none bg-transparent p-5 text-left transition duration-200 hover:-translate-y-1 sm:p-6 lg:p-8"
               >
                 <h3 className="text-xl font-semibold text-[hsl(var(--color-text))]">
                   Free
@@ -194,10 +187,10 @@ export default function PricingPage() {
                     key={plan.key}
                     type="button"
                     onClick={() => handleSelectPlan(plan.key)}
-                    className={`relative flex h-full flex-col rounded-[var(--radius-lg)] border p-5 text-left transition duration-200 sm:p-6 lg:p-8 ${
+                    className={`relative flex h-full flex-col rounded-[28px] border p-5 text-left transition duration-200 sm:p-6 lg:p-8 ${
                       isSelected || isPopular
-                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-elevated))] shadow-[var(--shadow-hard)]'
-                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-[var(--shadow-soft)] hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)]'
+                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-elevated)/0.92)] shadow-[var(--shadow-hard)]'
+                        : 'rangmanch-studio-panel border-[hsl(var(--color-border)/0.9)] bg-transparent shadow-[var(--shadow-soft)] hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)]'
                     }`}
                   >
                     {isPopular && (
@@ -254,7 +247,7 @@ export default function PricingPage() {
               })}
             </div>
 
-            <div className="mt-16 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
+            <div className="rangmanch-studio-panel mt-16 rounded-[28px] border-none bg-transparent p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
               <div className="mb-6 flex items-center gap-3">
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                 <div>
@@ -271,7 +264,7 @@ export default function PricingPage() {
                 {pricing.actionCosts.map((item) => (
                   <div
                     key={item.feature}
-                    className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3"
+                    className="rounded-[20px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-4 py-3"
                   >
                     <p className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.feature}</p>
                     <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{item.cost} credits</p>
@@ -279,7 +272,7 @@ export default function PricingPage() {
                 ))}
               </div>
 
-              <div className="hidden overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] sm:block">
+              <div className="hidden overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border)/0.82)] sm:block">
                 <table className="min-w-full text-sm">
                   <thead className="bg-[hsl(var(--color-elevated))]">
                     <tr>
@@ -314,7 +307,7 @@ export default function PricingPage() {
               {pricingFaqs.map((item) => (
                 <article
                   key={item.q}
-                  className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-[var(--shadow-soft)]"
+                  className="rangmanch-studio-panel rounded-[24px] border-none bg-transparent p-4 shadow-[var(--shadow-soft)]"
                 >
                   <h3 className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.q}</h3>
                   <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">{item.a}</p>
