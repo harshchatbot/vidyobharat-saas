@@ -746,128 +746,147 @@ class CreditService:
         normalized = json.dumps(metadata, sort_keys=True, separators=(',', ':'), default=str)
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return f'{prefix}:{digest}'
+    def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
+        if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
+            raise RuntimeError('Razorpay is not configured')
 
-
-
-
-
-def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
-    if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
-        raise RuntimeError('Razorpay is not configured')
-
-    payload = {
-        'amount': selection.amount_minor,
-        'currency': selection.currency,
-        'receipt': f'rangmanch-{user_id[:8]}-{selection.plan_name}-{int(datetime.now(UTC).timestamp())}',
-        'notes': {
-            'user_id': user_id,
-            'plan_name': selection.plan_name,
-            'pricing_region': selection.region,
-        },
-    }
-
-    logger.info(
-        'topup_razorpay_start',
-        extra={
-            'user_id': user_id,
-            'plan_name': selection.plan_name,
-            'amount_minor': selection.amount_minor,
+        payload = {
+            'amount': selection.amount_minor,
             'currency': selection.currency,
-            'credits': selection.allocated_credits,
-            'pricing_region': selection.region,
-            'pricing_country': selection.country,
-        },
-    )
-
-    try:
-        logger.info(
-            'topup_razorpay_request',
-            extra={
+            'receipt': f'rangmanch-{user_id[:8]}-{selection.plan_name}-{int(datetime.now(UTC).timestamp())}',
+            'notes': {
                 'user_id': user_id,
                 'plan_name': selection.plan_name,
-                'amount_minor': selection.amount_minor,
-                'currency': selection.currency,
-            },
-        )
-
-        response = httpx.post(
-            f'{self.settings.razorpay_api_base}/orders',
-            auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
-            json=payload,
-            timeout=20.0,
-        )
-    except httpx.RequestError as exc:
-        logger.exception(
-            'topup_razorpay_network_error',
-            extra={
-                'user_id': user_id,
-                'plan_name': selection.plan_name,
-                'amount_minor': selection.amount_minor,
-                'currency': selection.currency,
-            },
-        )
-        raise RuntimeError(f'Razorpay network error: {exc}') from exc
-
-    if response.status_code >= 400:
-        logger.error(
-            'topup_razorpay_http_error',
-            extra={
-                'user_id': user_id,
-                'plan_name': selection.plan_name,
-                'status_code': response.status_code,
-                'response_text': response.text,
-            },
-        )
-        raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
-
-    data = response.json()
-    provider_order_id = str(data.get('id') or '')
-
-    logger.info(
-        'topup_razorpay_success',
-        extra={
-            'user_id': user_id,
-            'plan_name': selection.plan_name,
-            'provider_order_id': provider_order_id,
-            'provider_amount': data.get('amount'),
-            'provider_currency': data.get('currency'),
-            'provider_status': data.get('status'),
-        },
-    )
-
-    if not provider_order_id:
-        raise RuntimeError('Razorpay order create failed: provider did not return an order id')
-
-    try:
-        logger.info(
-            'topup_razorpay_db_write_start',
-            extra={
-                'user_id': user_id,
-                'plan_name': selection.plan_name,
-                'provider_order_id': provider_order_id,
-                'credits': selection.allocated_credits,
-                'amount_minor': selection.amount_minor,
-                'currency': selection.currency,
                 'pricing_region': selection.region,
             },
+        }
+
+        logger.info(
+            'topup_razorpay_start',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'amount_minor': selection.amount_minor,
+                'currency': selection.currency,
+                'credits': selection.allocated_credits,
+                'pricing_region': selection.region,
+                'pricing_country': selection.country,
+            },
         )
 
-        with self._transaction():
-            self.repo.create_topup_order(
-                user_id=user_id,
-                provider='razorpay',
-                plan_name=selection.plan_name,
-                pricing_region=selection.region,
-                credits=selection.allocated_credits,
-                amount_paise=selection.amount_minor,
-                currency=selection.currency,
-                provider_order_id=provider_order_id,
-                provider_checkout_id=None,
-                metadata_json=json.dumps({'provider_response': data}),
+        try:
+            logger.info(
+                'topup_razorpay_request',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'amount_minor': selection.amount_minor,
+                    'currency': selection.currency,
+                },
             )
 
+            response = httpx.post(
+                f'{self.settings.razorpay_api_base}/orders',
+                auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
+                json=payload,
+                timeout=20.0,
+            )
+        except httpx.RequestError as exc:
+            logger.exception(
+                'topup_razorpay_network_error',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'amount_minor': selection.amount_minor,
+                    'currency': selection.currency,
+                },
+            )
+            raise RuntimeError(f'Razorpay network error: {exc}') from exc
+
+        if response.status_code >= 400:
+            logger.error(
+                'topup_razorpay_http_error',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'status_code': response.status_code,
+                    'response_text': response.text,
+                },
+            )
+            raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
+
+        data = response.json()
+        provider_order_id = str(data.get('id') or '')
+
         logger.info(
-            'topup_razorpay_db_write_success',
+            'topup_razorpay_success',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider_order_id': provider_order_id,
+                'provider_amount': data.get('amount'),
+                'provider_currency': data.get('currency'),
+                'provider_status': data.get('status'),
+            },
+        )
+
+        if not provider_order_id:
+            raise RuntimeError('Razorpay order create failed: provider did not return an order id')
+
+        try:
+            logger.info(
+                'topup_razorpay_db_write_start',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'provider_order_id': provider_order_id,
+                    'credits': selection.allocated_credits,
+                    'amount_minor': selection.amount_minor,
+                    'currency': selection.currency,
+                    'pricing_region': selection.region,
+                },
+            )
+
+            with self._transaction():
+                self.repo.create_topup_order(
+                    user_id=user_id,
+                    provider='razorpay',
+                    plan_name=selection.plan_name,
+                    pricing_region=selection.region,
+                    credits=selection.allocated_credits,
+                    amount_paise=selection.amount_minor,
+                    currency=selection.currency,
+                    provider_order_id=provider_order_id,
+                    provider_checkout_id=None,
+                    metadata_json=json.dumps({'provider_response': data}),
+                )
+
+            logger.info(
+                'topup_razorpay_db_write_success',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'provider_order_id': provider_order_id,
+                },
+            )
+
+        except Exception:
+            logger.exception(
+                'topup_razorpay_db_write_failed',
+                extra={
+                    'user_id': user_id,
+                    'plan_name': selection.plan_name,
+                    'provider_order_id': provider_order_id,
+                    'credits': selection.allocated_credits,
+                    'amount_minor': selection.amount_minor,
+                    'currency': selection.currency,
+                    'pricing_region': selection.region,
+                },
+            )
+            raise
+
+        logger.info(
+            'topup_razorpay_result_build',
             extra={
                 'user_id': user_id,
                 'plan_name': selection.plan_name,
@@ -875,44 +894,19 @@ def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSele
             },
         )
 
-    except Exception:
-        logger.exception(
-            'topup_razorpay_db_write_failed',
-            extra={
-                'user_id': user_id,
-                'plan_name': selection.plan_name,
-                'provider_order_id': provider_order_id,
-                'credits': selection.allocated_credits,
-                'amount_minor': selection.amount_minor,
-                'currency': selection.currency,
-                'pricing_region': selection.region,
-            },
+        return CreditTopUpOrderResult(
+            provider='razorpay',
+            region=selection.region,
+            country=selection.country,
+            plan_name=selection.plan_name,
+            order_id=provider_order_id,
+            key_id=self.settings.razorpay_key_id,
+            checkout_session_id=None,
+            checkout_url=None,
+            amount_minor=selection.amount_minor,
+            currency=selection.currency,
+            credits=selection.allocated_credits,
         )
-        raise
-
-    logger.info(
-        'topup_razorpay_result_build',
-        extra={
-            'user_id': user_id,
-            'plan_name': selection.plan_name,
-            'provider_order_id': provider_order_id,
-        },
-    )
-
-    return CreditTopUpOrderResult(
-        provider='razorpay',
-        region=selection.region,
-        country=selection.country,
-        plan_name=selection.plan_name,
-        order_id=provider_order_id,
-        key_id=self.settings.razorpay_key_id,
-        checkout_session_id=None,
-        checkout_url=None,
-        amount_minor=selection.amount_minor,
-        currency=selection.currency,
-        credits=selection.allocated_credits,
-    )
-
 
     def _create_stripe_placeholder_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         provider_order_id = self.pricing_service.make_stripe_placeholder_session_id()

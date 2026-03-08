@@ -520,7 +520,7 @@ def create_topup_order(
                 'plan_name': getattr(payload, 'planName', None),
             },
         )
-    raise HTTPException(status_code=502, detail=f"Topup order failed: {str(exc)}") from exc
+        raise HTTPException(status_code=502, detail=f'Topup order failed: {str(exc)}') from exc
     return CreditTopUpOrderResponse(
         provider=result.provider,
         region=result.region,

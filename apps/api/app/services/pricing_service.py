@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,8 @@ from fastapi import Request
 
 from app.core.config import get_settings
 from app.services.geo_service import resolve_country_code
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
