@@ -63,24 +63,6 @@ const fallbackModels: ImageModel[] = [
     description: 'Best for reliable prompt-following and practical testing with a verified OpenAI image key.',
     frontend_hint: 'Use this when you want the most dependable live image generation path right now.',
   },
-  {
-    key: 'seedream',
-    label: 'Seedream',
-    description: 'Best for premium editorial imagery and elegant lighting.',
-    frontend_hint: 'Use this for polished brand shots and premium moodboards.',
-  },
-  {
-    key: 'flux_spark',
-    label: 'Flux Spark',
-    description: 'Best for realistic product scenes and commercial-style outputs.',
-    frontend_hint: 'Use this for product storytelling and ad-ready frames.',
-  },
-  {
-    key: 'recraft_studio',
-    label: 'Recraft Studio',
-    description: 'Best for stylized illustrations and graphic-first compositions.',
-    frontend_hint: 'Use this for creator-brand graphics and design-led visuals.',
-  },
 ];
 
 const aspectOptions = [
