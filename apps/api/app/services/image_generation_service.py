@@ -30,52 +30,80 @@ class ImageModelEntry:
     label: str
     description: str
     frontend_hint: str
+    provider: str
+    badge: str
+    logo_label: str
+    alias_hint: str | None = None
+    visible: bool = True
 
 
 IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
-    'nano_banana': ImageModelEntry(
-        key='nano_banana',
-        label='Nano Banana',
-        description='Best for crisp social visuals and fast prompt-to-image drafts with bold composition.',
-        frontend_hint='Use this for punchy reel covers, posters, and quick campaign concepts.',
+    'gemini_flash_image': ImageModelEntry(
+        key='gemini_flash_image',
+        label='Gemini 3.1 Flash Image',
+        description='Affordable, fast, and high-volume image generation for social posts, thumbnails, and everyday creative testing.',
+        frontend_hint='Formerly surfaced as Nano Banana. Use this for fast, budget-safe image generation.',
+        provider='Google',
+        badge='Affordable',
+        logo_label='G',
+        alias_hint='Formerly Nano Banana',
+    ),
+    'gemini_pro_image': ImageModelEntry(
+        key='gemini_pro_image',
+        label='Gemini 3 Pro Image',
+        description='Premium Gemini path for sharper composition control and more professional asset creation.',
+        frontend_hint='Use this when you want a higher-end Gemini result for polished campaign assets.',
+        provider='Google',
+        badge='Premium',
+        logo_label='G',
     ),
     'openai_image': ImageModelEntry(
         key='openai_image',
-        label='OpenAI Images',
-        description='Best for dependable prompt-following, clean composition, and practical testing with a verified OpenAI image key.',
-        frontend_hint='Use this when you want the most reliable live image generation path in RangManch AI right now.',
-    ),
-    'seedream': ImageModelEntry(
-        key='seedream',
-        label='Seedream',
-        description='Best for premium editorial imagery, elegant lighting, and refined visual storytelling.',
-        frontend_hint='Use this for polished brand shots, fashion-style frames, and premium moodboards.',
-    ),
-    'flux_spark': ImageModelEntry(
-        key='flux_spark',
-        label='Flux Spark',
-        description='Best for product concepts, realistic scenes, and clean commercial-style outputs.',
-        frontend_hint='Use this for realistic mockups, product storytelling, and ad-ready frames.',
+        label='OpenAI Image',
+        description='Reliable general-purpose premium image generation with dependable prompt-following and practical production quality.',
+        frontend_hint='Use this for consistent premium outputs when you want the most proven general-purpose path.',
+        provider='OpenAI',
+        badge='Premium',
+        logo_label='O',
     ),
     'recraft_studio': ImageModelEntry(
         key='recraft_studio',
         label='Recraft Studio',
-        description='Best for stylized illustrations, design-forward visuals, and graphic-first compositions.',
-        frontend_hint='Use this for illustrated storytelling, album art, and creator-brand graphics.',
+        description='Design-first image generation for branded visuals, ad layouts, and polished creative assets.',
+        frontend_hint='Mapped to Recraft V4 for design-heavy outputs, ads, and branding surfaces.',
+        provider='Recraft',
+        badge='Design',
+        logo_label='R',
+    ),
+    'recraft_studio_pro': ImageModelEntry(
+        key='recraft_studio_pro',
+        label='Recraft Studio Pro',
+        description='Higher-end Recraft path for premium branded asset generation.',
+        frontend_hint='Reserved for future premium Recraft V4 Pro exposure.',
+        provider='Recraft',
+        badge='Premium',
+        logo_label='R',
+        visible=False,
+    ),
+    'nano_banana': ImageModelEntry(
+        key='nano_banana',
+        label='Nano Banana',
+        description='Legacy alias for Gemini 3.1 Flash Image.',
+        frontend_hint='Legacy alias',
+        provider='Google',
+        badge='Legacy',
+        logo_label='G',
+        visible=False,
     ),
 }
-
-TOGETHER_IMAGE_MODELS = {
-    'nano_banana': 'google/gemini-3-pro-image',
-    'seedream': 'ByteDance-Seed/Seedream-4.0',
-    'flux_spark': 'black-forest-labs/FLUX.1-schnell-Free',
-    'recraft_studio': 'black-forest-labs/FLUX.1-schnell-Free',
+IMAGE_MODEL_ALIASES = {
+    'nano_banana': 'gemini_flash_image',
 }
 INSPIRATION_ITEMS = [
     {
         'id': 'insp-1',
         'creator_name': 'Aarohi',
-        'model_key': 'seedream',
+        'model_key': 'recraft_studio',
         'title': 'Monsoon Cafe Poster',
         'prompt': 'Warm Mumbai monsoon cafe poster with cinematic rain reflections and saffron highlights',
         'image_url': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
@@ -88,7 +116,7 @@ INSPIRATION_ITEMS = [
     {
         'id': 'insp-2',
         'creator_name': 'Kabir',
-        'model_key': 'nano_banana',
+        'model_key': 'gemini_flash_image',
         'title': 'Streetwear Launch Cover',
         'prompt': 'High-energy streetwear launch cover with neon accents and urban motion blur',
         'image_url': 'https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=1200&q=80',
@@ -114,7 +142,7 @@ INSPIRATION_ITEMS = [
     {
         'id': 'insp-4',
         'creator_name': 'Rohan',
-        'model_key': 'flux_spark',
+        'model_key': 'openai_image',
         'title': 'Product Hero Scene',
         'prompt': 'Premium headphone product scene with soft shadows, minimal props, and luxury mood',
         'image_url': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=80',
@@ -141,15 +169,23 @@ class ImageGenerationService:
             tier_registry={
                 'fast': TierModelConfig(
                     tier='fast',
-                    current_model_id=self.settings.gemini_image_model_primary,
+                    current_model_id=self.settings.gemini_flash_image_model_primary or self.settings.gemini_image_model_primary,
                     status='stable',
-                    fallback_model_id=self.settings.gemini_image_model_fallback,
-                )
+                    fallback_model_id=self.settings.gemini_flash_image_model_fallback or self.settings.gemini_image_model_fallback,
+                ),
+                'pro': TierModelConfig(
+                    tier='pro',
+                    current_model_id=self.settings.gemini_pro_image_model_primary,
+                    status='active',
+                    fallback_model_id=self.settings.gemini_pro_image_model_fallback
+                    or self.settings.gemini_flash_image_model_primary
+                    or self.settings.gemini_image_model_primary,
+                ),
             }
         )
 
     def list_models(self) -> list[ImageModelEntry]:
-        return list(IMAGE_MODEL_REGISTRY.values())
+        return [model for model in IMAGE_MODEL_REGISTRY.values() if model.visible]
 
     def list_user_images(self, user_id: str) -> list[ImageGeneration]:
         return self.repo.list_by_user(user_id)
@@ -161,6 +197,7 @@ class ImageGenerationService:
         cleaned = prompt.strip()
         if not cleaned:
             return cleaned
+        normalized_model_key = IMAGE_MODEL_ALIASES.get(model_key or '', model_key or '')
 
         if self.settings.openai_api_key:
             try:
@@ -190,15 +227,15 @@ class ImageGenerationService:
                 if refined:
                     return refined
             except Exception as exc:
-                logger.warning('image_prompt_enhance_fallback', extra={'error': str(exc), 'model_key': model_key})
+                logger.warning('image_prompt_enhance_fallback', extra={'error': str(exc), 'model_key': normalized_model_key})
 
         descriptors = {
-            'nano_banana': 'bold composition, social-ready framing, cinematic lighting',
-            'seedream': 'editorial lighting, premium atmosphere, refined details',
-            'flux_spark': 'realistic materials, commercial polish, soft studio shadows',
+            'gemini_flash_image': 'fast composition, social-ready framing, cinematic lighting',
+            'gemini_pro_image': 'high-end Gemini detailing, refined depth, premium composition',
+            'openai_image': 'reliable composition, polished scene structure, premium detail',
             'recraft_studio': 'illustrative composition, design-forward styling, rich color contrast',
         }
-        suffix = descriptors.get(model_key or '', 'cinematic lighting, refined detail, premium composition')
+        suffix = descriptors.get(normalized_model_key, 'cinematic lighting, refined detail, premium composition')
         return f'{cleaned}, {suffix}, high detail, creator-grade output'
 
     def create_image(
@@ -210,6 +247,7 @@ class ImageGenerationService:
         resolution: str,
         reference_urls: list[str],
     ) -> ImageGeneration:
+        model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
         model = IMAGE_MODEL_REGISTRY[model_key]
         image_url: str
         thumbnail_url: str
@@ -265,6 +303,7 @@ class ImageGenerationService:
         resolution: str,
         reference_urls: list[str],
     ) -> tuple[str, str] | None:
+        model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
         if model_key == 'openai_image':
             if not self.settings.openai_api_key:
                 raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
@@ -275,8 +314,8 @@ class ImageGenerationService:
                 resolution=resolution,
             )
 
-        if model_key == 'nano_banana' and self.settings.gemini_api_key:
-            tier = self.model_router.resolve_tier('fast')
+        if model_key in {'gemini_flash_image', 'gemini_pro_image'} and self.settings.gemini_api_key:
+            tier = self.model_router.resolve_tier('fast' if model_key == 'gemini_flash_image' else 'pro')
             if tier:
                 fallback_ids = [tier.fallback_model_id] if tier.fallback_model_id else []
                 route = self.model_router.resolve_and_execute(
@@ -305,19 +344,18 @@ class ImageGenerationService:
                     )
                 return route.value
 
-        if self.settings.together_api_key:
-            try:
-                logger.info('image_generation_provider_selected', extra={'provider': 'together', 'model_key': model_key})
-                remote_url = self._generate_with_together(
-                    model_key=model_key,
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    reference_urls=reference_urls,
-                )
-                return remote_url, remote_url
-            except Exception as exc:
-                logger.warning('together_image_generation_fallback', extra={'error': str(exc), 'model_key': model_key})
+        if model_key in {'recraft_studio', 'recraft_studio_pro'}:
+            if not self.settings.recraft_api_key:
+                raise RuntimeError('RECRAFT_API_KEY is not configured for Recraft image generation')
+            logger.info('image_generation_provider_selected', extra={'provider': 'recraft', 'model_key': model_key})
+            remote_url = self._generate_with_recraft(
+                model_key=model_key,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                reference_urls=reference_urls,
+            )
+            return remote_url, remote_url
 
         return None
 
@@ -675,10 +713,11 @@ class ImageGenerationService:
 
     def _palette_for(self, model_key: str) -> tuple[str, str, str]:
         palettes = {
-            'nano_banana': ('#f59e0b', '#f97316', '#7c3aed'),
-            'seedream': ('#0f172a', '#334155', '#c084fc'),
-            'flux_spark': ('#0f766e', '#14b8a6', '#f8fafc'),
+            'gemini_flash_image': ('#f59e0b', '#f97316', '#7c3aed'),
+            'gemini_pro_image': ('#0f172a', '#334155', '#c084fc'),
+            'openai_image': ('#111827', '#1f2937', '#f59e0b'),
             'recraft_studio': ('#db2777', '#7c3aed', '#f59e0b'),
+            'recraft_studio_pro': ('#7c3aed', '#1f2937', '#f59e0b'),
         }
         return palettes.get(model_key, ('#111827', '#334155', '#f59e0b'))
 
@@ -721,7 +760,7 @@ class ImageGenerationService:
             return '2048'
         return order[min(index + 1, len(order) - 1)]
 
-    def _generate_with_together(
+    def _generate_with_recraft(
         self,
         model_key: str,
         prompt: str,
@@ -729,28 +768,27 @@ class ImageGenerationService:
         resolution: str,
         reference_urls: list[str],
     ) -> str:
-        provider_model = TOGETHER_IMAGE_MODELS.get(model_key)
-        if not provider_model:
-            raise ValueError(f'Unsupported Together model mapping for {model_key}')
-
         width, height = self._together_dimensions(aspect_ratio, resolution)
+        model_id = (
+            self.settings.recraft_image_model_pro
+            if model_key == 'recraft_studio_pro'
+            else self.settings.recraft_image_model
+        )
         payload: dict[str, object] = {
-            'model': provider_model,
+            'model': model_id,
             'prompt': prompt,
             'width': width,
             'height': height,
-            'steps': 28,
             'n': 1,
-            'response_format': 'url',
         }
         if reference_urls:
             payload['image_url'] = reference_urls[0]
 
         request = urllib.request.Request(
-            url=f'{self.settings.together_api_base.rstrip("/")}/images/generations',
+            url=f'{self.settings.recraft_api_base.rstrip("/")}/images/generations',
             data=json.dumps(payload).encode('utf-8'),
             headers={
-                'Authorization': f'Bearer {self.settings.together_api_key}',
+                'Authorization': f'Bearer {self.settings.recraft_api_key}',
                 'Content-Type': 'application/json',
             },
             method='POST',
@@ -760,20 +798,35 @@ class ImageGenerationService:
                 raw = response.read().decode('utf-8')
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode('utf-8', errors='ignore')
-            raise RuntimeError(f'Together API HTTP {exc.code}: {detail[:400]}') from exc
+            raise RuntimeError(f'Recraft API HTTP {exc.code}: {detail[:400]}') from exc
         except urllib.error.URLError as exc:
-            raise RuntimeError(f'Together API connection failed: {exc.reason}') from exc
+            raise RuntimeError(f'Recraft API connection failed: {exc.reason}') from exc
 
         data = json.loads(raw)
         if not isinstance(data, dict):
-            raise RuntimeError('Together API returned unexpected payload')
-        items = data.get('data') or []
-        if not isinstance(items, list) or not items:
-            raise RuntimeError('Together API returned no image data')
-        url = items[0].get('url')
-        if not url:
-            raise RuntimeError('Together API returned no image URL')
-        return str(url)
+            raise RuntimeError('Recraft API returned unexpected payload')
+
+        candidates: list[object] = []
+        if isinstance(data.get('data'), list):
+            candidates.extend(data['data'])
+        if isinstance(data.get('images'), list):
+            candidates.extend(data['images'])
+        if isinstance(data.get('output'), list):
+            candidates.extend(data['output'])
+
+        for item in candidates:
+            if isinstance(item, dict):
+                for key in ('url', 'image_url', 'imageUrl'):
+                    url = item.get(key)
+                    if url:
+                        return str(url)
+
+        for key in ('url', 'image_url', 'imageUrl'):
+            value = data.get(key)
+            if value:
+                return str(value)
+
+        raise RuntimeError(f'Recraft API returned no image URL: {raw[:500]}')
 
     def _generate_with_gemini(
         self,
@@ -874,7 +927,7 @@ class ImageGenerationService:
         )
 
         if not response.data:
-            raise RuntimeError('OpenAI Images returned no image data')
+            raise RuntimeError('OpenAI Image returned no image data')
 
         image_base64 = getattr(response.data[0], 'b64_json', None)
         image_url = getattr(response.data[0], 'url', None)
@@ -893,7 +946,7 @@ class ImageGenerationService:
         if image_url:
             return (str(image_url), str(image_url))
 
-        raise RuntimeError('OpenAI Images returned neither base64 data nor URL')
+        raise RuntimeError('OpenAI Image returned neither base64 data nor URL')
 
     def _together_dimensions(self, aspect_ratio: str, resolution: str) -> tuple[int, int]:
         base = int(resolution) if resolution.isdigit() else 1024

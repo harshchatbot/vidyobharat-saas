@@ -14,6 +14,7 @@ const IMAGE_MULTIPLIERS = {
   baseCredits: creditEngine.image.baseCredits,
   resolution: creditEngine.image.resolutionMultiplier,
   resolutionOverrides: creditEngine.image.resolutionMultiplierOverrides ?? {},
+  modelPricing: creditEngine.image.modelPricing ?? {},
   model: creditEngine.image.modelMultiplier,
   cap: creditEngine.image.maxCreditsCap,
 } as const;
@@ -28,12 +29,13 @@ const VOICE_MULTIPLIERS = {
 const CREDIT_COSTS = creditEngine.fixedCosts;
 
 const FREE_VOICE_KEYS = new Set(creditEngine.freeVoiceKeys);
-const FREE_IMAGE_MODELS = new Set(creditEngine.freeImageModels);
-const FREE_IMAGE_RESOLUTIONS = new Set(creditEngine.freeImageResolutions);
+const FREE_IMAGE_MODELS = new Set<string>(creditEngine.freeImageModels as string[]);
+const FREE_IMAGE_RESOLUTIONS = new Set<string>(creditEngine.freeImageResolutions as string[]);
 
 const VIDEO_MODEL_ALIASES = creditEngine.videoModelAliases as Record<string, 'sora' | 'sora_pro' | 'veo' | 'kling'>;
 
 const IMAGE_MODEL_TIERS = creditEngine.imageModelTiers as Record<string, 'standard' | 'premium'>;
+const IMAGE_MODEL_ALIASES = (creditEngine.imageModelAliases ?? {}) as Record<string, string>;
 
 function item(component: string, value: number, label?: string): EstimateBreakdownItem {
   return { component, value, label };
@@ -99,7 +101,8 @@ function estimateTtsPreview(payload: Record<string, unknown>, currentCredits: nu
 }
 
 function estimateImageGenerate(payload: Record<string, unknown>, currentCredits: number): CreditEstimateResponse {
-  const modelKey = String(payload.model_key ?? payload.modelKey ?? payload.model ?? '').trim();
+  const rawModelKey = String(payload.model_key ?? payload.modelKey ?? payload.model ?? '').trim();
+  const modelKey = IMAGE_MODEL_ALIASES[rawModelKey] ?? rawModelKey;
   const resolution = String(payload.resolution ?? '1024').trim();
   const referenceUrls = (payload.reference_urls ?? payload.referenceUrls ?? []) as unknown;
   const hasReferences = Array.isArray(referenceUrls) && referenceUrls.length > 0;
@@ -108,23 +111,35 @@ function estimateImageGenerate(payload: Record<string, unknown>, currentCredits:
   const breakdown: EstimateBreakdownItem[] = [];
 
   if (!(FREE_IMAGE_MODELS.has(modelKey) && FREE_IMAGE_RESOLUTIONS.has(resolution))) {
-    const modelTier = IMAGE_MODEL_TIERS[modelKey] ?? 'premium';
-    const overrideResolutionMap = IMAGE_MULTIPLIERS.resolutionOverrides[
-      modelKey as keyof typeof IMAGE_MULTIPLIERS.resolutionOverrides
+    const explicitPricing = IMAGE_MULTIPLIERS.modelPricing[
+      modelKey as keyof typeof IMAGE_MULTIPLIERS.modelPricing
     ] as Record<string, number> | undefined;
-    const resolutionMultiplier =
-      overrideResolutionMap?.[resolution] ??
-      IMAGE_MULTIPLIERS.resolution[resolution as keyof typeof IMAGE_MULTIPLIERS.resolution] ??
-      IMAGE_MULTIPLIERS.resolution['1024'];
-    const modelMultiplier = IMAGE_MULTIPLIERS.model[modelTier];
-    const dynamic = Math.min(
-      IMAGE_MULTIPLIERS.cap,
-      Math.max(1, Math.ceil(IMAGE_MULTIPLIERS.baseCredits * resolutionMultiplier * modelMultiplier)),
-    );
-    total += dynamic;
-    breakdown.push(item('base', IMAGE_MULTIPLIERS.baseCredits, 'Base image credits'));
-    breakdown.push(item('resolution_multiplier', resolutionMultiplier, `${resolution} resolution multiplier`));
-    breakdown.push(item('model_multiplier', modelMultiplier, `${modelTier} model multiplier`));
+    if (explicitPricing) {
+      const exact = explicitPricing[resolution];
+      if (typeof exact !== 'number') {
+        throw new Error(`Unsupported resolution ${resolution} for ${modelKey}`);
+      }
+      total += exact;
+      breakdown.push(item('model_price', exact, `${modelKey} ${resolution} pricing`));
+    } else {
+      const modelTier = IMAGE_MODEL_TIERS[modelKey] ?? 'premium';
+      const overrideResolutionMap = IMAGE_MULTIPLIERS.resolutionOverrides[
+        modelKey as keyof typeof IMAGE_MULTIPLIERS.resolutionOverrides
+      ] as Record<string, number> | undefined;
+      const resolutionMultiplier =
+        overrideResolutionMap?.[resolution] ??
+        IMAGE_MULTIPLIERS.resolution[resolution as keyof typeof IMAGE_MULTIPLIERS.resolution] ??
+        IMAGE_MULTIPLIERS.resolution['1024'];
+      const modelMultiplier = IMAGE_MULTIPLIERS.model[modelTier];
+      const dynamic = Math.min(
+        IMAGE_MULTIPLIERS.cap,
+        Math.max(1, Math.ceil(IMAGE_MULTIPLIERS.baseCredits * resolutionMultiplier * modelMultiplier)),
+      );
+      total += dynamic;
+      breakdown.push(item('base', IMAGE_MULTIPLIERS.baseCredits, 'Base image credits'));
+      breakdown.push(item('resolution_multiplier', resolutionMultiplier, `${resolution} resolution multiplier`));
+      breakdown.push(item('model_multiplier', modelMultiplier, `${modelTier} model multiplier`));
+    }
   }
 
   if (hasReferences) {

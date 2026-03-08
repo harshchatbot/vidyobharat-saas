@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     gemini_api_base: str = 'https://generativelanguage.googleapis.com/v1beta'
     gemini_image_model_primary: str = 'gemini-3.1-flash-image-preview'
     gemini_image_model_fallback: str = 'gemini-2.5-flash-image-preview'
+    gemini_flash_image_model_primary: str | None = None
+    gemini_flash_image_model_fallback: str | None = None
+    gemini_pro_image_model_primary: str = 'gemini-3-pro-image'
+    gemini_pro_image_model_fallback: str | None = None
+    recraft_api_key: str | None = None
+    recraft_api_base: str = 'https://external.api.recraft.ai/v1'
+    recraft_image_model: str = 'recraftv4'
+    recraft_image_model_pro: str = 'recraftv4pro'
     together_api_key: str | None = None
     together_api_base: str = 'https://api.together.xyz/v1'
     heygen_api_key: str | None = None

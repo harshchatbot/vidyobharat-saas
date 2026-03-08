@@ -3,7 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
-SUPPORTED_IMAGE_MODELS = {'nano_banana', 'openai_image', 'seedream', 'flux_spark', 'recraft_studio'}
+SUPPORTED_IMAGE_MODELS = {'gemini_flash_image', 'gemini_pro_image', 'openai_image', 'recraft_studio'}
+IMAGE_MODEL_ALIASES = {'nano_banana': 'gemini_flash_image'}
 SUPPORTED_ASPECT_RATIOS = {'9:16', '1:1', '16:9', '4:5'}
 SUPPORTED_RESOLUTIONS = {'1024', '1536', '2048'}
 
@@ -13,6 +14,10 @@ class ImageModelResponse(BaseModel):
     label: str
     description: str
     frontend_hint: str
+    provider: str
+    badge: str
+    logo_label: str
+    alias_hint: str | None = None
 
 
 class ImageGenerationResponse(BaseModel):
@@ -65,6 +70,8 @@ class ImageGenerationCreateRequest(BaseModel):
     @field_validator('model_key')
     @classmethod
     def validate_model_key(cls, value: str) -> str:
+        normalized = IMAGE_MODEL_ALIASES.get(value, value)
+        value = normalized
         if value not in SUPPORTED_IMAGE_MODELS:
             raise ValueError('Unsupported image model')
         return value

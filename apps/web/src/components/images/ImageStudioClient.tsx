@@ -52,16 +52,41 @@ const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const fallbackModels: ImageModel[] = [
   {
-    key: 'nano_banana',
-    label: 'Nano Banana',
-    description: 'Best for crisp social visuals and fast drafts.',
-    frontend_hint: 'Use this for punchy reel covers and campaign concepts.',
+    key: 'gemini_flash_image',
+    label: 'Gemini 3.1 Flash Image',
+    description: 'Fast, affordable Gemini image generation for high-volume creative work.',
+    frontend_hint: 'Formerly Nano Banana. Best for social visuals, drafts, and rapid testing.',
+    provider: 'Google',
+    badge: 'Affordable',
+    logo_label: 'G',
+    alias_hint: 'Previously Nano Banana',
+  },
+  {
+    key: 'gemini_pro_image',
+    label: 'Gemini 3 Pro Image',
+    description: 'Higher-end Gemini output for polished brand visuals and premium creative assets.',
+    frontend_hint: 'Use this when you want stronger visual refinement from Gemini.',
+    provider: 'Google',
+    badge: 'Premium',
+    logo_label: 'G',
   },
   {
     key: 'openai_image',
-    label: 'OpenAI Images',
-    description: 'Best for reliable prompt-following and practical testing with a verified OpenAI image key.',
-    frontend_hint: 'Use this when you want the most dependable live image generation path right now.',
+    label: 'OpenAI Image',
+    description: 'Reliable general-purpose image generation with consistent prompt following.',
+    frontend_hint: 'Use this for dependable production output and practical prompt iteration.',
+    provider: 'OpenAI',
+    badge: 'Premium',
+    logo_label: 'O',
+  },
+  {
+    key: 'recraft_studio',
+    label: 'Recraft Studio',
+    description: 'Design-forward image generation tuned for ads, branding, and polished creative assets.',
+    frontend_hint: 'Mapped to Recraft V4 for design systems, product ads, and premium asset work.',
+    provider: 'Recraft',
+    badge: 'Design',
+    logo_label: 'R',
   },
 ];
 
@@ -100,7 +125,7 @@ const quickTemplates: ImageQuickTemplate[] = [
     prompt: 'Premium product hero shot on a marble table, soft studio lighting, luxury commercial styling, subtle reflections, clean background.',
     aspect_ratio: '4:5',
     resolution: '1536',
-    model_key: 'flux_spark',
+    model_key: 'recraft_studio',
   },
   {
     id: 'fashion-studio',
@@ -109,7 +134,7 @@ const quickTemplates: ImageQuickTemplate[] = [
     prompt: 'Fashion campaign portrait of a model wearing street-luxury apparel in a premium studio, editorial lighting, clean backdrop, detailed fabric texture.',
     aspect_ratio: '4:5',
     resolution: '2048',
-    model_key: 'seedream',
+    model_key: 'gemini_pro_image',
   },
   {
     id: 'thumbnail-bg',
@@ -118,7 +143,7 @@ const quickTemplates: ImageQuickTemplate[] = [
     prompt: 'High-energy YouTube thumbnail background with dramatic lighting, strong depth, bold contrast, clear subject area, and visual impact.',
     aspect_ratio: '16:9',
     resolution: '1536',
-    model_key: 'nano_banana',
+    model_key: 'gemini_flash_image',
   },
   {
     id: 'podcast-cover',
@@ -145,9 +170,15 @@ const quickTemplates: ImageQuickTemplate[] = [
     prompt: 'Massive fantasy landscape with layered mountains, magical architecture, atmospheric depth, volumetric light, and grand cinematic scale.',
     aspect_ratio: '16:9',
     resolution: '2048',
-    model_key: 'seedream',
+    model_key: 'gemini_pro_image',
   },
 ];
+
+const PROVIDER_LOGO_STYLES: Record<string, string> = {
+  Google: 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]',
+  OpenAI: 'bg-[hsl(var(--color-surface)/0.8)] text-text',
+  Recraft: 'bg-[hsl(var(--color-danger)/0.12)] text-[hsl(var(--color-danger))]',
+};
 
 function toAbsoluteUrl(url: string) {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -245,7 +276,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('nano_banana');
+  const [selectedModel, setSelectedModel] = useState('gemini_flash_image');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
@@ -317,7 +348,7 @@ export function ImageStudioClient({ userId }: Props) {
       if (!cached.ts || Date.now() - cached.ts > IMAGE_STUDIO_CACHE_TTL_MS) return;
       const nextModels = cached.models?.length ? cached.models : fallbackModels;
       setModels(nextModels);
-      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
+      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(cached.inspiration ?? []);
       setAllGeneratedImages(cached.imageData ?? []);
       applyGeneratedFilters(
@@ -345,7 +376,7 @@ export function ImageStudioClient({ userId }: Props) {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       setModels(nextModels);
-      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'nano_banana'));
+      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
       applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
@@ -758,7 +789,7 @@ export function ImageStudioClient({ userId }: Props) {
                   <p className="text-sm font-semibold text-text">Model</p>
                   <p className="mt-1 text-xs text-muted">Select one engine, then keep moving. Change only when you need a different look.</p>
                 </div>
-                <Badge>{selectedModelMeta?.label}</Badge>
+                {selectedModelMeta?.badge ? <Badge>{selectedModelMeta.badge}</Badge> : null}
               </div>
               <button
                 type="button"
@@ -766,14 +797,22 @@ export function ImageStudioClient({ userId }: Props) {
                 className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-left transition hover:bg-[hsl(var(--color-elevated))]"
               >
                 <div className="flex items-start gap-3">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
-                    <Sparkles className="h-5 w-5" />
+                  <span
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                      PROVIDER_LOGO_STYLES[selectedModelMeta?.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                    }`}
+                  >
+                    {selectedModelMeta?.logo_label ?? <Sparkles className="h-5 w-5" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-base font-semibold text-text">{selectedModelMeta?.label}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-text">{selectedModelMeta?.label}</p>
+                      {selectedModelMeta?.provider ? <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{selectedModelMeta.provider}</span> : null}
+                    </div>
                     <p className="mt-1 text-sm text-muted">
                       {selectedModelMeta?.frontend_hint ?? selectedModelMeta?.description}
                     </p>
+                    {selectedModelMeta?.alias_hint ? <p className="mt-2 text-[11px] text-muted">{selectedModelMeta.alias_hint}</p> : null}
                   </div>
                   <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted" />
                 </div>
@@ -861,7 +900,7 @@ export function ImageStudioClient({ userId }: Props) {
                   <p className="mt-1 text-xs text-muted">Keep framing and fidelity compact so the prompt stays primary.</p>
                 </div>
                 <Badge>
-                  {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}
+                  {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}
                 </Badge>
               </div>
               <div className="space-y-3">
@@ -911,7 +950,7 @@ export function ImageStudioClient({ userId }: Props) {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`} • {estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}
+                    {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • {estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}
                   </p>
                 </div>
                 <Button
@@ -984,7 +1023,7 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Output</p>
-                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? `${resolution}px`}</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</p>
               </div>
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Preview</p>
@@ -1121,7 +1160,7 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge>{item.aspect_ratio}</Badge>
-                      <Badge>{item.resolution}px</Badge>
+                      <Badge>{resolutionOptions.find((option) => option.value === item.resolution)?.label ?? item.resolution}</Badge>
                       {isGenerated ? <Badge>{(item as GeneratedImage).status}</Badge> : null}
                     </div>
                     {isGenerated ? (
@@ -1213,7 +1252,7 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                     <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspiration.resolution}px</p>
+                      <p className="mt-2 text-sm font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</p>
                     </div>
                   </div>
                 </div>
@@ -1346,7 +1385,7 @@ export function ImageStudioClient({ userId }: Props) {
                     </div>
                     <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedGenerated.resolution}px</p>
+                      <p className="mt-2 text-sm font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</p>
                     </div>
                   </div>
                 </div>
@@ -1400,23 +1439,32 @@ export function ImageStudioClient({ userId }: Props) {
                     setSelectedModel(model.key);
                     setModelPickerOpen(false);
                   }}
-                  className={`w-full rounded-[24px] border p-4 text-left transition ${
+                  className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
                     active
                       ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
-                      <Sparkles className="h-5 w-5" />
+                    <span
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                        PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                      }`}
+                    >
+                      {model.logo_label ?? <Sparkles className="h-4 w-4" />}
                     </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-base font-semibold text-text">{model.label}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-text">{model.label}</p>
+                        {model.badge ? <Badge>{model.badge}</Badge> : null}
                         {active ? <Badge>Selected</Badge> : null}
                       </div>
-                      <p className="mt-1 text-sm text-muted">{model.description}</p>
-                      <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p>
+                      <p className="mt-1 text-xs text-muted">{model.description}</p>
+                      {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        {model.provider ? <span>{model.provider}</span> : null}
+                        {model.alias_hint ? <span>{model.alias_hint}</span> : null}
+                      </div>
                     </div>
                   </div>
                 </button>

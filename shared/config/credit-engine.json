@@ -44,10 +44,32 @@
       "1536": 1.75,
       "2048": 2.0
     },
-    "resolutionMultiplierOverrides": {
-      "nano_banana": {
-        "1536": 2.5,
-        "2048": 3.0
+    "resolutionMultiplierOverrides": {},
+    "modelPricing": {
+      "gemini_flash_image": {
+        "1024": 4,
+        "1536": 5,
+        "2048": 6
+      },
+      "gemini_pro_image": {
+        "1024": 7,
+        "1536": 8,
+        "2048": 10
+      },
+      "openai_image": {
+        "1024": 6,
+        "1536": 7,
+        "2048": 8
+      },
+      "recraft_studio": {
+        "1024": 7,
+        "1536": 8,
+        "2048": 10
+      },
+      "recraft_studio_pro": {
+        "1024": 10,
+        "1536": 12,
+        "2048": 15
       }
     },
     "modelMultiplier": {
@@ -80,13 +102,17 @@
     "kling": "kling"
   },
   "imageModelTiers": {
-    "nano_banana": "standard",
+    "gemini_flash_image": "standard",
+    "gemini_pro_image": "premium",
     "openai_image": "premium",
-    "seedream": "premium",
-    "flux_spark": "premium",
-    "recraft_studio": "premium"
+    "recraft_studio": "premium",
+    "recraft_studio_pro": "premium",
+    "nano_banana": "standard"
+  },
+  "imageModelAliases": {
+    "nano_banana": "gemini_flash_image"
   },
   "freeVoiceKeys": ["Aarav", "Mira", "Dev", "Shubh", "Priya"],
-  "freeImageModels": ["nano_banana"],
-  "freeImageResolutions": ["1024"]
+  "freeImageModels": [],
+  "freeImageResolutions": []
 }

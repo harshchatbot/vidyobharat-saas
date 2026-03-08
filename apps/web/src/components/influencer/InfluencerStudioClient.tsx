@@ -38,9 +38,50 @@ const PERSONALITY_OPTIONS = [
 ];
 
 const IMAGE_MODEL_FALLBACK: ImageModel[] = [
-  { key: 'openai_image', label: 'OpenAI Images', description: 'Reliable prompt-following for premium persona visuals.', frontend_hint: 'Best for consistent production testing.' },
-  { key: 'seedream', label: 'Seedream', description: 'Editorial visuals with premium polish.', frontend_hint: 'Good for elevated influencer scenes.' },
+  {
+    key: 'gemini_flash_image',
+    label: 'Gemini 3.1 Flash Image',
+    description: 'Fast Gemini image generation for creator scenes and rapid visual testing.',
+    frontend_hint: 'Best for frequent iterations and social-first influencer visuals.',
+    provider: 'Google',
+    badge: 'Affordable',
+    logo_label: 'G',
+    alias_hint: 'Previously Nano Banana',
+  },
+  {
+    key: 'gemini_pro_image',
+    label: 'Gemini 3 Pro Image',
+    description: 'Premium Gemini image generation for refined persona and campaign visuals.',
+    frontend_hint: 'Use this for polished brand-ready influencer outputs.',
+    provider: 'Google',
+    badge: 'Premium',
+    logo_label: 'G',
+  },
+  {
+    key: 'openai_image',
+    label: 'OpenAI Image',
+    description: 'Reliable prompt-following for premium persona visuals.',
+    frontend_hint: 'Best for consistent production testing.',
+    provider: 'OpenAI',
+    badge: 'Premium',
+    logo_label: 'O',
+  },
+  {
+    key: 'recraft_studio',
+    label: 'Recraft Studio',
+    description: 'Design-forward image generation for ads, brand kits, and promotional scenes.',
+    frontend_hint: 'Mapped to Recraft V4 for polished commercial compositions.',
+    provider: 'Recraft',
+    badge: 'Design',
+    logo_label: 'R',
+  },
 ];
+
+const IMAGE_MODEL_PROVIDER_STYLES: Record<string, string> = {
+  Google: 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]',
+  OpenAI: 'bg-[hsl(var(--color-surface)/0.8)] text-text',
+  Recraft: 'bg-[hsl(var(--color-danger)/0.12)] text-[hsl(var(--color-danger))]',
+};
 
 const INFLUENCER_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 
@@ -106,7 +147,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   const [customSceneMood, setCustomSceneMood] = useState('');
   const [savingCustomScene, setSavingCustomScene] = useState(false);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
-  const [selectedImageModel, setSelectedImageModel] = useState('openai_image');
+  const [selectedImageModel, setSelectedImageModel] = useState('gemini_flash_image');
   const [imageModelPickerOpen, setImageModelPickerOpen] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
@@ -847,13 +888,23 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3 text-left transition hover:bg-[hsl(var(--color-elevated))]"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
-                        <Sparkles className="h-4 w-4" />
+                      <span
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                          IMAGE_MODEL_PROVIDER_STYLES[imageModels.find((model) => model.key === selectedImageModel)?.provider ?? ''] ??
+                          'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                        }`}
+                      >
+                        {imageModels.find((model) => model.key === selectedImageModel)?.logo_label ?? <Sparkles className="h-4 w-4" />}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-text">
-                          {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Choose model'}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-text">
+                            {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Choose model'}
+                          </p>
+                          {imageModels.find((model) => model.key === selectedImageModel)?.badge ? (
+                            <Badge>{imageModels.find((model) => model.key === selectedImageModel)?.badge}</Badge>
+                          ) : null}
+                        </div>
                         <p className="mt-1 text-xs text-muted">
                           {imageModels.find((model) => model.key === selectedImageModel)?.frontend_hint ??
                             'Choose the model based on how polished or stylized you want the final portrait to feel.'}
@@ -870,7 +921,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   <div>
                     <p className="text-sm font-semibold text-text">Output</p>
                     <p className="mt-1 text-xs text-muted">
-                      {aspectRatio} • {resolution} px • {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Selected model'}
+                      {aspectRatio} • {resolution === '1024' ? '1K' : resolution === '1536' ? '1.5K' : resolution === '2048' ? '2K' : resolution} • {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Selected model'}
                     </p>
                   </div>
                   <Badge variant="outline">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}</Badge>
@@ -907,9 +958,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
                     <div className="flex flex-wrap gap-2">
                       {[
-                        ['1024', '1024 px'],
-                        ['1536', '1536 px'],
-                        ['2048', '2048 px'],
+                        ['1024', '1K'],
+                        ['1536', '1.5K'],
+                        ['2048', '2K'],
                       ].map(([value, label]) => (
                         <button
                           key={value}
@@ -1220,23 +1271,32 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     setSelectedImageModel(model.key);
                     setImageModelPickerOpen(false);
                   }}
-                  className={`w-full rounded-[24px] border p-4 text-left transition ${
+                  className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
                     active
                       ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] text-[hsl(var(--color-accent))]">
-                      <Sparkles className="h-5 w-5" />
+                    <span
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                        IMAGE_MODEL_PROVIDER_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                      }`}
+                    >
+                      {model.logo_label ?? <Sparkles className="h-4 w-4" />}
                     </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-base font-semibold text-text">{model.label}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-text">{model.label}</p>
+                        {model.badge ? <Badge>{model.badge}</Badge> : null}
                         {active ? <Badge>Selected</Badge> : null}
                       </div>
-                      <p className="mt-1 text-sm text-muted">{model.description}</p>
-                      <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p>
+                      <p className="mt-1 text-xs text-muted">{model.description}</p>
+                      {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        {model.provider ? <span>{model.provider}</span> : null}
+                        {model.alias_hint ? <span>{model.alias_hint}</span> : null}
+                      </div>
                     </div>
                   </div>
                 </button>

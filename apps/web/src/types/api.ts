@@ -339,6 +339,10 @@ export type ImageModel = {
   label: string;
   description: string;
   frontend_hint: string;
+  provider?: string;
+  badge?: string;
+  logo_label?: string;
+  alias_hint?: string | null;
 };
 
 export type GeneratedImage = {

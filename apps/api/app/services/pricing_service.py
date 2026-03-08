@@ -34,6 +34,9 @@ class CheckoutPlanSelection:
     allocated_credits: int
 
 
+
+
+
 class PricingService:
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -51,6 +54,7 @@ class PricingService:
         bucket = self.regional_pricing[region]
         currency = bucket['currency']
         payment_provider = 'razorpay' if region == 'south_asia' else 'stripe'
+
         return PricingQuote(
             country=country,
             region=region,
@@ -64,9 +68,12 @@ class PricingService:
     def resolve_checkout_plan(self, request: Request, plan_name: str) -> CheckoutPlanSelection:
         quote = self.get_pricing_quote(request)
         normalized_plan = plan_name.strip().lower()
+
         if normalized_plan not in quote.plans or normalized_plan not in quote.credit_allocation:
             raise ValueError('Unsupported plan name')
+
         amount_major = quote.plans[normalized_plan]
+
         return CheckoutPlanSelection(
             plan_name=normalized_plan,
             country=quote.country,
@@ -83,7 +90,23 @@ class PricingService:
     def _extract_country(self, request: Request) -> str:
         forwarded = request.headers.get('x-forwarded-for')
         client_host = request.client.host if request.client else None
-        return resolve_country_code(forwarded or client_host)
+        ip_candidate = (forwarded or client_host or '').split(',')[0].strip()
+
+        try:
+            country = resolve_country_code(ip_candidate)
+            if not country or not isinstance(country, str):
+                raise ValueError('Empty or invalid country code returned')
+            return country.upper()
+        except Exception as exc:
+            logger.warning(
+                'pricing_country_resolution_failed',
+                extra={
+                    'ip_candidate': ip_candidate,
+                    'error': str(exc),
+                    'fallback_country': 'IN',
+                },
+            )
+            return 'IN'
 
     def _resolve_region(self, country: str) -> str:
         south_asia_countries = set(self.regional_pricing['south_asia']['countries'])

@@ -323,7 +323,7 @@ def _to_image_generation_response(
     return ImageGenerationResponse(
         id=generation.id,
         parent_image_id=getattr(generation, 'parent_image_id', None),
-        model_key=getattr(generation, 'model_key', None) or 'nano_banana',
+        model_key=getattr(generation, 'model_key', None) or 'gemini_flash_image',
         prompt=getattr(generation, 'prompt', None) or 'Generated image',
         aspect_ratio=getattr(generation, 'aspect_ratio', None) or '1:1',
         resolution=str(getattr(generation, 'resolution', None) or '1024'),
@@ -1329,6 +1329,10 @@ def list_ai_image_models(
             label=model.label,
             description=model.description,
             frontend_hint=model.frontend_hint,
+            provider=model.provider,
+            badge=model.badge,
+            logo_label=model.logo_label,
+            alias_hint=model.alias_hint,
         )
         for model in service.list_models()
     ]
