@@ -14,6 +14,12 @@ import { LandingVideo } from '@/components/landing/LandingVideo';
 import { StudioSidebar } from '@/components/landing/StudioSidebar';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
+type SurfaceMedia = {
+  type: 'video' | 'image';
+  src: string;
+  poster?: string;
+};
+
 type InspirationVideo = {
   id: string;
   creator_name: string;
@@ -51,35 +57,35 @@ const toolTiles = [
     title: 'Text to Video',
     subtitle: 'Turn script into cinematic scenes',
     href: '/signup',
-    media: '/videos/samples/english-startup-16x9.mp4',
+    media: { type: 'video', src: '/videos/samples/english-startup-16x9.mp4', poster: '/illustrations/startup.png' } satisfies SurfaceMedia,
     icon: Clapperboard,
   },
   {
     title: 'Image to Video',
     subtitle: 'Animate reference visuals into motion',
     href: '/signup',
-    media: '/videos/samples/hindi-festival-9x16.mp4',
+    media: { type: 'image', src: '/illustrations/product-ads.png' } satisfies SurfaceMedia,
     icon: ImageIcon,
   },
   {
     title: 'AI Influencer',
     subtitle: 'Build a consistent character identity',
     href: '/signup',
-    media: '/videos/samples/tamil-education-9x16.mp4',
+    media: { type: 'image', src: '/illustrations/ai-influencer.png' } satisfies SurfaceMedia,
     icon: Wand2,
   },
   {
     title: 'Shorts',
     subtitle: 'High-frequency vertical reel workflows',
     href: '/signup',
-    media: '/videos/samples/hindi-festival-9x16.mp4',
+    media: { type: 'video', src: '/videos/samples/hindi-festival-9x16.mp4' } satisfies SurfaceMedia,
     icon: Sparkles,
   },
   {
     title: 'Video Editor',
     subtitle: 'Polish voice, captions, and pacing',
     href: '/signup',
-    media: '/videos/samples/english-startup-16x9.mp4',
+    media: { type: 'image', src: '/illustrations/marketing.png' } satisfies SurfaceMedia,
     icon: PlaySquare,
   },
 ];
@@ -89,21 +95,54 @@ const showcaseTiles = [
     eyebrow: 'Daily Reels',
     title: 'Fast vertical publishing',
     body: 'Affordable daily output for creators posting regularly without overspending.',
-    media: '/videos/samples/tamil-education-9x16.mp4',
+    media: { type: 'video', src: '/videos/samples/tamil-education-9x16.mp4' } satisfies SurfaceMedia,
   },
   {
     eyebrow: 'Creator Pro',
     title: 'Polished creator-grade output',
     body: 'Balanced quality and cost for brands, coaches, and serious publishing.',
-    media: '/videos/samples/english-startup-16x9.mp4',
+    media: { type: 'image', src: '/illustrations/agency.png' } satisfies SurfaceMedia,
   },
   {
     eyebrow: 'Premium / Cinema',
     title: 'Launch-ready hero videos',
     body: 'Premium motion, campaign visuals, and cinematic narrative surfaces.',
-    media: '/videos/samples/hindi-festival-9x16.mp4',
+    media: { type: 'image', src: '/illustrations/edtech.png' } satisfies SurfaceMedia,
   },
 ];
+
+const heroGalleryTiles: Array<{
+  title: string;
+  note: string;
+  media: SurfaceMedia;
+}> = [
+  {
+    title: 'Creator launch',
+    note: 'Campaign frame',
+    media: { type: 'image', src: '/illustrations/startup.png' },
+  },
+  {
+    title: 'Influencer persona',
+    note: 'Character memory',
+    media: { type: 'image', src: '/illustrations/ai-influencer.png' },
+  },
+  {
+    title: 'Product motion',
+    note: 'Ad visual',
+    media: { type: 'image', src: '/illustrations/product-ads.png' },
+  },
+  {
+    title: 'Shorts pipeline',
+    note: 'Vertical publishing',
+    media: { type: 'video', src: '/videos/samples/tamil-education-9x16.mp4' },
+  },
+];
+
+const heroBackgroundMedia: SurfaceMedia = {
+  type: 'video',
+  src: '/videos/samples/hindi-festival-9x16.mp4',
+  poster: '/illustrations/startup.png',
+};
 
 function aspectRatioToCss(value: string | null | undefined) {
   if (!value) return '9 / 16';
@@ -117,6 +156,14 @@ function aspectRatioToCss(value: string | null | undefined) {
     return '9 / 16';
   }
   return `${width} / ${height}`;
+}
+
+function MediaSurface({ media, alt, className }: { media: SurfaceMedia; alt: string; className?: string }) {
+  if (media.type === 'video') {
+    return <LandingVideo src={media.src} poster={media.poster} className={className} />;
+  }
+
+  return <img src={media.src} alt={alt} className={className} loading="lazy" />;
 }
 
 export function PublicStudioLanding({ videos, images }: { videos: InspirationVideo[]; images: InspirationImage[] }) {
@@ -185,8 +232,8 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
 
               <div className="rangmanch-floating-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
                 <HeroBackgroundVideo
-                  src="/videos/samples/english-startup-16x9.mp4"
-                  poster="/illustrations/startup.png"
+                  src={heroBackgroundMedia.src}
+                  poster={heroBackgroundMedia.poster}
                 />
                 <div className="relative z-10 grid min-h-[500px] gap-5 px-4 py-5 sm:min-h-[540px] sm:px-6 sm:py-7 md:min-h-[580px] lg:min-h-[640px] lg:gap-6 lg:px-7 lg:py-8 xl:grid-cols-[1.1fr_0.9fr] xl:px-8 xl:py-8">
                   <div className="flex flex-col justify-between gap-8">
@@ -216,7 +263,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                           className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.4)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md"
                         >
                           <div className="relative aspect-[5/4] md:aspect-[4/3] xl:aspect-[4/3]">
-                            <LandingVideo src={tile.media} className="h-full w-full object-cover" />
+                            <MediaSurface media={tile.media} alt={tile.title} className="h-full w-full object-cover" />
                             <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.92),transparent_58%)]" />
                             <div className="absolute inset-x-0 bottom-0 p-4">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[hsl(var(--color-muted))]">{tile.eyebrow}</p>
@@ -230,6 +277,26 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                   </div>
 
                   <div className="flex flex-col gap-4 xl:pl-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {heroGalleryTiles.map((tile, index) => (
+                        <motion.div
+                          key={tile.title}
+                          initial={{ opacity: 0, y: 18 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.42, delay: 0.08 + index * 0.04, ease: 'easeOut' }}
+                          className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md"
+                        >
+                          <div className="relative aspect-[4/3]">
+                            <MediaSurface media={tile.media} alt={tile.title} className="h-full w-full object-cover" />
+                            <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent_58%)]" />
+                            <div className="absolute inset-x-0 bottom-0 p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-muted))]">{tile.note}</p>
+                              <p className="mt-1 text-sm font-semibold text-[hsl(var(--color-text))]">{tile.title}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                       {toolTiles.map((tool, index) => {
                         const Icon = tool.icon;
@@ -245,7 +312,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                               className="group block overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-[hsl(var(--color-border)/0.68)]"
                             >
                               <div className="relative aspect-[16/10]">
-                                <LandingVideo src={tool.media} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
+                                <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
                                 <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent_54%)]" />
                                 <div className="absolute left-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-bg)/0.4)] backdrop-blur-md">
                                   <Icon className="h-4.5 w-4.5" />
@@ -285,7 +352,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                       className="group overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
                     >
                       <div className="relative aspect-[4/5]">
-                        <LandingVideo src={tool.media} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                        <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                         <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                         <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
                           <Icon className="h-4 w-4" />
@@ -311,7 +378,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                         className="group block w-[78vw] max-w-[320px] shrink-0 overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
                       >
                         <div className="relative aspect-[4/5]">
-                          <LandingVideo src={tool.media} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                          <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                           <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                           <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
                             <Icon className="h-4 w-4" />
