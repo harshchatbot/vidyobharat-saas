@@ -73,9 +73,9 @@ const aspectOptions = [
 ];
 
 const resolutionOptions = [
-  { value: '1024', label: '1024 px', helper: 'Fast previews' },
-  { value: '1536', label: '1536 px', helper: 'Balanced quality' },
-  { value: '2048', label: '2048 px', helper: 'High detail' },
+  { value: '1024', label: '1K', helper: 'Fast previews' },
+  { value: '1536', label: '1.5K', helper: 'Balanced quality' },
+  { value: '2048', label: '2K', helper: 'High detail' },
 ];
 const MAX_PROMPT_CHARS = 2000;
 

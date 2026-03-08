@@ -104,6 +104,7 @@ class CreditService:
             'image': {
                 'base_credits': self.credit_engine['image']['baseCredits'],
                 'resolution_multiplier': self.credit_engine['image']['resolutionMultiplier'],
+                'resolution_multiplier_overrides': self.credit_engine['image'].get('resolutionMultiplierOverrides', {}),
                 'model_multiplier': self.credit_engine['image']['modelMultiplier'],
                 'max_credits_cap': self.credit_engine['image']['maxCreditsCap'],
             },
@@ -403,6 +404,7 @@ class CreditService:
             dynamic_total, dynamic_items = self._calculate_image_credits_with_breakdown(
                 resolution=resolution,
                 model=self._resolve_image_model_tier(model_key),
+                model_key=model_key,
             )
             items.extend(dynamic_items)
         else:
@@ -510,12 +512,16 @@ class CreditService:
         *,
         resolution: str,
         model: str,
+        model_key: str | None = None,
     ) -> tuple[int, list[CreditCostItem]]:
         config = self.credit_multipliers['image']
         normalized_resolution = self._validate_multiplier_key('image resolution', str(resolution), config['resolution_multiplier'])
         normalized_model = self._validate_multiplier_key('image model tier', model, config['model_multiplier'])
         base_credits = int(config['base_credits'])
-        resolution_multiplier = float(config['resolution_multiplier'][normalized_resolution])
+        resolution_override_map = (config.get('resolution_multiplier_overrides') or {}).get(str(model_key or ''), {})
+        resolution_multiplier = float(
+            resolution_override_map.get(normalized_resolution, config['resolution_multiplier'][normalized_resolution])
+        )
         model_multiplier = float(config['model_multiplier'][normalized_model])
         raw_total = base_credits * resolution_multiplier * model_multiplier
         total = max(1, math.ceil(raw_total))

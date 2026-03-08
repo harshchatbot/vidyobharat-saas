@@ -44,6 +44,12 @@
       "1536": 1.75,
       "2048": 2.0
     },
+    "resolutionMultiplierOverrides": {
+      "nano_banana": {
+        "1536": 2.5,
+        "2048": 3.0
+      }
+    },
     "modelMultiplier": {
       "standard": 1.0,
       "premium": 2.0

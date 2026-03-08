@@ -13,6 +13,7 @@ const VIDEO_MULTIPLIERS = {
 const IMAGE_MULTIPLIERS = {
   baseCredits: creditEngine.image.baseCredits,
   resolution: creditEngine.image.resolutionMultiplier,
+  resolutionOverrides: creditEngine.image.resolutionMultiplierOverrides ?? {},
   model: creditEngine.image.modelMultiplier,
   cap: creditEngine.image.maxCreditsCap,
 } as const;
@@ -108,7 +109,11 @@ function estimateImageGenerate(payload: Record<string, unknown>, currentCredits:
 
   if (!(FREE_IMAGE_MODELS.has(modelKey) && FREE_IMAGE_RESOLUTIONS.has(resolution))) {
     const modelTier = IMAGE_MODEL_TIERS[modelKey] ?? 'premium';
+    const overrideResolutionMap = IMAGE_MULTIPLIERS.resolutionOverrides[
+      modelKey as keyof typeof IMAGE_MULTIPLIERS.resolutionOverrides
+    ] as Record<string, number> | undefined;
     const resolutionMultiplier =
+      overrideResolutionMap?.[resolution] ??
       IMAGE_MULTIPLIERS.resolution[resolution as keyof typeof IMAGE_MULTIPLIERS.resolution] ??
       IMAGE_MULTIPLIERS.resolution['1024'];
     const modelMultiplier = IMAGE_MULTIPLIERS.model[modelTier];
