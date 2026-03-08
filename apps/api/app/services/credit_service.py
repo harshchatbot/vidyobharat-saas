@@ -20,6 +20,10 @@ from app.models.entities import CreditTransaction, CreditWallet
 from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class InsufficientCreditsError(RuntimeError):
     def __init__(self, required: int, available: int) -> None:
@@ -105,6 +109,7 @@ class CreditService:
                 'base_credits': self.credit_engine['image']['baseCredits'],
                 'resolution_multiplier': self.credit_engine['image']['resolutionMultiplier'],
                 'resolution_multiplier_overrides': self.credit_engine['image'].get('resolutionMultiplierOverrides', {}),
+                'model_pricing': self.credit_engine['image'].get('modelPricing', {}),
                 'model_multiplier': self.credit_engine['image']['modelMultiplier'],
                 'max_credits_cap': self.credit_engine['image']['maxCreditsCap'],
             },
@@ -120,6 +125,7 @@ class CreditService:
         self.free_image_resolutions = set(self.credit_engine['freeImageResolutions'])
         self.video_model_aliases = self.credit_engine['videoModelAliases']
         self.image_model_tiers = self.credit_engine['imageModelTiers']
+        self.image_model_aliases = self.credit_engine.get('imageModelAliases', {})
 
     def ensure_wallet(self, user_id: str) -> CreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -197,7 +203,7 @@ class CreditService:
         resolution: str,
         model: str,
     ) -> int:
-        total, _ = self._calculate_image_credits_with_breakdown(resolution=resolution, model=model)
+        total, _ = self._calculate_image_credits_with_breakdown(resolution=resolution, model=model, model_key=model)
         return total
 
     def calculate_voice_credits(
@@ -396,7 +402,7 @@ class CreditService:
         return CreditEstimate(required_credits=total, breakdown=dynamic_breakdown, premium=total > 0)
 
     def _estimate_image_generate(self, payload: dict[str, Any]) -> CreditEstimate:
-        model_key = str(payload.get('model_key') or payload.get('modelKey') or payload.get('model') or '')
+        model_key = self._resolve_image_model_key(str(payload.get('model_key') or payload.get('modelKey') or payload.get('model') or ''))
         resolution = str(payload.get('resolution') or '')
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
@@ -516,9 +522,23 @@ class CreditService:
     ) -> tuple[int, list[CreditCostItem]]:
         config = self.credit_multipliers['image']
         normalized_resolution = self._validate_multiplier_key('image resolution', str(resolution), config['resolution_multiplier'])
+        resolved_model_key = self._resolve_image_model_key(str(model_key or model))
+        explicit_pricing = (config.get('model_pricing') or {}).get(resolved_model_key)
+        if explicit_pricing:
+            if normalized_resolution not in explicit_pricing:
+                raise ValueError('Unsupported image resolution for pricing')
+            total = int(explicit_pricing[normalized_resolution])
+            if total < 0:
+                raise ValueError('Invalid image pricing configuration')
+            self._ensure_within_cap(total, int(config['max_credits_cap']), 'image')
+            breakdown = [
+                CreditCostItem(component='model_price', label=f'{resolved_model_key} {normalized_resolution} pricing', value=float(total)),
+            ]
+            return total, breakdown
+
         normalized_model = self._validate_multiplier_key('image model tier', model, config['model_multiplier'])
         base_credits = int(config['base_credits'])
-        resolution_override_map = (config.get('resolution_multiplier_overrides') or {}).get(str(model_key or ''), {})
+        resolution_override_map = (config.get('resolution_multiplier_overrides') or {}).get(resolved_model_key, {})
         resolution_multiplier = float(
             resolution_override_map.get(normalized_resolution, config['resolution_multiplier'][normalized_resolution])
         )
@@ -565,7 +585,10 @@ class CreditService:
         return normalized
 
     def _resolve_image_model_tier(self, model_key: str) -> str:
-        return self.image_model_tiers.get(model_key, 'premium')
+        return self.image_model_tiers.get(self._resolve_image_model_key(model_key), 'premium')
+
+    def _resolve_image_model_key(self, model_key: str) -> str:
+        return self.image_model_aliases.get(model_key, model_key)
 
     def _resolve_voice_provider(self, *, voice: str, provider: Any | None) -> str:
         if provider:
@@ -724,35 +747,111 @@ class CreditService:
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return f'{prefix}:{digest}'
 
-    def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
-        if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
-            raise RuntimeError('Razorpay is not configured')
 
-        payload = {
-            'amount': selection.amount_minor,
+
+
+
+def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
+    if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
+        raise RuntimeError('Razorpay is not configured')
+
+    payload = {
+        'amount': selection.amount_minor,
+        'currency': selection.currency,
+        'receipt': f'rangmanch-{user_id[:8]}-{selection.plan_name}-{int(datetime.now(UTC).timestamp())}',
+        'notes': {
+            'user_id': user_id,
+            'plan_name': selection.plan_name,
+            'pricing_region': selection.region,
+        },
+    }
+
+    logger.info(
+        'topup_razorpay_start',
+        extra={
+            'user_id': user_id,
+            'plan_name': selection.plan_name,
+            'amount_minor': selection.amount_minor,
             'currency': selection.currency,
-            'receipt': f'rangmanch-{user_id[:8]}-{selection.plan_name}-{int(datetime.now(UTC).timestamp())}',
-            'notes': {
+            'credits': selection.allocated_credits,
+            'pricing_region': selection.region,
+            'pricing_country': selection.country,
+        },
+    )
+
+    try:
+        logger.info(
+            'topup_razorpay_request',
+            extra={
                 'user_id': user_id,
                 'plan_name': selection.plan_name,
+                'amount_minor': selection.amount_minor,
+                'currency': selection.currency,
+            },
+        )
+
+        response = httpx.post(
+            f'{self.settings.razorpay_api_base}/orders',
+            auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
+            json=payload,
+            timeout=20.0,
+        )
+    except httpx.RequestError as exc:
+        logger.exception(
+            'topup_razorpay_network_error',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'amount_minor': selection.amount_minor,
+                'currency': selection.currency,
+            },
+        )
+        raise RuntimeError(f'Razorpay network error: {exc}') from exc
+
+    if response.status_code >= 400:
+        logger.error(
+            'topup_razorpay_http_error',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'status_code': response.status_code,
+                'response_text': response.text,
+            },
+        )
+        raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
+
+    data = response.json()
+    provider_order_id = str(data.get('id') or '')
+
+    logger.info(
+        'topup_razorpay_success',
+        extra={
+            'user_id': user_id,
+            'plan_name': selection.plan_name,
+            'provider_order_id': provider_order_id,
+            'provider_amount': data.get('amount'),
+            'provider_currency': data.get('currency'),
+            'provider_status': data.get('status'),
+        },
+    )
+
+    if not provider_order_id:
+        raise RuntimeError('Razorpay order create failed: provider did not return an order id')
+
+    try:
+        logger.info(
+            'topup_razorpay_db_write_start',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider_order_id': provider_order_id,
+                'credits': selection.allocated_credits,
+                'amount_minor': selection.amount_minor,
+                'currency': selection.currency,
                 'pricing_region': selection.region,
             },
-        }
-        try:
-            response = httpx.post(
-                f'{self.settings.razorpay_api_base}/orders',
-                auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
-                json=payload,
-                timeout=20.0,
-            )
-        except httpx.RequestError as exc:
-            raise RuntimeError(f'Razorpay network error: {exc}') from exc
-        if response.status_code >= 400:
-            raise RuntimeError(f'Razorpay order create failed ({response.status_code}): {response.text}')
-        data = response.json()
-        provider_order_id = str(data.get('id') or '')
-        if not provider_order_id:
-            raise RuntimeError('Razorpay order create failed: provider did not return an order id')
+        )
+
         with self._transaction():
             self.repo.create_topup_order(
                 user_id=user_id,
@@ -766,19 +865,54 @@ class CreditService:
                 provider_checkout_id=None,
                 metadata_json=json.dumps({'provider_response': data}),
             )
-        return CreditTopUpOrderResult(
-            provider='razorpay',
-            region=selection.region,
-            country=selection.country,
-            plan_name=selection.plan_name,
-            order_id=provider_order_id,
-            key_id=self.settings.razorpay_key_id,
-            checkout_session_id=None,
-            checkout_url=None,
-            amount_minor=selection.amount_minor,
-            currency=selection.currency,
-            credits=selection.allocated_credits,
+
+        logger.info(
+            'topup_razorpay_db_write_success',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider_order_id': provider_order_id,
+            },
         )
+
+    except Exception:
+        logger.exception(
+            'topup_razorpay_db_write_failed',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider_order_id': provider_order_id,
+                'credits': selection.allocated_credits,
+                'amount_minor': selection.amount_minor,
+                'currency': selection.currency,
+                'pricing_region': selection.region,
+            },
+        )
+        raise
+
+    logger.info(
+        'topup_razorpay_result_build',
+        extra={
+            'user_id': user_id,
+            'plan_name': selection.plan_name,
+            'provider_order_id': provider_order_id,
+        },
+    )
+
+    return CreditTopUpOrderResult(
+        provider='razorpay',
+        region=selection.region,
+        country=selection.country,
+        plan_name=selection.plan_name,
+        order_id=provider_order_id,
+        key_id=self.settings.razorpay_key_id,
+        checkout_session_id=None,
+        checkout_url=None,
+        amount_minor=selection.amount_minor,
+        currency=selection.currency,
+        credits=selection.allocated_credits,
+    )
+
 
     def _create_stripe_placeholder_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         provider_order_id = self.pricing_service.make_stripe_placeholder_session_id()
