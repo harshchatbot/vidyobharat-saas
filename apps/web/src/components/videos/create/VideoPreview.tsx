@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Download, RefreshCcw, Tag } from 'lucide-react';
+import { Download, RefreshCcw, Sparkles, Tag } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 
 import { API_URL } from '@/lib/env';
@@ -44,19 +43,19 @@ export function VideoPreview({
   };
 
   return (
-    <Card className="space-y-4">
+    <div className="space-y-4 border-t border-[hsl(var(--color-border))] pt-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-heading text-xl font-extrabold tracking-tight text-text">Post-Generate Preview</h2>
+          <h2 className="font-heading text-lg font-bold tracking-tight text-text">Preview & output</h2>
           <p className="mt-1 text-sm text-muted">Review the final job, metadata, and export actions.</p>
         </div>
         {job ? <Badge>{job.provider_name ?? job.selected_model ?? 'Queued'}</Badge> : null}
       </div>
 
       {loading || isProcessing ? (
-        <div className="rounded-[var(--radius-lg)] border border-border bg-bg p-6 text-center">
+        <div className="rounded-[24px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-6 text-center shadow-[var(--shadow-soft)]">
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
-            <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
               <Spinner />
             </span>
             <div>
@@ -75,7 +74,7 @@ export function VideoPreview({
       {job?.status === 'failed' ? <p className="text-sm text-[hsl(var(--color-danger))]">{job.error_message ?? 'Generation failed.'}</p> : null}
 
       {job?.tts_provider ? (
-        <div className="rounded-[var(--radius-md)] border border-border bg-bg/70 px-4 py-3">
+        <div className="rounded-[20px] border border-border bg-[hsl(var(--color-bg)/0.62)] px-4 py-3">
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration Provider</p>
           <p className="mt-1 text-sm font-semibold text-text">
             {job.tts_provider}
@@ -90,12 +89,26 @@ export function VideoPreview({
 
       {videoUrl ? (
         <div className="space-y-4">
-          <video src={videoUrl} poster={thumbnailUrl ?? undefined} controls className="w-full rounded-[var(--radius-lg)] border border-border bg-black" />
-          <div className="flex flex-wrap gap-2">
-            {job?.provider_name ? <Badge>{job.provider_name}</Badge> : null}
-            {job?.resolution ? <Badge>{job.resolution}</Badge> : null}
-            {job?.duration_seconds ? <Badge>{job.duration_seconds}s</Badge> : null}
-            {job?.aspect_ratio ? <Badge>{job.aspect_ratio}</Badge> : null}
+          <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)]">
+            <video src={videoUrl} poster={thumbnailUrl ?? undefined} controls className="w-full bg-black" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Provider</p>
+              <p className="mt-1 text-sm font-semibold text-text">{job?.provider_name ?? job?.selected_model ?? 'Render'}</p>
+            </div>
+            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+              <p className="mt-1 text-sm font-semibold text-text">{job?.resolution ?? '—'}</p>
+            </div>
+            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Duration</p>
+              <p className="mt-1 text-sm font-semibold text-text">{job?.duration_seconds ? `${job.duration_seconds}s` : '—'}</p>
+            </div>
+            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Frame</p>
+              <p className="mt-1 text-sm font-semibold text-text">{job?.aspect_ratio ?? '—'}</p>
+            </div>
           </div>
           {allTags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -112,18 +125,28 @@ export function VideoPreview({
               type="button"
               onClick={() => void downloadVideo()}
               disabled={downloading}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] disabled:opacity-60"
             >
               <Download className="h-4 w-4" />
               {downloading ? 'Downloading...' : 'Download'}
             </button>
-            <Button type="button" variant="secondary" onClick={onRetry} className="gap-2">
+            <Button type="button" variant="secondary" onClick={onRetry} className="gap-2 rounded-full">
               <RefreshCcw className="h-4 w-4" />
               Retry
             </Button>
           </div>
         </div>
+      ) : !loading && !error ? (
+        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.4),hsl(var(--color-bg)/0.7))] px-6 py-8 text-center">
+          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]">
+            <Sparkles className="h-6 w-6" />
+          </span>
+          <p className="mt-4 text-base font-semibold text-text">Your next render will appear here</p>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
+            Keep refining the script and output settings on the left. This pane will switch to preview mode as soon as a video job starts.
+          </p>
+        </div>
       ) : null}
-    </Card>
+    </div>
   );
 }

@@ -1651,48 +1651,49 @@ export function CreateVideoPage({
         </div>
 
         <div className="space-y-6 2xl:sticky 2xl:top-24">
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+          <Card className="space-y-5 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.92),hsl(var(--color-elevated)/0.88))] shadow-[var(--shadow-soft)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
                 <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
+                <p className="mt-1 text-sm text-muted">One place for estimates, job state, and final output review.</p>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
               </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
-              <div className={`rounded-[var(--radius-md)] border px-3 py-3 ${selectedLane.accentClassName}`}>
+            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-2">
+              <div className={`rounded-[18px] border px-3 py-3 ${selectedLane.accentClassName}`}>
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Category</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
                 <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration</p>
                 <p className="mt-1 text-sm font-semibold text-text">{voice} • {language}</p>
               </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Mode</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</p>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
                 <p className="mt-1 text-base font-semibold text-text">{creditEstimate?.estimatedCredits ?? 0}</p>
               </div>
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
                 <p className="mt-1 inline-flex items-center gap-1 text-base font-semibold text-text">
                   <BadgeIndianRupee className="h-4 w-4" />
                   {estimatedInr ?? 0}
                 </p>
               </div>
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimate mode</p>
                 <p className="mt-1 text-base font-semibold text-text">{estimateError ? 'Fallback' : 'Shared engine'}</p>
               </div>
@@ -1730,7 +1731,7 @@ export function CreateVideoPage({
             ) : null}
 
             {submitError ? (
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-danger))] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
                   {submitError.toLowerCase().includes('insufficient credits') ? (
@@ -1741,19 +1742,18 @@ export function CreateVideoPage({
                 </div>
               </div>
             ) : null}
+            <VideoPreview
+              job={job}
+              loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
+              error={
+                submitError ??
+                (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
+                  ? jobStatus.errorMessage ?? 'Generation failed.'
+                  : null)
+              }
+              onRetry={retry}
+            />
           </Card>
-
-          <VideoPreview
-            job={job}
-            loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
-            error={
-              submitError ??
-              (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
-                ? jobStatus.errorMessage ?? 'Generation failed.'
-                : null)
-            }
-            onRetry={retry}
-          />
 
           <SectionCard
         title="Studio Feed"

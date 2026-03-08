@@ -35,12 +35,14 @@ export function ModelDropdown({
     () => models.find((model) => model.key === selectedModel) ?? models.find((model) => model.enabled !== false) ?? models[0],
     [models, selectedModel],
   );
+  const enabledModels = useMemo(() => models.filter((model) => model.enabled !== false), [models]);
+  const allDisabled = enabledModels.length === 0;
   const featuredModels = useMemo(
-    () => models.filter((model) => model.key === 'sora2' || model.key === 'sora2_pro'),
-    [models],
+    () => models.filter((model) => (model.key === 'sora2' || model.key === 'sora2_pro') && (model.enabled !== false || model.key === selectedModel)),
+    [models, selectedModel],
   );
   const otherModels = useMemo(
-    () => models.filter((model) => model.key !== 'sora2' && model.key !== 'sora2_pro'),
+    () => models.filter((model) => model.key !== 'sora2' && model.key !== 'sora2_pro' && model.enabled !== false),
     [models],
   );
   const SelectedIcon = MODEL_ICONS[selected?.key] ?? Info;
@@ -81,6 +83,21 @@ export function ModelDropdown({
             {selected ? <Badge variant="warning">{selected.shortLabel ?? selected.label}</Badge> : null}
           </div>
 
+          {allDisabled ? (
+            <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.58)] p-5 text-left">
+              <p className="text-base font-semibold text-text">This category is visible, but not enabled yet.</p>
+              <p className="mt-2 text-sm text-muted">
+                The lane is ready in the studio for planning, but backend routing is still feature-gated for its models.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {models.map((model) => (
+                  <span key={model.key} className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-1.5 text-xs font-medium text-muted">
+                    {model.shortLabel ?? model.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {featuredModels.map((model) => {
               const Icon = MODEL_ICONS[model.key] ?? Crown;
@@ -142,6 +159,7 @@ export function ModelDropdown({
               );
             })}
           </div>
+          )}
 
           {otherModels.length ? (
             <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] p-4 backdrop-blur-md">
@@ -194,6 +212,12 @@ export function ModelDropdown({
                 })}
               </div>
             </div>
+          ) : null}
+
+          {!allDisabled && models.some((model) => model.enabled === false && model.key !== selectedModel) ? (
+            <p className="text-xs text-muted">
+              Some premium or upcoming models are hidden here until backend routing is enabled, to keep the picker focused.
+            </p>
           ) : null}
 
           <div className="flex items-center justify-between rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)] px-4 py-3 text-sm text-muted">
