@@ -83,6 +83,16 @@ p {
   backdrop-filter: blur(calc(var(--blur-glass) + 2px));
 }
 
+.rangmanch-studio-rail {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  background:
+    linear-gradient(180deg, hsl(var(--color-surface-glass-strong) / 0.84), hsl(var(--color-bg) / 0.94));
+  border-right: 1px solid hsl(var(--color-border) / 0.44);
+  backdrop-filter: blur(calc(var(--blur-glass) + 2px));
+}
+
 .rangmanch-section-eyebrow {
   @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-muted;
 }

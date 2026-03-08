@@ -323,6 +323,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     );
   }
 
+  if (pathname === '/') {
+    return <CreditProvider userId={userId}>{children}</CreditProvider>;
+  }
+
   return (
     <CreditProvider userId={userId}>
       <div className="min-h-screen bg-[hsl(var(--color-bg))]">

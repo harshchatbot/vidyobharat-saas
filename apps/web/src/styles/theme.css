@@ -19,6 +19,7 @@
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
   --radius-xl: 1.5rem;
+  --landing-rail-width: 18.5rem;
 
   --shadow-soft: 0 8px 24px hsl(var(--color-text) / 0.08);
   --shadow-hard: 0 16px 40px hsl(var(--color-text) / 0.14);

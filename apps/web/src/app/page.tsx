@@ -1,10 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import { CommunityShowcase } from '@/components/landing/CommunityShowcase';
-import { HeroSection } from '@/components/landing/HeroSection';
-import { LandingFooter } from '@/components/landing/LandingFooter';
-import { PricingPreview } from '@/components/landing/PricingPreview';
-import { StudioShowcase } from '@/components/landing/StudioShowcase';
+import { PublicStudioLanding } from '@/components/landing/PublicStudioLanding';
 import { API_URL } from '@/lib/env';
 import { getUserIdFromCookie } from '@/lib/session';
 
@@ -75,12 +71,6 @@ export default async function LandingPage() {
   const { videos, images } = await fetchPublicInspiration();
 
   return (
-    <div className="space-y-2 py-4 sm:py-8">
-      <HeroSection />
-      <CommunityShowcase videos={videos} images={images} />
-      <StudioShowcase />
-      <PricingPreview />
-      <LandingFooter />
-    </div>
+    <PublicStudioLanding videos={videos} images={images} />
   );
 }
