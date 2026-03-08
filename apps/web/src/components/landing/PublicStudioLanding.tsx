@@ -157,9 +157,9 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
         />
 
         <main className="min-w-0 flex-1">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col px-4 pb-10 lg:px-8 lg:pb-14">
-            <section id="hero" className="scroll-mt-24 pt-2 lg:pt-6">
-              <div className="hidden items-center justify-between gap-4 pb-5 lg:flex">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col px-3 pb-10 sm:px-4 lg:px-6 lg:pb-12 xl:px-8 xl:pb-14">
+            <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 xl:pt-6">
+              <div className="hidden items-center justify-between gap-4 pb-5 xl:flex">
                 <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.34)] px-4 py-2 text-xs uppercase tracking-[0.24em] text-[hsl(var(--color-muted))] backdrop-blur-md">
                   Public Studio
                   <span className="h-1 w-1 rounded-full bg-[hsl(var(--color-accent))]" />
@@ -183,12 +183,12 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 </div>
               </div>
 
-              <div className="rangmanch-floating-hero relative overflow-hidden rounded-[36px]">
+              <div className="rangmanch-floating-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
                 <HeroBackgroundVideo
                   src="/videos/samples/english-startup-16x9.mp4"
                   poster="/illustrations/startup.png"
                 />
-                <div className="relative z-10 grid min-h-[540px] gap-6 px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-8">
+                <div className="relative z-10 grid min-h-[500px] gap-5 px-4 py-5 sm:min-h-[540px] sm:px-6 sm:py-7 md:min-h-[580px] lg:min-h-[640px] lg:gap-6 lg:px-7 lg:py-8 xl:grid-cols-[1.1fr_0.9fr] xl:px-8 xl:py-8">
                   <div className="flex flex-col justify-between gap-8">
                     <div className="max-w-2xl space-y-5">
                       <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.54)] bg-[hsl(var(--color-bg)/0.22)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-text))] backdrop-blur-md">
@@ -196,17 +196,17 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                         Matte studio shell for AI video creation
                       </div>
                       <div className="space-y-3">
-                        <h1 className="max-w-3xl font-heading text-4xl font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-5xl xl:text-6xl">
+                        <h1 className="max-w-3xl font-heading text-[2.25rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-5xl xl:text-6xl">
                           Create cinematic AI videos from text, images, and character workflows.
                         </h1>
-                        <p className="max-w-2xl text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                        <p className="max-w-2xl text-sm leading-6 text-[hsl(var(--color-muted))] sm:text-base sm:leading-7">
                           RangManch AI brings together text-to-video, image animation, AI influencer workflows, and short-form publishing inside one visual-first studio.
                         </p>
                       </div>
                       <HeroPromptBar />
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {showcaseTiles.map((tile, index) => (
                         <motion.div
                           key={tile.title}
@@ -215,7 +215,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                           transition={{ duration: 0.42, delay: 0.12 + index * 0.06, ease: 'easeOut' }}
                           className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.4)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md"
                         >
-                          <div className="relative aspect-[4/3]">
+                          <div className="relative aspect-[5/4] md:aspect-[4/3] xl:aspect-[4/3]">
                             <LandingVideo src={tile.media} className="h-full w-full object-cover" />
                             <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.92),transparent_58%)]" />
                             <div className="absolute inset-x-0 bottom-0 p-4">
@@ -229,8 +229,8 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-4 lg:pl-4">
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <div className="flex flex-col gap-4 xl:pl-4">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                       {toolTiles.map((tool, index) => {
                         const Icon = tool.icon;
                         return (
@@ -266,16 +266,16 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
             </section>
 
             <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
-              <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="rangmanch-section-eyebrow">Tool launcher</p>
                   <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Launch the workflow you need, not a maze of settings.</h2>
                 </div>
-                <Link href="/signup" className="hidden rounded-full border border-[hsl(var(--color-border)/0.5)] px-4 py-2 text-sm font-medium text-[hsl(var(--color-text))] lg:inline-flex">
+                <Link href="/signup" className="hidden rounded-full border border-[hsl(var(--color-border)/0.5)] px-4 py-2 text-sm font-medium text-[hsl(var(--color-text))] sm:inline-flex">
                   Open studio
                 </Link>
               </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-5 hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-5">
                 {toolTiles.map((tool) => {
                   const Icon = tool.icon;
                   return (
@@ -300,6 +300,33 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                   );
                 })}
               </div>
+              <div className="-mx-3 mt-5 overflow-x-auto px-3 sm:hidden">
+                <div className="flex w-max gap-3 pb-1">
+                  {toolTiles.map((tool) => {
+                    const Icon = tool.icon;
+                    return (
+                      <Link
+                        key={tool.title}
+                        href={tool.href}
+                        className="group block w-[78vw] max-w-[320px] shrink-0 overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
+                      >
+                        <div className="relative aspect-[4/5]">
+                          <LandingVideo src={tool.media} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                          <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
+                          <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
+                            <Icon className="h-4 w-4" />
+                            {tool.title}
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 p-4">
+                            <p className="text-lg font-semibold">{tool.title}</p>
+                            <p className="mt-1 text-sm leading-6 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             </section>
 
             <section id="community" className="scroll-mt-24 pt-10">
@@ -308,7 +335,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                   <p className="rangmanch-section-eyebrow">Community / Explore</p>
                   <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Browse public inspiration in a live creative wall.</h2>
                 </div>
-                <div className="inline-flex w-fit items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.28)] p-1 backdrop-blur-md">
+                <div className="inline-flex w-fit flex-wrap items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.28)] p-1 backdrop-blur-md">
                   {[
                     { key: 'all', label: 'All' },
                     { key: 'videos', label: 'Videos' },
@@ -330,7 +357,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 </div>
               </div>
 
-              <div className="mt-6 columns-1 gap-4 sm:columns-2 xl:columns-4">
+              <div className="mt-6 columns-1 gap-4 md:columns-2 xl:columns-4">
                 {communityItems.length === 0 ? (
                   <GlassPanel className="mb-4 px-5 py-8 text-sm text-[hsl(var(--color-muted))]">
                     Community creations are loading. Published videos and images will appear here automatically.
@@ -403,7 +430,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                     </Link>
                   </div>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {[
                     ['Free', '40 credits', 'Start testing image, voice, and first renders.'],
                     ['Starter', '200 credits', 'Good for repeat creator workflows and short-form output.'],
@@ -431,4 +458,3 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
     </div>
   );
 }
-
