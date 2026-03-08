@@ -119,7 +119,7 @@ const heroGalleryTiles: Array<{
   {
     title: 'Creator launch',
     note: 'Campaign frame',
-    media: { type: 'image', src: '/videos/samples/creator111.mp4' },
+    media: { type: 'image', src: '/videos/samples/cr-launch.png' },
   },
   {
     title: 'Influencer persona',
@@ -129,7 +129,7 @@ const heroGalleryTiles: Array<{
   {
     title: 'Product motion',
     note: 'Ad visual',
-    media: { type: 'image', src: '/videos/samples/product-ads.png' },
+    media: { type: 'image', src: '/videos/samples/earth.png' },
   },
   {
     title: 'Shorts pipeline',
