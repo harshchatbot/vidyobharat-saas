@@ -1360,7 +1360,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-7">
+    <div className="mx-auto max-w-7xl space-y-6">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -1420,8 +1420,8 @@ export function CreateVideoPage({
         </div>
       </section>
 */}
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
-        <div className="space-y-6">
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
+        <div className="space-y-5">
           
 
           <SectionCard
@@ -1650,8 +1650,8 @@ export function CreateVideoPage({
           </SectionCard>
         </div>
 
-        <div className="space-y-6 2xl:sticky 2xl:top-24">
-          <Card className="space-y-5 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.92),hsl(var(--color-elevated)/0.88))] shadow-[var(--shadow-soft)]">
+        <div className="space-y-5 2xl:sticky 2xl:top-24">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.92),hsl(var(--color-elevated)/0.88))] shadow-[var(--shadow-soft)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>

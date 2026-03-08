@@ -49,39 +49,46 @@ export function ScriptEditor({
       : 'Enhance Script';
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-text">Topic</span>
-          <Input value={topic} onChange={(event) => onTopicChange(event.target.value)} placeholder={topicPlaceholder} maxLength={300} />
+    <div className="space-y-3">
+      <div className="rounded-[24px] border border-border bg-[hsl(var(--color-bg)/0.72)] px-4 py-4 shadow-[var(--shadow-soft)]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Topic</span>
+            <Input
+              value={topic}
+              onChange={(event) => onTopicChange(event.target.value)}
+              placeholder={topicPlaceholder}
+              maxLength={300}
+              className="bg-[hsl(var(--color-surface)/0.3)]"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={onGenerate} disabled={loading} className="gap-2 rounded-full px-4 py-2 text-xs">
+              {loading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
+              {loading ? 'Working...' : generateLabel}
+            </Button>
+            <Button type="button" variant="secondary" onClick={onEnhance} disabled={loading} className="gap-2 rounded-full px-4 py-2 text-xs">
+              <Wand2 className="h-4 w-4" />
+              {enhanceLabel}
+            </Button>
+          </div>
+        </div>
+
+        <label className="mt-4 block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Script</span>
+          <Textarea
+            value={script}
+            onChange={(event) => onScriptChange(event.target.value)}
+            rows={11}
+            className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.3)] leading-6"
+            placeholder={scriptPlaceholder}
+          />
         </label>
+        {error ? <p className="mt-2 text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-text">Script</span>
-        <Textarea
-          value={script}
-          onChange={(event) => onScriptChange(event.target.value)}
-          rows={12}
-          className="min-h-[240px] resize-y"
-          placeholder={scriptPlaceholder}
-        />
-      </label>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={onGenerate} disabled={loading} className="gap-2">
-          {loading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
-          {loading ? 'Working...' : generateLabel}
-        </Button>
-        <Button type="button" variant="secondary" onClick={onEnhance} disabled={loading} className="gap-2">
-          <Wand2 className="h-4 w-4" />
-          {enhanceLabel}
-        </Button>
-        {error ? <p className="text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-text">Auto tags</p>
+      <div className="space-y-2 rounded-[20px] border border-border bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Auto tags</p>
         {tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => (

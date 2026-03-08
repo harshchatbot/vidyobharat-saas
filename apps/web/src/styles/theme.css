@@ -1,34 +1,53 @@
 :root {
   --color-bg: 40 33% 97%;
+  --color-bg-soft: 36 24% 94%;
   --color-surface: 0 0% 100%;
   --color-elevated: 45 40% 99%;
+  --color-surface-glass: 0 0% 100%;
+  --color-surface-glass-strong: 0 0% 100%;
   --color-text: 220 25% 15%;
   --color-muted: 217 12% 45%;
   --color-border: 40 20% 88%;
+  --color-border-soft: 40 18% 92%;
   --color-accent: 45 96% 55%;
   --color-accent-contrast: 220 25% 14%;
   --color-success: 145 63% 35%;
   --color-danger: 355 72% 52%;
+  --color-hero-glow: 224 86% 62%;
 
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
+  --radius-xl: 1.5rem;
 
   --shadow-soft: 0 8px 24px hsl(var(--color-text) / 0.08);
   --shadow-hard: 0 16px 40px hsl(var(--color-text) / 0.14);
+  --shadow-float: 0 20px 60px hsl(var(--color-text) / 0.08);
+  --shadow-cinematic: 0 28px 80px hsl(220 35% 12% / 0.16);
+  --blur-glass: 16px;
 }
 
 .dark {
-  --color-bg: 221 38% 8%;
-  --color-surface: 222 34% 12%;
-  --color-elevated: 223 29% 15%;
+  --color-bg: 220 30% 5%;
+  --color-bg-soft: 224 24% 8%;
+  --color-surface: 224 25% 10%;
+  --color-elevated: 224 21% 14%;
+  --color-surface-glass: 223 23% 13%;
+  --color-surface-glass-strong: 223 26% 16%;
   --color-text: 44 67% 96%;
   --color-muted: 220 14% 70%;
-  --color-border: 221 20% 24%;
+  --color-border: 222 17% 20%;
+  --color-border-soft: 221 17% 16%;
   --color-accent: 45 93% 58%;
   --color-accent-contrast: 224 32% 10%;
   --color-success: 145 62% 45%;
   --color-danger: 355 76% 62%;
+  --color-hero-glow: 226 82% 64%;
+
+  --shadow-soft: 0 14px 34px hsl(220 45% 2% / 0.26);
+  --shadow-hard: 0 26px 72px hsl(220 45% 2% / 0.42);
+  --shadow-float: 0 24px 72px hsl(220 45% 2% / 0.34);
+  --shadow-cinematic: 0 36px 100px hsl(220 55% 2% / 0.54);
 }
 
 @keyframes rangmanch-loader-ring {

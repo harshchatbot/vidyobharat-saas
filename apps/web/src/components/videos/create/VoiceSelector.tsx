@@ -66,8 +66,8 @@ export function VoiceSelector({
   const selected = voiceOptions.find((item) => item.key === voice) ?? voiceOptions[0];
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-4 rounded-[var(--radius-md)] border border-border bg-bg px-4 py-4">
+    <div className="space-y-3">
+      <div className="space-y-4 rounded-[24px] border border-border bg-[hsl(var(--color-bg)/0.72)] px-4 py-4 shadow-[var(--shadow-soft)]">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Badge>{selected?.tone ?? 'Voice selected'}</Badge>
@@ -78,7 +78,7 @@ export function VoiceSelector({
             <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
             Preview any custom line before generating. Exact repeated previews are served from cache.
           </div>
-          <div className="space-y-1 text-xs text-muted">
+          <div className="space-y-1 text-xs leading-5 text-muted">
             <p>
               Default behavior: if no explicit speaker is chosen, <span className="font-semibold text-text">Shubh</span> is used.
             </p>
@@ -87,20 +87,73 @@ export function VoiceSelector({
             </p>
           </div>
         </div>
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-text">Preview text</span>
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
+                <div className="relative">
+                  <Dropdown
+                    value={language}
+                    onChange={(event) => onLanguageChange(event.target.value)}
+                    disabled={translating}
+                    className="bg-[hsl(var(--color-surface)/0.3)]"
+                  >
+                    {languageOptions.map((option) => (
+                      <option key={`${option.label}-${option.code}`} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Dropdown>
+                  {translating ? (
+                    <span className="pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-xs font-medium text-muted">
+                      <Spinner className="h-3.5 w-3.5" />
+                      Translating
+                    </span>
+                  ) : null}
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
+                <Dropdown value={voice} onChange={(event) => onVoiceChange(event.target.value)} className="bg-[hsl(var(--color-surface)/0.3)]">
+                  {voiceOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Dropdown>
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio quality</span>
+              <Dropdown value={String(sampleRateHz)} onChange={(event) => onSampleRateHzChange(Number(event.target.value))} className="bg-[hsl(var(--color-surface)/0.3)]">
+                {AUDIO_QUALITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Dropdown>
+              <span className="mt-2 block text-xs text-muted">
+                {AUDIO_QUALITY_OPTIONS.find((option) => option.value === sampleRateHz)?.description}
+              </span>
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview text</span>
             <Textarea
               value={previewText}
               onChange={(event) => onPreviewTextChange(event.target.value)}
               rows={4}
               maxLength={280}
+              className="min-h-[128px] bg-[hsl(var(--color-surface)/0.3)]"
               placeholder="Type the exact line you want to test in the selected Sarvam voice."
             />
-          <span className="mt-2 block text-xs text-muted">
-            Up to 280 characters per preview.{translating ? ' Translating to the selected language…' : ''}
-          </span>
-        </label>
-        <div className="space-y-1 text-xs text-muted">
+            <span className="mt-2 block text-xs text-muted">
+              Up to 280 characters per preview.{translating ? ' Translating to the selected language…' : ''}
+            </span>
+          </label>
+        </div>
+        <div className="space-y-1 text-xs leading-5 text-muted">
           {typeof estimatedCredits === 'number' ? (
             <p>
               Estimated Credits: <span className="font-medium text-text">{estimatedCredits}</span>
@@ -143,71 +196,26 @@ export function VoiceSelector({
           {previewError ? <p className="text-[hsl(var(--color-danger))]">{previewError}</p> : null}
         </div>
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-text">Language</span>
-          <div className="relative">
-            <Dropdown
-              value={language}
-              onChange={(event) => onLanguageChange(event.target.value)}
-              disabled={translating}
-            >
-            {languageOptions.map((option) => (
-              <option key={`${option.label}-${option.code}`} value={option.label}>
-                {option.label}
-              </option>
-            ))}
-            </Dropdown>
-            {translating ? (
-              <span className="pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-xs font-medium text-muted">
-                <Spinner className="h-3.5 w-3.5" />
-                Translating
-              </span>
-            ) : null}
+      <div className="rounded-[20px] border border-border bg-[hsl(var(--color-bg)/0.66)] p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice library</p>
+            <p className="mt-1 text-sm text-muted">Select a narrator voice and preview it without leaving the composer.</p>
           </div>
-          {translating ? (
-            <p className="mt-2 text-xs text-muted">Updating preview text for the selected language…</p>
-          ) : null}
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-text">Voice</span>
-          <Dropdown value={voice} onChange={(event) => onVoiceChange(event.target.value)}>
-            {voiceOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </Dropdown>
-        </label>
-      </div>
-
-      <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-text">Sarvam audio quality</span>
-        <Dropdown value={String(sampleRateHz)} onChange={(event) => onSampleRateHzChange(Number(event.target.value))}>
-          {AUDIO_QUALITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Dropdown>
-        <span className="mt-2 block text-xs text-muted">
-          {AUDIO_QUALITY_OPTIONS.find((option) => option.value === sampleRateHz)?.description}
-        </span>
-      </label>
-
-      <div className="max-h-[26rem] overflow-y-auto rounded-[var(--radius-md)] border border-border bg-[hsl(var(--color-bg)/0.55)] p-3">
-        <div className="grid gap-3 sm:grid-cols-2">
+          {translating ? <p className="text-xs text-muted">Updating language preview…</p> : null}
+        </div>
+        <div className="max-h-[24rem] overflow-y-auto pr-1">
+          <div className="grid gap-3 sm:grid-cols-2">
         {voiceOptions.map((option) => {
           const active = option.key === voice;
           return (
             <div
               key={option.key}
               onClick={() => onVoiceChange(option.key)}
-              className={`rounded-[var(--radius-lg)] border p-4 text-left transition ${
+              className={`rounded-[20px] border p-4 text-left transition ${
                 active
                   ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] shadow-soft'
-                  : 'border-border bg-bg hover:bg-elevated'
+                  : 'border-border bg-[hsl(var(--color-surface)/0.3)] hover:bg-[hsl(var(--color-elevated)/0.85)]'
               }`}
               role="button"
               tabIndex={0}
@@ -237,7 +245,7 @@ export function VoiceSelector({
                     onPreview(option.key);
                   }}
                   disabled={!previewText.trim() || Boolean(insufficientCredits) || Boolean(previewLoadingKey)}
-                  className="w-full shrink-0 gap-2 px-3 py-2 text-xs sm:w-auto"
+                  className="w-full shrink-0 gap-2 rounded-full px-3 py-2 text-xs sm:w-auto"
                 >
                   {previewLoadingKey === option.key ? (
                     <>
@@ -262,7 +270,6 @@ export function VoiceSelector({
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-muted">{option.tone}</p>
               <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
                 Sarvam speaker: {option.provider_voice}
               </p>
@@ -270,6 +277,7 @@ export function VoiceSelector({
             </div>
           );
         })}
+          </div>
         </div>
       </div>
     </div>

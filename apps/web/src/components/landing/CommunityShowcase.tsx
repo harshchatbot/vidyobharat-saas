@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Heart, Wand2 } from 'lucide-react';
 import { LandingVideo } from '@/components/landing/LandingVideo';
+import { GlassPanel } from '@/components/landing/GlassPanel';
 
 type InspirationVideo = {
   id: string;
@@ -56,40 +58,71 @@ function aspectRatioToCss(value: string | null | undefined) {
 }
 
 export function CommunityShowcase({ videos, images }: Props) {
+  const [filter, setFilter] = useState<'all' | 'videos' | 'images'>('all');
   const hasAny = videos.length > 0 || images.length > 0;
-  const merged = [
-    ...videos.slice(0, 18).map((video) => ({ type: 'video' as const, item: video })),
-    ...images.slice(0, 24).map((image) => ({ type: 'image' as const, item: image })),
-  ].sort((a, b) => {
-    const aTime = new Date(a.item.created_at).getTime();
-    const bTime = new Date(b.item.created_at).getTime();
-    return bTime - aTime;
-  });
+  const merged = useMemo(
+    () =>
+      [
+        ...(filter === 'all' || filter === 'videos'
+          ? videos.slice(0, 18).map((video) => ({ type: 'video' as const, item: video }))
+          : []),
+        ...(filter === 'all' || filter === 'images'
+          ? images.slice(0, 24).map((image) => ({ type: 'image' as const, item: image }))
+          : []),
+      ].sort((a, b) => {
+        const aTime = new Date(a.item.created_at).getTime();
+        const bTime = new Date(b.item.created_at).getTime();
+        return bTime - aTime;
+      }),
+    [filter, images, videos],
+  );
 
   return (
-    <section className="space-y-6 py-6">
-      <div className="flex items-end justify-between gap-4">
+    <section className="space-y-6 py-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-muted))]">Community</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-3xl">
-            Real videos and visuals created on RangManch AI
+          <p className="rangmanch-section-eyebrow">Community</p>
+          <h2 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">
+            Explore public videos and visuals already created on RangManch AI
           </h2>
-          <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
             Browse approved public creations from creators already shipping content with the platform.
           </p>
         </div>
-        <Link
-          href="/signup"
-          className="hidden rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-text))] sm:inline-flex"
-        >
-          Start creating
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <GlassPanel className="flex flex-wrap gap-2 rounded-full px-2 py-2">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'videos', label: 'Videos' },
+              { key: 'images', label: 'Images' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setFilter(item.key as 'all' | 'videos' | 'images')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  filter === item.key
+                    ? 'bg-[hsl(var(--color-text))] text-[hsl(var(--color-bg))]'
+                    : 'text-muted hover:bg-[hsl(var(--color-surface)/0.4)] hover:text-text'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </GlassPanel>
+          <Link
+            href="/signup"
+            className="hidden rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.28)] px-4 py-2 text-sm font-semibold text-text sm:inline-flex"
+          >
+            Start creating
+          </Link>
+        </div>
       </div>
 
       {!hasAny ? (
-        <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] px-5 py-8 text-sm text-[hsl(var(--color-muted))] backdrop-blur-md">
+        <GlassPanel className="px-5 py-8 text-sm text-muted">
           Community creations are loading. Check back in a moment.
-        </div>
+        </GlassPanel>
       ) : null}
 
       {hasAny ? (
@@ -104,7 +137,7 @@ export function CommunityShowcase({ videos, images }: Props) {
                   whileInView={{ opacity: 1, y: 0, scale: 1 }}
                   viewport={{ once: true, margin: '-40px' }}
                   transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
-                  className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
+                  className="group relative mb-4 break-inside-avoid overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.4)] shadow-[var(--shadow-soft)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                 >
                   <div
                     className="relative w-full bg-[hsl(var(--color-bg))]"
@@ -157,7 +190,7 @@ export function CommunityShowcase({ videos, images }: Props) {
                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }}
-                className="group relative mb-4 overflow-hidden rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] shadow-soft break-inside-avoid transition-all duration-300 hover:shadow-[0_0_0_1px_hsl(var(--color-accent)/0.35),0_14px_36px_hsl(var(--color-accent)/0.16)]"
+                className="group relative mb-4 break-inside-avoid overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.4)] shadow-[var(--shadow-soft)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
               >
                 <div style={{ aspectRatio: aspectRatioToCss(image.aspect_ratio) }}>
                   <img
@@ -202,7 +235,7 @@ export function CommunityShowcase({ videos, images }: Props) {
       <div className="pt-1">
         <Link
           href="/signup"
-          className="inline-flex rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
+          className="inline-flex rounded-full bg-[hsl(var(--color-text))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))]"
         >
           Join the community and create yours
         </Link>

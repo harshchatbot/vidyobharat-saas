@@ -55,7 +55,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
 
   return (
     <div ref={menuRef}>
-      <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.8)] px-4 py-2">
+      <div className="rangmanch-glass rounded-full px-4 py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -77,7 +77,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className="whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))]"
+                className="whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] transition hover:bg-[hsl(var(--color-surface)/0.32)] hover:text-[hsl(var(--color-text))]"
               >
                 {link.label}
               </Link>
@@ -86,7 +86,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className="hidden whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))] xl:inline-flex"
+                className="hidden whitespace-nowrap rounded-full px-3 py-1 text-sm text-[hsl(var(--color-muted))] transition hover:bg-[hsl(var(--color-surface)/0.32)] hover:text-[hsl(var(--color-text))] xl:inline-flex"
               >
                 {link.label}
               </Link>
@@ -94,7 +94,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
 
             {!userId && (
               <>
-                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-text))] px-3 py-1 text-sm font-semibold text-[hsl(var(--color-bg))]">
+                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-full bg-[hsl(var(--color-text))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-bg))] shadow-[var(--shadow-soft)]">
                   Sign in
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -142,7 +142,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
       </div>
 
       {open && (
-        <div className="mt-3 grid gap-2 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3 lg:hidden">
+        <div className="rangmanch-glass mt-3 grid gap-2 rounded-[var(--radius-xl)] p-3 lg:hidden">
           {navLinks.map((link) => (
             <Link key={link.href} href={link.href} className="rounded-[var(--radius-md)] px-2 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
               {link.label}

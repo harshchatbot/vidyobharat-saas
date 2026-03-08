@@ -1,15 +1,10 @@
 import { redirect } from 'next/navigation';
 
-import { ComplianceStrip } from '@/components/landing/ComplianceStrip';
 import { CommunityShowcase } from '@/components/landing/CommunityShowcase';
-import { FeatureBento } from '@/components/landing/FeatureBento';
-import { FaqSection } from '@/components/landing/FaqSection';
-import { FinalCta } from '@/components/landing/FinalCta';
 import { HeroSection } from '@/components/landing/HeroSection';
-import { InteractiveFeatureShowcase } from '@/components/landing/InteractiveFeatureShowcase';
 import { LandingFooter } from '@/components/landing/LandingFooter';
-import { TestimonialsSection } from '@/components/landing/TestimonialsSection';
-import { TranslatorSection } from '@/components/landing/TranslatorSection';
+import { PricingPreview } from '@/components/landing/PricingPreview';
+import { StudioShowcase } from '@/components/landing/StudioShowcase';
 import { API_URL } from '@/lib/env';
 import { getUserIdFromCookie } from '@/lib/session';
 
@@ -80,16 +75,11 @@ export default async function LandingPage() {
   const { videos, images } = await fetchPublicInspiration();
 
   return (
-    <div className="py-6 sm:py-10">
+    <div className="space-y-2 py-4 sm:py-8">
       <HeroSection />
       <CommunityShowcase videos={videos} images={images} />
-      <InteractiveFeatureShowcase />
-      <TranslatorSection />
-      <FeatureBento />
-      <TestimonialsSection />
-      <ComplianceStrip />
-      <FaqSection />
-      <FinalCta />
+      <StudioShowcase />
+      <PricingPreview />
       <LandingFooter />
     </div>
   );
