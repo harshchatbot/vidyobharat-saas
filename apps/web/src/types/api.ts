@@ -282,7 +282,7 @@ export type VideoCreateRequest = {
   template: string;
   script: string;
   tags: string[];
-  modelKey: 'sora2' | 'sora2_pro' | 'veo3' | 'kling3';
+  modelKey: string;
   language: string;
   voice: string;
   imageUrls: string[];

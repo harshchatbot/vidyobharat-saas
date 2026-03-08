@@ -4,6 +4,7 @@ import videoModelsConfig from './video-models.json';
 
 type RawVideoModelConfig = {
   key: string;
+  lane: string;
   label: string;
   fullLabel: string;
   description: string;

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
+import { BadgeIndianRupee, Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
+import { getVideoModelMap } from '@/config/videoModels';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
@@ -25,6 +26,7 @@ import { SectionCard } from './SectionCard';
 import { TemplateSelector } from './TemplateSelector';
 import { VideoPreview } from './VideoPreview';
 import { VoiceSelector } from './VoiceSelector';
+import { getVideoLaneDefinition, VIDEO_LANES, type VideoLaneKey } from './videoLanes';
 
 const DRAFT_VERSION = 2;
 const FREE_VOICE_KEYS = new Set(['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya']);
@@ -34,7 +36,69 @@ function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
 }
 
-type VideoModelKey = 'sora2' | 'sora2_pro' | 'veo3' | 'kling3';
+type VideoModelKey = string;
+type RenderSessionPhase = 'idle' | 'preparing' | 'queued' | 'processing' | 'success' | 'failed';
+
+function estimateInrFromCredits(credits: number) {
+  if (credits <= 0) return null;
+  return Math.max(0, Math.ceil(credits * 2.5));
+}
+
+function buildTierStageLabel(phase: RenderSessionPhase, progress: number) {
+  if (phase === 'preparing') return 'Preparing generation';
+  if (phase === 'queued') return 'Loading assets';
+  if (phase === 'processing' && progress < 72) return 'Composing scenes';
+  if (phase === 'processing') return 'Rendering visuals';
+  if (phase === 'success') return 'Finalizing output';
+  if (phase === 'failed') return 'Closing render';
+  return 'Preparing generation';
+}
+
+function VideoLaneSelector({
+  lane,
+  onChange,
+}: {
+  lane: VideoLaneKey;
+  onChange: (value: VideoLaneKey) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="inline-flex w-full flex-wrap gap-2 rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+        {VIDEO_LANES.map((item) => {
+          const active = item.key === lane;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onChange(item.key)}
+              className={`inline-flex min-w-[110px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-semibold transition ${
+                active
+                  ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]'
+                  : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className={`rounded-[24px] border px-4 py-4 ${getVideoLaneDefinition(lane).accentClassName}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-2xl">
+            <p className="text-base font-semibold text-text">{getVideoLaneDefinition(lane).label}</p>
+            <p className="mt-1 text-sm text-muted">{getVideoLaneDefinition(lane).description}</p>
+          </div>
+          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getVideoLaneDefinition(lane).pillClassName}`}>
+            {getVideoLaneDefinition(lane).shortLabel}
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-muted">{getVideoLaneDefinition(lane).helper}</p>
+      </div>
+    </div>
+  );
+}
 
 export function CreateVideoPage({
   userId,
@@ -88,6 +152,7 @@ export function CreateVideoPage({
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [videoLane, setVideoLane] = useState<VideoLaneKey>('creator_pro');
   const [modelKey, setModelKey] = useState<VideoModelKey>('sora2');
 
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
@@ -116,6 +181,7 @@ export function CreateVideoPage({
   const [submitting, setSubmitting] = useState(false);
   const [submitStartedAt, setSubmitStartedAt] = useState<number | null>(null);
   const [uiRenderProgress, setUiRenderProgress] = useState(0);
+  const [renderSessionPhase, setRenderSessionPhase] = useState<RenderSessionPhase>('idle');
   const [job, setJob] = useState<Video | null>(null);
   const [jobStatus, setJobStatus] = useState<AIVideoStatusResponse | null>(null);
   const [jobResponseId, setJobResponseId] = useState<string | null>(null);
@@ -126,14 +192,22 @@ export function CreateVideoPage({
   const estimateErrorShownRef = useRef<string | null>(null);
 
   const template = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate) ?? TEMPLATE_OPTIONS[0];
+  const completionToastRef = useRef<string | null>(null);
+  const sharedModelMap = useMemo(() => getVideoModelMap(), []);
   const visibleTemplates = TEMPLATE_OPTIONS.filter((item) => {
     const query = templateSearch.trim().toLowerCase();
     if (!query) return true;
     return `${item.label} ${item.description}`.toLowerCase().includes(query);
   });
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
-  const selectedModel = models.find((model) => model.key === modelKey) ?? models.find((model) => model.enabled !== false) ?? models[0];
+  const laneModels = useMemo(
+    () => models.filter((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === videoLane),
+    [models, sharedModelMap, videoLane],
+  );
+  const visibleModels = laneModels.length > 0 ? laneModels : models;
+  const selectedModel = visibleModels.find((model) => model.key === modelKey) ?? visibleModels.find((model) => model.enabled !== false) ?? visibleModels[0];
   const selectedModelDisabled = selectedModel?.enabled === false;
+  const selectedLane = getVideoLaneDefinition(videoLane);
   const selectedLanguageCode =
     languageOptions.find((item) => item.label === language)?.code ??
     LANGUAGE_OPTIONS.find((item) => item.label === language)?.code ??
@@ -234,7 +308,9 @@ export function CreateVideoPage({
     outputSizes[aspectRatio]?.[resolution] ??
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
-  const estimatedTime = modelKey === 'sora2' ? '2-4 min' : modelKey === 'veo3' ? '1-3 min' : '1-2 min';
+  const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
+  const estimatedInr = estimateInrFromCredits(creditEstimate?.estimatedCredits ?? 0);
+  const laneHasOnlyGatedModels = visibleModels.length > 0 && visibleModels.every((model) => model.enabled === false);
   const durationError =
     durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined
       ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)
@@ -243,41 +319,33 @@ export function CreateVideoPage({
       : (!availableDurations.includes(Number(durationSeconds))
         ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
         : null);
-  const generationOverlayVisible = submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing';
-  const overlayVisible = generationOverlayVisible;
+  const generationOverlayVisible = renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing';
+  const overlayVisible = generationOverlayVisible || voiceTranslationLoading || initialLoading;
   const overlayTitle = initialLoading
     ? 'Preparing your studio'
     : voiceTranslationLoading
       ? 'Translating preview text'
-      : 'Generating your video';
+      : renderSessionPhase === 'queued'
+        ? 'Your render is in motion'
+        : renderSessionPhase === 'processing'
+          ? 'Generating your video'
+          : 'Preparing your video';
   const overlayDescription = initialLoading
     ? ''
     : voiceTranslationLoading
       ? `Converting your preview line into ${language} so the selected voice can be auditioned accurately.`
-      : `Building your ${selectedModel.label} render with the selected script, voice, media, and output settings.`;
+      : `Building your ${selectedModel?.label ?? 'selected model'} render with the selected script, voice, media, and output settings.`;
   const overlayStepLabel = initialLoading
     ? 'Fetching studio data'
     : voiceTranslationLoading
       ? `Localizing text for ${language}`
-      : uiRenderProgress < 25
-        ? 'Submitting render job'
-        : uiRenderProgress < 45
-          ? 'Queued in the render pipeline'
-          : uiRenderProgress < 75
-            ? 'Generating scenes and motion'
-            : uiRenderProgress < 90
-              ? 'Mixing voice and audio'
-              : 'Finalizing output';
+      : buildTierStageLabel(renderSessionPhase, uiRenderProgress);
   const overlayAccentLabel = initialLoading
     ? 'Studio Load'
     : voiceTranslationLoading
       ? 'Language Update'
-      : 'Video Render';
-  const overlayProgress = submitting
-    ? Math.max(12, uiRenderProgress)
-    : jobStatus?.status === 'queued' || jobStatus?.status === 'processing'
-      ? Math.max(18, Math.min(96, uiRenderProgress))
-      : null;
+      : selectedLane.label;
+  const overlayProgress = generationOverlayVisible ? Math.max(12, Math.min(96, uiRenderProgress)) : null;
   const voiceCreditMap = useMemo(() => {
     const allVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
     const premiumCredits = premiumVoiceEstimate?.estimatedCredits ?? null;
@@ -296,7 +364,7 @@ export function CreateVideoPage({
     }
     if (estimateErrorShownRef.current === estimateError) return;
     estimateErrorShownRef.current = estimateError;
-    show('Could not estimate credits right now.');
+    show({ title: 'Estimate unavailable', message: 'Could not estimate credits right now.', variant: 'error' });
   }, [estimateError, show]);
 
   useEffect(() => {
@@ -308,15 +376,15 @@ export function CreateVideoPage({
 
     const tick = () => {
       const elapsedSeconds = submitStartedAt ? Math.floor((Date.now() - submitStartedAt) / 1000) : 0;
-      const providerProgress = jobStatus?.status === 'processing' && typeof jobStatus.progress === 'number'
+      const providerProgress = renderSessionPhase === 'processing' && typeof jobStatus?.progress === 'number'
         ? Math.max(35, Math.min(95, jobStatus.progress))
         : null;
 
-      const stageTarget = submitting
+      const stageTarget = renderSessionPhase === 'preparing'
         ? Math.min(28, 12 + Math.floor(elapsedSeconds / 2))
-        : jobStatus?.status === 'queued'
+        : renderSessionPhase === 'queued'
           ? Math.min(46, 28 + Math.floor(elapsedSeconds / 2))
-          : jobStatus?.status === 'processing'
+          : renderSessionPhase === 'processing'
             ? Math.min(94, 46 + Math.floor(elapsedSeconds * 1.4))
             : 0;
 
@@ -337,8 +405,7 @@ export function CreateVideoPage({
     generationOverlayVisible,
     initialLoading,
     voiceTranslationLoading,
-    submitting,
-    jobStatus?.status,
+    renderSessionPhase,
     jobStatus?.progress,
     submitStartedAt,
   ]);
@@ -447,6 +514,21 @@ export function CreateVideoPage({
   }, [filteredVoiceOptions, voiceOptions, voice]);
 
   useEffect(() => {
+    if (visibleModels.length === 0) return;
+    if (!visibleModels.some((item) => item.key === modelKey) && visibleModels[0]) {
+      setModelKey(visibleModels.find((item) => item.enabled !== false)?.key as VideoModelKey ?? visibleModels[0].key as VideoModelKey);
+    }
+  }, [visibleModels, modelKey]);
+
+  useEffect(() => {
+    if (!selectedModel) return;
+    const resolvedLane = (sharedModelMap[selectedModel.key]?.lane ?? 'creator_pro') as VideoLaneKey;
+    if (resolvedLane !== videoLane) {
+      setVideoLane(resolvedLane);
+    }
+  }, [selectedModel, sharedModelMap, videoLane]);
+
+  useEffect(() => {
     if (!languageOptions.some((item) => item.label === language) && languageOptions[0]) {
       setLanguage(languageOptions[0].label);
     }
@@ -468,6 +550,7 @@ export function CreateVideoPage({
       if (typeof parsed.voice === 'string') setVoice(parsed.voice);
       if (typeof parsed.audioSampleRateHz === 'number') setAudioSampleRateHz(parsed.audioSampleRateHz);
       if (typeof parsed.voicePreviewText === 'string') setVoicePreviewText(parsed.voicePreviewText);
+      if (typeof parsed.videoLane === 'string') setVideoLane(parsed.videoLane as VideoLaneKey);
       if (typeof parsed.modelKey === 'string') setModelKey(parsed.modelKey as VideoModelKey);
       if (Array.isArray(parsed.selectedImageUrls)) setSelectedImageUrls(parsed.selectedImageUrls.map(String));
       if (typeof parsed.referenceImageUrlInput === 'string') setReferenceImageUrlInput(parsed.referenceImageUrlInput);
@@ -501,6 +584,7 @@ export function CreateVideoPage({
       voice,
       audioSampleRateHz,
       voicePreviewText,
+      videoLane,
       modelKey,
       selectedImageUrls,
       referenceImageUrlInput,
@@ -529,6 +613,7 @@ export function CreateVideoPage({
     voice,
     audioSampleRateHz,
     voicePreviewText,
+    videoLane,
     modelKey,
     selectedImageUrls,
     referenceImageUrlInput,
@@ -626,7 +711,14 @@ export function CreateVideoPage({
         consecutiveFailures = 0;
         setJobStatus(status);
         setSubmitError(null);
+        if (status.status === 'queued') {
+          setRenderSessionPhase('queued');
+        } else if (status.status === 'processing') {
+          setRenderSessionPhase('processing');
+        }
         if (status.status === 'success') {
+          setRenderSessionPhase('success');
+          setUiRenderProgress(100);
           setJob((current) => current ?? statusToVideo(status));
           try {
             const fullVideo = await api.getVideo(jobResponseId, userId);
@@ -640,8 +732,27 @@ export function CreateVideoPage({
               setJob((current) => current ?? statusToVideo(status));
             }
           }
+          if (completionToastRef.current !== `success:${status.id}`) {
+            completionToastRef.current = `success:${status.id}`;
+            show({
+              title: 'Your video is ready',
+              message: 'Video generated successfully.',
+              variant: 'success',
+              actionLabel: 'View video',
+              onAction: () => {
+                if (typeof window !== 'undefined') {
+                  window.location.href = `/videos/${status.id}`;
+                }
+              },
+              durationMs: 4200,
+            });
+          }
+          window.setTimeout(() => {
+            if (!cancelled) setRenderSessionPhase('idle');
+          }, 450);
           if (interval) window.clearInterval(interval);
         } else if (status.status === 'failed' || status.status === 'timed_out' || status.status === 'provider_failed') {
+          setRenderSessionPhase('failed');
           setJob((current) => current ?? statusToVideo(status));
           const terminalMessage =
             status.errorMessage ||
@@ -651,6 +762,18 @@ export function CreateVideoPage({
                 ? 'Video provider failed to complete generation.'
                 : 'Generation failed.');
           setSubmitError(terminalMessage);
+          if (completionToastRef.current !== `${status.status}:${status.id}`) {
+            completionToastRef.current = `${status.status}:${status.id}`;
+            show({
+              title: status.status === 'timed_out' ? 'Generation timed out' : 'Video generation failed',
+              message: terminalMessage,
+              variant: 'error',
+              durationMs: 4200,
+            });
+          }
+          window.setTimeout(() => {
+            if (!cancelled) setRenderSessionPhase('idle');
+          }, 250);
           if (interval) window.clearInterval(interval);
         }
       } catch (error) {
@@ -659,6 +782,18 @@ export function CreateVideoPage({
         if (consecutiveFailures >= 3) {
           const message = normalizeVideoCreateError(error);
           setSubmitError(message || 'Failed to refresh job status.');
+          setRenderSessionPhase('failed');
+          if (completionToastRef.current !== `poll:${jobResponseId}`) {
+            completionToastRef.current = `poll:${jobResponseId}`;
+            show({
+              title: 'Unable to refresh status',
+              message: message || 'Failed to refresh job status.',
+              variant: 'error',
+            });
+          }
+          window.setTimeout(() => {
+            if (!cancelled) setRenderSessionPhase('idle');
+          }, 250);
         }
       }
     };
@@ -1100,6 +1235,7 @@ export function CreateVideoPage({
     const validationError = validate();
     if (validationError) {
       setSubmitError(validationError);
+      show({ title: 'Check your inputs', message: validationError, variant: 'error' });
       return;
     }
     if (!window.confirm('Generate this video now? Credits will be charged only if generation succeeds.')) {
@@ -1109,9 +1245,11 @@ export function CreateVideoPage({
     setSubmitting(true);
     setSubmitStartedAt(Date.now());
     setUiRenderProgress(12);
+    setRenderSessionPhase('preparing');
     setSubmitError(null);
     setJob(null);
     setJobStatus(null);
+    completionToastRef.current = null;
 
     try {
       const result = await api.createAIVideo({
@@ -1150,12 +1288,20 @@ export function CreateVideoPage({
           void refreshCredits();
         }
       }
-      show(`Created! Credits Used: ${result.appliedCredits} · Remaining Balance: ${result.remainingCredits ?? creditWallet?.currentCredits ?? 0}`);
+      setRenderSessionPhase('queued');
+      show({
+        title: 'Render started',
+        message: `Credits reserved: ${result.appliedCredits}. Remaining balance: ${result.remainingCredits ?? creditWallet?.currentCredits ?? 0}.`,
+        variant: 'info',
+        durationMs: 3200,
+      });
       setJobResponseId(result.id);
     } catch (error) {
       const message = normalizeVideoCreateError(error);
       setSubmitError(message);
-      show(message);
+      setRenderSessionPhase('failed');
+      show({ title: 'Could not start video generation', message, variant: 'error', durationMs: 4200 });
+      window.setTimeout(() => setRenderSessionPhase('idle'), 250);
     } finally {
       setSubmitting(false);
     }
@@ -1315,12 +1461,42 @@ export function CreateVideoPage({
           </SectionCard>
 
           <SectionCard
-        title="Video Model Selection"
-        description="Choose based on output style and realism, not just provider name."
+        title="Video Lane & Model"
+        description="Start with a clear quality lane, then pick from only the models that fit that output style and budget."
         icon={<Sparkles className="h-5 w-5" />}
         action={modelsLoading ? <Spinner /> : null}
       >
-        <ModelDropdown models={models} selectedModel={modelKey} onChange={(value) => setModelKey(value as VideoModelKey)} />
+        <div className="space-y-5">
+          <VideoLaneSelector lane={videoLane} onChange={setVideoLane} />
+          <ModelDropdown
+            models={visibleModels}
+            selectedModel={modelKey}
+            onChange={(value) => setModelKey(value as VideoModelKey)}
+            title={`${selectedLane.label} models`}
+            description={selectedLane.helper}
+          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
+              <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+            </div>
+            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Selected engine</p>
+              <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+            </div>
+            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
+              <p className="mt-1 text-sm font-semibold text-text">
+                {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
+              </p>
+            </div>
+          </div>
+          {laneHasOnlyGatedModels ? (
+            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
+              This lane is visible in the studio, but its backend routing is still feature-gated. Switch lanes or enable the missing providers before allowing generation.
+            </div>
+          ) : null}
+        </div>
           </SectionCard>
 
           <SectionCard
@@ -1486,6 +1662,10 @@ export function CreateVideoPage({
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
+              <div className={`rounded-[var(--radius-md)] border px-3 py-3 ${selectedLane.accentClassName}`}>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Category</p>
+                <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+              </div>
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
                 <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
@@ -1500,23 +1680,43 @@ export function CreateVideoPage({
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
+                <p className="mt-1 text-base font-semibold text-text">{creditEstimate?.estimatedCredits ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-base font-semibold text-text">
+                  <BadgeIndianRupee className="h-4 w-4" />
+                  {estimatedInr ?? 0}
+                </p>
+              </div>
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimate mode</p>
+                <p className="mt-1 text-base font-semibold text-text">{estimateError ? 'Fallback' : 'Shared engine'}</p>
+              </div>
+            </div>
+
             <GenerateButton
               onClick={() => void submit()}
-              loading={submitting}
+              loading={renderSessionPhase === 'preparing'}
               estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
               estimatedTime={estimatedTime}
               currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-              disabled={Boolean(durationError) || selectedModelDisabled}
+              disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
               insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
               onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
               helperText={
-                selectedModelDisabled
+                laneHasOnlyGatedModels
+                  ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`
+                  : selectedModelDisabled
                   ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
                   : creditEstimate
                   ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
                   : isEstimating
                     ? 'Estimating credits for selected settings.'
-                    : `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'}`
+                    : `${selectedLane.shortLabel} estimate is based on the shared pricing engine. Final validation happens on submit.`
               }
             />
             {selectedModelDisabled ? (
@@ -1545,8 +1745,13 @@ export function CreateVideoPage({
 
           <VideoPreview
             job={job}
-            loading={submitting || jobStatus?.status === 'queued' || jobStatus?.status === 'processing'}
-            error={submitError ?? (jobStatus?.status === 'failed' ? jobStatus.errorMessage ?? 'Generation failed.' : null)}
+            loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
+            error={
+              submitError ??
+              (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
+                ? jobStatus.errorMessage ?? 'Generation failed.'
+                : null)
+            }
             onRetry={retry}
           />
 

@@ -21,10 +21,14 @@ export function ModelDropdown({
   models,
   selectedModel,
   onChange,
+  title = 'Choose your video engine',
+  description = 'Premium story models first, then faster alternates. Resolution, speed, and credit posture are visible before you render.',
 }: {
   models: AIVideoModel[];
   selectedModel: string;
   onChange: (value: string) => void;
+  title?: string;
+  description?: string;
 }) {
   const [open, setOpen] = useState(false);
   const selected = useMemo(
@@ -71,10 +75,8 @@ export function ModelDropdown({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-accent))]">Model picker</p>
-              <h3 className="mt-1 text-2xl font-semibold text-text">Choose your video engine</h3>
-              <p className="mt-1 max-w-2xl text-sm text-muted">
-                Premium story models first, then faster alternates. Resolution, speed, and credit posture are visible before you render.
-              </p>
+              <h3 className="mt-1 text-2xl font-semibold text-text">{title}</h3>
+              <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p>
             </div>
             {selected ? <Badge variant="warning">{selected.shortLabel ?? selected.label}</Badge> : null}
           </div>
@@ -151,18 +153,23 @@ export function ModelDropdown({
                 {otherModels.map((model) => {
                   const Icon = MODEL_ICONS[model.key] ?? Info;
                   const active = model.key === selectedModel;
+                  const disabled = model.enabled === false;
                   return (
                     <button
                       key={model.key}
                       type="button"
+                      disabled={disabled}
                       onClick={() => {
+                        if (disabled) return;
                         onChange(model.key);
                         setOpen(false);
                       }}
                       className={`w-full rounded-[22px] border p-3 text-left transition ${
                         active
                           ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.12)]'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] hover:bg-[hsl(var(--color-elevated)/0.92)]'
+                          : disabled
+                            ? 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.42)] opacity-65'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] hover:bg-[hsl(var(--color-elevated)/0.92)]'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -174,6 +181,7 @@ export function ModelDropdown({
                             <p className="text-base font-semibold text-text">{model.shortLabel ?? model.label}</p>
                             {model.resolutionLabels?.length ? <span className="text-xs text-muted">{model.resolutionLabels.join(' / ')}</span> : null}
                             {active ? <Badge>Selected</Badge> : null}
+                            {disabled ? <Badge variant="outline">Coming soon</Badge> : null}
                           </div>
                           <p className="mt-1 text-sm text-muted">{model.frontendHint}</p>
                         </div>
