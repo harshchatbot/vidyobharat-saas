@@ -321,7 +321,11 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   listVideos(userId: string) {
-    return request<Video[]>('/videos', {}, { userId, cache: 'no-store' });
+    const path = '/videos';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 6_000, () =>
+      request<Video[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   listMusicTracks() {
     return request<MusicTrack[]>('/music-tracks', {}, { cache: 'no-store' });
@@ -431,13 +435,25 @@ export const api = {
     return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store' });
   },
   listGeneratedImages(userId: string) {
-    return request<GeneratedImage[]>('/ai/images', {}, { userId, cache: 'no-store' });
+    const path = '/ai/images';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 6_000, () =>
+      request<GeneratedImage[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   listImageInspiration(userId: string) {
-    return request<InspirationImage[]>('/ai/images/inspiration', {}, { userId, cache: 'no-store' });
+    const path = '/ai/images/inspiration';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 10_000, () =>
+      request<InspirationImage[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   listVideoInspiration(userId: string) {
-    return request<InspirationVideo[]>('/api/videos/inspiration', {}, { userId, cache: 'no-store' });
+    const path = '/api/videos/inspiration';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 10_000, () =>
+      request<InspirationVideo[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   publishInspiration(contentType: 'image' | 'video', assetId: string, publish: boolean, userId: string) {
     return request<InspirationPublishResponse>('/inspiration/publish', {
@@ -597,7 +613,11 @@ export const api = {
     });
   },
   getCreditHistory(userId: string, limit = 100) {
-    return request<{ items: CreditHistoryItem[] }>(`/api/creditHistory?limit=${limit}`, {}, { userId, cache: 'no-store' });
+    const path = `/api/creditHistory?limit=${limit}`;
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 8_000, () =>
+      request<{ items: CreditHistoryItem[] }>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   listInfluencerPersonas(userId: string) {
     return request<InfluencerPersona[]>('/api/influencer/personas', {}, { userId, cache: 'no-store' });

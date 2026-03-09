@@ -251,7 +251,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [imageInspiration, setImageInspiration] = useState<InspirationImage[]>([]);
   const [videoInspiration, setVideoInspiration] = useState<InspirationVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creationsLoading, setCreationsLoading] = useState(true);
+  const [communityLoading, setCommunityLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [communityError, setCommunityError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -264,45 +267,119 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    let creationPending = 2;
+    let communityPending = 2;
+    let imageLoadFailed = false;
+    let videoLoadFailed = false;
+    let imageCommunityFailed = false;
+    let videoCommunityFailed = false;
+    setLoading(true);
+    setCreationsLoading(true);
+    setCommunityLoading(true);
+    setError(null);
+    setCommunityError(null);
 
-    const loadDashboardData = async (attempt = 1) => {
-      setLoading(true);
-      const [imageResults, videoResults, imageRefs, videoRefs] = await Promise.allSettled([
-        api.listGeneratedImages(userId),
-        api.listVideos(userId),
-        api.listImageInspiration(userId),
-        api.listVideoInspiration(userId),
-      ]);
-      if (cancelled) return;
+    const sortAssets = (items: AssetSearchItem[]) =>
+      [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      const creationsLoaded = imageResults.status === 'fulfilled' || videoResults.status === 'fulfilled';
-      if (!creationsLoaded && attempt < 2) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1200));
-        if (!cancelled) {
-          await loadDashboardData(attempt + 1);
-        }
-        return;
-      }
-
-      if (creationsLoaded) {
-        const nextAssets = [
-          ...(imageResults.status === 'fulfilled' ? imageResults.value.map(toAssetFromImage) : []),
-          ...(videoResults.status === 'fulfilled' ? videoResults.value.map(toAssetFromVideo) : []),
-        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setAllAssets(nextAssets);
-        setError(null);
-      } else {
-        setAllAssets([]);
-        setAssets([]);
-        setError('Failed to load creations. Please refresh.');
-      }
-
-      setImageInspiration(imageRefs.status === 'fulfilled' ? imageRefs.value : []);
-      setVideoInspiration(videoRefs.status === 'fulfilled' ? videoRefs.value : []);
-      setLoading(false);
+    const replaceAssetType = (type: 'image' | 'video', nextItems: AssetSearchItem[]) => {
+      setAllAssets((current) => sortAssets([
+        ...current.filter((item) => item.content_type !== type),
+        ...nextItems,
+      ]));
     };
 
-    void loadDashboardData();
+    void api.listGeneratedImages(userId)
+      .then((images) => {
+        if (cancelled) return;
+        replaceAssetType('image', images.map(toAssetFromImage));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        imageLoadFailed = true;
+        if (videoLoadFailed) {
+          setError(err instanceof Error ? err.message : 'Failed to load images.');
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        creationPending -= 1;
+        setLoading(false);
+        if (creationPending === 0) {
+          setCreationsLoading(false);
+          if (imageLoadFailed && videoLoadFailed) {
+            setAllAssets([]);
+            setAssets([]);
+            setError((current) => current ?? 'Failed to load creations. Please refresh.');
+          }
+        }
+      });
+
+    void api.listVideos(userId)
+      .then((videos) => {
+        if (cancelled) return;
+        replaceAssetType('video', videos.map(toAssetFromVideo));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        videoLoadFailed = true;
+        if (imageLoadFailed) {
+          setError((current) => current ?? (err instanceof Error ? err.message : 'Failed to load videos.'));
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        creationPending -= 1;
+        if (creationPending === 0) {
+          setCreationsLoading(false);
+          if (imageLoadFailed && videoLoadFailed) {
+            setAllAssets([]);
+            setAssets([]);
+            setError((current) => current ?? 'Failed to load creations. Please refresh.');
+          }
+        }
+      });
+
+    void api.listImageInspiration(userId)
+      .then((images) => {
+        if (cancelled) return;
+        setImageInspiration(images);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        imageCommunityFailed = true;
+        if (videoCommunityFailed) {
+          setCommunityError(err instanceof Error ? err.message : 'Failed to load image inspiration.');
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        communityPending -= 1;
+        if (communityPending === 0) {
+          setCommunityLoading(false);
+        }
+      });
+
+    void api.listVideoInspiration(userId)
+      .then((videos) => {
+        if (cancelled) return;
+        setVideoInspiration(videos);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        videoCommunityFailed = true;
+        if (imageCommunityFailed) {
+          setCommunityError((current) => current ?? (err instanceof Error ? err.message : 'Failed to load video inspiration.'));
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        communityPending -= 1;
+        if (communityPending === 0) {
+          setCommunityLoading(false);
+        }
+      });
+
     return () => {
       cancelled = true;
     };
@@ -338,11 +415,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   const assetCounts = useMemo(
     () => ({
-      all: assets.length,
-      image: assets.filter((item) => item.content_type === 'image').length,
-      video: assets.filter((item) => item.content_type === 'video').length,
+      all: allAssets.length,
+      image: allAssets.filter((item) => item.content_type === 'image').length,
+      video: allAssets.filter((item) => item.content_type === 'video').length,
     }),
-    [assets],
+    [allAssets],
   );
 
   const highlightedAssets = useMemo(() => {
@@ -499,15 +576,15 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">All creations</p>
-                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>}
+                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">Videos</p>
-                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>}
+                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">Images</p>
-                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>}
+                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>}
               </div>
             </div>
           </div>
@@ -615,7 +692,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         </div>
-        {loading ? (
+        {communityLoading ? (
           <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
@@ -710,7 +787,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             })}
           </div>
         )}
-        {!loading && inspirationItems.length === 0 ? (
+        {communityError ? (
+          <Card className="rangmanch-studio-panel border-none bg-transparent">
+            <p className="text-sm text-[hsl(var(--color-danger))]">{communityError}</p>
+          </Card>
+        ) : null}
+        {!communityLoading && inspirationItems.length === 0 ? (
           <Card className="rangmanch-studio-panel rounded-[28px] border border-dashed border-[hsl(var(--color-border))] bg-transparent p-8 text-center">
             <p className="font-heading text-lg font-extrabold text-text">No inspiration items yet</p>
             <p className="mt-2 text-sm text-muted">
@@ -787,7 +869,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         </Card>
 
-        {loading ? (
+        {creationsLoading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={`asset-skeleton-${index}`} className="h-64 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
