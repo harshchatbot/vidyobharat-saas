@@ -42,10 +42,24 @@ import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage } from '@/types/api';
+import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage, Template, TemplateInputField } from '@/types/api';
 
 type Props = {
   userId: string;
+};
+
+type ImageTemplatePreset = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  prompt: string;
+  aspect_ratio: string;
+  resolution: string;
+  model_key: string;
+  thumbnail_url: string;
+  visual_prompt?: string | null;
+  inputs?: TemplateInputField[];
 };
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -174,6 +188,51 @@ const quickTemplates: ImageQuickTemplate[] = [
   },
 ];
 
+function normalizeTemplateOptions(field: TemplateInputField): Array<{ label: string; value: string }> {
+  return (field.options || []).map((option) =>
+    typeof option === 'string'
+      ? { label: option, value: option }
+      : { label: option.label || option.value, value: option.value },
+  );
+}
+
+function buildTemplateInputDefaults(template: ImageTemplatePreset | null): Record<string, string> {
+  if (!template?.inputs?.length) return {};
+  return Object.fromEntries(
+    template.inputs.map((field) => [field.key, field.placeholder || (normalizeTemplateOptions(field)[0]?.value ?? '')]),
+  );
+}
+
+function renderTemplatePrompt(template: ImageTemplatePreset, values: Record<string, string>) {
+  let prompt = template.prompt;
+  for (const field of template.inputs || []) {
+    const placeholder = `{${field.key}}`;
+    const replacement = values[field.key]?.trim() || field.placeholder || '';
+    prompt = prompt.replaceAll(placeholder, replacement);
+  }
+  prompt = prompt.replace(/\{[^}]+\}/g, '').replace(/\s+/g, ' ').trim();
+  const details: string[] = [prompt];
+  if (template.visual_prompt) details.push(`Visual direction: ${template.visual_prompt}.`);
+  return details.join(' ').trim();
+}
+
+function mapUnifiedTemplateToImagePreset(template: Template): ImageTemplatePreset {
+  const defaults = template.generation_defaults || {};
+  return {
+    id: template.id,
+    category: template.category,
+    title: template.name,
+    description: template.short_description || template.description || template.name,
+    prompt: template.prompt_template || template.description || template.name,
+    aspect_ratio: defaults.aspect_ratio || template.aspect_ratio || '4:5',
+    resolution: defaults.resolution || '1536',
+    model_key: defaults.model_key || 'gemini_flash_image',
+    thumbnail_url: template.preview_image_url || template.thumbnail_url,
+    visual_prompt: template.visual_prompt,
+    inputs: template.inputs || [],
+  };
+}
+
 const PROVIDER_LOGO_STYLES: Record<string, string> = {
   Google: 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]',
   OpenAI: 'bg-[hsl(var(--color-surface)/0.8)] text-text',
@@ -260,6 +319,10 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 export function ImageStudioClient({ userId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
+  const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<ImageTemplatePreset | null>(null);
+  const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
@@ -369,13 +432,26 @@ export function ImageStudioClient({ userId }: Props) {
     let cancelled = false;
     void Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
+      api.listUnifiedTemplates(userId, { type: 'image', active: true }).catch(() => []),
       api.listImageInspiration(userId).catch(() => []),
       api.listGeneratedImages(userId).catch(() => []),
       api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
-    ]).then(([modelData, inspirationData, imageData, tagData]) => {
+    ]).then(([modelData, templateData, inspirationData, imageData, tagData]) => {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
+      const nextTemplates = templateData.length > 0 ? templateData.map(mapUnifiedTemplateToImagePreset) : quickTemplates.map((item) => ({
+        id: item.id,
+        category: item.category,
+        title: item.title,
+        description: item.prompt,
+        prompt: item.prompt,
+        aspect_ratio: item.aspect_ratio,
+        resolution: item.resolution,
+        model_key: item.model_key,
+        thumbnail_url: '',
+      }));
       setModels(nextModels);
+      setImageTemplates(nextTemplates);
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
@@ -404,6 +480,10 @@ export function ImageStudioClient({ userId }: Props) {
       cancelled = true;
     };
   }, [cacheKey, userId]);
+
+  useEffect(() => {
+    setTemplateInputs(buildTemplateInputDefaults(activeTemplate));
+  }, [activeTemplate]);
 
   useEffect(() => {
     applyGeneratedFilters(allGeneratedImages, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
@@ -454,6 +534,9 @@ export function ImageStudioClient({ userId }: Props) {
   }, [submitting]);
 
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
+  const activeTemplateEstimateText = activeTemplate
+    ? `${resolutionOptions.find((item) => item.value === (activeTemplate.resolution || resolution))?.label ?? activeTemplate.resolution} • ${activeTemplate.category}`
+    : null;
   const selectedInspirationModel = selectedInspiration ? models.find((model) => model.key === selectedInspiration.model_key) : null;
   const selectedGeneratedModel = selectedGenerated ? models.find((model) => model.key === selectedGenerated.model_key) : null;
   const tagSuggestions = tagFacets
@@ -547,6 +630,17 @@ export function ImageStudioClient({ userId }: Props) {
     }
     if (normalized.toLowerCase().includes(word.toLowerCase())) return;
     setPrompt(`${normalized}, ${word}`);
+  };
+
+  const applyImageTemplate = (template: ImageTemplatePreset, values: Record<string, string>) => {
+    const nextPrompt = renderTemplatePrompt(template, values);
+    setPrompt(nextPrompt);
+    setAspectRatio(template.aspect_ratio || '4:5');
+    setResolution(template.resolution || '1536');
+    setSelectedModel(template.model_key || 'gemini_flash_image');
+    setActiveTemplate(template);
+    setTemplatePickerOpen(false);
+    show(`${template.title} applied to the image studio.`);
   };
 
   const uploadReferenceFiles = async (files: FileList | null) => {
@@ -781,6 +875,72 @@ export function ImageStudioClient({ userId }: Props) {
               >
                 Image Variations
               </button>
+            </div>
+
+            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Templates</p>
+                  <p className="mt-1 text-xs text-muted">Start from a visual workflow, then refine the prompt manually if needed.</p>
+                </div>
+                <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2 px-3 py-2 text-xs">
+                  <GalleryVerticalEnd className="h-3.5 w-3.5" />
+                  Browse
+                </Button>
+              </div>
+              <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                {imageTemplates.slice(0, 6).map((template) => {
+                  const selected = activeTemplate?.id === template.id;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTemplate(template);
+                        setTemplatePickerOpen(true);
+                      }}
+                      className={`group min-w-[220px] overflow-hidden rounded-[22px] border text-left transition ${
+                        selected
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.36)] hover:border-[hsl(var(--color-accent)/0.35)]'
+                      }`}
+                    >
+                      <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
+                        {template.thumbnail_url ? (
+                          <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                        ) : (
+                          <div className="flex h-full items-end p-4">
+                            <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text">
+                              {template.category}
+                            </span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
+                        <div className="absolute inset-x-3 bottom-3">
+                          <p className="line-clamp-1 text-sm font-semibold text-white">{template.title}</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-white/72">{template.description}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {activeTemplate ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge>{activeTemplate.title}</Badge>
+                  {activeTemplateEstimateText ? <Badge>{activeTemplateEstimateText}</Badge> : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTemplate(null);
+                      setTemplateInputs({});
+                    }}
+                    className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 font-semibold text-muted hover:text-text"
+                  >
+                    Clear template
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-3">
@@ -1204,6 +1364,113 @@ export function ImageStudioClient({ userId }: Props) {
           ) : null}
         </Card>
       </div>
+      <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
+        <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
+              {activeTemplate?.thumbnail_url ? (
+                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[4/5] w-full object-cover" />
+              ) : (
+                <div className="flex aspect-[4/5] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-5">
+                  <div className="space-y-2">
+                    <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
+                    <p className="text-2xl font-bold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge>Image</Badge>
+                {activeTemplate ? <Badge>{activeTemplate.category}</Badge> : null}
+                {activeTemplate ? <Badge>{resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}</Badge> : null}
+              </div>
+              <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplate?.title ?? 'Choose a template'}</h3>
+              <p className="mt-2 text-sm text-muted">{activeTemplate?.description ?? 'Select a template to prefill your image prompt, model, and output settings.'}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {imageTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => setActiveTemplate(template)}
+                  className={`overflow-hidden rounded-[22px] border text-left transition ${
+                    activeTemplate?.id === template.id
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] hover:border-[hsl(var(--color-accent)/0.35)]'
+                  }`}
+                >
+                  <div className="p-4">
+                    <p className="text-sm font-semibold text-text">{template.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted">{template.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Template inputs</p>
+                  <p className="mt-1 text-sm text-muted">Fill the fields, then apply the template into the image studio.</p>
+                </div>
+                {activeTemplate ? <Badge>{models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}</Badge> : null}
+              </div>
+              {activeTemplate ? (
+                <div className="mt-4 space-y-3">
+                  {(activeTemplate.inputs || []).length > 0 ? (
+                    activeTemplate.inputs?.map((field) => {
+                      const options = normalizeTemplateOptions(field);
+                      const value = templateInputs[field.key] || '';
+                      return (
+                        <div key={field.key} className="space-y-1.5">
+                          <label className="text-sm font-medium text-text">{field.label}</label>
+                          {field.type === 'select' ? (
+                            <Dropdown value={value} onChange={(event) => setTemplateInputs((current) => ({ ...current, [field.key]: event.target.value }))}>
+                              {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </Dropdown>
+                          ) : field.type === 'textarea' ? (
+                            <Textarea value={value} onChange={(event) => setTemplateInputs((current) => ({ ...current, [field.key]: event.target.value }))} placeholder={field.placeholder || ''} />
+                          ) : (
+                            <Textarea rows={field.type === 'number' ? 2 : 3} value={value} onChange={(event) => setTemplateInputs((current) => ({ ...current, [field.key]: event.target.value }))} placeholder={field.placeholder || ''} />
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-5 text-sm text-muted">
+                      This template uses a ready-made prompt. Apply it directly into the composer.
+                    </div>
+                  )}
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Will apply</p>
+                    <p className="mt-2 text-sm text-text">
+                      {models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}
+                      {' · '}
+                      {activeTemplate.aspect_ratio}
+                      {' · '}
+                      {resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={() => applyImageTemplate(activeTemplate, templateInputs)}>
+                      Apply template
+                    </Button>
+                    <Button variant="secondary" onClick={() => setTemplatePickerOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-6 text-sm text-muted">
+                  Select an image template to load its visual direction and generation defaults.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
       {selectedInspiration ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedInspiration(null)}>
           <div className="mx-auto flex h-full max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
