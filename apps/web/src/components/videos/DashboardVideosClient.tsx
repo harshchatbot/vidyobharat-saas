@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   Tag,
+  Trash2,
   Wand2,
 } from 'lucide-react';
 
@@ -265,6 +266,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
   const [likingAssetId, setLikingAssetId] = useState<string | null>(null);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -542,6 +544,24 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       setError(err instanceof Error ? err.message : 'Could not update like.');
     } finally {
       setLikingAssetId(null);
+    }
+  };
+
+  const deleteAsset = async (asset: AssetSearchItem) => {
+    setDeletingAssetId(asset.id);
+    try {
+      if (asset.content_type === 'video') {
+        await api.deleteVideo(asset.id, userId);
+      } else {
+        await api.deleteGeneratedImage(asset.id, userId);
+      }
+      setAllAssets((current) => current.filter((item) => item.id !== asset.id));
+      setAssets((current) => current.filter((item) => item.id !== asset.id));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to delete ${asset.content_type}.`);
+    } finally {
+      setDeletingAssetId(null);
     }
   };
 
@@ -918,6 +938,15 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       disabled={publishingAssetId === asset.id}
                     >
                       {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="pointer-events-auto h-9 w-9 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.84)] p-0 text-text shadow-[var(--shadow-soft)] backdrop-blur-md hover:bg-[hsl(var(--color-elevated)/0.92)]"
+                      onClick={() => void deleteAsset(asset)}
+                      disabled={deletingAssetId === asset.id}
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.85} />
                     </Button>
                     <Link href={openHref} className="pointer-events-auto">
                       <Button

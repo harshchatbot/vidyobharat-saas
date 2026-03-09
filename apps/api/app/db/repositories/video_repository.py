@@ -32,6 +32,8 @@ class VideoRepository:
             return None
         data = snapshot.to_dict() or {}
         data.setdefault('id', snapshot.id)
+        if data.get('deleted_at') or data.get('deletedAt'):
+            return None
         return self._to_model(data)
 
     def list_by_user(self, user_id: str) -> list[Video]:
@@ -43,6 +45,8 @@ class VideoRepository:
             for row in root_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', row.id)
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
                 try:
                     model = self._to_model(data)
                     by_id[model.id] = model
@@ -53,6 +57,8 @@ class VideoRepository:
             for row in group_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', data.get('id') or row.id)
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
                 try:
                     model = self._to_model(data)
                     by_id[model.id] = model
@@ -63,6 +69,8 @@ class VideoRepository:
             for data in self._stream_video_docs():
                 owner_id = data.get('user_id') or data.get('userId')
                 if owner_id != user_id:
+                    continue
+                if data.get('deleted_at') or data.get('deletedAt'):
                     continue
                 try:
                     items.append(self._to_model(data))
@@ -85,6 +93,8 @@ class VideoRepository:
             for row in root_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', row.id)
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
                 try:
                     model = self._to_model(data)
                     by_id[model.id] = model
@@ -100,6 +110,8 @@ class VideoRepository:
             for row in group_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', data.get('id') or row.id)
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
                 try:
                     model = self._to_model(data)
                     by_id[model.id] = model
@@ -114,6 +126,8 @@ class VideoRepository:
                 moderation_status = data.get('moderation_status')
                 if moderation_status is None:
                     moderation_status = data.get('moderationStatus')
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
                 if not bool(is_public):
                     continue
                 if str(moderation_status or '').lower() != 'approved':
@@ -162,6 +176,18 @@ class VideoRepository:
         data = {**video.__dict__, **kwargs}
         data.pop('_sa_instance_state', None)
         return self._to_model(data)
+
+    def soft_delete(self, video_id: str, *, user_id: str) -> Video | None:
+        video = self.get_by_id(video_id)
+        if not video or video.user_id != user_id:
+            return None
+        return self.update(
+            video,
+            deleted_at=utcnow(),
+            deleted_by=user_id,
+            is_public_inspiration=False,
+            inspiration_published_at=None,
+        )
 
     def set_progress(self, video_id: str, progress: int, status: VideoStatus) -> Video | None:
         video = self.get_by_id(video_id)

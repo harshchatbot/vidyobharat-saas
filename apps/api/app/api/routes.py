@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_user_id, require_admin_user
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
+from app.db.repositories.image_generation_repository import ImageGenerationRepository
+from app.db.repositories.video_repository import VideoRepository
 from app.db.session import get_db
 from app.models.entities import ImageGenerationStatus
 from app.schemas.ai import (
@@ -1775,6 +1777,18 @@ def apply_ai_image_action_legacy(
     return _to_image_generation_response(results[0], None)
 
 
+@router.delete('/ai/images/{image_id}', response_model=UploadDeleteResponse)
+def delete_generated_image(
+    image_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    deleted = ImageGenerationRepository(None).soft_delete(image_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail='Image not found')
+    logger.info('image_generation_deleted', extra={'request_id': get_request_id(), 'user_id': user_id, 'image_id': image_id})
+    return UploadDeleteResponse(asset_id=image_id, deleted=True)
+
+
 @router.get('/api/influencer/personas', response_model=list[InfluencerPersonaResponse])
 def list_influencer_personas(
     user_id: str = Depends(get_user_id),
@@ -2641,3 +2655,15 @@ def retry_video(
     if not video:
         raise HTTPException(status_code=404, detail='Video not found')
     return VideoRetryResponse(id=video.id, status=video.status.value if hasattr(video.status, 'value') else str(video.status))
+
+
+@router.delete('/videos/{video_id}', response_model=UploadDeleteResponse)
+def delete_video(
+    video_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    deleted = VideoRepository(None).soft_delete(video_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail='Video not found')
+    logger.info('video_deleted', extra={'request_id': get_request_id(), 'user_id': user_id, 'video_id': video_id})
+    return UploadDeleteResponse(asset_id=video_id, deleted=True)

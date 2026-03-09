@@ -337,6 +337,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini_flash_image');
@@ -784,6 +785,20 @@ export function ImageStudioClient({ userId }: Props) {
       setError(toErrorMessage(error, 'Could not update publish status.'));
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const deleteGeneratedImage = async (image: GeneratedImage) => {
+    setDeletingImageId(image.id);
+    try {
+      await api.deleteGeneratedImage(image.id, userId);
+      setGeneratedImages((current) => current.filter((item) => item.id !== image.id));
+      setSelectedGenerated((current) => (current?.id === image.id ? null : current));
+      show('Image deleted from your studio.');
+    } catch (error) {
+      show(error instanceof Error ? error.message : 'Failed to delete image.');
+    } finally {
+      setDeletingImageId(null);
     }
   };
 
@@ -1673,6 +1688,16 @@ export function ImageStudioClient({ userId }: Props) {
                   <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="gap-2">
                     <Download className="h-4 w-4" />
                     Download image
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => void deleteGeneratedImage(selectedGenerated)}
+                    className="gap-2"
+                    disabled={deletingImageId === selectedGenerated.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deletingImageId === selectedGenerated.id ? 'Deleting...' : 'Delete image'}
                   </Button>
                   <a href={toAbsoluteUrl(selectedGenerated.image_url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
                     <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />

@@ -628,27 +628,27 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null
           }
         >
-          <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+          <div className="grid gap-5 xl:grid-cols-[250px_1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-text">Saved personas</h3>
-                <Button variant="secondary" type="button" onClick={() => { setSelectedPersonaId(''); setDraft(emptyDraft()); }}>
+                <Button variant="secondary" type="button" className="px-3 py-2 text-xs" onClick={() => { setSelectedPersonaId(''); setDraft(emptyDraft()); }}>
                   New
                 </Button>
               </div>
-              <div className="grid gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 xl:grid xl:max-h-[18rem] xl:grid-cols-1 xl:overflow-visible xl:pb-0">
                 {personas.length === 0 ? (
-                  <Card className="px-4 py-4 text-sm text-muted">No persona saved yet.</Card>
+                  <div className="w-full rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-4 py-4 text-sm text-muted">No persona saved yet.</div>
                 ) : (
                   personas.map((persona) => (
                     <button
                       key={persona.id}
                       type="button"
                       onClick={() => syncDraftFromPersona(persona)}
-                      className={`rounded-[var(--radius-md)] border px-4 py-3 text-left transition ${
+                      className={`min-w-[180px] rounded-[18px] border px-4 py-3 text-left transition xl:min-w-0 ${
                         selectedPersonaId === persona.id
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)]'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]'
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)]'
                       }`}
                     >
                       <div className="font-semibold text-text">{persona.name}</div>
@@ -893,7 +893,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           </div>
           <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
             <div className="space-y-4">
-              <Card className="overflow-hidden p-0">
+              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
                 <div className="aspect-[4/5] bg-[hsl(var(--color-bg))]">
                   {selectedPersona?.reference_image_url ? (
                     <img src={toAbsoluteUrl(selectedPersona.reference_image_url) ?? ''} alt={selectedPersona.name} className="h-full w-full object-cover" />
@@ -901,7 +901,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     <div className="flex h-full items-center justify-center text-sm text-muted">No reference uploaded</div>
                   )}
                 </div>
-              </Card>
+              </div>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Upload base reference</span>
@@ -1004,7 +1004,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              <Card className="space-y-3 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Output</p>
@@ -1067,7 +1067,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   </div>
                   <p className="text-xs text-muted">Higher resolutions cost more credits but help when the asset will be reused in thumbnails or campaigns.</p>
                 </div>
-              </Card>
+              </div>
 
               {selectedPose === 'custom' ? (
                 <div>
@@ -1082,7 +1082,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               ) : null}
 
               {selectedScenePreset ? (
-                <Card className="px-4 py-4 text-sm">
+                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-4 py-4 text-sm">
                   <div className="font-semibold text-text">{selectedScenePreset.label}</div>
                   <p className="mt-1 text-muted">{selectedScenePreset.description}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1103,7 +1103,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       <div className="mt-1 text-text">{selectedScenePreset.mood || 'Keeps the character premium and consistent.'}</div>
                     </div>
                   </div>
-                </Card>
+                </div>
               ) : null}
 
               <div className="space-y-2">
@@ -1149,7 +1149,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               ) : null}
 
               {generatedImage ? (
-                <Card className="overflow-hidden p-0">
+                <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)]">
                   <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="w-full object-cover" />
                   <div className="px-4 py-4 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1167,7 +1167,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       </p>
                     ) : null}
                   </div>
-                </Card>
+                </div>
               ) : null}
             </div>
           </div>
@@ -1322,7 +1322,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-24">
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+          <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Character</p>
@@ -1355,9 +1355,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 <p className="mt-1 text-sm font-semibold text-text">{selectedScenePreset?.label || 'No scene selected'}</p>
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))]">
+          <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Outputs</p>
@@ -1384,7 +1384,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               <p className="text-sm font-semibold text-text">Current scene preset</p>
               <p className="mt-2 text-sm text-muted">{selectedScenePreset?.description || 'Choose or create a scene to shape environment, props, and lighting.'}</p>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 

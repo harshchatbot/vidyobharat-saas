@@ -420,6 +420,14 @@ export const api = {
   getVideo(videoId: string, userId: string) {
     return request<Video>(`/videos/${videoId}`, {}, { userId, cache: 'no-store' });
   },
+  deleteVideo(videoId: string, userId: string) {
+    return request<{ asset_id: string; deleted: boolean }>(`/videos/${videoId}`, {
+      method: 'DELETE',
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/videos', '/assets/search', '/assets/tags', '/api/videos/inspiration']);
+      return result;
+    });
+  },
   retryVideo(videoId: string, userId: string) {
     return request<{ id: string; status: string }>(`/videos/${videoId}/retry`, {
       method: 'POST',
@@ -618,6 +626,14 @@ export const api = {
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' }).then((result) => {
       invalidateUserCache(userId, ['/api/credits/wallet', '/ai/images', '/assets/search', '/assets/tags']);
+      return result;
+    });
+  },
+  deleteGeneratedImage(imageId: string, userId: string) {
+    return request<{ asset_id: string; deleted: boolean }>(`/ai/images/${imageId}`, {
+      method: 'DELETE',
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/ai/images', '/assets/search', '/assets/tags', '/ai/images/inspiration']);
       return result;
     });
   },
