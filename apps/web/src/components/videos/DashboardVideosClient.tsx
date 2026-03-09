@@ -932,41 +932,39 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 >
                   <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.84)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-1.5 opacity-0 transition group-hover:opacity-100 sm:right-3 sm:top-3 sm:gap-2">
-                    <Button
-                      variant="secondary"
-                      className="pointer-events-auto h-9 w-9 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.84)] p-0 text-text shadow-[var(--shadow-soft)] backdrop-blur-md hover:bg-[hsl(var(--color-elevated)/0.92)]"
+                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-2 opacity-0 transition group-hover:opacity-100 sm:right-3 sm:top-3">
+                    <button
+                      type="button"
+                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void downloadAsset(asset)}
                       disabled={downloadingId === asset.id || !asset.asset_url}
                       title="Download"
                     >
-                      <Download className="h-4 w-4" strokeWidth={1.9} />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="pointer-events-auto h-9 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.88)] px-4 text-xs font-semibold leading-none text-text shadow-[var(--shadow-soft)] backdrop-blur-md hover:bg-[hsl(var(--color-elevated)/0.94)]"
+                      <Download className="h-4.5 w-4.5" strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      className="pointer-events-auto inline-flex h-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.97)] px-4 text-xs font-semibold leading-none text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.97)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void togglePublish(asset)}
                       disabled={publishingAssetId === asset.id}
                     >
                       {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="pointer-events-auto h-9 w-9 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.84)] p-0 text-text shadow-[var(--shadow-soft)] backdrop-blur-md hover:bg-[hsl(var(--color-elevated)/0.92)]"
+                    </button>
+                    <button
+                      type="button"
+                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void deleteAsset(asset)}
                       disabled={deletingAssetId === asset.id}
                       title="Delete"
                     >
-                      <Trash2 className="h-4 w-4" strokeWidth={1.85} />
-                    </Button>
-                    <Link href={openHref} className="pointer-events-auto">
-                      <Button
-                        variant="secondary"
-                        className="h-9 w-9 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.84)] p-0 text-text shadow-[var(--shadow-soft)] backdrop-blur-md hover:bg-[hsl(var(--color-elevated)/0.92)]"
-                        title="Open"
-                      >
-                        <ExternalLink className="h-4 w-4" strokeWidth={1.85} />
-                      </Button>
+                      <Trash2 className="h-4.5 w-4.5" strokeWidth={2} />
+                    </button>
+                    <Link
+                      href={openHref}
+                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                      title="Open"
+                    >
+                      <ExternalLink className="h-4.5 w-4.5" strokeWidth={2} />
                     </Link>
                   </div>
                   <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">

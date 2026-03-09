@@ -63,9 +63,15 @@ async function fetchPublicInspiration() {
   return { videos, images };
 }
 
-export default async function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const forcePublicLanding = resolvedSearchParams?.public === '1';
   const userId = await getUserIdFromCookie();
-  if (userId) {
+  if (userId && !forcePublicLanding) {
     redirect('/dashboard');
   }
   const { videos, images } = await fetchPublicInspiration();

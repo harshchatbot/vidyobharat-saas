@@ -218,8 +218,8 @@ export function AuthFormClient({ mode }: Props) {
       />
       <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
         <div className="mb-4 flex items-center justify-between">
-          <BrandLogo href="/" variant="mark" size="sm" />
-          <Link href="/" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+          <BrandLogo href="/?public=1" variant="mark" size="sm" />
+          <Link href="/?public=1" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
             Back to home
           </Link>
         </div>
