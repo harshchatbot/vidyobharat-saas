@@ -4,7 +4,6 @@ import math
 import hashlib
 import hmac
 import json
-from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -12,13 +11,15 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.shared_config import load_shared_json
-from app.db.repositories.credit_repository import CreditRepository
-from app.models.entities import CreditTransaction, CreditWallet
-from app.services.firestore_sync_service import FirestoreSyncService
+from app.db.repositories.firestore_credit_repository import (
+    FirestoreCreditRepository,
+    FirestoreCreditTopUpOrder,
+    FirestoreCreditTransaction,
+    FirestoreCreditWallet,
+)
 from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
 import logging
@@ -57,8 +58,8 @@ class CreditEstimate:
 
 @dataclass
 class CreditDeductionResult:
-    wallet: CreditWallet
-    transaction: CreditTransaction
+    wallet: FirestoreCreditWallet
+    transaction: FirestoreCreditTransaction
     already_processed: bool
 
 
@@ -88,12 +89,11 @@ class CreditService:
         'fallback tts': 'free',
     }
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Any | None = None) -> None:
         self.db = db
-        self.repo = CreditRepository(db)
+        self.repo = FirestoreCreditRepository()
         self.settings = get_settings()
         self.pricing_service = PricingService()
-        self.sync = FirestoreSyncService()
         self.credit_engine = load_shared_json('shared/config/credit-engine.json')
         self.credit_costs = self.credit_engine['fixedCosts']
         self.credit_plans = _load_json_config('credit_plans.json')
@@ -128,7 +128,7 @@ class CreditService:
         self.image_model_tiers = self.credit_engine['imageModelTiers']
         self.image_model_aliases = self.credit_engine.get('imageModelAliases', {})
 
-    def ensure_wallet(self, user_id: str) -> CreditWallet:
+    def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
             self._apply_monthly_reset_if_due(wallet)
@@ -143,7 +143,7 @@ class CreditService:
             plan_type=plan,
             monthly_credits=monthly_credits,
         )
-        self.sync.sync_wallet(wallet)
+        logger.info('wallet_autocreated', extra={'user_id': user_id, 'plan_type': plan, 'current_credits': monthly_credits})
         return wallet
 
     def estimate(self, action: str, payload: dict[str, Any]) -> CreditEstimate:
@@ -216,7 +216,7 @@ class CreditService:
         total, _ = self._calculate_voice_credits_with_breakdown(provider=provider, sample_rate=sample_rate)
         return total
 
-    def estimate_for_user(self, user_id: str, action: str, payload: dict[str, Any]) -> tuple[CreditWallet, CreditEstimate]:
+    def estimate_for_user(self, user_id: str, action: str, payload: dict[str, Any]) -> tuple[FirestoreCreditWallet, CreditEstimate]:
         wallet = self.ensure_wallet(user_id)
         estimate = self.estimate(action, payload)
         return wallet, estimate
@@ -224,7 +224,7 @@ class CreditService:
     def make_idempotency_key(self, prefix: str, metadata: dict[str, Any]) -> str:
         return self._stable_key(prefix, metadata)
 
-    def top_up_credits(self, user_id: str, credits: int, metadata: dict[str, Any] | None = None) -> CreditWallet:
+    def top_up_credits(self, user_id: str, credits: int, metadata: dict[str, Any] | None = None) -> FirestoreCreditWallet:
         metadata = metadata or {}
         idempotency_key = self._stable_key(
             'topup',
@@ -234,7 +234,7 @@ class CreditService:
                 'metadata': metadata,
             },
         )
-        transaction: CreditTransaction | None = None
+        transaction: FirestoreCreditTransaction | None = None
         wallet, transaction, already_processed = self.repo.run_wallet_mutation(
             user_id=user_id,
             create_defaults={
@@ -248,9 +248,6 @@ class CreditService:
         if already_processed:
             return wallet
         wallet = self.ensure_wallet(user_id)
-        self.sync.sync_wallet(wallet)
-        if transaction:
-            self.sync.sync_credit_transaction(transaction)
         return wallet
 
     def create_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
@@ -265,13 +262,15 @@ class CreditService:
         razorpay_order_id: str,
         razorpay_payment_id: str,
         razorpay_signature: str,
-    ) -> CreditWallet:
+    ) -> FirestoreCreditWallet:
         if not self.settings.razorpay_key_secret:
             raise RuntimeError('Razorpay is not configured')
+        logger.info('topup_verify_started', extra={'user_id': user_id, 'provider_order_id': razorpay_order_id})
         topup_order = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
         if not topup_order or topup_order.user_id != user_id:
             raise RuntimeError('Top-up order not found')
         if topup_order.status == 'paid':
+            logger.info('topup_verify_already_paid', extra={'user_id': user_id, 'provider_order_id': razorpay_order_id})
             return self.ensure_wallet(user_id)
         if topup_order.provider != 'razorpay':
             raise RuntimeError('This order is not a Razorpay order')
@@ -282,15 +281,27 @@ class CreditService:
         ).hexdigest()
         if not hmac.compare_digest(expected_signature, razorpay_signature):
             raise RuntimeError('Invalid Razorpay signature')
-
-        order_locked = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
-        if order_locked is None or order_locked.user_id != user_id:
-            raise RuntimeError('Top-up order not found')
-        return self._complete_razorpay_topup(
-            topup_order=order_locked,
-            razorpay_payment_id=razorpay_payment_id,
-            razorpay_signature=razorpay_signature,
+        logger.info('topup_verify_signature_valid', extra={'user_id': user_id, 'provider_order_id': razorpay_order_id})
+        wallet, _, already_paid = self.repo.complete_topup_order(
+            provider_order_id=razorpay_order_id,
+            user_id=user_id,
+            payment_id=razorpay_payment_id,
+            signature=razorpay_signature,
+            credit_metadata={
+                'provider': 'razorpay',
+                'plan_name': topup_order.plan_name,
+                'plan_credits': topup_order.credits,
+                'pricing_region': topup_order.pricing_region,
+                'country': topup_order.country,
+                'razorpay_order_id': razorpay_order_id,
+                'razorpay_payment_id': razorpay_payment_id,
+            },
         )
+        logger.info(
+            'topup_verify_credit_applied' if not already_paid else 'topup_verify_already_paid',
+            extra={'user_id': user_id, 'provider_order_id': razorpay_order_id, 'credits': topup_order.credits},
+        )
+        return wallet
 
     def reconcile_razorpay_topup(
         self,
@@ -298,47 +309,24 @@ class CreditService:
         razorpay_order_id: str,
         razorpay_payment_id: str,
         razorpay_signature: str,
-    ) -> CreditWallet:
+    ) -> FirestoreCreditWallet:
         topup_order = self.repo.get_topup_order_by_provider_order_id(razorpay_order_id)
         if not topup_order:
             raise RuntimeError('Top-up order not found')
         if topup_order.provider != 'razorpay':
             raise RuntimeError('This order is not a Razorpay order')
-        return self._complete_razorpay_topup(
-            topup_order=topup_order,
-            razorpay_payment_id=razorpay_payment_id,
-            razorpay_signature=razorpay_signature,
-        )
-
-    def _complete_razorpay_topup(
-        self,
-        *,
-        topup_order,
-        razorpay_payment_id: str,
-        razorpay_signature: str,
-    ) -> CreditWallet:
-        if topup_order.status != 'paid':
-            topup_order.status = 'paid'
-            topup_order.provider_payment_id = razorpay_payment_id
-            topup_order.provider_signature = razorpay_signature
-            topup_order.verified_at = datetime.now(UTC)
-            topup_order.metadata_json = json.dumps(
-                {
-                    'plan_name': topup_order.plan_name,
-                    'provider': 'razorpay',
-                }
-            )
-            self.repo.save_all([topup_order])
-
-        wallet = self.top_up_credits(
+        wallet, _, _ = self.repo.complete_topup_order(
+            provider_order_id=razorpay_order_id,
             user_id=topup_order.user_id,
-            credits=topup_order.credits,
-            metadata={
+            payment_id=razorpay_payment_id,
+            signature=razorpay_signature,
+            credit_metadata={
                 'provider': 'razorpay',
                 'plan_name': topup_order.plan_name,
                 'plan_credits': topup_order.credits,
                 'pricing_region': topup_order.pricing_region,
-                'razorpay_order_id': topup_order.provider_order_id,
+                'country': topup_order.country,
+                'razorpay_order_id': razorpay_order_id,
                 'razorpay_payment_id': razorpay_payment_id,
             },
         )
@@ -374,13 +362,15 @@ class CreditService:
         )
         result = CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=already_processed)
         assert result is not None
-        self.sync.sync_wallet(result.wallet)
-        self.sync.sync_credit_transaction(result.transaction)
         return result
 
-    def list_history(self, user_id: str, limit: int = 100) -> list[CreditTransaction]:
+    def list_history(self, user_id: str, limit: int = 100) -> list[FirestoreCreditTransaction]:
         self.ensure_wallet(user_id)
-        return self.repo.list_history(user_id, limit=limit)
+        try:
+            return self.repo.list_history(user_id, limit=limit)
+        except Exception:
+            logger.exception('credit_history_read_failed', extra={'user_id': user_id, 'limit': limit})
+            raise
 
     def run_monthly_reset(self) -> int:
         count = 0
@@ -639,7 +629,7 @@ class CreditService:
         }
         return labels.get(key, key)
 
-    def _apply_monthly_reset_if_due(self, wallet: CreditWallet) -> bool:
+    def _apply_monthly_reset_if_due(self, wallet: FirestoreCreditWallet) -> bool:
         now = datetime.now(UTC)
         last_reset = wallet.last_reset
         if last_reset is None:
@@ -670,7 +660,7 @@ class CreditService:
             )
         return True
 
-    def _ensure_wallet_locked(self, user_id: str) -> CreditWallet:
+    def _ensure_wallet_locked(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
             return wallet
@@ -685,11 +675,11 @@ class CreditService:
 
     def _topup_mutation(
         self,
-        wallet: CreditWallet,
+        wallet: FirestoreCreditWallet,
         credits: int,
         metadata: dict[str, Any],
         idempotency_key: str,
-    ) -> tuple[CreditWallet, dict[str, Any]]:
+    ) -> tuple[FirestoreCreditWallet, dict[str, Any]]:
         self._apply_monthly_reset_if_due(wallet)
         plan_name = str(metadata.get('plan_name') or '').strip().lower()
         plan_credits = int(metadata.get('plan_credits') or 0)
@@ -714,13 +704,13 @@ class CreditService:
     def _deduction_mutation(
         self,
         *,
-        wallet: CreditWallet,
+        wallet: FirestoreCreditWallet,
         amount: int,
         feature_key: str,
         metadata: dict[str, Any],
         source: str,
         idempotency_key: str,
-    ) -> tuple[CreditWallet, dict[str, Any]]:
+    ) -> tuple[FirestoreCreditWallet, dict[str, Any]]:
         self._apply_monthly_reset_if_due(wallet)
         if amount > 0 and wallet.current_credits < amount:
             raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
@@ -748,12 +738,6 @@ class CreditService:
         digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return f'{prefix}:{digest}'
 
-    @contextmanager
-    def _transaction(self):
-        context = nullcontext() if self.db.in_transaction() else self.db.begin()
-        with context:
-            yield
-
     def _create_razorpay_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         if not self.settings.razorpay_key_id or not self.settings.razorpay_key_secret:
             raise RuntimeError('Razorpay is not configured')
@@ -770,7 +754,7 @@ class CreditService:
         }
 
         logger.info(
-            'topup_razorpay_start',
+            'razorpay_topup_order_started',
             extra={
                 'user_id': user_id,
                 'plan_name': selection.plan_name,
@@ -783,16 +767,6 @@ class CreditService:
         )
 
         try:
-            logger.info(
-                'topup_razorpay_request',
-                extra={
-                    'user_id': user_id,
-                    'plan_name': selection.plan_name,
-                    'amount_minor': selection.amount_minor,
-                    'currency': selection.currency,
-                },
-            )
-
             response = httpx.post(
                 f'{self.settings.razorpay_api_base}/orders',
                 auth=(self.settings.razorpay_key_id, self.settings.razorpay_key_secret),
@@ -827,7 +801,7 @@ class CreditService:
         provider_order_id = str(data.get('id') or '')
 
         logger.info(
-            'topup_razorpay_success',
+            'razorpay_topup_order_provider_success',
             extra={
                 'user_id': user_id,
                 'plan_name': selection.plan_name,
@@ -843,44 +817,49 @@ class CreditService:
 
         try:
             logger.info(
-                'topup_razorpay_db_write_start',
+                'topup_order_firestore_persist_started',
                 extra={
                     'user_id': user_id,
                     'plan_name': selection.plan_name,
+                    'provider': 'razorpay',
                     'provider_order_id': provider_order_id,
-                    'credits': selection.allocated_credits,
-                    'amount_minor': selection.amount_minor,
-                    'currency': selection.currency,
-                    'pricing_region': selection.region,
                 },
             )
-
-            with self._transaction():
-                self.repo.create_topup_order(
-                    user_id=user_id,
-                    provider='razorpay',
-                    plan_name=selection.plan_name,
-                    pricing_region=selection.region,
-                    credits=selection.allocated_credits,
-                    amount_paise=selection.amount_minor,
-                    currency=selection.currency,
-                    provider_order_id=provider_order_id,
-                    provider_checkout_id=None,
-                    metadata_json=json.dumps({'provider_response': data}),
-                )
-
+            self.repo.create_topup_order(
+                user_id=user_id,
+                provider='razorpay',
+                plan_name=selection.plan_name,
+                pricing_region=selection.region,
+                country=selection.country,
+                credits=selection.allocated_credits,
+                amount_paise=selection.amount_minor,
+                currency=selection.currency,
+                provider_order_id=provider_order_id,
+                provider_checkout_id=None,
+                metadata_json=json.dumps({'provider_response': data}),
+                idempotency_key=self._stable_key(
+                    'topup_order',
+                    {
+                        'user_id': user_id,
+                        'provider': 'razorpay',
+                        'plan_name': selection.plan_name,
+                        'provider_order_id': provider_order_id,
+                    },
+                ),
+            )
             logger.info(
-                'topup_razorpay_db_write_success',
+                'topup_order_firestore_persist_success',
                 extra={
                     'user_id': user_id,
                     'plan_name': selection.plan_name,
+                    'provider': 'razorpay',
                     'provider_order_id': provider_order_id,
                 },
             )
 
         except Exception:
             logger.exception(
-                'topup_razorpay_db_write_failed',
+                'topup_order_firestore_persist_failed',
                 extra={
                     'user_id': user_id,
                     'plan_name': selection.plan_name,
@@ -892,15 +871,6 @@ class CreditService:
                 },
             )
             raise
-
-        logger.info(
-            'topup_razorpay_result_build',
-            extra={
-                'user_id': user_id,
-                'plan_name': selection.plan_name,
-                'provider_order_id': provider_order_id,
-            },
-        )
 
         return CreditTopUpOrderResult(
             provider='razorpay',
@@ -918,19 +888,46 @@ class CreditService:
 
     def _create_stripe_placeholder_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         provider_order_id = self.pricing_service.make_stripe_placeholder_session_id()
-        with self._transaction():
-            self.repo.create_topup_order(
-                user_id=user_id,
-                provider='stripe',
-                plan_name=selection.plan_name,
-                pricing_region=selection.region,
-                credits=selection.allocated_credits,
-                amount_paise=selection.amount_minor,
-                currency=selection.currency,
-                provider_order_id=provider_order_id,
-                provider_checkout_id=provider_order_id,
-                metadata_json=json.dumps({'provider': 'stripe', 'mode': 'placeholder'}),
-            )
+        logger.info(
+            'topup_order_firestore_persist_started',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider': 'stripe',
+                'provider_order_id': provider_order_id,
+            },
+        )
+        self.repo.create_topup_order(
+            user_id=user_id,
+            provider='stripe',
+            plan_name=selection.plan_name,
+            pricing_region=selection.region,
+            country=selection.country,
+            credits=selection.allocated_credits,
+            amount_paise=selection.amount_minor,
+            currency=selection.currency,
+            provider_order_id=provider_order_id,
+            provider_checkout_id=provider_order_id,
+            metadata_json=json.dumps({'provider': 'stripe', 'mode': 'placeholder'}),
+            idempotency_key=self._stable_key(
+                'topup_order',
+                {
+                    'user_id': user_id,
+                    'provider': 'stripe',
+                    'plan_name': selection.plan_name,
+                    'provider_order_id': provider_order_id,
+                },
+            ),
+        )
+        logger.info(
+            'topup_order_firestore_persist_success',
+            extra={
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'provider': 'stripe',
+                'provider_order_id': provider_order_id,
+            },
+        )
         return CreditTopUpOrderResult(
             provider='stripe',
             region=selection.region,

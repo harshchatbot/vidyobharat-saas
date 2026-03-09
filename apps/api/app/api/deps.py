@@ -5,12 +5,10 @@ from urllib.request import urlopen
 
 import jwt
 from fastapi import Depends, Header, HTTPException, Request
-from sqlalchemy.orm import Session
 import logging
 
 from app.core.config import get_settings
 from app.db.repositories.user_repository import UserRepository
-from app.db.session import get_db
 from app.services.credit_service import CreditService
 from app.services.firestore_sync_service import FirestoreSyncService
 
@@ -95,7 +93,6 @@ def _verify_firebase_token(token: str) -> dict[str, Any]:
 
 async def get_user_id(
     request: Request,
-    db: Session = Depends(get_db),
     authorization: str | None = Header(default=None),
     x_user_id: str | None = Header(default=None),
 ) -> str:
@@ -105,14 +102,14 @@ async def get_user_id(
             claims = _verify_firebase_token(token)
             user_id = claims['sub']
             email = claims.get('email')
-            user = UserRepository(db).get_or_create_auth_user(
+            user = UserRepository(None).get_or_create_auth_user(
                 user_id=user_id,
                 email=email if isinstance(email, str) else None,
                 display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
                 avatar_url=_derive_avatar_url(claims),
             )
             FirestoreSyncService().sync_user(user)
-            wallet = CreditService(db).ensure_wallet(user.id)
+            wallet = CreditService().ensure_wallet(user.id)
             FirestoreSyncService().sync_wallet(wallet)
             request.state.user_claims = claims
             return user.id
@@ -127,14 +124,14 @@ async def get_user_id(
     if x_user_id:
         # Transitional fallback for existing server-rendered flows until all API calls
         # consistently forward Firebase bearer tokens.
-        user = UserRepository(db).get_or_create_auth_user(
+        user = UserRepository(None).get_or_create_auth_user(
             user_id=x_user_id,
             email=None,
             display_name=None,
             avatar_url=None,
         )
         FirestoreSyncService().sync_user(user)
-        wallet = CreditService(db).ensure_wallet(user.id)
+        wallet = CreditService().ensure_wallet(user.id)
         FirestoreSyncService().sync_wallet(wallet)
         return user.id
 

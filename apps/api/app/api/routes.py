@@ -448,9 +448,8 @@ async def health() -> dict[str, str]:
 @router.get('/api/credits/wallet', response_model=CreditWalletResponse)
 def get_credit_wallet(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    wallet = CreditService(db).ensure_wallet(user_id)
+    wallet = CreditService().ensure_wallet(user_id)
     return _to_credit_wallet_response(wallet)
 
 
@@ -458,10 +457,9 @@ def get_credit_wallet(
 def estimate_credits(
     payload: EstimateCreditsRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     try:
-        wallet, estimate = CreditService(db).estimate_for_user(user_id, payload.action, payload.payload)
+        wallet, estimate = CreditService().estimate_for_user(user_id, payload.action, payload.payload)
         return EstimateCreditsResponse(
             estimatedCredits=estimate.required_credits,
             breakdown=[
@@ -487,9 +485,8 @@ def estimate_credits(
 def topup_credits(
     payload: TopUpCreditsRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    wallet = CreditService(db).top_up_credits(
+    wallet = CreditService().top_up_credits(
         user_id=user_id,
         credits=payload.credits,
         metadata={'route': '/api/topupCredits'},
@@ -502,11 +499,24 @@ def create_topup_order(
     request: Request,
     payload: CreditTopUpOrderRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     try:
+        logger.info('topup_order_create_started', extra={'request_id': get_request_id(), 'user_id': user_id, 'plan_name': payload.planName})
         selection = PricingService().resolve_checkout_plan(request, payload.planName)
-        result = CreditService(db).create_topup_order(user_id=user_id, selection=selection)
+        logger.info(
+            'topup_plan_resolved',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'plan_name': selection.plan_name,
+                'region': selection.region,
+                'country': selection.country,
+                'provider': selection.payment_provider,
+                'amount_minor': selection.amount_minor,
+                'allocated_credits': selection.allocated_credits,
+            },
+        )
+        result = CreditService().create_topup_order(user_id=user_id, selection=selection)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
@@ -541,9 +551,8 @@ def create_topup_order(
 def verify_topup_order(
     payload: CreditTopUpVerifyRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = CreditService(db)
+    service = CreditService()
     order = service.repo.get_topup_order_by_provider_order_id(payload.providerOrderId)
     if not order or order.user_id != user_id:
         raise HTTPException(status_code=404, detail='Top-up order not found')
@@ -564,7 +573,6 @@ def verify_topup_order(
 @router.post('/api/topupCredits/webhook')
 async def razorpay_topup_webhook(
     request: Request,
-    db: Session = Depends(get_db),
 ):
     if not settings.razorpay_webhook_secret:
         raise HTTPException(status_code=400, detail='Razorpay webhook is not configured')
@@ -598,7 +606,7 @@ async def razorpay_topup_webhook(
         return {'status': 'ignored', 'event': event_name}
 
     try:
-        wallet = CreditService(db).reconcile_razorpay_topup(
+        wallet = CreditService().reconcile_razorpay_topup(
             razorpay_order_id=order_id,
             razorpay_payment_id=payment_id,
             razorpay_signature=signature,
@@ -649,17 +657,16 @@ def get_pricing(request: Request):
 def credit_history(
     limit: int = 100,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = CreditService(db)
+    service = CreditService()
     items = service.list_history(user_id, limit=max(1, min(limit, 250)))
     return CreditHistoryResponse(items=[_to_credit_history_item(item) for item in items])
 
 
 @router.post('/api/credits/run-monthly-reset', include_in_schema=False)
-def run_monthly_credit_reset(db: Session = Depends(get_db)):
+def run_monthly_credit_reset():
     # Internal hook for cron/scheduler integration.
-    updated = CreditService(db).run_monthly_reset()
+    updated = CreditService().run_monthly_reset()
     return {'updated_wallets': updated}
 
 
