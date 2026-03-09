@@ -76,3 +76,80 @@ Frontend:
 - Upload/storage is provider-based and ready to swap to Supabase Storage
 - Render pipeline is mock-structured with ffmpeg fallback
 - Structured JSON logs include request IDs and render IDs when applicable
+
+## Admin Access For Template Management
+
+There is no separate admin login screen.
+
+Admin mode currently works by:
+1. logging in normally with the existing app auth flow
+2. allowing that user at the backend through environment configuration
+
+Backend admin access is checked using:
+- `ADMIN_USER_EMAILS`
+- `ADMIN_USER_IDS`
+
+These values are read in:
+- `apps/api/app/core/config.py`
+- `apps/api/app/api/deps.py`
+
+### Recommended setup
+
+Use email allowlisting first.
+
+Example:
+
+```env
+ADMIN_USER_EMAILS=harshveernirwan@gmail.com
+```
+
+Multiple admins:
+
+```env
+ADMIN_USER_EMAILS=harshveernirwan@gmail.com,teammember@example.com
+```
+
+If needed, you can also allowlist Firebase user IDs:
+
+```env
+ADMIN_USER_IDS=uid_1,uid_2
+```
+
+After changing these values, redeploy the API service.
+
+### How to log in as admin
+
+1. Add your email or Firebase UID to the backend admin allowlist
+2. Redeploy the API
+3. Log in normally from the app
+4. Open:
+
+```text
+/admin/templates
+```
+
+Example production URL:
+
+- `/admin/templates`
+
+### What admin mode can do today
+
+From `/admin/templates`, an allowed admin user can:
+- create new templates
+- edit template title, slug, type, category, prompt template, hints, and defaults
+- upload preview images
+- activate/deactivate templates
+- mark templates as trending
+- mark templates as featured
+- archive old templates
+
+This is the current path for:
+- adding new trending templates
+- updating prompt structures
+- changing template visuals
+
+### Important behavior
+
+- Admin access is backend-guarded, not purely hidden by frontend UI
+- If `ADMIN_USER_EMAILS` / `ADMIN_USER_IDS` are not configured, admin protection is only placeholder-level and should be tightened before wider team usage
+- Existing video/image create flows continue to work even if the new template admin flow is unused

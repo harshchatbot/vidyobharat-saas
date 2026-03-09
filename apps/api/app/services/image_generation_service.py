@@ -369,6 +369,18 @@ class ImageGenerationService:
                             resolution=resolution,
                         )
                     raise
+                except RuntimeError as exc:
+                    if 'Gemini API HTTP 404' in str(exc) and self.settings.openai_api_key:
+                        logger.warning(
+                            'image_generation_provider_fallback_to_openai',
+                            extra={'model_key': model_key, 'reason': 'gemini_model_not_found', 'error': str(exc)},
+                        )
+                        return self._generate_with_openai_image(
+                            prompt=prompt,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                        )
+                    raise
 
         if model_key in {'recraft_studio', 'recraft_studio_pro'}:
             if not self.settings.recraft_api_key:

@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     gemini_image_model_fallback: str = 'gemini-2.5-flash-image-preview'
     gemini_flash_image_model_primary: str | None = None
     gemini_flash_image_model_fallback: str | None = None
-    gemini_pro_image_model_primary: str = 'gemini-3-pro-image'
+    gemini_pro_image_model_primary: str = 'gemini-3-pro-image-preview'
     gemini_pro_image_model_fallback: str | None = None
     recraft_api_key: str | None = None
     recraft_api_base: str = 'https://external.api.recraft.ai/v1'
