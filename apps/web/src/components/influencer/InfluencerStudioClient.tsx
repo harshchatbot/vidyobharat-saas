@@ -172,6 +172,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
     () => scenePresets.find((item) => item.key === selectedScene) ?? null,
     [scenePresets, selectedScene],
   );
+  const hasReferenceImage = Boolean(selectedPersona?.reference_image_url);
+  const canLockIdentity = Boolean(selectedPersonaId && hasReferenceImage);
+  const canGenerateImage = Boolean(
+    selectedPersonaId && hasReferenceImage && (selectedPose !== 'custom' || customPose.trim()),
+  );
   const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(
     [
       {
@@ -441,6 +446,15 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   async function onGenerateImage() {
     if (!selectedPersonaId) {
       setPersonaError('Create or select a persona first');
+      return;
+    }
+    if (!selectedPersona?.reference_image_url) {
+      setPersonaError('Upload a base reference image before generating persona images');
+      show('Upload a base reference image before generating persona images.');
+      return;
+    }
+    if (selectedPose === 'custom' && !customPose.trim()) {
+      setPersonaError('Add a custom pose description before generating this image');
       return;
     }
     if (imageEstimate && wallet && wallet.currentCredits < imageEstimate.estimatedCredits) {
@@ -836,28 +850,50 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   )}
                 </div>
               </Card>
-              <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-medium text-text">
-                {uploadingReference ? 'Uploading...' : 'Upload base reference'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void onReferenceUpload(file);
-                  }}
-                />
-              </label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Upload base reference</span>
+                  {hasReferenceImage ? (
+                    <Badge variant="success">Ready</Badge>
+                  ) : (
+                    <Badge variant="outline">Required</Badge>
+                  )}
+                </div>
+                <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-medium text-text">
+                  {uploadingReference ? 'Uploading...' : 'Upload base reference'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void onReferenceUpload(file);
+                    }}
+                  />
+                </label>
+              </div>
               <p className="text-xs text-muted">Use a clean front-facing portrait with clear lighting. This becomes the identity anchor for future image and video generation.</p>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={onLockReference}
-                disabled={lockingReference || !selectedPersona?.reference_image_url}
-                className="w-full"
-              >
-                {lockingReference ? 'Locking...' : `Lock Character Identity · ${referenceEstimate?.estimatedCredits ?? 0} credits`}
-              </Button>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Lock character identity</span>
+                  {selectedPersona?.character_locked ? (
+                    <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Locked</Badge>
+                  ) : canLockIdentity ? (
+                    <Badge variant="outline">Ready to lock</Badge>
+                  ) : (
+                    <Badge variant="outline">Needs reference</Badge>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onLockReference}
+                  disabled={lockingReference || !canLockIdentity}
+                  className="w-full"
+                >
+                  {lockingReference ? 'Locking...' : `Lock Character Identity · ${referenceEstimate?.estimatedCredits ?? 0} credits`}
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-4">
@@ -1018,21 +1054,46 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </Card>
               ) : null}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button type="button" onClick={onGenerateImage} disabled={generatingImage || !selectedPersona?.reference_image_url}>
-                  {generatingImage ? 'Generating...' : `Generate Image · ${imageEstimate?.estimatedCredits ?? 0} credits`}
-                </Button>
-                {selectedPersona?.character_locked ? (
-                  <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Identity locked</Badge>
-                ) : (
-                  <Badge variant="outline">Identity unlocked</Badge>
-                )}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Generate image</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedPersona?.character_locked ? (
+                      <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Identity locked</Badge>
+                    ) : (
+                      <Badge variant="outline">Identity unlocked</Badge>
+                    )}
+                    {canGenerateImage ? (
+                      <Badge variant="success">Ready</Badge>
+                    ) : !selectedPersonaId ? (
+                      <Badge variant="outline">Needs persona</Badge>
+                    ) : !hasReferenceImage ? (
+                      <Badge variant="outline">Needs reference</Badge>
+                    ) : (
+                      <Badge variant="outline">Needs pose detail</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={onGenerateImage}
+                    disabled={generatingImage || !selectedPersonaId || (selectedPose === 'custom' && !customPose.trim())}
+                  >
+                    {generatingImage ? 'Generating...' : `Generate Image · ${imageEstimate?.estimatedCredits ?? 0} credits`}
+                  </Button>
+                </div>
               </div>
               {estimateError ? (
                 <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
               ) : null}
               {!estimateError && isUsingFallback ? (
                 <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
+              ) : null}
+              {!selectedPersonaId ? (
+                <p className="text-xs text-muted">Save or select a persona to unlock image generation.</p>
+              ) : !selectedPersona?.reference_image_url ? (
+                <p className="text-xs text-muted">Upload a base reference image first so the face and identity stay consistent.</p>
               ) : null}
 
               {generatedImage ? (

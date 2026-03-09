@@ -253,7 +253,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                       <HeroPromptBar />
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {/*    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {showcaseTiles.map((tile, index) => (
                         <motion.div
                           key={tile.title}
@@ -273,7 +273,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                           </div>
                         </motion.div>
                       ))}
-                    </div>
+                    </div> */}
                   </div>
 
                   <div className="flex flex-col gap-4 xl:pl-4">
