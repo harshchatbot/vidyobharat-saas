@@ -1134,7 +1134,7 @@ def create_ai_video(
 ):
     deduction_amount = 0
     try:
-        credit_service = CreditService(db)
+        credit_service = CreditService()
         estimate = credit_service.estimate('video_create', payload.model_dump())
         remaining_credits: int | None = None
         if estimate.required_credits > 0:
@@ -1211,7 +1211,7 @@ def create_ai_video(
         raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     except ProviderError as exc:
         if deduction_amount > 0:
-            CreditService(db).top_up_credits(
+            CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
                 metadata={'refund_for': 'video_create_provider_error', 'model_key': payload.modelKey},
@@ -1241,7 +1241,7 @@ def create_ai_video(
         raise HTTPException(status_code=502, detail=error_text) from exc
     except Exception as exc:
         if deduction_amount > 0:
-            CreditService(db).top_up_credits(
+            CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
                 metadata={'refund_for': 'video_create_error', 'model_key': payload.modelKey},
@@ -1282,7 +1282,7 @@ def get_ai_video_status(
             if not bool(raw_data.get('timed_out_refunded', False)):
                 charged_credits = int(raw_data.get('applied_credits') or 0)
                 if charged_credits > 0:
-                    CreditService(db).top_up_credits(
+                    CreditService().top_up_credits(
                         user_id=user_id,
                         credits=charged_credits,
                         metadata={'refund_for': 'video_create_timed_out', 'video_id': video_id},
@@ -1585,12 +1585,11 @@ def update_asset_tags(
 def generate_ai_image(
     payload: ImageGenerationCreateRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
     deduction_amount = 0
     try:
-        credit_service = CreditService(db)
+        credit_service = CreditService()
         estimate = credit_service.estimate('image_generate', payload.model_dump())
         remaining_credits: int | None = None
         if estimate.required_credits > 0:
@@ -1629,7 +1628,7 @@ def generate_ai_image(
             reference_urls=payload.reference_urls,
         )
         if deduction_amount > 0 and getattr(generation, 'status', None) == ImageGenerationStatus.failed:
-            CreditService(db).top_up_credits(
+            CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
                 metadata={
@@ -1641,7 +1640,7 @@ def generate_ai_image(
             deduction_amount = 0
         return _to_image_generation_response(
             generation,
-            db,
+            None,
             applied_credits=estimate.required_credits,
             remaining_credits=remaining_credits,
         )
@@ -1654,7 +1653,7 @@ def generate_ai_image(
         raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     except Exception as exc:
         if deduction_amount > 0:
-            CreditService(db).top_up_credits(
+            CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
                 metadata={'refund_for': 'image_generate_error', 'model_key': payload.model_key},
@@ -1673,9 +1672,8 @@ def generate_ai_image(
 def enhance_ai_image_prompt(
     payload: ImagePromptEnhanceRequest,
     _: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
     return ImagePromptEnhanceResponse(prompt=service.enhance_prompt(payload.prompt, payload.model_key))
 
 
@@ -1683,11 +1681,10 @@ def enhance_ai_image_prompt(
 def apply_ai_image_action(
     payload: ImageActionRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
     try:
-        credit_service = CreditService(db)
+        credit_service = CreditService()
         estimate = credit_service.estimate('image_action', payload.model_dump())
         if estimate.required_credits > 0:
             credit_service.deduct_credits(
@@ -1725,7 +1722,7 @@ def apply_ai_image_action(
         raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
     return ImageActionResponse(
         action_type=payload.action_type,
-        items=[_to_image_generation_response(item, db) for item in results],
+        items=[_to_image_generation_response(item, None) for item in results],
     )
 
 
@@ -1734,17 +1731,16 @@ def apply_ai_image_action_legacy(
     image_id: str,
     payload: dict,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     action_type = str(payload.get('action') or payload.get('action_type') or '').strip()
     if not action_type:
         raise HTTPException(status_code=422, detail='action is required')
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
     try:
         results = service.apply_action(user_id=user_id, generation_id=image_id, action=action_type)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _to_image_generation_response(results[0], db)
+    return _to_image_generation_response(results[0], None)
 
 
 @router.get('/api/influencer/personas', response_model=list[InfluencerPersonaResponse])
