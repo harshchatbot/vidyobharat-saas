@@ -1327,9 +1327,8 @@ def get_ai_video_status(
 @router.get('/ai/image/models', response_model=list[ImageModelResponse])
 def list_ai_image_models(
     _: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
     return [
         ImageModelResponse(
             key=model.key,
@@ -1348,9 +1347,9 @@ def list_ai_image_models(
 @router.get('/ai/images', response_model=list[ImageGenerationResponse])
 def list_ai_images(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = ImageGenerationService(db)
+    service = ImageGenerationService(None)
+    db = None
     items: list[ImageGenerationResponse] = []
     for item in service.list_user_images(user_id):
         try:
@@ -1363,9 +1362,8 @@ def list_ai_images(
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
 def list_ai_image_inspiration(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = InspirationService(db)
+    service = InspirationService(None)
     result: list[InspirationImageResponse] = []
     for item in service.list_image_inspiration(viewer_user_id=user_id):
         try:
@@ -1382,9 +1380,8 @@ def list_ai_image_inspiration(
 @router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
 def list_ai_video_inspiration(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = InspirationService(db)
+    service = InspirationService(None)
     result: list[InspirationVideoResponse] = []
     for item in service.list_video_inspiration(viewer_user_id=user_id):
         try:
@@ -1399,10 +1396,8 @@ def list_ai_video_inspiration(
 
 
 @router.get('/public/images/inspiration', response_model=list[InspirationImageResponse])
-def list_public_image_inspiration(
-    db: Session = Depends(get_db),
-):
-    service = InspirationService(db)
+def list_public_image_inspiration():
+    service = InspirationService(None)
     result: list[InspirationImageResponse] = []
     for item in service.list_image_inspiration(viewer_user_id='public'):
         try:
@@ -1417,10 +1412,8 @@ def list_public_image_inspiration(
 
 
 @router.get('/public/videos/inspiration', response_model=list[InspirationVideoResponse])
-def list_public_video_inspiration(
-    db: Session = Depends(get_db),
-):
-    service = InspirationService(db)
+def list_public_video_inspiration():
+    service = InspirationService(None)
     result: list[InspirationVideoResponse] = []
     for item in service.list_video_inspiration(viewer_user_id='public'):
         try:
@@ -2257,12 +2250,11 @@ def delete_upload(
 
 @router.get('/videos', response_model=list[VideoResponse])
 def list_videos(
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = VideoService(db)
+    service = VideoService(None)
     videos = service.list_videos(user_id)
-    return [_to_video_response(video, db) for video in videos]
+    return [_to_video_response(video, None) for video in videos]
 
 
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])
