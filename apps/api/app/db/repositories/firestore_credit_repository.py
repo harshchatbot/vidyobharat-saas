@@ -81,10 +81,10 @@ class FirestoreCreditRepository:
         return [self._to_wallet(doc.to_dict() or {}) for doc in self.wallets.stream()]
 
     def list_history(self, user_id: str, limit: int = 100) -> list[FirestoreCreditTransaction]:
-        rows = list(
-            self.transactions.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit).stream()
-        )
-        return [self._to_transaction(doc.to_dict() or {}) for doc in rows]
+        rows = list(self.transactions.where('user_id', '==', user_id).stream())
+        items = [self._to_transaction(doc.to_dict() or {}) for doc in rows]
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items[:limit]
 
     def get_transaction_by_idempotency_key(self, idempotency_key: str) -> FirestoreCreditTransaction | None:
         rows = list(self.transactions.where('idempotency_key', '==', idempotency_key).limit(1).stream())
