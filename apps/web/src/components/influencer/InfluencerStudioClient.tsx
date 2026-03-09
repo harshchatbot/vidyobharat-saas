@@ -177,6 +177,20 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   const canGenerateImage = Boolean(
     selectedPersonaId && hasReferenceImage && (selectedPose !== 'custom' || customPose.trim()),
   );
+  const canGenerateContent = Boolean(selectedPersonaId && contentIntent.trim());
+  const canSaveCustomScene = Boolean(customSceneLabel.trim() && customSceneEnvironment.trim());
+  const imageFlowStepClass = (state: 'active' | 'ready' | 'pending') => {
+    if (state === 'active') return 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.1)]';
+    if (state === 'ready') return 'border-[hsl(var(--color-success)/0.35)] bg-[hsl(var(--color-success)/0.08)]';
+    return 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.58)]';
+  };
+  const uploadStepState: 'active' | 'ready' | 'pending' = !selectedPersonaId || !hasReferenceImage ? 'active' : 'ready';
+  const lockStepState: 'active' | 'ready' | 'pending' = hasReferenceImage && !selectedPersona?.character_locked
+    ? 'active'
+    : selectedPersona?.character_locked
+      ? 'ready'
+      : 'pending';
+  const generateStepState: 'active' | 'ready' | 'pending' = canGenerateImage ? 'active' : 'pending';
   const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(
     [
       {
@@ -790,8 +804,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     <option value="youtube">YouTube</option>
                   </Dropdown>
                 </div>
-                <Card className="px-4 py-3 text-sm">
-                  <div className="font-semibold text-text">Generate Content</div>
+                <Card className={`px-4 py-3 text-sm ${canGenerateContent ? 'border-[hsl(var(--color-success)/0.28)]' : 'border-[hsl(var(--color-border))]'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-semibold text-text">Generate Content</div>
+                    {canGenerateContent ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Needs brief</Badge>}
+                  </div>
                   <div className="mt-1 text-muted">
                     {contentEstimate ? `${contentEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}
                   </div>
@@ -806,6 +823,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null}
             {!estimateError && isUsingFallback ? (
               <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
+            ) : null}
+            {!canGenerateContent ? (
+              <p className="text-xs text-muted">Add a content brief and select a persona to unlock content generation.</p>
             ) : null}
 
             {contentResult ? (
@@ -839,6 +859,38 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           description="Upload a base face, lock the identity, then generate pose and scene variations without changing the character."
           icon={<ImageIcon className="h-5 w-5" />}
         >
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(uploadStepState)}`}>
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline">1 Upload</Badge>
+                {hasReferenceImage ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Required</Badge>}
+              </div>
+              <p className="mt-3 text-sm font-semibold text-text">Base reference</p>
+              <p className="mt-1 text-xs text-muted">Upload the anchor portrait that locks the face and identity.</p>
+            </div>
+            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(lockStepState)}`}>
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline">2 Lock</Badge>
+                {selectedPersona?.character_locked ? (
+                  <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Locked</Badge>
+                ) : canLockIdentity ? (
+                  <Badge variant="warning">Next</Badge>
+                ) : (
+                  <Badge variant="outline">Waiting</Badge>
+                )}
+              </div>
+              <p className="mt-3 text-sm font-semibold text-text">Identity freeze</p>
+              <p className="mt-1 text-xs text-muted">Freeze facial structure before changing pose, scene, or styling.</p>
+            </div>
+            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(generateStepState)}`}>
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline">3 Generate</Badge>
+                {canGenerateImage ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Waiting</Badge>}
+              </div>
+              <p className="mt-3 text-sm font-semibold text-text">Pose + scene render</p>
+              <p className="mt-1 text-xs text-muted">Use the locked identity to create consistent image variations.</p>
+            </div>
+          </div>
           <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
             <div className="space-y-4">
               <Card className="overflow-hidden p-0">
@@ -1120,7 +1172,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             These presets define the background, lighting, and overall scene mood behind the influencer. Identity remains locked separately through the reference image and character memory.
           </div>
 
-          <div className="mb-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4">
+          <div className={`mb-4 rounded-[var(--radius-md)] border bg-[hsl(var(--color-surface))] p-4 ${canSaveCustomScene ? 'border-[hsl(var(--color-success)/0.3)]' : 'border-[hsl(var(--color-border))]'}`}>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-text">Save custom scene</p>
+                <p className="mt-1 text-xs text-muted">Create reusable scene presets with the same readiness language used elsewhere in the studio.</p>
+              </div>
+              {canSaveCustomScene ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Needs name + environment</Badge>}
+            </div>
             <div className="grid gap-4 xl:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Scene name</label>
@@ -1175,6 +1234,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </Button>
               </div>
             </div>
+            {!canSaveCustomScene ? (
+              <p className="mt-4 text-xs text-muted">Add at least a scene name and environment to save a reusable preset.</p>
+            ) : null}
           </div>
 
           <div className="max-h-[32rem] overflow-y-auto pr-1">
