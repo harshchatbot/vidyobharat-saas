@@ -1431,9 +1431,8 @@ def list_public_video_inspiration():
 def publish_to_inspiration(
     payload: InspirationPublishRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = InspirationService(db)
+    service = InspirationService(None)
     try:
         result = service.publish_asset(
             content_type=payload.content_type,
@@ -1443,6 +1442,19 @@ def publish_to_inspiration(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'inspiration_publish_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'asset_id': payload.asset_id,
+                'content_type': payload.content_type,
+                'publish': payload.publish,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to update inspiration publish status') from exc
     return InspirationPublishResponse(
         asset_id=result.asset_id,
         content_type=result.content_type,
@@ -1457,9 +1469,8 @@ def publish_to_inspiration(
 def like_inspiration_asset(
     payload: InspirationLikeRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = InspirationService(db)
+    service = InspirationService(None)
     try:
         result = service.toggle_like(
             content_type=payload.content_type,
@@ -1469,6 +1480,19 @@ def like_inspiration_asset(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'inspiration_like_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'asset_id': payload.asset_id,
+                'content_type': payload.content_type,
+                'liked': payload.liked,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to update inspiration like status') from exc
     return InspirationLikeResponse(
         asset_id=result.asset_id,
         content_type=result.content_type,
