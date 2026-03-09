@@ -1152,8 +1152,20 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 <Card className="overflow-hidden p-0">
                   <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="w-full object-cover" />
                   <div className="px-4 py-4 text-sm">
-                    <div className="font-semibold text-text">Latest influencer render</div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="font-semibold text-text">Latest influencer render</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="secondary" onClick={onGenerateImage} disabled={generatingImage}>
+                          {generatingImage ? 'Retrying...' : 'Retry'}
+                        </Button>
+                      </div>
+                    </div>
                     <p className="mt-1 text-muted">{generatedImage.prompt}</p>
+                    {selectedImageModel === 'gemini_flash_image' ? (
+                      <p className="mt-3 text-xs text-muted">
+                        Gemini 3.1 Flash Image is best for fast drafts. For stronger wardrobe realism and stricter styling consistency, retry with Gemini 3 Pro Image or OpenAI Image.
+                      </p>
+                    ) : null}
                   </div>
                 </Card>
               ) : null}

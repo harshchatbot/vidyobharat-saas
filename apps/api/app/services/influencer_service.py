@@ -363,6 +363,15 @@ class InfluencerService:
             f"Mood: {scene.get('mood') or 'confident and polished'}. "
         )
         negative_constraints = scene.get('negative_constraints') or 'Do not alter face, hairstyle, or core identity.'
+        wardrobe_clause = (
+            'Wardrobe must be one coherent complete look only. '
+            'Do not mix two different fashion directions in one outfit. '
+            'Do not create half-saree half-corporate hybrids, partial drapes, broken layering, or mismatched cultural/business clothing combinations. '
+            'Use the visual description and reference image as the source of truth for wardrobe language. '
+            'If the persona visual identity implies ethnic wear, render one complete believable ethnic outfit. '
+            'If the scene genuinely calls for corporate styling, render one complete believable corporate outfit only if that direction is explicitly supported by the visual description. '
+            'Prefer outfit realism, complete draping, and natural garment construction over experimental styling. '
+        )
         return (
             f'{persona.system_prompt_template or ""}\n'
             f'Create a consistent influencer image of {persona.name}. '
@@ -370,8 +379,10 @@ class InfluencerService:
             f'{scene_block}'
             'Change only pose, body language, background, lighting, and scene mood as required. '
             f'{lock_clause}'
+            f'Visual description source of truth: {persona.visual_description}. '
+            f'{wardrobe_clause}'
             f'{negative_constraints} '
-            'Keep clothing style consistent unless scene requires a believable variation.'
+            'Keep clothing style fully consistent and believable.'
         ).strip()
 
     def _resolve_scene(self, scene: str, *, user_id: str, persona_id: str) -> dict[str, str | None]:
