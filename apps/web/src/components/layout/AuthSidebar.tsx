@@ -37,7 +37,7 @@ const railItems: RailItem[] = [
   { id: 'home', label: 'Home', href: '/dashboard', icon: Home },
   { id: 'create', label: 'Create', href: '/create/choose', icon: Sparkles },
   { id: 'avatars', label: 'Avatars', href: '/create/avatar', icon: Clapperboard },
-  { id: 'templates', label: 'Templates', href: '/create/template', icon: LayoutTemplate },
+  { id: 'templates', label: 'Templates', href: '/templates', icon: LayoutTemplate },
   { id: 'projects', label: 'Projects', href: '/projects', icon: FolderKanban },
   { id: 'renders', label: 'Renders', href: '/renders', icon: Video },
   { id: 'settings', label: 'Settings', href: '/billing', icon: Settings },
@@ -59,6 +59,7 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
       { label: 'Choose Base', href: '/create/choose' },
       { label: 'Avatar Select', href: '/create/avatar' },
       { label: 'Template Select', href: '/create/template' },
+      { label: 'Template Browser', href: '/templates' },
       { label: 'Script', href: '/create/script' },
       { label: 'Customize', href: '/create/customize' },
       { label: 'Confirm', href: '/create/confirm' },
@@ -75,7 +76,8 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
   templates: {
     title: 'Templates',
     links: [
-      { label: 'Browse Templates', href: '/create/template' },
+      { label: 'Browse Templates', href: '/templates' },
+      { label: 'Legacy Flow', href: '/create/template' },
       { label: 'Script Step', href: '/create/script' },
       { label: 'Customize', href: '/create/customize' },
     ],
@@ -109,7 +111,7 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
 function matchActiveRail(pathname: string): string {
   if (pathname === '/dashboard') return 'home';
   if (pathname.startsWith('/create/avatar')) return 'avatars';
-  if (pathname.startsWith('/create/template')) return 'templates';
+  if (pathname.startsWith('/templates') || pathname.startsWith('/admin/templates') || pathname.startsWith('/create/template')) return 'templates';
   if (pathname.startsWith('/create/')) return 'create';
   if (pathname.startsWith('/projects') || pathname.startsWith('/editor/')) return 'projects';
   if (pathname.startsWith('/renders/')) return 'renders';

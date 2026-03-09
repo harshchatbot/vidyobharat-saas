@@ -136,3 +136,27 @@ async def get_user_id(
         return user.id
 
     raise HTTPException(status_code=401, detail='Authentication required')
+
+
+async def require_admin_user(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> str:
+    settings = get_settings()
+    claims = getattr(request.state, 'user_claims', {}) if hasattr(request.state, 'user_claims') else {}
+    email = claims.get('email') if isinstance(claims, dict) else None
+    admin_ids = set(settings.admin_user_ids_list)
+    admin_emails = set(settings.admin_user_emails_list)
+
+    # Placeholder guard for future role-based admin auth.
+    # If no explicit admin list is configured, allow authenticated users so admin tooling
+    # remains usable in development/staging without a separate role system.
+    if not admin_ids and not admin_emails:
+        logger.warning('admin_guard_open_mode_enabled')
+        return user_id
+
+    if user_id in admin_ids:
+        return user_id
+    if isinstance(email, str) and email.lower() in admin_emails:
+        return user_id
+    raise HTTPException(status_code=403, detail='Admin access required')

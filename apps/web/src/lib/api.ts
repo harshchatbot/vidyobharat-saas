@@ -41,6 +41,8 @@ import type {
   ScriptResponse,
   TextResponse,
   Template,
+  TemplateGenerateRequest,
+  TemplateGenerateResponse,
   TTSCatalogResponse,
   TTSPreviewRequest,
   TTSPreviewResponse,
@@ -246,6 +248,73 @@ export const api = {
     if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return request<Template[]>(`/templates${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  listUnifiedTemplates(
+    userId: string,
+    params?: {
+      type?: 'image' | 'video';
+      category?: string;
+      trending?: boolean;
+      featured?: boolean;
+      active?: boolean;
+      aspect_ratio?: string;
+      search?: string;
+    },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.type) query.set('type', params.type);
+    if (params?.category) query.set('category', params.category);
+    if (params?.trending !== undefined) query.set('trending', String(params.trending));
+    if (params?.featured !== undefined) query.set('featured', String(params.featured));
+    if (params?.active !== undefined) query.set('active', String(params.active));
+    if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
+    if (params?.search) query.set('search', params.search);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<Template[]>(`/api/templates${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  getTemplate(templateId: string, userId: string) {
+    return request<Template>(`/api/templates/${templateId}`, {}, { userId, cache: 'no-store' });
+  },
+  generateFromTemplate(payload: TemplateGenerateRequest, userId: string) {
+    return request<TemplateGenerateResponse>('/api/templates/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/api/credits/wallet', '/ai/images', '/videos', '/assets/search', '/assets/tags']);
+      return result;
+    });
+  },
+  createAdminTemplate(payload: Template, userId: string) {
+    return request<Template>('/api/admin/templates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  updateAdminTemplate(templateId: string, payload: Template, userId: string) {
+    return request<Template>(`/api/admin/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  updateAdminTemplateStatus(templateId: string, payload: { active: boolean; trending?: boolean; featured?: boolean }, userId: string) {
+    return request<Template>(`/api/admin/templates/${templateId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
+  },
+  deleteAdminTemplate(templateId: string, userId: string) {
+    return request<Template>(`/api/admin/templates/${templateId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({}),
+    }, { userId, cache: 'no-store' });
+  },
+  uploadTemplatePreview(file: File, userId: string) {
+    const body = new FormData();
+    body.append('file', file);
+    return request<{ url: string }>('/api/admin/templates/upload-preview', {
+      method: 'POST',
+      body,
+    }, { userId, cache: 'no-store' });
   },
   createProject(payload: {
     user_id: string;

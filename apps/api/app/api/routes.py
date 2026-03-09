@@ -10,7 +10,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_user_id
+from app.api.deps import get_user_id, require_admin_user
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
 from app.db.session import get_db
@@ -43,6 +43,13 @@ from app.schemas.asset import (
 )
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, TemplateResponse
+from app.schemas.template_management import (
+    TemplateGenerateRequest,
+    TemplateGenerateResponse,
+    TemplateStatusUpdateRequest,
+    TemplateUpsertRequest,
+    UnifiedTemplateResponse,
+)
 from app.schemas.credit import (
     CreditTopUpOrderRequest,
     CreditTopUpOrderResponse,
@@ -99,6 +106,7 @@ from app.services.inspiration_service import InspirationService
 from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
+from app.services.template_management_service import TemplateManagementService
 from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
@@ -2077,6 +2085,139 @@ def list_templates(
 ):
     service = TemplateService()
     return service.list_templates(search=search, category=category, aspect_ratio=aspect_ratio)
+
+
+@router.get('/api/templates', response_model=list[UnifiedTemplateResponse])
+def list_unified_templates(
+    type: str | None = None,
+    category: str | None = None,
+    trending: bool | None = None,
+    featured: bool | None = None,
+    active: bool | None = True,
+    aspect_ratio: str | None = None,
+    search: str | None = None,
+    _: str = Depends(get_user_id),
+):
+    service = TemplateManagementService()
+    return service.list_templates(
+        type=type,
+        category=category,
+        trending=trending,
+        featured=featured,
+        active=active,
+        aspect_ratio=aspect_ratio,
+        search=search,
+    )
+
+
+@router.get('/api/templates/{template_id}', response_model=UnifiedTemplateResponse)
+def get_unified_template(
+    template_id: str,
+    _: str = Depends(get_user_id),
+):
+    service = TemplateManagementService()
+    template = service.get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail='Template not found')
+    return template
+
+
+@router.post('/api/templates/generate', response_model=TemplateGenerateResponse)
+def generate_from_template(
+    payload: TemplateGenerateRequest,
+    user_id: str = Depends(get_user_id),
+):
+    service = TemplateManagementService()
+    try:
+        return service.generate_from_template(user_id=user_id, payload=payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+        ) from exc
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
+    except ProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'template_generate_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'template_id': payload.template_id, 'error': str(exc)},
+        )
+        detail = str(exc).strip() or 'Failed to generate from template'
+        if settings.env != 'development':
+            detail = 'Failed to generate from template'
+        raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.post('/api/admin/templates', response_model=UnifiedTemplateResponse)
+def create_template(
+    payload: TemplateUpsertRequest,
+    admin_user_id: str = Depends(require_admin_user),
+):
+    service = TemplateManagementService()
+    return service.create_template(payload, created_by=admin_user_id)
+
+
+@router.put('/api/admin/templates/{template_id}', response_model=UnifiedTemplateResponse)
+def update_template(
+    template_id: str,
+    payload: TemplateUpsertRequest,
+    admin_user_id: str = Depends(require_admin_user),
+):
+    service = TemplateManagementService()
+    try:
+        return service.update_template(template_id, payload, updated_by=admin_user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.patch('/api/admin/templates/{template_id}/status', response_model=UnifiedTemplateResponse)
+def update_template_status(
+    template_id: str,
+    payload: TemplateStatusUpdateRequest,
+    _: str = Depends(require_admin_user),
+):
+    service = TemplateManagementService()
+    try:
+        return service.update_status(
+            template_id,
+            active=payload.active,
+            trending=payload.trending,
+            featured=payload.featured,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete('/api/admin/templates/{template_id}', response_model=UnifiedTemplateResponse)
+def delete_template(
+    template_id: str,
+    _: str = Depends(require_admin_user),
+):
+    service = TemplateManagementService()
+    try:
+        return service.delete_template(template_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post('/api/admin/templates/upload-preview')
+async def upload_template_preview(
+    file: UploadFile = File(...),
+    _: str = Depends(require_admin_user),
+):
+    service = TemplateManagementService()
+    try:
+        url = service.upload_preview_media(file=file)
+        return {'url': url}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('template_preview_upload_failed', extra={'request_id': get_request_id(), 'error': str(exc)})
+        raise HTTPException(status_code=500, detail='Failed to upload template preview') from exc
 
 
 @router.post('/projects', response_model=ProjectResponse)

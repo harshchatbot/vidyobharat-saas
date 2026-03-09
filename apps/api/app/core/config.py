@@ -80,10 +80,20 @@ class Settings(BaseSettings):
     stripe_api_base: str = 'https://api.stripe.com/v1'
     geoip_api_base: str = 'https://ipapi.co'
     pricing_default_country: str = 'IN'
+    admin_user_ids: str = ''
+    admin_user_emails: str = ''
 
     @property
     def allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins.split(',') if origin.strip()]
+
+    @property
+    def admin_user_ids_list(self) -> list[str]:
+        return [value.strip() for value in self.admin_user_ids.split(',') if value.strip()]
+
+    @property
+    def admin_user_emails_list(self) -> list[str]:
+        return [value.strip().lower() for value in self.admin_user_emails.split(',') if value.strip()]
 
 
 @lru_cache(maxsize=1)

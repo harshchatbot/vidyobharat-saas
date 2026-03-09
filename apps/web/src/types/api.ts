@@ -42,6 +42,77 @@ export type Template = {
   category: string;
   aspect_ratio: '9:16' | '16:9' | string;
   thumbnail_url: string;
+  type?: 'video' | 'image';
+  subcategory?: string | null;
+  slug?: string | null;
+  description?: string | null;
+  short_description?: string | null;
+  preview_image_url?: string | null;
+  preview_video_url?: string | null;
+  visual_prompt?: string | null;
+  inputs?: TemplateInputField[];
+  script_hint?: string | null;
+  topic_hint?: string | null;
+  prompt_template?: string | null;
+  active?: boolean;
+  trending?: boolean;
+  featured?: boolean;
+  order?: number;
+  created_by?: string | null;
+  source?: string | null;
+  generation_defaults?: TemplateGenerationDefaults;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TemplateInputOption = {
+  label?: string | null;
+  value: string;
+};
+
+export type TemplateInputField = {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'number';
+  required: boolean;
+  placeholder?: string | null;
+  options?: Array<TemplateInputOption | string>;
+};
+
+export type TemplateGenerationDefaults = {
+  model_key?: string | null;
+  aspect_ratio?: string | null;
+  resolution?: string | null;
+  voice?: string | null;
+  language?: string | null;
+  duration_seconds?: number | null;
+  quality?: string | null;
+};
+
+export type TemplateGenerateRequest = {
+  templateId: string;
+  inputs: Record<string, string | number | boolean | null>;
+  modelKey?: string;
+  aspectRatio?: string;
+  resolution?: string;
+  language?: string;
+  voice?: string;
+  durationSeconds?: number;
+  quality?: string;
+};
+
+export type TemplateGenerateResponse = {
+  templateId: string;
+  contentType: 'video' | 'image';
+  assetId: string;
+  status: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  appliedCredits: number;
+  remainingCredits?: number | null;
+  provider?: string | null;
+  modelKey?: string | null;
 };
 
 export type ProjectAsset = {
