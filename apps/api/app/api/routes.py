@@ -1756,11 +1756,10 @@ def apply_ai_image_action_legacy(
 
 @router.get('/api/influencer/personas', response_model=list[InfluencerPersonaResponse])
 def list_influencer_personas(
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     try:
-        service = InfluencerService(db)
+        service = InfluencerService(None)
         return [_to_influencer_persona_response(item) for item in service.list_personas(user_id)]
     except Exception as exc:
         logger.exception(
@@ -1773,20 +1772,25 @@ def list_influencer_personas(
 @router.post('/api/influencer/personas', response_model=InfluencerPersonaResponse, status_code=status.HTTP_201_CREATED)
 def create_influencer_persona(
     payload: InfluencerPersonaCreateRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    persona = InfluencerService(db).create_persona(user_id, **payload.model_dump())
+    try:
+        persona = InfluencerService(None).create_persona(user_id, **payload.model_dump())
+    except Exception as exc:
+        logger.exception(
+            'influencer_persona_create_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'error': str(exc)},
+        )
+        raise HTTPException(status_code=500, detail='Failed to save persona') from exc
     return _to_influencer_persona_response(persona)
 
 
 @router.get('/api/influencer/personas/{persona_id}', response_model=InfluencerPersonaResponse)
 def get_influencer_persona(
     persona_id: str,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = InfluencerService(db)
+    service = InfluencerService(None)
     try:
         persona = service.get_persona(persona_id, user_id)
     except LookupError as exc:
@@ -1798,14 +1802,19 @@ def get_influencer_persona(
 def update_influencer_persona(
     persona_id: str,
     payload: InfluencerPersonaUpdateRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = InfluencerService(db)
+    service = InfluencerService(None)
     try:
         persona = service.update_persona(persona_id, user_id, **payload.model_dump())
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception(
+            'influencer_persona_update_failed',
+            extra={'request_id': get_request_id(), 'user_id': user_id, 'persona_id': persona_id, 'error': str(exc)},
+        )
+        raise HTTPException(status_code=500, detail='Failed to save persona') from exc
     return _to_influencer_persona_response(persona)
 
 
@@ -1813,10 +1822,9 @@ def update_influencer_persona(
 async def upload_influencer_reference(
     persona_id: str,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = InfluencerService(db)
+    service = InfluencerService(None)
     try:
         persona = service.upload_reference_image(
             persona_id,
@@ -1835,11 +1843,10 @@ async def upload_influencer_reference(
 @router.post('/api/influencer/personas/{persona_id}/lock', response_model=InfluencerReferenceLockResponse)
 def lock_influencer_reference(
     persona_id: str,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    credit_service = CreditService(db)
-    service = InfluencerService(db)
+    credit_service = CreditService()
+    service = InfluencerService(None)
     try:
         persona = service.get_persona(persona_id, user_id)
         if not persona.reference_image_url:
@@ -1877,22 +1884,21 @@ def lock_influencer_reference(
 
 
 @router.get('/api/influencer/poses', response_model=list[InfluencerPoseOptionResponse])
-def list_influencer_poses(user_id: str = Depends(get_user_id), db: Session = Depends(get_db)):
-    return [InfluencerPoseOptionResponse(**item) for item in InfluencerService(db).list_pose_options()]
+def list_influencer_poses(user_id: str = Depends(get_user_id)):
+    return [InfluencerPoseOptionResponse(**item) for item in InfluencerService(None).list_pose_options()]
 
 
 @router.get('/api/influencer/scenes', response_model=list[InfluencerScenePresetResponse])
-def list_influencer_scenes(persona_id: str | None = None, user_id: str = Depends(get_user_id), db: Session = Depends(get_db)):
-    return [InfluencerScenePresetResponse(**item) for item in InfluencerService(db).list_scene_library(user_id, persona_id)]
+def list_influencer_scenes(persona_id: str | None = None, user_id: str = Depends(get_user_id)):
+    return [InfluencerScenePresetResponse(**item) for item in InfluencerService(None).list_scene_library(user_id, persona_id)]
 
 
 @router.post('/api/influencer/scenes', response_model=InfluencerScenePresetResponse, status_code=status.HTTP_201_CREATED)
 def create_influencer_scene(
     payload: InfluencerScenePresetCreateRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    scene = InfluencerService(db).create_scene_preset(
+    scene = InfluencerService(None).create_scene_preset(
         user_id,
         persona_id=payload.persona_id,
         label=payload.label,
@@ -1909,10 +1915,9 @@ def create_influencer_scene(
 @router.post('/api/influencer/generate', response_model=InfluencerContentResponse)
 def generate_influencer_content(
     payload: InfluencerContentGenerateRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    credit_service = CreditService(db)
+    credit_service = CreditService()
     try:
         estimate = credit_service.estimate('influencer_content_generate', {})
         applied_credits = 0
@@ -1936,7 +1941,7 @@ def generate_influencer_content(
             )
             applied_credits = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
-        result = InfluencerService(db).generate_content(
+        result = InfluencerService(None).generate_content(
             payload.persona_id,
             user_id,
             intent=payload.intent,
@@ -1959,10 +1964,9 @@ def generate_influencer_content(
 @router.post('/api/influencer/generate-image', response_model=ImageGenerationResponse)
 def generate_influencer_image(
     payload: InfluencerImageGenerateRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    credit_service = CreditService(db)
+    credit_service = CreditService()
     estimate_payload = {
         'model': payload.model_key,
         'resolution': payload.resolution,
@@ -1998,7 +2002,7 @@ def generate_influencer_image(
             )
             applied_credits = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
-        image = InfluencerService(db).generate_consistent_image(
+        image = InfluencerService(None).generate_consistent_image(
             payload.persona_id,
             user_id,
             pose=payload.pose,
@@ -2017,7 +2021,7 @@ def generate_influencer_image(
             status_code=402,
             detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits', 'required': exc.required, 'available': exc.available},
         ) from exc
-    return _to_image_generation_response(image, db, applied_credits=applied_credits, remaining_credits=remaining_credits)
+    return _to_image_generation_response(image, None, applied_credits=applied_credits, remaining_credits=remaining_credits)
 
 
 @router.post('/auth/mock-login', response_model=MockLoginResponse)
