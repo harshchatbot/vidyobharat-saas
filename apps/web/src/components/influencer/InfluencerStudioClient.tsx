@@ -581,7 +581,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <LoadingOverlay
         open={loading}
         title="Preparing Influencer Studio"
@@ -592,7 +592,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
 
       
 
-      <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-2">
+      <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-1.5 sm:p-2">
         {tabItems.map((item) => (
           <button
             key={item.key}
@@ -609,8 +609,8 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         ))}
       </div>
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
-        <div className="space-y-6">
+      <div className="grid gap-5 xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
+        <div className="space-y-5 sm:space-y-6">
           {personaError ? (
             <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
               {personaError}
@@ -628,7 +628,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null
           }
         >
-          <div className="grid gap-5 xl:grid-cols-[250px_1fr]">
+          <div className="grid gap-5 2xl:grid-cols-[250px_1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-text">Saved personas</h3>
@@ -636,7 +636,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   New
                 </Button>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 xl:grid xl:max-h-[18rem] xl:grid-cols-1 xl:overflow-visible xl:pb-0">
+              <div className="flex gap-2 overflow-x-auto pb-1 2xl:grid 2xl:max-h-[18rem] 2xl:grid-cols-1 2xl:overflow-visible 2xl:pb-0">
                 {personas.length === 0 ? (
                   <div className="w-full rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-4 py-4 text-sm text-muted">No persona saved yet.</div>
                 ) : (
@@ -645,7 +645,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       key={persona.id}
                       type="button"
                       onClick={() => syncDraftFromPersona(persona)}
-                      className={`min-w-[180px] rounded-[18px] border px-4 py-3 text-left transition xl:min-w-0 ${
+                      className={`min-w-[180px] rounded-[18px] border px-4 py-3 text-left transition 2xl:min-w-0 ${
                         selectedPersonaId === persona.id
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)]'
@@ -783,7 +783,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           icon={<Sparkles className="h-5 w-5" />}
         >
           <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+            <div className="grid gap-4 xl:grid-cols-[1fr_220px]">
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Intent</label>
                 <Textarea
@@ -859,7 +859,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           description="Upload a base face, lock the identity, then generate pose and scene variations without changing the character."
           icon={<ImageIcon className="h-5 w-5" />}
         >
-          <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <div className="mb-4 grid gap-3 lg:grid-cols-3">
             <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(uploadStepState)}`}>
               <div className="flex items-center justify-between gap-2">
                 <Badge variant="outline">1 Upload</Badge>
@@ -891,7 +891,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               <p className="mt-1 text-xs text-muted">Use the locked identity to create consistent image variations.</p>
             </div>
           </div>
-          <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+          <div className="grid gap-6 2xl:grid-cols-[320px_1fr]">
             <div className="space-y-4">
               <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
                 <div className="aspect-[4/5] bg-[hsl(var(--color-bg))]">
@@ -949,7 +949,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Pose</label>
                   <Dropdown value={selectedPose} onChange={(e) => setSelectedPose(e.target.value)}>
@@ -1192,7 +1192,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               </div>
               {canSaveCustomScene ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Needs name + environment</Badge>}
             </div>
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4 2xl:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Scene name</label>
                 <Input
@@ -1321,7 +1321,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           </div>
         </div>
 
-        <div className="space-y-6 xl:sticky xl:top-24">
+        <div className="space-y-5 sm:space-y-6 2xl:sticky 2xl:top-24">
           <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-5">
             <div className="flex items-center justify-between gap-3">
               <div>

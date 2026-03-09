@@ -845,7 +845,7 @@ export function ImageStudioClient({ userId }: Props) {
       description=""
       progress={submitProgress}
     />
-    <div className="space-y-7">
+    <div className="space-y-6 sm:space-y-7">
  {/*     <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -874,8 +874,8 @@ export function ImageStudioClient({ userId }: Props) {
       </section>
       */}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
-        <div className="xl:sticky xl:top-24">
+      <div className="grid gap-6 2xl:grid-cols-[420px_minmax(0,1fr)] 2xl:items-start">
+        <div className="2xl:sticky 2xl:top-24">
           <div className="space-y-5 rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
               <button
@@ -1187,7 +1187,7 @@ export function ImageStudioClient({ userId }: Props) {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-3">
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
                 <p className="mt-1 text-sm font-semibold text-text">
@@ -1380,7 +1380,7 @@ export function ImageStudioClient({ userId }: Props) {
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="grid gap-6 2xl:grid-cols-[1.02fr_0.98fr]">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
               {activeTemplate?.thumbnail_url ? (

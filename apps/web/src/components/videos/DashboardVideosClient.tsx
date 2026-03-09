@@ -577,7 +577,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               'radial-gradient(circle at top center, hsl(var(--color-accent) / 0.22), transparent 32%), radial-gradient(circle at 20% 80%, hsl(260 80% 62% / 0.18), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface) / 0.76), hsl(var(--color-elevated) / 0.73))',
           }}
         >
-          <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr] xl:items-end">
+          <div className="grid gap-6 2xl:grid-cols-[1.25fr_0.75fr] 2xl:items-end">
             <div className="space-y-4">
               <Badge className="bg-[hsl(var(--color-accent)/0.14)] text-text">Creator workspace</Badge>
               <div className="space-y-3">
@@ -594,7 +594,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 <Link href="/influencer"><Button variant="secondary" className="gap-2">AI Influencer <Sparkles className="h-4 w-4" /></Button></Link>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">All creations</p>
                 {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>}
@@ -891,7 +891,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         </Card>
 
         {creationsLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={`asset-skeleton-${index}`} className="h-64 animate-pulse rounded-[var(--radius-lg)] bg-[hsl(var(--color-border))]" />
             ))}
@@ -990,7 +990,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
-          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
             <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
               {isVideoInspiration(selectedInspirationItem) ? (
                 <video

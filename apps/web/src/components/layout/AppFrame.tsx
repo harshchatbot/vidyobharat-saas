@@ -162,7 +162,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         </aside>
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6 xl:px-8">
+          <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8">
             <div className="rangmanch-app-header mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <button
@@ -176,14 +176,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="xl:hidden">
                   <BrandLogo href="/dashboard" variant="mark" size="sm" />
                 </div>
-                <span className="hidden truncate font-heading text-2xl font-extrabold tracking-tight text-text sm:inline-block">{pageTitle}</span>
+                <span className="hidden truncate font-heading text-xl font-extrabold tracking-tight text-text md:inline-block xl:text-2xl">{pageTitle}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:block">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="hidden md:block">
                   <CreditChip />
                 </div>
-                <div className="hidden sm:block">
+                <div className="hidden md:block">
                   <ToggleTheme />
                 </div>
                 <div ref={accountMenuRef} className="relative">
@@ -201,8 +201,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         {displayName.slice(0, 1)}
                       </span>
                     )}
-                    <span className="hidden md:inline">{displayName}</span>
-                    <ChevronDown className="hidden h-4 w-4 text-muted sm:block" />
+                    <span className="hidden lg:inline">{displayName}</span>
+                    <ChevronDown className="hidden h-4 w-4 text-muted md:block" />
                   </button>
                   {accountMenuOpen ? (
                   <div className="absolute right-0 mt-2 w-64 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-1 shadow-soft">
@@ -228,7 +228,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <Link href="/settings" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <Settings className="h-4 w-4" /> Settings
                     </Link>
-                    <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 sm:hidden">
+                    <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 md:hidden">
                       <div className="flex items-center justify-between gap-3">
                         <CreditChip />
                         <ToggleTheme />
