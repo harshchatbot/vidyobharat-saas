@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 
 const modes = [
-  { label: 'Text to Video', icon: Sparkles },
-  { label: 'Image to Video', icon: ImageIcon },
+  { label: 'AI Image', icon: Sparkles },
+  { label: 'AI Video', icon: ImageIcon },
   { label: 'AI Influencer', icon: Wand2 },
 ];
 

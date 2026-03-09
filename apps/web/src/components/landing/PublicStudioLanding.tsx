@@ -194,8 +194,8 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
   );
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
-      <div className="flex min-h-screen">
+    <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
+      <div className="flex min-h-screen max-w-full overflow-x-clip">
         <StudioSidebar
           mobileOpen={mobileOpen}
           onOpenMobile={() => setMobileOpen(true)}
@@ -203,7 +203,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
           currentHash={currentHash}
         />
 
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
           <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col px-3 pb-10 sm:px-4 lg:px-6 lg:pb-12 xl:px-8 xl:pb-14">
             <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 xl:pt-6">
               <div className="hidden items-center justify-between gap-4 pb-5 xl:flex">
@@ -240,7 +240,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                     <div className="max-w-2xl space-y-5">
                       <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.54)] bg-[hsl(var(--color-bg)/0.22)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-text))] backdrop-blur-md">
                         <span className="inline-flex h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />
-                        Matte studio shell for AI video creation
+                        Make 'One Day' your 'Day One
                       </div>
                       <div className="space-y-3">
                         <h1 className="max-w-3xl font-heading text-[2.25rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-5xl xl:text-6xl">
