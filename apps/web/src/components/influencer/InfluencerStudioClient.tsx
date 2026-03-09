@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronRight, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
+import { Camera, ChevronRight, Download, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
@@ -117,6 +117,17 @@ function toAbsoluteUrl(url: string | null | undefined) {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   return `${API_URL}${url}`;
+}
+
+function downloadImage(url: string | null | undefined, fallbackName: string) {
+  const resolved = toAbsoluteUrl(url);
+  if (!resolved || typeof document === 'undefined') return;
+  const safeName = fallbackName.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'influencer-image';
+  const link = document.createElement('a');
+  link.href = `/api/download?url=${encodeURIComponent(resolved)}&filename=${encodeURIComponent(`${safeName}.png`)}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 export function InfluencerStudioClient({ userId }: { userId: string }) {
@@ -589,6 +600,20 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         stepLabel="Booting character consistency engine"
         accentLabel="Influencer Studio"
       />
+      <LoadingOverlay
+        open={generatingImage}
+        title="Generating influencer image"
+        description=""
+        stepLabel="Locking identity, pose, and scene consistency"
+        accentLabel="Influencer Studio"
+      />
+      <LoadingOverlay
+        open={generatingContent}
+        title="Generating influencer content"
+        description=""
+        stepLabel="Applying persona memory and platform voice"
+        accentLabel="Influencer Studio"
+      />
 
       
 
@@ -814,7 +839,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   </div>
                 </Card>
                 <Button type="button" onClick={onGenerateContent} disabled={generatingContent || !contentIntent.trim()}>
-                  {generatingContent ? 'Generating...' : `Generate Content · ${contentEstimate?.estimatedCredits ?? 0} credits`}
+                  {`Generate Content · ${contentEstimate?.estimatedCredits ?? 0} credits`}
                 </Button>
               </div>
             </div>
@@ -1132,7 +1157,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onClick={onGenerateImage}
                     disabled={generatingImage || !selectedPersonaId || (selectedPose === 'custom' && !customPose.trim())}
                   >
-                    {generatingImage ? 'Generating...' : `Generate Image · ${imageEstimate?.estimatedCredits ?? 0} credits`}
+                    {`Generate Image · ${imageEstimate?.estimatedCredits ?? 0} credits`}
                   </Button>
                 </div>
               </div>
@@ -1156,7 +1181,22 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       <div className="font-semibold text-text">Latest influencer render</div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button type="button" variant="secondary" onClick={onGenerateImage} disabled={generatingImage}>
-                          {generatingImage ? 'Retrying...' : 'Retry'}
+                          Retry
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => downloadImage(generatedImage.image_url, `${selectedPersona?.name || 'influencer'}-render`)}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => generatedImage?.image_url && window.open(toAbsoluteUrl(generatedImage.image_url) ?? generatedImage.image_url, '_blank', 'noopener,noreferrer')}
+                        >
+                          Open
                         </Button>
                       </div>
                     </div>

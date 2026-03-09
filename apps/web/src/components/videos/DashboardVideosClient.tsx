@@ -253,8 +253,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [imageInspiration, setImageInspiration] = useState<InspirationImage[]>([]);
   const [videoInspiration, setVideoInspiration] = useState<InspirationVideo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creationsLoading, setCreationsLoading] = useState(true);
-  const [communityLoading, setCommunityLoading] = useState(true);
+  const [imagesLoading, setImagesLoading] = useState(true);
+  const [videosLoading, setVideosLoading] = useState(true);
+  const [imageCommunityLoading, setImageCommunityLoading] = useState(true);
+  const [videoCommunityLoading, setVideoCommunityLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [communityError, setCommunityError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -267,18 +269,21 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
   const [likingAssetId, setLikingAssetId] = useState<string | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const creationsLoading = imagesLoading && videosLoading && allAssets.length === 0;
+  const communityLoading =
+    imageCommunityLoading && videoCommunityLoading && imageInspiration.length === 0 && videoInspiration.length === 0;
 
   useEffect(() => {
     let cancelled = false;
-    let creationPending = 2;
-    let communityPending = 2;
     let imageLoadFailed = false;
     let videoLoadFailed = false;
     let imageCommunityFailed = false;
     let videoCommunityFailed = false;
     setLoading(true);
-    setCreationsLoading(true);
-    setCommunityLoading(true);
+    setImagesLoading(true);
+    setVideosLoading(true);
+    setImageCommunityLoading(true);
+    setVideoCommunityLoading(true);
     setError(null);
     setCommunityError(null);
 
@@ -306,15 +311,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       })
       .finally(() => {
         if (cancelled) return;
-        creationPending -= 1;
         setLoading(false);
-        if (creationPending === 0) {
-          setCreationsLoading(false);
-          if (imageLoadFailed && videoLoadFailed) {
-            setAllAssets([]);
-            setAssets([]);
-            setError((current) => current ?? 'Failed to load creations. Please refresh.');
-          }
+        setImagesLoading(false);
+        if (imageLoadFailed && videoLoadFailed) {
+          setAllAssets([]);
+          setAssets([]);
+          setError((current) => current ?? 'Failed to load creations. Please refresh.');
         }
       });
 
@@ -332,14 +334,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       })
       .finally(() => {
         if (cancelled) return;
-        creationPending -= 1;
-        if (creationPending === 0) {
-          setCreationsLoading(false);
-          if (imageLoadFailed && videoLoadFailed) {
-            setAllAssets([]);
-            setAssets([]);
-            setError((current) => current ?? 'Failed to load creations. Please refresh.');
-          }
+        setVideosLoading(false);
+        if (imageLoadFailed && videoLoadFailed) {
+          setAllAssets([]);
+          setAssets([]);
+          setError((current) => current ?? 'Failed to load creations. Please refresh.');
         }
       });
 
@@ -357,10 +356,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       })
       .finally(() => {
         if (cancelled) return;
-        communityPending -= 1;
-        if (communityPending === 0) {
-          setCommunityLoading(false);
-        }
+        setImageCommunityLoading(false);
       });
 
     void api.listVideoInspiration(userId)
@@ -377,10 +373,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       })
       .finally(() => {
         if (cancelled) return;
-        communityPending -= 1;
-        if (communityPending === 0) {
-          setCommunityLoading(false);
-        }
+        setVideoCommunityLoading(false);
       });
 
     return () => {
@@ -597,15 +590,27 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">All creations</p>
-                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>}
+                {imagesLoading || videosLoading ? (
+                  <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.all}</p>
+                )}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">Videos</p>
-                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>}
+                {videosLoading ? (
+                  <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.video}</p>
+                )}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
                 <p className="rangmanch-section-eyebrow">Images</p>
-                {creationsLoading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" /> : <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>}
+                {imagesLoading ? (
+                  <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
+                ) : (
+                  <p className="mt-3 font-heading text-3xl font-extrabold text-text">{assetCounts.image}</p>
+                )}
               </div>
             </div>
           </div>
@@ -839,6 +844,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         {error && <Card className="rangmanch-studio-panel border-none bg-transparent"><p className="text-sm text-[hsl(var(--color-danger))]">{error}</p></Card>}
 
         <Card className="rangmanch-studio-panel space-y-4 border-none bg-transparent backdrop-blur-md">
+          {(imagesLoading || videosLoading) && allAssets.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {imagesLoading ? <Badge variant="outline">Loading images…</Badge> : null}
+              {videosLoading ? <Badge variant="outline">Loading videos…</Badge> : null}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {([
               ['all', `All · ${assetCounts.all}`],
