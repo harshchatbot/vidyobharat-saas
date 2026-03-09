@@ -24,6 +24,10 @@ from app.services.smart_model_router import SmartModelRouter, TierModelConfig
 logger = logging.getLogger(__name__)
 
 
+class GeminiNoImagePayloadError(RuntimeError):
+    pass
+
+
 @dataclass(frozen=True)
 class ImageModelEntry:
     key: str
@@ -318,31 +322,53 @@ class ImageGenerationService:
             tier = self.model_router.resolve_tier('fast' if model_key == 'gemini_flash_image' else 'pro')
             if tier:
                 fallback_ids = [tier.fallback_model_id] if tier.fallback_model_id else []
-                route = self.model_router.resolve_and_execute(
-                    requested_model_id=tier.current_model_id,
-                    fallback_model_ids=[item for item in fallback_ids if item],
-                    execute=lambda model_id: self._generate_with_gemini(
-                        prompt=prompt,
-                        aspect_ratio=aspect_ratio,
-                        resolution=resolution,
-                        model_id=model_id,
-                    ),
-                )
-                if route.fallback_used:
+                try:
+                    route = self.model_router.resolve_and_execute(
+                        requested_model_id=tier.current_model_id,
+                        fallback_model_ids=[item for item in fallback_ids if item],
+                        execute=lambda model_id: self._generate_with_gemini(
+                            prompt=prompt,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                            model_id=model_id,
+                        ),
+                    )
+                    if route.fallback_used:
+                        logger.warning(
+                            'image_generation_model_fallback_used',
+                            extra={
+                                'model_key': model_key,
+                                'primary_model': tier.current_model_id,
+                                'resolved_model': route.resolved_model_id,
+                            },
+                        )
+                    else:
+                        logger.info(
+                            'image_generation_provider_selected',
+                            extra={'provider': 'gemini', 'model_key': model_key, 'resolved_model': route.resolved_model_id},
+                        )
+                    return route.value
+                except GeminiNoImagePayloadError as exc:
                     logger.warning(
-                        'image_generation_model_fallback_used',
+                        'image_generation_gemini_no_image_payload',
                         extra={
                             'model_key': model_key,
                             'primary_model': tier.current_model_id,
-                            'resolved_model': route.resolved_model_id,
+                            'fallback_models': [item for item in fallback_ids if item],
+                            'error': str(exc),
                         },
                     )
-                else:
-                    logger.info(
-                        'image_generation_provider_selected',
-                        extra={'provider': 'gemini', 'model_key': model_key, 'resolved_model': route.resolved_model_id},
-                    )
-                return route.value
+                    if self.settings.openai_api_key:
+                        logger.warning(
+                            'image_generation_provider_fallback_to_openai',
+                            extra={'model_key': model_key, 'reason': 'gemini_no_image_payload'},
+                        )
+                        return self._generate_with_openai_image(
+                            prompt=prompt,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                        )
+                    raise
 
         if model_key in {'recraft_studio', 'recraft_studio_pro'}:
             if not self.settings.recraft_api_key:
@@ -877,17 +903,39 @@ class ImageGenerationService:
         data = json.loads(raw)
         candidates = data.get('candidates') or []
         inline_data = None
+        part_kinds: list[str] = []
+        text_preview = ''
         for candidate in candidates:
             content = candidate.get('content', {})
             parts = content.get('parts') or []
             for part in parts:
+                if 'inlineData' in part:
+                    part_kinds.append('inlineData')
+                elif 'text' in part:
+                    part_kinds.append('text')
+                    if not text_preview:
+                        text_preview = str(part.get('text') or '')[:240]
+                else:
+                    part_kinds.append(','.join(sorted(part.keys())) or 'unknown')
                 if 'inlineData' in part:
                     inline_data = part.get('inlineData')
                     break
             if inline_data:
                 break
         if not inline_data:
-            raise RuntimeError(f'Gemini API returned no image payload: {raw[:500]}')
+            logger.warning(
+                'provider_poll_status',
+                extra={
+                    'provider': 'gemini',
+                    'model_id': model_id,
+                    'candidate_count': len(candidates),
+                    'part_kinds': part_kinds[:12],
+                    'text_preview': text_preview,
+                },
+            )
+            raise GeminiNoImagePayloadError(
+                f'Gemini API returned no image payload (model={model_id}, parts={part_kinds[:12]}, text_preview={text_preview!r})'
+            )
 
         mime_type = inline_data.get('mimeType')
         image_bytes = b64decode(inline_data.get('data', ''))
