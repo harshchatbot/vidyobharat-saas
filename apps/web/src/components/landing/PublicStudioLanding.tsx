@@ -399,7 +399,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 </div>
               </div>
             </section>
-            */}
+            
 
             <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -484,7 +484,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 })}
               </div>
             </section>
-
+*/}
             <section id="pricing" className="scroll-mt-24 pt-10">
               <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="space-y-3">
