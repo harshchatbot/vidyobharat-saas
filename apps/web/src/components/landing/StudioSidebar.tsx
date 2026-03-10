@@ -210,17 +210,21 @@ export function StudioSidebar({
         {desktopContent}
       </aside>
 
-      <div className="sticky top-0 z-50 flex items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 xl:hidden">
+      <div className="sticky top-0 z-50 flex max-w-full items-center gap-2 overflow-x-clip px-3 py-3 sm:gap-3 sm:px-4 xl:hidden">
         <button
           type="button"
           onClick={onOpenMobile}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] bg-[hsl(var(--color-surface-glass)/0.5)] text-[hsl(var(--color-text))] backdrop-blur-md"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] bg-[hsl(var(--color-surface-glass)/0.5)] text-[hsl(var(--color-text))] backdrop-blur-md"
           aria-label="Open navigation drawer"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <BrandLogo href="/" variant="full" size="md" className="max-w-[132px] sm:max-w-[180px]" />
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="min-w-0 flex-1 overflow-hidden px-1">
+          <div className="flex justify-center">
+            <BrandLogo href="/" variant="full" size="sm" className="max-w-[112px] sm:max-w-[148px]" />
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <ToggleTheme />
           <Link
             href="/login"

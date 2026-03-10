@@ -277,7 +277,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                   </div>
 
                   <div className="flex flex-col gap-4 xl:pl-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                   {/* <div className="grid gap-3 sm:grid-cols-2">
                       {heroGalleryTiles.map((tile, index) => (
                         <motion.div
                           key={tile.title}
@@ -296,7 +296,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                           </div>
                         </motion.div>
                       ))}
-                    </div>
+                    </div> */}
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                       {toolTiles.map((tool, index) => {
                         const Icon = tool.icon;
