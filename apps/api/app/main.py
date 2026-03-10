@@ -28,11 +28,14 @@ _always_allowed_origins = {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://rangmanch.techfilabs.com',
+    'https://rangmanchai.com',
+    'https://www.rangmanchai.com',
+    'https://api.rangmanchai.com',
     'https://vidyobharat-saas.vercel.app',
 }
 _configured_origins = {item.rstrip('/') for item in settings.allowed_origins_list}
 _effective_allowed_origins = sorted(_configured_origins.union(_always_allowed_origins))
-_effective_origin_regex = r'https://([a-zA-Z0-9-]+\.)*(vercel\.app|techfilabs\.com)$'
+_effective_origin_regex = r'https://([a-zA-Z0-9-]+\.)*(vercel\.app|techfilabs\.com|rangmanchai\.com)$'
 if settings.allowed_origin_regex:
     _effective_origin_regex = f'(?:{settings.allowed_origin_regex})|(?:{_effective_origin_regex})'
 
@@ -62,7 +65,11 @@ def _origin_allowed(origin: str | None) -> bool:
     if _origin_regex and _origin_regex.match(normalized):
         return True
     # Mobile browsers may hit alternate subdomains; keep this scoped to known app domains.
-    return normalized.endswith('.vercel.app') or normalized.endswith('.techfilabs.com')
+    return (
+        normalized.endswith('.vercel.app')
+        or normalized.endswith('.techfilabs.com')
+        or normalized.endswith('.rangmanchai.com')
+    )
 
 
 @app.middleware('http')

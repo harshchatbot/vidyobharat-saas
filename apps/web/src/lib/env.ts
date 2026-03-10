@@ -28,7 +28,7 @@ if ((!envFirebaseApiKey || !envFirebaseAuthDomain || !envFirebaseProjectId || !e
 
 const derivedFallbackUrl =
   !envApiFallbackUrl && envApiUrl?.includes('onrender.com')
-    ? 'https://api.rangmanch.techfilabs.com'
+    ? 'https://api.rangmanchai.com'
     : '';
 
 export const API_URL = envApiUrl || 'http://localhost:8000';

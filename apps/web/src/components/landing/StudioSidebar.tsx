@@ -210,7 +210,7 @@ export function StudioSidebar({
         {desktopContent}
       </aside>
 
-      <div className="sticky top-0 z-50 flex max-w-full items-center gap-2 overflow-x-clip px-3 py-3 sm:gap-3 sm:px-4 xl:hidden">
+      <div className="sticky top-0 z-50 grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-x-clip px-3 py-3 sm:gap-3 sm:px-4 xl:hidden">
         <button
           type="button"
           onClick={onOpenMobile}
@@ -219,7 +219,7 @@ export function StudioSidebar({
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1 overflow-hidden px-1">
+        <div className="min-w-0 overflow-hidden px-1">
           <div className="flex justify-center">
             <BrandLogo href="/" variant="full" size="sm" className="max-w-[112px] sm:max-w-[148px]" />
           </div>
