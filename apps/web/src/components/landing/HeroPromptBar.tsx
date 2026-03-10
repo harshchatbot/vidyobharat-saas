@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 

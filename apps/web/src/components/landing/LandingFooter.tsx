@@ -1,18 +1,9 @@
-'use client';
-
-import { motion } from 'framer-motion';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { GlassPanel } from '@/components/landing/GlassPanel';
 
 export function LandingFooter() {
   return (
-    <motion.footer
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.35 }}
-      transition={{ duration: 0.45, ease: 'easeOut' }}
-      className="py-8"
-    >
+    <footer className="py-8">
       <GlassPanel className="px-6 py-6">
         <div className="grid items-start gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div>
@@ -57,6 +48,6 @@ export function LandingFooter() {
           </span>
         </div>
       </GlassPanel>
-    </motion.footer>
+    </footer>
   );
 }

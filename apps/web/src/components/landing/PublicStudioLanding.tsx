@@ -1,56 +1,10 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clapperboard, ImageIcon, Layers3, PlaySquare, Sparkles, Wand2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 
-import { BrandLogo } from '@/components/brand/BrandLogo';
-import { GlassPanel } from '@/components/landing/GlassPanel';
-import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
 import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
-import { LandingVideo } from '@/components/landing/LandingVideo';
 import { StudioSidebar } from '@/components/landing/StudioSidebar';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
-
-type SurfaceMedia = {
-  type: 'video' | 'image';
-  src: string;
-  poster?: string;
-};
-
-type InspirationVideo = {
-  id: string;
-  creator_name: string;
-  model_key: string;
-  provider_name: string;
-  title: string;
-  prompt: string;
-  video_url: string;
-  thumbnail_url: string;
-  aspect_ratio: string;
-  resolution: string;
-  duration_seconds: number;
-  created_at: string;
-  tags: string[];
-  like_count: number;
-};
-
-type InspirationImage = {
-  id: string;
-  creator_name: string;
-  model_key: string;
-  title: string;
-  prompt: string;
-  image_url: string;
-  aspect_ratio: string;
-  resolution: string;
-  created_at: string;
-  reference_urls?: string[];
-  tags: string[];
-  like_count: number;
-};
 
 {/*
 const toolTiles = [
@@ -114,97 +68,11 @@ const showcaseTiles = [
 
 */}
 
-const heroGalleryTiles: Array<{
-  title: string;
-  note: string;
-  media: SurfaceMedia;
-}> = [
-  {
-    title: 'Creator launch',
-    note: 'Campaign frame',
-    media: { type: 'image', src: '/videos/samples/cr-launch.png' },
-  },
-  {
-    title: 'Influencer persona',
-    note: 'Character memory',
-    media: { type: 'image', src: '/videos/samples/influncer-persona.png' },
-  },
-  {
-    title: 'Product motion',
-    note: 'Ad visual',
-    media: { type: 'image', src: '/videos/samples/earth.png' },
-  },
-  {
-    title: 'Shorts pipeline',
-    note: 'Vertical publishing',
-    media: { type: 'video', src: '/videos/samples/tamil-education-9x16.mp4' },
-  },
-];
-
-const heroBackgroundMedia: SurfaceMedia = {
-  type: 'video',
-  src: '/videos/samples/hindi-festival-9x16.mp4',
-  poster: '/illustrations/startup.png',
-};
-
-function aspectRatioToCss(value: string | null | undefined) {
-  if (!value) return '9 / 16';
-  const normalized = value.replace(/\s+/g, '');
-  const separator = normalized.includes(':') ? ':' : normalized.includes('/') ? '/' : null;
-  if (!separator) return '9 / 16';
-  const [w, h] = normalized.split(separator);
-  const width = Number(w);
-  const height = Number(h);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return '9 / 16';
-  }
-  return `${width} / ${height}`;
-}
-
-function MediaSurface({ media, alt, className }: { media: SurfaceMedia; alt: string; className?: string }) {
-  if (media.type === 'video') {
-    return <LandingVideo src={media.src} poster={media.poster} className={className} />;
-  }
-
-  return <img src={media.src} alt={alt} className={className} loading="lazy" />;
-}
-
-export function PublicStudioLanding({ videos, images }: { videos: InspirationVideo[]; images: InspirationImage[] }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [currentHash, setCurrentHash] = useState('#hero');
-  const [communityFilter, setCommunityFilter] = useState<'all' | 'videos' | 'images'>('all');
-
-  useEffect(() => {
-    const updateHash = () => setCurrentHash(window.location.hash || '#hero');
-    updateHash();
-    window.addEventListener('hashchange', updateHash);
-    return () => window.removeEventListener('hashchange', updateHash);
-  }, []);
-
-  const communityItems = useMemo(
-    () =>
-      [
-        ...(communityFilter === 'all' || communityFilter === 'videos'
-          ? videos.map((video) => ({ type: 'video' as const, item: video }))
-          : []),
-        ...(communityFilter === 'all' || communityFilter === 'images'
-          ? images.map((image) => ({ type: 'image' as const, item: image }))
-          : []),
-      ]
-        .sort((a, b) => new Date(b.item.created_at).getTime() - new Date(a.item.created_at).getTime())
-        .slice(0, 18),
-    [communityFilter, images, videos],
-  );
-
+export function PublicStudioLanding() {
   return (
     <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
       <div className="flex min-h-screen max-w-full overflow-x-clip">
-        <StudioSidebar
-          mobileOpen={mobileOpen}
-          onOpenMobile={() => setMobileOpen(true)}
-          onCloseMobile={() => setMobileOpen(false)}
-          currentHash={currentHash}
-        />
+        <StudioSidebar />
 
         <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
           <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col px-3 pb-10 sm:px-4 lg:px-6 lg:pb-12 xl:px-8 xl:pb-14">
@@ -217,6 +85,12 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 </div>
                 <div className="flex items-center gap-2">
                   <ToggleTheme />
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.32)] px-4 py-2 text-sm font-medium backdrop-blur-md"
+                  >
+                    Go to dashboard
+                  </Link>
                   <Link
                     href="/login"
                     className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.48)] px-4 py-2 text-sm font-medium backdrop-blur-md"
@@ -243,7 +117,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                     <div className="max-w-2xl space-y-5">
                       <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.54)] bg-[hsl(var(--color-bg)/0.22)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-text))] backdrop-blur-md">
                         <span className="inline-flex h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />
-                        Make 'One Day' your 'Day One
+                        Make one day your day one
                       </div>
                       <div className="space-y-3">
                         <h1 className="max-w-3xl font-heading text-[2.25rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-5xl xl:text-6xl">

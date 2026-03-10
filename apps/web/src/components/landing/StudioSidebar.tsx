@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpenText, Clapperboard, Crown, FileText, Home, ImageIcon, Menu, PlaySquare, Sparkles, Wand2, X } from 'lucide-react';
 
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -98,17 +98,20 @@ function CollapsibleNavSection({
   );
 }
 
-export function StudioSidebar({
-  mobileOpen,
-  onOpenMobile,
-  onCloseMobile,
-  currentHash,
-}: {
-  mobileOpen: boolean;
-  onOpenMobile: () => void;
-  onCloseMobile: () => void;
-  currentHash: string;
-}) {
+export function StudioSidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [currentHash, setCurrentHash] = useState('#hero');
+
+  useEffect(() => {
+    const updateHash = () => setCurrentHash(window.location.hash || '#hero');
+    updateHash();
+    window.addEventListener('hashchange', updateHash);
+    return () => window.removeEventListener('hashchange', updateHash);
+  }, []);
+
+  const onOpenMobile = () => setMobileOpen(true);
+  const onCloseMobile = () => setMobileOpen(false);
+
   const desktopContent = (
     <div className="flex h-full flex-col gap-5">
       <div className="flex items-center justify-between gap-3">

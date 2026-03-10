@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 
-import { AppShell } from '@/components/layout/AppShell';
 import { ThemeBoot } from '@/components/ui/ThemeBoot';
 import { ToastProvider } from '@/components/ui/Toast';
 
@@ -23,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ToastProvider>
           <ThemeBoot />
-          <AppShell>{children}</AppShell>
+          {children}
         </ToastProvider>
       </body>
     </html>
