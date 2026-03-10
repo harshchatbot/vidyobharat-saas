@@ -52,6 +52,7 @@ type InspirationImage = {
   like_count: number;
 };
 
+{/*
 const toolTiles = [
   {
     title: 'Text to Video',
@@ -110,6 +111,8 @@ const showcaseTiles = [
     media: { type: 'image', src: '/illustrations/edtech.png' } satisfies SurfaceMedia,
   },
 ];
+
+*/}
 
 const heroGalleryTiles: Array<{
   title: string;
@@ -296,7 +299,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                           </div>
                         </motion.div>
                       ))}
-                    </div> */}
+                    </div> 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                       {toolTiles.map((tool, index) => {
                         const Icon = tool.icon;
@@ -327,12 +330,13 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                         );
                       })}
                     </div>
+                    */}
                   </div>
                 </div>
               </div>
             </section>
 
-            <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
+           {/* <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="rangmanch-section-eyebrow">Tool launcher</p>
@@ -395,6 +399,7 @@ export function PublicStudioLanding({ videos, images }: { videos: InspirationVid
                 </div>
               </div>
             </section>
+            */}
 
             <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
