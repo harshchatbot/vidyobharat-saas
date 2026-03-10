@@ -1,10 +1,16 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
+import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
 import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { StudioSidebar } from '@/components/landing/StudioSidebar';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
+
+const heroBackgroundMedia = {
+  src: '/videos/samples/hindi-festival-9x16.mp4',
+  poster: '/illustrations/startup.png',
+} as const;
 
 {/*
 const toolTiles = [
@@ -86,12 +92,6 @@ export function PublicStudioLanding() {
                 <div className="flex items-center gap-2">
                   <ToggleTheme />
                   <Link
-                    href="/dashboard"
-                    className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.32)] px-4 py-2 text-sm font-medium backdrop-blur-md"
-                  >
-                    Go to dashboard
-                  </Link>
-                  <Link
                     href="/login"
                     className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.48)] px-4 py-2 text-sm font-medium backdrop-blur-md"
                   >
@@ -108,10 +108,10 @@ export function PublicStudioLanding() {
               </div>
 
               <div className="rangmanch-floating-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
-                {/*<HeroBackgroundVideo
+                <HeroBackgroundVideo
                   src={heroBackgroundMedia.src}
                   poster={heroBackgroundMedia.poster}
-                /> */}
+                />
                 <div className="relative z-10 grid min-h-[500px] gap-5 px-4 py-5 sm:min-h-[540px] sm:px-6 sm:py-7 md:min-h-[580px] lg:min-h-[640px] lg:gap-6 lg:px-7 lg:py-8 xl:grid-cols-[1.1fr_0.9fr] xl:px-8 xl:py-8">
                   <div className="flex flex-col justify-between gap-8">
                     <div className="max-w-2xl space-y-5">
