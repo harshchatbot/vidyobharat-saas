@@ -81,9 +81,9 @@ export function PublicStudioLanding() {
         <StudioSidebar />
 
         <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col px-3 pb-10 sm:px-4 lg:px-6 lg:pb-12 xl:px-8 xl:pb-14">
-            <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 xl:pt-6">
-              <div className="hidden items-center justify-between gap-4 pb-5 xl:flex">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 sm:px-4 sm:pb-10 lg:px-5 lg:pb-12 xl:px-6 2xl:px-8 2xl:pb-14">
+            <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
+              <div className="hidden items-center justify-between gap-4 pb-5 2xl:flex">
                 <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.34)] px-4 py-2 text-xs uppercase tracking-[0.24em] text-[hsl(var(--color-muted))] backdrop-blur-md">
                   Public Studio
                   <span className="h-1 w-1 rounded-full bg-[hsl(var(--color-accent))]" />
@@ -112,99 +112,23 @@ export function PublicStudioLanding() {
                   src={heroBackgroundMedia.src}
                   poster={heroBackgroundMedia.poster}
                 />
-                <div className="relative z-10 grid min-h-[500px] gap-5 px-4 py-5 sm:min-h-[540px] sm:px-6 sm:py-7 md:min-h-[580px] lg:min-h-[640px] lg:gap-6 lg:px-7 lg:py-8 xl:grid-cols-[1.1fr_0.9fr] xl:px-8 xl:py-8">
-                  <div className="flex flex-col justify-between gap-8">
-                    <div className="max-w-2xl space-y-5">
+                <div className="relative z-10 min-h-[420px] px-4 py-5 sm:min-h-[470px] sm:px-5 sm:py-6 md:min-h-[520px] md:px-6 md:py-7 lg:min-h-[560px] lg:px-7 lg:py-8 2xl:min-h-[620px] 2xl:px-8 2xl:py-8">
+                  <div className="flex h-full flex-col justify-between gap-6 sm:gap-7 lg:gap-8">
+                    <div className="max-w-[44rem] space-y-4 sm:space-y-5">
                       <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.54)] bg-[hsl(var(--color-bg)/0.22)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-text))] backdrop-blur-md">
                         <span className="inline-flex h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />
                         Make one day your day one
                       </div>
                       <div className="space-y-3">
-                        <h1 className="max-w-3xl font-heading text-[2.25rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-5xl xl:text-6xl">
+                        <h1 className="max-w-3xl font-heading text-[2.1rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-[2.8rem] sm:leading-[1.02] md:text-[3.3rem] lg:text-[4rem] 2xl:text-6xl">
                           Create cinematic AI videos from text, images, and character workflows.
                         </h1>
-                        <p className="max-w-2xl text-sm leading-6 text-[hsl(var(--color-muted))] sm:text-base sm:leading-7">
+                        <p className="max-w-2xl text-sm leading-6 text-[hsl(var(--color-muted))] sm:text-[15px] sm:leading-7 lg:text-base">
                           RangManch AI brings together text-to-video, image animation, AI influencer workflows, and short-form publishing inside one visual-first studio.
                         </p>
                       </div>
                       <HeroPromptBar />
                     </div>
-
-                {/*    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {showcaseTiles.map((tile, index) => (
-                        <motion.div
-                          key={tile.title}
-                          initial={{ opacity: 0, y: 18 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.42, delay: 0.12 + index * 0.06, ease: 'easeOut' }}
-                          className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.4)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md"
-                        >
-                          <div className="relative aspect-[5/4] md:aspect-[4/3] xl:aspect-[4/3]">
-                            <MediaSurface media={tile.media} alt={tile.title} className="h-full w-full object-cover" />
-                            <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.92),transparent_58%)]" />
-                            <div className="absolute inset-x-0 bottom-0 p-4">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[hsl(var(--color-muted))]">{tile.eyebrow}</p>
-                              <p className="mt-1 text-lg font-semibold text-[hsl(var(--color-text))]">{tile.title}</p>
-                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-[hsl(var(--color-muted))]">{tile.body}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div> */}
-                  </div>
-
-                  <div className="flex flex-col gap-4 xl:pl-4">
-                   {/* <div className="grid gap-3 sm:grid-cols-2">
-                      {heroGalleryTiles.map((tile, index) => (
-                        <motion.div
-                          key={tile.title}
-                          initial={{ opacity: 0, y: 18 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.42, delay: 0.08 + index * 0.04, ease: 'easeOut' }}
-                          className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md"
-                        >
-                          <div className="relative aspect-[4/3]">
-                            <MediaSurface media={tile.media} alt={tile.title} className="h-full w-full object-cover" />
-                            <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent_58%)]" />
-                            <div className="absolute inset-x-0 bottom-0 p-3">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-muted))]">{tile.note}</p>
-                              <p className="mt-1 text-sm font-semibold text-[hsl(var(--color-text))]">{tile.title}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div> 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                      {toolTiles.map((tool, index) => {
-                        const Icon = tool.icon;
-                        return (
-                          <motion.div
-                            key={tool.title}
-                            initial={{ opacity: 0, x: 16 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.42, delay: 0.14 + index * 0.05, ease: 'easeOut' }}
-                          >
-                            <Link
-                              href={tool.href}
-                              className="group block overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-bg)/0.18)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-[hsl(var(--color-border)/0.68)]"
-                            >
-                              <div className="relative aspect-[16/10]">
-                                <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-                                <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent_54%)]" />
-                                <div className="absolute left-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-bg)/0.4)] backdrop-blur-md">
-                                  <Icon className="h-4.5 w-4.5" />
-                                </div>
-                                <div className="absolute inset-x-0 bottom-0 p-4">
-                                  <p className="text-base font-semibold text-[hsl(var(--color-text))]">{tool.title}</p>
-                                  <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
-                                </div>
-                              </div>
-                            </Link>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                    */}
                   </div>
                 </div>
               </div>
@@ -359,24 +283,24 @@ export function PublicStudioLanding() {
               </div>
             </section>
 */}
-            <section id="pricing" className="scroll-mt-24 pt-10">
-              <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <section id="pricing" className="scroll-mt-24 pt-8 sm:pt-10">
+              <div className="grid gap-5 2xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="space-y-3">
                   <p className="rangmanch-section-eyebrow">Plans</p>
-                  <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Move from testing to production without changing your workflow.</h2>
+                  <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-4xl">Move from testing to production without changing your workflow.</h2>
                   <p className="max-w-2xl text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
                     Start with the free studio, then move into creator-grade packs when you need more renders, more voice, and premium output.
                   </p>
                   <div className="flex flex-wrap gap-3 pt-2">
-                    <Link href="/pricing" className="inline-flex rounded-full bg-[hsl(var(--color-text))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))]">
+                    <Link href="/pricing" className="inline-flex w-full items-center justify-center rounded-full bg-[hsl(var(--color-text))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))] sm:w-auto">
                       View pricing
                     </Link>
-                    <Link href="/signup" className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium">
+                    <Link href="/signup" className="inline-flex w-full items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium sm:w-auto">
                       Start free
                     </Link>
                   </div>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {[
                     ['Free', '40 credits', 'Start testing image, voice, and first renders.'],
                     ['Starter', '200 credits', 'Good for repeat creator workflows and short-form output.'],
@@ -384,7 +308,7 @@ export function PublicStudioLanding() {
                   ].map(([name, credits, blurb]) => (
                     <div
                       key={name}
-                      className="rounded-[26px] border border-[hsl(var(--color-border)/0.44)] bg-[hsl(var(--color-surface-glass)/0.24)] p-4 backdrop-blur-md"
+                      className="rounded-[24px] border border-[hsl(var(--color-border)/0.44)] bg-[hsl(var(--color-surface-glass)/0.24)] p-4 backdrop-blur-md sm:rounded-[26px]"
                     >
                       <p className="text-sm font-semibold">{name}</p>
                       <p className="mt-4 text-2xl font-extrabold tracking-tight">{credits}</p>
