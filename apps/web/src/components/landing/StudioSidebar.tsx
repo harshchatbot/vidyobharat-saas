@@ -213,7 +213,7 @@ export function StudioSidebar() {
         {desktopContent}
       </aside>
 
-      <div className="sticky top-0 z-50 grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-x-clip px-3 py-3 sm:gap-3 sm:px-4 2xl:hidden">
+      <div className="fixed inset-x-0 top-0 z-50 grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-x-clip border-b border-[hsl(var(--color-border)/0.32)] bg-[hsl(var(--color-bg)/0.78)] px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-4 2xl:hidden">
         <button
           type="button"
           onClick={onOpenMobile}

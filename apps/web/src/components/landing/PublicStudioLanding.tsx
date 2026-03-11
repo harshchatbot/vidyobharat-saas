@@ -80,7 +80,7 @@ export function PublicStudioLanding() {
       <div className="flex min-h-screen max-w-full overflow-x-clip">
         <StudioSidebar />
 
-        <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
+        <main className="min-w-0 max-w-full flex-1 overflow-x-clip pt-[72px] sm:pt-[76px] 2xl:pt-0">
           <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 sm:px-4 sm:pb-10 lg:px-5 lg:pb-12 xl:px-6 2xl:px-8 2xl:pb-14">
             <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
               <div className="hidden items-center justify-between gap-4 pb-5 2xl:flex">
