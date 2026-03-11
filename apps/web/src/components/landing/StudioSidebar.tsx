@@ -209,11 +209,11 @@ export function StudioSidebar() {
 
   return (
     <>
-      <aside className="rangmanch-studio-rail hidden h-screen w-[var(--landing-rail-width)] shrink-0 flex-col p-4 2xl:flex">
+      <aside className="rangmanch-studio-rail hidden h-screen w-[var(--landing-rail-width)] shrink-0 flex-col p-4 xl:flex">
         {desktopContent}
       </aside>
 
-      <div className="fixed inset-x-0 top-0 z-50 grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-x-clip border-b border-[hsl(var(--color-border)/0.32)] bg-[hsl(var(--color-bg)/0.78)] px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-4 2xl:hidden">
+      <div className="fixed inset-x-0 top-0 z-50 grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-x-clip border-b border-[hsl(var(--color-border)/0.32)] bg-[hsl(var(--color-bg)/0.78)] px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-4 xl:hidden">
         <button
           type="button"
           onClick={onOpenMobile}
@@ -239,7 +239,7 @@ export function StudioSidebar() {
       </div>
 
       {mobileOpen ? (
-        <div className="fixed inset-0 z-[70] 2xl:hidden">
+        <div className="fixed inset-0 z-[70] xl:hidden">
           <button
             type="button"
             onClick={onCloseMobile}
