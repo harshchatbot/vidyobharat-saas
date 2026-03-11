@@ -5,6 +5,7 @@ import { ArrowRight, Clapperboard, ImageIcon, PlaySquare, Sparkles, Wand2 } from
 import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
 import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 import { StudioSidebar } from '@/components/landing/StudioSidebar';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
@@ -13,12 +14,23 @@ const heroBackgroundMedia = {
   poster: '/illustrations/startup.png',
 } as const;
 
+type ToolTileMedia =
+  | {
+      type: 'image';
+      src: string;
+    }
+  | {
+      type: 'video';
+      src: string;
+      poster?: string;
+    };
+
 const toolTiles = [
   {
     title: 'Text to Video',
     subtitle: 'Turn script into cinematic scenes',
     href: '/signup',
-    imageSrc: '/videos/samples/creator111.mp4',
+    media: { type: 'video', src: '/videos/samples/creator111.mp4', poster: '/illustrations/startup.png' } satisfies ToolTileMedia,
     eyebrow: 'Script to scene',
     icon: Clapperboard,
   },
@@ -26,7 +38,7 @@ const toolTiles = [
     title: 'Image to Video',
     subtitle: 'Animate reference visuals into motion',
     href: '/signup',
-    imageSrc: '/videos/samples/lip-sync.mp4',
+    media: { type: 'video', src: '/videos/samples/lip-sync.mp4', poster: '/illustrations/product-ads.png' } satisfies ToolTileMedia,
     eyebrow: 'Reference motion',
     icon: ImageIcon,
   },
@@ -34,7 +46,7 @@ const toolTiles = [
     title: 'AI Influencer',
     subtitle: 'Build a consistent character identity',
     href: '/signup',
-    imageSrc: '/videos/samples/divyanka-chauhan-ai-influencer.jpg',
+    media: { type: 'image', src: '/videos/samples/divyanka-chauhan-ai-influencer.jpg' } satisfies ToolTileMedia,
     eyebrow: 'Persona lock',
     icon: Wand2,
   },
@@ -42,7 +54,7 @@ const toolTiles = [
     title: 'Ad Shorts',
     subtitle: 'High-frequency vertical reel workflows',
     href: '/signup',
-    imageSrc: '/videos/samples/advertisement.mp4',
+    media: { type: 'video', src: '/videos/samples/advertisement.mp4', poster: '/illustrations/agency.png' } satisfies ToolTileMedia,
     eyebrow: 'Vertical output',
     icon: Sparkles,
   },
@@ -50,11 +62,41 @@ const toolTiles = [
     title: 'Trending Templates',
     subtitle: 'Start viral images and reels instantly',
     href: '/templates',
-    imageSrc: '/illustrations/creator-launch.png',
+    media: { type: 'image', src: '/illustrations/creator-launch.png' } satisfies ToolTileMedia,
     eyebrow: 'Template-led',
     icon: PlaySquare,
   },
 ];
+
+function ToolTileMediaSurface({
+  media,
+  alt,
+  sizes,
+}: {
+  media: ToolTileMedia;
+  alt: string;
+  sizes: string;
+}) {
+  if (media.type === 'video') {
+    return (
+      <LandingVideo
+        src={media.src}
+        poster={media.poster}
+        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={media.src}
+      alt={alt}
+      fill
+      sizes={sizes}
+      className="object-cover transition duration-500 group-hover:scale-[1.03]"
+    />
+  );
+}
 
 export function PublicStudioLanding() {
   return (
@@ -136,12 +178,10 @@ export function PublicStudioLanding() {
                       className="group overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
                     >
                       <div className="relative aspect-[6/5]">
-                        <Image
-                          src={tool.imageSrc}
+                        <ToolTileMediaSurface
+                          media={tool.media}
                           alt={tool.title}
-                          fill
                           sizes="(max-width: 639px) 78vw, (max-width: 1279px) 50vw, (max-width: 1535px) 33vw, 20vw"
-                          className="object-cover transition duration-500 group-hover:scale-[1.03]"
                         />
                         <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                         <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
@@ -168,12 +208,10 @@ export function PublicStudioLanding() {
                         className="group block w-[72vw] max-w-[280px] shrink-0 overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
                       >
                         <div className="relative aspect-[6/5]">
-                          <Image
-                            src={tool.imageSrc}
+                          <ToolTileMediaSurface
+                            media={tool.media}
                             alt={tool.title}
-                            fill
                             sizes="72vw"
-                            className="object-cover transition duration-500 group-hover:scale-[1.03]"
                           />
                           <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                           <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
