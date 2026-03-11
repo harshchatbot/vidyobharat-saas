@@ -5,15 +5,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BadgeIndianRupee, Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Dropdown } from '@/components/ui/Dropdown';
+import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
+import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { getVideoModelMap } from '@/config/videoModels';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 
 import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS, type TemplateOption } from './constants';
 import { GenerateButton } from './GenerateButton';
@@ -52,6 +57,21 @@ function buildTierStageLabel(phase: RenderSessionPhase, progress: number) {
   if (phase === 'success') return 'Finalizing output';
   if (phase === 'failed') return 'Closing render';
   return 'Preparing generation';
+}
+
+function normalizeTemplateOptions(field: TemplateInputField): Array<{ label: string; value: string }> {
+  return (field.options || []).map((option) =>
+    typeof option === 'string'
+      ? { label: option, value: option }
+      : { label: option.label || option.value, value: option.value },
+  );
+}
+
+function buildInitialTemplateInputs(template: UnifiedTemplate | null): Record<string, string> {
+  if (!template?.inputs?.length) return {};
+  return Object.fromEntries(
+    template.inputs.map((field) => [field.key, field.placeholder || normalizeTemplateOptions(field)[0]?.value || '']),
+  );
 }
 
 function mapCategoryToIcon(template: UnifiedTemplate) {
@@ -97,6 +117,29 @@ function mergeVideoTemplateOptions(unifiedTemplates: UnifiedTemplate[]): Templat
   }
 
   return merged;
+}
+
+function defaultTemplateEstimatePayload(
+  template: UnifiedTemplate | null,
+  inputs: Record<string, string>,
+  modelOverride: string,
+) {
+  if (!template) return null;
+  const defaults = template.generation_defaults || {};
+  return {
+    action: 'video_create' as const,
+    payload: {
+      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'veo3',
+      resolution: defaults.resolution || '720p',
+      durationSeconds: defaults.duration_seconds || 8,
+      quality: defaults.quality || 'standard',
+      captionsEnabled: true,
+      voice: defaults.voice || 'Shubh',
+      imageUrls: [],
+      audioSettings: { sampleRateHz: 22050 },
+      language: inputs.language || defaults.language || 'English',
+    },
+  };
 }
 
 function VideoLaneSelector({
@@ -168,6 +211,14 @@ export function CreateVideoPage({
   const [templateSearch, setTemplateSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.key);
   const [videoTemplates, setVideoTemplates] = useState<TemplateOption[]>(TEMPLATE_OPTIONS);
+  const [unifiedVideoTemplates, setUnifiedVideoTemplates] = useState<UnifiedTemplate[]>([]);
+  const [activeTemplateFlow, setActiveTemplateFlow] = useState<UnifiedTemplate | null>(null);
+  const [templateFlowOpen, setTemplateFlowOpen] = useState(false);
+  const [templateFlowInputs, setTemplateFlowInputs] = useState<Record<string, string>>({});
+  const [templateFlowPromptOverride, setTemplateFlowPromptOverride] = useState('');
+  const [templateFlowModelOverride, setTemplateFlowModelOverride] = useState('');
+  const [templateFlowPreview, setTemplateFlowPreview] = useState<TemplatePreviewResponse | null>(null);
+  const [templateFlowPreviewLoading, setTemplateFlowPreviewLoading] = useState(false);
   const [title, setTitle] = useState(initialTitle ?? '');
   const [topic, setTopic] = useState(initialTitle ?? '');
   const [script, setScript] = useState(initialScript ?? '');
@@ -513,6 +564,7 @@ export function CreateVideoPage({
       }
       setGeneratedImages(userImages);
       setVideos(userVideos);
+      setUnifiedVideoTemplates(unifiedTemplates);
       const nextTemplates = unifiedTemplates.length > 0 ? mergeVideoTemplateOptions(unifiedTemplates) : TEMPLATE_OPTIONS;
       setVideoTemplates(nextTemplates);
       setSelectedTemplate((current) =>
@@ -559,6 +611,48 @@ export function CreateVideoPage({
       cancelled = true;
     };
   }, [cacheKey, userId]);
+
+  useEffect(() => {
+    setTemplateFlowInputs(buildInitialTemplateInputs(activeTemplateFlow));
+    setTemplateFlowPromptOverride('');
+    setTemplateFlowModelOverride(
+      activeTemplateFlow?.generation_defaults?.model_key || activeTemplateFlow?.recommended_model?.internal_model_key || '',
+    );
+    setTemplateFlowPreview(null);
+  }, [activeTemplateFlow]);
+
+  useEffect(() => {
+    if (!templateFlowOpen || !activeTemplateFlow) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setTemplateFlowPreviewLoading(true);
+      void api
+        .previewTemplate(
+          {
+            templateId: activeTemplateFlow.id,
+            inputs: templateFlowInputs,
+            promptOverride: templateFlowPromptOverride || undefined,
+            modelKey: templateFlowModelOverride || undefined,
+          },
+          userId,
+        )
+        .then((result) => {
+          if (!cancelled) setTemplateFlowPreview(result);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setTemplateFlowPreview(null);
+          show(error instanceof Error ? error.message : 'Failed to preview template.');
+        })
+        .finally(() => {
+          if (!cancelled) setTemplateFlowPreviewLoading(false);
+        });
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeTemplateFlow, show, templateFlowInputs, templateFlowModelOverride, templateFlowOpen, templateFlowPromptOverride, userId]);
 
   useEffect(() => {
     const availableVoices = filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions;
@@ -940,6 +1034,15 @@ export function CreateVideoPage({
   }, [selectedTrackId, musicMode]);
 
   const applyTemplate = (templateId: string) => {
+    const unifiedTemplate = unifiedVideoTemplates.find((item) => item.id === templateId || (item.legacy_mappings || []).includes(templateId));
+    if (unifiedTemplate) {
+      setActiveTemplateFlow(unifiedTemplate);
+      setTemplateFlowOpen(true);
+      setSubmitError(null);
+      setScriptError(null);
+      return;
+    }
+
     const next = videoTemplates.find((item) => item.key === templateId);
     if (!next) return;
 
@@ -973,6 +1076,83 @@ export function CreateVideoPage({
 
     setSubmitError(null);
     setScriptError(null);
+  };
+
+  const activeTemplateEstimatePayload = defaultTemplateEstimatePayload(
+    activeTemplateFlow,
+    templateFlowInputs,
+    templateFlowModelOverride,
+  );
+  const { estimates: templateFlowEstimates } = useCreditEstimator(
+    activeTemplateEstimatePayload
+      ? [{ key: 'templateCreate', action: activeTemplateEstimatePayload.action, payload: activeTemplateEstimatePayload.payload }]
+      : [],
+    { currentCredits: creditWallet?.currentCredits ?? 0 },
+  );
+  const templateFlowEstimate = templateFlowEstimates.templateCreate ?? null;
+
+  const applyStructuredTemplateFlow = () => {
+    if (!activeTemplateFlow) return;
+    const next = videoTemplates.find((item) => item.key === activeTemplateFlow.id) ?? mapUnifiedTemplateToVideoOption(activeTemplateFlow);
+    const derivedTopic =
+      templateFlowInputs.topic ||
+      templateFlowInputs.productOrService ||
+      templateFlowInputs.speakerName ||
+      templateFlowInputs.subjectName ||
+      templateFlowInputs.businessType ||
+      activeTemplateFlow.topic_hint ||
+      activeTemplateFlow.title ||
+      activeTemplateFlow.name;
+    const derivedLanguage =
+      templateFlowInputs.language || activeTemplateFlow.generation_defaults?.language || language;
+    const derivedVoice =
+      templateFlowInputs.voiceStyle || activeTemplateFlow.generation_defaults?.voice || voice;
+    const assembledScript =
+      templateFlowPromptOverride ||
+      templateFlowPreview?.scriptPreview ||
+      templateFlowPreview?.videoPrompt ||
+      templateFlowPreview?.prompt ||
+      activeTemplateFlow.script_hint ||
+      next.scriptHint;
+
+    setSelectedTemplate(next.key);
+    setTopic(derivedTopic);
+    if (!title.trim() || title === template.topicHint || title === template.label) {
+      setTitle(derivedTopic);
+    } else {
+      setTitle(derivedTopic);
+    }
+    setScript(assembledScript);
+    setLanguage(derivedLanguage);
+    setVoice(derivedVoice);
+
+    const recommendedModelKey =
+      templateFlowModelOverride ||
+      activeTemplateFlow.generation_defaults?.model_key ||
+      activeTemplateFlow.recommended_model?.internal_model_key ||
+      next.defaultModelKey;
+    if (recommendedModelKey) {
+      setModelKey(recommendedModelKey as VideoModelKey);
+    }
+
+    if (activeTemplateFlow.generation_defaults?.resolution && RESOLUTION_OPTIONS.some((item) => item.value === activeTemplateFlow.generation_defaults?.resolution)) {
+      setResolution(activeTemplateFlow.generation_defaults.resolution as '720p' | '1080p');
+    }
+    if (activeTemplateFlow.generation_defaults?.quality && ['standard', 'high'].includes(activeTemplateFlow.generation_defaults.quality)) {
+      setQuality(activeTemplateFlow.generation_defaults.quality as 'standard' | 'high');
+    }
+    if (
+      activeTemplateFlow.generation_defaults?.aspect_ratio &&
+      ['9:16', '16:9', '1:1'].includes(activeTemplateFlow.generation_defaults.aspect_ratio)
+    ) {
+      setAspectRatio(activeTemplateFlow.generation_defaults.aspect_ratio as '9:16' | '16:9' | '1:1');
+    }
+    if (activeTemplateFlow.generation_defaults?.duration_seconds) {
+      setDurationSeconds(String(activeTemplateFlow.generation_defaults.duration_seconds));
+    }
+
+    setTemplateFlowOpen(false);
+    setActiveTemplateFlow(null);
   };
 
   const generateScript = async () => {
@@ -1877,6 +2057,178 @@ export function CreateVideoPage({
           </SectionCard>
         </div>
       </div>
+      <Modal
+        open={templateFlowOpen}
+        onClose={() => {
+          setTemplateFlowOpen(false);
+          setActiveTemplateFlow(null);
+        }}
+      >
+        {activeTemplateFlow ? (
+          <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)]">
+                {activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url ? (
+                  <img
+                    src={activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url}
+                    alt={activeTemplateFlow.title || activeTemplateFlow.name}
+                    className="aspect-[4/5] w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/5] items-center justify-center bg-[hsl(var(--color-bg)/0.72)] text-sm text-muted">
+                    Template preview
+                  </div>
+                )}
+              </div>
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] p-4">
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">Video</span>
+                  {activeTemplateFlow.badge ? (
+                    <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                      {activeTemplateFlow.badge}
+                    </span>
+                  ) : null}
+                  {activeTemplateFlow.is_featured || activeTemplateFlow.featured ? (
+                    <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-[hsl(var(--color-accent))]">
+                      Featured
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplateFlow.title || activeTemplateFlow.name}</h3>
+                <p className="mt-2 text-sm text-muted">{activeTemplateFlow.description || activeTemplateFlow.short_description}</p>
+                <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Recommended model</p>
+                  <p className="mt-2 text-sm font-semibold text-text">
+                    {templateFlowPreview?.recommendedModel?.label || activeTemplateFlow.recommended_model?.label || 'Included'}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    {templateFlowPreview?.recommendedModel?.description || activeTemplateFlow.recommended_model?.description || 'No complex prompt writing needed.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Template inputs</p>
+                    <p className="mt-1 text-sm text-muted">Answer a few questions. We&apos;ll build the prompt and script structure for you.</p>
+                  </div>
+                  {templateFlowEstimate ? (
+                    <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
+                      {templateFlowEstimate.estimatedCredits} credits
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 space-y-3">
+                  {(activeTemplateFlow.inputs || []).map((field) => {
+                    const options = normalizeTemplateOptions(field);
+                    const value = templateFlowInputs[field.key] || '';
+                    return (
+                      <div key={field.key} className="space-y-1.5">
+                        <label className="text-sm font-medium text-text">{field.label}</label>
+                        {field.type === 'select' ? (
+                          <Dropdown
+                            value={value}
+                            onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                          >
+                            {options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </Dropdown>
+                        ) : field.type === 'textarea' ? (
+                          <Textarea
+                            value={value}
+                            onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                            placeholder={field.placeholder || ''}
+                          />
+                        ) : (
+                          <Input
+                            value={value}
+                            onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                            placeholder={field.placeholder || ''}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-text">Model override</label>
+                    <Input
+                      value={templateFlowModelOverride}
+                      onChange={(e) => setTemplateFlowModelOverride(e.target.value)}
+                      placeholder={activeTemplateFlow.recommended_model?.internal_model_key || activeTemplateFlow.generation_defaults?.model_key || 'Leave blank to use recommended'}
+                    />
+                  </div>
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Prompt mode</p>
+                    <p className="mt-2 text-sm font-semibold text-text">
+                      {templateFlowPreview?.recommendedModelMode || activeTemplateFlow.default_model_mode || 'Smart default'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted">You can still edit the assembled output before generating.</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-1.5">
+                  <label className="text-sm font-medium text-text">Prompt / script override</label>
+                  <Textarea
+                    value={templateFlowPromptOverride}
+                    onChange={(e) => setTemplateFlowPromptOverride(e.target.value)}
+                    placeholder="Optional. Override the assembled prompt or script if you want more control."
+                    rows={5}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Preview</p>
+                    <p className="mt-1 text-sm text-muted">Review the assembled output before applying it to the studio.</p>
+                  </div>
+                  {templateFlowPreviewLoading ? <Spinner /> : null}
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Topic title</p>
+                    <p className="mt-2 text-sm font-semibold text-text">
+                      {templateFlowPreview?.title || activeTemplateFlow.topic_hint || activeTemplateFlow.title || activeTemplateFlow.name}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Script preview</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-text">
+                      {templateFlowPreview?.scriptPreview || templateFlowPreview?.videoPrompt || templateFlowPreview?.prompt || activeTemplateFlow.script_hint || 'Preview will appear after you answer a few questions.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setTemplateFlowOpen(false);
+                      setActiveTemplateFlow(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={applyStructuredTemplateFlow}>
+                    Apply to studio
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
