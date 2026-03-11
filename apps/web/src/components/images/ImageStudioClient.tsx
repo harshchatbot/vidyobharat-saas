@@ -63,6 +63,8 @@ type ImageTemplatePreset = {
 };
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
+const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 4;
+const IMAGE_STUDIO_LOAD_MORE_STEP = 8;
 
 const fallbackModels: ImageModel[] = [
   {
@@ -353,6 +355,9 @@ export function ImageStudioClient({ userId }: Props) {
   const [selectedResolutionFilters, setSelectedResolutionFilters] = useState<string[]>([]);
   const [manualTagInput, setManualTagInput] = useState('');
   const [allGeneratedImages, setAllGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [generatedFetchLimit, setGeneratedFetchLimit] = useState(IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
+  const [loadingMoreGenerated, setLoadingMoreGenerated] = useState(false);
+  const [hasMoreGenerated, setHasMoreGenerated] = useState(false);
   const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
 
@@ -377,13 +382,15 @@ export function ImageStudioClient({ userId }: Props) {
   };
 
   const refreshGeneratedFeed = async (
+    limit = generatedFetchLimit,
     nextQuery = searchQuery,
     nextTags = selectedTags,
     nextModels = selectedModelFilters,
     nextResolutions = selectedResolutionFilters,
   ) => {
-    const items = await api.listGeneratedImages(userId);
+    const items = await api.listGeneratedImages(userId, limit);
     setAllGeneratedImages(items);
+    setHasMoreGenerated(items.length >= limit);
     applyGeneratedFilters(items, nextQuery, nextTags, nextModels, nextResolutions);
     return items;
   };
@@ -435,7 +442,7 @@ export function ImageStudioClient({ userId }: Props) {
       api.listImageModels(userId).catch(() => fallbackModels),
       api.listUnifiedTemplates(userId, { type: 'image', active: true }).catch(() => []),
       api.listImageInspiration(userId).catch(() => []),
-      api.listGeneratedImages(userId).catch(() => []),
+      api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT).catch(() => []),
       api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
     ]).then(([modelData, templateData, inspirationData, imageData, tagData]) => {
       if (cancelled) return;
@@ -456,6 +463,7 @@ export function ImageStudioClient({ userId }: Props) {
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
+      setHasMoreGenerated(imageData.length >= IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
       applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
       setTagFacets(tagData);
       if (typeof window !== 'undefined') {
@@ -592,7 +600,7 @@ export function ImageStudioClient({ userId }: Props) {
       show(`Created! Credits Used: ${item.applied_credits} · Remaining Balance: ${item.remaining_credits ?? wallet?.currentCredits ?? 0}`);
       setSelectedGenerated(item);
       setActiveTab('generated');
-      const items = await refreshGeneratedFeed();
+      const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Failed to generate image. Please try again.'));
@@ -705,7 +713,7 @@ export function ImageStudioClient({ userId }: Props) {
       }
       setSelectedGenerated(result.items[0]);
       setActiveTab('generated');
-      const items = await refreshGeneratedFeed();
+      const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not complete that action right now.'));
@@ -735,7 +743,7 @@ export function ImageStudioClient({ userId }: Props) {
         ),
       );
       setManualTagInput(response.user_tags.join(', '));
-      const items = await refreshGeneratedFeed();
+      const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
       setError(toErrorMessage(error, 'Could not update tags right now.'));
@@ -823,6 +831,25 @@ export function ImageStudioClient({ userId }: Props) {
     }
   };
 
+  const loadMoreGenerated = async () => {
+    const nextLimit = generatedFetchLimit + IMAGE_STUDIO_LOAD_MORE_STEP;
+    setLoadingMoreGenerated(true);
+    try {
+      await refreshGeneratedFeed(
+        nextLimit,
+        searchQuery,
+        selectedTags,
+        selectedModelFilters,
+        selectedResolutionFilters,
+      );
+      setGeneratedFetchLimit(nextLimit);
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not load more images right now.'));
+    } finally {
+      setLoadingMoreGenerated(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="flex items-center gap-3">
@@ -874,8 +901,8 @@ export function ImageStudioClient({ userId }: Props) {
       </section>
       */}
 
-      <div className="grid gap-6 2xl:grid-cols-[420px_minmax(0,1fr)] 2xl:items-start">
-        <div className="2xl:sticky 2xl:top-24">
+      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
+        <div className="xl:sticky xl:top-24">
           <div className="space-y-5 rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
               <button
@@ -1234,7 +1261,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
 
         <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
-          <div className="grid gap-4 2xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -1294,7 +1321,7 @@ export function ImageStudioClient({ userId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1377,10 +1404,24 @@ export function ImageStudioClient({ userId }: Props) {
               </p>
             </div>
           ) : null}
+          {activeTab === 'generated' && generatedImages.length > 0 && hasMoreGenerated ? (
+            <div className="flex justify-center">
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void loadMoreGenerated()}
+                disabled={loadingMoreGenerated}
+                className="gap-2"
+              >
+                {loadingMoreGenerated ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {loadingMoreGenerated ? 'Loading…' : 'Load more'}
+              </Button>
+            </div>
+          ) : null}
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="grid gap-6 2xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
               {activeTemplate?.thumbnail_url ? (
