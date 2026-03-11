@@ -15,9 +15,11 @@ import type { Template, TemplateInputField } from '@/types/api';
 const emptyTemplate = (): Template => ({
   id: '',
   type: 'video',
-  category: 'education',
+  medium: 'video',
+  category: 'explainers',
   subcategory: '',
   name: '',
+  title: '',
   slug: '',
   description: '',
   short_description: '',
@@ -27,12 +29,23 @@ const emptyTemplate = (): Template => ({
   visual_prompt: '',
   aspect_ratio: '9:16',
   inputs: [],
+  input_schema: [],
   script_hint: '',
   topic_hint: '',
   prompt_template: '',
+  badge: '',
   active: true,
   trending: false,
   featured: false,
+  is_featured: false,
+  is_quick_start: false,
+  default_model_mode: 'best_video',
+  prompt_assembler_key: '',
+  legacy_mappings: [],
+  suggested_platforms: [],
+  suggested_durations: [],
+  suggested_styles: [],
+  safety_profile: '',
   order: 0,
   generation_defaults: { model_key: '', aspect_ratio: '9:16', resolution: '', voice: '', language: '', duration_seconds: 8, quality: 'standard' },
 });
@@ -77,7 +90,7 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
       if (!current) return current;
       const nextInputs = [...(current.inputs || [])];
       nextInputs[index] = { ...normalizeTemplateInput(nextInputs[index]), ...patch };
-      return { ...current, inputs: nextInputs };
+      return { ...current, inputs: nextInputs, input_schema: nextInputs };
     });
   }
 
@@ -88,7 +101,11 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
       const payload: Template = {
         ...editing,
         id: editing.id || editing.slug || '',
+        medium: editing.type,
+        title: editing.title || editing.name,
         inputs: (editing.inputs || []).map((field) => ({ ...field, options: field.options || [] })),
+        input_schema: (editing.inputs || []).map((field) => ({ ...field, options: field.options || [] })),
+        is_featured: editing.featured ?? editing.is_featured,
       };
       const result = editing.id ? await api.updateAdminTemplate(editing.id, payload, userId) : await api.createAdminTemplate(payload, userId);
       show('Template saved.');
@@ -133,7 +150,7 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
           <button
             key={template.id}
             type="button"
-            onClick={() => setEditing({ ...template, inputs: (template.inputs || []).map(normalizeTemplateInput) })}
+            onClick={() => setEditing({ ...template, inputs: (template.inputs || []).map(normalizeTemplateInput), input_schema: (template.inputs || []).map(normalizeTemplateInput) })}
             className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.42)] text-left shadow-[var(--shadow-soft)] transition hover:border-[hsl(var(--color-accent)/0.35)]"
           >
             <img src={template.thumbnail_url} alt={template.name} className="aspect-[4/3] w-full object-cover" />
@@ -142,8 +159,9 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
                 <span>{template.type}</span>
                 <span>{template.category}</span>
                 <span>{template.active ? 'Active' : 'Inactive'}</span>
+                {template.badge ? <span>{template.badge}</span> : null}
               </div>
-              <p className="text-lg font-semibold text-text">{template.name}</p>
+              <p className="text-lg font-semibold text-text">{template.title || template.name}</p>
               <p className="line-clamp-2 text-sm text-muted">{template.short_description || template.description}</p>
             </div>
           </button>
@@ -167,12 +185,21 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input value={editing.name || ''} onChange={(e) => updateField('name', e.target.value)} placeholder="Name" />
+                <Input value={editing.title || ''} onChange={(e) => updateField('title', e.target.value)} placeholder="Title" />
                 <Input value={editing.slug || ''} onChange={(e) => updateField('slug', e.target.value)} placeholder="slug" />
+                <Input value={editing.badge || ''} onChange={(e) => updateField('badge', e.target.value)} placeholder="Badge" />
                 <Dropdown value={editing.type || 'video'} onChange={(e) => updateField('type', e.target.value as 'video' | 'image')}>
                   <option value="video">Video</option>
                   <option value="image">Image</option>
                 </Dropdown>
-                <Input value={editing.category || ''} onChange={(e) => updateField('category', e.target.value)} placeholder="Category" />
+                <Dropdown value={editing.category || 'explainers'} onChange={(e) => updateField('category', e.target.value)}>
+                  <option value="explainers">Explainers</option>
+                  <option value="ads_promos">Ads & Promos</option>
+                  <option value="social_viral">Social Viral</option>
+                  <option value="carousels_posts">Carousels & Posts</option>
+                  <option value="covers_thumbnails">Covers & Thumbnails</option>
+                  <option value="quick_starts">Quick Starts</option>
+                </Dropdown>
                 <Input value={editing.subcategory || ''} onChange={(e) => updateField('subcategory', e.target.value)} placeholder="Subcategory" />
                 <Dropdown value={editing.aspect_ratio || '9:16'} onChange={(e) => updateField('aspect_ratio', e.target.value)}>
                   <option value="9:16">9:16</option>
@@ -184,6 +211,13 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
               <Textarea value={editing.description || ''} onChange={(e) => updateField('description', e.target.value)} placeholder="Description" />
               <Input value={editing.short_description || ''} onChange={(e) => updateField('short_description', e.target.value)} placeholder="Short description" />
               <Textarea value={editing.prompt_template || ''} onChange={(e) => updateField('prompt_template', e.target.value)} placeholder="Prompt template with {placeholders}" />
+              <Input value={editing.prompt_assembler_key || ''} onChange={(e) => updateField('prompt_assembler_key', e.target.value)} placeholder="Prompt assembler key" />
+              <Input value={editing.default_model_mode || ''} onChange={(e) => updateField('default_model_mode', e.target.value)} placeholder="Default model mode" />
+              <Input value={editing.safety_profile || ''} onChange={(e) => updateField('safety_profile', e.target.value)} placeholder="Safety profile" />
+              <Input value={(editing.legacy_mappings || []).join(', ')} onChange={(e) => updateField('legacy_mappings', e.target.value.split(',').map((item) => item.trim()).filter(Boolean))} placeholder="Legacy mappings (CSV)" />
+              <Input value={(editing.suggested_platforms || []).join(', ')} onChange={(e) => updateField('suggested_platforms', e.target.value.split(',').map((item) => item.trim()).filter(Boolean))} placeholder="Suggested platforms (CSV)" />
+              <Input value={(editing.suggested_styles || []).join(', ')} onChange={(e) => updateField('suggested_styles', e.target.value.split(',').map((item) => item.trim()).filter(Boolean))} placeholder="Suggested styles (CSV)" />
+              <Input value={(editing.suggested_durations || []).join(', ')} onChange={(e) => updateField('suggested_durations', e.target.value.split(',').map((item) => Number(item.trim())).filter((item) => Number.isFinite(item)))} placeholder="Suggested durations in seconds (CSV)" />
               <Input value={editing.script_hint || ''} onChange={(e) => updateField('script_hint', e.target.value)} placeholder="Script hint" />
               <Input value={editing.topic_hint || ''} onChange={(e) => updateField('topic_hint', e.target.value)} placeholder="Topic hint" />
               <Textarea value={editing.visual_prompt || ''} onChange={(e) => updateField('visual_prompt', e.target.value)} placeholder="Visual prompt" />
@@ -225,7 +259,8 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted">
                 <label className="inline-flex items-center gap-2"><input type="checkbox" checked={editing.active ?? true} onChange={(e) => updateField('active', e.target.checked)} />Active</label>
                 <label className="inline-flex items-center gap-2"><input type="checkbox" checked={editing.trending ?? false} onChange={(e) => updateField('trending', e.target.checked)} />Trending</label>
-                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={editing.featured ?? false} onChange={(e) => updateField('featured', e.target.checked)} />Featured</label>
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={editing.featured ?? editing.is_featured ?? false} onChange={(e) => { updateField('featured', e.target.checked); updateField('is_featured', e.target.checked); }} />Featured</label>
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={editing.is_quick_start ?? false} onChange={(e) => updateField('is_quick_start', e.target.checked)} />Quick Start</label>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button onClick={() => void saveTemplate()} disabled={saving}>{saving ? 'Saving...' : 'Save template'}</Button>

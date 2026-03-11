@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Clapperboard, Filter, ImageIcon, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Clapperboard, Eye, Filter, ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { useCredits } from '@/components/credits/CreditContext';
@@ -15,8 +15,17 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
-import type { Template, TemplateGenerateResponse, TemplateInputField } from '@/types/api';
+import type { Template, TemplateGenerateResponse, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 import { TemplatePoster } from './TemplatePoster';
+
+const GROUP_LABELS: Record<string, string> = {
+  explainers: 'Explainers',
+  ads_promos: 'Ads & Promos',
+  social_viral: 'Social Viral',
+  carousels_posts: 'Carousels & Posts',
+  covers_thumbnails: 'Covers & Thumbnails',
+  quick_starts: 'Quick Starts',
+};
 
 function normalizeOptions(field: TemplateInputField): Array<{ label: string; value: string }> {
   return (field.options || []).map((option) =>
@@ -27,20 +36,20 @@ function normalizeOptions(field: TemplateInputField): Array<{ label: string; val
 }
 
 function buildInitialInputs(template: Template | null): Record<string, string> {
-  if (!template?.inputs) return {};
+  if (!template?.inputs?.length) return {};
   return Object.fromEntries(
-    template.inputs.map((field) => [field.key, field.placeholder || (normalizeOptions(field)[0]?.value ?? '')]),
+    template.inputs.map((field) => [field.key, field.placeholder || normalizeOptions(field)[0]?.value || '']),
   );
 }
 
-function defaultEstimatePayload(template: Template | null, inputs: Record<string, string>) {
+function defaultEstimatePayload(template: Template | null, inputs: Record<string, string>, modelOverride: string) {
   if (!template) return null;
   const defaults = template.generation_defaults || {};
   if (template.type === 'image') {
     return {
       action: 'image_generate',
       payload: {
-        model_key: defaults.model_key || 'gemini_flash_image',
+        model_key: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'gemini_flash_image',
         resolution: defaults.resolution || '1536',
       },
     };
@@ -48,7 +57,7 @@ function defaultEstimatePayload(template: Template | null, inputs: Record<string
   return {
     action: 'video_create',
     payload: {
-      model: defaults.model_key || 'sora2',
+      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'veo3',
       resolution: defaults.resolution || '720p',
       durationSeconds: defaults.duration_seconds || 8,
       quality: defaults.quality || 'standard',
@@ -61,6 +70,25 @@ function defaultEstimatePayload(template: Template | null, inputs: Record<string
   };
 }
 
+function resolveTemplateGroup(template: Template): string {
+  if (template.is_quick_start) return 'quick_starts';
+  if (template.category === 'explainers' || template.category === 'education') return 'explainers';
+  if (template.category === 'ads_promos' || template.category === 'advertising') return 'ads_promos';
+  if (template.category === 'social_viral') return 'social_viral';
+  if (template.category === 'carousels_posts') return 'carousels_posts';
+  if (template.category === 'covers_thumbnails') return 'covers_thumbnails';
+  return template.type === 'video' ? 'explainers' : 'quick_starts';
+}
+
+function groupTemplates(templates: Template[]) {
+  return templates.reduce<Record<string, Template[]>>((acc, template) => {
+    const group = resolveTemplateGroup(template);
+    acc[group] = acc[group] || [];
+    acc[group].push(template);
+    return acc;
+  }, {});
+}
+
 export function TemplatesBrowserClient({ userId }: { userId: string }) {
   const router = useRouter();
   const { show } = useToast();
@@ -70,9 +98,12 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'video' | 'image'>('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
+  const [promptOverride, setPromptOverride] = useState('');
+  const [modelOverride, setModelOverride] = useState('');
+  const [preview, setPreview] = useState<TemplatePreviewResponse | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generatedResult, setGeneratedResult] = useState<TemplateGenerateResponse | null>(null);
 
@@ -95,33 +126,57 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
 
   useEffect(() => {
     setTemplateInputs(buildInitialInputs(selectedTemplate));
+    setPromptOverride('');
+    setModelOverride(selectedTemplate?.generation_defaults?.model_key || selectedTemplate?.recommended_model?.internal_model_key || '');
     setGeneratedResult(null);
+    setPreview(null);
   }, [selectedTemplate]);
 
-  const categories = useMemo(
-    () => Array.from(new Set(templates.map((item) => item.category))).sort(),
-    [templates],
-  );
+  useEffect(() => {
+    if (!selectedTemplate) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setPreviewLoading(true);
+      api.previewTemplate(
+        {
+          templateId: selectedTemplate.id,
+          inputs: templateInputs,
+          promptOverride: promptOverride || undefined,
+          modelKey: modelOverride || undefined,
+        },
+        userId,
+      ).then((result) => {
+        if (!cancelled) setPreview(result);
+      }).catch((err) => {
+        if (!cancelled) {
+          setPreview(null);
+          show(err instanceof Error ? err.message : 'Failed to preview template.');
+        }
+      }).finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [selectedTemplate, templateInputs, promptOverride, modelOverride, userId, show]);
 
   const visibleTemplates = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return templates.filter((template) => {
       if (typeFilter !== 'all' && template.type !== typeFilter) return false;
-      if (categoryFilter !== 'all' && template.category !== categoryFilter) return false;
       if (!keyword) return true;
-      const haystack = `${template.name} ${template.description} ${template.short_description} ${template.category}`.toLowerCase();
+      const haystack = `${template.name} ${template.description || ''} ${template.short_description || ''} ${template.category}`.toLowerCase();
       return haystack.includes(keyword);
     });
-  }, [templates, search, typeFilter, categoryFilter]);
+  }, [templates, search, typeFilter]);
 
-  const trendingTemplates = visibleTemplates.filter((item) => item.trending);
-  const videoTemplates = visibleTemplates.filter((item) => item.type === 'video');
-  const imageTemplates = visibleTemplates.filter((item) => item.type === 'image');
-  const activeEstimate = defaultEstimatePayload(selectedTemplate, templateInputs);
+  const groupedTemplates = useMemo(() => groupTemplates(visibleTemplates), [visibleTemplates]);
+  const trendingTemplates = useMemo(() => visibleTemplates.filter((item) => item.trending), [visibleTemplates]);
+  const activeEstimate = defaultEstimatePayload(selectedTemplate, templateInputs, modelOverride);
   const { estimates } = useCreditEstimator(
-    activeEstimate
-      ? [{ key: 'template', action: activeEstimate.action, payload: activeEstimate.payload }]
-      : [],
+    activeEstimate ? [{ key: 'template', action: activeEstimate.action, payload: activeEstimate.payload }] : [],
     { currentCredits: wallet?.currentCredits ?? 0 },
   );
   const templateEstimate = estimates.template;
@@ -130,14 +185,18 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
     if (!selectedTemplate) return;
     setGenerating(true);
     try {
-      const result = await api.generateFromTemplate({ templateId: selectedTemplate.id, inputs: templateInputs }, userId);
+      const result = await api.generateFromTemplate(
+        {
+          templateId: selectedTemplate.id,
+          inputs: templateInputs,
+          modelKey: modelOverride || undefined,
+          promptOverride: promptOverride || undefined,
+        },
+        userId,
+      );
       setGeneratedResult(result);
       await refreshCredits();
-      if (result.contentType === 'image') {
-        show('Template image generated successfully.');
-      } else {
-        show('Template video queued successfully.');
-      }
+      show(result.contentType === 'image' ? 'Template image generated successfully.' : 'Template video queued successfully.');
     } catch (err) {
       show(err instanceof Error ? err.message : 'Failed to generate from template.');
     } finally {
@@ -169,24 +228,24 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
         <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="rangmanch-section-eyebrow">Template Studio</p>
-            <h1 className="mt-3 font-heading text-4xl font-extrabold tracking-tight text-text sm:text-5xl">Visual templates for image and video creation</h1>
-            <p className="mt-3 max-w-2xl text-base text-muted">Browse trending creative workflows, fill dynamic inputs, and generate directly through the existing RangManch pipelines.</p>
+            <h1 className="mt-3 font-heading text-4xl font-extrabold tracking-tight text-text sm:text-5xl">Answer a few questions. We&apos;ll build the prompt for you.</h1>
+            <p className="mt-3 max-w-2xl text-base text-muted">Hero templates are guided creation workflows. Pick an outcome, fill a few structured inputs, review the assembled prompt or script, and generate with the recommended model already chosen for you.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant={typeFilter === 'all' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('all')}>All</Button>
-            <Button variant={typeFilter === 'video' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('video')}><Clapperboard className="mr-2 h-4 w-4" />Video</Button>
-            <Button variant={typeFilter === 'image' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('image')}><ImageIcon className="mr-2 h-4 w-4" />Image</Button>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.44)] px-4 py-3 text-sm text-muted">No complex prompt writing needed.</div>
+            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.44)] px-4 py-3 text-sm text-muted">Recommended model included. You can still override it.</div>
           </div>
         </div>
       </section>
 
       <section className="rangmanch-filter-bar flex flex-col gap-3 rounded-[24px] p-4 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex items-center gap-2 text-sm text-muted"><Filter className="h-4 w-4" />Filter templates</div>
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates" className="sm:max-w-xs" />
-        <Dropdown value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="sm:max-w-[220px]">
-          <option value="all">All categories</option>
-          {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-        </Dropdown>
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by outcome or niche" className="sm:max-w-xs" />
+        <div className="flex flex-wrap gap-3">
+          <Button variant={typeFilter === 'all' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('all')}>All</Button>
+          <Button variant={typeFilter === 'video' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('video')}><Clapperboard className="mr-2 h-4 w-4" />Video</Button>
+          <Button variant={typeFilter === 'image' ? 'primary' : 'secondary'} onClick={() => setTypeFilter('image')}><ImageIcon className="mr-2 h-4 w-4" />Image</Button>
+        </div>
       </section>
 
       {loading ? <div className="flex items-center gap-3 text-muted"><Spinner /> Loading templates...</div> : null}
@@ -194,8 +253,7 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
       {!loading && !error ? (
         <div className="space-y-10">
           {renderSection('Trending Templates', trendingTemplates)}
-          {renderSection('Video Templates', videoTemplates)}
-          {renderSection('Image Templates', imageTemplates)}
+          {Object.entries(groupedTemplates).map(([group, items]) => renderSection(GROUP_LABELS[group] || group, items))}
         </div>
       ) : null}
 
@@ -209,13 +267,19 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
               <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-4">
                 <div className="flex flex-wrap gap-2">
                   <Badge>{selectedTemplate.type === 'video' ? 'Video' : 'Image'}</Badge>
+                  {selectedTemplate.badge ? <Badge>{selectedTemplate.badge}</Badge> : null}
                   {selectedTemplate.trending ? <Badge>Trending</Badge> : null}
-                  {selectedTemplate.featured ? <Badge>Featured</Badge> : null}
-                  <Badge>{selectedTemplate.category}</Badge>
+                  {selectedTemplate.featured || selectedTemplate.is_featured ? <Badge>Featured</Badge> : null}
                 </div>
-                <h3 className="mt-3 text-2xl font-bold text-text">{selectedTemplate.name}</h3>
+                <h3 className="mt-3 text-2xl font-bold text-text">{selectedTemplate.title || selectedTemplate.name}</h3>
                 <p className="mt-2 text-sm text-muted">{selectedTemplate.description}</p>
-                {selectedTemplate.script_hint ? <p className="mt-4 text-sm text-text">Hint: {selectedTemplate.script_hint}</p> : null}
+                <div className="mt-4 flex items-start gap-3 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.5)] px-4 py-3 text-sm text-muted">
+                  <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--color-accent))]" />
+                  <div>
+                    <p className="font-medium text-text">Guided workflow</p>
+                    <p className="mt-1">We assemble the master prompt, scene structure, and model recommendation from your inputs. You can still edit everything before generating.</p>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="space-y-4">
@@ -223,7 +287,7 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Template inputs</p>
-                    <p className="mt-1 text-sm text-muted">Fill the fields and generate directly through the existing pipeline.</p>
+                    <p className="mt-1 text-sm text-muted">Answer a few questions. We&apos;ll build the prompt for you.</p>
                   </div>
                   {templateEstimate ? <Badge>{templateEstimate.estimatedCredits} credits</Badge> : null}
                 </div>
@@ -247,37 +311,65 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
                     );
                   })}
                 </div>
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <Button onClick={() => void handleGenerate()} disabled={generating}>
-                    {generating ? 'Generating...' : 'Generate from template'}
-                  </Button>
-                  {generatedResult ? (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        if (generatedResult.contentType === 'image') {
-                          router.push('/images');
-                          return;
-                        }
-                        router.push('/create');
-                      }}
-                    >
-                      Open result
-                      <ArrowUpRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  ) : null}
+              </div>
+
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Recommended model</p>
+                    <p className="mt-1 text-sm text-muted">We pick the default model based on the outcome. Override only if you know why.</p>
+                  </div>
+                  {preview?.recommendedModel?.group ? <Badge>{preview.recommendedModel.group}</Badge> : null}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-surface)/0.52)] px-4 py-3">
+                    <p className="text-sm font-semibold text-text">{preview?.recommendedModel?.label || selectedTemplate.recommended_model?.label || 'Recommended model'}</p>
+                    <p className="mt-1 text-sm text-muted">{preview?.recommendedModel?.description || selectedTemplate.recommended_model?.description || 'Model guidance is unavailable for this template.'}</p>
+                  </div>
+                  <Input value={modelOverride} onChange={(e) => setModelOverride(e.target.value)} placeholder="Optional model override" className="sm:w-56" />
                 </div>
               </div>
+
+              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-text"><Eye className="h-4 w-4" />Generated prompt preview</div>
+                <p className="mt-1 text-sm text-muted">Advanced users can edit the assembled prompt or script before generating.</p>
+                {previewLoading ? <div className="mt-4 flex items-center gap-2 text-sm text-muted"><Spinner /> Building preview...</div> : null}
+                <div className="mt-4 space-y-3">
+                  {selectedTemplate.type === 'video' ? (
+                    <Textarea value={promptOverride || preview?.videoPrompt || preview?.scriptPreview || preview?.prompt || ''} onChange={(e) => setPromptOverride(e.target.value)} placeholder="Generated script / prompt preview" className="min-h-[180px]" />
+                  ) : (
+                    <Textarea value={promptOverride || preview?.imagePrompt || preview?.prompt || ''} onChange={(e) => setPromptOverride(e.target.value)} placeholder="Generated image prompt preview" className="min-h-[180px]" />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={() => void handleGenerate()} disabled={generating || previewLoading}>
+                  {generating ? 'Generating...' : 'Generate from template'}
+                </Button>
+                {generatedResult ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      if (generatedResult.contentType === 'image') {
+                        router.push('/images');
+                        return;
+                      }
+                      router.push('/create');
+                    }}
+                  >
+                    Open result
+                    <ArrowUpRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+
               {generatedResult ? (
                 <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] p-4">
                   <p className="text-sm font-semibold text-text">Latest result</p>
                   <p className="mt-1 text-sm text-muted">Status: {generatedResult.status} · Credits used: {generatedResult.appliedCredits}</p>
-                  {generatedResult.imageUrl ? (
-                    <img src={generatedResult.imageUrl} alt="Generated template result" className="mt-3 aspect-[4/5] w-full rounded-[20px] object-cover" />
-                  ) : null}
-                  {generatedResult.videoUrl ? (
-                    <div className="mt-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-4 text-sm text-muted">Video queued. Open the video studio or your library to monitor progress.</div>
-                  ) : null}
+                  {generatedResult.imageUrl ? <img src={generatedResult.imageUrl} alt="Generated template result" className="mt-3 aspect-[4/5] w-full rounded-[20px] object-cover" /> : null}
+                  {generatedResult.videoUrl ? <div className="mt-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-4 text-sm text-muted">Video queued. Open the video studio or your library to monitor progress.</div> : null}
                 </div>
               ) : null}
             </div>

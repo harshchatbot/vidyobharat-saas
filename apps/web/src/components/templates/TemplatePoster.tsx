@@ -1,5 +1,3 @@
-'use client';
-
 import { Badge } from '@/components/ui/Badge';
 import type { Template } from '@/types/api';
 
@@ -16,8 +14,10 @@ export function TemplatePoster({ template, onClick }: { template: Template; onCl
         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.92)] via-[hsl(var(--color-bg)/0.08)] to-transparent" />
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <Badge>{template.type === 'video' ? 'Video' : 'Image'}</Badge>
+          {template.badge ? <Badge>{template.badge}</Badge> : null}
           {template.trending ? <Badge>Trending</Badge> : null}
-          {template.featured ? <Badge>Featured</Badge> : null}
+          {template.featured || template.is_featured ? <Badge>Featured</Badge> : null}
+          {template.is_quick_start ? <Badge>Quick Start</Badge> : null}
         </div>
         <div className="absolute inset-x-4 bottom-4">
           <p className="text-lg font-semibold text-white drop-shadow-sm">{template.name}</p>

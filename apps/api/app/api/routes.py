@@ -48,6 +48,7 @@ from app.schemas.catalog import AvatarResponse, TemplateResponse
 from app.schemas.template_management import (
     TemplateGenerateRequest,
     TemplateGenerateResponse,
+    TemplatePreviewResponse,
     TemplateStatusUpdateRequest,
     TemplateUpsertRequest,
     UnifiedTemplateResponse,
@@ -2132,6 +2133,18 @@ def get_unified_template(
     if not template:
         raise HTTPException(status_code=404, detail='Template not found')
     return template
+
+
+@router.post('/api/templates/preview', response_model=TemplatePreviewResponse)
+def preview_template(
+    payload: TemplateGenerateRequest,
+    _: str = Depends(get_user_id),
+):
+    service = TemplateManagementService()
+    try:
+        return service.preview_template(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post('/api/templates/generate', response_model=TemplateGenerateResponse)

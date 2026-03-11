@@ -986,12 +986,12 @@ export function ImageStudioClient({ userId }: Props) {
             <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Templates</p>
-                  <p className="mt-1 text-xs text-muted">Start from a visual workflow, then refine the prompt manually if needed.</p>
+                  <p className="text-sm font-semibold text-text">Quick Starts</p>
+                  <p className="mt-1 text-xs text-muted">Start from a guided visual workflow, then refine the prompt manually if needed.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2 px-3 py-2 text-xs">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                  Browse
+                  Browse quick starts
                 </Button>
               </div>
               <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">

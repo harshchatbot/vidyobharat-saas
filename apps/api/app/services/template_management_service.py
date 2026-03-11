@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import mimetypes
 import re
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from fastapi import UploadFile
@@ -15,10 +13,22 @@ from app.db.repositories.template_repository import TemplateRepository
 from app.models.entities import ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.schemas.catalog import TemplateResponse
-from app.schemas.template_management import TemplateGenerateRequest, TemplateGenerateResponse, TemplateUpsertRequest, UnifiedTemplateResponse
+from app.schemas.template_management import (
+    TemplateGenerateRequest,
+    TemplateGenerateResponse,
+    TemplatePreviewResponse,
+    TemplateUpsertRequest,
+    UnifiedTemplateResponse,
+)
 from app.services.ai_video_service import AIVideoCreateService, ProviderError
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
+from app.services.hero_template_registry import (
+    get_hero_template_documents,
+    get_recommended_model_mode,
+    resolve_legacy_template_mapping,
+)
 from app.services.image_generation_service import ImageGenerationService
+from app.services.template_prompt_assembler import TemplatePromptAssembler, get_recommended_model_display
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +39,7 @@ class TemplateManagementService:
         self.repo = TemplateRepository()
         self.credit_service = CreditService()
         self.storage = build_storage_provider(self.settings)
+        self.assembler = TemplatePromptAssembler()
         self._seeded = False
 
     def list_templates(
@@ -45,9 +56,7 @@ class TemplateManagementService:
         type_default_for_legacy: str | None = None,
     ) -> list[UnifiedTemplateResponse]:
         self._ensure_seeded()
-        rows = self.repo.list()
-        if not rows:
-            rows = self._seed_templates()
+        rows = self.repo.list() or self._seed_templates()
         normalized_type = (type or type_default_for_legacy or '').strip().lower() or None
         normalized_category = (category or '').strip().lower() or None
         normalized_ratio = (aspect_ratio or '').strip().lower() or None
@@ -71,12 +80,12 @@ class TemplateManagementService:
             if keyword:
                 haystack = ' '.join(
                     str(row.get(key) or '')
-                    for key in ('name', 'description', 'short_description', 'category', 'subcategory', 'slug')
+                    for key in ('name', 'title', 'description', 'short_description', 'category', 'subcategory', 'slug')
                 ).lower()
                 if keyword not in haystack:
                     continue
             result.append(self._to_unified_template(row))
-        result.sort(key=lambda item: (-int(item.featured), -int(item.trending), item.order, item.name.lower()))
+        result.sort(key=lambda item: (-int(item.is_featured), -int(item.trending), item.order, item.name.lower()))
         return result
 
     def list_legacy_templates(self, *, search: str | None = None, category: str | None = None, aspect_ratio: str | None = None) -> list[TemplateResponse]:
@@ -94,8 +103,16 @@ class TemplateManagementService:
         self._ensure_seeded()
         row = self.repo.get(template_id)
         if not row:
+            legacy_template_id = resolve_legacy_template_mapping(template_id)
+            if legacy_template_id and legacy_template_id != template_id:
+                row = self.repo.get(legacy_template_id)
+        if not row:
             for seed in self._seed_templates():
                 if seed['id'] == template_id:
+                    row = seed
+                    break
+                legacy_template_id = resolve_legacy_template_mapping(template_id)
+                if legacy_template_id and seed['id'] == legacy_template_id:
                     row = seed
                     break
         if not row:
@@ -169,10 +186,34 @@ class TemplateManagementService:
             raise ValueError('Template not found')
         if not template.active:
             raise ValueError('Template is inactive')
-        prompt = self._render_prompt(template, payload.inputs)
+        assembly = self.assembler.assemble(template, payload.inputs, payload.prompt_override)
         if template.type == 'image':
-            return self._generate_image_from_template(user_id=user_id, template=template, payload=payload, prompt=prompt)
-        return self._generate_video_from_template(user_id=user_id, template=template, payload=payload, prompt=prompt)
+            return self._generate_image_from_template(user_id=user_id, template=template, payload=payload, prompt=assembly.image_prompt or assembly.master_prompt)
+        return self._generate_video_from_template(
+            user_id=user_id,
+            template=template,
+            payload=payload,
+            prompt=assembly.video_prompt or assembly.master_prompt,
+            script_preview=assembly.script_preview,
+            recommended_model_mode=assembly.recommended_model_mode,
+        )
+
+    def preview_template(self, payload: TemplateGenerateRequest) -> TemplatePreviewResponse:
+        template = self.get_template(payload.template_id)
+        if not template:
+            raise ValueError('Template not found')
+        assembly = self.assembler.assemble(template, payload.inputs, payload.prompt_override)
+        return TemplatePreviewResponse(
+            templateId=template.id,
+            contentType=template.type,
+            title=template.title,
+            prompt=assembly.master_prompt,
+            imagePrompt=assembly.image_prompt,
+            videoPrompt=assembly.video_prompt,
+            scriptPreview=assembly.script_preview,
+            recommendedModel=get_recommended_model_display(assembly.recommended_model_mode),
+            recommendedModelMode=assembly.recommended_model_mode,
+        )
 
     def _generate_image_from_template(
         self,
@@ -182,7 +223,7 @@ class TemplateManagementService:
         payload: TemplateGenerateRequest,
         prompt: str,
     ) -> TemplateGenerateResponse:
-        model_key = payload.model_key or template.generation_defaults.model_key or 'gemini_flash_image'
+        model_key = payload.model_key or template.generation_defaults.model_key or self._default_model_for_mode(template.default_model_mode) or 'gemini_flash_image'
         aspect_ratio = payload.aspect_ratio or template.generation_defaults.aspect_ratio or template.aspect_ratio or '4:5'
         resolution = payload.resolution or template.generation_defaults.resolution or '1536'
         request_payload = {
@@ -252,15 +293,17 @@ class TemplateManagementService:
         template: UnifiedTemplateResponse,
         payload: TemplateGenerateRequest,
         prompt: str,
+        script_preview: str | None = None,
+        recommended_model_mode: str | None = None,
     ) -> TemplateGenerateResponse:
-        model_key = payload.model_key or template.generation_defaults.model_key or 'sora2'
+        model_key = payload.model_key or template.generation_defaults.model_key or self._default_model_for_mode(recommended_model_mode or template.default_model_mode) or 'sora2'
         aspect_ratio = payload.aspect_ratio or template.generation_defaults.aspect_ratio or template.aspect_ratio or '9:16'
         resolution = payload.resolution or template.generation_defaults.resolution or '720p'
         voice = payload.voice or template.generation_defaults.voice or 'Shubh'
         language = payload.language or template.generation_defaults.language or str(payload.inputs.get('language') or 'English')
         duration_seconds = payload.duration_seconds or template.generation_defaults.duration_seconds or 8
         quality = payload.quality or template.generation_defaults.quality or 'standard'
-        script = self._build_video_script(template=template, prompt=prompt, language=language)
+        script = script_preview or self._build_video_script(template=template, prompt=prompt, language=language)
         request_payload = {
             'model': model_key,
             'resolution': resolution,
@@ -288,7 +331,8 @@ class TemplateManagementService:
             )
             deduction_amount = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
-            video = AIVideoCreateService(None, self.settings).create_video(
+            service = AIVideoCreateService(None, self.settings)
+            video = service.create_video(
                 user_id=user_id,
                 template=template.name,
                 language=language,
@@ -306,7 +350,7 @@ class TemplateManagementService:
                 captions_enabled=True,
                 caption_style='Classic',
             )
-            AIVideoCreateService(None, self.settings).repo.update(video, applied_credits=estimate.required_credits, request_quality=quality)
+            service.repo.update(video, applied_credits=estimate.required_credits, request_quality=quality)
             return TemplateGenerateResponse(
                 templateId=template.id,
                 contentType='video',
@@ -376,7 +420,16 @@ class TemplateManagementService:
         )
 
     def _to_unified_template(self, data: dict[str, Any]) -> UnifiedTemplateResponse:
-        return UnifiedTemplateResponse.model_validate(data)
+        payload = dict(data)
+        payload.setdefault('medium', payload.get('type'))
+        payload.setdefault('title', payload.get('name'))
+        payload.setdefault('input_schema', payload.get('inputs', []))
+        payload.setdefault('is_featured', payload.get('featured', False))
+        payload.setdefault('is_quick_start', payload.get('is_quick_start', False))
+        recommended = self._recommended_model_payload(payload)
+        if recommended:
+            payload['recommended_model'] = recommended
+        return UnifiedTemplateResponse.model_validate(payload)
 
     def _stringify_value(self, value: Any) -> str:
         if isinstance(value, bool):
@@ -394,6 +447,14 @@ class TemplateManagementService:
 
     def _seed_templates(self) -> list[dict[str, Any]]:
         now = utcnow()
+        seeds = get_hero_template_documents(now)
+        hero_ids = {seed['id'] for seed in seeds}
+        for seed in self._legacy_seed_templates(now):
+            if seed['id'] not in hero_ids:
+                seeds.append(seed)
+        return seeds
+
+    def _legacy_seed_templates(self, now: Any) -> list[dict[str, Any]]:
         return [
             {
                 'id': 'cinematic_infographic',
@@ -401,6 +462,7 @@ class TemplateManagementService:
                 'category': 'education',
                 'subcategory': 'infographic',
                 'name': 'Cinematic Infographic',
+                'title': 'Cinematic Infographic',
                 'slug': 'cinematic-infographic',
                 'description': 'Generate an editorial infographic-style image with cinematic atmosphere and layered information hierarchy.',
                 'short_description': 'Aerial documentary visuals with infographic overlays',
@@ -416,12 +478,21 @@ class TemplateManagementService:
                 'script_hint': 'Keep the composition readable and premium with clear visual hierarchy.',
                 'topic_hint': 'Aerial visual + 3 key data callouts',
                 'prompt_template': 'Create a premium cinematic infographic image about {topic}. Style: {style}. Language context: {language}.',
+                'badge': 'Quick Start',
+                'is_quick_start': True,
+                'default_model_mode': 'best_graphics',
+                'prompt_assembler_key': 'cinematic_infographic',
+                'legacy_mappings': ['cinematic_infographic'],
+                'suggested_platforms': ['linkedin', 'instagram'],
+                'suggested_durations': [],
+                'suggested_styles': ['Documentary', 'Editorial', 'Premium News'],
+                'safety_profile': 'educational_safe',
                 'active': True,
                 'trending': True,
                 'featured': True,
-                'order': 1,
+                'order': 200,
                 'created_by': 'system',
-                'source': 'seed',
+                'source': 'legacy_seed',
                 'generation_defaults': {'model_key': 'recraft_studio', 'aspect_ratio': '4:5', 'resolution': '1536'},
                 'created_at': now,
                 'updated_at': now,
@@ -432,6 +503,7 @@ class TemplateManagementService:
                 'category': 'education',
                 'subcategory': 'fact',
                 'name': 'Did You Know',
+                'title': 'Did You Know',
                 'slug': 'did-you-know',
                 'description': 'Create a social-friendly knowledge card with one striking visual and a strong curiosity hook.',
                 'short_description': 'Fast educational social visual',
@@ -446,12 +518,21 @@ class TemplateManagementService:
                 'script_hint': 'The image should feel instantly shareable and curiosity-driven.',
                 'topic_hint': 'One big fact, one unforgettable visual',
                 'prompt_template': 'Create a premium did-you-know image about {fact_topic}. Style: {style}.',
+                'badge': 'Quick Start',
+                'is_quick_start': True,
+                'default_model_mode': 'best_graphics',
+                'prompt_assembler_key': 'quote_infographic_post',
+                'legacy_mappings': ['did_you_know'],
+                'suggested_platforms': ['instagram', 'linkedin'],
+                'suggested_durations': [],
+                'suggested_styles': ['Educational', 'Cute Animated', 'Cinematic'],
+                'safety_profile': 'educational_safe',
                 'active': True,
                 'trending': True,
                 'featured': False,
-                'order': 2,
+                'order': 201,
                 'created_by': 'system',
-                'source': 'seed',
+                'source': 'legacy_seed',
                 'generation_defaults': {'model_key': 'gemini_flash_image', 'aspect_ratio': '4:5', 'resolution': '1024'},
                 'created_at': now,
                 'updated_at': now,
@@ -462,6 +543,7 @@ class TemplateManagementService:
                 'category': 'geography',
                 'subcategory': 'travel',
                 'name': 'Top 5 Places',
+                'title': 'Top 5 Places',
                 'slug': 'top-5-places',
                 'description': 'Generate a premium travel-explainer cover image for top places, destinations, or city lists.',
                 'short_description': 'Travel ranking visual cover',
@@ -476,12 +558,21 @@ class TemplateManagementService:
                 'script_hint': 'Use premium destination cues and ranking-cover composition.',
                 'topic_hint': 'Destination list cover',
                 'prompt_template': 'Create a polished travel ranking cover image for {place_theme}. Tone: {tone}.',
+                'badge': 'Quick Start',
+                'is_quick_start': True,
+                'default_model_mode': 'best_photos',
+                'prompt_assembler_key': 'thumbnail_cover_art',
+                'legacy_mappings': ['top_5_places'],
+                'suggested_platforms': ['instagram', 'youtube'],
+                'suggested_durations': [],
+                'suggested_styles': ['Travel Documentary', 'Luxury Travel', 'Informative'],
+                'safety_profile': 'general_safe',
                 'active': True,
                 'trending': False,
                 'featured': False,
-                'order': 3,
+                'order': 202,
                 'created_by': 'system',
-                'source': 'seed',
+                'source': 'legacy_seed',
                 'generation_defaults': {'model_key': 'gemini_pro_image', 'aspect_ratio': '16:9', 'resolution': '1536'},
                 'created_at': now,
                 'updated_at': now,
@@ -492,6 +583,7 @@ class TemplateManagementService:
                 'category': 'history',
                 'subcategory': 'timeline',
                 'name': 'History Timeline',
+                'title': 'History Timeline',
                 'slug': 'history-timeline',
                 'description': 'Create a cinematic history explainer cover with artifacts, ruins, and timeline energy.',
                 'short_description': 'History cover with timeline mood',
@@ -506,197 +598,46 @@ class TemplateManagementService:
                 'script_hint': 'The image should feel like the cover of a premium history documentary.',
                 'topic_hint': 'Timeline cover visual',
                 'prompt_template': 'Create a cinematic history timeline cover about {civilization}. Style: {style}.',
+                'badge': 'Quick Start',
+                'is_quick_start': True,
+                'default_model_mode': 'best_photos',
+                'prompt_assembler_key': 'history_timeline',
+                'legacy_mappings': ['history_timeline'],
+                'suggested_platforms': ['youtube', 'instagram'],
+                'suggested_durations': [],
+                'suggested_styles': ['Documentary', 'Epic', 'Museum Editorial'],
+                'safety_profile': 'historical_educational_safe',
                 'active': True,
                 'trending': False,
                 'featured': True,
-                'order': 4,
+                'order': 203,
                 'created_by': 'system',
-                'source': 'seed',
+                'source': 'legacy_seed',
                 'generation_defaults': {'model_key': 'openai_image', 'aspect_ratio': '16:9', 'resolution': '1536'},
                 'created_at': now,
                 'updated_at': now,
             },
-            {
-                'id': 'organ_explainer',
-                'type': 'video',
-                'category': 'education',
-                'subcategory': 'body_explainer',
-                'name': 'Organ Explainer',
-                'slug': 'organ-explainer',
-                'description': 'Create a cinematic educational reel where organs explain body facts in a simple, engaging voice.',
-                'short_description': 'Talking organs explain the body',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1530026186672-2cd00ffc50fe?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1530026186672-2cd00ffc50fe?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Happy heart character in center, kidney and lungs around it, educational cinematic cartoon style.',
-                'aspect_ratio': '9:16',
-                'inputs': [
-                    {'key': 'organ', 'label': 'Organ', 'type': 'text', 'required': True, 'placeholder': 'Heart'},
-                    {'key': 'language', 'label': 'Language', 'type': 'select', 'required': True, 'options': ['English', 'Hindi', 'Hinglish']},
-                    {'key': 'style', 'label': 'Style', 'type': 'select', 'required': False, 'options': ['Educational', 'Cute Animated', 'Cinematic']},
-                ],
-                'script_hint': 'Explain how the organ works in a simple and engaging way.',
-                'topic_hint': 'Heart, Brain, Lungs, Kidney',
-                'prompt_template': 'Create a cinematic educational video where {organ} explains its role in the human body in {language}. Style: {style}.',
-                'active': True,
-                'trending': True,
-                'featured': True,
-                'order': 10,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
-            {
-                'id': 'historical_character_explainer',
-                'type': 'video',
-                'category': 'history',
-                'subcategory': 'character',
-                'name': 'Historical Character Explainer',
-                'slug': 'historical-character-explainer',
-                'description': 'Create a premium talking-character video where a historical figure explains a key event or idea.',
-                'short_description': 'A leader or warrior speaks to camera',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Dramatic king, warrior, or leader speaking toward camera with cinematic authority.',
-                'aspect_ratio': '9:16',
-                'inputs': [
-                    {'key': 'character', 'label': 'Character', 'type': 'text', 'required': True, 'placeholder': 'Ashoka'},
-                    {'key': 'topic', 'label': 'Topic', 'type': 'text', 'required': True, 'placeholder': 'Why the Kalinga war changed my life'},
-                    {'key': 'language', 'label': 'Language', 'type': 'select', 'required': True, 'options': ['English', 'Hindi', 'Hinglish']},
-                ],
-                'script_hint': 'Let the character explain the event in first person with emotional clarity.',
-                'topic_hint': 'Historical POV storytelling',
-                'prompt_template': 'Create a cinematic first-person historical explainer where {character} explains {topic} in {language}.',
-                'active': True,
-                'trending': False,
-                'featured': True,
-                'order': 11,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
-            {
-                'id': 'history_revisit',
-                'type': 'video',
-                'category': 'history',
-                'subcategory': 'documentary',
-                'name': 'History Revisit',
-                'slug': 'history-revisit',
-                'description': 'Create a time-travel style historical revisit with ruins, archives, and emotional cinematic narration.',
-                'short_description': 'Travel through time with cinematic history scenes',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1484502249930-e1da807099a5?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1484502249930-e1da807099a5?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Ancient ruins, cinematic time-travel atmosphere, epic documentary feel.',
-                'aspect_ratio': '16:9',
-                'inputs': [
-                    {'key': 'era', 'label': 'Era / place', 'type': 'text', 'required': True, 'placeholder': 'Ancient Rome'},
-                    {'key': 'hook', 'label': 'Hook', 'type': 'text', 'required': False, 'placeholder': 'What this place looked like at its peak'},
-                ],
-                'script_hint': 'Use a revisit format: then vs now, with visual journey cues.',
-                'topic_hint': 'Then vs now documentary reel',
-                'prompt_template': 'Create a cinematic history revisit video about {era}. Hook: {hook}.',
-                'active': True,
-                'trending': False,
-                'featured': False,
-                'order': 12,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '16:9', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
-            {
-                'id': 'map_highlight_explainer',
-                'type': 'video',
-                'category': 'geography',
-                'subcategory': 'map',
-                'name': 'Map Highlight Explainer',
-                'slug': 'map-highlight-explainer',
-                'description': 'Create a geography or route explainer with a glowing map path and clear motion-led narration.',
-                'short_description': 'Glowing route map explainer',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Animated map route, infographic markers, cinematic geography education.',
-                'aspect_ratio': '16:9',
-                'inputs': [
-                    {'key': 'route', 'label': 'Route / location', 'type': 'text', 'required': True, 'placeholder': 'Silk Route'},
-                    {'key': 'language', 'label': 'Language', 'type': 'select', 'required': False, 'options': ['English', 'Hindi', 'Hinglish']},
-                ],
-                'script_hint': 'Explain the route with movement, significance, and key markers.',
-                'topic_hint': 'Map-based explainer',
-                'prompt_template': 'Create a cinematic map highlight explainer about {route} in {language}.',
-                'active': True,
-                'trending': False,
-                'featured': False,
-                'order': 13,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '16:9', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
-            {
-                'id': 'ai_story_slides',
-                'type': 'video',
-                'category': 'social',
-                'subcategory': 'storytelling',
-                'name': 'AI Story Slides',
-                'slug': 'ai-story-slides',
-                'description': 'Create a short slide-style storytelling video with bold hook, visual beats, and strong closing line.',
-                'short_description': 'Slide-based story reel',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Story slides, premium social framing, clean scene transitions.',
-                'aspect_ratio': '9:16',
-                'inputs': [
-                    {'key': 'story_topic', 'label': 'Story topic', 'type': 'text', 'required': True, 'placeholder': 'How a local founder built trust online'},
-                    {'key': 'tone', 'label': 'Tone', 'type': 'select', 'required': False, 'options': ['Inspirational', 'Dramatic', 'Sharp']},
-                ],
-                'script_hint': 'Make the story easy to consume scene by scene with a strong emotional arc.',
-                'topic_hint': '3-5 slide story arc',
-                'prompt_template': 'Create a vertical AI story-slide video about {story_topic}. Tone: {tone}.',
-                'active': True,
-                'trending': True,
-                'featured': False,
-                'order': 14,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
-            {
-                'id': 'comparison_vs',
-                'type': 'video',
-                'category': 'viral-comparisons',
-                'subcategory': 'comparison',
-                'name': 'Comparison VS',
-                'slug': 'comparison-vs',
-                'description': 'Create a split-screen comparison video for two ideas, products, or historical contrasts.',
-                'short_description': 'Split-screen contrast explainer',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Split-screen visual contrast, clear comparison energy, social-first motion.',
-                'aspect_ratio': '9:16',
-                'inputs': [
-                    {'key': 'left_side', 'label': 'Left side', 'type': 'text', 'required': True, 'placeholder': 'Ancient education'},
-                    {'key': 'right_side', 'label': 'Right side', 'type': 'text', 'required': True, 'placeholder': 'Modern education'},
-                    {'key': 'language', 'label': 'Language', 'type': 'select', 'required': False, 'options': ['English', 'Hindi', 'Hinglish']},
-                ],
-                'script_hint': 'Make the contrast clear, punchy, and social-friendly.',
-                'topic_hint': 'This vs that format',
-                'prompt_template': 'Create a split-screen comparison video contrasting {left_side} vs {right_side} in {language}.',
-                'active': True,
-                'trending': True,
-                'featured': True,
-                'order': 15,
-                'created_by': 'system',
-                'source': 'seed',
-                'generation_defaults': {'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
-                'created_at': now,
-                'updated_at': now,
-            },
         ]
+
+    def _recommended_model_payload(self, data: dict[str, Any]) -> dict[str, Any] | None:
+        if data.get('recommended_model'):
+            return data['recommended_model']
+        mode = data.get('default_model_mode')
+        if not mode:
+            return None
+        recommended = get_recommended_model_mode(str(mode))
+        if not recommended:
+            return None
+        return {
+            'mode': mode,
+            'label': recommended.label,
+            'description': recommended.description,
+            'group': recommended.group,
+            'internal_model_key': recommended.internal_model_key,
+        }
+
+    def _default_model_for_mode(self, mode: str | None) -> str | None:
+        if not mode:
+            return None
+        recommended = get_recommended_model_mode(mode)
+        return recommended.internal_model_key if recommended else None

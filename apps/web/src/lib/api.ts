@@ -43,6 +43,7 @@ import type {
   Template,
   TemplateGenerateRequest,
   TemplateGenerateResponse,
+  TemplatePreviewResponse,
   TTSCatalogResponse,
   TTSPreviewRequest,
   TTSPreviewResponse,
@@ -274,6 +275,12 @@ export const api = {
   },
   getTemplate(templateId: string, userId: string) {
     return request<Template>(`/api/templates/${templateId}`, {}, { userId, cache: 'no-store' });
+  },
+  previewTemplate(payload: TemplateGenerateRequest, userId: string) {
+    return request<TemplatePreviewResponse>('/api/templates/preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store' });
   },
   generateFromTemplate(payload: TemplateGenerateRequest, userId: string) {
     return request<TemplateGenerateResponse>('/api/templates/generate', {

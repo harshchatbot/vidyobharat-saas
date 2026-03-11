@@ -39,12 +39,22 @@ class TemplateGenerationDefaults(BaseModel):
     quality: str | None = Field(default=None, max_length=20)
 
 
+class TemplateRecommendedModel(BaseModel):
+    mode: str | None = None
+    label: str | None = None
+    description: str | None = None
+    group: str | None = None
+    internal_model_key: str | None = None
+
+
 class UnifiedTemplateResponse(BaseModel):
     id: str
     type: TemplateType
+    medium: TemplateType | None = None
     category: str
     subcategory: str | None = None
     name: str
+    title: str | None = None
     slug: str
     description: str
     short_description: str
@@ -64,6 +74,18 @@ class UnifiedTemplateResponse(BaseModel):
     created_by: str | None = None
     source: str | None = None
     generation_defaults: TemplateGenerationDefaults = Field(default_factory=TemplateGenerationDefaults)
+    badge: str | None = None
+    is_featured: bool = False
+    is_quick_start: bool = False
+    default_model_mode: str | None = None
+    prompt_assembler_key: str | None = None
+    input_schema: list[TemplateInputField] = Field(default_factory=list)
+    legacy_mappings: list[str] = Field(default_factory=list)
+    suggested_platforms: list[str] = Field(default_factory=list)
+    suggested_durations: list[int] = Field(default_factory=list)
+    suggested_styles: list[str] = Field(default_factory=list)
+    safety_profile: str | None = None
+    recommended_model: TemplateRecommendedModel = Field(default_factory=TemplateRecommendedModel)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -91,6 +113,16 @@ class TemplateUpsertRequest(BaseModel):
     featured: bool = False
     order: int = 0
     generation_defaults: TemplateGenerationDefaults = Field(default_factory=TemplateGenerationDefaults)
+    badge: str | None = Field(default=None, max_length=80)
+    is_featured: bool = False
+    is_quick_start: bool = False
+    default_model_mode: str | None = Field(default=None, max_length=80)
+    prompt_assembler_key: str | None = Field(default=None, max_length=120)
+    legacy_mappings: list[str] = Field(default_factory=list)
+    suggested_platforms: list[str] = Field(default_factory=list)
+    suggested_durations: list[int] = Field(default_factory=list)
+    suggested_styles: list[str] = Field(default_factory=list)
+    safety_profile: str | None = Field(default=None, max_length=120)
 
 
 class TemplateStatusUpdateRequest(BaseModel):
@@ -109,6 +141,17 @@ class TemplateGenerateRequest(BaseModel):
     voice: str | None = Field(default=None, max_length=120)
     duration_seconds: int | None = Field(default=None, ge=3, le=300, alias='durationSeconds')
     quality: str | None = Field(default=None, max_length=20)
+    prompt_override: str | None = Field(default=None, max_length=6000, alias='promptOverride')
+
+    model_config = {'populate_by_name': True}
+
+
+class TemplatePreviewResponse(BaseModel):
+    template_id: str = Field(alias='templateId')
+    content_type: TemplateType = Field(alias='contentType')
+    prompt_preview: str = Field(alias='promptPreview')
+    script_preview: str | None = Field(default=None, alias='scriptPreview')
+    recommended_model: TemplateRecommendedModel = Field(default_factory=TemplateRecommendedModel, alias='recommendedModel')
 
     model_config = {'populate_by_name': True}
 

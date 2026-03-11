@@ -39,10 +39,12 @@ export type Avatar = {
 export type Template = {
   id: string;
   name: string;
+  title?: string;
   category: string;
   aspect_ratio: '9:16' | '16:9' | string;
   thumbnail_url: string;
   type?: 'video' | 'image';
+  medium?: 'video' | 'image';
   subcategory?: string | null;
   slug?: string | null;
   description?: string | null;
@@ -57,6 +59,18 @@ export type Template = {
   active?: boolean;
   trending?: boolean;
   featured?: boolean;
+  badge?: string | null;
+  is_featured?: boolean;
+  is_quick_start?: boolean;
+  default_model_mode?: string | null;
+  prompt_assembler_key?: string | null;
+  input_schema?: TemplateInputField[];
+  legacy_mappings?: string[];
+  suggested_platforms?: string[];
+  suggested_durations?: number[];
+  suggested_styles?: string[];
+  safety_profile?: string | null;
+  recommended_model?: TemplateRecommendedModel | null;
   order?: number;
   created_by?: string | null;
   source?: string | null;
@@ -89,6 +103,14 @@ export type TemplateGenerationDefaults = {
   quality?: string | null;
 };
 
+export type TemplateRecommendedModel = {
+  mode?: string | null;
+  label?: string | null;
+  description?: string | null;
+  group?: string | null;
+  internal_model_key?: string | null;
+};
+
 export type TemplateGenerateRequest = {
   templateId: string;
   inputs: Record<string, string | number | boolean | null>;
@@ -99,6 +121,7 @@ export type TemplateGenerateRequest = {
   voice?: string;
   durationSeconds?: number;
   quality?: string;
+  promptOverride?: string;
 };
 
 export type TemplateGenerateResponse = {
@@ -113,6 +136,18 @@ export type TemplateGenerateResponse = {
   remainingCredits?: number | null;
   provider?: string | null;
   modelKey?: string | null;
+};
+
+export type TemplatePreviewResponse = {
+  templateId: string;
+  contentType: 'video' | 'image';
+  title: string;
+  prompt: string;
+  imagePrompt?: string | null;
+  videoPrompt?: string | null;
+  scriptPreview?: string | null;
+  recommendedModel?: TemplateRecommendedModel | null;
+  recommendedModelMode?: string | null;
 };
 
 export type ProjectAsset = {
