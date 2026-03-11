@@ -63,7 +63,7 @@ type ImageTemplatePreset = {
 };
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
-const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 4;
+const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 3;
 const IMAGE_STUDIO_LOAD_MORE_STEP = 8;
 
 const fallbackModels: ImageModel[] = [
