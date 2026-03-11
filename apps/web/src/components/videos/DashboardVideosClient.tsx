@@ -40,6 +40,9 @@ type MediaFilter = 'all' | 'video' | 'image';
 type InspirationFilter = 'all' | 'video' | 'image';
 type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
+const DASHBOARD_FEED_LIMIT = 8;
+const DASHBOARD_COMMUNITY_LIMIT = 6;
+
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
   if (status === 'completed') return 'Completed';
@@ -297,7 +300,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       ]));
     };
 
-    void api.listGeneratedImages(userId)
+    void api.listGeneratedImages(userId, DASHBOARD_FEED_LIMIT)
       .then((images) => {
         if (cancelled) return;
         replaceAssetType('image', images.map(toAssetFromImage));
@@ -320,7 +323,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         }
       });
 
-    void api.listVideos(userId)
+    void api.listVideos(userId, DASHBOARD_FEED_LIMIT)
       .then((videos) => {
         if (cancelled) return;
         replaceAssetType('video', videos.map(toAssetFromVideo));
@@ -342,42 +345,60 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         }
       });
 
-    void api.listImageInspiration(userId)
-      .then((images) => {
-        if (cancelled) return;
-        setImageInspiration(images);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        imageCommunityFailed = true;
-        if (videoCommunityFailed) {
-          setCommunityError(err instanceof Error ? err.message : 'Failed to load image inspiration.');
-        }
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setImageCommunityLoading(false);
-      });
+    const loadCommunity = () => {
+      void api.listImageInspiration(userId, DASHBOARD_COMMUNITY_LIMIT)
+        .then((images) => {
+          if (cancelled) return;
+          setImageInspiration(images);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          imageCommunityFailed = true;
+          if (videoCommunityFailed) {
+            setCommunityError(err instanceof Error ? err.message : 'Failed to load image inspiration.');
+          }
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setImageCommunityLoading(false);
+        });
 
-    void api.listVideoInspiration(userId)
-      .then((videos) => {
-        if (cancelled) return;
-        setVideoInspiration(videos);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        videoCommunityFailed = true;
-        if (imageCommunityFailed) {
-          setCommunityError((current) => current ?? (err instanceof Error ? err.message : 'Failed to load video inspiration.'));
-        }
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setVideoCommunityLoading(false);
-      });
+      void api.listVideoInspiration(userId, DASHBOARD_COMMUNITY_LIMIT)
+        .then((videos) => {
+          if (cancelled) return;
+          setVideoInspiration(videos);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          videoCommunityFailed = true;
+          if (imageCommunityFailed) {
+            setCommunityError((current) => current ?? (err instanceof Error ? err.message : 'Failed to load video inspiration.'));
+          }
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setVideoCommunityLoading(false);
+        });
+    };
+
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof globalThis.setTimeout> | null = null;
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleHandle = window.requestIdleCallback(() => loadCommunity(), { timeout: 1200 });
+    } else if (typeof window !== 'undefined') {
+      timeoutHandle = globalThis.setTimeout(loadCommunity, 450);
+    } else {
+      loadCommunity();
+    }
 
     return () => {
       cancelled = true;
+      if (typeof window !== 'undefined' && idleHandle !== null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        globalThis.clearTimeout(timeoutHandle);
+      }
     };
   }, [userId]);
 
@@ -503,10 +524,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         setError(null);
       }
       if (asset.content_type === 'video') {
-        const refreshed = await api.listVideoInspiration(userId).catch(() => null);
+        const refreshed = await api.listVideoInspiration(userId, DASHBOARD_COMMUNITY_LIMIT).catch(() => null);
         if (refreshed) setVideoInspiration(refreshed);
       } else {
-        const refreshed = await api.listImageInspiration(userId).catch(() => null);
+        const refreshed = await api.listImageInspiration(userId, DASHBOARD_COMMUNITY_LIMIT).catch(() => null);
         if (refreshed) setImageInspiration(refreshed);
       }
     } catch (err) {
@@ -589,7 +610,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             </div>
             <div className="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
-                <p className="rangmanch-section-eyebrow">All creations</p>
+                <p className="rangmanch-section-eyebrow">Recent creations</p>
                 {imagesLoading || videosLoading ? (
                   <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
                 ) : (
@@ -597,7 +618,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 )}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
-                <p className="rangmanch-section-eyebrow">Videos</p>
+                <p className="rangmanch-section-eyebrow">Recent videos</p>
                 {videosLoading ? (
                   <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
                 ) : (
@@ -605,7 +626,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 )}
               </div>
               <div className="rangmanch-matte-surface rounded-[24px] p-4">
-                <p className="rangmanch-section-eyebrow">Images</p>
+                <p className="rangmanch-section-eyebrow">Recent images</p>
                 {imagesLoading ? (
                   <div className="mt-3 h-8 w-14 animate-pulse rounded-full bg-[hsl(var(--color-border))]" />
                 ) : (
@@ -695,9 +716,13 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           <div>
             <p className="rangmanch-section-eyebrow">Discover</p>
             <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Community</h2>
-            <p className="mt-1 text-sm text-muted">Trending inspiration from approved, high-quality public creations.</p>
+            <p className="mt-1 text-sm text-muted">A lightweight preview of approved public creations.</p>
           </div>
-          <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] p-1 backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Badge variant="outline" className="h-9 rounded-full px-4 text-xs text-muted">
+              Preview only
+            </Badge>
+            <div className="flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] p-1 backdrop-blur-md">
             {(['all', 'video', 'image'] as const).map((value) => (
               <button
                 key={value}
@@ -716,6 +741,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     : `Images (${imageInspiration.length})`}
               </button>
             ))}
+            </div>
           </div>
         </div>
         {communityLoading ? (
@@ -751,14 +777,17 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
                 {videoItem ? (
-                  <video
-                    src={toAbsoluteUrl(videoItem.video_url) ?? videoItem.video_url}
-                    poster={toAbsoluteUrl(videoItem.thumbnail_url) ?? videoItem.thumbnail_url}
-                    muted
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  />
+                  <>
+                    <img
+                      src={preview}
+                      alt={item.title}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                    />
+                    <span className="absolute left-3 bottom-16 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                      <Film className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      Preview
+                    </span>
+                  </>
                 ) : (
                   <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                 )}
@@ -789,7 +818,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       downloadFromUrl(videoItem ? videoItem.video_url : imageItem?.image_url ?? null, item.title, videoItem ? 'mp4' : 'png');
                     }}
                   >
-                    <Clapperboard className="h-4 w-4 text-text" strokeWidth={1.75} />
+                    <Download className="h-4 w-4 text-text" strokeWidth={1.75} />
                   </button>
                   <button
                     type="button"
@@ -838,6 +867,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           <div className="flex flex-wrap gap-2">
             <Link href="/images"><Button variant="secondary">Create image</Button></Link>
             <Link href="/create"><Button>Create video</Button></Link>
+            <Link href={mediaFilter === 'image' ? '/images' : mediaFilter === 'video' ? '/projects' : '/projects'}>
+              <Button variant="secondary">View all</Button>
+            </Link>
           </div>
         </div>
 
@@ -987,7 +1019,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
         {!loading && assets.length > highlightedAssets.length && (
           <div className="flex justify-center">
-            <Link href={mediaFilter === 'image' ? '/images' : '/dashboard'}>
+            <Link href={mediaFilter === 'image' ? '/images' : '/projects'}>
               <Button variant="secondary" className="gap-2">
                 View more creations
                 <ArrowRight className="h-4 w-4" />

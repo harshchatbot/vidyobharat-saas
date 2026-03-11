@@ -30,8 +30,8 @@ class VideoService:
         self.music_upload_dir.mkdir(parents=True, exist_ok=True)
         self.storage = build_storage_provider(get_settings())
 
-    def list_videos(self, user_id: str) -> list[Video]:
-        return self.repo.list_by_user(user_id)
+    def list_videos(self, user_id: str, limit: int | None = None) -> list[Video]:
+        return self.repo.list_by_user(user_id, limit=limit)
 
     def get_video(self, video_id: str, user_id: str) -> Video | None:
         video = self.repo.get_by_id(video_id)

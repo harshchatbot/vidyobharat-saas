@@ -191,8 +191,8 @@ class ImageGenerationService:
     def list_models(self) -> list[ImageModelEntry]:
         return [model for model in IMAGE_MODEL_REGISTRY.values() if model.visible]
 
-    def list_user_images(self, user_id: str) -> list[ImageGeneration]:
-        return self.repo.list_by_user(user_id)
+    def list_user_images(self, user_id: str, limit: int | None = None) -> list[ImageGeneration]:
+        return self.repo.list_by_user(user_id, limit=limit)
 
     def list_inspiration(self) -> list[dict[str, object]]:
         return INSPIRATION_ITEMS

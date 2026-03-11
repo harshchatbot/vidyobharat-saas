@@ -35,11 +35,12 @@ class ImageGenerationRepository:
             return None
         return self._to_model(data)
 
-    def list_by_user(self, user_id: str) -> list[ImageGeneration]:
+    def list_by_user(self, user_id: str, limit: int | None = None) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
         by_id: dict[str, ImageGeneration] = {}
+        bounded_limit = max(1, min(limit or 800, 800))
         try:
-            root_query = self.collection.where('user_id', '==', user_id).limit(800)
+            root_query = self.collection.where('user_id', '==', user_id).limit(bounded_limit)
             for row in root_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', row.id)
@@ -51,7 +52,7 @@ class ImageGenerationRepository:
                 except Exception:
                     continue
 
-            group_query = self.firestore.collection_group('images').where('userId', '==', user_id).limit(800)
+            group_query = self.firestore.collection_group('images').where('userId', '==', user_id).limit(bounded_limit)
             for row in group_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', data.get('id') or row.id)
@@ -75,7 +76,7 @@ class ImageGenerationRepository:
                 except Exception:
                     continue
         items.sort(key=lambda item: item.created_at, reverse=True)
-        return items
+        return items[:bounded_limit]
 
     def list_inspiration_candidates(self, limit: int = 300) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []

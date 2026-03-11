@@ -1356,12 +1356,13 @@ def list_ai_image_models(
 
 @router.get('/ai/images', response_model=list[ImageGenerationResponse])
 def list_ai_images(
+    limit: int | None = None,
     user_id: str = Depends(get_user_id),
 ):
     service = ImageGenerationService(None)
     db = None
     items: list[ImageGenerationResponse] = []
-    for item in service.list_user_images(user_id):
+    for item in service.list_user_images(user_id, limit=limit):
         try:
             items.append(_to_image_generation_response(item, db))
         except Exception:
@@ -1371,11 +1372,12 @@ def list_ai_images(
 
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
 def list_ai_image_inspiration(
+    limit: int = 60,
     user_id: str = Depends(get_user_id),
 ):
     service = InspirationService(None)
     result: list[InspirationImageResponse] = []
-    for item in service.list_image_inspiration(viewer_user_id=user_id):
+    for item in service.list_image_inspiration(viewer_user_id=user_id, limit=limit):
         try:
             result.append(InspirationImageResponse.model_validate(item))
         except Exception:
@@ -1389,11 +1391,12 @@ def list_ai_image_inspiration(
 
 @router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
 def list_ai_video_inspiration(
+    limit: int = 60,
     user_id: str = Depends(get_user_id),
 ):
     service = InspirationService(None)
     result: list[InspirationVideoResponse] = []
-    for item in service.list_video_inspiration(viewer_user_id=user_id):
+    for item in service.list_video_inspiration(viewer_user_id=user_id, limit=limit):
         try:
             result.append(InspirationVideoResponse.model_validate(item))
         except Exception:
@@ -2425,10 +2428,11 @@ def delete_upload(
 
 @router.get('/videos', response_model=list[VideoResponse])
 def list_videos(
+    limit: int | None = None,
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(None)
-    videos = service.list_videos(user_id)
+    videos = service.list_videos(user_id, limit=limit)
     return [_to_video_response(video, None) for video in videos]
 
 

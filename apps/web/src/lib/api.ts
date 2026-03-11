@@ -389,8 +389,8 @@ export const api = {
       method: 'DELETE',
     }, { userId, cache: 'no-store' });
   },
-  listVideos(userId: string) {
-    const path = '/videos';
+  listVideos(userId: string, limit?: number) {
+    const path = limit ? `/videos?limit=${limit}` : '/videos';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 6_000, () =>
       request<Video[]>(path, {}, { userId, cache: 'no-store' }),
@@ -511,22 +511,22 @@ export const api = {
   listImageModels(userId: string) {
     return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store' });
   },
-  listGeneratedImages(userId: string) {
-    const path = '/ai/images';
+  listGeneratedImages(userId: string, limit?: number) {
+    const path = limit ? `/ai/images?limit=${limit}` : '/ai/images';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 6_000, () =>
       request<GeneratedImage[]>(path, {}, { userId, cache: 'no-store' }),
     );
   },
-  listImageInspiration(userId: string) {
-    const path = '/ai/images/inspiration';
+  listImageInspiration(userId: string, limit?: number) {
+    const path = limit ? `/ai/images/inspiration?limit=${limit}` : '/ai/images/inspiration';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 10_000, () =>
       request<InspirationImage[]>(path, {}, { userId, cache: 'no-store' }),
     );
   },
-  listVideoInspiration(userId: string) {
-    const path = '/api/videos/inspiration';
+  listVideoInspiration(userId: string, limit?: number) {
+    const path = limit ? `/api/videos/inspiration?limit=${limit}` : '/api/videos/inspiration';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 10_000, () =>
       request<InspirationVideo[]>(path, {}, { userId, cache: 'no-store' }),
