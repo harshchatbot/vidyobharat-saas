@@ -2235,33 +2235,30 @@ async def upload_template_preview(
 @router.post('/projects', response_model=ProjectResponse)
 def create_project(
     payload: CreateProjectRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     if payload.user_id != user_id:
         raise HTTPException(status_code=403, detail='Forbidden user_id')
-    service = ProjectService(db)
+    service = ProjectService(None)
     return service.create_project(payload)
 
 
 @router.get('/projects', response_model=list[ProjectResponse])
 def list_projects(
     response: Response,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     response.headers['Cache-Control'] = 'private, max-age=10'
-    service = ProjectService(db)
+    service = ProjectService(None)
     return service.list_projects(user_id=user_id)
 
 
 @router.get('/projects/{project_id}')
 def get_project(
     project_id: str,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = ProjectService(db)
+    service = ProjectService(None)
     project = service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail='Project not found')
@@ -2278,10 +2275,9 @@ def get_project(
 def update_project(
     project_id: str,
     payload: UpdateProjectRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = ProjectService(db)
+    service = ProjectService(None)
     try:
         project = service.update_project(project_id, user_id, payload)
     except PermissionError as exc:
@@ -2295,10 +2291,9 @@ def update_project(
 def create_project_asset(
     project_id: str,
     payload: CreateProjectAssetRequest,
-    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
-    service = ProjectService(db)
+    service = ProjectService(None)
     try:
         asset, upload_url = service.add_project_asset(project_id, user_id, payload)
     except LookupError as exc:

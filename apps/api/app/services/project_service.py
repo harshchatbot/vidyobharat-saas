@@ -9,7 +9,7 @@ from app.schemas.project import CreateProjectAssetRequest, CreateProjectRequest,
 
 
 class ProjectService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session | None) -> None:
         self.project_repo = ProjectRepository(db)
         self.render_repo = RenderRepository(db)
         self.asset_repo = AssetRepository(db)
