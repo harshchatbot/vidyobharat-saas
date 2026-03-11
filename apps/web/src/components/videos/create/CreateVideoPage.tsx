@@ -13,9 +13,9 @@ import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { getVideoModelMap } from '@/config/videoModels';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate } from '@/types/api';
 
-import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS } from './constants';
+import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS, type TemplateOption } from './constants';
 import { GenerateButton } from './GenerateButton';
 import { ModelDropdown } from './ModelDropdown';
 import { MusicSelector } from './MusicSelector';
@@ -52,6 +52,51 @@ function buildTierStageLabel(phase: RenderSessionPhase, progress: number) {
   if (phase === 'success') return 'Finalizing output';
   if (phase === 'failed') return 'Closing render';
   return 'Preparing generation';
+}
+
+function mapCategoryToIcon(template: UnifiedTemplate) {
+  const category = (template.category || '').toLowerCase();
+  const subtype = (template.subcategory || '').toLowerCase();
+  if (category.includes('ads') || category.includes('promo')) return Sparkles;
+  if (category.includes('viral')) return Wand2;
+  if (category.includes('carousel') || category.includes('cover')) return GalleryVerticalEnd;
+  if (subtype.includes('histor') || subtype.includes('myth') || category.includes('explainer') || category.includes('education')) return Clapperboard;
+  return Film;
+}
+
+function mapUnifiedTemplateToVideoOption(template: UnifiedTemplate): TemplateOption {
+  return {
+    key: template.id,
+    label: template.title || template.name,
+    description: template.short_description || template.description || 'Guided video workflow',
+    icon: mapCategoryToIcon(template),
+    scriptHint: template.script_hint || template.description || '',
+    topicHint: template.topic_hint || template.short_description || template.name,
+    image: template.preview_image_url || template.thumbnail_url,
+    eyebrow: template.category.replace(/_/g, ' '),
+    helper: template.recommended_model?.label || 'Recommended model included',
+    badge: template.badge || (template.is_quick_start ? 'Quick Start' : undefined),
+    defaultModelKey: template.generation_defaults?.model_key || template.recommended_model?.internal_model_key || undefined,
+  };
+}
+
+function mergeVideoTemplateOptions(unifiedTemplates: UnifiedTemplate[]): TemplateOption[] {
+  const localMap = new Map(TEMPLATE_OPTIONS.map((item) => [item.key, item]));
+  const merged: TemplateOption[] = [];
+  const custom = localMap.get('custom');
+  if (custom) merged.push(custom);
+
+  const unifiedMapped = unifiedTemplates.map(mapUnifiedTemplateToVideoOption);
+  const coveredLegacyKeys = new Set(unifiedTemplates.flatMap((template) => [template.id, ...(template.legacy_mappings || [])]));
+  merged.push(...unifiedMapped);
+
+  for (const option of TEMPLATE_OPTIONS) {
+    if (option.key === 'custom') continue;
+    if (coveredLegacyKeys.has(option.key)) continue;
+    merged.push(option);
+  }
+
+  return merged;
 }
 
 function VideoLaneSelector({
@@ -122,6 +167,7 @@ export function CreateVideoPage({
 
   const [templateSearch, setTemplateSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.key);
+  const [videoTemplates, setVideoTemplates] = useState<TemplateOption[]>(TEMPLATE_OPTIONS);
   const [title, setTitle] = useState(initialTitle ?? '');
   const [topic, setTopic] = useState(initialTitle ?? '');
   const [script, setScript] = useState(initialScript ?? '');
@@ -191,10 +237,10 @@ export function CreateVideoPage({
   const { show } = useToast();
   const estimateErrorShownRef = useRef<string | null>(null);
 
-  const template = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate) ?? TEMPLATE_OPTIONS[0];
+  const template = videoTemplates.find((item) => item.key === selectedTemplate) ?? videoTemplates[0] ?? TEMPLATE_OPTIONS[0];
   const completionToastRef = useRef<string | null>(null);
   const sharedModelMap = useMemo(() => getVideoModelMap(), []);
-  const visibleTemplates = TEMPLATE_OPTIONS.filter((item) => {
+  const visibleTemplates = videoTemplates.filter((item) => {
     const query = templateSearch.trim().toLowerCase();
     if (!query) return true;
     return `${item.label} ${item.description}`.toLowerCase().includes(query);
@@ -457,7 +503,8 @@ export function CreateVideoPage({
       api.getTtsCatalog(userId).catch(() => null),
       api.listGeneratedImages(userId).catch(() => []),
       api.listVideos(userId).catch(() => []),
-    ]).then(([videoModels, ttsCatalog, userImages, userVideos]) => {
+      api.listUnifiedTemplates(userId, { type: 'video', active: true }).catch(() => []),
+    ]).then(([videoModels, ttsCatalog, userImages, userVideos, unifiedTemplates]) => {
       if (cancelled) return;
       setModels(videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS);
       if (ttsCatalog) {
@@ -466,6 +513,13 @@ export function CreateVideoPage({
       }
       setGeneratedImages(userImages);
       setVideos(userVideos);
+      const nextTemplates = unifiedTemplates.length > 0 ? mergeVideoTemplateOptions(unifiedTemplates) : TEMPLATE_OPTIONS;
+      setVideoTemplates(nextTemplates);
+      setSelectedTemplate((current) =>
+        nextTemplates.some((item) => item.key === current)
+          ? current
+          : (nextTemplates[0]?.key ?? 'custom'),
+      );
       if (videoModels.length > 0) {
         setModelKey((current) =>
           videoModels.some((item) => item.key === current)
@@ -886,10 +940,10 @@ export function CreateVideoPage({
   }, [selectedTrackId, musicMode]);
 
   const applyTemplate = (templateId: string) => {
-    const next = TEMPLATE_OPTIONS.find((item) => item.key === templateId);
+    const next = videoTemplates.find((item) => item.key === templateId);
     if (!next) return;
 
-    const previousTemplate = TEMPLATE_OPTIONS.find((item) => item.key === selectedTemplate);
+    const previousTemplate = videoTemplates.find((item) => item.key === selectedTemplate);
     const topicLooksTemplateDriven =
       !topic.trim() || topic === previousTemplate?.topicHint || topic === previousTemplate?.label;
     const scriptLooksTemplateDriven =
@@ -911,6 +965,10 @@ export function CreateVideoPage({
       if (!title.trim() || title === previousTemplate?.topicHint) {
         setTitle(next.topicHint);
       }
+    }
+
+    if (next.defaultModelKey) {
+      setModelKey(next.defaultModelKey as VideoModelKey);
     }
 
     setSubmitError(null);

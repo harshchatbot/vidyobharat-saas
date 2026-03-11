@@ -21,6 +21,11 @@ export type TemplateOption = {
   icon: typeof ScrollText;
   scriptHint: string;
   topicHint: string;
+  image?: string;
+  eyebrow?: string;
+  helper?: string;
+  badge?: string;
+  defaultModelKey?: string;
 };
 
 export const TEMPLATE_OPTIONS: TemplateOption[] = [

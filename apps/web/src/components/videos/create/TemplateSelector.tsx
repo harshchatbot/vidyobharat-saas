@@ -120,6 +120,9 @@ export function TemplateSelector({
           const Icon = template.icon;
           const active = selectedTemplate === template.key;
           const visual = TEMPLATE_VISUALS[template.key] ?? TEMPLATE_VISUALS.custom;
+          const image = template.image ?? visual.image;
+          const eyebrow = template.eyebrow ?? visual.eyebrow;
+          const helper = template.helper ?? visual.helper;
           return (
             <button
               key={template.key}
@@ -132,9 +135,9 @@ export function TemplateSelector({
               }`}
             >
               <div className="relative aspect-[4/3] overflow-hidden bg-[hsl(var(--color-elevated))]">
-                {visual.image ? (
+                {image ? (
                   <img
-                    src={visual.image}
+                    src={image}
                     alt={template.label}
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
                   />
@@ -148,8 +151,8 @@ export function TemplateSelector({
                     <Icon className="h-4.5 w-4.5" />
                   </span>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72">{visual.eyebrow}</p>
-                    <p className="text-xs font-semibold text-white">{visual.helper}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72">{eyebrow}</p>
+                    <p className="text-xs font-semibold text-white">{helper}</p>
                   </div>
                 </div>
                 <div className="absolute inset-x-4 bottom-4">
@@ -159,7 +162,7 @@ export function TemplateSelector({
               </div>
               <div className="space-y-2 px-4 py-4">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Hint
+                  {template.badge || 'Hint'}
                 </div>
                 <p className="text-sm text-muted">{template.topicHint}</p>
               </div>
