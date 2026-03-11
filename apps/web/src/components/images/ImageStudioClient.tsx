@@ -320,6 +320,7 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 
 export function ImageStudioClient({ userId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
+  const [composerMode, setComposerMode] = useState<'create' | 'variation'>('create');
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -863,6 +864,22 @@ export function ImageStudioClient({ userId }: Props) {
     activeTab === 'generated'
       ? selectedGenerated ?? generatedImages[0] ?? null
       : selectedInspiration ?? filteredInspiration[0] ?? null;
+  const variationSource = selectedGenerated ?? allGeneratedImages[0] ?? generatedImages[0] ?? null;
+  const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
+
+  const handlePrimaryAction = async () => {
+    if (composerMode === 'variation') {
+      if (!variationSource) {
+        const message = 'Generate at least one image first, then use Image Variations.';
+        setError(message);
+        show(message);
+        return;
+      }
+      await runImageAction(variationSource.id, 'variation');
+      return;
+    }
+    await submit();
+  };
 
   return (
     <>
@@ -907,17 +924,64 @@ export function ImageStudioClient({ userId }: Props) {
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
               <button
                 type="button"
-                className="rounded-[20px] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] px-4 py-3 text-sm font-semibold text-text"
+                onClick={() => setComposerMode('create')}
+                className={`rounded-[20px] px-4 py-3 text-sm font-semibold transition ${
+                  composerMode === 'create'
+                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] text-text'
+                    : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
+                }`}
               >
                 Create Image
               </button>
               <button
                 type="button"
-                className="rounded-[20px] px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[hsl(var(--color-elevated))] hover:text-text"
+                onClick={() => setComposerMode('variation')}
+                className={`rounded-[20px] px-4 py-3 text-sm font-semibold transition ${
+                  composerMode === 'variation'
+                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] text-text'
+                    : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
+                }`}
               >
                 Image Variations
               </button>
             </div>
+
+            {composerMode === 'variation' ? (
+              <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Variation source</p>
+                    <p className="mt-1 text-xs text-muted">
+                      Variations use your selected image or the latest generated image as the source.
+                    </p>
+                  </div>
+                  {variationSource ? <Badge>Ready</Badge> : <Badge>Needs source</Badge>}
+                </div>
+                {variationSource ? (
+                  <div className="flex items-center gap-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-3">
+                    <img
+                      src={toAbsoluteUrl(variationSource.image_url)}
+                      alt={variationSource.prompt}
+                      className="h-20 w-20 shrink-0 rounded-[18px] object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-semibold text-text">{variationSource.prompt}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        {models.find((item) => item.key === variationSource.model_key)?.label ?? variationSource.model_key}
+                        {' · '}
+                        {variationSource.aspect_ratio}
+                        {' · '}
+                        {resolutionOptions.find((item) => item.value === variationSource.resolution)?.label ?? variationSource.resolution}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.22)] px-4 py-5 text-sm text-muted">
+                    Generate an image first, or select one from your studio feed to create variations from it.
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
               <div className="flex items-start justify-between gap-3">
@@ -1021,11 +1085,17 @@ export function ImageStudioClient({ userId }: Props) {
               </button>
             </div>
 
-            <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Describe your image</p>
-                  <p className="mt-1 text-xs text-muted">Start with one strong visual idea. References and output settings will refine it.</p>
+                  <p className="text-sm font-semibold text-text">
+                    {composerMode === 'variation' ? 'Variation prompt guidance' : 'Describe your image'}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {composerMode === 'variation'
+                      ? 'Prompt edits here are optional. Variations are driven primarily by the selected source image.'
+                      : 'Start with one strong visual idea. References and output settings will refine it.'}
+                  </p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -1152,28 +1222,40 @@ export function ImageStudioClient({ userId }: Props) {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • {estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}
+                    {composerMode === 'variation'
+                      ? variationSource
+                        ? 'Creates 4 new variations from the selected source image.'
+                        : 'Select or generate a source image to enable variations.'
+                      : `${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
                 </div>
                 <Button
-                  onClick={() => void submit()}
-                  disabled={submitting || Boolean(estimate && !estimate.sufficient)}
+                  onClick={() => void handlePrimaryAction()}
+                  disabled={
+                    submitting ||
+                    actionLoading === variationActionKey ||
+                    (composerMode === 'variation'
+                      ? !variationSource
+                      : Boolean(estimate && !estimate.sufficient))
+                  }
                   className="min-w-[190px] rounded-[20px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                 >
-                  {submitting ? (
+                  {submitting || actionLoading === variationActionKey ? (
                     <>
                       <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Generating...
+                      {composerMode === 'variation' ? 'Creating variations...' : 'Generating...'}
                     </>
                   ) : (
                     <>
-                      <Wand2 className="h-4 w-4" />
-                      Generate · {estimate ? `${estimate.estimatedCredits} cr` : '...'}
+                      {composerMode === 'variation' ? <Stars className="h-4 w-4" /> : <Wand2 className="h-4 w-4" />}
+                      {composerMode === 'variation'
+                        ? 'Create 4 variations'
+                        : `Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
                     </>
                   )}
                 </Button>
               </div>
-              {estimate && !estimate.sufficient ? (
+              {composerMode === 'create' && estimate && !estimate.sufficient ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
                   <button type="button" onClick={() => openLowBalanceModal(estimate.estimatedCredits)}>
                     Insufficient credits
@@ -1182,10 +1264,10 @@ export function ImageStudioClient({ userId }: Props) {
                   <a href="/pricing">View plans</a>
                 </div>
               ) : null}
-              {estimateError ? (
+              {composerMode === 'create' && estimateError ? (
                 <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
               ) : null}
-              {!estimateError && isUsingFallback ? (
+              {composerMode === 'create' && !estimateError && isUsingFallback ? (
                 <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
               ) : null}
             </div>
