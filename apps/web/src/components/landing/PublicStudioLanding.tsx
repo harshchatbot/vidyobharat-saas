@@ -1,5 +1,6 @@
+import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Clapperboard, ImageIcon, PlaySquare, Sparkles, Wand2 } from 'lucide-react';
 
 import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
 import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
@@ -12,67 +13,48 @@ const heroBackgroundMedia = {
   poster: '/illustrations/startup.png',
 } as const;
 
-{/*
 const toolTiles = [
   {
     title: 'Text to Video',
     subtitle: 'Turn script into cinematic scenes',
     href: '/signup',
-    media: { type: 'video', src: '/videos/samples/english-startup-16x9.mp4', poster: '/illustrations/startup.png' } satisfies SurfaceMedia,
+    imageSrc: '/illustrations/startup.png',
+    eyebrow: 'Script to scene',
     icon: Clapperboard,
   },
   {
     title: 'Image to Video',
     subtitle: 'Animate reference visuals into motion',
     href: '/signup',
-    media: { type: 'image', src: '/illustrations/product-ads.png' } satisfies SurfaceMedia,
+    imageSrc: '/illustrations/product-ads.png',
+    eyebrow: 'Reference motion',
     icon: ImageIcon,
   },
   {
     title: 'AI Influencer',
     subtitle: 'Build a consistent character identity',
     href: '/signup',
-    media: { type: 'image', src: '/illustrations/ai-influencer.png' } satisfies SurfaceMedia,
+    imageSrc: '/illustrations/ai-influencer.png',
+    eyebrow: 'Persona lock',
     icon: Wand2,
   },
   {
     title: 'Shorts',
     subtitle: 'High-frequency vertical reel workflows',
     href: '/signup',
-    media: { type: 'video', src: '/videos/samples/lip-sync.mp4' } satisfies SurfaceMedia,
+    imageSrc: '/illustrations/agency.png',
+    eyebrow: 'Vertical output',
     icon: Sparkles,
   },
   {
     title: 'Video Editor',
     subtitle: 'Polish voice, captions, and pacing',
     href: '/signup',
-    media: { type: 'image', src: '/illustrations/earth.png' } satisfies SurfaceMedia,
+    imageSrc: '/illustrations/earth.png',
+    eyebrow: 'Polish & export',
     icon: PlaySquare,
   },
 ];
-
-const showcaseTiles = [
-  {
-    eyebrow: 'Daily Reels',
-    title: 'Fast vertical publishing',
-    body: 'Affordable daily output for creators posting regularly without overspending.',
-    media: { type: 'video', src: '/videos/samples/tamil-education-9x16.mp4' } satisfies SurfaceMedia,
-  },
-  {
-    eyebrow: 'Creator Pro',
-    title: 'Polished creator-grade output',
-    body: 'Balanced quality and cost for brands, coaches, and serious publishing.',
-    media: { type: 'image', src: '/illustrations/agency.png' } satisfies SurfaceMedia,
-  },
-  {
-    eyebrow: 'Premium / Cinema',
-    title: 'Launch-ready hero videos',
-    body: 'Premium motion, campaign visuals, and cinematic narrative surfaces.',
-    media: { type: 'image', src: '/illustrations/edtech.png' } satisfies SurfaceMedia,
-  },
-];
-
-*/}
 
 export function PublicStudioLanding() {
   return (
@@ -144,7 +126,7 @@ export function PublicStudioLanding() {
                   Open studio
                 </Link>
               </div>
-              <div className="mt-5 hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-5 hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                 {toolTiles.map((tool) => {
                   const Icon = tool.icon;
                   return (
@@ -154,11 +136,17 @@ export function PublicStudioLanding() {
                       className="group overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
                     >
                       <div className="relative aspect-[4/5]">
-                        <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                        <Image
+                          src={tool.imageSrc}
+                          alt={tool.title}
+                          fill
+                          sizes="(max-width: 639px) 78vw, (max-width: 1279px) 50vw, (max-width: 1535px) 33vw, 20vw"
+                          className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                        />
                         <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                         <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
                           <Icon className="h-4 w-4" />
-                          {tool.title}
+                          {tool.eyebrow}
                         </div>
                         <div className="absolute inset-x-0 bottom-0 p-4">
                           <p className="text-lg font-semibold">{tool.title}</p>
@@ -180,11 +168,17 @@ export function PublicStudioLanding() {
                         className="group block w-[78vw] max-w-[320px] shrink-0 overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
                       >
                         <div className="relative aspect-[4/5]">
-                          <MediaSurface media={tool.media} alt={tool.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                          <Image
+                            src={tool.imageSrc}
+                            alt={tool.title}
+                            fill
+                            sizes="78vw"
+                            className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                          />
                           <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
                           <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
                             <Icon className="h-4 w-4" />
-                            {tool.title}
+                            {tool.eyebrow}
                           </div>
                           <div className="absolute inset-x-0 bottom-0 p-4">
                             <p className="text-lg font-semibold">{tool.title}</p>
@@ -198,8 +192,8 @@ export function PublicStudioLanding() {
               </div>
             </section>
             
-{/*
-            <section id="community" className="scroll-mt-24 pt-10">
+
+           {/* <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="rangmanch-section-eyebrow">Community / Explore</p>
