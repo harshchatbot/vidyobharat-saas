@@ -683,9 +683,8 @@ def run_monthly_credit_reset():
 @router.get('/me/profile', response_model=UserProfileResponse)
 def get_my_profile(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = UserService(db)
+    service = UserService(None)
     try:
         return _to_user_profile_response(service.get_user(user_id))
     except LookupError as exc:
@@ -696,9 +695,8 @@ def get_my_profile(
 def update_my_profile(
     payload: UserProfileUpdateRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = UserService(db)
+    service = UserService(None)
     try:
         user = service.update_profile(
             user_id,
@@ -724,11 +722,10 @@ def update_my_profile(
 async def upload_my_avatar(
     avatar: UploadFile = File(...),
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     if not avatar.content_type or not avatar.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail='Avatar must be an image file')
-    service = UserService(db)
+    service = UserService(None)
     try:
         user = service.save_avatar(user_id, avatar.filename or 'avatar.png', avatar.file)
         return UserAvatarUploadResponse(avatar_url=str(user.avatar_url))
@@ -739,9 +736,8 @@ async def upload_my_avatar(
 @router.get('/me/settings', response_model=UserSettingsResponse)
 def get_my_settings(
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = UserService(db)
+    service = UserService(None)
     try:
         return _to_user_settings_response(service.get_user(user_id))
     except LookupError as exc:
@@ -752,9 +748,8 @@ def get_my_settings(
 def update_my_settings(
     payload: UserSettingsUpdateRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = UserService(db)
+    service = UserService(None)
     try:
         user = service.update_settings(
             user_id,

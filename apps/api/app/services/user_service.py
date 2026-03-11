@@ -9,7 +9,7 @@ from app.services.firestore_sync_service import FirestoreSyncService
 
 
 class UserService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session | None) -> None:
         self.repo = UserRepository(db)
         self.sync = FirestoreSyncService()
 
