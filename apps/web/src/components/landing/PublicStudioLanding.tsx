@@ -134,7 +134,7 @@ export function PublicStudioLanding() {
               </div>
             </section>
 
-           {/* <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
+            <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="rangmanch-section-eyebrow">Tool launcher</p>
@@ -198,7 +198,7 @@ export function PublicStudioLanding() {
               </div>
             </section>
             
-
+{/*
             <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
