@@ -29,11 +29,11 @@ export function BrandLogo({ href = '/', variant = 'full', size = 'md', className
   const darkSrc = variant === 'full' ? '/brand/logo-dark.png' : '/brand/logo-mark-dark.svg';
   const wrapperClass =
     variant === 'full'
-      ? 'relative inline-flex overflow-hidden'
+      ? 'relative inline-flex overflow-visible'
       : 'relative inline-flex';
   const imageClass =
     variant === 'full'
-      ? `${dimensions} origin-left scale-[1.18] transform-gpu`
+      ? `${dimensions} origin-left scale-[1.12] transform-gpu`
       : dimensions;
 
   const content = (

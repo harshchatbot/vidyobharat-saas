@@ -18,7 +18,7 @@ const toolTiles = [
     title: 'Text to Video',
     subtitle: 'Turn script into cinematic scenes',
     href: '/signup',
-    imageSrc: '/videos/samples/creator111.mp4',
+    imageSrc: '/illustrations/startup.png',
     eyebrow: 'Script to scene',
     icon: Clapperboard,
   },
@@ -26,7 +26,7 @@ const toolTiles = [
     title: 'Image to Video',
     subtitle: 'Animate reference visuals into motion',
     href: '/signup',
-    imageSrc: '/videos/samples/lip-sync.mp4',
+    imageSrc: '/illustrations/product-ads.png',
     eyebrow: 'Reference motion',
     icon: ImageIcon,
   },
@@ -39,19 +39,19 @@ const toolTiles = [
     icon: Wand2,
   },
   {
-    title: 'Create Your Advertisements Shorts',
+    title: 'Ad Shorts',
     subtitle: 'High-frequency vertical reel workflows',
     href: '/signup',
-    imageSrc: '/videos/samples/advertisement.mp4',
+    imageSrc: '/illustrations/agency.png',
     eyebrow: 'Vertical output',
     icon: Sparkles,
   },
   {
-    title: 'Video Editor',
-    subtitle: 'BG remover, Upscaler , captions',
-    href: '/signup',
-    imageSrc: '/illustrations/earth.png',
-    eyebrow: 'Polish & export',
+    title: 'Trending Templates',
+    subtitle: 'Start viral images and reels instantly',
+    href: '/templates',
+    imageSrc: '/illustrations/edtech.png',
+    eyebrow: 'Template-led',
     icon: PlaySquare,
   },
 ];
@@ -126,16 +126,16 @@ export function PublicStudioLanding() {
                   Open studio
                 </Link>
               </div>
-              <div className="mt-5 hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+              <div className="mt-5 hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                 {toolTiles.map((tool) => {
                   const Icon = tool.icon;
                   return (
                     <Link
                       key={tool.title}
                       href={tool.href}
-                      className="group overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+                      className="group overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
                     >
-                      <div className="relative aspect-[4/5]">
+                      <div className="relative aspect-[6/5]">
                         <Image
                           src={tool.imageSrc}
                           alt={tool.title}
@@ -144,13 +144,13 @@ export function PublicStudioLanding() {
                           className="object-cover transition duration-500 group-hover:scale-[1.03]"
                         />
                         <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
-                        <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
-                          <Icon className="h-4 w-4" />
+                        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+                          <Icon className="h-3.5 w-3.5" />
                           {tool.eyebrow}
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 p-4">
-                          <p className="text-lg font-semibold">{tool.title}</p>
-                          <p className="mt-1 text-sm leading-6 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
+                        <div className="absolute inset-x-0 bottom-0 p-3.5">
+                          <p className="text-base font-semibold">{tool.title}</p>
+                          <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
                         </div>
                       </div>
                     </Link>
@@ -165,24 +165,24 @@ export function PublicStudioLanding() {
                       <Link
                         key={tool.title}
                         href={tool.href}
-                        className="group block w-[78vw] max-w-[320px] shrink-0 overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
+                        className="group block w-[72vw] max-w-[280px] shrink-0 overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
                       >
-                        <div className="relative aspect-[4/5]">
+                        <div className="relative aspect-[6/5]">
                           <Image
                             src={tool.imageSrc}
                             alt={tool.title}
                             fill
-                            sizes="78vw"
+                            sizes="72vw"
                             className="object-cover transition duration-500 group-hover:scale-[1.03]"
                           />
                           <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
-                          <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-1.5 text-xs font-medium backdrop-blur-md">
-                            <Icon className="h-4 w-4" />
+                          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+                            <Icon className="h-3.5 w-3.5" />
                             {tool.eyebrow}
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 p-4">
-                            <p className="text-lg font-semibold">{tool.title}</p>
-                            <p className="mt-1 text-sm leading-6 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
+                          <div className="absolute inset-x-0 bottom-0 p-3.5">
+                            <p className="text-base font-semibold">{tool.title}</p>
+                            <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
                           </div>
                         </div>
                       </Link>
