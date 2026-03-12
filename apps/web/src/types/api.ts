@@ -40,6 +40,13 @@ export type ProjectDetail = {
   };
 };
 
+export type AssetProjectAssignmentResponse = {
+  asset_id: string;
+  content_type: 'image' | 'video' | string;
+  project_id: string;
+  previous_project_id?: string | null;
+};
+
 export type Avatar = {
   id: string;
   name: string;
@@ -615,6 +622,9 @@ export type AssetTagFacet = {
 export type AssetSearchItem = {
   id: string;
   content_type: 'image' | 'video' | string;
+  project_id?: string | null;
+  mode_id?: string | null;
+  template_id?: string | null;
   title: string;
   model_key: string;
   resolution: string;

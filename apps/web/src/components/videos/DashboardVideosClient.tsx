@@ -20,6 +20,8 @@ import {
   Tag,
   Trash2,
   Wand2,
+  FolderOpen,
+  FolderPlus,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -27,9 +29,10 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { ProjectAssignmentDialog } from '@/components/projects/ProjectAssignmentDialog';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetSearchItem, AssetTagFacet, GeneratedImage, InspirationImage, InspirationVideo, Video } from '@/types/api';
+import type { AssetSearchItem, AssetTagFacet, GeneratedImage, InspirationImage, InspirationVideo, Project, Video } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -113,6 +116,9 @@ function toAssetFromImage(image: GeneratedImage): AssetSearchItem {
   return {
     id: image.id,
     content_type: 'image',
+    project_id: image.project_id,
+    mode_id: image.mode_id,
+    template_id: image.template_id,
     title: image.prompt.split('.').find(Boolean)?.trim() || 'Generated image',
     model_key: image.model_key,
     resolution: image.resolution,
@@ -136,6 +142,9 @@ function toAssetFromVideo(video: Video): AssetSearchItem {
   return {
     id: video.id,
     content_type: 'video',
+    project_id: video.project_id,
+    mode_id: video.mode_id,
+    template_id: video.template_id,
     title: video.title || 'Generated video',
     model_key: video.selected_model || video.provider_name || 'video',
     resolution: video.resolution,
@@ -274,6 +283,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
   const [likingAssetId, setLikingAssetId] = useState<string | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectAssignmentTarget, setProjectAssignmentTarget] = useState<AssetSearchItem | null>(null);
+  const [assigningProjectId, setAssigningProjectId] = useState<string | null>(null);
   const creationsLoading = imagesLoading && videosLoading && allAssets.length === 0;
   const communityLoading =
     imageCommunityLoading && videoCommunityLoading && imageInspiration.length === 0 && videoInspiration.length === 0;
@@ -302,6 +314,20 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       // ignore malformed cache
     }
   }, [cacheKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.listProjects(userId)
+      .then((items) => {
+        if (!cancelled) setProjects(items);
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -624,6 +650,44 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       setError(err instanceof Error ? err.message : `Failed to delete ${asset.content_type}.`);
     } finally {
       setDeletingAssetId(null);
+    }
+  };
+
+  const assignAssetToProject = async (projectId: string) => {
+    if (!projectAssignmentTarget) return;
+    setAssigningProjectId(projectAssignmentTarget.id);
+    try {
+      if (projectAssignmentTarget.content_type === 'video') {
+        await api.assignVideoToProject(projectAssignmentTarget.id, projectId, userId);
+      } else {
+        await api.assignImageToProject(projectAssignmentTarget.id, projectId, userId);
+      }
+      setAllAssets((current) =>
+        current.map((item) =>
+          item.id === projectAssignmentTarget.id
+            ? {
+                ...item,
+                project_id: projectId,
+              }
+            : item,
+        ),
+      );
+      setAssets((current) =>
+        current.map((item) =>
+          item.id === projectAssignmentTarget.id
+            ? {
+                ...item,
+                project_id: projectId,
+              }
+            : item,
+        ),
+      );
+      setError(null);
+      setProjectAssignmentTarget(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update project assignment.');
+    } finally {
+      setAssigningProjectId(null);
     }
   };
 
@@ -1042,6 +1106,24 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     >
                       <Trash2 className="h-4.5 w-4.5" strokeWidth={2} />
                     </button>
+                    {asset.project_id ? (
+                      <Link
+                        href={`/projects/${asset.project_id}`}
+                        className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                        title="Open in project"
+                      >
+                        <FolderOpen className="h-4.5 w-4.5" strokeWidth={2} />
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => setProjectAssignmentTarget(asset)}
+                      disabled={assigningProjectId === asset.id}
+                      title={asset.project_id ? 'Move to project' : 'Add to project'}
+                    >
+                      <FolderPlus className="h-4.5 w-4.5" strokeWidth={2} />
+                    </button>
                     <Link
                       href={openHref}
                       className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
@@ -1173,6 +1255,15 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         </Modal>
       ) : null}
+      <ProjectAssignmentDialog
+        open={Boolean(projectAssignmentTarget)}
+        onClose={() => setProjectAssignmentTarget(null)}
+        projects={projects}
+        currentProjectId={projectAssignmentTarget?.project_id}
+        assetLabel={projectAssignmentTarget?.title || 'selected asset'}
+        onConfirm={assignAssetToProject}
+        submitting={Boolean(projectAssignmentTarget && assigningProjectId === projectAssignmentTarget.id)}
+      />
     </div>
   );
 }

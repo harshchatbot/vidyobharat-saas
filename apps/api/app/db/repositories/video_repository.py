@@ -207,6 +207,13 @@ class VideoRepository:
             inspiration_published_at=None,
         )
 
+    def assign_project(self, video: Video, project_id: str) -> Video:
+        return self.update(
+            video,
+            project_id=project_id,
+            projectId=project_id,
+        )
+
     def set_progress(self, video_id: str, progress: int, status: VideoStatus) -> Video | None:
         video = self.get_by_id(video_id)
         if not video:

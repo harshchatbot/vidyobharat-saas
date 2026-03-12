@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
+import { ActiveProjectBar } from '@/components/projects/ActiveProjectBar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
@@ -101,6 +102,10 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [promptOverride, setPromptOverride] = useState('');
   const [modelOverride, setModelOverride] = useState('');
@@ -242,6 +247,12 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
 
   return (
     <div className="space-y-8">
+      {activeProject ? (
+        <ActiveProjectBar
+          project={activeProject}
+          description="This template flow is attached to the active project. Generated prompts, scripts, and outputs from this guided workflow will stay grouped there."
+        />
+      ) : null}
       <section className="rangmanch-floating-hero relative overflow-hidden rounded-[32px] p-6 sm:p-8">
         <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">

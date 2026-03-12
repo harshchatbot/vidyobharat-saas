@@ -51,3 +51,14 @@ class ProjectAssetResponse(BaseModel):
     kind: str
     upload_url: str
     public_url: str
+
+
+class AssignAssetProjectRequest(BaseModel):
+    project_id: str = Field(min_length=2, max_length=64, alias='projectId')
+
+
+class AssetProjectAssignmentResponse(BaseModel):
+    asset_id: str
+    content_type: str
+    project_id: str
+    previous_project_id: str | None = None

@@ -90,6 +90,8 @@ from app.schemas.influencer import (
     InfluencerScenePresetResponse,
 )
 from app.schemas.project import (
+    AssetProjectAssignmentResponse,
+    AssignAssetProjectRequest,
     CreateProjectAssetRequest,
     CreateProjectRequest,
     ProjectAssetResponse,
@@ -2349,6 +2351,48 @@ def create_project_asset(
         kind=asset.kind,
         upload_url=upload_url,
         public_url=asset.public_url,
+    )
+
+
+@router.patch('/projects/assets/image/{image_id}', response_model=AssetProjectAssignmentResponse)
+def assign_image_to_project(
+    image_id: str,
+    payload: AssignAssetProjectRequest,
+    user_id: str = Depends(get_user_id),
+):
+    service = ProjectService(None)
+    try:
+        generation, previous_project_id = service.assign_image_to_project(image_id, user_id, payload.project_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return AssetProjectAssignmentResponse(
+        asset_id=generation.id,
+        content_type='image',
+        project_id=payload.project_id,
+        previous_project_id=previous_project_id,
+    )
+
+
+@router.patch('/projects/assets/video/{video_id}', response_model=AssetProjectAssignmentResponse)
+def assign_video_to_project(
+    video_id: str,
+    payload: AssignAssetProjectRequest,
+    user_id: str = Depends(get_user_id),
+):
+    service = ProjectService(None)
+    try:
+        video, previous_project_id = service.assign_video_to_project(video_id, user_id, payload.project_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return AssetProjectAssignmentResponse(
+        asset_id=video.id,
+        content_type='video',
+        project_id=payload.project_id,
+        previous_project_id=previous_project_id,
     )
 
 

@@ -63,3 +63,55 @@ class ProjectService:
             path=signed.storage_path,
             public_url=signed.public_url,
         ), signed
+
+    def assign_image_to_project(self, image_id: str, user_id: str, project_id: str):
+        generation = self.image_repo.get_by_id(image_id)
+        if not generation:
+            raise LookupError('Image not found')
+        if generation.user_id != user_id:
+            raise PermissionError('Image does not belong to this user')
+        project = self.project_repo.get_by_id(project_id)
+        if not project:
+            raise LookupError('Project not found')
+        if project.user_id != user_id:
+            raise PermissionError('Project does not belong to this user')
+        previous_project_id = getattr(generation, 'project_id', None)
+        if previous_project_id == project_id:
+            return generation, previous_project_id
+        updated = self.image_repo.assign_project(generation, project_id)
+        self.project_repo.reassign_generation(
+            previous_project_id=previous_project_id,
+            next_project_id=project_id,
+            medium='image',
+            prompt=updated.prompt,
+            thumbnail_url=updated.thumbnail_url or updated.image_url,
+            template=getattr(updated, 'template_id', None),
+        )
+        return updated, previous_project_id
+
+    def assign_video_to_project(self, video_id: str, user_id: str, project_id: str):
+        video = self.video_repo.get_by_id(video_id)
+        if not video:
+            raise LookupError('Video not found')
+        if video.user_id != user_id:
+            raise PermissionError('Video does not belong to this user')
+        project = self.project_repo.get_by_id(project_id)
+        if not project:
+            raise LookupError('Project not found')
+        if project.user_id != user_id:
+            raise PermissionError('Project does not belong to this user')
+        previous_project_id = getattr(video, 'project_id', None)
+        if previous_project_id == project_id:
+            return video, previous_project_id
+        updated = self.video_repo.assign_project(video, project_id)
+        self.project_repo.reassign_generation(
+            previous_project_id=previous_project_id,
+            next_project_id=project_id,
+            medium='video',
+            prompt=updated.script,
+            thumbnail_url=updated.thumbnail_url or updated.source_image_url,
+            template=getattr(updated, 'template_id', None) or updated.template,
+            language=updated.language,
+            voice=updated.voice,
+        )
+        return updated, previous_project_id

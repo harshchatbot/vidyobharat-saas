@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clapperboard, GalleryVerticalEnd, ImageIcon, Languages, Mic2, Sparkles } from 'lucide-react';
+import { Clapperboard, Filter, GalleryVerticalEnd, ImageIcon, Languages, Mic2, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
@@ -61,6 +62,9 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
 
   const imageItems = detail.images || [];
   const videoItems = detail.videos || [];
+  const [assetFilter, setAssetFilter] = useState<'all' | 'images' | 'videos'>('all');
+  const [selectedTemplateFilter, setSelectedTemplateFilter] = useState('all');
+  const [selectedModeFilter, setSelectedModeFilter] = useState('all');
   const summary = detail.summary || {
     imageCount: imageItems.length,
     videoCount: videoItems.length,
@@ -68,6 +72,50 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
   };
   const latestActivity = project.last_activity_at || project.updated_at || project.created_at;
   const projectSnippet = useMemo(() => (project.last_prompt_snippet || script || '').trim(), [project.last_prompt_snippet, script]);
+  const templateFilterOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const item of imageItems) {
+      if (item.template_id) values.add(item.template_id);
+    }
+    for (const item of videoItems) {
+      if (item.template_id) values.add(item.template_id);
+      else if (item.template) values.add(item.template);
+    }
+    return ['all', ...Array.from(values).sort((a, b) => a.localeCompare(b))];
+  }, [imageItems, videoItems]);
+  const modeFilterOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const item of imageItems) {
+      if (item.mode_id) values.add(item.mode_id);
+      else if (item.model_key) values.add(item.model_key);
+    }
+    for (const item of videoItems) {
+      if (item.mode_id) values.add(item.mode_id);
+      else if (item.selected_model) values.add(item.selected_model);
+      else if (item.provider_name) values.add(item.provider_name);
+    }
+    return ['all', ...Array.from(values).sort((a, b) => a.localeCompare(b))];
+  }, [imageItems, videoItems]);
+  const filteredImages = useMemo(() => {
+    if (assetFilter === 'videos') return [];
+    return imageItems.filter((item) => {
+      const templateValue = item.template_id || 'none';
+      const modeValue = item.mode_id || item.model_key || 'none';
+      if (selectedTemplateFilter !== 'all' && templateValue !== selectedTemplateFilter) return false;
+      if (selectedModeFilter !== 'all' && modeValue !== selectedModeFilter) return false;
+      return true;
+    });
+  }, [assetFilter, imageItems, selectedModeFilter, selectedTemplateFilter]);
+  const filteredVideos = useMemo(() => {
+    if (assetFilter === 'images') return [];
+    return videoItems.filter((item) => {
+      const templateValue = item.template_id || item.template || 'none';
+      const modeValue = item.mode_id || item.selected_model || item.provider_name || 'none';
+      if (selectedTemplateFilter !== 'all' && templateValue !== selectedTemplateFilter) return false;
+      if (selectedModeFilter !== 'all' && modeValue !== selectedModeFilter) return false;
+      return true;
+    });
+  }, [assetFilter, selectedModeFilter, selectedTemplateFilter, videoItems]);
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -219,6 +267,42 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
           <StatusChip variant="default">{summary.imageCount + summary.videoCount} total outputs</StatusChip>
         </div>
 
+        <div className="rangmanch-filter-bar flex flex-col gap-3 rounded-[22px] p-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <Filter className="h-4 w-4" />
+            Filter workspace outputs
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'images', label: 'Images' },
+              { key: 'videos', label: 'Videos' },
+            ].map((option) => (
+              <Button
+                key={option.key}
+                variant={assetFilter === option.key ? 'primary' : 'secondary'}
+                onClick={() => setAssetFilter(option.key as 'all' | 'images' | 'videos')}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <Dropdown value={selectedTemplateFilter} onChange={(event) => setSelectedTemplateFilter(event.target.value)} className="sm:max-w-xs">
+            {templateFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value === 'all' ? 'All templates' : value}
+              </option>
+            ))}
+          </Dropdown>
+          <Dropdown value={selectedModeFilter} onChange={(event) => setSelectedModeFilter(event.target.value)} className="sm:max-w-xs">
+            {modeFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value === 'all' ? 'All modes / models' : value}
+              </option>
+            ))}
+          </Dropdown>
+        </div>
+
         {imageItems.length === 0 && videoItems.length === 0 ? (
           <div className="rangmanch-studio-panel rounded-[28px] px-5 py-8 text-center sm:px-6">
             <p className="font-heading text-xl font-extrabold text-text">No outputs attached yet</p>
@@ -229,11 +313,11 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-lg font-semibold text-text">Images</h3>
-                <StatusChip variant="success">{imageItems.length}</StatusChip>
+                <StatusChip variant="success">{filteredImages.length}</StatusChip>
               </div>
-              {imageItems.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No images saved to this project yet.</div> : null}
+              {filteredImages.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No images match the current filters.</div> : null}
               <div className="grid gap-4 sm:grid-cols-2">
-                {imageItems.slice(0, 8).map((item) => (
+                {filteredImages.slice(0, 8).map((item) => (
                   <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[24px]">
                     <img src={toAbsolute(item.thumbnail_url || item.image_url) || ''} alt={item.prompt} className="aspect-[4/5] w-full object-cover" />
                     <div className="space-y-2 p-4">
@@ -253,11 +337,11 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-lg font-semibold text-text">Videos</h3>
-                <StatusChip variant="success">{videoItems.length}</StatusChip>
+                <StatusChip variant="success">{filteredVideos.length}</StatusChip>
               </div>
-              {videoItems.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No videos saved to this project yet.</div> : null}
+              {filteredVideos.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No videos match the current filters.</div> : null}
               <div className="grid gap-4">
-                {videoItems.slice(0, 6).map((item) => {
+                {filteredVideos.slice(0, 6).map((item) => {
                   const poster = toAbsolute(item.thumbnail_url || item.source_image_url);
                   return (
                     <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[24px]">

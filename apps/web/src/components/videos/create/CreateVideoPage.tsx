@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
+import { ActiveProjectBar } from '@/components/projects/ActiveProjectBar';
 import { getVideoModelMap } from '@/config/videoModels';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
@@ -267,6 +268,10 @@ export function CreateVideoPage({
   const [modelsLoading, setModelsLoading] = useState(false);
   const [videoLane, setVideoLane] = useState<VideoLaneKey>('creator_pro');
   const [modelKey, setModelKey] = useState<VideoModelKey>('sora2');
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
 
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImageUrls, setSelectedImageUrls] = useState<string[]>([]);
@@ -1770,6 +1775,13 @@ export function CreateVideoPage({
         </div>
       </section>
 */}
+      {activeProject ? (
+        <ActiveProjectBar
+          project={activeProject}
+          description="This video workflow is attached to the active project. New renders, prompt changes, and guided template runs will stay grouped there."
+        />
+      ) : null}
+
       <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
         <div className="space-y-5">
           

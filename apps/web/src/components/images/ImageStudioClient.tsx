@@ -40,6 +40,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
+import { ActiveProjectBar } from '@/components/projects/ActiveProjectBar';
+import { ProjectAssignmentDialog } from '@/components/projects/ProjectAssignmentDialog';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage, Project, Template, TemplateInputField } from '@/types/api';
@@ -358,6 +360,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [projectCreating, setProjectCreating] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<ImageTemplatePreset | null>(null);
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
@@ -372,6 +378,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [activeTab, setActiveTab] = useState<'generated' | 'inspiration'>('generated');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationImage | null>(null);
   const [selectedGenerated, setSelectedGenerated] = useState<GeneratedImage | null>(null);
+  const [projectAssignmentTarget, setProjectAssignmentTarget] = useState<GeneratedImage | null>(null);
+  const [assigningProjectId, setAssigningProjectId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
@@ -891,6 +899,26 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
   };
 
+  const assignGeneratedImageToProject = async (projectId: string) => {
+    if (!projectAssignmentTarget) return;
+    setAssigningProjectId(projectAssignmentTarget.id);
+    try {
+      await api.assignImageToProject(projectAssignmentTarget.id, projectId, userId);
+      setGeneratedImages((current) =>
+        current.map((item) => (item.id === projectAssignmentTarget.id ? { ...item, project_id: projectId } : item)),
+      );
+      setSelectedGenerated((current) =>
+        current && current.id === projectAssignmentTarget.id ? { ...current, project_id: projectId } : current,
+      );
+      setProjectAssignmentTarget(null);
+      show('Image attached to project.');
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not update project assignment right now.'));
+    } finally {
+      setAssigningProjectId(null);
+    }
+  };
+
   const toggleLikeInspiration = async (item: InspirationImage) => {
     setLikingId(item.id);
     try {
@@ -970,6 +998,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       progress={submitProgress}
     />
     <div className="space-y-5 sm:space-y-6">
+      {activeProject ? (
+        <ActiveProjectBar
+          project={activeProject}
+          description="This image workspace is attached to the active project. New outputs, template-driven runs, and prompt variations will stay grouped there."
+        />
+      ) : null}
  {/*     <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1935,6 +1969,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     <Download className="h-4 w-4" />
                     Download image
                   </Button>
+                  {selectedGenerated.project_id ? (
+                    <a href={`/projects/${selectedGenerated.project_id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
+                      <GalleryVerticalEnd className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                      Open in project
+                    </a>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => setProjectAssignmentTarget(selectedGenerated)}
+                    className="gap-2"
+                    disabled={assigningProjectId === selectedGenerated.id}
+                  >
+                    <GalleryVerticalEnd className="h-4 w-4" />
+                    {selectedGenerated.project_id ? 'Move to project' : 'Add to project'}
+                  </Button>
                   <Button
                     variant="secondary"
                     type="button"
@@ -1958,6 +2008,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         </div>
       ) : null}
     </div>
+
+      <ProjectAssignmentDialog
+        open={Boolean(projectAssignmentTarget)}
+        onClose={() => setProjectAssignmentTarget(null)}
+        projects={projects}
+        currentProjectId={projectAssignmentTarget?.project_id}
+        assetLabel={projectAssignmentTarget?.prompt || 'selected image'}
+        onConfirm={assignGeneratedImageToProject}
+        submitting={Boolean(projectAssignmentTarget && assigningProjectId === projectAssignmentTarget.id)}
+      />
 
       <Modal open={modelPickerOpen} onClose={() => setModelPickerOpen(false)}>
         <div className="space-y-4">

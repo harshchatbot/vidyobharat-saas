@@ -5,6 +5,7 @@ import type {
   AIVideoGenerateRequest,
   AIVideoGenerateResponse,
   AssetSearchResponse,
+  AssetProjectAssignmentResponse,
   AssetTagFacet,
   AIVideoStatusResponse,
   MusicTrack,
@@ -373,6 +374,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
+  },
+  assignImageToProject(imageId: string, projectId: string, userId: string) {
+    return request<AssetProjectAssignmentResponse>(`/projects/assets/image/${imageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ projectId }),
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/projects', '/ai/images', '/assets/search', '/assets/tags']);
+      return result;
+    });
+  },
+  assignVideoToProject(videoId: string, projectId: string, userId: string) {
+    return request<AssetProjectAssignmentResponse>(`/projects/assets/video/${videoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ projectId }),
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/projects', '/videos', '/assets/search', '/assets/tags']);
+      return result;
+    });
   },
   createRender(payload: { project_id: string; user_id: string; include_broll: boolean }, userId: string) {
     return request<Render>('/renders', {

@@ -198,6 +198,14 @@ class ImageGenerationRepository:
             inspiration_published_at=None,
         )
 
+    def assign_project(self, generation: ImageGeneration, project_id: str) -> ImageGeneration:
+        return self.update(
+            generation,
+            project_id=project_id,
+            projectId=project_id,
+            updated_at=utcnow(),
+        )
+
     def _serialize(self, fields: dict) -> dict:
         return {
             **fields,
