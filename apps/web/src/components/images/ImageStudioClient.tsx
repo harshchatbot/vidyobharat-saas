@@ -1032,7 +1032,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       </section>
       */}
 
-      <div className="grid gap-5 xl:grid-cols-[392px_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-5 xl:grid-cols-[456px_minmax(0,0.92fr)] xl:items-start 2xl:grid-cols-[480px_minmax(0,1fr)]">
         <div className="xl:sticky xl:top-24">
           <div className="space-y-4 rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
@@ -1108,7 +1108,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   Browse quick starts
                 </Button>
               </div>
-              <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                 {imageTemplates.slice(0, 6).map((template) => {
                   const selected = activeTemplate?.id === template.id;
                   return (
@@ -1119,26 +1119,26 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         setActiveTemplate(template);
                         setTemplatePickerOpen(true);
                       }}
-                      className={`group min-w-[176px] overflow-hidden rounded-[20px] border text-left transition ${
+                      className={`group min-w-[152px] overflow-hidden rounded-[18px] border text-left transition ${
                         selected
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.36)] hover:border-[hsl(var(--color-accent)/0.35)]'
                       }`}
                     >
-                      <div className="relative aspect-[6/5] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
+                      <div className="relative aspect-[7/5] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
                         {template.thumbnail_url ? (
                           <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
                         ) : (
-                          <div className="flex h-full items-end p-3">
+                          <div className="flex h-full items-end p-2.5">
                             <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text">
                               {template.category}
                             </span>
                           </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
-                        <div className="absolute inset-x-3 bottom-3">
-                          <p className="line-clamp-1 text-[13px] font-semibold text-white">{template.title}</p>
-                          <p className="mt-1 line-clamp-2 text-xs text-white/72">{template.description}</p>
+                        <div className="absolute inset-x-2.5 bottom-2.5">
+                          <p className="line-clamp-1 text-xs font-semibold text-white">{template.title}</p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] text-white/72">{template.description}</p>
                         </div>
                       </div>
                     </button>
@@ -1560,7 +1560,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1584,18 +1584,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[5/6] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
-                  <div className="space-y-2.5 p-3.5">
+                  <div className="space-y-2 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="line-clamp-1 text-sm font-semibold text-text">
+                        <p className="line-clamp-1 text-xs font-semibold text-text sm:text-sm">
                           {'title' in item ? item.title : item.prompt.split(',')[0]}
                         </p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{getPreviewImageLabel(item)}</p>
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted sm:text-xs">{getPreviewImageLabel(item)}</p>
                       </div>
                       <Badge>{itemModel?.label ?? item.model_key}</Badge>
                     </div>
@@ -1660,16 +1660,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="grid gap-5 xl:grid-cols-[0.94fr_1.06fr]">
+        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
               {activeTemplate?.thumbnail_url ? (
-                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[5/6] w-full object-cover" />
+                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[4/5] w-full object-cover" />
               ) : (
-                <div className="flex aspect-[4/5] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-5">
+                <div className="flex aspect-[4/5] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-4">
                   <div className="space-y-2">
                     <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
-                    <p className="text-2xl font-bold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
+                    <p className="text-xl font-bold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
                   </div>
                 </div>
               )}
@@ -1683,21 +1683,21 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplate?.title ?? 'Choose a template'}</h3>
               <p className="mt-2 text-sm text-muted">{activeTemplate?.description ?? 'Select a template to prefill your image prompt, model, and output settings.'}</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-2">
               {imageTemplates.map((template) => (
                 <button
                   key={template.id}
                   type="button"
                   onClick={() => setActiveTemplate(template)}
-                  className={`overflow-hidden rounded-[22px] border text-left transition ${
+                  className={`overflow-hidden rounded-[18px] border text-left transition ${
                     activeTemplate?.id === template.id
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] hover:border-[hsl(var(--color-accent)/0.35)]'
                   }`}
                 >
-                  <div className="p-4">
+                  <div className="p-3">
                     <p className="text-sm font-semibold text-text">{template.title}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted">{template.description}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-muted">{template.description}</p>
                   </div>
                 </button>
               ))}
