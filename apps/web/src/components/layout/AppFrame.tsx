@@ -45,6 +45,7 @@ function getPageTitle(pathname: string) {
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
@@ -77,6 +78,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   useEffect(() => {
     setMobileNavOpen(false);
+    setDesktopNavOpen(null);
     setAccountMenuOpen(false);
   }, [pathname]);
 
@@ -142,67 +144,100 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={userId}>
-      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] xl:grid-cols-[112px_1fr]">
-        <aside className="rangmanch-app-rail hidden px-2 py-4 xl:block">
-          <div className="flex items-center justify-center">
-            <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
-          </div>
-          <div className="mt-5 grid gap-2">
-            {navItems.map((item) => {
-              const active = item.label === 'Tools'
-              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
-              : item.label === 'Create Avatar'
-                ? pathname.startsWith('/influencer')
-                : item.label === 'More'
-                  ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
-                  : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`group inline-flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] border px-2 py-3 text-center transition ${
-                    active
-                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
-                      : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'
-                  }`}
-                >
-                  <span
-                    className={`relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
-                      active
-                        ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
-                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
-                    }`}
-                  >
-                    <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="block text-xs font-medium leading-none text-inherit">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-          <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-2">
-            <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">{activeNavGroup === 'tools' ? 'Tools' : activeNavGroup === 'avatar' ? 'Create Avatar' : activeNavGroup === 'more' ? 'More' : 'Workspace'}</p>
-            <div className="grid gap-1.5">
-              {navGroups[activeNavGroup].map((groupItem) => {
-                const GroupIcon = groupItem.icon;
-                const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
+      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
+        <aside className="rangmanch-app-rail relative hidden px-2 py-4 xl:block">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-center">
+              <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
+            </div>
+            <div className="mt-5 grid gap-2">
+              {navItems.map((item) => {
+                const groupKey = item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home';
+                const active = item.label === 'Tools'
+                  ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
+                  : item.label === 'Create Avatar'
+                    ? pathname.startsWith('/influencer')
+                    : item.label === 'More'
+                      ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+                      : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                const Icon = item.icon;
                 return (
-                  <Link
-                    key={groupItem.href}
-                    href={groupItem.href}
-                    className={`inline-flex items-center gap-2 rounded-[14px] border px-2.5 py-2 text-xs font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      if (groupKey === 'home') {
+                        setDesktopNavOpen((current) => (current === 'home' ? null : 'home'));
+                      } else {
+                        setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
+                      }
+                    }}
+                    className={`group inline-flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] border px-2 py-3 text-center transition ${
+                      active || desktopNavOpen === groupKey
+                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
+                        : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'
+                    }`}
+                    aria-expanded={desktopNavOpen === groupKey}
+                    aria-label={item.label}
+                    title={item.label}
                   >
-                    <GroupIcon className={`h-3.5 w-3.5 ${activeChild ? 'text-[hsl(var(--color-accent))]' : ''}`} />
-                    {groupItem.label}
-                  </Link>
+                    <span
+                      className={`relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
+                        active || desktopNavOpen === groupKey
+                          ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
+                      }`}
+                    >
+                      <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="block text-xs font-medium leading-none text-inherit">{item.label}</span>
+                  </button>
                 );
               })}
             </div>
+
+            <div className="mt-auto flex items-center justify-center pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
+              Workspace
+            </div>
+          </div>
+
+          <div className={`pointer-events-none absolute left-[86px] top-3 z-30 w-[260px] transition duration-200 ${desktopNavOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0'}`}>
+            <div className="pointer-events-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft backdrop-blur-xl">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home') === desktopNavOpen)?.hint : ''}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDesktopNavOpen(null)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted hover:text-text"
+                  aria-label="Close section"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid gap-1.5">
+                {(desktopNavOpen ? navGroups[desktopNavOpen] : []).map((groupItem) => {
+                  const GroupIcon = groupItem.icon;
+                  const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
+                  return (
+                    <Link
+                      key={groupItem.href}
+                      href={groupItem.href}
+                      onClick={() => setDesktopNavOpen(null)}
+                      className={`inline-flex items-center gap-2 rounded-[14px] border px-3 py-2.5 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
+                    >
+                      <GroupIcon className={`h-4 w-4 ${activeChild ? 'text-[hsl(var(--color-accent))]' : ''}`} />
+                      {groupItem.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </aside>
-
         <div className="min-w-0">
           <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8">
             <div className="rangmanch-app-header mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
