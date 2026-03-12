@@ -46,6 +46,7 @@ import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, Ins
 
 type Props = {
   userId: string;
+  initialProjectId?: string;
 };
 
 type ImageTemplatePreset = {
@@ -346,14 +347,14 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-export function ImageStudioClient({ userId }: Props) {
+export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
   const [composerMode, setComposerMode] = useState<'create' | 'variation'>('create');
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
   const [projectCreating, setProjectCreating] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<ImageTemplatePreset | null>(null);

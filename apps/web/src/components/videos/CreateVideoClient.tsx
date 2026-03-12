@@ -7,11 +7,13 @@ export function CreateVideoClient({
   templateKey,
   initialScript,
   initialTitle,
+  initialProjectId,
 }: {
   userId: string;
   templateKey?: string;
   initialScript?: string;
   initialTitle?: string;
+  initialProjectId?: string;
 }) {
   return (
     <CreateVideoPage
@@ -19,6 +21,7 @@ export function CreateVideoClient({
       templateKey={templateKey}
       initialScript={initialScript}
       initialTitle={initialTitle}
+      initialProjectId={initialProjectId}
     />
   );
 }

@@ -216,12 +216,12 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <Link href={`/editor/${project.id}`} className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+                      <Link href={`/projects/${project.id}`} className="text-sm font-semibold text-[hsl(var(--color-accent))]">
                         Open workspace
                       </Link>
                       <div className="flex items-start justify-between gap-3">
                         <Link
-                          href={`/editor/${project.id}`}
+                          href={`/projects/${project.id}`}
                           className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.38)] px-3 py-1.5 text-sm font-semibold text-text transition group-hover:border-[hsl(var(--color-accent)/0.45)]"
                         >
                           Continue

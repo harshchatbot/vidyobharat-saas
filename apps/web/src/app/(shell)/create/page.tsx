@@ -6,7 +6,7 @@ import { getUserIdFromCookie } from '@/lib/session';
 export default async function CreatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string; script?: string; title?: string }>;
+  searchParams: Promise<{ template?: string; script?: string; title?: string; projectId?: string }>;
 }) {
   const userId = await getUserIdFromCookie();
   if (!userId) {
@@ -20,6 +20,7 @@ export default async function CreatePage({
       templateKey={params.template}
       initialScript={params.script}
       initialTitle={params.title}
+      initialProjectId={params.projectId}
     />
   );
 }

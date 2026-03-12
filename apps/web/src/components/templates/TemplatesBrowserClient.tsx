@@ -89,7 +89,7 @@ function groupTemplates(templates: Template[]) {
   }, {});
 }
 
-export function TemplatesBrowserClient({ userId }: { userId: string }) {
+export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: string; initialProjectId?: string }) {
   const router = useRouter();
   const { show } = useToast();
   const { wallet, refresh: refreshCredits } = useCredits();
@@ -100,7 +100,7 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [promptOverride, setPromptOverride] = useState('');
   const [modelOverride, setModelOverride] = useState('');
@@ -142,10 +142,10 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
     setTemplateInputs(buildInitialInputs(selectedTemplate));
     setPromptOverride('');
     setModelOverride(selectedTemplate?.generation_defaults?.model_key || selectedTemplate?.recommended_model?.internal_model_key || '');
-    setSelectedProjectId('');
+    setSelectedProjectId(initialProjectId ?? '');
     setGeneratedResult(null);
     setPreview(null);
-  }, [selectedTemplate]);
+  }, [selectedTemplate, initialProjectId]);
 
   useEffect(() => {
     if (!selectedTemplate) return;

@@ -199,11 +199,13 @@ export function CreateVideoPage({
   templateKey,
   initialScript,
   initialTitle,
+  initialProjectId,
 }: {
   userId: string;
   templateKey?: string;
   initialScript?: string;
   initialTitle?: string;
+  initialProjectId?: string;
 }) {
   const cacheKey = `rangmanch:video-studio:v1:${userId}`;
   const draftKey = `rangmanch-create-draft:${userId}`;
@@ -220,7 +222,7 @@ export function CreateVideoPage({
   const [unifiedVideoTemplates, setUnifiedVideoTemplates] = useState<UnifiedTemplate[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
   const [projectCreating, setProjectCreating] = useState(false);
   const [activeTemplateFlow, setActiveTemplateFlow] = useState<UnifiedTemplate | null>(null);
   const [templateFlowOpen, setTemplateFlowOpen] = useState(false);
