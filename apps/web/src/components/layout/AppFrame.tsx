@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
@@ -44,6 +44,7 @@ function getPageTitle(pathname: string) {
 
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -111,6 +112,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         glow: 'from-rose-500/15 to-transparent',
       },
       {
+        href: '/projects',
+        label: 'Projects',
+        hint: 'Organize outputs',
+        icon: FolderKanban,
+        glow: 'from-emerald-500/15 to-transparent',
+      },
+      {
         href: '/pricing',
         label: 'More',
         hint: 'Billing & settings',
@@ -122,7 +130,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     const navGroups = {
       home: [
         { href: '/dashboard', label: 'Dashboard', icon: Home },
-        { href: '/projects', label: 'Projects', icon: FolderKanban },
       ],
       tools: [
         { href: '/images', label: 'Generate images', icon: ImageIcon },
@@ -131,7 +138,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       ],
       avatar: [
         { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
-        { href: '/projects', label: 'Projects', icon: FolderKanban },
       ],
       more: [
         { href: '/billing', label: 'Billing', icon: Sparkles },
@@ -141,6 +147,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     const activeNavGroup = pathname.startsWith('/influencer')
       ? 'avatar'
+      : pathname.startsWith('/projects')
+        ? 'projects'
       : pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
         ? 'tools'
         : pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
@@ -157,11 +165,21 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
             <div className="mt-5 grid gap-2">
               {navItems.map((item) => {
-                const groupKey = item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home';
+                const groupKey = item.label === 'Tools'
+                  ? 'tools'
+                  : item.label === 'Create Avatar'
+                    ? 'avatar'
+                    : item.label === 'Projects'
+                      ? 'projects'
+                      : item.label === 'More'
+                        ? 'more'
+                        : 'home';
                 const active = item.label === 'Tools'
                   ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
                   : item.label === 'Create Avatar'
                     ? pathname.startsWith('/influencer')
+                    : item.label === 'Projects'
+                      ? pathname.startsWith('/projects')
                     : item.label === 'More'
                       ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
                       : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
@@ -171,7 +189,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     key={item.label}
                     type="button"
                     onClick={() => {
-                      if (groupKey === 'home') {
+                      if (groupKey === 'projects') {
+                        setDesktopNavOpen(null);
+                        router.push(item.href);
+                      } else if (groupKey === 'home') {
                         setDesktopNavOpen((current) => (current === 'home' ? null : 'home'));
                       } else {
                         setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
@@ -212,7 +233,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               <div className="mb-3 flex items-center justify-between gap-2.5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
-                  <p className="mt-1 text-[13px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home') === desktopNavOpen)?.hint : ''}</p>
+                  <p className="mt-1 text-[13px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : item.label === 'Projects' ? 'projects' : 'home') === desktopNavOpen)?.hint : ''}</p>
                 </div>
                 <button
                   type="button"
@@ -248,9 +269,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                 ? 'Guided workflows'
                                 : groupItem.href === '/influencer'
                                   ? 'Consistent avatar creation'
-                                  : groupItem.href === '/projects'
-                                    ? 'Organize outputs'
-                                    : groupItem.href === '/billing'
+                                  : groupItem.href === '/billing'
                                       ? 'Credits and plans'
                                       : 'Workspace settings'}
                         </span>
@@ -394,6 +413,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
               : item.label === 'Create Avatar'
                 ? pathname.startsWith('/influencer')
+                : item.label === 'Projects'
+                  ? pathname.startsWith('/projects')
                 : item.label === 'More'
                   ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
                   : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
