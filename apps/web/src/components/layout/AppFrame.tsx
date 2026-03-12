@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Home, Image as ImageIcon, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
+import { ChevronDown, FolderKanban, Home, Image as ImageIcon, LayoutTemplate, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -91,26 +91,54 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       },
       {
         href: '/images',
-        label: 'Image',
-        hint: 'Create image',
-        icon: ImageIcon,
+        label: 'Tools',
+        hint: pathname.startsWith('/create') ? 'Create video' : pathname.startsWith('/templates') ? 'Template browser' : 'Generate images',
+        icon: Sparkles,
         glow: 'from-sky-500/15 to-transparent',
       },
       {
-        href: '/create',
-        label: 'Video',
-        hint: 'Text to video',
-        icon: Video,
-        glow: 'from-emerald-500/15 to-transparent',
-      },
-      {
         href: '/influencer',
-        label: 'Character',
-        hint: 'Influencer studio',
+        label: 'Create Avatar',
+        hint: 'AI influencer',
         icon: Wand2,
         glow: 'from-rose-500/15 to-transparent',
       },
+      {
+        href: '/pricing',
+        label: 'More',
+        hint: 'Billing & settings',
+        icon: Settings,
+        glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
+      },
     ];
+
+    const navGroups = {
+      home: [
+        { href: '/dashboard', label: 'Dashboard', icon: Home },
+        { href: '/projects', label: 'Projects', icon: FolderKanban },
+      ],
+      tools: [
+        { href: '/images', label: 'Generate images', icon: ImageIcon },
+        { href: '/create', label: 'Create video', icon: Video },
+        { href: '/templates', label: 'Template browser', icon: LayoutTemplate },
+      ],
+      avatar: [
+        { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
+        { href: '/projects', label: 'Projects', icon: FolderKanban },
+      ],
+      more: [
+        { href: '/billing', label: 'Billing', icon: Sparkles },
+        { href: '/settings', label: 'Settings', icon: Settings },
+      ],
+    } as const;
+
+    const activeNavGroup = pathname.startsWith('/influencer')
+      ? 'avatar'
+      : pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
+        ? 'tools'
+        : pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+          ? 'more'
+          : 'home';
 
     return (
       <CreditProvider userId={userId}>
@@ -121,7 +149,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           </div>
           <div className="mt-5 grid gap-2">
             {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+              const active = item.label === 'Tools'
+              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
+              : item.label === 'Create Avatar'
+                ? pathname.startsWith('/influencer')
+                : item.label === 'More'
+                  ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+                  : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
               const Icon = item.icon;
               return (
                 <Link
@@ -148,16 +182,24 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               );
             })}
           </div>
-          <div className="mt-2 px-1">
-            <Link
-              href="/pricing"
-              className="inline-flex w-full flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] border border-transparent px-2 py-3 text-center text-muted transition hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text"
-            >
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <span className="text-xs font-medium leading-none">More</span>
-            </Link>
+          <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] p-2">
+            <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">{activeNavGroup === 'tools' ? 'Tools' : activeNavGroup === 'avatar' ? 'Create Avatar' : activeNavGroup === 'more' ? 'More' : 'Workspace'}</p>
+            <div className="grid gap-1.5">
+              {navGroups[activeNavGroup].map((groupItem) => {
+                const GroupIcon = groupItem.icon;
+                const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
+                return (
+                  <Link
+                    key={groupItem.href}
+                    href={groupItem.href}
+                    className={`inline-flex items-center gap-2 rounded-[14px] border px-2.5 py-2 text-xs font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
+                  >
+                    <GroupIcon className={`h-3.5 w-3.5 ${activeChild ? 'text-[hsl(var(--color-accent))]' : ''}`} />
+                    {groupItem.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </aside>
 
@@ -281,7 +323,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
                       {navItems.map((item) => {
-                        const active = pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                        const active = item.label === 'Tools'
+              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
+              : item.label === 'Create Avatar'
+                ? pathname.startsWith('/influencer')
+                : item.label === 'More'
+                  ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+                  : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
                         const Icon = item.icon;
                         return (
                           <Link
