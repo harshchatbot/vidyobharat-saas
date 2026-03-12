@@ -18,7 +18,7 @@ import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { getVideoModelMap } from '@/config/videoModels';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Project, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 
 import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS, type TemplateOption } from './constants';
 import { GenerateButton } from './GenerateButton';
@@ -218,6 +218,10 @@ export function CreateVideoPage({
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.key);
   const [videoTemplates, setVideoTemplates] = useState<TemplateOption[]>(TEMPLATE_OPTIONS);
   const [unifiedVideoTemplates, setUnifiedVideoTemplates] = useState<UnifiedTemplate[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectCreating, setProjectCreating] = useState(false);
   const [activeTemplateFlow, setActiveTemplateFlow] = useState<UnifiedTemplate | null>(null);
   const [templateFlowOpen, setTemplateFlowOpen] = useState(false);
   const [templateFlowInputs, setTemplateFlowInputs] = useState<Record<string, string>>({});
@@ -565,6 +569,7 @@ export function CreateVideoPage({
     let cancelled = false;
     const hasWarmCache = typeof window !== 'undefined' && Boolean(window.sessionStorage.getItem(cacheKey));
     setModelsLoading(!hasWarmCache);
+    setProjectsLoading(true);
     setInitialLoading(!hasWarmCache);
     void Promise.all([
       api.listAIVideoModels(userId).catch(() => FALLBACK_VIDEO_MODELS),
@@ -572,7 +577,8 @@ export function CreateVideoPage({
       api.listGeneratedImages(userId).catch(() => []),
       api.listVideos(userId).catch(() => []),
       api.listUnifiedTemplates(userId, { type: 'video', active: true }).catch(() => []),
-    ]).then(([videoModels, ttsCatalog, userImages, userVideos, unifiedTemplates]) => {
+      api.listProjects(userId).catch(() => []),
+    ]).then(([videoModels, ttsCatalog, userImages, userVideos, unifiedTemplates, projectItems]) => {
       if (cancelled) return;
       setModels(videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS);
       if (ttsCatalog) {
@@ -582,6 +588,12 @@ export function CreateVideoPage({
       setGeneratedImages(userImages);
       setVideos(userVideos);
       setUnifiedVideoTemplates(unifiedTemplates);
+      setProjects(projectItems);
+      setSelectedProjectId((current) => (
+        current && projectItems.some((item) => item.id === current)
+          ? current
+          : current
+      ));
       const nextTemplates = unifiedTemplates.length > 0 ? mergeVideoTemplateOptions(unifiedTemplates) : TEMPLATE_OPTIONS;
       setVideoTemplates(nextTemplates);
       setSelectedTemplate((current) =>
@@ -620,6 +632,7 @@ export function CreateVideoPage({
     }).finally(() => {
       if (!cancelled) {
         setModelsLoading(false);
+        setProjectsLoading(false);
         setInitialLoading(false);
       }
     });
@@ -628,6 +641,41 @@ export function CreateVideoPage({
       cancelled = true;
     };
   }, [cacheKey, userId]);
+
+  const createProjectFromCurrentDraft = async () => {
+    setProjectCreating(true);
+    try {
+      const project = await api.createProject(
+        {
+          user_id: userId,
+          title: title.trim() || topic.trim() || selectedHeroTemplate?.title || template.label || 'Untitled project',
+          script: script.trim() || templateFlowPreview?.scriptPreview || template.scriptHint || '',
+          language,
+          voice,
+          template: selectedHeroTemplate?.id || template.key,
+        },
+        userId,
+      );
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setSelectedProjectId(project.id);
+      show({ title: 'Project created', message: `${project.title} is now tracking this workflow.` });
+      return project.id;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not create a project right now.';
+      show({ title: 'Project unavailable', message, variant: 'error' });
+      return null;
+    } finally {
+      setProjectCreating(false);
+    }
+  };
+
+  const ensureProjectForVideoRun = async () => {
+    if (selectedProjectId) return selectedProjectId;
+    if (selectedHeroTemplate && appliedHeroTemplateId) {
+      return createProjectFromCurrentDraft();
+    }
+    return null;
+  };
 
   useEffect(() => {
     setTemplateFlowInputs(buildInitialTemplateInputs(activeTemplateFlow));
@@ -1548,11 +1596,15 @@ export function CreateVideoPage({
     completionToastRef.current = null;
 
     try {
+      const projectId = await ensureProjectForVideoRun();
       const result = await api.createAIVideo({
         template: template.label,
+        templateId: selectedHeroTemplate?.id || appliedHeroTemplateId || undefined,
         script: script.trim(),
         tags: scriptTags,
         modelKey,
+        modeId: videoLane,
+        projectId: projectId || undefined,
         language,
         voice,
         imageUrls: selectedImageUrls,
@@ -1733,6 +1785,35 @@ export function CreateVideoPage({
           onSelect={applyTemplate}
         />
           </SectionCard>
+
+          <SectionCard
+        title="Project"
+        description="Attach this workflow to a project, or let RangManch create one quietly when a guided template becomes serious work."
+        icon={<GalleryVerticalEnd className="h-5 w-5" />}
+        action={projectsLoading ? <Spinner /> : null}
+      >
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text">Save into project</label>
+            <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+              <option value="">Auto-create when needed</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </Dropdown>
+            <p className="text-xs text-muted">
+              Hero-template runs will auto-create a project if you leave this empty. Legacy quick generations still stay frictionless.
+            </p>
+          </div>
+          <div className="flex items-end">
+            <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
+              {projectCreating ? 'Creating...' : 'New project'}
+            </Button>
+          </div>
+        </div>
+      </SectionCard>
 
           <SectionCard
         title="Script Editor & AI Assist"
@@ -2261,6 +2342,19 @@ export function CreateVideoPage({
                     </p>
                     <p className="mt-1 text-sm text-muted">You can still edit the assembled output before generating.</p>
                   </div>
+                </div>
+
+                <div className="mt-4 space-y-1.5">
+                  <label className="text-sm font-medium text-text">Project</label>
+                  <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                    <option value="">Auto-create a project when this template is applied</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.title}
+                      </option>
+                    ))}
+                  </Dropdown>
+                  <p className="text-xs text-muted">Serious guided workflows are easier to revisit when their prompt, script, and outputs stay grouped together.</p>
                 </div>
 
                 <div className="mt-4 space-y-1.5">

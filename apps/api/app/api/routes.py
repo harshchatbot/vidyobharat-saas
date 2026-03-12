@@ -267,6 +267,9 @@ def _to_video_response(video, db: Session) -> VideoResponse:
     return VideoResponse(
         id=video.id,
         user_id=video.user_id,
+        project_id=getattr(video, 'project_id', None),
+        mode_id=getattr(video, 'mode_id', None),
+        template_id=getattr(video, 'template_id', None),
         title=video.title,
         template=video.template,
         language=video.language,
@@ -334,6 +337,9 @@ def _to_image_generation_response(
     return ImageGenerationResponse(
         id=generation.id,
         parent_image_id=getattr(generation, 'parent_image_id', None),
+        project_id=getattr(generation, 'project_id', None),
+        mode_id=getattr(generation, 'mode_id', None),
+        template_id=getattr(generation, 'template_id', None),
         model_key=getattr(generation, 'model_key', None) or 'gemini_flash_image',
         prompt=getattr(generation, 'prompt', None) or 'Generated image',
         aspect_ratio=getattr(generation, 'aspect_ratio', None) or '1:1',
@@ -1178,6 +1184,9 @@ def create_ai_video(
         video = service.create_video(
             user_id=user_id,
             template=payload.template,
+            template_id=payload.templateId,
+            project_id=payload.projectId,
+            mode_id=payload.modeId,
             language=payload.language,
             image_urls=payload.imageUrls,
             script=payload.script,
@@ -1667,6 +1676,9 @@ def generate_ai_image(
             aspect_ratio=payload.aspect_ratio,
             resolution=payload.resolution,
             reference_urls=payload.reference_urls,
+            project_id=payload.project_id,
+            mode_id=payload.mode_id,
+            template_id=payload.template_id,
         )
         if deduction_amount > 0 and getattr(generation, 'status', None) == ImageGenerationStatus.failed:
             CreditService().top_up_credits(
@@ -2286,9 +2298,18 @@ def get_project(
     if project.user_id != user_id:
         raise HTTPException(status_code=403, detail='Project does not belong to this user')
     renders = service.list_project_renders(project_id)
+    images = service.list_project_images(project_id, limit=24)
+    videos = service.list_project_videos(project_id, limit=24)
     return {
         'project': ProjectResponse.model_validate(project),
         'renders': [RenderResponse.model_validate(item) for item in renders],
+        'images': [_to_image_generation_response(item, None) for item in images],
+        'videos': [_to_video_response(item, None) for item in videos],
+        'summary': {
+            'imageCount': len(images),
+            'videoCount': len(videos),
+            'renderCount': len(renders),
+        },
     }
 
 

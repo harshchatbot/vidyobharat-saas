@@ -17,6 +17,10 @@ class ProjectRepository:
         project_id = kwargs.get('id') or self.collection.document().id
         kwargs['id'] = project_id
         kwargs.setdefault('created_at', utcnow())
+        kwargs.setdefault('updated_at', kwargs['created_at'])
+        kwargs.setdefault('last_activity_at', kwargs['created_at'])
+        kwargs.setdefault('image_count', 0)
+        kwargs.setdefault('video_count', 0)
         self.collection.document(project_id).set(kwargs)
         return self._to_model(kwargs)
 
@@ -40,13 +44,57 @@ class ProjectRepository:
         return self._to_model(data)
 
     def update(self, project: Project, **kwargs) -> Project:
+        kwargs.setdefault('updated_at', utcnow())
         self.collection.document(project.id).set(kwargs, merge=True)
         data = {**project.__dict__, **kwargs}
         data.pop('_sa_instance_state', None)
         return self._to_model(data)
 
+    def touch_generation(
+        self,
+        project_id: str,
+        *,
+        medium: str,
+        prompt: str | None = None,
+        thumbnail_url: str | None = None,
+        template: str | None = None,
+        language: str | None = None,
+        voice: str | None = None,
+    ) -> Project | None:
+        snapshot = self.collection.document(project_id).get()
+        if not snapshot.exists:
+            return None
+        data = snapshot.to_dict() or {}
+        now = utcnow()
+        image_count = int(data.get('image_count') or 0)
+        video_count = int(data.get('video_count') or 0)
+        if medium == 'image':
+            image_count += 1
+        elif medium == 'video':
+            video_count += 1
+        update_payload = {
+            'updated_at': now,
+            'last_activity_at': now,
+            'image_count': image_count,
+            'video_count': video_count,
+        }
+        if prompt:
+            update_payload['last_prompt_snippet'] = prompt[:240]
+        if thumbnail_url:
+            update_payload['last_output_thumbnail_url'] = thumbnail_url
+        if template:
+            update_payload['template'] = template
+        if language:
+            update_payload['language'] = language
+        if voice:
+            update_payload['voice'] = voice
+        self.collection.document(project_id).set(update_payload, merge=True)
+        data.update(update_payload)
+        data.setdefault('id', project_id)
+        return self._to_model(data)
+
     def _to_model(self, data: dict) -> Project:
-        return model_from_fields(
+        project = model_from_fields(
             Project,
             id=data.get('id'),
             user_id=data.get('user_id'),
@@ -57,3 +105,10 @@ class ProjectRepository:
             template=data.get('template') or 'clean-corporate',
             created_at=coerce_datetime(data.get('created_at')),
         )
+        setattr(project, 'updated_at', coerce_datetime(data.get('updated_at')) if data.get('updated_at') else None)
+        setattr(project, 'last_activity_at', coerce_datetime(data.get('last_activity_at')) if data.get('last_activity_at') else None)
+        setattr(project, 'image_count', int(data.get('image_count') or 0))
+        setattr(project, 'video_count', int(data.get('video_count') or 0))
+        setattr(project, 'last_output_thumbnail_url', data.get('last_output_thumbnail_url'))
+        setattr(project, 'last_prompt_snippet', data.get('last_prompt_snippet'))
+        return project

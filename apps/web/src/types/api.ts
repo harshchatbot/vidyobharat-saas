@@ -7,6 +7,12 @@ export type Project = {
   voice: string;
   template: string;
   created_at: string;
+  updated_at?: string | null;
+  last_activity_at?: string | null;
+  image_count?: number;
+  video_count?: number;
+  last_output_thumbnail_url?: string | null;
+  last_prompt_snippet?: string | null;
 };
 
 export type Render = {
@@ -25,6 +31,13 @@ export type Render = {
 export type ProjectDetail = {
   project: Project;
   renders: Render[];
+  images?: GeneratedImage[];
+  videos?: Video[];
+  summary?: {
+    imageCount: number;
+    videoCount: number;
+    renderCount: number;
+  };
 };
 
 export type Avatar = {
@@ -115,6 +128,9 @@ export type TemplateGenerateRequest = {
   templateId: string;
   inputs: Record<string, string | number | boolean | null>;
   modelKey?: string;
+  projectId?: string;
+  modeId?: string;
+  autoCreateProject?: boolean;
   aspectRatio?: string;
   resolution?: string;
   language?: string;
@@ -162,6 +178,9 @@ export type ProjectAsset = {
 export type Video = {
   id: string;
   user_id: string;
+  project_id?: string | null;
+  mode_id?: string | null;
+  template_id?: string | null;
   title: string | null;
   template?: string | null;
   language?: string | null;
@@ -390,9 +409,12 @@ export type UserSettingsUpdateRequest = {
 
 export type VideoCreateRequest = {
   template: string;
+  templateId?: string;
   script: string;
   tags: string[];
   modelKey: string;
+  modeId?: string;
+  projectId?: string;
   language: string;
   voice: string;
   imageUrls: string[];
@@ -462,6 +484,9 @@ export type ImageModel = {
 export type GeneratedImage = {
   id: string;
   parent_image_id: string | null;
+  project_id?: string | null;
+  mode_id?: string | null;
+  template_id?: string | null;
   model_key: string;
   prompt: string;
   aspect_ratio: string;

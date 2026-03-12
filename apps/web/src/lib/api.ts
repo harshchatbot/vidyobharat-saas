@@ -334,10 +334,17 @@ export const api = {
     return request<Project>('/projects', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/projects']);
+      return result;
+    });
   },
   listProjects(userId: string, revalidateSeconds = 10) {
-    return request<Project[]>('/projects', {}, { userId, next: { revalidate: revalidateSeconds } });
+    const path = '/projects';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, revalidateSeconds * 1000, () =>
+      request<Project[]>(path, {}, { userId, cache: 'no-store' }),
+    );
   },
   getProject(projectId: string, userId: string, cache: RequestCache = 'default') {
     return request<ProjectDetail>(`/projects/${projectId}`, {}, { userId, cache });
@@ -356,7 +363,10 @@ export const api = {
     return request<Project>(`/projects/${projectId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store' }).then((result) => {
+      invalidateUserCache(userId, ['/projects', `/projects/${projectId}`]);
+      return result;
+    });
   },
   addProjectAsset(projectId: string, payload: { filename: string; kind: string }, userId: string) {
     return request<ProjectAsset>(`/projects/${projectId}/assets`, {
@@ -625,6 +635,9 @@ export const api = {
       aspect_ratio: string;
       resolution: string;
       reference_urls: string[];
+      project_id?: string;
+      mode_id?: string;
+      template_id?: string;
     },
     userId: string,
   ) {

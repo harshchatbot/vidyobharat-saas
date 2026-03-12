@@ -104,9 +104,12 @@ class VideoAudioSettings(BaseModel):
 
 class AIVideoCreateRequest(BaseModel):
     template: str = Field(min_length=2, max_length=80)
+    templateId: str | None = Field(default=None, max_length=120)
     script: str = Field(min_length=1, max_length=6000)
     tags: list[str] = Field(default_factory=list)
     modelKey: str = Field(min_length=2, max_length=64)
+    modeId: str | None = Field(default=None, max_length=80)
+    projectId: str | None = Field(default=None, max_length=64)
     language: str = Field(min_length=2, max_length=40)
     aspectRatio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=20)

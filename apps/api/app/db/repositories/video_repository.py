@@ -81,6 +81,22 @@ class VideoRepository:
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items[:bounded_limit]
 
+    def list_by_project(self, project_id: str, limit: int | None = None) -> list[Video]:
+        items: list[Video] = []
+        bounded_limit = max(1, min(limit or 100, 100))
+        for data in self._stream_video_docs():
+            current_project_id = data.get('project_id') or data.get('projectId')
+            if current_project_id != project_id:
+                continue
+            if data.get('deleted_at') or data.get('deletedAt'):
+                continue
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items[:bounded_limit]
+
     def list_inspiration_candidates(self, limit: int = 300) -> list[Video]:
         items: list[Video] = []
         by_id: dict[str, Video] = {}
@@ -223,7 +239,7 @@ class VideoRepository:
         return payload
 
     def _to_model(self, data: dict) -> Video:
-        return model_from_fields(
+        model = model_from_fields(
             Video,
             id=data.get('id'),
             user_id=data.get('user_id', data.get('userId')),
@@ -266,3 +282,7 @@ class VideoRepository:
             created_at=coerce_datetime(data.get('created_at', data.get('createdAt'))),
             updated_at=coerce_datetime(data.get('updated_at', data.get('updatedAt'))),
         )
+        setattr(model, 'project_id', data.get('project_id', data.get('projectId')))
+        setattr(model, 'mode_id', data.get('mode_id', data.get('modeId')))
+        setattr(model, 'template_id', data.get('template_id', data.get('templateId')))
+        return model

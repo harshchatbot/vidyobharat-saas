@@ -40,6 +40,9 @@ class ImageModelResponse(BaseModel):
 class ImageGenerationResponse(BaseModel):
     id: str
     parent_image_id: str | None = None
+    project_id: str | None = None
+    mode_id: str | None = None
+    template_id: str | None = None
     model_key: str
     prompt: str
     aspect_ratio: str
@@ -83,6 +86,11 @@ class ImageGenerationCreateRequest(BaseModel):
     aspect_ratio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=10)
     reference_urls: list[str] = Field(default_factory=list)
+    project_id: str | None = Field(default=None, max_length=64, alias='projectId')
+    mode_id: str | None = Field(default=None, max_length=80, alias='modeId')
+    template_id: str | None = Field(default=None, max_length=120, alias='templateId')
+
+    model_config = {'populate_by_name': True}
 
     @field_validator('model_key')
     @classmethod

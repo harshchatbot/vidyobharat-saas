@@ -42,7 +42,7 @@ import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage, Template, TemplateInputField } from '@/types/api';
+import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage, Project, Template, TemplateInputField } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -351,6 +351,10 @@ export function ImageStudioClient({ userId }: Props) {
   const [composerMode, setComposerMode] = useState<'create' | 'variation'>('create');
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectCreating, setProjectCreating] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<ImageTemplatePreset | null>(null);
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
@@ -468,13 +472,15 @@ export function ImageStudioClient({ userId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setProjectsLoading(true);
     void Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
       api.listUnifiedTemplates(userId, { type: 'image', active: true }).catch(() => []),
       api.listImageInspiration(userId).catch(() => []),
       api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT).catch(() => []),
       api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
-    ]).then(([modelData, templateData, inspirationData, imageData, tagData]) => {
+      api.listProjects(userId).catch(() => []),
+    ]).then(([modelData, templateData, inspirationData, imageData, tagData, projectData]) => {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       const nextTemplates = templateData.length > 0 ? templateData.map(mapUnifiedTemplateToImagePreset) : quickTemplates.map((item) => ({
@@ -490,6 +496,7 @@ export function ImageStudioClient({ userId }: Props) {
       }));
       setModels(nextModels);
       setImageTemplates(nextTemplates);
+      setProjects(projectData);
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
@@ -513,12 +520,45 @@ export function ImageStudioClient({ userId }: Props) {
         }
       }
       setLoading(false);
+      setProjectsLoading(false);
     });
 
     return () => {
       cancelled = true;
     };
   }, [cacheKey, userId]);
+
+  const createProjectFromCurrentImageDraft = async () => {
+    setProjectCreating(true);
+    try {
+      const project = await api.createProject(
+        {
+          user_id: userId,
+          title: activeTemplate?.title || prompt.trim().slice(0, 72) || 'Image concept',
+          script: prompt.trim() || activeTemplate?.description || '',
+          language: 'en-IN',
+          voice: 'Shubh',
+          template: activeTemplate?.id || 'image_studio',
+        },
+        userId,
+      );
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setSelectedProjectId(project.id);
+      show(`${project.title} created for this image workflow.`);
+      return project.id;
+    } catch (error) {
+      setError(toErrorMessage(error, 'Could not create a project right now.'));
+      return null;
+    } finally {
+      setProjectCreating(false);
+    }
+  };
+
+  const ensureProjectForImageRun = async () => {
+    if (selectedProjectId) return selectedProjectId;
+    if (activeTemplate) return createProjectFromCurrentImageDraft();
+    return null;
+  };
 
   useEffect(() => {
     setTemplateInputs(buildTemplateInputDefaults(activeTemplate));
@@ -615,6 +655,7 @@ export function ImageStudioClient({ userId }: Props) {
     setError(null);
     try {
       setSubmitProgress(14);
+      const projectId = await ensureProjectForImageRun();
       const item = await api.generateImage(
         {
           model_key: selectedModel,
@@ -622,6 +663,9 @@ export function ImageStudioClient({ userId }: Props) {
           aspect_ratio: aspectRatio,
           resolution,
           reference_urls: referenceUrls,
+          project_id: projectId || undefined,
+          mode_id: imageMode,
+          template_id: activeTemplate?.id || undefined,
         },
         userId,
       );
@@ -1082,6 +1126,29 @@ export function ImageStudioClient({ userId }: Props) {
                   </button>
                 </div>
               ) : null}
+            </div>
+
+            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">Project</p>
+                  <p className="mt-1 text-xs text-muted">Keep strong image explorations grouped with their prompt, template, and generated outputs.</p>
+                </div>
+                {projectsLoading ? <Spinner /> : activeTemplate ? <Badge>Auto-create ready</Badge> : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                  <option value="">Auto-create when a guided template is used</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </Dropdown>
+                <Button variant="secondary" type="button" onClick={() => void createProjectFromCurrentImageDraft()} disabled={projectCreating}>
+                  {projectCreating ? 'Creating...' : 'New project'}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">

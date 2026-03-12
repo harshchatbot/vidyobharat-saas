@@ -15,7 +15,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
-import type { Template, TemplateGenerateResponse, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
+import type { Project, Template, TemplateGenerateResponse, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 import { TemplatePoster } from './TemplatePoster';
 
 const GROUP_LABELS: Record<string, string> = {
@@ -99,6 +99,8 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [promptOverride, setPromptOverride] = useState('');
   const [modelOverride, setModelOverride] = useState('');
@@ -125,9 +127,22 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
   }, [userId]);
 
   useEffect(() => {
+    let cancelled = false;
+    api.listProjects(userId).then((items) => {
+      if (!cancelled) setProjects(items);
+    }).catch(() => {
+      if (!cancelled) setProjects([]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
     setTemplateInputs(buildInitialInputs(selectedTemplate));
     setPromptOverride('');
     setModelOverride(selectedTemplate?.generation_defaults?.model_key || selectedTemplate?.recommended_model?.internal_model_key || '');
+    setSelectedProjectId('');
     setGeneratedResult(null);
     setPreview(null);
   }, [selectedTemplate]);
@@ -190,6 +205,9 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
           templateId: selectedTemplate.id,
           inputs: templateInputs,
           modelKey: modelOverride || undefined,
+          projectId: selectedProjectId || undefined,
+          autoCreateProject: !selectedProjectId && !selectedTemplate.is_quick_start,
+          modeId: preview?.recommendedModelMode || selectedTemplate.default_model_mode || undefined,
           promptOverride: promptOverride || undefined,
         },
         userId,
@@ -279,6 +297,20 @@ export function TemplatesBrowserClient({ userId }: { userId: string }) {
                     <p className="font-medium text-text">Guided workflow</p>
                     <p className="mt-1">We assemble the master prompt, scene structure, and model recommendation from your inputs. You can still edit everything before generating.</p>
                   </div>
+                </div>
+                <div className="mt-4 space-y-1.5">
+                  <label className="text-sm font-medium text-text">Project</label>
+                  <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                    <option value="">Auto-create project for this guided workflow</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.title}
+                      </option>
+                    ))}
+                  </Dropdown>
+                  <p className="text-xs text-muted">
+                    Hero templates can quietly create a project so prompts, scripts, and final outputs stay organized together.
+                  </p>
                 </div>
               </div>
             </div>

@@ -29,6 +29,12 @@ class ProjectResponse(BaseModel):
     voice: str
     template: str
     created_at: datetime
+    updated_at: datetime | None = None
+    last_activity_at: datetime | None = None
+    image_count: int = 0
+    video_count: int = 0
+    last_output_thumbnail_url: str | None = None
+    last_prompt_snippet: str | None = None
 
     class Config:
         from_attributes = True

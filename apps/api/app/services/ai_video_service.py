@@ -16,6 +16,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.db.repositories.project_repository import ProjectRepository
 from app.core.shared_config import load_shared_json
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
@@ -165,6 +166,7 @@ class AIVideoCreateService:
         self.db = db
         self.settings = settings
         self.repo = VideoRepository(db)
+        self.project_repo = ProjectRepository(db)
         self.pipeline = VideoPipelineService()
         self.tagging = AssetTaggingService(db)
         self.fal = FalVideoService()
@@ -214,6 +216,9 @@ class AIVideoCreateService:
         *,
         user_id: str,
         template: str,
+        template_id: str | None = None,
+        project_id: str | None = None,
+        mode_id: str | None = None,
         language: str,
         image_urls: list[str],
         script: str,
@@ -255,6 +260,9 @@ class AIVideoCreateService:
         seed_image_url = image_urls[0] if image_urls else None
         video = self.repo.create(
             user_id=user_id,
+            project_id=project_id,
+            mode_id=mode_id,
+            template_id=template_id,
             title=script[:80] or registry_entry.label,
             template=template,
             language=language,
@@ -283,6 +291,16 @@ class AIVideoCreateService:
             duck_music=bool((audio_settings or {}).get('ducking', True)),
             audio_sample_rate_hz=sample_rate_hz,
         )
+        if project_id:
+            self.project_repo.touch_generation(
+                project_id,
+                medium='video',
+                prompt=script,
+                thumbnail_url=seed_image_url,
+                template=template,
+                language=language,
+                voice=voice,
+            )
         self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=self.tagging.tag_script(script), source='auto')
         if tags:
             self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')

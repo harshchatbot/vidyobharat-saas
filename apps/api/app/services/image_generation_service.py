@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.repositories.image_generation_repository import ImageGenerationRepository
+from app.db.repositories.project_repository import ProjectRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
@@ -235,6 +236,7 @@ class ImageGenerationService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = ImageGenerationRepository(db)
+        self.project_repo = ProjectRepository(db)
         self.tagging = AssetTaggingService(db)
         self.sync = FirestoreSyncService()
         self.output_dir = Path('data/image_generations')
@@ -323,6 +325,9 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         reference_urls: list[str],
+        project_id: str | None = None,
+        mode_id: str | None = None,
+        template_id: str | None = None,
     ) -> ImageGeneration:
         model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
         model = IMAGE_MODEL_REGISTRY[model_key]
@@ -355,6 +360,9 @@ class ImageGenerationService:
 
         generation = self.repo.create(
             user_id=user_id,
+            project_id=project_id,
+            mode_id=mode_id,
+            template_id=template_id,
             parent_image_id=None,
             model_key=model_key,
             canonical_model_key=route.canonical_model_key,
@@ -371,6 +379,13 @@ class ImageGenerationService:
             action_type=None,
             status=ImageGenerationStatus.completed,
         )
+        if project_id:
+            self.project_repo.touch_generation(
+                project_id,
+                medium='image',
+                prompt=prompt,
+                thumbnail_url=thumbnail_url,
+            )
         self.tagging.auto_tag_image(generation)
         auto_tags, user_tags = self.tagging.list_tags(generation.id, 'image')
         self.sync.sync_image(generation, auto_tags=auto_tags, user_tags=user_tags)
@@ -574,6 +589,9 @@ class ImageGenerationService:
         reference_urls = self._parse_reference_urls(source)
         item = self.repo.create(
             user_id=source.user_id,
+            project_id=getattr(source, 'project_id', None),
+            mode_id=getattr(source, 'mode_id', None),
+            template_id=getattr(source, 'template_id', None),
             parent_image_id=source.id,
             model_key=source.model_key,
             prompt=source.prompt,
@@ -629,6 +647,9 @@ class ImageGenerationService:
 
         item = self.repo.create(
             user_id=source.user_id,
+            project_id=getattr(source, 'project_id', None),
+            mode_id=getattr(source, 'mode_id', None),
+            template_id=getattr(source, 'template_id', None),
             parent_image_id=source.id,
             model_key=source.model_key,
             prompt=source.prompt,
@@ -690,6 +711,9 @@ class ImageGenerationService:
             )
             item = self.repo.create(
                 user_id=source.user_id,
+                project_id=getattr(source, 'project_id', None),
+                mode_id=getattr(source, 'mode_id', None),
+                template_id=getattr(source, 'template_id', None),
                 parent_image_id=source.id,
                 model_key=source.model_key,
                 prompt=prompt,

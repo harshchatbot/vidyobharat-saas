@@ -37,6 +37,10 @@ function formatRelativeTime(value: string) {
   return `${diffMonths}mo ago`;
 }
 
+function resolveProjectTimestamp(project: Project) {
+  return project.last_activity_at || project.updated_at || project.created_at;
+}
+
 function summarizeScript(script?: string | null) {
   const clean = script?.trim() ?? '';
   if (!clean) {
@@ -155,22 +159,30 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusChip variant="success">Workspace</StatusChip>
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                            Updated {formatRelativeTime(project.created_at)}
+                            Updated {formatRelativeTime(resolveProjectTimestamp(project))}
                           </span>
                         </div>
                         <div>
                           <h3 className="font-heading text-xl font-extrabold tracking-tight text-text">{project.title}</h3>
-                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">
-                            {scriptSummary.preview}
-                          </p>
-                        </div>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">
+                          {project.last_prompt_snippet || scriptSummary.preview}
+                        </p>
                       </div>
+                    </div>
+                    {project.last_output_thumbnail_url ? (
+                      <img
+                        src={project.last_output_thumbnail_url}
+                        alt={project.title}
+                        className="h-16 w-16 rounded-[18px] border border-[hsl(var(--color-border)/0.7)] object-cover"
+                      />
+                    ) : (
                       <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] text-text backdrop-blur-md">
                         <Clapperboard className="h-4 w-4" />
                       </span>
+                    )}
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-4">
                       <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Draft</p>
                         <p className="mt-1 text-sm font-semibold text-text">{scriptSummary.words} words</p>
@@ -182,6 +194,10 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                       <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Voice</p>
                         <p className="mt-1 text-sm font-semibold text-text">{project.voice}</p>
+                      </div>
+                      <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Outputs</p>
+                        <p className="mt-1 text-sm font-semibold text-text">{project.image_count ?? 0} img · {project.video_count ?? 0} vid</p>
                       </div>
                     </div>
 

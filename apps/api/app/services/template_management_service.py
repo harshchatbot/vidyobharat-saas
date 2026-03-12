@@ -13,6 +13,7 @@ from app.db.repositories.template_repository import TemplateRepository
 from app.models.entities import ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.schemas.catalog import TemplateResponse
+from app.schemas.project import CreateProjectRequest
 from app.schemas.template_management import (
     TemplateGenerateRequest,
     TemplateGenerateResponse,
@@ -28,6 +29,7 @@ from app.services.hero_template_registry import (
     resolve_legacy_template_mapping,
 )
 from app.services.image_generation_service import ImageGenerationService
+from app.services.project_service import ProjectService
 from app.services.template_prompt_assembler import TemplatePromptAssembler, get_recommended_model_display
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,7 @@ class TemplateManagementService:
         self.credit_service = CreditService()
         self.storage = build_storage_provider(self.settings)
         self.assembler = TemplatePromptAssembler()
+        self.project_service = ProjectService(None)
         self._seeded = False
 
     def list_templates(
@@ -187,8 +190,21 @@ class TemplateManagementService:
         if not template.active:
             raise ValueError('Template is inactive')
         assembly = self.assembler.assemble(template, payload.inputs, payload.prompt_override)
+        project_id = payload.project_id or self._ensure_template_project(
+            user_id=user_id,
+            template=template,
+            payload=payload,
+            prompt=assembly.master_prompt,
+            script_preview=assembly.script_preview,
+        )
         if template.type == 'image':
-            return self._generate_image_from_template(user_id=user_id, template=template, payload=payload, prompt=assembly.image_prompt or assembly.master_prompt)
+            return self._generate_image_from_template(
+                user_id=user_id,
+                template=template,
+                payload=payload,
+                prompt=assembly.image_prompt or assembly.master_prompt,
+                project_id=project_id,
+            )
         return self._generate_video_from_template(
             user_id=user_id,
             template=template,
@@ -196,6 +212,7 @@ class TemplateManagementService:
             prompt=assembly.video_prompt or assembly.master_prompt,
             script_preview=assembly.script_preview,
             recommended_model_mode=assembly.recommended_model_mode,
+            project_id=project_id,
         )
 
     def preview_template(self, payload: TemplateGenerateRequest) -> TemplatePreviewResponse:
@@ -222,6 +239,7 @@ class TemplateManagementService:
         template: UnifiedTemplateResponse,
         payload: TemplateGenerateRequest,
         prompt: str,
+        project_id: str | None,
     ) -> TemplateGenerateResponse:
         model_key = payload.model_key or template.generation_defaults.model_key or self._default_model_for_mode(template.default_model_mode) or 'gemini_flash_image'
         aspect_ratio = payload.aspect_ratio or template.generation_defaults.aspect_ratio or template.aspect_ratio or '4:5'
@@ -257,6 +275,9 @@ class TemplateManagementService:
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
                 reference_urls=[],
+                project_id=project_id,
+                mode_id=template.default_model_mode,
+                template_id=template.id,
             )
             if deduction_amount > 0 and getattr(generation, 'status', None) == ImageGenerationStatus.failed:
                 self.credit_service.top_up_credits(
@@ -295,6 +316,7 @@ class TemplateManagementService:
         prompt: str,
         script_preview: str | None = None,
         recommended_model_mode: str | None = None,
+        project_id: str | None,
     ) -> TemplateGenerateResponse:
         model_key = payload.model_key or template.generation_defaults.model_key or self._default_model_for_mode(recommended_model_mode or template.default_model_mode) or 'sora2'
         aspect_ratio = payload.aspect_ratio or template.generation_defaults.aspect_ratio or template.aspect_ratio or '9:16'
@@ -335,6 +357,9 @@ class TemplateManagementService:
             video = service.create_video(
                 user_id=user_id,
                 template=template.name,
+                template_id=template.id,
+                project_id=project_id,
+                mode_id=recommended_model_mode or template.default_model_mode,
                 language=language,
                 image_urls=[],
                 script=script,
@@ -371,14 +396,37 @@ class TemplateManagementService:
                     metadata={'refund_for': 'template_generate_video_error', 'template_id': template.id},
                 )
             raise
-        except Exception:
-            if deduction_amount > 0:
-                self.credit_service.top_up_credits(
-                    user_id=user_id,
-                    credits=deduction_amount,
-                    metadata={'refund_for': 'template_generate_video_error', 'template_id': template.id},
-                )
-            raise
+
+    def _ensure_template_project(
+        self,
+        *,
+        user_id: str,
+        template: UnifiedTemplateResponse,
+        payload: TemplateGenerateRequest,
+        prompt: str,
+        script_preview: str | None,
+    ) -> str | None:
+        if payload.project_id or not payload.auto_create_project:
+            return payload.project_id
+        draft_title = str(
+            payload.inputs.get('topic')
+            or payload.inputs.get('speakerName')
+            or payload.inputs.get('productName')
+            or payload.inputs.get('headline')
+            or template.title
+            or template.name
+        ).strip()
+        project = self.project_service.create_project(
+            CreateProjectRequest(
+                user_id=user_id,
+                title=(draft_title or template.name)[:120],
+                script=(script_preview or prompt or template.description or '')[:5000],
+                language=payload.language or template.generation_defaults.language or str(payload.inputs.get('language') or 'English'),
+                voice=payload.voice or template.generation_defaults.voice or 'Shubh',
+                template=template.id,
+            )
+        )
+        return project.id
 
     def _render_prompt(self, template: UnifiedTemplateResponse, raw_inputs: dict[str, Any]) -> str:
         values = {key: self._stringify_value(value) for key, value in raw_inputs.items() if value not in (None, '')}

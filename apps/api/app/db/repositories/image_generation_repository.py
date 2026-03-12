@@ -78,6 +78,22 @@ class ImageGenerationRepository:
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items[:bounded_limit]
 
+    def list_by_project(self, project_id: str, limit: int | None = None) -> list[ImageGeneration]:
+        items: list[ImageGeneration] = []
+        bounded_limit = max(1, min(limit or 100, 100))
+        for data in self._stream_image_docs():
+            current_project_id = data.get('project_id') or data.get('projectId')
+            if current_project_id != project_id:
+                continue
+            if data.get('deleted_at') or data.get('deletedAt'):
+                continue
+            try:
+                items.append(self._to_model(data))
+            except Exception:
+                continue
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items[:bounded_limit]
+
     def list_inspiration_candidates(self, limit: int = 300) -> list[ImageGeneration]:
         items: list[ImageGeneration] = []
         by_id: dict[str, ImageGeneration] = {}
@@ -189,7 +205,7 @@ class ImageGenerationRepository:
         }
 
     def _to_model(self, data: dict) -> ImageGeneration:
-        return model_from_fields(
+        model = model_from_fields(
             ImageGeneration,
             id=data.get('id'),
             user_id=data.get('user_id', data.get('userId')),
@@ -210,3 +226,7 @@ class ImageGenerationRepository:
             like_count=int(data.get('like_count', data.get('likeCount')) or 0),
             created_at=coerce_datetime(data.get('created_at', data.get('createdAt'))),
         )
+        setattr(model, 'project_id', data.get('project_id', data.get('projectId')))
+        setattr(model, 'mode_id', data.get('mode_id', data.get('modeId')))
+        setattr(model, 'template_id', data.get('template_id', data.get('templateId')))
+        return model

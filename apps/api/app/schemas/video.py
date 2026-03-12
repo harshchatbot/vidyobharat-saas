@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 class VideoResponse(BaseModel):
     id: str
     user_id: str
+    project_id: str | None = None
+    mode_id: str | None = None
+    template_id: str | None = None
     title: str | None
     template: str | None = None
     language: str | None = None
