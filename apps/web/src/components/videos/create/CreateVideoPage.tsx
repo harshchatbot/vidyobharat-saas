@@ -158,7 +158,8 @@ function VideoLaneSelector({
 }) {
   return (
     <div className="space-y-3">
-      <div className="inline-flex w-full flex-wrap gap-2 rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <div className="inline-flex min-w-full gap-2 rounded-[18px] bg-[hsl(var(--color-bg)/0.62)] p-1.5">
         {VIDEO_LANES.map((item) => {
           const active = item.key === lane;
           const Icon = item.icon;
@@ -167,10 +168,10 @@ function VideoLaneSelector({
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`inline-flex min-w-[110px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-semibold transition ${
+              className={`inline-flex min-w-[132px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition ${
                 active
                   ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]'
-                  : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
+                  : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -178,8 +179,9 @@ function VideoLaneSelector({
             </button>
           );
         })}
+        </div>
       </div>
-      <div className={`rounded-[24px] border px-4 py-4 ${getVideoLaneDefinition(lane).accentClassName}`}>
+      <div className={`rounded-[18px] border px-4 py-3.5 ${getVideoLaneDefinition(lane).accentClassName}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-2xl">
             <p className="text-base font-semibold text-text">{getVideoLaneDefinition(lane).label}</p>
@@ -1782,7 +1784,7 @@ export function CreateVideoPage({
         />
       ) : null}
 
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_380px] 2xl:items-start">
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.05fr)_370px] 2xl:items-start">
         <div className="space-y-5">
           
 
@@ -1866,16 +1868,16 @@ export function CreateVideoPage({
             title={`${selectedLane.label} models`}
             description={selectedLane.helper}
           />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
               <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
             </div>
-            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Selected engine</p>
               <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
             </div>
-            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
               <p className="mt-1 text-sm font-semibold text-text">
                 {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
@@ -2042,7 +2044,7 @@ export function CreateVideoPage({
         </div>
 
         <div className="space-y-5 2xl:sticky 2xl:top-24">
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.92),hsl(var(--color-elevated)/0.88))] shadow-[var(--shadow-soft)]">
+          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] shadow-[var(--shadow-soft)] backdrop-blur-md">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
@@ -2053,38 +2055,38 @@ export function CreateVideoPage({
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
               </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-2">
-              <div className={`rounded-[18px] border px-3 py-3 ${selectedLane.accentClassName}`}>
+            <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-2">
+              <div className={`rounded-[16px] border px-3 py-2.5 ${selectedLane.accentClassName}`}>
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Category</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
               </div>
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
                 <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
               </div>
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration</p>
                 <p className="mt-1 text-sm font-semibold text-text">{voice} • {language}</p>
               </div>
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Mode</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
                 <p className="mt-1 text-base font-semibold text-text">{creditEstimate?.estimatedCredits ?? 0}</p>
               </div>
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
                 <p className="mt-1 inline-flex items-center gap-1 text-base font-semibold text-text">
                   <BadgeIndianRupee className="h-4 w-4" />
                   {estimatedInr ?? 0}
                 </p>
               </div>
-              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-4 py-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimate mode</p>
                 <p className="mt-1 text-base font-semibold text-text">{estimateError ? 'Fallback' : 'Shared engine'}</p>
               </div>
@@ -2154,23 +2156,23 @@ export function CreateVideoPage({
         {videos.length === 0 ? (
           <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {videos.map((videoItem) => {
               const videoUrl = toAssetUrl(videoItem.output_url);
               const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
               return (
-                <div key={videoItem.id} className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-bg">
+                <div key={videoItem.id} className="overflow-hidden rounded-[18px] border border-border bg-bg">
                   {videoUrl ? (
-                    <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-48 w-full bg-black object-cover" />
+                    <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-40 w-full bg-black object-cover" />
                   ) : thumbUrl ? (
-                    <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-48 w-full object-cover" />
+                    <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-40 w-full object-cover" />
                   ) : (
-                    <div className="flex h-48 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
+                    <div className="flex h-40 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
                   )}
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-2.5 p-3">
                     <div>
                       <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
-                      <p className="mt-1 text-xs text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
+                      <p className="mt-0.5 text-[11px] text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>

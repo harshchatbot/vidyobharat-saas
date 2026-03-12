@@ -1074,7 +1074,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               return (
                 <div
                   key={asset.id}
-                  className="group relative mb-4 block break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] shadow-soft"
+                  className="group relative mb-3 block break-inside-avoid overflow-hidden rounded-[18px] shadow-soft"
                   style={{ aspectRatio: aspectRatioToCss(asset.aspect_ratio) }}
                 >
                   <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
@@ -1132,15 +1132,15 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       <ExternalLink className="h-4.5 w-4.5" strokeWidth={2} />
                     </Link>
                   </div>
-                  <div className="absolute inset-x-3 bottom-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                  <div className="absolute inset-x-2.5 bottom-2.5 rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] p-2.5 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <p className="line-clamp-1 text-xs font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
                       <StatusChip variant={asset.status === 'completed' ? 'success' : asset.status === 'failed' ? 'danger' : 'warning'}>
                         {formatStatus(asset.status)}
                       </StatusChip>
                     </div>
-                    <p className="line-clamp-2 text-xs leading-5 text-text">{asset.prompt}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted">
+                    <p className="line-clamp-2 text-[11px] leading-5 text-text">{asset.prompt}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-muted">
                       {mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution} • {timeAgo(asset.created_at)}
                     </p>
                   </div>

@@ -34,6 +34,7 @@ type RailItem = {
 type PanelLink = {
   label: string;
   href: string;
+  icon?: React.ComponentType<{ className?: string }>;
 };
 
 const railItems: RailItem[] = [
@@ -59,17 +60,17 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
   tools: {
     title: 'Create with Tools',
     links: [
-      { label: 'Generate images', href: '/images' },
-      { label: 'Create video', href: '/create' },
-      { label: 'Template Browser', href: '/templates' },
+      { label: 'Generate images', href: '/images', icon: ImageIcon },
+      { label: 'Create video', href: '/create', icon: Video },
+      { label: 'Template Browser', href: '/templates', icon: LayoutTemplate },
     ],
   },
   avatar: {
     title: 'Create Avatar',
     links: [
       { label: 'AI Influencer', href: '/influencer' },
-      { label: 'Projects', href: '/projects' },
-      { label: 'Template Browser', href: '/templates' },
+      { label: 'Projects', href: '/projects', icon: FolderKanban },
+      { label: 'Template Browser', href: '/templates', icon: LayoutTemplate },
     ],
   },
   templates: {
@@ -172,16 +173,18 @@ export function AuthSidebar({ accountLabel }: Props) {
           </Link>
           {activeGroup.links.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-[var(--radius-md)] border px-3 py-2 text-sm transition ${
+                className={`flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm transition ${
                   active
                     ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] text-text'
                     : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted hover:text-text'
                 }`}
               >
+                {Icon ? <Icon className={`h-4 w-4 ${active ? 'text-[hsl(var(--color-accent))]' : ''}`} /> : null}
                 {item.label}
               </Link>
             );
