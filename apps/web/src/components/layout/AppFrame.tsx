@@ -207,12 +207,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
 
-          <div className={`pointer-events-none absolute left-[84px] top-3 z-30 w-[252px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
-            <div className="pointer-events-auto rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between gap-3">
+          <div className={`pointer-events-none absolute left-[80px] top-3 z-30 w-[224px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+            <div className="pointer-events-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3.5 shadow-soft backdrop-blur-xl">
+              <div className="mb-3 flex items-center justify-between gap-2.5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
-                  <p className="mt-1 text-sm font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home') === desktopNavOpen)?.hint : ''}</p>
+                  <p className="mt-1 text-[13px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : 'home') === desktopNavOpen)?.hint : ''}</p>
                 </div>
                 <button
                   type="button"
@@ -232,10 +232,29 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       key={groupItem.href}
                       href={groupItem.href}
                       onClick={() => setDesktopNavOpen(null)}
-                      className={`inline-flex items-center gap-2 rounded-[14px] border px-3 py-2.5 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
+                      className={`inline-flex items-center gap-2 rounded-[14px] border px-2.5 py-2 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
                     >
-                      <GroupIcon className={`h-4 w-4 ${activeChild ? 'text-[hsl(var(--color-accent))]' : ''}`} />
-                      {groupItem.label}
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${activeChild ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'}`}>
+                        <GroupIcon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium leading-tight">{groupItem.label}</span>
+                        <span className="block truncate text-[11px] text-muted">
+                          {groupItem.href === '/images'
+                            ? 'Fast social visuals'
+                            : groupItem.href === '/create'
+                              ? 'Cinematic reels'
+                              : groupItem.href === '/templates'
+                                ? 'Guided workflows'
+                                : groupItem.href === '/influencer'
+                                  ? 'Consistent avatar creation'
+                                  : groupItem.href === '/projects'
+                                    ? 'Organize outputs'
+                                    : groupItem.href === '/billing'
+                                      ? 'Credits and plans'
+                                      : 'Workspace settings'}
+                        </span>
+                      </span>
                     </Link>
                   );
                 })}

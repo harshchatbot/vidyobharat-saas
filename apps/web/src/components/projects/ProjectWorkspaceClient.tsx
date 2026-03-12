@@ -309,20 +309,20 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
             <p className="mt-2 text-sm text-muted">Generate from video, image, or template flows using this project and everything will gather here.</p>
           </div>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-2">
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-lg font-semibold text-text">Images</h3>
                 <StatusChip variant="success">{filteredImages.length}</StatusChip>
               </div>
               {filteredImages.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No images match the current filters.</div> : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredImages.slice(0, 8).map((item) => (
-                  <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[24px]">
+                  <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[18px]">
                     <img src={toAbsolute(item.thumbnail_url || item.image_url) || ''} alt={item.prompt} className="aspect-[4/5] w-full object-cover" />
-                    <div className="space-y-2 p-4">
-                      <p className="line-clamp-2 text-sm font-semibold text-text">{item.prompt}</p>
-                      <div className="flex flex-wrap gap-2 text-[11px] text-muted">
+                    <div className="space-y-1.5 p-2.5">
+                      <p className="line-clamp-2 text-xs font-semibold text-text">{item.prompt}</p>
+                      <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
                         <Badge>{item.model_key}</Badge>
                         <Badge>{item.aspect_ratio}</Badge>
                         <Badge>{item.resolution}</Badge>
@@ -340,23 +340,23 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
                 <StatusChip variant="success">{filteredVideos.length}</StatusChip>
               </div>
               {filteredVideos.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No videos match the current filters.</div> : null}
-              <div className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {filteredVideos.slice(0, 6).map((item) => {
                   const poster = toAbsolute(item.thumbnail_url || item.source_image_url);
                   return (
-                    <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[24px]">
-                      {poster ? <img src={poster} alt={item.title || 'Video'} className="aspect-[16/9] w-full object-cover" /> : <div className="aspect-[16/9] bg-[hsl(var(--color-elevated))]" />}
-                      <div className="space-y-2 p-4">
-                        <p className="line-clamp-1 text-sm font-semibold text-text">{item.title || 'Untitled video'}</p>
-                        <div className="flex flex-wrap gap-2 text-[11px] text-muted">
+                    <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[18px]">
+                      {poster ? <img src={poster} alt={item.title || 'Video'} className="aspect-[4/5] w-full object-cover" /> : <div className="aspect-[4/5] bg-[hsl(var(--color-elevated))]" />}
+                      <div className="space-y-1.5 p-2.5">
+                        <p className="line-clamp-1 text-xs font-semibold text-text">{item.title || 'Untitled video'}</p>
+                        <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
                           <Badge>{item.selected_model || item.provider_name || 'video'}</Badge>
                           <Badge>{item.status}</Badge>
                           <Badge>{item.aspect_ratio}</Badge>
                           {item.template_id ? <Badge>{item.template_id}</Badge> : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Link href={`/videos/${item.id}`}>
-                            <Button variant="secondary">Open</Button>
+                          <Link href={`/videos/${item.id}`} className="w-full">
+                            <Button variant="secondary" className="w-full">Open</Button>
                           </Link>
                         </div>
                       </div>
