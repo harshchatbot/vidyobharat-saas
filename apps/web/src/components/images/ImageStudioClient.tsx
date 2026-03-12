@@ -1056,16 +1056,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       </section>
       */}
 
-      <div className="grid gap-5 xl:grid-cols-[456px_minmax(0,0.92fr)] xl:items-start 2xl:grid-cols-[480px_minmax(0,1fr)]">
-        <div className="xl:sticky xl:top-24">
-          <div className="space-y-4 rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
-            <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+      <div className="space-y-4">
+        <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-2 rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] p-1.5">
               <button
                 type="button"
                 onClick={() => setComposerMode('create')}
-                className={`rounded-[20px] px-4 py-3 text-sm font-semibold transition ${
+                className={`rounded-[14px] px-4 py-2.5 text-sm font-semibold transition ${
                   composerMode === 'create'
-                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] text-text'
+                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                     : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
                 }`}
               >
@@ -1074,9 +1074,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <button
                 type="button"
                 onClick={() => setComposerMode('variation')}
-                className={`rounded-[20px] px-4 py-3 text-sm font-semibold transition ${
+                className={`rounded-[14px] px-4 py-2.5 text-sm font-semibold transition ${
                   composerMode === 'variation'
-                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-accent)/0.04))] text-text'
+                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                     : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
                 }`}
               >
@@ -1085,22 +1085,20 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
 
             {composerMode === 'variation' ? (
-              <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="space-y-3 rounded-[20px] bg-[hsl(var(--color-bg)/0.58)] p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Variation source</p>
-                    <p className="mt-1 text-xs text-muted">
-                      Variations use your selected image or the latest generated image as the source.
-                    </p>
+                    <p className="mt-1 text-xs text-muted">Use a selected image or your latest generation as the source.</p>
                   </div>
                   {variationSource ? <Badge>Ready</Badge> : <Badge>Needs source</Badge>}
                 </div>
                 {variationSource ? (
-                  <div className="flex items-center gap-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-3">
+                  <div className="flex items-center gap-3 rounded-[18px] bg-[hsl(var(--color-surface)/0.34)] p-3">
                     <img
                       src={toAbsoluteUrl(variationSource.image_url)}
                       alt={variationSource.prompt}
-                      className="h-20 w-20 shrink-0 rounded-[18px] object-cover"
+                      className="h-16 w-16 shrink-0 rounded-[14px] object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-semibold text-text">{variationSource.prompt}</p>
@@ -1114,22 +1112,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.22)] px-4 py-5 text-sm text-muted">
-                    Generate an image first, or select one from your studio feed to create variations from it.
+                  <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] px-4 py-4 text-sm text-muted">
+                    Generate an image first or pick one from the studio feed to create variations.
                   </div>
                 )}
               </div>
             ) : null}
 
-            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
-              <div className="flex items-start justify-between gap-3">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Quick Starts</p>
-                  <p className="mt-1 text-xs text-muted">Start from a guided visual workflow, then refine the prompt manually if needed.</p>
+                  <p className="mt-1 text-xs text-muted">Fast starting points. You can still rewrite everything before generating.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2 px-3 py-2 text-xs">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                  Browse quick starts
+                  Browse
                 </Button>
               </div>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -1143,26 +1141,19 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         setActiveTemplate(template);
                         setTemplatePickerOpen(true);
                       }}
-                      className={`group min-w-[152px] overflow-hidden rounded-[18px] border text-left transition ${
+                      className={`group min-w-[128px] overflow-hidden rounded-[16px] text-left transition ${
                         selected
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.36)] hover:border-[hsl(var(--color-accent)/0.35)]'
+                          ? 'bg-[hsl(var(--color-accent)/0.1)]'
+                          : 'bg-[hsl(var(--color-surface)/0.34)] hover:bg-[hsl(var(--color-surface)/0.48)]'
                       }`}
                     >
-                      <div className="relative aspect-[7/5] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
+                      <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
                         {template.thumbnail_url ? (
                           <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
-                        ) : (
-                          <div className="flex h-full items-end p-2.5">
-                            <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text">
-                              {template.category}
-                            </span>
-                          </div>
-                        )}
+                        ) : null}
                         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
-                        <div className="absolute inset-x-2.5 bottom-2.5">
+                        <div className="absolute inset-x-2 bottom-2">
                           <p className="line-clamp-1 text-xs font-semibold text-white">{template.title}</p>
-                          <p className="mt-0.5 line-clamp-2 text-[11px] text-white/72">{template.description}</p>
                         </div>
                       </div>
                     </button>
@@ -1187,11 +1178,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               ) : null}
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Project</p>
-                  <p className="mt-1 text-xs text-muted">Keep strong image explorations grouped with their prompt, template, and generated outputs.</p>
+                  <p className="mt-1 text-xs text-muted">Keep prompts, templates, and generated outputs together when needed.</p>
                 </div>
                 {projectsLoading ? <Spinner /> : activeTemplate ? <Badge>Auto-create ready</Badge> : null}
               </div>
@@ -1210,72 +1201,103 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Pick by outcome first. The recommended model stays visible, but mode drives the choice.</p>
+                  <p className="mt-1 text-xs text-muted">Pick by result first. Keep the model choice simple.</p>
                 </div>
                 {selectedModelMeta?.badge ? <Badge>{selectedModelMeta.badge}</Badge> : null}
               </div>
-              <div className="grid grid-cols-3 gap-2 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
-                {IMAGE_MODES.map((mode) => (
-                  <button
-                    key={mode.key}
-                    type="button"
-                    onClick={() => {
-                      setImageMode(mode.key);
-                      const nextModel = models.find((item) => mode.models.includes(item.key));
-                      if (nextModel) setSelectedModel(nextModel.key);
-                    }}
-                    className={`rounded-[16px] px-2 py-2 text-center text-[11px] font-semibold transition sm:text-xs ${
-                      imageMode === mode.key
-                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                        : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-2">
+                {models.map((model) => {
+                  const active = model.key === selectedModel;
+                  return (
+                    <button
+                      key={model.key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedModel(model.key);
+                        const nextMode = IMAGE_MODES.find((mode) => mode.models.includes(model.key));
+                        if (nextMode) setImageMode(nextMode.key);
+                      }}
+                      className={`rounded-full border px-3 py-2 text-left transition ${
+                        active
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] text-muted hover:text-text'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-[10px] font-semibold ${PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'}`}>
+                          {typeof model.logo_label === 'string' ? model.logo_label : 'AI'}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-text">{model.label}</p>
+                          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{model.badge ?? 'Model'}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <button
-                type="button"
-                onClick={() => setModelPickerOpen(true)}
-                className="w-full rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3.5 text-left transition hover:bg-[hsl(var(--color-elevated))]"
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
-                      PROVIDER_LOGO_STYLES[selectedModelMeta?.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
-                    }`}
-                  >
-                    {selectedModelMeta?.logo_label ?? <Sparkles className="h-5 w-5" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-text">{selectedModelMeta?.label}</p>
-                      {selectedModelMeta?.provider ? <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{selectedModelMeta.provider}</span> : null}
-                    </div>
-                    <p className="mt-1 text-sm text-muted">
-                      {selectedModelMeta?.frontend_hint ?? selectedModelMeta?.description}
-                    </p>
-                    {selectedModelMeta?.alias_hint ? <p className="mt-2 text-[11px] text-muted">{selectedModelMeta.alias_hint}</p> : null}
-                  </div>
-                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted" />
-                </div>
-              </button>
             </div>
 
-              <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
+              <div>
+                <p className="text-sm font-semibold text-text">Orientation & output</p>
+                <p className="mt-1 text-xs text-muted">Keep the framing clean and pick the size you actually need.</p>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {aspectOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAspectRatio(option.value)}
+                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                          aspectRatio === option.value
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'bg-[hsl(var(--color-surface)/0.35)] text-muted hover:text-text'
+                        }`}
+                        title={`${option.label} · ${option.helper}`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {resolutionOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setResolution(option.value)}
+                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                          resolution === option.value
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                            : 'bg-[hsl(var(--color-surface)/0.35)] text-muted hover:text-text'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">
-                    {composerMode === 'variation' ? 'Variation prompt guidance' : 'Describe your image'}
+                    {composerMode === 'variation' ? 'Variation prompt guidance' : 'Prompt'}
                   </p>
                   <p className="mt-1 text-xs text-muted">
                     {composerMode === 'variation'
-                      ? 'Prompt edits here are optional. Variations are driven primarily by the selected source image.'
-                      : 'Start with one strong visual idea. References and output settings will refine it.'}
+                      ? 'Optional prompt edits. The source image still drives the variation.'
+                      : 'Describe the subject, mood, setting, and visual style.'}
                   </p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
@@ -1284,36 +1306,38 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </Button>
               </div>
               <Textarea
-                rows={7}
+                rows={6}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 maxLength={MAX_PROMPT_CHARS}
-                placeholder="Describe the subject, mood, environment, camera feel, lighting, and final style you want."
+                placeholder="Type your prompt here..."
               />
-              <p className="text-right text-[11px] text-muted">{prompt.length}/{MAX_PROMPT_CHARS}</p>
-              <div className="flex flex-wrap gap-2">
-                {powerWords.map((word) => (
-                  <button
-                    key={word}
-                    type="button"
-                    onClick={() => applyPowerWord(word)}
-                    className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.4)] px-3 py-1.5 text-xs font-semibold text-muted hover:border-[hsl(var(--color-accent))] hover:text-text"
-                  >
-                    {word}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+                <span>{prompt.length}/{MAX_PROMPT_CHARS}</span>
+                <div className="flex flex-wrap gap-2">
+                  {powerWords.slice(0, 4).map((word) => (
+                    <button
+                      key={word}
+                      type="button"
+                      onClick={() => applyPowerWord(word)}
+                      className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-text"
+                    >
+                      {word}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Visual references</p>
-                  <p className="mt-1 text-xs text-muted">Upload reference photos for composition, styling, or subject consistency.</p>
+                  <p className="text-sm font-semibold text-text">References</p>
+                  <p className="mt-1 text-xs text-muted">Optional. Add up to 4 images for composition or style guidance.</p>
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.55)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
                   <Upload className="h-3.5 w-3.5" />
-                  {uploadingReference ? 'Uploading...' : 'Upload photo'}
+                  {uploadingReference ? 'Uploading...' : 'Upload'}
                   <input
                     type="file"
                     accept="image/*"
@@ -1325,20 +1349,20 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </label>
               </div>
               {referenceUploads.length === 0 ? (
-                <div className="flex min-h-24 items-center justify-center rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] text-center text-xs text-muted">
-                  Add up to 4 JPG, PNG, or WEBP references.
+                <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.16)] px-4 py-4 text-xs text-muted">
+                  No references uploaded yet.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-4 gap-2">
                   {referenceUploads.map((item) => (
-                    <div key={item.id} className="group relative overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))]">
+                    <div key={item.id} className="group relative overflow-hidden rounded-[16px] bg-[hsl(var(--color-surface)/0.28)]">
                       <img src={toAbsoluteUrl(item.url)} alt={item.name} className="aspect-square w-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeReferenceUpload(item.id)}
-                        className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--color-surface)/0.92)] text-text opacity-0 transition group-hover:opacity-100"
+                        className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-surface)/0.92)] text-text opacity-0 transition group-hover:opacity-100"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
@@ -1346,62 +1370,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               )}
             </div>
 
-            <Card className="space-y-4 rounded-[20px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3.5 backdrop-blur-md">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-text">Output</p>
-                  <p className="mt-1 text-xs text-muted">Keep framing and fidelity compact so the prompt stays primary.</p>
-                </div>
-                <Badge>
-                  {aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}
-                </Badge>
-              </div>
-              <div className="space-y-3">
-                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
-                  <div className="flex flex-wrap gap-2">
-                    {aspectOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setAspectRatio(option.value)}
-                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                          aspectRatio === option.value
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
-                        }`}
-                        title={`${option.label} · ${option.helper}`}
-                      >
-                        {option.value}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
-                  <div className="flex flex-wrap gap-2">
-                    {resolutionOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setResolution(option.value)}
-                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                          resolution === option.value
-                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                            : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <div className="space-y-3">
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               {error ? <p className="text-sm text-danger">{error}</p> : null}
-              <div className="flex items-center justify-between gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
+              <div className="flex flex-col gap-3 rounded-[20px] bg-[hsl(var(--color-bg)/0.62)] p-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
+                    <Badge>{wallet?.currentCredits ?? 0} credits left</Badge>
+                  </div>
                   <p className="mt-1 text-xs text-muted">
                     {composerMode === 'variation'
                       ? variationSource
@@ -1419,7 +1395,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       ? !variationSource
                       : Boolean(estimate && !estimate.sufficient))
                   }
-                  className="min-w-[190px] rounded-[20px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                  className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                 >
                   {submitting || actionLoading === variationActionKey ? (
                     <>
@@ -1455,47 +1431,36 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
 
-        <div className="min-w-0">
-          <Card className="space-y-4 rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Canvas</p>
-                <h2 className="mt-2 text-lg font-semibold text-text">Current Image Output</h2>
-              </div>
-              <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
+        <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
+              <h2 className="mt-2 text-base font-semibold text-text">Current image</h2>
             </div>
-            <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
-              {livePreviewImage ? (
-                <img
-                  src={getPreviewImageUrl(livePreviewImage) ?? ''}
-                  alt={getPreviewImageLabel(livePreviewImage)}
-                  className="aspect-[4/5] w-full object-contain bg-[hsl(var(--color-bg))]"
-                />
-              ) : (
-                <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">
-                  Generate an image to start building your live canvas.
-                </div>
-              )}
-            </div>
-            <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Model</p>
-                <p className="mt-1 text-sm font-semibold text-text">
-                  {activeTab === 'generated'
-                    ? selectedGeneratedModel?.label ?? selectedModelMeta?.label ?? 'Model selected'
-                    : selectedInspirationModel?.label ?? selectedModelMeta?.label ?? 'Model selected'}
-                </p>
+            <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
+          </div>
+          <div className="mt-3 overflow-hidden rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+            {livePreviewImage ? (
+              <img
+                src={getPreviewImageUrl(livePreviewImage) ?? ''}
+                alt={getPreviewImageLabel(livePreviewImage)}
+                className="max-h-[420px] w-full object-contain bg-[hsl(var(--color-bg))]"
+              />
+            ) : (
+              <div className="flex min-h-[240px] items-center justify-center text-sm text-muted">
+                Generate an image to preview it here.
               </div>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Output</p>
-                  <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</p>
-              </div>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Preview</p>
-                <p className="mt-1 text-sm font-semibold text-text">{activeTab === 'generated' ? 'Studio output' : 'Creator inspiration'}</p>
-              </div>
-            </div>
-          </Card>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Badge>
+              {activeTab === 'generated'
+                ? selectedGeneratedModel?.label ?? selectedModelMeta?.label ?? 'Model selected'
+                : selectedInspirationModel?.label ?? selectedModelMeta?.label ?? 'Model selected'}
+            </Badge>
+            <Badge>{aspectRatio}</Badge>
+            <Badge>{resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</Badge>
+          </div>
         </div>
       </div>
 
