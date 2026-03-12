@@ -7,11 +7,13 @@ import {
   FolderPlus,
   FolderKanban,
   Home,
+  ImageIcon,
   LayoutTemplate,
   LogOut,
   Settings,
   Sparkles,
   Video,
+  Wand2,
 } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
@@ -36,8 +38,8 @@ type PanelLink = {
 
 const railItems: RailItem[] = [
   { id: 'home', label: 'Home', href: '/dashboard', icon: Home },
-  { id: 'create', label: 'Create', href: '/create/choose', icon: Sparkles },
-  { id: 'avatars', label: 'Avatars', href: '/create/avatar', icon: Clapperboard },
+  { id: 'tools', label: 'Tools', href: '/images', icon: Sparkles },
+  { id: 'avatar', label: 'Create Avatar', href: '/influencer', icon: Wand2 },
   { id: 'templates', label: 'Templates', href: '/templates', icon: LayoutTemplate },
   { id: 'projects', label: 'Projects', href: '/projects', icon: FolderKanban },
   { id: 'renders', label: 'Renders', href: '/renders', icon: Video },
@@ -54,24 +56,20 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
       { label: 'Billing', href: '/billing' },
     ],
   },
-  create: {
-    title: 'Create Flow',
+  tools: {
+    title: 'Create with Tools',
     links: [
-      { label: 'Choose Base', href: '/create/choose' },
-      { label: 'Avatar Select', href: '/create/avatar' },
-      { label: 'Template Select', href: '/create/template' },
+      { label: 'Generate images', href: '/images' },
+      { label: 'Create video', href: '/create' },
       { label: 'Template Browser', href: '/templates' },
-      { label: 'Script', href: '/create/script' },
-      { label: 'Customize', href: '/create/customize' },
-      { label: 'Confirm', href: '/create/confirm' },
     ],
   },
-  avatars: {
-    title: 'Avatar Videos',
+  avatar: {
+    title: 'Create Avatar',
     links: [
-      { label: 'Avatar Library', href: '/create/avatar' },
-      { label: 'Script to Video', href: '/create/script' },
-      { label: 'My Projects', href: '/projects' },
+      { label: 'AI Influencer', href: '/influencer' },
+      { label: 'Projects', href: '/projects' },
+      { label: 'Template Browser', href: '/templates' },
     ],
   },
   templates: {
@@ -112,9 +110,9 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
 
 function matchActiveRail(pathname: string): string {
   if (pathname === '/dashboard') return 'home';
-  if (pathname.startsWith('/create/avatar')) return 'avatars';
+  if (pathname.startsWith('/influencer') || pathname.startsWith('/create/avatar')) return 'avatar';
   if (pathname.startsWith('/templates') || pathname.startsWith('/admin/templates') || pathname.startsWith('/create/template')) return 'templates';
-  if (pathname.startsWith('/create/')) return 'create';
+  if (pathname.startsWith('/images') || pathname.startsWith('/create/') || pathname === '/create') return 'tools';
   if (pathname.startsWith('/projects') || pathname.startsWith('/editor/')) return 'projects';
   if (pathname.startsWith('/renders/')) return 'renders';
   if (pathname.startsWith('/billing')) return 'settings';

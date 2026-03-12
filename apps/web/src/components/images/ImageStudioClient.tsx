@@ -1032,7 +1032,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
               Create Image
             </div>
@@ -1159,6 +1159,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </button>
                   );
                 })}
+                </div>
               </div>
               {activeTemplate ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1209,7 +1210,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </div>
                 {selectedModelMeta?.badge ? <Badge>{selectedModelMeta.badge}</Badge> : null}
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="-mx-1 overflow-x-auto px-1 pb-1">
+                <div className="flex min-w-max gap-2">
                 {models.map((model) => {
                   const active = model.key === selectedModel;
                   return (
@@ -1221,7 +1223,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         const nextMode = IMAGE_MODES.find((mode) => mode.models.includes(model.key));
                         if (nextMode) setImageMode(nextMode.key);
                       }}
-                      className={`rounded-full border px-3 py-2 text-left transition ${
+                      className={`min-w-[170px] rounded-full border px-3 py-2 text-left transition ${
                         active
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] text-muted hover:text-text'
@@ -1488,14 +1490,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
 
-        <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] backdrop-blur-md">
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card className="space-y-4 rounded-[22px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.28)] backdrop-blur-md">
+          <div className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
                 <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                 Search by prompt or tags
               </label>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)] px-3 py-2.5">
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
@@ -1518,7 +1520,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </div>
               ) : null}
             </div>
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+            <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)] p-3.5">
               <div className="flex items-center gap-2 text-sm font-semibold text-text">
                 <Filter className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                 Active filters
@@ -1549,7 +1551,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6 2xl:grid-cols-7">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1565,7 +1567,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       setSelectedInspiration(item as InspirationImage);
                     }
                   }}
-                  className={`overflow-hidden rounded-[20px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                  className={`overflow-hidden rounded-[16px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
                     ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
                       ? 'border-[hsl(var(--color-accent))] shadow-soft'
                       : 'border-[hsl(var(--color-border))]'
@@ -1573,18 +1575,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-square w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[11/13] w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
-                  <div className="space-y-1.5 p-2.5">
+                  <div className="space-y-1 p-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="line-clamp-1 text-[11px] font-semibold text-text sm:text-xs">
+                        <p className="line-clamp-1 text-[10px] font-semibold text-text sm:text-[11px]">
                           {'title' in item ? item.title : item.prompt.split(',')[0]}
                         </p>
-                        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted sm:text-[11px]">{getPreviewImageLabel(item)}</p>
+                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted">{getPreviewImageLabel(item)}</p>
                       </div>
                       <Badge>{itemModel?.label ?? item.model_key}</Badge>
                     </div>
@@ -1598,7 +1600,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         <Button
                           variant="secondary"
                           type="button"
-                          className="gap-2 px-3 py-2 text-xs"
+                          className="gap-1.5 px-2.5 py-1.5 text-[11px]"
                           onClick={(event) => {
                             event.stopPropagation();
                             void downloadImage((item as GeneratedImage).image_url, (item as GeneratedImage).prompt);
@@ -1649,55 +1651,54 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
-              {activeTemplate?.thumbnail_url ? (
-                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[4/5] w-full object-cover" />
-              ) : (
-                <div className="flex aspect-[4/5] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-4">
-                  <div className="space-y-2">
-                    <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
-                    <p className="text-xl font-bold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Quick starts</p>
+            <h3 className="mt-1 text-xl font-semibold text-text">Choose a visual starting point</h3>
+            <p className="mt-1 text-sm text-muted">Pick a template, adjust the few input fields, then apply it into the studio.</p>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-[20px] bg-[hsl(var(--color-surface)/0.42)]">
+                {activeTemplate?.thumbnail_url ? (
+                  <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[5/4] w-full object-cover" />
+                ) : (
+                  <div className="flex aspect-[5/4] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-4">
+                    <div className="space-y-2">
+                      <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
+                      <p className="text-lg font-semibold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-4">
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Badge>Image</Badge>
                 {activeTemplate ? <Badge>{activeTemplate.category}</Badge> : null}
                 {activeTemplate ? <Badge>{resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}</Badge> : null}
               </div>
-              <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplate?.title ?? 'Choose a template'}</h3>
-              <p className="mt-2 text-sm text-muted">{activeTemplate?.description ?? 'Select a template to prefill your image prompt, model, and output settings.'}</p>
-            </div>
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              {imageTemplates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => setActiveTemplate(template)}
-                  className={`overflow-hidden rounded-[18px] border text-left transition ${
-                    activeTemplate?.id === template.id
-                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
-                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] hover:border-[hsl(var(--color-accent)/0.35)]'
-                  }`}
-                >
-                  <div className="p-3">
+              <div className="grid gap-2">
+                {imageTemplates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => setActiveTemplate(template)}
+                    className={`rounded-[16px] px-3 py-3 text-left transition ${
+                      activeTemplate?.id === template.id
+                        ? 'bg-[hsl(var(--color-accent)/0.1)] text-text'
+                        : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
+                    }`}
+                  >
                     <p className="text-sm font-semibold text-text">{template.title}</p>
                     <p className="mt-1 line-clamp-2 text-[11px] text-muted">{template.description}</p>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="space-y-4">
-            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+            <div className="rounded-[20px] bg-[hsl(var(--color-surface)/0.42)] p-4 sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Template inputs</p>
-                  <p className="mt-1 text-sm text-muted">Fill the fields, then apply the template into the image studio.</p>
+                  <p className="mt-1 text-sm text-muted">Answer a few simple fields. The studio will fill the rest.</p>
                 </div>
                 {activeTemplate ? <Badge>{models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}</Badge> : null}
               </div>
@@ -1723,11 +1724,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       );
                     })
                   ) : (
-                    <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-5 text-sm text-muted">
-                      This template uses a ready-made prompt. Apply it directly into the composer.
+                    <div className="rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] px-4 py-4 text-sm text-muted">
+                      This quick start uses a ready-made prompt. Apply it directly into the composer.
                     </div>
                   )}
-                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] p-4">
+                  <div className="rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] p-3.5">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Will apply</p>
                     <p className="mt-2 text-sm text-text">
                       {models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}
@@ -1747,7 +1748,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-[20px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-4 py-6 text-sm text-muted">
+                <div className="mt-4 rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] px-4 py-6 text-sm text-muted">
                   Select an image template to load its visual direction and generation defaults.
                 </div>
               )}
