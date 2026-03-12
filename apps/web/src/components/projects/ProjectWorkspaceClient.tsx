@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
+import { MediaPosterCard } from '@/components/ui/MediaPosterCard';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { Textarea } from '@/components/ui/Textarea';
@@ -318,18 +319,19 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
               {filteredImages.length === 0 ? <div className="rangmanch-studio-panel rounded-[24px] px-4 py-5 text-sm text-muted">No images match the current filters.</div> : null}
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredImages.slice(0, 8).map((item) => (
-                  <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[18px]">
-                    <img src={toAbsolute(item.thumbnail_url || item.image_url) || ''} alt={item.prompt} className="aspect-[4/5] w-full object-cover" />
-                    <div className="space-y-1.5 p-2.5">
-                      <p className="line-clamp-2 text-xs font-semibold text-text">{item.prompt}</p>
+                  <MediaPosterCard
+                    key={item.id}
+                    preview={toAbsolute(item.thumbnail_url || item.image_url) || ''}
+                    title={item.prompt}
+                    meta={
                       <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
                         <Badge>{item.model_key}</Badge>
                         <Badge>{item.aspect_ratio}</Badge>
                         <Badge>{item.resolution}</Badge>
                         {item.template_id ? <Badge>{item.template_id}</Badge> : null}
                       </div>
-                    </div>
-                  </article>
+                    }
+                  />
                 ))}
               </div>
             </div>
@@ -344,23 +346,26 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
                 {filteredVideos.slice(0, 6).map((item) => {
                   const poster = toAbsolute(item.thumbnail_url || item.source_image_url);
                   return (
-                    <article key={item.id} className="rangmanch-poster-card overflow-hidden rounded-[18px]">
-                      {poster ? <img src={poster} alt={item.title || 'Video'} className="aspect-[4/5] w-full object-cover" /> : <div className="aspect-[4/5] bg-[hsl(var(--color-elevated))]" />}
-                      <div className="space-y-1.5 p-2.5">
-                        <p className="line-clamp-1 text-xs font-semibold text-text">{item.title || 'Untitled video'}</p>
+                    <MediaPosterCard
+                      key={item.id}
+                      preview={poster || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='}
+                      title={item.title || 'Untitled video'}
+                      meta={
                         <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
                           <Badge>{item.selected_model || item.provider_name || 'video'}</Badge>
                           <Badge>{item.status}</Badge>
                           <Badge>{item.aspect_ratio}</Badge>
                           {item.template_id ? <Badge>{item.template_id}</Badge> : null}
                         </div>
+                      }
+                      footer={
                         <div className="flex flex-wrap gap-2">
                           <Link href={`/videos/${item.id}`} className="w-full">
                             <Button variant="secondary" className="w-full">Open</Button>
                           </Link>
                         </div>
-                      </div>
-                    </article>
+                      }
+                    />
                   );
                 })}
               </div>

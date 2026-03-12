@@ -27,6 +27,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { MediaPosterCard } from '@/components/ui/MediaPosterCard';
 import { Modal } from '@/components/ui/Modal';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { ProjectAssignmentDialog } from '@/components/projects/ProjectAssignmentDialog';
@@ -1074,76 +1075,84 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               return (
                 <div
                   key={asset.id}
-                  className="group relative mb-2.5 block break-inside-avoid overflow-hidden rounded-[14px] shadow-soft"
-                  style={{ aspectRatio: aspectRatioToCss(asset.aspect_ratio) }}
+                  className="mb-2.5 break-inside-avoid"
                 >
-                  <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.84)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-1.5 opacity-0 transition group-hover:opacity-100">
-                    <button
-                      type="button"
-                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => void downloadAsset(asset)}
-                      disabled={downloadingId === asset.id || !asset.asset_url}
-                      title="Download"
-                    >
-                      <Download className="h-4.5 w-4.5" strokeWidth={2} />
-                    </button>
-                    <button
-                      type="button"
-                      className="pointer-events-auto inline-flex h-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.97)] px-4 text-xs font-semibold leading-none text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.97)] disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => void togglePublish(asset)}
-                      disabled={publishingAssetId === asset.id}
-                    >
-                      {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
-                    </button>
-                    <button
-                      type="button"
-                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => void deleteAsset(asset)}
-                      disabled={deletingAssetId === asset.id}
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4.5 w-4.5" strokeWidth={2} />
-                    </button>
-                    {asset.project_id ? (
-                      <Link
-                        href={`/projects/${asset.project_id}`}
-                        className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
-                        title="Open in project"
-                      >
-                        <FolderOpen className="h-4.5 w-4.5" strokeWidth={2} />
-                      </Link>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => setProjectAssignmentTarget(asset)}
-                      disabled={assigningProjectId === asset.id}
-                      title={asset.project_id ? 'Move to project' : 'Add to project'}
-                    >
-                      <FolderPlus className="h-4.5 w-4.5" strokeWidth={2} />
-                    </button>
-                    <Link
-                      href={openHref}
-                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
-                      title="Open"
-                    >
-                      <ExternalLink className="h-4.5 w-4.5" strokeWidth={2} />
-                    </Link>
-                  </div>
-                  <div className="absolute inset-x-2 bottom-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.58)] p-2 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="line-clamp-1 text-[11px] font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
-                      <StatusChip variant={asset.status === 'completed' ? 'success' : asset.status === 'failed' ? 'danger' : 'warning'}>
-                        {formatStatus(asset.status)}
-                      </StatusChip>
-                    </div>
-                    <p className="line-clamp-2 text-[10px] leading-4 text-text">{asset.prompt}</p>
-                    <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted">
-                      {mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution} • {timeAgo(asset.created_at)}
-                    </p>
-                  </div>
+                  <MediaPosterCard
+                    preview={preview}
+                    title={asset.title || `Untitled ${mediaLabel(asset.content_type)}`}
+                    aspectRatio={aspectRatioToCss(asset.aspect_ratio)}
+                    roundedClassName="rounded-[14px]"
+                    bodyClassName="space-y-1 p-2"
+                    titleClassName="line-clamp-1 text-[11px] font-semibold text-text"
+                    actions={
+                      <div className="flex max-w-[calc(100%-0.5rem)] flex-wrap items-center justify-end gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button
+                          type="button"
+                          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void downloadAsset(asset)}
+                          disabled={downloadingId === asset.id || !asset.asset_url}
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          className="pointer-events-auto inline-flex h-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.97)] px-3 text-[11px] font-semibold leading-none text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.97)] disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void togglePublish(asset)}
+                          disabled={publishingAssetId === asset.id}
+                        >
+                          {publishingAssetId === asset.id ? '...' : asset.is_public_inspiration ? 'Unpublish' : 'Publish'}
+                        </button>
+                        <button
+                          type="button"
+                          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void deleteAsset(asset)}
+                          disabled={deletingAssetId === asset.id}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                        {asset.project_id ? (
+                          <Link
+                            href={`/projects/${asset.project_id}`}
+                            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                            title="Open in project"
+                          >
+                            <FolderOpen className="h-4 w-4" strokeWidth={2} />
+                          </Link>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => setProjectAssignmentTarget(asset)}
+                          disabled={assigningProjectId === asset.id}
+                          title={asset.project_id ? 'Move to project' : 'Add to project'}
+                        >
+                          <FolderPlus className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                        <Link
+                          href={openHref}
+                          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                          title="Open"
+                        >
+                          <ExternalLink className="h-4 w-4" strokeWidth={2} />
+                        </Link>
+                      </div>
+                    }
+                    meta={
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <StatusChip variant={asset.status === 'completed' ? 'success' : asset.status === 'failed' ? 'danger' : 'warning'}>
+                            {formatStatus(asset.status)}
+                          </StatusChip>
+                        </div>
+                        <p className="line-clamp-2 text-[10px] leading-4 text-text">{asset.prompt}</p>
+                        <p className="text-[9px] uppercase tracking-[0.12em] text-muted">
+                          {mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution} • {timeAgo(asset.created_at)}
+                        </p>
+                      </>
+                    }
+                  />
                 </div>
               );
             })}
@@ -1164,29 +1173,29 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-            <div className="flex min-h-[50vh] items-center justify-center overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3 sm:min-h-[60vh] sm:p-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.38fr)_300px]">
+            <div className="flex min-h-[56vh] items-center justify-center overflow-hidden rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg))] p-2 sm:min-h-[70vh] sm:p-3">
               {isVideoInspiration(selectedInspirationItem) ? (
                 <video
                   src={toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url}
                   poster={toAbsoluteUrl(selectedInspirationItem.thumbnail_url) ?? selectedInspirationItem.thumbnail_url}
                   controls
-                  className="max-h-[78vh] w-full rounded-[18px] bg-black object-contain"
+                  className="max-h-[82vh] w-full rounded-[16px] bg-black object-contain"
                 />
               ) : (
                 <img
                   src={selectedInspirationItem.image_url}
                   alt={selectedInspirationItem.title}
-                  className="max-h-[78vh] w-full rounded-[18px] object-contain"
+                  className="max-h-[82vh] w-full rounded-[16px] object-contain"
                 />
               )}
             </div>
-            <div className="space-y-4 xl:max-h-[78vh] xl:overflow-y-auto xl:pr-1">
+            <div className="space-y-3 xl:max-h-[82vh] xl:overflow-y-auto xl:pr-1">
               <div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
-                    <p className="mt-2 text-sm text-muted">
+                    <h3 className="font-heading text-xl font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
+                    <p className="mt-1.5 text-xs text-muted">
                       {isVideoInspiration(selectedInspirationItem)
                         ? `${selectedInspirationItem.provider_name} • ${selectedInspirationItem.duration_seconds}s`
                         : `${selectedInspirationItem.creator_name} • ${selectedInspirationItem.aspect_ratio}`}
@@ -1208,7 +1217,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 </Button>
               </div>
 
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</p>
                   <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspirationItem.prompt)} className="gap-2 px-3 py-1.5 text-xs">
@@ -1216,23 +1225,23 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     {copiedPrompt ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
-                <p className="mt-3 text-sm leading-7 text-muted">{selectedInspirationItem.prompt}</p>
+                <p className="mt-2.5 text-sm leading-6 text-muted">{selectedInspirationItem.prompt}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">Model</p>
-                  <p className="mt-2 text-sm font-semibold text-text">{selectedInspirationItem.model_key}</p>
+                  <p className="mt-1.5 text-sm font-semibold text-text">{selectedInspirationItem.model_key}</p>
                 </div>
-                <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
+                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">{isVideoInspiration(selectedInspirationItem) ? 'Duration' : 'Aspect ratio'}</p>
-                  <p className="mt-2 text-sm font-semibold text-text">
+                  <p className="mt-1.5 text-sm font-semibold text-text">
                     {isVideoInspiration(selectedInspirationItem) ? `${selectedInspirationItem.duration_seconds}s` : selectedInspirationItem.aspect_ratio}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {selectedInspirationItem.tags.map((tag) => (
                   <Badge key={`${selectedInspirationItem.id}-${tag}`}>{tag}</Badge>
                 ))}
