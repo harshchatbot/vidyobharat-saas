@@ -103,7 +103,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
       />
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rangmanch-studio-panel space-y-4 rounded-[28px] p-5 sm:p-6">
+        <div id="new-project" className="rangmanch-studio-panel scroll-mt-24 space-y-4 rounded-[28px] p-5 sm:p-6">
           <div className="space-y-1">
             <p className="rangmanch-section-eyebrow">New project</p>
             <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Start a new working file</h2>

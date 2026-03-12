@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Clapperboard,
+  FolderPlus,
   FolderKanban,
   Home,
   LayoutTemplate,
@@ -86,6 +87,7 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
     title: 'Project Hub',
     links: [
       { label: 'All Projects', href: '/projects' },
+      { label: 'Create Project', href: '/projects#new-project' },
       { label: 'Dashboard', href: '/dashboard' },
       { label: 'Create New', href: '/create/choose' },
     ],
@@ -163,6 +165,13 @@ export function AuthSidebar({ accountLabel }: Props) {
       <div className="flex flex-col p-4">
         <p className="text-xs uppercase tracking-[0.12em] text-muted">{activeGroup.title}</p>
         <div className="mt-3 grid gap-2">
+          <Link
+            href="/projects#new-project"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.12)] px-3 py-2 text-sm font-semibold text-text transition hover:border-[hsl(var(--color-accent))]"
+          >
+            <FolderPlus className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            Create project
+          </Link>
           {activeGroup.links.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (

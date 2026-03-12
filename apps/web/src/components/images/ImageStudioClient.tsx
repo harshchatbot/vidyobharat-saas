@@ -351,6 +351,7 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 
 export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
+  const [cacheWarm, setCacheWarm] = useState(false);
   const [composerMode, setComposerMode] = useState<'create' | 'variation'>('create');
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
@@ -458,12 +459,26 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         inspiration: InspirationImage[];
         imageData: GeneratedImage[];
         tagData: AssetTagFacet[];
+        imageTemplates?: ImageTemplatePreset[];
+        projects?: Project[];
       };
       if (!cached.ts || Date.now() - cached.ts > IMAGE_STUDIO_CACHE_TTL_MS) return;
       const nextModels = cached.models?.length ? cached.models : fallbackModels;
       setModels(nextModels);
       setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
       setInspiration(cached.inspiration ?? []);
+      setImageTemplates(cached.imageTemplates?.length ? cached.imageTemplates : quickTemplates.map((item) => ({
+        id: item.id,
+        category: item.category,
+        title: item.title,
+        description: item.prompt,
+        prompt: item.prompt,
+        aspect_ratio: item.aspect_ratio,
+        resolution: item.resolution,
+        model_key: item.model_key,
+        thumbnail_url: '',
+      })));
+      setProjects(cached.projects ?? []);
       setAllGeneratedImages(cached.imageData ?? []);
       applyGeneratedFilters(
         cached.imageData ?? [],
@@ -473,6 +488,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         selectedResolutionFilters,
       );
       setTagFacets(cached.tagData ?? []);
+      setCacheWarm(true);
       setLoading(false);
     } catch {
       // ignore malformed cache
@@ -481,6 +497,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    if (cacheWarm) {
+      setProjectsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     setProjectsLoading(true);
     void Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
@@ -522,6 +544,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               inspiration: inspirationData,
               imageData,
               tagData,
+              imageTemplates: nextTemplates,
+              projects: projectData,
             }),
           );
         } catch {
@@ -535,7 +559,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, userId]);
+  }, [cacheKey, cacheWarm, userId]);
 
   const createProjectFromCurrentImageDraft = async () => {
     setProjectCreating(true);
@@ -1560,7 +1584,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1584,18 +1608,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-square w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
-                  <div className="space-y-2 p-3">
+                  <div className="space-y-1.5 p-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="line-clamp-1 text-xs font-semibold text-text sm:text-sm">
+                        <p className="line-clamp-1 text-[11px] font-semibold text-text sm:text-xs">
                           {'title' in item ? item.title : item.prompt.split(',')[0]}
                         </p>
-                        <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted sm:text-xs">{getPreviewImageLabel(item)}</p>
+                        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted sm:text-[11px]">{getPreviewImageLabel(item)}</p>
                       </div>
                       <Badge>{itemModel?.label ?? item.model_key}</Badge>
                     </div>
