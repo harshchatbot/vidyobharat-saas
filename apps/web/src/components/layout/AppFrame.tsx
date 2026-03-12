@@ -149,8 +149,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={userId}>
-      <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
-        <aside ref={desktopNavRef} className="rangmanch-app-rail relative hidden px-2 py-4 xl:block">
+      <div className="grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
+        <aside ref={desktopNavRef} className="rangmanch-app-rail relative z-[70] hidden overflow-visible px-2 py-4 xl:block">
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-center">
               <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
@@ -207,7 +207,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
 
-          <div className={`pointer-events-none absolute left-[80px] top-3 z-30 w-[224px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+          <div className={`pointer-events-none absolute left-[80px] top-3 z-[90] w-[224px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
             <div className="pointer-events-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3.5 shadow-soft backdrop-blur-xl">
               <div className="mb-3 flex items-center justify-between gap-2.5">
                 <div>
@@ -262,7 +262,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
         </aside>
-        <div className="min-w-0">
+        <div className="relative z-0 min-w-0">
           <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8">
             <div className="rangmanch-app-header mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
