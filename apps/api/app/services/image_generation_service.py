@@ -19,7 +19,10 @@ from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.firestore_sync_service import FirestoreSyncService
+from app.services.generation_router import resolve_generation_route
+from app.services.model_registry import get_model_definition, resolve_model_key
 from app.services.smart_model_router import SmartModelRouter, TierModelConfig
+from app.services.together_image_service import TogetherImageService
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,10 @@ class ImageModelEntry:
     badge: str
     logo_label: str
     alias_hint: str | None = None
+    provider_id: str | None = None
+    canonical_model_key: str | None = None
+    mode_ids: tuple[str, ...] = ()
+    billing_unit: str | None = None
     visible: bool = True
 
 
@@ -51,6 +58,10 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         badge='Affordable',
         logo_label='G',
         alias_hint='Formerly Nano Banana',
+        provider_id='gemini',
+        canonical_model_key='gemini_flash_image',
+        mode_ids=('fast_social',),
+        billing_unit='per_image',
     ),
     'gemini_pro_image': ImageModelEntry(
         key='gemini_pro_image',
@@ -60,6 +71,10 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         provider='Google',
         badge='Premium',
         logo_label='G',
+        provider_id='gemini',
+        canonical_model_key='gemini_pro_image',
+        mode_ids=('creator_quality',),
+        billing_unit='per_image',
     ),
     'openai_image': ImageModelEntry(
         key='openai_image',
@@ -69,6 +84,10 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         provider='OpenAI',
         badge='Premium',
         logo_label='O',
+        provider_id='openai',
+        canonical_model_key='gpt_image_1_5',
+        mode_ids=('creator_quality',),
+        billing_unit='per_image',
     ),
     'recraft_studio': ImageModelEntry(
         key='recraft_studio',
@@ -78,6 +97,10 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         provider='Recraft',
         badge='Design',
         logo_label='R',
+        provider_id='recraft',
+        canonical_model_key='recraft',
+        mode_ids=('design_carousel',),
+        billing_unit='per_image',
     ),
     'recraft_studio_pro': ImageModelEntry(
         key='recraft_studio_pro',
@@ -87,6 +110,52 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         provider='Recraft',
         badge='Premium',
         logo_label='R',
+        provider_id='recraft',
+        canonical_model_key='recraft_studio_pro',
+        mode_ids=('design_carousel',),
+        billing_unit='per_image',
+        visible=False,
+    ),
+    'budget_image_model': ImageModelEntry(
+        key='budget_image_model',
+        label='Fast Social',
+        description='Primary Together AI route for affordable, fast social-first image generation.',
+        frontend_hint='Recommended for quick social posts and high-volume affordable image generation.',
+        provider='Together AI',
+        badge='Economy',
+        logo_label='T',
+        provider_id='together',
+        canonical_model_key='budget_image_model',
+        mode_ids=('fast_social',),
+        billing_unit='per_image',
+        visible=False,
+    ),
+    'gpt_image_1_5': ImageModelEntry(
+        key='gpt_image_1_5',
+        label='GPT Image 1.5',
+        description='Primary creator-quality route for polished ad creatives, thumbnails, and realistic outputs.',
+        frontend_hint='Recommended when you want realistic premium image quality with strong prompt fidelity.',
+        provider='OpenAI',
+        badge='Creator quality',
+        logo_label='O',
+        provider_id='openai',
+        canonical_model_key='gpt_image_1_5',
+        mode_ids=('creator_quality',),
+        billing_unit='per_image',
+        visible=False,
+    ),
+    'recraft': ImageModelEntry(
+        key='recraft',
+        label='Recraft',
+        description='Design and carousel oriented route for graphics, editorial layouts, and clean branding output.',
+        frontend_hint='Recommended for carousels, infographics, and design-first assets.',
+        provider='Recraft',
+        badge='Design',
+        logo_label='R',
+        provider_id='recraft',
+        canonical_model_key='recraft',
+        mode_ids=('design_carousel',),
+        billing_unit='per_image',
         visible=False,
     ),
     'nano_banana': ImageModelEntry(
@@ -102,6 +171,9 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
 }
 IMAGE_MODEL_ALIASES = {
     'nano_banana': 'gemini_flash_image',
+    'budget_image_model': 'budget_image_model',
+    'gpt_image_1_5': 'gpt_image_1_5',
+    'recraft': 'recraft',
 }
 INSPIRATION_ITEMS = [
     {
@@ -169,6 +241,7 @@ class ImageGenerationService:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.settings = get_settings()
         self.storage = build_storage_provider(self.settings)
+        self.together = TogetherImageService()
         self.model_router = SmartModelRouter(
             tier_registry={
                 'fast': TierModelConfig(
@@ -253,6 +326,7 @@ class ImageGenerationService:
     ) -> ImageGeneration:
         model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
         model = IMAGE_MODEL_REGISTRY[model_key]
+        route = resolve_generation_route(medium='image', model_key=model_key)
         image_url: str
         thumbnail_url: str
         provider_result = self._generate_with_router(
@@ -283,6 +357,11 @@ class ImageGenerationService:
             user_id=user_id,
             parent_image_id=None,
             model_key=model_key,
+            canonical_model_key=route.canonical_model_key,
+            provider_id=route.provider_id,
+            provider_name=route.provider_label,
+            billing_model_key=route.billing_model_key,
+            billing_status='estimated',
             prompt=prompt,
             aspect_ratio=aspect_ratio,
             resolution=resolution,
@@ -308,17 +387,67 @@ class ImageGenerationService:
         reference_urls: list[str],
     ) -> tuple[str, str] | None:
         model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
-        if model_key == 'openai_image':
+        route = resolve_generation_route(medium='image', model_key=model_key)
+        canonical_key = resolve_model_key(model_key) or model_key
+
+        if route.provider_id == 'together':
+            logger.info(
+                'image_generation_provider_selected',
+                extra={
+                    'provider': 'together',
+                    'model_key': model_key,
+                    'canonical_model_key': canonical_key,
+                    'provider_model_key': route.provider_model_key,
+                },
+            )
+            try:
+                return self.together.generate(
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+            except Exception as exc:
+                fallback = get_model_definition(route.fallback_model_key)
+                logger.warning(
+                    'image_generation_provider_fallback',
+                    extra={
+                        'provider': 'together',
+                        'model_key': model_key,
+                        'canonical_model_key': canonical_key,
+                        'fallback_model_key': route.fallback_model_key,
+                        'error': str(exc),
+                    },
+                )
+                if fallback:
+                    return self._generate_with_router(
+                        model_key=fallback.model_key,
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                        reference_urls=reference_urls,
+                    )
+                raise
+
+        if route.provider_id == 'openai':
             if not self.settings.openai_api_key:
                 raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
-            logger.info('image_generation_provider_selected', extra={'provider': 'openai_images', 'model_key': model_key})
+            logger.info(
+                'image_generation_provider_selected',
+                extra={
+                    'provider': 'openai_images',
+                    'model_key': model_key,
+                    'canonical_model_key': canonical_key,
+                    'provider_model_key': route.provider_model_key,
+                },
+            )
             return self._generate_with_openai_image(
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
             )
 
-        if model_key in {'gemini_flash_image', 'gemini_pro_image'} and self.settings.gemini_api_key:
+        if route.provider_id == 'gemini' and canonical_key in {'gemini_flash_image', 'gemini_pro_image'} and self.settings.gemini_api_key:
             tier = self.model_router.resolve_tier('fast' if model_key == 'gemini_flash_image' else 'pro')
             if tier:
                 fallback_ids = [tier.fallback_model_id] if tier.fallback_model_id else []
@@ -382,12 +511,20 @@ class ImageGenerationService:
                         )
                     raise
 
-        if model_key in {'recraft_studio', 'recraft_studio_pro'}:
+        if route.provider_id == 'recraft' and canonical_key in {'recraft', 'recraft_studio', 'recraft_studio_pro'}:
             if not self.settings.recraft_api_key:
                 raise RuntimeError('RECRAFT_API_KEY is not configured for Recraft image generation')
-            logger.info('image_generation_provider_selected', extra={'provider': 'recraft', 'model_key': model_key})
+            logger.info(
+                'image_generation_provider_selected',
+                extra={
+                    'provider': 'recraft',
+                    'model_key': model_key,
+                    'canonical_model_key': canonical_key,
+                    'provider_model_key': route.provider_model_key,
+                },
+            )
             remote_url = self._generate_with_recraft(
-                model_key=model_key,
+                model_key='recraft_studio' if canonical_key == 'recraft' else model_key,
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,

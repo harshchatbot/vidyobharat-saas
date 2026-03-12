@@ -1126,6 +1126,10 @@ def list_ai_video_models(_: str = Depends(get_user_id), db: Session = Depends(ge
             speedBadge=model.speed_badge,
             creditBadge=model.credit_badge,
             resolutionLabels=model.resolution_labels or [],
+            providerId=model.provider_id,
+            canonicalModelKey=model.canonical_model_key,
+            modeIds=model.mode_ids or [],
+            billingUnit=model.billing_unit,
         )
         for model in service.list_models()
     ]
@@ -1345,6 +1349,10 @@ def list_ai_image_models(
             badge=model.badge,
             logo_label=model.logo_label,
             alias_hint=model.alias_hint,
+            provider_id=model.provider_id,
+            canonical_model_key=model.canonical_model_key,
+            mode_ids=list(model.mode_ids or []),
+            billing_unit=model.billing_unit,
         )
         for model in service.list_models()
     ]

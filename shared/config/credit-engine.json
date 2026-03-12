@@ -20,6 +20,10 @@
     "baseCredits": 10,
     "modelMultiplier": {
       "kling": 1.0,
+      "kling_turbo": 0.9,
+      "wan_2_5": 0.85,
+      "veo_3_1": 1.3,
+      "sora_2": 1.8,
       "veo": 1.3,
       "sora": 1.8,
       "sora_pro": 3.1
@@ -51,15 +55,30 @@
         "1536": 5,
         "2048": 6
       },
+      "budget_image_model": {
+        "1024": 4,
+        "1536": 5,
+        "2048": 6
+      },
       "gemini_pro_image": {
         "1024": 7,
         "1536": 8,
         "2048": 10
       },
+      "gpt_image_1_5": {
+        "1024": 6,
+        "1536": 7,
+        "2048": 8
+      },
       "openai_image": {
         "1024": 6,
         "1536": 7,
         "2048": 8
+      },
+      "recraft": {
+        "1024": 7,
+        "1536": 8,
+        "2048": 10
       },
       "recraft_studio": {
         "1024": 7,
@@ -92,8 +111,19 @@
     "maxCreditsCap": 20
   },
   "videoModelAliases": {
+    "wan_2_5": "wan_2_5",
+    "wan2.1_t2v_turbo": "wan_2_5",
+    "wan2.5_t2v_preview": "wan_2_5",
+    "kling_turbo": "kling_turbo",
+    "wan2.6_i2v_flash": "kling_turbo",
+    "kling": "kling",
+    "wan2.6_t2v": "kling",
+    "grok_daily": "kling_turbo",
+    "grok_pro": "kling",
+    "sora_2": "sora_2",
     "sora2": "sora",
     "sora": "sora",
+    "veo_3_1": "veo_3_1",
     "sora2_pro": "sora_pro",
     "sora_pro": "sora_pro",
     "veo3": "veo",
@@ -102,6 +132,9 @@
     "kling": "kling"
   },
   "imageModelTiers": {
+    "budget_image_model": "standard",
+    "gpt_image_1_5": "premium",
+    "recraft": "premium",
     "gemini_flash_image": "standard",
     "gemini_pro_image": "premium",
     "openai_image": "premium",
@@ -110,7 +143,10 @@
     "nano_banana": "standard"
   },
   "imageModelAliases": {
-    "nano_banana": "gemini_flash_image"
+    "nano_banana": "gemini_flash_image",
+    "gpt_image_1_5": "openai_image",
+    "recraft": "recraft_studio",
+    "budget_image_model": "gemini_flash_image"
   },
   "freeVoiceKeys": ["Aarav", "Mira", "Dev", "Shubh", "Priya"],
   "freeImageModels": [],

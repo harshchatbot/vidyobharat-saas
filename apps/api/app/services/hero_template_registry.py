@@ -9,19 +9,19 @@ RECOMMENDED_MODEL_MODES: dict[str, dict[str, str]] = {
     'best_video': {
         'label': 'Veo 3.1',
         'description': 'Best for cinematic short-form video.',
-        'internal_model_key': 'veo3',
+        'internal_model_key': 'veo_3_1',
         'display_group': 'Best for Video',
     },
     'best_photos': {
         'label': 'GPT Image 1.5',
         'description': 'Best for realistic images and prompt fidelity.',
-        'internal_model_key': 'openai_image',
+        'internal_model_key': 'gpt_image_1_5',
         'display_group': 'Best for Photos & Realistic Images',
     },
     'best_graphics': {
         'label': 'Recraft',
         'description': 'Best for graphics, vector-style designs, and carousel assets.',
-        'internal_model_key': 'recraft_studio',
+        'internal_model_key': 'recraft',
         'display_group': 'Best for Graphics & Carousels',
     },
 }

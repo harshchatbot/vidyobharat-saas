@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     recraft_image_model_pro: str = 'recraftv4pro'
     together_api_key: str | None = None
     together_api_base: str = 'https://api.together.xyz/v1'
+    together_image_model: str = 'black-forest-labs/FLUX.1-schnell'
+    fal_api_key: str | None = None
+    fal_api_base: str = 'https://queue.fal.run'
     heygen_api_key: str | None = None
     heygen_api_base: str = 'https://api.heygen.com'
     runway_api_key: str | None = None

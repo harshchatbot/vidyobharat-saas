@@ -78,6 +78,10 @@ class AIVideoModelResponse(BaseModel):
     speedBadge: str | None = None
     creditBadge: str | None = None
     resolutionLabels: list[str] = Field(default_factory=list)
+    providerId: str | None = None
+    canonicalModelKey: str | None = None
+    modeIds: list[str] = Field(default_factory=list)
+    billingUnit: str | None = None
 
 
 class VideoMusicSettings(BaseModel):

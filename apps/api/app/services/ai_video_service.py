@@ -22,6 +22,9 @@ from app.models.entities import Video, VideoStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService
+from app.services.fal_video_service import FalVideoService
+from app.services.generation_router import resolve_generation_route
+from app.services.model_registry import get_model_definition, resolve_model_key
 from app.services.render_service import celery_app
 from app.services.smart_model_router import SmartModelRouter
 from app.services.video_pipeline import VideoPipelineService
@@ -99,6 +102,10 @@ class ModelRegistryEntry:
     speed_badge: str | None = None
     credit_badge: str | None = None
     resolution_labels: list[str] | None = None
+    provider_id: str | None = None
+    canonical_model_key: str | None = None
+    mode_ids: list[str] | None = None
+    billing_unit: str | None = None
 
 
 @dataclass
@@ -127,6 +134,10 @@ class AIVideoCreateService:
             speed_badge=model.get('speedBadge'),
             credit_badge=model.get('creditBadge'),
             resolution_labels=list(model.get('resolutionLabels') or []),
+            provider_id=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).provider if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
+            canonical_model_key=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).model_key if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
+            mode_ids=list((get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).mode_ids) if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else [],
+            billing_unit=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).billing_unit if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
         )
         for model in _VIDEO_MODELS_CONFIG
     }
@@ -156,11 +167,17 @@ class AIVideoCreateService:
         self.repo = VideoRepository(db)
         self.pipeline = VideoPipelineService()
         self.tagging = AssetTaggingService(db)
+        self.fal = FalVideoService()
         self.providers = {
             'sora2': self.generate_with_sora2,
             'sora2_pro': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
             'kling3': self.generate_with_kling3,
+            'wan_2_5': self.generate_with_fal,
+            'kling_turbo': self.generate_with_fal,
+            'kling': self.generate_with_fal,
+            'sora_2': self.generate_with_sora2,
+            'veo_3_1': self.generate_with_veo3,
         }
         self.model_router = SmartModelRouter()
         # Keep fallbacks conservative: only retry with another compatible short-form provider.
@@ -169,6 +186,11 @@ class AIVideoCreateService:
             'sora2_pro': [],
             'veo3': ['kling3'],
             'kling3': ['veo3'],
+            'wan_2_5': ['kling_turbo', 'kling3'],
+            'kling_turbo': ['wan_2_5', 'kling3'],
+            'kling': ['sora_2', 'sora2'],
+            'sora_2': ['kling', 'kling3'],
+            'veo_3_1': ['sora_2', 'sora2'],
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
@@ -176,6 +198,16 @@ class AIVideoCreateService:
 
     def list_inspiration(self) -> list[dict[str, object]]:
         return VIDEO_INSPIRATION_ITEMS
+
+    def _registry_key_for(self, model_key: str) -> str:
+        mapping = {
+            'wan_2_5': 'wan2.1_t2v_turbo',
+            'kling_turbo': 'wan2.6_i2v_flash',
+            'kling': 'kling3',
+            'sora_2': 'sora2',
+            'veo_3_1': 'veo3',
+        }
+        return mapping.get(model_key, model_key)
 
     def create_video(
         self,
@@ -197,20 +229,22 @@ class AIVideoCreateService:
         captions_enabled: bool = True,
         caption_style: str | None = None,
     ) -> Video:
-        registry_entry = self.VIDEO_MODEL_REGISTRY.get(model_key)
-        adapter = self.providers.get(model_key)
+        route = resolve_generation_route(medium='video', model_key=model_key)
+        registry_model_key = self._registry_key_for(model_key)
+        registry_entry = self.VIDEO_MODEL_REGISTRY.get(registry_model_key)
+        adapter = self.providers.get(model_key) or self.providers.get(resolve_model_key(model_key) or model_key)
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
-        if not registry_entry.enabled:
+        if not registry_entry.enabled and (resolve_model_key(model_key) or model_key) not in {'wan_2_5', 'kling_turbo', 'kling'}:
             raise ProviderError(
                 f'{registry_entry.short_label or registry_entry.label} is not available yet. '
                 'Keep it visible in UI, but enable backend routing before allowing generation.'
             )
 
-        self._validate_output_settings(model_key=model_key, aspect_ratio=aspect_ratio, resolution=resolution)
+        self._validate_output_settings(model_key=registry_model_key, aspect_ratio=aspect_ratio, resolution=resolution)
 
         normalized_duration = self._normalize_duration(
-            model_key=model_key,
+            model_key=registry_model_key,
             duration_mode=duration_mode,
             duration_seconds=duration_seconds,
             image_urls=image_urls,
@@ -236,7 +270,11 @@ class AIVideoCreateService:
             progress=0,
             image_urls=json.dumps(image_urls),
             selected_model=model_key,
-            provider_name=registry_entry.label,
+            canonical_model_key=route.canonical_model_key,
+            provider_id=route.provider_id,
+            billing_model_key=route.billing_model_key,
+            billing_status='estimated',
+            provider_name=route.provider_label,
             source_image_url=seed_image_url,
             reference_images=json.dumps(image_urls),
             music_mode=str((music or {}).get('type') or 'none'),
@@ -502,14 +540,33 @@ class AIVideoCreateService:
             metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
         )
 
+    def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
+        requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
+        video_url, metadata = self.fal.generate(
+            model_key=requested_model,
+            prompt=params['script'],
+            aspect_ratio=params['aspectRatio'],
+            resolution=params['resolution'],
+            duration_seconds=params['durationSeconds'],
+            image_url=params.get('imageUrl'),
+        )
+        return ProviderResult(
+            provider='fal.ai',
+            model_key=requested_model,
+            video_url=video_url,
+            metadata={'mode': 'fal-primary', **metadata},
+        )
+
     def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
         requested_model = str(payload.get('modelKey') or '')
-        if requested_model not in self.providers:
+        route = resolve_generation_route(medium='video', model_key=requested_model)
+        primary_key = route.canonical_model_key
+        if primary_key not in self.providers:
             raise ProviderError(f'Unsupported model: {requested_model}')
 
-        fallback_models = self.video_fallbacks.get(requested_model, [])
+        fallback_models = self.video_fallbacks.get(primary_key, []) or self.video_fallbacks.get(requested_model, [])
         routed = self.model_router.resolve_and_execute(
-            requested_model_id=requested_model,
+            requested_model_id=primary_key,
             fallback_model_ids=fallback_models,
             execute=lambda model_id: self.providers[model_id]({**payload, 'modelKey': model_id}),
         )
@@ -521,6 +578,9 @@ class AIVideoCreateService:
             'fallback_used': routed.fallback_used,
             'retry_errors': routed.retry_errors,
             'fallback_reason': routed.retry_errors[-1] if routed.retry_errors else None,
+            'provider_id': route.provider_id,
+            'canonical_model_key': route.canonical_model_key,
+            'billing_model_key': route.billing_model_key,
         }
         if routed.fallback_used:
             logger.warning(

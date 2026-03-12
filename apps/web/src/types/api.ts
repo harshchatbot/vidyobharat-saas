@@ -298,6 +298,10 @@ export type AIVideoModel = {
   speedBadge?: string;
   creditBadge?: string;
   resolutionLabels?: string[];
+  providerId?: string | null;
+  canonicalModelKey?: string | null;
+  modeIds?: string[];
+  billingUnit?: string | null;
 };
 
 export type ScriptGenerateRequest = {
@@ -449,6 +453,10 @@ export type ImageModel = {
   badge?: string;
   logo_label?: string;
   alias_hint?: string | null;
+  provider_id?: string | null;
+  canonical_model_key?: string | null;
+  mode_ids?: string[];
+  billing_unit?: string | null;
 };
 
 export type GeneratedImage = {

@@ -3,8 +3,21 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
-SUPPORTED_IMAGE_MODELS = {'gemini_flash_image', 'gemini_pro_image', 'openai_image', 'recraft_studio'}
-IMAGE_MODEL_ALIASES = {'nano_banana': 'gemini_flash_image'}
+SUPPORTED_IMAGE_MODELS = {
+    'budget_image_model',
+    'gpt_image_1_5',
+    'recraft',
+    'gemini_flash_image',
+    'gemini_pro_image',
+    'openai_image',
+    'recraft_studio',
+}
+IMAGE_MODEL_ALIASES = {
+    'nano_banana': 'gemini_flash_image',
+    'budget_image_model': 'budget_image_model',
+    'gpt_image_1_5': 'gpt_image_1_5',
+    'recraft': 'recraft',
+}
 SUPPORTED_ASPECT_RATIOS = {'9:16', '1:1', '16:9', '4:5'}
 SUPPORTED_RESOLUTIONS = {'1024', '1536', '2048'}
 
@@ -18,6 +31,10 @@ class ImageModelResponse(BaseModel):
     badge: str
     logo_label: str
     alias_hint: str | None = None
+    provider_id: str | None = None
+    canonical_model_key: str | None = None
+    mode_ids: list[str] = Field(default_factory=list)
+    billing_unit: str | None = None
 
 
 class ImageGenerationResponse(BaseModel):
