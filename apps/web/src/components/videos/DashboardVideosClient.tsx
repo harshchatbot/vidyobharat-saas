@@ -1067,22 +1067,22 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             </div>
           </Card>
         ) : (
-          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4 2xl:columns-5">
+          <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5 2xl:columns-6">
             {highlightedAssets.map((asset) => {
               const preview = toAbsoluteUrl(asset.thumbnail_url) ?? toAbsoluteUrl(asset.asset_url) ?? 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
               const openHref = asset.content_type === 'video' ? `/videos/${asset.id}` : `/images`;
               return (
                 <div
                   key={asset.id}
-                  className="group relative mb-3 block break-inside-avoid overflow-hidden rounded-[18px] shadow-soft"
+                  className="group relative mb-2.5 block break-inside-avoid overflow-hidden rounded-[14px] shadow-soft"
                   style={{ aspectRatio: aspectRatioToCss(asset.aspect_ratio) }}
                 >
                   <img src={preview} alt={asset.title || 'Untitled asset'} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.84)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-2 opacity-0 transition group-hover:opacity-100 sm:right-3 sm:top-3">
+                  <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-0.75rem)] flex-wrap items-center justify-end gap-1.5 opacity-0 transition group-hover:opacity-100">
                     <button
                       type="button"
-                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void downloadAsset(asset)}
                       disabled={downloadingId === asset.id || !asset.asset_url}
                       title="Download"
@@ -1091,7 +1091,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     </button>
                     <button
                       type="button"
-                      className="pointer-events-auto inline-flex h-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.97)] px-4 text-xs font-semibold leading-none text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.97)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="pointer-events-auto inline-flex h-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.97)] px-4 text-xs font-semibold leading-none text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.97)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void togglePublish(asset)}
                       disabled={publishingAssetId === asset.id}
                     >
@@ -1099,7 +1099,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     </button>
                     <button
                       type="button"
-                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => void deleteAsset(asset)}
                       disabled={deletingAssetId === asset.id}
                       title="Delete"
@@ -1109,7 +1109,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     {asset.project_id ? (
                       <Link
                         href={`/projects/${asset.project_id}`}
-                        className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                        className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
                         title="Open in project"
                       >
                         <FolderOpen className="h-4.5 w-4.5" strokeWidth={2} />
@@ -1117,7 +1117,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     ) : null}
                     <button
                       type="button"
-                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)] disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => setProjectAssignmentTarget(asset)}
                       disabled={assigningProjectId === asset.id}
                       title={asset.project_id ? 'Move to project' : 'Add to project'}
@@ -1126,21 +1126,21 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     </button>
                     <Link
                       href={openHref}
-                      className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
+                      className="pointer-events-auto inline-flex h-8.5 w-8.5 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.9)] bg-[hsl(var(--color-bg)/0.96)] text-[hsl(var(--color-text))] shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:bg-[hsl(var(--color-elevated)/0.96)]"
                       title="Open"
                     >
                       <ExternalLink className="h-4.5 w-4.5" strokeWidth={2} />
                     </Link>
                   </div>
-                  <div className="absolute inset-x-2.5 bottom-2.5 rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] p-2.5 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                  <div className="absolute inset-x-2 bottom-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.58)] p-2 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="line-clamp-1 text-xs font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
+                      <p className="line-clamp-1 text-[11px] font-semibold text-text">{asset.title || `Untitled ${mediaLabel(asset.content_type)}`}</p>
                       <StatusChip variant={asset.status === 'completed' ? 'success' : asset.status === 'failed' ? 'danger' : 'warning'}>
                         {formatStatus(asset.status)}
                       </StatusChip>
                     </div>
-                    <p className="line-clamp-2 text-[11px] leading-5 text-text">{asset.prompt}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-muted">
+                    <p className="line-clamp-2 text-[10px] leading-4 text-text">{asset.prompt}</p>
+                    <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted">
                       {mediaLabel(asset.content_type)} • {asset.aspect_ratio} • {asset.resolution} • {timeAgo(asset.created_at)}
                     </p>
                   </div>

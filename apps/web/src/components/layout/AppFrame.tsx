@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, FolderKanban, Home, Image as ImageIcon, LayoutTemplate, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
+import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -222,6 +222,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-2">
+                <Link
+                  href="/projects#new-project"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text xl:hidden"
+                  aria-label="Create project"
+                  title="Create project"
+                >
+                  <FolderPlus className="h-4.5 w-4.5" />
+                </Link>
                 <div className="hidden md:block">
                   <CreditChip />
                 </div>

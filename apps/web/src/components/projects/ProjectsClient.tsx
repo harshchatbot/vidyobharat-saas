@@ -143,19 +143,19 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
               <p className="mt-2 text-sm text-muted">Create your first working file and it will appear here for quick editing.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {projects.map((project, index) => (
                 (() => {
                   const scriptSummary = summarizeScript(project.script);
                   return (
                 <article
                   key={project.id}
-                  className="rangmanch-poster-card group rounded-[28px] p-4 sm:p-5"
+                  className="rangmanch-poster-card group rounded-[22px] p-3.5"
                   style={{ background: gradientForProject(index) }}
                 >
-                  <div className="flex h-full flex-col gap-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-2">
+                  <div className="flex h-full flex-col gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1.5 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusChip variant="success">Workspace</StatusChip>
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
@@ -163,8 +163,8 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                           </span>
                         </div>
                         <div>
-                          <h3 className="font-heading text-xl font-extrabold tracking-tight text-text">{project.title}</h3>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">
+                          <h3 className="truncate font-heading text-lg font-extrabold tracking-tight text-text">{project.title}</h3>
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted">
                           {project.last_prompt_snippet || scriptSummary.preview}
                         </p>
                       </div>
@@ -173,56 +173,56 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                       <img
                         src={project.last_output_thumbnail_url}
                         alt={project.title}
-                        className="h-16 w-16 rounded-[18px] border border-[hsl(var(--color-border)/0.7)] object-cover"
+                        className="h-12 w-12 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] object-cover"
                       />
                     ) : (
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] text-text backdrop-blur-md">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] text-text backdrop-blur-md">
                         <Clapperboard className="h-4 w-4" />
                       </span>
                     )}
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-4">
-                      <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Draft</p>
-                        <p className="mt-1 text-sm font-semibold text-text">{scriptSummary.words} words</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.22)] px-2.5 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Draft</p>
+                        <p className="mt-0.5 text-xs font-semibold text-text">{scriptSummary.words} words</p>
                       </div>
-                      <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Scenes</p>
-                        <p className="mt-1 text-sm font-semibold text-text">{scriptSummary.blocks || 1}</p>
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.22)] px-2.5 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Scenes</p>
+                        <p className="mt-0.5 text-xs font-semibold text-text">{scriptSummary.blocks || 1}</p>
                       </div>
-                      <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Voice</p>
-                        <p className="mt-1 text-sm font-semibold text-text">{project.voice}</p>
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.22)] px-2.5 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Voice</p>
+                        <p className="mt-0.5 text-xs font-semibold text-text">{project.voice}</p>
                       </div>
-                      <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.3)] px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Outputs</p>
-                        <p className="mt-1 text-sm font-semibold text-text">{project.image_count ?? 0} img · {project.video_count ?? 0} vid</p>
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.22)] px-2.5 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Outputs</p>
+                        <p className="mt-0.5 text-xs font-semibold text-text">{project.image_count ?? 0} img · {project.video_count ?? 0} vid</p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 text-xs text-muted">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.26)] px-2.5 py-1.5">
+                    <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.22)] px-2 py-1">
                         <Languages className="h-3.5 w-3.5" />
                         {project.language}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.26)] px-2.5 py-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.22)] px-2 py-1">
                         <Mic2 className="h-3.5 w-3.5" />
                         {project.voice}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.26)] px-2.5 py-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.22)] px-2 py-1">
                         {project.template || 'Freeform'}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <Link href={`/projects/${project.id}`} className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+                    <div className="mt-auto flex items-center justify-between gap-2">
+                      <Link href={`/projects/${project.id}`} className="text-xs font-semibold text-[hsl(var(--color-accent))]">
                         Open workspace
                       </Link>
                       <div className="flex items-start justify-between gap-3">
                         <Link
                           href={`/projects/${project.id}`}
-                          className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.38)] px-3 py-1.5 text-sm font-semibold text-text transition group-hover:border-[hsl(var(--color-accent)/0.45)]"
+                          className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] px-2.5 py-1 text-xs font-semibold text-text transition group-hover:border-[hsl(var(--color-accent)/0.45)]"
                         >
                           Continue
                         </Link>
