@@ -48,6 +48,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const desktopNavRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
   const pageTitle = getPageTitle(pathname);
   const displayName = accountLabel ?? 'User';
@@ -60,11 +61,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       if (!accountMenuRef.current?.contains(event.target as Node)) {
         setAccountMenuOpen(false);
       }
+      if (!desktopNavRef.current?.contains(event.target as Node)) {
+        setDesktopNavOpen(null);
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setAccountMenuOpen(false);
         setMobileNavOpen(false);
+        setDesktopNavOpen(null);
       }
     };
 
@@ -145,7 +150,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     return (
       <CreditProvider userId={userId}>
       <div className="grid min-h-screen grid-cols-1 bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
-        <aside className="rangmanch-app-rail relative hidden px-2 py-4 xl:block">
+        <aside ref={desktopNavRef} className="rangmanch-app-rail relative hidden px-2 py-4 xl:block">
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-center">
               <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
@@ -172,7 +177,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
                       }
                     }}
-                    className={`group inline-flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] border px-2 py-3 text-center transition ${
+                    className={`group inline-flex flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] border px-2 py-2.5 text-center transition ${
                       active || desktopNavOpen === groupKey
                         ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
                         : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'
@@ -182,16 +187,16 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     title={item.label}
                   >
                     <span
-                      className={`relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
+                      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
                         active || desktopNavOpen === groupKey
                           ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
                       }`}
                     >
                       <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-3.5 w-3.5" />
                     </span>
-                    <span className="block text-xs font-medium leading-none text-inherit">{item.label}</span>
+                    <span className="block text-[11px] font-medium leading-none text-inherit">{item.label}</span>
                   </button>
                 );
               })}
@@ -202,8 +207,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
 
-          <div className={`pointer-events-none absolute left-[86px] top-3 z-30 w-[260px] transition duration-200 ${desktopNavOpen ? 'translate-x-0 opacity-100' : '-translate-x-3 opacity-0'}`}>
-            <div className="pointer-events-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft backdrop-blur-xl">
+          <div className={`pointer-events-none absolute left-[84px] top-3 z-30 w-[252px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+            <div className="pointer-events-auto rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft backdrop-blur-xl">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>

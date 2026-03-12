@@ -1551,7 +1551,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6 2xl:grid-cols-7">
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-8">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1567,7 +1567,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       setSelectedInspiration(item as InspirationImage);
                     }
                   }}
-                  className={`overflow-hidden rounded-[16px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                  className={`overflow-hidden rounded-[14px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
                     ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
                       ? 'border-[hsl(var(--color-accent))] shadow-soft'
                       : 'border-[hsl(var(--color-border))]'
@@ -1575,18 +1575,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[11/13] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
-                  <div className="space-y-1 p-2">
+                  <div className="space-y-1 p-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="line-clamp-1 text-[10px] font-semibold text-text sm:text-[11px]">
+                        <p className="line-clamp-1 text-[10px] font-semibold text-text">
                           {'title' in item ? item.title : item.prompt.split(',')[0]}
                         </p>
-                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted">{getPreviewImageLabel(item)}</p>
+                        <p className="mt-0.5 line-clamp-2 text-[9px] leading-4 text-muted">{getPreviewImageLabel(item)}</p>
                       </div>
                       <Badge>{itemModel?.label ?? item.model_key}</Badge>
                     </div>
@@ -1600,7 +1600,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         <Button
                           variant="secondary"
                           type="button"
-                          className="gap-1.5 px-2.5 py-1.5 text-[11px]"
+                          className="gap-1.5 px-2 py-1 text-[10px]"
                           onClick={(event) => {
                             event.stopPropagation();
                             void downloadImage((item as GeneratedImage).image_url, (item as GeneratedImage).prompt);
@@ -1609,7 +1609,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                           <Download className="h-3.5 w-3.5" />
                           Download
                         </Button>
-                        <div className="flex items-center gap-2 text-xs text-muted">
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted">
                           <Tag className="h-3.5 w-3.5" />
                           {[...(item as GeneratedImage).auto_tags, ...(item as GeneratedImage).user_tags].slice(0, 2).join(', ') || 'No tags'}
                         </div>
@@ -1657,7 +1657,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <h3 className="mt-1 text-xl font-semibold text-text">Choose a visual starting point</h3>
             <p className="mt-1 text-sm text-muted">Pick a template, adjust the few input fields, then apply it into the studio.</p>
           </div>
-          <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
             <div className="space-y-3">
               <div className="overflow-hidden rounded-[20px] bg-[hsl(var(--color-surface)/0.42)]">
                 {activeTemplate?.thumbnail_url ? (
@@ -1682,14 +1682,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     key={template.id}
                     type="button"
                     onClick={() => setActiveTemplate(template)}
-                    className={`rounded-[16px] px-3 py-3 text-left transition ${
+                    className={`rounded-[14px] px-3 py-2.5 text-left transition ${
                       activeTemplate?.id === template.id
                         ? 'bg-[hsl(var(--color-accent)/0.1)] text-text'
                         : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
                     }`}
                   >
-                    <p className="text-sm font-semibold text-text">{template.title}</p>
-                    <p className="mt-1 line-clamp-2 text-[11px] text-muted">{template.description}</p>
+                    <p className="text-xs font-semibold text-text">{template.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[10px] text-muted">{template.description}</p>
                   </button>
                 ))}
               </div>
