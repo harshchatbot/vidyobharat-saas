@@ -74,6 +74,12 @@ function buildInitialTemplateInputs(template: UnifiedTemplate | null): Record<st
   );
 }
 
+const HERO_SUBTYPE_KEYS = new Set(['speakerType', 'subjectType', 'businessType', 'subtype', 'carouselType', 'productType']);
+
+function isHeroSubtypeField(field: TemplateInputField) {
+  return HERO_SUBTYPE_KEYS.has(field.key);
+}
+
 function mapCategoryToIcon(template: UnifiedTemplate) {
   const category = (template.category || '').toLowerCase();
   const subtype = (template.subcategory || '').toLowerCase();
@@ -219,6 +225,10 @@ export function CreateVideoPage({
   const [templateFlowModelOverride, setTemplateFlowModelOverride] = useState('');
   const [templateFlowPreview, setTemplateFlowPreview] = useState<TemplatePreviewResponse | null>(null);
   const [templateFlowPreviewLoading, setTemplateFlowPreviewLoading] = useState(false);
+  const [appliedHeroTemplateId, setAppliedHeroTemplateId] = useState<string | null>(null);
+  const [appliedHeroTemplateInputs, setAppliedHeroTemplateInputs] = useState<Record<string, string>>({});
+  const [appliedHeroTemplatePromptOverride, setAppliedHeroTemplatePromptOverride] = useState('');
+  const [appliedHeroTemplateModelOverride, setAppliedHeroTemplateModelOverride] = useState('');
   const [title, setTitle] = useState(initialTitle ?? '');
   const [topic, setTopic] = useState(initialTitle ?? '');
   const [script, setScript] = useState(initialScript ?? '');
@@ -289,6 +299,13 @@ export function CreateVideoPage({
   const estimateErrorShownRef = useRef<string | null>(null);
 
   const template = videoTemplates.find((item) => item.key === selectedTemplate) ?? videoTemplates[0] ?? TEMPLATE_OPTIONS[0];
+  const selectedHeroTemplate =
+    unifiedVideoTemplates.find(
+      (item) => item.id === selectedTemplate || (item.legacy_mappings || []).includes(selectedTemplate),
+    ) ?? null;
+  const subtypeFields = (activeTemplateFlow?.inputs || []).filter(isHeroSubtypeField);
+  const primarySubtypeField = subtypeFields[0] ?? null;
+  const remainingTemplateFlowFields = (activeTemplateFlow?.inputs || []).filter((field) => !isHeroSubtypeField(field));
   const completionToastRef = useRef<string | null>(null);
   const sharedModelMap = useMemo(() => getVideoModelMap(), []);
   const visibleTemplates = videoTemplates.filter((item) => {
@@ -1045,6 +1062,10 @@ export function CreateVideoPage({
 
     const next = videoTemplates.find((item) => item.key === templateId);
     if (!next) return;
+    setAppliedHeroTemplateId(null);
+    setAppliedHeroTemplateInputs({});
+    setAppliedHeroTemplatePromptOverride('');
+    setAppliedHeroTemplateModelOverride('');
 
     const previousTemplate = videoTemplates.find((item) => item.key === selectedTemplate);
     const topicLooksTemplateDriven =
@@ -1090,6 +1111,19 @@ export function CreateVideoPage({
     { currentCredits: creditWallet?.currentCredits ?? 0 },
   );
   const templateFlowEstimate = templateFlowEstimates.templateCreate ?? null;
+
+  const previewAppliedHeroTemplate = async (scriptOverride?: string) => {
+    if (!selectedHeroTemplate || !appliedHeroTemplateId) return null;
+    return api.previewTemplate(
+      {
+        templateId: appliedHeroTemplateId,
+        inputs: appliedHeroTemplateInputs,
+        promptOverride: (scriptOverride ?? appliedHeroTemplatePromptOverride) || undefined,
+        modelKey: appliedHeroTemplateModelOverride || undefined,
+      },
+      userId,
+    );
+  };
 
   const applyStructuredTemplateFlow = () => {
     if (!activeTemplateFlow) return;
@@ -1151,6 +1185,10 @@ export function CreateVideoPage({
       setDurationSeconds(String(activeTemplateFlow.generation_defaults.duration_seconds));
     }
 
+    setAppliedHeroTemplateId(activeTemplateFlow.id);
+    setAppliedHeroTemplateInputs(templateFlowInputs);
+    setAppliedHeroTemplatePromptOverride(templateFlowPromptOverride);
+    setAppliedHeroTemplateModelOverride(templateFlowModelOverride);
     setTemplateFlowOpen(false);
     setActiveTemplateFlow(null);
   };
@@ -1163,6 +1201,16 @@ export function CreateVideoPage({
     setScriptLoading(true);
     setScriptError(null);
     try {
+      if (selectedHeroTemplate && appliedHeroTemplateId) {
+        const preview = await previewAppliedHeroTemplate(hasScriptInput ? script.trim() : undefined);
+        if (!preview) throw new Error('Template preview unavailable.');
+        const nextScript = preview.scriptPreview || preview.videoPrompt || preview.prompt;
+        if (!nextScript?.trim()) throw new Error('Template preview returned no script.');
+        setScript(nextScript);
+        setScriptTags(sanitizeTags([selectedHeroTemplate.category, selectedHeroTemplate.subcategory || '', ...(selectedHeroTemplate.suggested_platforms || [])]));
+        setTitle(preview.title || effectiveTopic);
+        return;
+      }
       const result = hasScriptInput
         ? await api.enhanceScriptV2(
             {
@@ -1202,6 +1250,16 @@ export function CreateVideoPage({
     setScriptLoading(true);
     setScriptError(null);
     try {
+      if (selectedHeroTemplate && appliedHeroTemplateId) {
+        const preview = await previewAppliedHeroTemplate(script.trim());
+        if (!preview) throw new Error('Template preview unavailable.');
+        const nextScript = preview.scriptPreview || preview.videoPrompt || preview.prompt;
+        if (!nextScript?.trim()) throw new Error('Template preview returned no script.');
+        setScript(nextScript);
+        setScriptTags(sanitizeTags([selectedHeroTemplate.category, selectedHeroTemplate.subcategory || '', ...(selectedHeroTemplate.suggested_platforms || [])]));
+        if (preview.title) setTitle(preview.title);
+        return;
+      }
       const result = await api.enhanceScriptV2({ script: script.trim(), template: template.label, language }, userId);
       setScript(result.script);
       setScriptTags(result.tags);
@@ -2122,7 +2180,35 @@ export function CreateVideoPage({
                   ) : null}
                 </div>
                 <div className="mt-4 space-y-3">
-                  {(activeTemplateFlow.inputs || []).map((field) => {
+                  {primarySubtypeField ? (
+                    <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] p-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Step 1</p>
+                        <p className="mt-1 text-sm font-semibold text-text">{primarySubtypeField.label}</p>
+                        <p className="mt-1 text-xs text-muted">Choose the exact workflow first. The preview will adapt around this choice.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {normalizeTemplateOptions(primarySubtypeField).map((option) => {
+                          const active = (templateFlowInputs[primarySubtypeField.key] || '') === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setTemplateFlowInputs((current) => ({ ...current, [primarySubtypeField.key]: option.value }))}
+                              className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                                active
+                                  ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                                  : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                  {remainingTemplateFlowFields.map((field) => {
                     const options = normalizeTemplateOptions(field);
                     const value = templateFlowInputs[field.key] || '';
                     return (

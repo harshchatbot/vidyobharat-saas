@@ -62,6 +62,8 @@ type ImageTemplatePreset = {
   inputs?: TemplateInputField[];
 };
 
+type ImageModeKey = 'fast_social' | 'creator_quality' | 'design_carousel';
+
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 3;
 const IMAGE_STUDIO_LOAD_MORE_STEP = 8;
@@ -187,6 +189,32 @@ const quickTemplates: ImageQuickTemplate[] = [
     aspect_ratio: '16:9',
     resolution: '2048',
     model_key: 'gemini_pro_image',
+  },
+];
+
+const IMAGE_MODES: Array<{
+  key: ImageModeKey;
+  label: string;
+  description: string;
+  models: string[];
+}> = [
+  {
+    key: 'fast_social',
+    label: 'Fast Social',
+    description: 'Quick social-first visuals and rapid iterations.',
+    models: ['gemini_flash_image'],
+  },
+  {
+    key: 'creator_quality',
+    label: 'Creator Quality',
+    description: 'Premium realism and stronger prompt fidelity.',
+    models: ['gemini_pro_image', 'openai_image'],
+  },
+  {
+    key: 'design_carousel',
+    label: 'Design & Carousel',
+    description: 'Best for graphics, ads, and polished carousels.',
+    models: ['recraft_studio'],
   },
 ];
 
@@ -344,6 +372,7 @@ export function ImageStudioClient({ userId }: Props) {
   const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini_flash_image');
+  const [imageMode, setImageMode] = useState<ImageModeKey>('fast_social');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
@@ -532,6 +561,11 @@ export function ImageStudioClient({ userId }: Props) {
   }, [selectedGenerated]);
 
   useEffect(() => {
+    const nextMode = IMAGE_MODES.find((mode) => mode.models.includes(selectedModel))?.key ?? 'fast_social';
+    setImageMode((current) => (current === nextMode ? current : nextMode));
+  }, [selectedModel]);
+
+  useEffect(() => {
     if (!submitting) {
       setSubmitProgress(0);
       return;
@@ -544,6 +578,7 @@ export function ImageStudioClient({ userId }: Props) {
   }, [submitting]);
 
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
+  const activeImageMode = IMAGE_MODES.find((mode) => mode.key === imageMode) ?? IMAGE_MODES[0];
   const activeTemplateEstimateText = activeTemplate
     ? `${resolutionOptions.find((item) => item.value === (activeTemplate.resolution || resolution))?.label ?? activeTemplate.resolution} • ${activeTemplate.category}`
     : null;
@@ -889,7 +924,7 @@ export function ImageStudioClient({ userId }: Props) {
       description=""
       progress={submitProgress}
     />
-    <div className="space-y-6 sm:space-y-7">
+    <div className="space-y-5 sm:space-y-6">
  {/*     <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
         <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -918,9 +953,9 @@ export function ImageStudioClient({ userId }: Props) {
       </section>
       */}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-5 xl:grid-cols-[392px_minmax(0,1fr)] xl:items-start">
         <div className="xl:sticky xl:top-24">
-          <div className="space-y-5 rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
+          <div className="space-y-4 rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
             <div className="grid grid-cols-2 gap-2 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
               <button
                 type="button"
@@ -994,7 +1029,7 @@ export function ImageStudioClient({ userId }: Props) {
                   Browse quick starts
                 </Button>
               </div>
-              <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+              <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
                 {imageTemplates.slice(0, 6).map((template) => {
                   const selected = activeTemplate?.id === template.id;
                   return (
@@ -1005,17 +1040,17 @@ export function ImageStudioClient({ userId }: Props) {
                         setActiveTemplate(template);
                         setTemplatePickerOpen(true);
                       }}
-                      className={`group min-w-[220px] overflow-hidden rounded-[22px] border text-left transition ${
+                      className={`group min-w-[176px] overflow-hidden rounded-[20px] border text-left transition ${
                         selected
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.36)] hover:border-[hsl(var(--color-accent)/0.35)]'
                       }`}
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
+                      <div className="relative aspect-[6/5] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
                         {template.thumbnail_url ? (
                           <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
                         ) : (
-                          <div className="flex h-full items-end p-4">
+                          <div className="flex h-full items-end p-3">
                             <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.78)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text">
                               {template.category}
                             </span>
@@ -1023,7 +1058,7 @@ export function ImageStudioClient({ userId }: Props) {
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
                         <div className="absolute inset-x-3 bottom-3">
-                          <p className="line-clamp-1 text-sm font-semibold text-white">{template.title}</p>
+                          <p className="line-clamp-1 text-[13px] font-semibold text-white">{template.title}</p>
                           <p className="mt-1 line-clamp-2 text-xs text-white/72">{template.description}</p>
                         </div>
                       </div>
@@ -1053,14 +1088,34 @@ export function ImageStudioClient({ userId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Select one engine, then keep moving. Change only when you need a different look.</p>
+                  <p className="mt-1 text-xs text-muted">Pick by outcome first. The recommended model stays visible, but mode drives the choice.</p>
                 </div>
                 {selectedModelMeta?.badge ? <Badge>{selectedModelMeta.badge}</Badge> : null}
+              </div>
+              <div className="grid grid-cols-3 gap-2 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+                {IMAGE_MODES.map((mode) => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => {
+                      setImageMode(mode.key);
+                      const nextModel = models.find((item) => mode.models.includes(item.key));
+                      if (nextModel) setSelectedModel(nextModel.key);
+                    }}
+                    className={`rounded-[16px] px-2 py-2 text-center text-[11px] font-semibold transition sm:text-xs ${
+                      imageMode === mode.key
+                        ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                        : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
               </div>
               <button
                 type="button"
                 onClick={() => setModelPickerOpen(true)}
-                className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-left transition hover:bg-[hsl(var(--color-elevated))]"
+                className="w-full rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3.5 text-left transition hover:bg-[hsl(var(--color-elevated))]"
               >
                 <div className="flex items-start gap-3">
                   <span
@@ -1165,7 +1220,7 @@ export function ImageStudioClient({ userId }: Props) {
               )}
             </div>
 
-            <Card className="space-y-4 rounded-[24px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 backdrop-blur-md">
+            <Card className="space-y-4 rounded-[20px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3.5 backdrop-blur-md">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Output</p>
@@ -1275,7 +1330,7 @@ export function ImageStudioClient({ userId }: Props) {
         </div>
 
         <div className="min-w-0">
-          <Card className="space-y-4 rounded-[32px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-4 shadow-soft backdrop-blur-md sm:p-5">
+          <Card className="space-y-4 rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.4)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Canvas</p>
@@ -1283,12 +1338,12 @@ export function ImageStudioClient({ userId }: Props) {
               </div>
               <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
             </div>
-            <div className="overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+            <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
               {livePreviewImage ? (
                 <img
                   src={getPreviewImageUrl(livePreviewImage) ?? ''}
                   alt={getPreviewImageLabel(livePreviewImage)}
-                  className="aspect-[4/5] w-full object-cover"
+                  className="aspect-[4/5] w-full object-contain bg-[hsl(var(--color-bg))]"
                 />
               ) : (
                 <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">
@@ -1419,7 +1474,7 @@ export function ImageStudioClient({ userId }: Props) {
                       setSelectedInspiration(item as InspirationImage);
                     }
                   }}
-                  className={`overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                  className={`overflow-hidden rounded-[20px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
                     ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
                       ? 'border-[hsl(var(--color-accent))] shadow-soft'
                       : 'border-[hsl(var(--color-border))]'
@@ -1427,12 +1482,12 @@ export function ImageStudioClient({ userId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[5/6] w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
                       <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-2.5 p-3.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="line-clamp-1 text-sm font-semibold text-text">
@@ -1503,11 +1558,11 @@ export function ImageStudioClient({ userId }: Props) {
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div className="grid gap-5 xl:grid-cols-[0.94fr_1.06fr]">
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
+            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
               {activeTemplate?.thumbnail_url ? (
-                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[4/5] w-full object-cover" />
+                <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[5/6] w-full object-cover" />
               ) : (
                 <div className="flex aspect-[4/5] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-5">
                   <div className="space-y-2">
@@ -1611,10 +1666,10 @@ export function ImageStudioClient({ userId }: Props) {
       </Modal>
       {selectedInspiration ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedInspiration(null)}>
-          <div className="mx-auto flex h-full max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[92vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="min-h-[280px] bg-[hsl(var(--color-bg))]">
-                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="h-full w-full object-cover" />
+          <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.2fr)_360px]">
+              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-3 sm:p-5">
+                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="max-h-[78vh] w-full object-contain" />
               </div>
               <div className="flex max-h-[92vh] flex-col overflow-y-auto p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
@@ -1702,10 +1757,10 @@ export function ImageStudioClient({ userId }: Props) {
 
       {selectedGenerated ? (
         <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedGenerated(null)}>
-          <div className="mx-auto flex h-full max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[92vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="min-h-[280px] bg-[hsl(var(--color-bg))]">
-                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="h-full w-full object-cover" />
+          <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.2fr)_360px]">
+              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-3 sm:p-5">
+                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[78vh] w-full object-contain" />
               </div>
               <div className="flex max-h-[92vh] flex-col overflow-y-auto p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
@@ -1843,46 +1898,62 @@ export function ImageStudioClient({ userId }: Props) {
             <h3 className="mt-1 text-xl font-semibold text-text">Choose your image model</h3>
             <p className="mt-1 text-sm text-muted">Pick the output engine, then get back to the prompt quickly.</p>
           </div>
-          <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
-            {models.map((model) => {
-              const active = model.key === selectedModel;
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+            {IMAGE_MODES.map((mode) => {
+              const groupedModels = models.filter((model) => mode.models.includes(model.key));
+              if (groupedModels.length === 0) return null;
               return (
-                <button
-                  key={model.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedModel(model.key);
-                    setModelPickerOpen(false);
-                  }}
-                  className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
-                    active
-                      ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
-                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
-                        PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
-                      }`}
-                    >
-                      {model.logo_label ?? <Sparkles className="h-4 w-4" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-text">{model.label}</p>
-                        {model.badge ? <Badge>{model.badge}</Badge> : null}
-                        {active ? <Badge>Selected</Badge> : null}
-                      </div>
-                      <p className="mt-1 text-xs text-muted">{model.description}</p>
-                      {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                        {model.provider ? <span>{model.provider}</span> : null}
-                        {model.alias_hint ? <span>{model.alias_hint}</span> : null}
-                      </div>
+                <div key={mode.key} className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{mode.label}</p>
+                      <p className="mt-1 text-xs text-muted">{mode.description}</p>
                     </div>
+                    <Badge>{groupedModels.length} option{groupedModels.length > 1 ? 's' : ''}</Badge>
                   </div>
-                </button>
+                  {groupedModels.map((model) => {
+                    const active = model.key === selectedModel;
+                    return (
+                      <button
+                        key={model.key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(model.key);
+                          setImageMode(mode.key);
+                          setModelPickerOpen(false);
+                        }}
+                        className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
+                          active
+                            ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                              PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                            }`}
+                          >
+                            {model.logo_label ?? <Sparkles className="h-4 w-4" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-text">{model.label}</p>
+                              {model.badge ? <Badge>{model.badge}</Badge> : null}
+                              {active ? <Badge>Selected</Badge> : null}
+                            </div>
+                            <p className="mt-1 text-xs text-muted">{model.description}</p>
+                            {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                              {model.provider ? <span>{model.provider}</span> : null}
+                              {model.alias_hint ? <span>{model.alias_hint}</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>

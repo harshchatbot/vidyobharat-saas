@@ -42,6 +42,7 @@ type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
 const DASHBOARD_FEED_LIMIT = 8;
 const DASHBOARD_COMMUNITY_LIMIT = 6;
+const DASHBOARD_CACHE_TTL_MS = 90 * 1000;
 
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
@@ -250,6 +251,7 @@ const aiToolRows = [
 ];
 
 export function DashboardVideosClient({ userId, userName }: Props) {
+  const cacheKey = `rangmanch:dashboard:v2:${userId}`;
   const [assets, setAssets] = useState<AssetSearchItem[]>([]);
   const [allAssets, setAllAssets] = useState<AssetSearchItem[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
@@ -277,16 +279,43 @@ export function DashboardVideosClient({ userId, userName }: Props) {
     imageCommunityLoading && videoCommunityLoading && imageInspiration.length === 0 && videoInspiration.length === 0;
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as {
+        ts?: number;
+        allAssets?: AssetSearchItem[];
+        imageInspiration?: InspirationImage[];
+        videoInspiration?: InspirationVideo[];
+      };
+      if (!cached.ts || Date.now() - cached.ts > DASHBOARD_CACHE_TTL_MS) return;
+      setAllAssets(cached.allAssets ?? []);
+      setImageInspiration(cached.imageInspiration ?? []);
+      setVideoInspiration(cached.videoInspiration ?? []);
+      setLoading(false);
+      setImagesLoading(false);
+      setVideosLoading(false);
+      setImageCommunityLoading(false);
+      setVideoCommunityLoading(false);
+    } catch {
+      // ignore malformed cache
+    }
+  }, [cacheKey]);
+
+  useEffect(() => {
     let cancelled = false;
     let imageLoadFailed = false;
     let videoLoadFailed = false;
     let imageCommunityFailed = false;
     let videoCommunityFailed = false;
-    setLoading(true);
-    setImagesLoading(true);
-    setVideosLoading(true);
-    setImageCommunityLoading(true);
-    setVideoCommunityLoading(true);
+    const hasWarmAssets = allAssets.length > 0;
+    const hasWarmCommunity = imageInspiration.length > 0 || videoInspiration.length > 0;
+    setLoading(!hasWarmAssets);
+    setImagesLoading(!hasWarmAssets);
+    setVideosLoading(!hasWarmAssets);
+    setImageCommunityLoading(!hasWarmCommunity);
+    setVideoCommunityLoading(!hasWarmCommunity);
     setError(null);
     setCommunityError(null);
 
@@ -294,10 +323,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const replaceAssetType = (type: 'image' | 'video', nextItems: AssetSearchItem[]) => {
-      setAllAssets((current) => sortAssets([
-        ...current.filter((item) => item.content_type !== type),
-        ...nextItems,
-      ]));
+      setAllAssets((current) =>
+        sortAssets([
+          ...current.filter((item) => item.content_type !== type),
+          ...nextItems,
+        ]),
+      );
     };
 
     void api.listGeneratedImages(userId, DASHBOARD_FEED_LIMIT)
@@ -400,7 +431,24 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         globalThis.clearTimeout(timeoutHandle);
       }
     };
-  }, [userId]);
+  }, [allAssets.length, cacheKey, imageInspiration.length, userId, videoInspiration.length]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          ts: Date.now(),
+          allAssets,
+          imageInspiration,
+          videoInspiration,
+        }),
+      );
+    } catch {
+      // ignore cache write issues
+    }
+  }, [allAssets, cacheKey, imageInspiration, videoInspiration]);
 
   useEffect(() => {
     if (inspirationFilter === 'video' && videoInspiration.length === 0 && imageInspiration.length > 0) {
@@ -580,6 +628,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   };
 
   const emptyState = emptyCopy(mediaFilter);
+  const viewAllHref = mediaFilter === 'image' ? '/images' : mediaFilter === 'video' ? '/videos' : '/projects';
+  const viewAllLabel =
+    mediaFilter === 'image' ? 'View all images' : mediaFilter === 'video' ? 'View all videos' : 'View all projects';
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -867,8 +918,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           <div className="flex flex-wrap gap-2">
             <Link href="/images"><Button variant="secondary">Create image</Button></Link>
             <Link href="/create"><Button>Create video</Button></Link>
-            <Link href={mediaFilter === 'image' ? '/images' : mediaFilter === 'video' ? '/projects' : '/projects'}>
-              <Button variant="secondary">View all</Button>
+            <Link href={viewAllHref}>
+              <Button variant="secondary">{viewAllLabel}</Button>
             </Link>
           </div>
         </div>
@@ -1019,9 +1070,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
         {!loading && assets.length > highlightedAssets.length && (
           <div className="flex justify-center">
-            <Link href={mediaFilter === 'image' ? '/images' : '/projects'}>
+            <Link href={viewAllHref}>
               <Button variant="secondary" className="gap-2">
-                View more creations
+                {viewAllLabel}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -1031,20 +1082,24 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
-          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_360px]">
+            <div className="flex min-h-[50vh] items-center justify-center overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3 sm:min-h-[60vh] sm:p-4">
               {isVideoInspiration(selectedInspirationItem) ? (
                 <video
                   src={toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url}
                   poster={toAbsoluteUrl(selectedInspirationItem.thumbnail_url) ?? selectedInspirationItem.thumbnail_url}
                   controls
-                  className="h-full max-h-[520px] w-full bg-black object-cover"
+                  className="max-h-[78vh] w-full rounded-[18px] bg-black object-contain"
                 />
               ) : (
-                <img src={selectedInspirationItem.image_url} alt={selectedInspirationItem.title} className="h-full max-h-[520px] w-full object-cover" />
+                <img
+                  src={selectedInspirationItem.image_url}
+                  alt={selectedInspirationItem.title}
+                  className="max-h-[78vh] w-full rounded-[18px] object-contain"
+                />
               )}
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 xl:max-h-[78vh] xl:overflow-y-auto xl:pr-1">
               <div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
