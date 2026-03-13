@@ -1429,11 +1429,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       </div>
 
       <Modal open={imageModelPickerOpen} onClose={() => setImageModelPickerOpen(false)}>
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Model selection</p>
-            <h3 className="mt-1 text-xl font-semibold text-text">Choose image model</h3>
-            <p className="mt-1 text-sm text-muted">Select a render engine for the influencer visuals, then return to pose and scene controls.</p>
+            <h3 className="mt-1 text-lg font-semibold text-text">Choose image model</h3>
+            <p className="mt-1 text-xs text-muted">Select a render engine for the influencer visuals, then return to pose and scene controls.</p>
           </div>
           <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
             {imageModels.map((model) => {
@@ -1446,7 +1446,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     setSelectedImageModel(model.key);
                     setImageModelPickerOpen(false);
                   }}
-                  className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
+                  className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${
                     active
                       ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
@@ -1454,20 +1454,20 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 >
                   <div className="flex items-start gap-3">
                     <span
-                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] text-xs font-semibold ${
                         IMAGE_MODEL_PROVIDER_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
                       }`}
                     >
-                      {model.logo_label ?? <Sparkles className="h-4 w-4" />}
+                      {model.logo_label ?? <Sparkles className="h-3.5 w-3.5" />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-text">{model.label}</p>
+                        <p className="text-[13px] font-semibold text-text">{model.label}</p>
                         {model.badge ? <Badge>{model.badge}</Badge> : null}
                         {active ? <Badge>Selected</Badge> : null}
                       </div>
-                      <p className="mt-1 text-xs text-muted">{model.description}</p>
-                      {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
+                      <p className="mt-1 text-[11px] leading-4 text-muted">{model.description}</p>
+                      {model.frontend_hint ? <p className="mt-1.5 text-[11px] text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                         {model.provider ? <span>{model.provider}</span> : null}
                         {model.alias_hint ? <span>{model.alias_hint}</span> : null}

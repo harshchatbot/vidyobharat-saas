@@ -89,6 +89,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   }, [pathname]);
 
   if (inApp) {
+    const flyoutPreviews: Record<string, string> = {
+      '/dashboard': '/illustrations/earth.png',
+      '/images': '/illustrations/product-ads.png',
+      '/create': '/illustrations/startup.png',
+      '/templates': '/illustrations/edtech.png',
+      '/influencer': '/illustrations/ai-influencer.png',
+      '/billing': '/illustrations/marketing.png',
+      '/settings': '/illustrations/agency.png',
+    };
     const navItems = [
       {
         href: '/dashboard',
@@ -228,23 +237,23 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
 
-          <div className={`pointer-events-none absolute left-[80px] top-3 z-[90] w-[224px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
-            <div className="pointer-events-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3.5 shadow-soft backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between gap-2.5">
+          <div className={`pointer-events-none fixed left-[84px] top-4 z-[90] w-[196px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+            <div className="pointer-events-auto rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-2.5 shadow-soft backdrop-blur-xl">
+              <div className="mb-2.5 flex items-center justify-between gap-2">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
-                  <p className="mt-1 text-[13px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : item.label === 'Projects' ? 'projects' : 'home') === desktopNavOpen)?.hint : ''}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : item.label === 'Projects' ? 'projects' : 'home') === desktopNavOpen)?.hint : ''}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setDesktopNavOpen(null)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted hover:text-text"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted hover:text-text"
                   aria-label="Close section"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="grid gap-1.5">
+              <div className="grid gap-1">
                 {(desktopNavOpen ? navGroups[desktopNavOpen] : []).map((groupItem) => {
                   const GroupIcon = groupItem.icon;
                   const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
@@ -253,14 +262,18 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       key={groupItem.href}
                       href={groupItem.href}
                       onClick={() => setDesktopNavOpen(null)}
-                      className={`inline-flex items-center gap-2 rounded-[14px] border px-2.5 py-2 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
+                      className={`inline-flex items-center gap-2 rounded-[12px] border px-2 py-1.5 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
                     >
-                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${activeChild ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'}`}>
-                        <GroupIcon className="h-3.5 w-3.5" />
+                      <span className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border ${activeChild ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'}`}>
+                        {flyoutPreviews[groupItem.href] ? (
+                          <img src={flyoutPreviews[groupItem.href]} alt={groupItem.label} className="absolute inset-0 h-full w-full object-cover opacity-85" />
+                        ) : null}
+                        <span className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--color-bg)/0.02)] via-[hsl(var(--color-bg)/0.14)] to-[hsl(var(--color-bg)/0.64)]" />
+                        <GroupIcon className="relative z-10 h-3 w-3" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium leading-tight">{groupItem.label}</span>
-                        <span className="block truncate text-[11px] text-muted">
+                        <span className="block truncate text-[12px] font-medium leading-tight">{groupItem.label}</span>
+                        <span className="block truncate text-[10px] text-muted">
                           {groupItem.href === '/images'
                             ? 'Fast social visuals'
                             : groupItem.href === '/create'

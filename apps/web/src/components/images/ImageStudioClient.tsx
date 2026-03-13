@@ -1551,7 +1551,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-8">
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 2xl:grid-cols-9">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
               const itemModel = models.find((model) => model.key === item.model_key);
@@ -1575,9 +1575,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 >
                   <div className="overflow-hidden">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[4/5] w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                      <img src={imageUrl} alt={getPreviewImageLabel(item)} className="aspect-[5/4] w-full object-cover transition duration-300 hover:scale-[1.02]" />
                     ) : (
-                      <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">No preview</div>
+                      <div className="flex aspect-[5/4] items-center justify-center text-sm text-muted">No preview</div>
                     )}
                   </div>
                   <div className="space-y-1 p-1.5">
@@ -1586,11 +1586,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         <p className="line-clamp-1 text-[10px] font-semibold text-text">
                           {'title' in item ? item.title : item.prompt.split(',')[0]}
                         </p>
-                        <p className="mt-0.5 line-clamp-2 text-[9px] leading-4 text-muted">{getPreviewImageLabel(item)}</p>
+                        <p className="mt-0.5 line-clamp-2 text-[8px] leading-3.5 text-muted">{getPreviewImageLabel(item)}</p>
                       </div>
                       <Badge>{itemModel?.label ?? item.model_key}</Badge>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1">
                       <Badge>{item.aspect_ratio}</Badge>
                       <Badge>{resolutionOptions.find((option) => option.value === item.resolution)?.label ?? item.resolution}</Badge>
                       {isGenerated ? <Badge>{(item as GeneratedImage).status}</Badge> : null}
@@ -1651,22 +1651,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         </Card>
       </div>
       <Modal open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)}>
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Quick starts</p>
-            <h3 className="mt-1 text-xl font-semibold text-text">Choose a visual starting point</h3>
-            <p className="mt-1 text-sm text-muted">Pick a template, adjust the few input fields, then apply it into the studio.</p>
+            <h3 className="mt-1 text-lg font-semibold text-text">Choose a visual starting point</h3>
+            <p className="mt-1 text-xs text-muted">Pick a template, adjust a few fields, then apply it into the studio.</p>
           </div>
-          <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-            <div className="space-y-3">
-              <div className="overflow-hidden rounded-[20px] bg-[hsl(var(--color-surface)/0.42)]">
+          <div className="grid gap-3.5 xl:grid-cols-[0.8fr_1.2fr]">
+            <div className="space-y-2.5">
+              <div className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.3)]">
                 {activeTemplate?.thumbnail_url ? (
                   <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[5/4] w-full object-cover" />
                 ) : (
-                  <div className="flex aspect-[5/4] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-4">
-                    <div className="space-y-2">
+                  <div className="flex aspect-[5/4] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-2.5">
+                    <div className="space-y-1.5">
                       <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
-                      <p className="text-lg font-semibold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
+                      <p className="text-sm font-semibold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
                     </div>
                   </div>
                 )}
@@ -1682,28 +1682,28 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     key={template.id}
                     type="button"
                     onClick={() => setActiveTemplate(template)}
-                    className={`rounded-[14px] px-3 py-2.5 text-left transition ${
+                    className={`rounded-[11px] border px-2.5 py-2 text-left transition ${
                       activeTemplate?.id === template.id
-                        ? 'bg-[hsl(var(--color-accent)/0.1)] text-text'
-                        : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
+                        ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] text-text'
+                        : 'border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
                     }`}
                   >
-                    <p className="text-xs font-semibold text-text">{template.title}</p>
-                    <p className="mt-1 line-clamp-2 text-[10px] text-muted">{template.description}</p>
+                    <p className="text-[11px] font-semibold text-text">{template.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{template.description}</p>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="rounded-[20px] bg-[hsl(var(--color-surface)/0.42)] p-4 sm:p-5">
+            <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.28)] p-3.5 sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Template inputs</p>
-                  <p className="mt-1 text-sm text-muted">Answer a few simple fields. The studio will fill the rest.</p>
+                  <p className="mt-1 text-xs text-muted">Answer a few simple fields. The studio will fill the rest.</p>
                 </div>
                 {activeTemplate ? <Badge>{models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}</Badge> : null}
               </div>
               {activeTemplate ? (
-                <div className="mt-4 space-y-3">
+                <div className="mt-3.5 space-y-2.5">
                   {(activeTemplate.inputs || []).length > 0 ? (
                     activeTemplate.inputs?.map((field) => {
                       const options = normalizeTemplateOptions(field);
@@ -1724,13 +1724,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       );
                     })
                   ) : (
-                    <div className="rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] px-4 py-4 text-sm text-muted">
+                    <div className="rounded-[12px] bg-[hsl(var(--color-bg)/0.55)] px-3.5 py-3 text-xs text-muted">
                       This quick start uses a ready-made prompt. Apply it directly into the composer.
                     </div>
                   )}
-                  <div className="rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] p-3.5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Will apply</p>
-                    <p className="mt-2 text-sm text-text">
+                  <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.48)] p-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Will apply</p>
+                    <p className="mt-1 text-[11px] text-text">
                       {models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}
                       {' · '}
                       {activeTemplate.aspect_ratio}
@@ -1738,7 +1738,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       {resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-2.5">
                     <Button onClick={() => applyImageTemplate(activeTemplate, templateInputs)}>
                       Apply template
                     </Button>
@@ -1748,7 +1748,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-[16px] bg-[hsl(var(--color-bg)/0.55)] px-4 py-6 text-sm text-muted">
+                <div className="mt-3.5 rounded-[14px] bg-[hsl(var(--color-bg)/0.55)] px-3.5 py-5 text-xs text-muted">
                   Select an image template to load its visual direction and generation defaults.
                 </div>
               )}
@@ -1759,21 +1759,21 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       {selectedInspiration ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedInspiration(null)}>
           <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.2fr)_360px]">
-              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-3 sm:p-5">
-                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="max-h-[78vh] w-full object-contain" />
+            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.48fr)_272px]">
+              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:p-3">
+                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="max-h-[84vh] w-full object-contain" />
               </div>
-              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-5 sm:p-6">
+              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-3.5 sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">{selectedInspiration.title}</h3>
-                    <p className="mt-2 text-sm text-muted">Created {formatCreatedAt(selectedInspiration.created_at)}</p>
+                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedInspiration.title}</h3>
+                    <p className="mt-1 text-xs text-muted">Created {formatCreatedAt(selectedInspiration.created_at)}</p>
                   </div>
-                  <button type="button" onClick={() => setSelectedInspiration(null)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
+                  <button type="button" onClick={() => setSelectedInspiration(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-text">Prompt</p>
                     <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspiration.prompt)} className="gap-2 px-3 py-1.5 text-xs">
@@ -1781,34 +1781,34 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       {copiedPrompt ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
-                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                    <p className="text-sm leading-7 text-muted">{selectedInspiration.prompt}</p>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[12px] leading-5 text-muted">{selectedInspiration.prompt}</p>
                   </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <p className="mb-3 text-sm font-semibold text-text">Information</p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Model</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspirationModel?.label ?? selectedInspiration.model_key}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspirationModel?.label ?? selectedInspiration.model_key}</p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">References</p>
-                      <p className="mt-2 text-sm font-semibold text-text">
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">
                         {selectedInspiration.reference_urls.length > 0 ? `${selectedInspiration.reference_urls.length}` : '-'}
                       </p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedInspiration.aspect_ratio}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspiration.aspect_ratio}</p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</p>
                     </div>
                   </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
                   <div className="flex flex-wrap gap-2">
                     {selectedInspiration.tags.map((tag) => (
@@ -1816,12 +1816,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     ))}
                   </div>
                 </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
                   <Button
                     variant="secondary"
                     type="button"
                     onClick={() => void toggleLikeInspiration(selectedInspiration)}
-                    className="gap-2"
+                    className="h-8 gap-2 px-2.5 text-[11px]"
                     disabled={likingId === selectedInspiration.id}
                   >
                     <Heart className={`h-4 w-4 ${selectedInspiration.liked_by_user ? 'fill-current' : ''}`} />
@@ -1831,12 +1831,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     href={toAbsoluteUrl(selectedInspiration.image_url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+                    className="inline-flex items-center gap-2 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] px-2.5 py-2 text-[11px] font-semibold text-text"
                   >
                     <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                     Open full image
                   </a>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 text-xs font-semibold text-text">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-2.5 py-1 text-[11px] font-semibold text-text">
                     <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
                     Inspiration reference
                   </div>
@@ -1850,21 +1850,21 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       {selectedGenerated ? (
         <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedGenerated(null)}>
           <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.2fr)_360px]">
-              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-3 sm:p-5">
-                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[78vh] w-full object-contain" />
+            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.48fr)_272px]">
+              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:p-3">
+                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[84vh] w-full object-contain" />
               </div>
-              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-5 sm:p-6">
+              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-3.5 sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</h3>
-                    <p className="mt-2 text-sm text-muted">Created {formatCreatedAt(selectedGenerated.created_at)}</p>
+                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</h3>
+                    <p className="mt-1 text-xs text-muted">Created {formatCreatedAt(selectedGenerated.created_at)}</p>
                   </div>
-                  <button type="button" onClick={() => setSelectedGenerated(null)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
+                  <button type="button" onClick={() => setSelectedGenerated(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-text">Prompt</p>
                     <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedGenerated.prompt)} className="gap-2 px-3 py-1.5 text-xs">
@@ -1872,19 +1872,19 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       {copiedPrompt ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
-                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                    <p className="text-sm leading-7 text-muted">{selectedGenerated.prompt}</p>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[12px] leading-5 text-muted">{selectedGenerated.prompt}</p>
                   </div>
                 </div>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                    <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
+                <div className="mt-4.5 grid gap-2.5 sm:grid-cols-2">
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="mb-2 text-xs font-semibold text-text">Auto tags</p>
                     <div className="flex flex-wrap gap-2">
                       {selectedGenerated.auto_tags.length > 0 ? selectedGenerated.auto_tags.map((tag) => <Badge key={`auto-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No auto tags yet</span>}
                     </div>
                   </div>
-                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                    <p className="mb-2 text-sm font-semibold text-text">User tags</p>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="mb-2 text-xs font-semibold text-text">User tags</p>
                     <div className="flex flex-wrap gap-2">
                       {selectedGenerated.user_tags.length > 0 ? selectedGenerated.user_tags.map((tag) => <Badge key={`user-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No user tags yet</span>}
                     </div>
@@ -1893,7 +1893,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         value={manualTagInput}
                         onChange={(event) => setManualTagInput(event.target.value)}
                         placeholder="comma separated tags"
-                        className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+                        className="min-w-0 flex-1 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
                       />
                       <Button variant="secondary" type="button" onClick={() => void saveManualTags()}>
                         Save
@@ -1901,7 +1901,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </div>
                   </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <p className="mb-3 text-sm font-semibold text-text">Magic Tools</p>
                   <div className="grid gap-3">
                     <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'remove_background')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:remove_background`}>
@@ -1918,35 +1918,35 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </Button>
                   </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-4.5">
                   <p className="mb-3 text-sm font-semibold text-text">Information</p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Model</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">References</p>
-                      <p className="mt-2 text-sm font-semibold text-text">
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">
                         {selectedGenerated.reference_urls.length > 0 ? `${selectedGenerated.reference_urls.length}` : '-'}
                       </p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{selectedGenerated.aspect_ratio}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedGenerated.aspect_ratio}</p>
                     </div>
-                    <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-2 text-sm font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</p>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                      <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</p>
                     </div>
                   </div>
                 </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
                   <Button
                     variant="secondary"
                     type="button"
                     onClick={() => void togglePublish(selectedGenerated)}
-                    className="gap-2"
+                    className="h-9 gap-2 px-3 text-xs"
                     disabled={publishingId === selectedGenerated.id}
                   >
                     {publishingId === selectedGenerated.id
@@ -1955,12 +1955,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         ? 'Unpublish'
                         : 'Publish to inspiration'}
                   </Button>
-                  <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="gap-2">
+                  <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="h-9 gap-2 px-3 text-xs">
                     <Download className="h-4 w-4" />
                     Download image
                   </Button>
                   {selectedGenerated.project_id ? (
-                    <a href={`/projects/${selectedGenerated.project_id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
+                    <a href={`/projects/${selectedGenerated.project_id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-xs font-semibold text-text">
                       <GalleryVerticalEnd className="h-4 w-4 text-[hsl(var(--color-accent))]" />
                       Open in project
                     </a>

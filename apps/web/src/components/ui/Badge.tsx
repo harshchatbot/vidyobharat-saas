@@ -15,7 +15,7 @@ export function Badge({
   variant = 'default',
 }: PropsWithChildren<{ className?: string; variant?: BadgeVariant }>) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${styles[variant]} ${className}`}>
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${styles[variant]} ${className}`}>
       {children}
     </span>
   );

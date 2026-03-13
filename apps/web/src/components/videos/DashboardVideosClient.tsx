@@ -891,7 +891,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedInspirationItem(item)}
-                className="group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] text-left shadow-soft"
+                className="group relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.34)] text-left shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.24)] hover:shadow-[var(--shadow-hard)]"
                 style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
                 {videoItem ? (
@@ -901,59 +901,59 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       alt={item.title}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                     />
-                    <span className="absolute left-3 bottom-16 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
-                      <Film className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <span className="absolute left-2.5 bottom-14 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.76)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                      <Film className="h-3 w-3" strokeWidth={1.75} />
                       Preview
                     </span>
                   </>
                 ) : (
                   <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                 )}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.8)] via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                <span className="absolute right-3 top-3 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.82)] via-[hsl(var(--color-bg)/0.12)] to-transparent opacity-90" />
+                <span className="absolute right-2.5 top-2.5 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
                   {meta}
                 </span>
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)] px-2 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
-                  <Heart className={`h-3.5 w-3.5 ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
+                <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                  <Heart className={`h-3 w-3 ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
                   {item.like_count}
                 </span>
-                <div className="absolute left-3 top-12 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                <div className="absolute left-2.5 top-11 flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"
-                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
                     onClick={(event) => {
                       event.stopPropagation();
                       void toggleLikeInspiration(item);
                     }}
                   >
-                    <Heart className={`h-4 w-4 text-text ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
+                    <Heart className={`h-3.5 w-3.5 text-text ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
                   </button>
                   <button
                     type="button"
-                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
                     onClick={(event) => {
                       event.stopPropagation();
                       downloadFromUrl(videoItem ? videoItem.video_url : imageItem?.image_url ?? null, item.title, videoItem ? 'mp4' : 'png');
                     }}
                   >
-                    <Download className="h-4 w-4 text-text" strokeWidth={1.75} />
+                    <Download className="h-3.5 w-3.5 text-text" strokeWidth={1.75} />
                   </button>
                   <button
                     type="button"
-                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
+                    className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
                     onClick={(event) => {
                       event.stopPropagation();
                       void remixInStudio(item);
                     }}
                   >
-                    <Wand2 className="h-4 w-4 text-text" strokeWidth={1.75} />
+                    <Wand2 className="h-3.5 w-3.5 text-text" strokeWidth={1.75} />
                   </button>
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.9)] to-transparent p-3">
-                  <p className="line-clamp-1 text-sm font-semibold text-text">{item.title}</p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.92)] via-[hsl(var(--color-bg)/0.32)] to-transparent px-2.5 pb-2.5 pt-8">
+                  <p className="line-clamp-1 text-[12px] font-semibold leading-4 text-text">{item.title}</p>
                 </div>
-                <div className="absolute inset-x-3 bottom-12 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] p-3 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
-                  <p className="line-clamp-2 text-xs leading-5 text-text">{item.prompt}</p>
+                <div className="absolute inset-x-2.5 bottom-10 rounded-[12px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.66)] p-2.5 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+                  <p className="line-clamp-2 text-[11px] leading-4 text-text">{item.prompt}</p>
                 </div>
               </button>
             );
@@ -1178,29 +1178,29 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.38fr)_300px]">
-            <div className="flex min-h-[56vh] items-center justify-center overflow-hidden rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg))] p-2 sm:min-h-[70vh] sm:p-3">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.48fr)_272px]">
+            <div className="flex min-h-[58vh] items-center justify-center overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg))] p-1.5 sm:min-h-[72vh] sm:p-2.5">
               {isVideoInspiration(selectedInspirationItem) ? (
                 <video
                   src={toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url}
                   poster={toAbsoluteUrl(selectedInspirationItem.thumbnail_url) ?? selectedInspirationItem.thumbnail_url}
                   controls
-                  className="max-h-[82vh] w-full rounded-[16px] bg-black object-contain"
+                  className="max-h-[84vh] w-full rounded-[14px] bg-black object-contain"
                 />
               ) : (
                 <img
                   src={selectedInspirationItem.image_url}
                   alt={selectedInspirationItem.title}
-                  className="max-h-[82vh] w-full rounded-[16px] object-contain"
+                  className="max-h-[84vh] w-full rounded-[14px] object-contain"
                 />
               )}
             </div>
-            <div className="space-y-3 xl:max-h-[82vh] xl:overflow-y-auto xl:pr-1">
+            <div className="space-y-2.5 xl:max-h-[84vh] xl:overflow-y-auto xl:pr-1">
               <div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-heading text-xl font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
-                    <p className="mt-1.5 text-xs text-muted">
+                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
+                    <p className="mt-1 text-[11px] text-muted">
                       {isVideoInspiration(selectedInspirationItem)
                         ? `${selectedInspirationItem.provider_name} • ${selectedInspirationItem.duration_seconds}s`
                         : `${selectedInspirationItem.creator_name} • ${selectedInspirationItem.aspect_ratio}`}
@@ -1213,7 +1213,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 <Button
                   variant="secondary"
                   type="button"
-                  className="gap-2"
+                  className="h-9 gap-2 px-3 text-xs"
                   onClick={() => void toggleLikeInspiration(selectedInspirationItem)}
                   disabled={likingAssetId === selectedInspirationItem.id}
                 >
@@ -1222,31 +1222,31 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 </Button>
               </div>
 
-              <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</p>
-                  <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspirationItem.prompt)} className="gap-2 px-3 py-1.5 text-xs">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Prompt</p>
+                  <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspirationItem.prompt)} className="h-8 gap-1.5 px-2.5 text-[11px]">
                     <Copy className="h-3.5 w-3.5" />
                     {copiedPrompt ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
-                <p className="mt-2.5 text-sm leading-6 text-muted">{selectedInspirationItem.prompt}</p>
+                <p className="mt-2 text-[12px] leading-5 text-muted">{selectedInspirationItem.prompt}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">Model</p>
-                  <p className="mt-1.5 text-sm font-semibold text-text">{selectedInspirationItem.model_key}</p>
+                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">Model</p>
+                  <p className="mt-1 text-[12px] font-semibold text-text">{selectedInspirationItem.model_key}</p>
                 </div>
-                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg))] p-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">{isVideoInspiration(selectedInspirationItem) ? 'Duration' : 'Aspect ratio'}</p>
-                  <p className="mt-1.5 text-sm font-semibold text-text">
+                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">{isVideoInspiration(selectedInspirationItem) ? 'Duration' : 'Aspect ratio'}</p>
+                  <p className="mt-1 text-[12px] font-semibold text-text">
                     {isVideoInspiration(selectedInspirationItem) ? `${selectedInspirationItem.duration_seconds}s` : selectedInspirationItem.aspect_ratio}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1">
                 {selectedInspirationItem.tags.map((tag) => (
                   <Badge key={`${selectedInspirationItem.id}-${tag}`}>{tag}</Badge>
                 ))}
@@ -1260,7 +1260,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-xs font-semibold text-text"
               >
                 Open original
                 <ExternalLink className="h-4 w-4" />
