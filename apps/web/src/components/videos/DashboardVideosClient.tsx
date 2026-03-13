@@ -694,8 +694,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   const emptyState = emptyCopy(mediaFilter);
   const viewAllHref = mediaFilter === 'image' ? '/images' : mediaFilter === 'video' ? '/videos' : '/projects';
-  const viewAllLabel =
-    mediaFilter === 'image' ? 'View all images' : mediaFilter === 'video' ? 'View all videos' : 'View all projects';
+  //const viewAllLabel = mediaFilter === 'image' ? 'View all images' : mediaFilter === 'video' ? 'View all videos' : 'View all projects';
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -976,6 +975,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         ) : null}
       </section>
 
+{/*
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -1173,6 +1173,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         )}
       </section>
+
+     */}
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
