@@ -65,13 +65,52 @@ type ImageTemplatePreset = {
   inputs?: TemplateInputField[];
 };
 
-type ImageModeKey = 'fast_social' | 'creator_quality' | 'design_carousel';
+type ImageModeKey = 'fast_social' | 'premium_realism' | 'design_carousel' | 'portrait_character';
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 3;
 const IMAGE_STUDIO_LOAD_MORE_STEP = 8;
 
 const fallbackModels: ImageModel[] = [
+  {
+    key: 'budget_image_model',
+    label: 'Fast Social Images',
+    description: 'Budget-friendly image generation for quick social content and rapid iteration.',
+    frontend_hint: 'Primary fast lane. Uses the cheapest available production image route.',
+    provider: 'Together',
+    badge: 'Affordable',
+    logo_label: 'T',
+    provider_id: 'together',
+    canonical_model_key: 'budget_image_model',
+    mode_ids: ['fast_social'],
+    billing_unit: 'per_image',
+  },
+  {
+    key: 'gpt_image_1_5',
+    label: 'GPT Image 1.5',
+    description: 'Premium realistic image generation with strong prompt fidelity.',
+    frontend_hint: 'Best for polished brand visuals, ads, thumbnails, and premium realism.',
+    provider: 'OpenAI',
+    badge: 'Recommended',
+    logo_label: 'O',
+    provider_id: 'openai',
+    canonical_model_key: 'gpt_image_1_5',
+    mode_ids: ['creator_quality'],
+    billing_unit: 'per_image',
+  },
+  {
+    key: 'recraft',
+    label: 'Recraft',
+    description: 'Design-focused image generation for posters, carousels, and structured graphics.',
+    frontend_hint: 'Best for graphics, layouts, poster design, and carousel-style outputs.',
+    provider: 'Recraft',
+    badge: 'Design',
+    logo_label: 'R',
+    provider_id: 'recraft',
+    canonical_model_key: 'recraft',
+    mode_ids: ['design_carousel'],
+    billing_unit: 'per_image',
+  },
   {
     key: 'gemini_flash_image',
     label: 'Gemini 3.1 Flash Image',
@@ -195,31 +234,60 @@ const quickTemplates: ImageQuickTemplate[] = [
   },
 ];
 
-const IMAGE_MODES: Array<{
+const IMAGE_WORKFLOW_OPTIONS: Array<{
   key: ImageModeKey;
   label: string;
+  badge: string;
   description: string;
-  models: string[];
+  helper: string;
+  candidateModels: string[];
 }> = [
   {
     key: 'fast_social',
-    label: 'Fast Social',
-    description: 'Quick social-first visuals and rapid iterations.',
-    models: ['gemini_flash_image'],
+    label: 'Fast / Affordable',
+    badge: 'Affordable',
+    description: 'Cheapest route for quick social visuals and rapid iterations.',
+    helper: 'Prefers Together budget image generation when available.',
+    candidateModels: ['budget_image_model', 'gemini_flash_image'],
   },
   {
-    key: 'creator_quality',
-    label: 'Creator Quality',
-    description: 'Premium realism and stronger prompt fidelity.',
-    models: ['gemini_pro_image', 'openai_image'],
+    key: 'premium_realism',
+    label: 'Premium Realism',
+    badge: 'Recommended',
+    description: 'Best for photoreal ads, thumbnails, and polished brand visuals.',
+    helper: 'Uses the strongest realistic model available, with OpenAI preferred.',
+    candidateModels: ['gpt_image_1_5', 'openai_image', 'gemini_pro_image'],
   },
   {
     key: 'design_carousel',
     label: 'Design & Carousel',
-    description: 'Best for graphics, ads, and polished carousels.',
-    models: ['recraft_studio'],
+    badge: 'Hot',
+    description: 'Best for posters, graphics, ads, and carousel-style layouts.',
+    helper: 'Design-focused route with Recraft first.',
+    candidateModels: ['recraft', 'recraft_studio'],
+  },
+  {
+    key: 'portrait_character',
+    label: 'Portrait / Character',
+    badge: 'Character',
+    description: 'Best for portraits, avatars, and character-consistent creative work.',
+    helper: 'Uses the strongest portrait-capable route currently available.',
+    candidateModels: ['gemini_pro_image', 'gpt_image_1_5', 'openai_image'],
   },
 ];
+
+function getImageModeForModel(models: ImageModel[], modelKey: string): ImageModeKey {
+  for (const option of IMAGE_WORKFLOW_OPTIONS) {
+    const resolved = option.candidateModels.find((candidate) => models.some((item) => item.key === candidate));
+    if (resolved === modelKey) return option.key;
+  }
+  return 'fast_social';
+}
+
+function resolveImageModeModel(models: ImageModel[], modeKey: ImageModeKey) {
+  const option = IMAGE_WORKFLOW_OPTIONS.find((item) => item.key === modeKey) ?? IMAGE_WORKFLOW_OPTIONS[0];
+  return option.candidateModels.find((candidate) => models.some((item) => item.key === candidate)) ?? null;
+}
 
 function normalizeTemplateOptions(field: TemplateInputField): Array<{ label: string; value: string }> {
   return (field.options || []).map((option) =>
@@ -259,7 +327,7 @@ function mapUnifiedTemplateToImagePreset(template: Template): ImageTemplatePrese
     prompt: template.prompt_template || template.description || template.name,
     aspect_ratio: defaults.aspect_ratio || template.aspect_ratio || '4:5',
     resolution: defaults.resolution || '1536',
-    model_key: defaults.model_key || 'gemini_flash_image',
+    model_key: defaults.model_key || 'budget_image_model',
     thumbnail_url: template.preview_image_url || template.thumbnail_url,
     visual_prompt: template.visual_prompt,
     inputs: template.inputs || [],
@@ -385,7 +453,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gemini_flash_image');
+  const [selectedModel, setSelectedModel] = useState('budget_image_model');
   const [imageMode, setImageMode] = useState<ImageModeKey>('fast_social');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -465,7 +533,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       if (!cached.ts || Date.now() - cached.ts > IMAGE_STUDIO_CACHE_TTL_MS) return;
       const nextModels = cached.models?.length ? cached.models : fallbackModels;
       setModels(nextModels);
-      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
+      setSelectedModel((current) => {
+        if (nextModels.some((item) => item.key === current)) return current;
+        return resolveImageModeModel(nextModels, 'fast_social') ?? nextModels[0]?.key ?? 'budget_image_model';
+      });
       setInspiration(cached.inspiration ?? []);
       setImageTemplates(cached.imageTemplates?.length ? cached.imageTemplates : quickTemplates.map((item) => ({
         id: item.id,
@@ -528,7 +599,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       setModels(nextModels);
       setImageTemplates(nextTemplates);
       setProjects(projectData);
-      setSelectedModel((current) => (nextModels.some((item) => item.key === current) ? current : nextModels[0]?.key ?? 'gemini_flash_image'));
+      setSelectedModel((current) => {
+        if (nextModels.some((item) => item.key === current)) return current;
+        return resolveImageModeModel(nextModels, 'fast_social') ?? nextModels[0]?.key ?? 'budget_image_model';
+      });
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
       setHasMoreGenerated(imageData.length >= IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
@@ -634,9 +708,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   }, [selectedGenerated]);
 
   useEffect(() => {
-    const nextMode = IMAGE_MODES.find((mode) => mode.models.includes(selectedModel))?.key ?? 'fast_social';
+    const nextMode = getImageModeForModel(models, selectedModel);
     setImageMode((current) => (current === nextMode ? current : nextMode));
-  }, [selectedModel]);
+  }, [models, selectedModel]);
 
   useEffect(() => {
     if (!submitting) {
@@ -650,8 +724,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     return () => window.clearInterval(interval);
   }, [submitting]);
 
-  const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0];
-  const activeImageMode = IMAGE_MODES.find((mode) => mode.key === imageMode) ?? IMAGE_MODES[0];
+  const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0] ?? fallbackModels[0];
+  const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
+  const availableImageWorkflows = IMAGE_WORKFLOW_OPTIONS.map((option) => {
+    const resolvedModelKey = resolveImageModeModel(models, option.key);
+    const resolvedModel = resolvedModelKey ? models.find((item) => item.key === resolvedModelKey) ?? fallbackModels.find((item) => item.key === resolvedModelKey) ?? null : null;
+    return {
+      ...option,
+      resolvedModelKey,
+      resolvedModel,
+      available: Boolean(resolvedModelKey),
+    };
+  }).filter((option) => option.available);
   const activeTemplateEstimateText = activeTemplate
     ? `${resolutionOptions.find((item) => item.value === (activeTemplate.resolution || resolution))?.label ?? activeTemplate.resolution} • ${activeTemplate.category}`
     : null;
@@ -759,7 +843,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     setPrompt(nextPrompt);
     setAspectRatio(template.aspect_ratio || '4:5');
     setResolution(template.resolution || '1536');
-    setSelectedModel(template.model_key || 'gemini_flash_image');
+    setSelectedModel(template.model_key || resolveImageModeModel(models, 'fast_social') || 'budget_image_model');
     setActiveTemplate(template);
     setTemplatePickerOpen(false);
     show(`${template.title} applied to the image studio.`);
@@ -1206,22 +1290,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Pick by result first. Keep the model choice simple.</p>
+                  <p className="mt-1 text-xs text-muted">Choose the result style. The engine runs behind the scenes.</p>
                 </div>
-                {selectedModelMeta?.badge ? <Badge>{selectedModelMeta.badge}</Badge> : null}
+                <Badge>{activeImageMode.badge}</Badge>
               </div>
               <div className="-mx-1 overflow-x-auto px-1 pb-1">
                 <div className="flex min-w-max gap-2">
-                {models.map((model) => {
-                  const active = model.key === selectedModel;
+                {availableImageWorkflows.map((workflow) => {
+                  const active = workflow.key === imageMode;
                   return (
                     <button
-                      key={model.key}
+                      key={workflow.key}
                       type="button"
                       onClick={() => {
-                        setSelectedModel(model.key);
-                        const nextMode = IMAGE_MODES.find((mode) => mode.models.includes(model.key));
-                        if (nextMode) setImageMode(nextMode.key);
+                        if (!workflow.resolvedModelKey) return;
+                        setSelectedModel(workflow.resolvedModelKey);
+                        setImageMode(workflow.key);
                       }}
                       className={`min-w-[170px] rounded-full border px-3 py-2 text-left transition ${
                         active
@@ -1230,12 +1314,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-[10px] font-semibold ${PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'}`}>
-                          {typeof model.logo_label === 'string' ? model.logo_label : 'AI'}
+                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-[10px] font-semibold ${PROVIDER_LOGO_STYLES[workflow.resolvedModel?.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'}`}>
+                          {typeof workflow.resolvedModel?.logo_label === 'string' ? workflow.resolvedModel.logo_label : 'AI'}
                         </span>
                         <div>
-                          <p className="text-sm font-semibold text-text">{model.label}</p>
-                          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{model.badge ?? 'Model'}</p>
+                          <p className="text-sm font-semibold text-text">{workflow.label}</p>
+                          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{workflow.badge}</p>
                         </div>
                       </div>
                     </button>
@@ -1377,7 +1461,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex flex-col gap-3 rounded-[20px] bg-[hsl(var(--color-bg)/0.62)] p-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-text">{selectedModelMeta?.label}</p>
+                    <p className="text-sm font-semibold text-text">{activeImageMode.label}</p>
                     <Badge>{wallet?.currentCredits ?? 0} credits left</Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted">
@@ -1387,6 +1471,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         : 'Select or generate a source image to enable variations.'
                       : `${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
+                  {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
                 </div>
                 <Button
                   onClick={() => void handlePrimaryAction()}
@@ -1457,8 +1542,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <Badge>
               {activeTab === 'generated'
-                ? selectedGeneratedModel?.label ?? selectedModelMeta?.label ?? 'Model selected'
-                : selectedInspirationModel?.label ?? selectedModelMeta?.label ?? 'Model selected'}
+                ? selectedGeneratedModel?.label ?? activeImageMode.label
+                : selectedInspirationModel?.label ?? activeImageMode.label}
             </Badge>
             <Badge>{aspectRatio}</Badge>
             <Badge>{resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</Badge>
@@ -2013,65 +2098,51 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         <div className="space-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Model selection</p>
-            <h3 className="mt-1 text-xl font-semibold text-text">Choose your image model</h3>
-            <p className="mt-1 text-sm text-muted">Pick the output engine, then get back to the prompt quickly.</p>
+            <h3 className="mt-1 text-xl font-semibold text-text">Choose your image workflow</h3>
+            <p className="mt-1 text-sm text-muted">Pick the result you want. The underlying model stays secondary.</p>
           </div>
           <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-            {IMAGE_MODES.map((mode) => {
-              const groupedModels = models.filter((model) => mode.models.includes(model.key));
-              if (groupedModels.length === 0) return null;
+            {availableImageWorkflows.map((workflow) => {
+              const active = workflow.key === imageMode;
               return (
-                <div key={mode.key} className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{mode.label}</p>
-                      <p className="mt-1 text-xs text-muted">{mode.description}</p>
+                <button
+                  key={workflow.key}
+                  type="button"
+                  onClick={() => {
+                    if (!workflow.resolvedModelKey) return;
+                    setSelectedModel(workflow.resolvedModelKey);
+                    setImageMode(workflow.key);
+                    setModelPickerOpen(false);
+                  }}
+                  className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
+                    active
+                      ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
+                        PROVIDER_LOGO_STYLES[workflow.resolvedModel?.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                      }`}
+                    >
+                      {workflow.resolvedModel?.logo_label ?? <Sparkles className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-text">{workflow.label}</p>
+                        <Badge>{workflow.badge}</Badge>
+                        {active ? <Badge>Selected</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-xs text-muted">{workflow.description}</p>
+                      <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{workflow.helper}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        {workflow.resolvedModel?.provider ? <span>{workflow.resolvedModel.provider}</span> : null}
+                        {workflow.resolvedModel?.label ? <span>{workflow.resolvedModel.label}</span> : null}
+                      </div>
                     </div>
-                    <Badge>{groupedModels.length} option{groupedModels.length > 1 ? 's' : ''}</Badge>
                   </div>
-                  {groupedModels.map((model) => {
-                    const active = model.key === selectedModel;
-                    return (
-                      <button
-                        key={model.key}
-                        type="button"
-                        onClick={() => {
-                          setSelectedModel(model.key);
-                          setImageMode(mode.key);
-                          setModelPickerOpen(false);
-                        }}
-                        className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
-                          active
-                            ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
-                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span
-                            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-sm font-semibold ${
-                              PROVIDER_LOGO_STYLES[model.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
-                            }`}
-                          >
-                            {model.logo_label ?? <Sparkles className="h-4 w-4" />}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-semibold text-text">{model.label}</p>
-                              {model.badge ? <Badge>{model.badge}</Badge> : null}
-                              {active ? <Badge>Selected</Badge> : null}
-                            </div>
-                            <p className="mt-1 text-xs text-muted">{model.description}</p>
-                            {model.frontend_hint ? <p className="mt-2 text-xs text-[hsl(var(--color-accent))]">{model.frontend_hint}</p> : null}
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                              {model.provider ? <span>{model.provider}</span> : null}
-                              {model.alias_hint ? <span>{model.alias_hint}</span> : null}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                </button>
               );
             })}
           </div>

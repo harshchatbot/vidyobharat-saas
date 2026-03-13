@@ -105,6 +105,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         hint: 'Workspace home',
         icon: Home,
         glow: 'from-[hsl(var(--color-accent)/0.2)] to-transparent',
+        kind: 'link',
       },
       {
         href: '/images',
@@ -112,6 +113,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         hint: pathname.startsWith('/create') ? 'Create video' : pathname.startsWith('/templates') ? 'Template browser' : 'Generate images',
         icon: Sparkles,
         glow: 'from-sky-500/15 to-transparent',
+        kind: 'group',
       },
       {
         href: '/influencer',
@@ -119,6 +121,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         hint: 'AI influencer',
         icon: Wand2,
         glow: 'from-rose-500/15 to-transparent',
+        kind: 'group',
       },
       {
         href: '/projects',
@@ -126,6 +129,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         hint: 'Organize outputs',
         icon: FolderKanban,
         glow: 'from-emerald-500/15 to-transparent',
+        kind: 'link',
       },
       {
         href: '/pricing',
@@ -133,8 +137,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         hint: 'Billing & settings',
         icon: Settings,
         glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
+        kind: 'group',
       },
-    ];
+    ] as const;
 
     const navGroups = {
       home: [
@@ -421,7 +426,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2 sm:rounded-[var(--radius-lg)]">
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
-                      {navItems.map((item) => {
+                  {navItems.map((item) => {
                         const active = item.label === 'Tools'
               ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
               : item.label === 'Create Avatar'
@@ -432,24 +437,100 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
                   : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
                         const Icon = item.icon;
+                        const baseClass = `inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
+                          active
+                            ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
+                            : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
+                        }`;
+                        const iconClass = `inline-flex h-9 w-9 items-center justify-center rounded-full border sm:h-10 sm:w-10 ${
+                          active
+                            ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
+                        }`;
+
+                        if (item.kind === 'group') {
+                          const groupKey = item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : 'more';
+                          const expanded = desktopNavOpen === groupKey;
+                          return (
+                            <div key={item.label} className="space-y-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setDesktopNavOpen((current) => (current === groupKey ? null : groupKey))}
+                                className={`w-full ${baseClass}`}
+                                aria-expanded={expanded}
+                              >
+                                <span className={iconClass}>
+                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                </span>
+                                <span className="min-w-0 flex-1 text-left">
+                                  <span className="block font-semibold text-text">{item.label}</span>
+                                  <span className="block text-xs text-muted">{item.hint}</span>
+                                </span>
+                                <ChevronDown className={`h-4 w-4 transition ${expanded ? 'rotate-180 text-text' : 'text-muted'}`} />
+                              </button>
+                              {expanded ? (
+                                <div className="ml-4 grid gap-1.5 border-l border-[hsl(var(--color-border)/0.7)] pl-3">
+                                  {navGroups[groupKey].map((groupItem) => {
+                                    const GroupIcon = groupItem.icon;
+                                    const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
+                                    return (
+                                      <Link
+                                        key={groupItem.href}
+                                        href={groupItem.href}
+                                        onClick={() => {
+                                          setDesktopNavOpen(null);
+                                          setMobileNavOpen(false);
+                                        }}
+                                        className={`inline-flex items-center gap-2.5 rounded-[12px] px-2 py-2 text-sm transition ${
+                                          activeChild
+                                            ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                            : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
+                                        }`}
+                                      >
+                                        <span className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border ${
+                                          activeChild
+                                            ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+                                            : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'
+                                        }`}>
+                                          {flyoutPreviews[groupItem.href] ? (
+                                            <img src={flyoutPreviews[groupItem.href]} alt={groupItem.label} className="absolute inset-0 h-full w-full object-cover opacity-85" />
+                                          ) : null}
+                                          <span className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--color-bg)/0.02)] via-[hsl(var(--color-bg)/0.14)] to-[hsl(var(--color-bg)/0.64)]" />
+                                          <GroupIcon className="relative z-10 h-3 w-3" />
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block truncate text-[12px] font-medium leading-tight text-text">{groupItem.label}</span>
+                                          <span className="block truncate text-[10px] text-muted">
+                                            {groupItem.href === '/images'
+                                              ? 'Fast social visuals'
+                                              : groupItem.href === '/create'
+                                                ? 'Cinematic reels'
+                                                : groupItem.href === '/templates'
+                                                  ? 'Guided workflows'
+                                                  : groupItem.href === '/influencer'
+                                                    ? 'Consistent avatar creation'
+                                                    : groupItem.href === '/billing'
+                                                      ? 'Credits and plans'
+                                                      : 'Workspace settings'}
+                                          </span>
+                                        </span>
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        }
+
                         return (
                           <Link
                             key={item.label}
                             href={item.href}
                             onClick={() => setMobileNavOpen(false)}
-                            className={`inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
-                              active
-                                ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
-                                : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
-                            }`}
+                            className={baseClass}
                           >
-                            <span
-                              className={`inline-flex h-9 w-9 items-center justify-center rounded-full border sm:h-10 sm:w-10 ${
-                                active
-                                  ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
-                                  : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
-                              }`}
-                            >
+                            <span className={iconClass}>
                               <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                             </span>
                             <span className="min-w-0 flex-1">
