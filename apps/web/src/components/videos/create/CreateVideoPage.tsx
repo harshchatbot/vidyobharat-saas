@@ -319,6 +319,18 @@ export function CreateVideoPage({
   const subtypeFields = (activeTemplateFlow?.inputs || []).filter(isHeroSubtypeField);
   const primarySubtypeField = subtypeFields[0] ?? null;
   const remainingTemplateFlowFields = (activeTemplateFlow?.inputs || []).filter((field) => !isHeroSubtypeField(field));
+  const templateFlowMissingRequired = useMemo(
+    () =>
+      (activeTemplateFlow?.inputs || []).filter(
+        (field) => field.required && !(templateFlowInputs[field.key] || '').trim(),
+      ),
+    [activeTemplateFlow, templateFlowInputs],
+  );
+  const canApplyStructuredTemplateFlow =
+    Boolean(activeTemplateFlow) &&
+    templateFlowMissingRequired.length === 0 &&
+    !templateFlowPreviewLoading &&
+    Boolean(templateFlowPreview?.scriptPreview || templateFlowPreview?.videoPrompt || templateFlowPreview?.prompt);
   const completionToastRef = useRef<string | null>(null);
   const sharedModelMap = useMemo(() => getVideoModelMap(), []);
   const visibleTemplates = videoTemplates.filter((item) => {
@@ -1184,6 +1196,22 @@ export function CreateVideoPage({
 
   const applyStructuredTemplateFlow = () => {
     if (!activeTemplateFlow) return;
+    if (templateFlowMissingRequired.length > 0) {
+      show({
+        title: 'Complete template inputs',
+        message: `Fill ${templateFlowMissingRequired.map((field) => field.label).join(', ')} before applying this workflow.`,
+        variant: 'error',
+      });
+      return;
+    }
+    if (!templateFlowPreview?.scriptPreview && !templateFlowPreview?.videoPrompt && !templateFlowPreview?.prompt) {
+      show({
+        title: 'Preview not ready',
+        message: 'Wait for the guided preview to assemble before applying this template.',
+        variant: 'error',
+      });
+      return;
+    }
     const next = videoTemplates.find((item) => item.key === activeTemplateFlow.id) ?? mapUnifiedTemplateToVideoOption(activeTemplateFlow);
     const derivedTopic =
       templateFlowInputs.topic ||
@@ -1203,8 +1231,7 @@ export function CreateVideoPage({
       templateFlowPreview?.scriptPreview ||
       templateFlowPreview?.videoPrompt ||
       templateFlowPreview?.prompt ||
-      activeTemplateFlow.script_hint ||
-      next.scriptHint;
+      '';
 
     setSelectedTemplate(next.key);
     setTopic(derivedTopic);
@@ -1248,6 +1275,11 @@ export function CreateVideoPage({
     setAppliedHeroTemplateModelOverride(templateFlowModelOverride);
     setTemplateFlowOpen(false);
     setActiveTemplateFlow(null);
+    show({
+      title: 'Guided template applied',
+      message: `${activeTemplateFlow.title || activeTemplateFlow.name} is now driving the script and defaults in this studio.`,
+      variant: 'success',
+    });
   };
 
   const generateScript = async () => {
@@ -1784,13 +1816,63 @@ export function CreateVideoPage({
         />
       ) : null}
 
+      {selectedHeroTemplate && appliedHeroTemplateId ? (
+        <Card className="border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-elevated)/0.22)] px-4 py-3 shadow-soft backdrop-blur-md">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Guided workflow active</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-text">{selectedHeroTemplate.title || selectedHeroTemplate.name}</p>
+                {Object.values(appliedHeroTemplateInputs)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((value) => (
+                    <span
+                      key={value}
+                      className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-2.5 py-1 text-[11px] font-medium text-muted"
+                    >
+                      {value}
+                    </span>
+                  ))}
+              </div>
+              <p className="mt-1 text-xs text-muted">This template assembled your script and defaults. You can still edit the script, model, and output settings below.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setActiveTemplateFlow(selectedHeroTemplate);
+                  setTemplateFlowInputs(appliedHeroTemplateInputs);
+                  setTemplateFlowPromptOverride(appliedHeroTemplatePromptOverride);
+                  setTemplateFlowModelOverride(appliedHeroTemplateModelOverride);
+                  setTemplateFlowOpen(true);
+                }}
+              >
+                Edit questions
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setAppliedHeroTemplateId(null);
+                  setAppliedHeroTemplateInputs({});
+                  setAppliedHeroTemplatePromptOverride('');
+                  setAppliedHeroTemplateModelOverride('');
+                }}
+              >
+                Clear template
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.05fr)_370px] 2xl:items-start">
         <div className="space-y-5">
           
 
           <SectionCard
         title="Content Template"
-        description="Choose a content direction to drive script hints and creative defaults."
+        description="Pick a guided workflow or start from scratch."
         icon={<Film className="h-5 w-5" />}
       >
         <TemplateSelector
@@ -1804,7 +1886,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Project"
-        description="Attach this workflow to a project, or let RangManch create one quietly when a guided template becomes serious work."
+        description="Keep scripts, prompts, and renders organized when you need it."
         icon={<GalleryVerticalEnd className="h-5 w-5" />}
         action={projectsLoading ? <Spinner /> : null}
       >
@@ -1833,7 +1915,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Script Editor & AI Assist"
-        description="Write manually, generate a first draft, or enhance the current script."
+        description="Write, refine, or regenerate the script."
         icon={<Wand2 className="h-5 w-5" />}
       >
         <ScriptEditor
@@ -1855,7 +1937,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Video Lane & Model"
-        description="Start with a clear quality lane, then pick from only the models that fit that output style and budget."
+        description="Choose a lane first, then the best-fit model inside it."
         icon={<Sparkles className="h-5 w-5" />}
         action={modelsLoading ? <Spinner /> : null}
       >
@@ -1894,7 +1976,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Voice & Language"
-        description="Pick the narration language and voice personality."
+        description="Set the narration voice and language."
         icon={<Mic2 className="h-5 w-5" />}
       >
         <VoiceSelector
@@ -1967,7 +2049,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Optional Reference Images"
-        description="Use your image library or add external references for image-seeded generation."
+        description="Optional references for seeded video generation."
         icon={<Film className="h-5 w-5" />}
       >
         <ReferenceImagePicker
@@ -1984,7 +2066,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Background Audio"
-        description="Add music, preview it, and control how it sits under narration."
+        description="Add music and set how it sits under narration."
         icon={<Mic2 className="h-5 w-5" />}
       >
         <MusicSelector
@@ -2009,7 +2091,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Output Settings"
-        description="Adjust format, resolution, duration, and captions before you submit."
+        description="Format, duration, quality, and captions."
         icon={<Settings2 className="h-5 w-5" />}
       >
         <OutputSettings
@@ -2220,22 +2302,22 @@ export function CreateVideoPage({
         }}
       >
         {activeTemplateFlow ? (
-          <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-            <div className="space-y-4">
-              <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)]">
+          <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)]">
                 {activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url ? (
                   <img
                     src={activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url}
                     alt={activeTemplateFlow.title || activeTemplateFlow.name}
-                    className="aspect-[4/5] w-full object-cover"
+                    className="aspect-[5/4] w-full object-cover"
                   />
                 ) : (
-                  <div className="flex aspect-[4/5] items-center justify-center bg-[hsl(var(--color-bg)/0.72)] text-sm text-muted">
+                  <div className="flex aspect-[5/4] items-center justify-center bg-[hsl(var(--color-bg)/0.72)] text-sm text-muted">
                     Template preview
                   </div>
                 )}
               </div>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] p-4">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4">
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">Video</span>
                   {activeTemplateFlow.badge ? (
@@ -2264,11 +2346,11 @@ export function CreateVideoPage({
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Template inputs</p>
-                    <p className="mt-1 text-sm text-muted">Answer a few questions. We&apos;ll build the prompt and script structure for you.</p>
+                    <p className="mt-1 text-sm text-muted">Answer a few questions. RangManch will assemble the script and defaults for you.</p>
                   </div>
                   {templateFlowEstimate ? (
                     <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
@@ -2278,7 +2360,7 @@ export function CreateVideoPage({
                 </div>
                 <div className="mt-4 space-y-3">
                   {primarySubtypeField ? (
-                    <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] p-4">
+                    <div className="space-y-2 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] p-3.5">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Step 1</p>
                         <p className="mt-1 text-sm font-semibold text-text">{primarySubtypeField.label}</p>
@@ -2341,7 +2423,7 @@ export function CreateVideoPage({
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-text">Model override</label>
@@ -2384,7 +2466,7 @@ export function CreateVideoPage({
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Preview</p>
@@ -2392,6 +2474,11 @@ export function CreateVideoPage({
                   </div>
                   {templateFlowPreviewLoading ? <Spinner /> : null}
                 </div>
+                {templateFlowMissingRequired.length > 0 ? (
+                  <p className="mt-3 text-xs text-muted">
+                    Fill {templateFlowMissingRequired.map((field) => field.label).join(', ')} to generate the guided preview.
+                  </p>
+                ) : null}
                 <div className="mt-4 space-y-3">
                   <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Topic title</p>
@@ -2416,7 +2503,7 @@ export function CreateVideoPage({
                   >
                     Cancel
                   </Button>
-                  <Button onClick={applyStructuredTemplateFlow}>
+                  <Button onClick={applyStructuredTemplateFlow} disabled={!canApplyStructuredTemplateFlow}>
                     Apply to studio
                   </Button>
                 </div>

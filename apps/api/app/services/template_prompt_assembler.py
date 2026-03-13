@@ -97,6 +97,9 @@ class TemplatePromptAssembler:
             f'[Close] End with a strong CTA: {cta}'
         )
 
+    def _scene_script(self, *sections: tuple[str, str]) -> str:
+        return '\n\n'.join(f'[{title}]\n{body}' for title, body in sections if body.strip())
+
     def _fallback_prompt(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> str:
         prompt = template.prompt_template
         for field in template.inputs:
@@ -106,48 +109,114 @@ class TemplatePromptAssembler:
     def _assemble_character_explainer_reel(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
         speaker_type = values.get('speakerType', 'character')
+        speaker_name = values.get('speakerName', 'the speaker')
+        topic = values.get('topic', 'the topic')
+        audience = values.get('audience', 'general audience')
+        language = values.get('language', template.generation_defaults.language or 'English')
+        tone = values.get('tone', 'credible and engaging')
+        cta = values.get('cta', 'Follow for more')
+        subtype_hook = {
+            'historical_figure': f'{speaker_name} breaks down why {topic} still matters today.',
+            'body_organ': f'{speaker_name} explains how {topic} works inside the body in simple language.',
+            'mythology_character': f'{speaker_name} retells {topic} through a mythic first-person perspective.',
+            'mascot': f'{speaker_name} makes {topic} fun and instantly understandable.',
+        }.get(speaker_type, f'{speaker_name} explains {topic} with a strong first-person hook.')
         prompt = self._compose(
-            f"Create a short-form explainer reel for {base['platform']} starring {values.get('speakerName', 'the speaker')} as a {speaker_type}.",
-            f"Topic: {values.get('topic', '')}. Audience: {values.get('audience', 'general audience')}.",
-            f"Tone and visual style: {base['style']}. Voice style: {values.get('voiceStyle', 'clear and credible')}. Text overlays: {values.get('textOverlay', 'minimal but readable')}. CTA: {values.get('cta', 'Follow for more')}.",
+            f"Create a short-form explainer reel for {base['platform']} starring {speaker_name} as a {speaker_type}.",
+            f"Topic: {topic}. Audience: {audience}.",
+            f"Tone and visual style: {base['style']}. Voice style: {values.get('voiceStyle', 'clear and credible')}. Text overlays: {values.get('textOverlay', 'minimal but readable')}. CTA: {cta}.",
             'Structure the content with a powerful hook, 2-3 concise scene beats, explanatory narration, and a clean ending CTA.',
             base['quality'],
             base['safety'],
         )
-        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=self._generic_script(template, prompt, values), recommended_model_mode=template.default_model_mode)
+        script_preview = self._scene_script(
+            ('Hook', f'Narrator ({language}, {tone}): "{subtype_hook}"'),
+            ('Scene 1', f'{speaker_name} appears on screen and frames the core question for {audience}. Use a simple analogy and one memorable visual cue tied to {topic}.'),
+            ('Scene 2', f'{speaker_name} explains the main insight behind {topic} in one clear beat. Add tight camera movement, readable text overlay, and one supporting visual example.'),
+            ('Scene 3', f'Wrap with a concise takeaway the audience can repeat or remember instantly. Keep the language native to {language} and conversational.'),
+            ('Close', f'End with a clean CTA: "{cta}."'),
+        )
+        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=script_preview, recommended_model_mode=template.default_model_mode)
 
     def _assemble_viral_dance_clip(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
+        subject = values.get('subjectName', values.get('subjectType', 'a cute subject'))
+        dance_style = values.get('danceStyle', 'playful groove')
+        music_mood = values.get('musicMood', 'upbeat')
+        loop = values.get('loopPreference', 'seamless loop')
         prompt = self._compose(
-            f"Create a loop-friendly viral dance clip for {base['platform']} featuring {values.get('subjectName', values.get('subjectType', 'a cute subject'))}.",
-            f"Dance style: {values.get('danceStyle', 'playful groove')}. Music mood: {values.get('musicMood', 'upbeat')}. Outfit: {values.get('outfitStyle', 'social-friendly')}. Background: {values.get('backgroundTheme', 'clean and energetic')}.",
-            f"End behavior: {values.get('loopPreference', 'seamless loop')}. Keep it instantly shareable and high-retention.",
+            f"Create a loop-friendly viral dance clip for {base['platform']} featuring {subject}.",
+            f"Dance style: {dance_style}. Music mood: {music_mood}. Outfit: {values.get('outfitStyle', 'social-friendly')}. Background: {values.get('backgroundTheme', 'clean and energetic')}.",
+            f"End behavior: {loop}. Keep it instantly shareable and high-retention.",
             base['quality'],
             base['safety'],
         )
-        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=self._generic_script(template, prompt, values), recommended_model_mode=template.default_model_mode)
+        script_preview = self._scene_script(
+            ('Hook', f'Open on {subject} already in motion with a strong first-frame pose that matches a {music_mood} sound bed.'),
+            ('Beat 1', f'Hit the first memorable move in {dance_style} style. Keep the framing vertical, social-first, and easy to loop.'),
+            ('Beat 2', f'Switch to a second motion beat or reaction shot that pushes retention. Highlight outfit and background styling without clutter.'),
+            ('Loop Close', f'Return to a pose or motion that cuts back into the opening frame for a {loop}.'),
+        )
+        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=script_preview, recommended_model_mode=template.default_model_mode)
 
     def _assemble_client_ad_reel(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
+        product_or_service = values.get('productOrService', 'the offer')
+        audience = values.get('targetAudience', 'the right audience')
+        offer = values.get('offer', 'highlight the strongest offer')
+        headline = values.get('headline', 'strong first-frame hook')
+        cta = values.get('cta', 'act now')
         prompt = self._compose(
-            f"Create a conversion-focused client ad reel for {values.get('productOrService', 'the offer')} targeting {values.get('targetAudience', 'the right audience')} on {base['platform']}.",
-            f"Business type: {values.get('businessType', 'service_ad')}. Offer: {values.get('offer', 'highlight the strongest offer')}. Tone: {values.get('tone', 'premium and trustworthy')}. Brand colors: {values.get('brandColors', 'use tasteful branded colors')}. Headline: {values.get('headline', 'strong first-frame hook')}. CTA: {values.get('cta', 'act now')}.",
+            f"Create a conversion-focused client ad reel for {product_or_service} targeting {audience} on {base['platform']}.",
+            f"Business type: {values.get('businessType', 'service_ad')}. Offer: {offer}. Tone: {values.get('tone', 'premium and trustworthy')}. Brand colors: {values.get('brandColors', 'use tasteful branded colors')}. Headline: {headline}. CTA: {cta}.",
             'Assemble the reel with a fast hook, product/service hero moment, trust-building proof, and a clean CTA ending.',
             base['quality'],
             base['safety'],
         )
-        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=self._generic_script(template, prompt, values), recommended_model_mode=template.default_model_mode)
+        script_preview = self._scene_script(
+            ('Hook', f'Open with the headline "{headline}" and frame the problem for {audience} in under two seconds.'),
+            ('Hero moment', f'Show {product_or_service} solving the problem immediately. Make the offer explicit: {offer}.'),
+            ('Proof', 'Add one trust-building beat: testimonial energy, feature proof, or visual before/after clarity. Keep the pacing ad-ready and clean.'),
+            ('Close', f'Land the CTA strongly: "{cta}." End on branded composition and a clear action.'),
+        )
+        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=script_preview, recommended_model_mode=template.default_model_mode)
 
     def _assemble_story_slides_reel(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
+        subtype = values.get('subtype', 'mini_story')
+        topic = values.get('topic', 'the chosen topic')
+        cta = values.get('cta', 'Follow for part 2')
         prompt = self._compose(
-            f"Create a slide-based reel in {values.get('subtype', 'mini_story')} format for {base['platform']} about {values.get('topic', 'the chosen topic')}.",
-            f"Audience: {values.get('audience', 'general audience')}. Tone: {values.get('tone', 'educational and energetic')}. CTA: {values.get('cta', 'Follow for part 2')}.",
+            f"Create a slide-based reel in {subtype} format for {base['platform']} about {topic}.",
+            f"Audience: {values.get('audience', 'general audience')}. Tone: {values.get('tone', 'educational and energetic')}. CTA: {cta}.",
             'Build the content as a hook slide, core slide progression, bold text overlays, and a final CTA slide.',
             base['quality'],
             base['safety'],
         )
-        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=self._generic_script(template, prompt, values), recommended_model_mode=template.default_model_mode)
+        subtype_body = {
+            'top_5': (
+                'Hook',
+                f'Open with a rank-based hook around {topic}, then move through the list with one strong visual claim per slide.'
+            ),
+            'timeline': (
+                'Hook',
+                f'Open with the first key moment in the timeline of {topic}, then progress chronologically with clean year/event transitions.'
+            ),
+            'before_after': (
+                'Hook',
+                f'Open with a dramatic before/after contrast around {topic}, then reveal the transformation through two to three visual beats.'
+            ),
+            'mini_story': (
+                'Hook',
+                f'Open with one emotionally charged first frame about {topic}, then resolve the arc across a few slides.'
+            ),
+        }.get(subtype, ('Hook', f'Open with a strong hook around {topic}.'))
+        script_preview = self._scene_script(
+            subtype_body,
+            ('Slide progression', 'Use 3 to 5 slides with one clear message per slide. Keep text punchy, visual, and social-first.'),
+            ('Close', f'End with a final CTA slide: "{cta}."'),
+        )
+        return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=script_preview, recommended_model_mode=template.default_model_mode)
 
     def _assemble_linkedin_carousel_pack(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)

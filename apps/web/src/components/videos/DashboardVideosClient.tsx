@@ -800,24 +800,27 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="rangmanch-section-eyebrow">Start points</p>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Create story</h2>
-            <p className="mt-1 text-sm text-muted">High-impact starting points with production-ready defaults.</p>
+            <p className="rangmanch-section-eyebrow">Quick Launch</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Start with a guided format</h2>
+            <p className="mt-1 text-sm text-muted">Use a proven workflow instead of starting from a blank canvas.</p>
           </div>
           {/*<Button variant="secondary" className="h-9 rounded-full px-4 text-xs">More</Button> */}
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {storyCards.map((item) => (
             <Link
               key={item.title}
               href={`/create?template=${encodeURIComponent(item.templateKey)}&title=${encodeURIComponent(item.titleHint)}`}
-              className="group min-w-[250px] flex-1 rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] p-4 shadow-soft transition hover:-translate-y-0.5 sm:min-w-[280px]"
+              className="group rounded-[20px] border border-[hsl(var(--color-border))] p-3.5 shadow-soft transition hover:-translate-y-0.5"
               style={{ background: item.gradient }}
             >
-              <p className="font-heading text-2xl font-extrabold text-text">{item.title}</p>
-              <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
-              <div className="mt-8 inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-bg)/0.6)] px-3 py-1.5 text-sm font-semibold text-text backdrop-blur-md">
-                Create
+              <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted backdrop-blur-md">
+                Guided
+              </div>
+              <p className="mt-4 font-heading text-lg font-extrabold text-text">{item.title}</p>
+              <p className="mt-1.5 text-sm leading-6 text-muted">{item.description}</p>
+              <div className="mt-6 inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-bg)/0.6)] px-3 py-1.5 text-sm font-semibold text-text backdrop-blur-md">
+                Open
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" strokeWidth={1.5} />
               </div>
             </Link>

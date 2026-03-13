@@ -52,21 +52,21 @@ export function ModelDropdown({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-left shadow-[var(--shadow-soft)] transition hover:border-[hsl(var(--color-accent)/0.35)] hover:bg-[hsl(var(--color-elevated)/0.92)]"
+        className="w-full rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)] px-4 py-3 text-left shadow-[var(--shadow-soft)] transition hover:border-[hsl(var(--color-accent)/0.35)] hover:bg-[hsl(var(--color-elevated)/0.9)]"
       >
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-surface)/0.72))] text-[hsl(var(--color-accent))]">
-            <SelectedIcon className="h-5 w-5" />
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.24),hsl(var(--color-surface)/0.72))] text-[hsl(var(--color-accent))]">
+            <SelectedIcon className="h-4.5 w-4.5" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-accent))]">Model</p>
             <div className="mt-1 flex items-center gap-2">
-              <p className="truncate text-base font-semibold text-text">{selected?.shortLabel ?? selected?.label ?? 'Choose model'}</p>
+              <p className="truncate text-sm font-semibold text-text">{selected?.shortLabel ?? selected?.label ?? 'Choose model'}</p>
               {selected?.resolutionLabels?.length ? (
-                <span className="truncate text-xs text-muted">{selected.resolutionLabels.join(' / ')}</span>
+                <span className="truncate text-[11px] text-muted">{selected.resolutionLabels.join(' / ')}</span>
               ) : null}
             </div>
-            <p className="mt-1 line-clamp-1 text-sm text-muted">{selected?.frontendHint ?? 'Pick the output engine that best matches your creative goal.'}</p>
+            <p className="mt-1 line-clamp-1 text-xs text-muted">{selected?.frontendHint ?? 'Pick the output engine that best matches your creative goal.'}</p>
           </div>
           <ChevronDown className="h-5 w-5 shrink-0 text-muted" />
         </div>

@@ -100,11 +100,11 @@ export function TemplateSelector({
   onSelect: (value: string) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
+    <div className="space-y-3.5">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
         <div>
           <p className="text-sm font-semibold text-text">Content direction</p>
-          <p className="mt-1 text-sm text-muted">Optional. Pick a template for faster starts, or choose No Template to write from scratch.</p>
+          <p className="mt-1 text-sm text-muted">Pick a guided workflow or stay on a blank canvas.</p>
         </div>
         <label className="block">
           <span className="mb-1 flex items-center gap-2 text-sm font-semibold text-text">
@@ -134,7 +134,7 @@ export function TemplateSelector({
                   : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft'
               }`}
             >
-              <div className="relative aspect-[4/3] overflow-hidden bg-[hsl(var(--color-elevated))]">
+              <div className="relative aspect-[5/3] overflow-hidden bg-[hsl(var(--color-elevated))]">
                 {image ? (
                   <img
                     src={image}
@@ -146,25 +146,25 @@ export function TemplateSelector({
                   className="absolute inset-0"
                   style={{ background: visual.gradient }}
                 />
-                <div className="absolute left-4 top-4 flex items-center gap-2">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.74)] text-[hsl(var(--color-accent))] backdrop-blur-md">
-                    <Icon className="h-4.5 w-4.5" />
+                <div className="absolute left-3 top-3 flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.74)] text-[hsl(var(--color-accent))] backdrop-blur-md">
+                    <Icon className="h-4 w-4" />
                   </span>
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72">{eyebrow}</p>
                     <p className="text-xs font-semibold text-white">{helper}</p>
                   </div>
                 </div>
-                <div className="absolute inset-x-4 bottom-4">
-                  <p className="font-heading text-xl font-extrabold tracking-tight text-white drop-shadow-sm">{template.label}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-white/76">{template.description}</p>
+                <div className="absolute inset-x-3 bottom-3">
+                  <p className="font-heading text-lg font-extrabold tracking-tight text-white drop-shadow-sm">{template.label}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-white/76">{template.description}</p>
                 </div>
               </div>
-              <div className="space-y-2 px-4 py-4">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+              <div className="space-y-1.5 px-3.5 py-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   {template.badge || 'Hint'}
                 </div>
-                <p className="text-sm text-muted">{template.topicHint}</p>
+                <p className="line-clamp-2 text-xs text-muted">{template.topicHint}</p>
               </div>
             </button>
           );
