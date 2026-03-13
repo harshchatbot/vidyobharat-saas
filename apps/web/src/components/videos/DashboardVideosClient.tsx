@@ -863,7 +863,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         </div>
         {communityLoading ? (
-          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
+          <div className="columns-1 gap-2.5 sm:columns-2 md:columns-3 xl:columns-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={`inspiration-skeleton-${index}`}
@@ -872,7 +872,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             ))}
           </div>
         ) : (
-          <div className="columns-1 gap-4 sm:columns-2 md:columns-3 xl:columns-4">
+          <div className="columns-1 gap-2.5 sm:columns-2 md:columns-3 xl:columns-4">
             {inspirationItems.map((item) => {
             const videoItem = isVideoInspiration(item) ? item : null;
             const imageItem = !videoItem ? (item as InspirationImage) : null;
@@ -891,7 +891,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedInspirationItem(item)}
-                className="group relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.34)] text-left shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.24)] hover:shadow-[var(--shadow-hard)]"
+                className="group relative mb-2.5 block w-full break-inside-avoid overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.34)] text-left shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.24)] hover:shadow-[var(--shadow-hard)] sm:rounded-[16px]"
                 style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
                 {videoItem ? (
@@ -901,7 +901,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                       alt={item.title}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                     />
-                    <span className="absolute left-2.5 bottom-14 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.76)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                    <span className="absolute left-2 bottom-12 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.76)] px-1.5 py-0.5 text-[9px] font-semibold text-text backdrop-blur-md sm:left-2.5 sm:bottom-14 sm:py-1 sm:text-[10px]">
                       <Film className="h-3 w-3" strokeWidth={1.75} />
                       Preview
                     </span>
@@ -910,14 +910,14 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                   <img src={preview} alt={item.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                 )}
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.82)] via-[hsl(var(--color-bg)/0.12)] to-transparent opacity-90" />
-                <span className="absolute right-2.5 top-2.5 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                <span className="absolute right-2 top-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-0.5 text-[9px] font-semibold text-text backdrop-blur-md sm:right-2.5 sm:top-2.5 sm:py-1 sm:text-[10px]">
                   {meta}
                 </span>
-                <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-1 text-[10px] font-semibold text-text backdrop-blur-md">
+                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] px-1.5 py-0.5 text-[9px] font-semibold text-text backdrop-blur-md sm:left-2.5 sm:top-2.5 sm:py-1 sm:text-[10px]">
                   <Heart className={`h-3 w-3 ${item.liked_by_user ? 'fill-current' : ''}`} strokeWidth={1.75} />
                   {item.like_count}
                 </span>
-                <div className="absolute left-2.5 top-11 flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
+                <div className="absolute left-2 top-10 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 sm:left-2.5 sm:top-11 sm:gap-1.5">
                   <button
                     type="button"
                     className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md"
@@ -949,11 +949,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                     <Wand2 className="h-3.5 w-3.5 text-text" strokeWidth={1.75} />
                   </button>
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.92)] via-[hsl(var(--color-bg)/0.32)] to-transparent px-2.5 pb-2.5 pt-8">
-                  <p className="line-clamp-1 text-[12px] font-semibold leading-4 text-text">{item.title}</p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.92)] via-[hsl(var(--color-bg)/0.32)] to-transparent px-2 pb-2 pt-7 sm:px-2.5 sm:pb-2.5 sm:pt-8">
+                  <p className="line-clamp-1 text-[11px] font-semibold leading-4 text-text sm:text-[12px]">{item.title}</p>
                 </div>
-                <div className="absolute inset-x-2.5 bottom-10 rounded-[12px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.66)] p-2.5 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
-                  <p className="line-clamp-2 text-[11px] leading-4 text-text">{item.prompt}</p>
+                <div className="absolute inset-x-2 bottom-9 rounded-[10px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.66)] p-2 opacity-0 backdrop-blur-md transition group-hover:opacity-100 sm:inset-x-2.5 sm:bottom-10 sm:rounded-[12px] sm:p-2.5">
+                  <p className="line-clamp-2 text-[10px] leading-4 text-text sm:text-[11px]">{item.prompt}</p>
                 </div>
               </button>
             );
@@ -1178,8 +1178,8 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
       {selectedInspirationItem ? (
         <Modal open onClose={() => setSelectedInspirationItem(null)}>
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.48fr)_272px]">
-            <div className="flex min-h-[58vh] items-center justify-center overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg))] p-1.5 sm:min-h-[72vh] sm:p-2.5">
+          <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.48fr)_272px]">
+            <div className="flex min-h-[48vh] items-center justify-center overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg))] p-1.5 sm:min-h-[62vh] sm:rounded-[18px] sm:p-2.5">
               {isVideoInspiration(selectedInspirationItem) ? (
                 <video
                   src={toAbsoluteUrl(selectedInspirationItem.video_url) ?? selectedInspirationItem.video_url}
@@ -1195,11 +1195,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 />
               )}
             </div>
-            <div className="space-y-2.5 xl:max-h-[84vh] xl:overflow-y-auto xl:pr-1">
+            <div className="space-y-2 xl:max-h-[84vh] xl:overflow-y-auto xl:pr-1 sm:space-y-2.5">
               <div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedInspirationItem.title}</h3>
+                    <h3 className="font-heading text-base font-extrabold tracking-tight text-text sm:text-lg">{selectedInspirationItem.title}</h3>
                     <p className="mt-1 text-[11px] text-muted">
                       {isVideoInspiration(selectedInspirationItem)
                         ? `${selectedInspirationItem.provider_name} • ${selectedInspirationItem.duration_seconds}s`
@@ -1222,7 +1222,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 </Button>
               </div>
 
-              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
+              <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[16px]">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Prompt</p>
                   <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspirationItem.prompt)} className="h-8 gap-1.5 px-2.5 text-[11px]">
@@ -1233,12 +1233,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 <p className="mt-2 text-[12px] leading-5 text-muted">{selectedInspirationItem.prompt}</p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
+              <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+                <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[16px]">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-muted">Model</p>
                   <p className="mt-1 text-[12px] font-semibold text-text">{selectedInspirationItem.model_key}</p>
                 </div>
-                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5">
+                <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[16px]">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-muted">{isVideoInspiration(selectedInspirationItem) ? 'Duration' : 'Aspect ratio'}</p>
                   <p className="mt-1 text-[12px] font-semibold text-text">
                     {isVideoInspiration(selectedInspirationItem) ? `${selectedInspirationItem.duration_seconds}s` : selectedInspirationItem.aspect_ratio}

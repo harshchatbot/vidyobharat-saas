@@ -238,7 +238,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
           </div>
           <span className="text-sm text-muted">{items.length} templates</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-7">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-7">
           {items.map((template) => <TemplatePoster key={template.id} template={template} onClick={() => setSelectedTemplate(template)} />)}
         </div>
       </section>
@@ -288,12 +288,12 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
 
       <Modal open={Boolean(selectedTemplate)} onClose={() => setSelectedTemplate(null)}>
         {selectedTemplate ? (
-          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)]">
+              <div className="overflow-hidden rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)] sm:rounded-[28px]">
                 <img src={selectedTemplate.preview_image_url || selectedTemplate.thumbnail_url} alt={selectedTemplate.name} className="aspect-[4/5] w-full object-cover" />
               </div>
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-4">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-3.5 sm:rounded-[24px] sm:p-4">
                 <div className="flex flex-wrap gap-2">
                   <Badge>{selectedTemplate.type === 'video' ? 'Video' : 'Image'}</Badge>
                   {selectedTemplate.badge ? <Badge>{selectedTemplate.badge}</Badge> : null}
@@ -302,7 +302,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
                 </div>
                 <h3 className="mt-3 text-2xl font-bold text-text">{selectedTemplate.title || selectedTemplate.name}</h3>
                 <p className="mt-2 text-sm text-muted">{selectedTemplate.description}</p>
-                <div className="mt-4 flex items-start gap-3 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.5)] px-4 py-3 text-sm text-muted">
+                <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.5)] px-3 py-2.5 text-sm text-muted sm:rounded-[20px] sm:px-4 sm:py-3">
                   <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--color-accent))]" />
                   <div>
                     <p className="font-medium text-text">Guided workflow</p>
@@ -326,7 +326,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
               </div>
             </div>
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-4 sm:rounded-[24px] sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Template inputs</p>
@@ -356,7 +356,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-5">
+              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] p-4 sm:rounded-[24px] sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Recommended model</p>

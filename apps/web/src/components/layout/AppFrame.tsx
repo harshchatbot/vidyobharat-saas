@@ -394,9 +394,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 onClick={() => setMobileNavOpen(false)}
                 className="absolute inset-0 bg-[hsl(var(--color-bg)/0.78)] backdrop-blur-sm"
               />
-              <div className="absolute inset-x-4 top-3 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-4 shadow-soft">
+              <div className="absolute inset-x-3 top-3 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3 shadow-soft sm:inset-x-4 sm:rounded-[24px] sm:p-4">
                 <div className="space-y-4">
-                  <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[var(--radius-md)] sm:p-3">
                     <div className="flex items-center justify-between gap-3">
                       <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
                       <button
@@ -418,7 +418,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     </div>
                   </div>
 
-                  <div className="rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2">
+                  <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2 sm:rounded-[var(--radius-lg)]">
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
                       {navItems.map((item) => {
@@ -437,20 +437,20 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                             key={item.label}
                             href={item.href}
                             onClick={() => setMobileNavOpen(false)}
-                            className={`inline-flex items-center gap-3 rounded-[var(--radius-md)] px-2.5 py-2.5 text-sm font-medium transition ${
+                            className={`inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
                               active
                                 ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
                                 : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
                             }`}
                           >
                             <span
-                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${
+                              className={`inline-flex h-9 w-9 items-center justify-center rounded-full border sm:h-10 sm:w-10 ${
                                 active
                                   ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
                                   : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
                               }`}
                             >
-                              <Icon className="h-4 w-4" />
+                              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block font-semibold text-text">{item.label}</span>
