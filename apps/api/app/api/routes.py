@@ -855,7 +855,7 @@ def enhance_script_v2(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
-    credit_service = CreditService(db)
+    credit_service = CreditService()
     estimate = credit_service.estimate('script_enhance', {})
     idempotency_key = credit_service.make_idempotency_key(
         'script_enhance',
@@ -2567,7 +2567,7 @@ def generate_tts_preview(
     db: Session = Depends(get_db),
 ) -> TTSPreviewResponse:
     preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
-    credit_service = CreditService(db)
+    credit_service = CreditService()
     wallet = credit_service.ensure_wallet(user_id)
     try:
         estimate = credit_service.estimate(
@@ -2600,14 +2600,20 @@ def generate_tts_preview(
                 status_code=429,
                 detail=f'{exc} Limit: {PREVIEW_MAX_REQUESTS_PER_WINDOW} previews every {PREVIEW_WINDOW_SECONDS // 60} minutes.',
             ) from exc
-        result = generate_voiceover_detailed(
-            script=preview_text,
-            voice=payload.voice,
-            cache_dir=cache_dir,
-            language=payload.language,
-            sample_rate_hz=payload.sample_rate_hz,
-            allow_premium=wallet.current_credits >= estimate.required_credits,
-        )
+        try:
+            result = generate_voiceover_detailed(
+                script=preview_text,
+                voice=payload.voice,
+                cache_dir=cache_dir,
+                language=payload.language,
+                sample_rate_hz=payload.sample_rate_hz,
+                allow_premium=wallet.current_credits >= estimate.required_credits,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            logger.exception('tts_preview_generation_failed')
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     applied_credits = 0
     remaining_credits = wallet.current_credits
     if not result.cached and result.provider == 'Sarvam AI' and estimate.required_credits > 0:
@@ -2639,14 +2645,18 @@ def generate_tts_preview(
         except InsufficientCreditsError:
             # If premium synthesis succeeded but credits became unavailable concurrently,
             # surface the asset as fallback-free but do not pretend the balance changed.
-            result = generate_voiceover_detailed(
-                script=preview_text,
-                voice=payload.voice,
-                cache_dir=cache_dir,
-                language=payload.language,
-                sample_rate_hz=payload.sample_rate_hz,
-                allow_premium=False,
-            )
+            try:
+                result = generate_voiceover_detailed(
+                    script=preview_text,
+                    voice=payload.voice,
+                    cache_dir=cache_dir,
+                    language=payload.language,
+                    sample_rate_hz=payload.sample_rate_hz,
+                    allow_premium=False,
+                )
+            except RuntimeError as exc:
+                logger.exception('tts_preview_fallback_generation_failed')
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
     preview_url = f"/static/{result.path.as_posix().replace('data/', '', 1)}"
     return TTSPreviewResponse(
         preview_url=preview_url,

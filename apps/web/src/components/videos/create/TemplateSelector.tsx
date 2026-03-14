@@ -115,7 +115,8 @@ export function TemplateSelector({
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1 xl:mx-0 xl:px-0 xl:overflow-visible">
+        <div className="flex gap-3 xl:grid xl:grid-cols-3">
         {templates.map((template) => {
           const Icon = template.icon;
           const active = selectedTemplate === template.key;
@@ -128,7 +129,7 @@ export function TemplateSelector({
               key={template.key}
               type="button"
               onClick={() => onSelect(template.key)}
-              className={`group overflow-hidden rounded-[24px] border text-left transition ${
+              className={`group w-[270px] shrink-0 overflow-hidden rounded-[24px] border text-left transition xl:w-auto ${
                 active
                   ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
                   : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft'
@@ -169,6 +170,7 @@ export function TemplateSelector({
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );
