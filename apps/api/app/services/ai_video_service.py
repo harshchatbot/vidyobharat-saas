@@ -162,7 +162,7 @@ class AIVideoCreateService:
         for model in _VIDEO_MODELS_CONFIG
     }
 
-    def __init__(self, db: Session, settings: Settings) -> None:
+    def __init__(self, db: Session | None, settings: Settings) -> None:
         self.db = db
         self.settings = settings
         self.repo = VideoRepository(db)

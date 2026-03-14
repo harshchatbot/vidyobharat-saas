@@ -1149,8 +1149,8 @@ def generate_ai_video(
 @router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
 @router.get('/api/ai/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
 @router.get('/api/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
-def list_ai_video_models(_: str = Depends(get_user_id), db: Session = Depends(get_db)):
-    service = AIVideoCreateService(db, settings)
+def list_ai_video_models(_: str = Depends(get_user_id)):
+    service = AIVideoCreateService(None, settings)
     return [
         AIVideoModelResponse(
             key=model.key,
@@ -2641,7 +2641,7 @@ def generate_tts_preview(
             'tts_preview',
             {
                 'voice': payload.voice,
-                'provider': 'free' if payload.voice in credit_service.FREE_VOICE_KEYS else 'sarvam',
+                'provider': 'free' if payload.voice in credit_service.free_voice_keys else 'sarvam',
                 'sample_rate_hz': payload.sample_rate_hz,
             },
         )

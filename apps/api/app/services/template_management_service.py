@@ -669,7 +669,16 @@ class TemplateManagementService:
 
     def _recommended_model_payload(self, data: dict[str, Any]) -> dict[str, Any] | None:
         if data.get('recommended_model'):
-            return data['recommended_model']
+            existing = data['recommended_model']
+            if isinstance(existing, dict):
+                return existing
+            return {
+                'mode': getattr(existing, 'mode', data.get('default_model_mode')),
+                'label': getattr(existing, 'label', None),
+                'description': getattr(existing, 'description', None),
+                'group': getattr(existing, 'group', None),
+                'internal_model_key': getattr(existing, 'internal_model_key', None),
+            }
         mode = data.get('default_model_mode')
         if not mode:
             return None
