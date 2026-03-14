@@ -1348,9 +1348,8 @@ def create_ai_video(
 def get_ai_video_status(
     video_id: str,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    service = AIVideoCreateService(db, settings)
+    service = AIVideoCreateService(None, settings)
     video = service.get_video(video_id, user_id)
     if not video:
         raise HTTPException(status_code=404, detail='Video job not found')
@@ -1383,7 +1382,13 @@ def get_ai_video_status(
                 timed_out_refunded=True,
             )
 
-    auto_tags, user_tags = AssetTaggingService(db).list_tags(video.id, 'video')
+    auto_tags: list[str] = []
+    user_tags: list[str] = []
+    try:
+        auto_tags, user_tags = AssetTaggingService(None).list_tags(video.id, 'video')
+    except Exception:
+        # Tag storage can be unavailable; do not fail status polling for non-critical metadata.
+        auto_tags, user_tags = [], []
     status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
     if status_value == 'completed':
         mapped_status = 'success'

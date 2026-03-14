@@ -1974,7 +1974,7 @@ export function CreateVideoPage({
             selectedModel={modelKey}
             onChange={(value) => setModelKey(value as VideoModelKey)}
             title={`${selectedLane.label} models`}
-            description={selectedLane.helper}
+            description="Pick a model for this lane."
           />
           <div className="grid gap-2.5 sm:grid-cols-3">
             <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
@@ -1994,7 +1994,7 @@ export function CreateVideoPage({
           </div>
           {laneHasOnlyGatedModels ? (
             <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-              This lane is visible in the studio, but its backend routing is still feature-gated. Switch lanes or enable the missing providers before allowing generation.
+              Models for this lane are in beta and currently marked as coming soon.
             </div>
           ) : null}
         </div>

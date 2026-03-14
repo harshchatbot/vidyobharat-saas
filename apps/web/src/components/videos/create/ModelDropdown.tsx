@@ -22,7 +22,7 @@ export function ModelDropdown({
   selectedModel,
   onChange,
   title = 'Choose your video engine',
-  description = 'Premium story models first, then faster alternates. Resolution, speed, and credit posture are visible before you render.',
+  description = 'Pick the model for this lane.',
 }: {
   models: AIVideoModel[];
   selectedModel: string;
@@ -84,16 +84,20 @@ export function ModelDropdown({
           </div>
 
           {allDisabled ? (
-            <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.58)] p-5 text-left">
-              <p className="text-base font-semibold text-text">This category is visible, but not enabled yet.</p>
-              <p className="mt-2 text-sm text-muted">
-                The lane is ready in the studio for planning, but backend routing is still feature-gated for its models.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+            <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.56)] p-4 text-left">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-text">Models in this lane</p>
+                <Badge variant="outline">Beta</Badge>
+              </div>
+              <div className="space-y-2">
                 {models.map((model) => (
-                  <span key={model.key} className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-1.5 text-xs font-medium text-muted">
-                    {model.shortLabel ?? model.label}
-                  </span>
+                  <div
+                    key={model.key}
+                    className="flex items-center justify-between rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-3 py-2"
+                  >
+                    <span className="text-sm font-medium text-text">{model.shortLabel ?? model.label}</span>
+                    <span className="text-xs text-muted">Coming soon</span>
+                  </div>
                 ))}
               </div>
             </div>
