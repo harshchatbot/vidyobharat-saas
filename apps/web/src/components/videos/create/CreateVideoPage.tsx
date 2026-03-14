@@ -585,7 +585,6 @@ export function CreateVideoPage({
       const cached = JSON.parse(raw) as {
         ts: number;
         videoModels: AIVideoModel[];
-        videoTemplates?: TemplateOption[];
         unifiedVideoTemplates?: UnifiedTemplate[];
         ttsCatalog: {
           voices: TTSVoiceOption[];
@@ -598,10 +597,9 @@ export function CreateVideoPage({
       const warmModels = cached.videoModels?.length ? cached.videoModels : FALLBACK_VIDEO_MODELS;
       setModels(warmModels);
       const warmUnifiedTemplates = cached.unifiedVideoTemplates ?? [];
-      const warmTemplates =
-        cached.videoTemplates && cached.videoTemplates.length > 0
-          ? cached.videoTemplates
-          : (warmUnifiedTemplates.length > 0 ? mergeVideoTemplateOptions(warmUnifiedTemplates) : TEMPLATE_OPTIONS);
+      const warmTemplates = warmUnifiedTemplates.length > 0
+        ? mergeVideoTemplateOptions(warmUnifiedTemplates)
+        : TEMPLATE_OPTIONS;
       setUnifiedVideoTemplates(warmUnifiedTemplates);
       setVideoTemplates(warmTemplates);
       setSelectedTemplate((current) =>
@@ -680,7 +678,6 @@ export function CreateVideoPage({
             JSON.stringify({
               ts: Date.now(),
               videoModels: videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS,
-              videoTemplates: nextTemplates,
               unifiedVideoTemplates: unifiedTemplates,
               ttsCatalog: ttsCatalog
                 ? {
@@ -1927,8 +1924,6 @@ export function CreateVideoPage({
           </div>
         ) : (
           <TemplateSelector
-            search={templateSearch}
-            onSearchChange={setTemplateSearch}
             templates={visibleTemplates}
             selectedTemplate={selectedTemplate}
             onSelect={applyTemplate}

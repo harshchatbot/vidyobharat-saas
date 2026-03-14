@@ -1,6 +1,4 @@
-import { Search } from 'lucide-react';
-
-import { Input } from '@/components/ui/Input';
+import { Film } from 'lucide-react';
 
 import type { TemplateOption } from './constants';
 
@@ -87,14 +85,10 @@ const TEMPLATE_VISUALS: Record<
 };
 
 export function TemplateSelector({
-  search,
-  onSearchChange,
   templates,
   selectedTemplate,
   onSelect,
 }: {
-  search: string;
-  onSearchChange: (value: string) => void;
   templates: TemplateOption[];
   selectedTemplate: string;
   onSelect: (value: string) => void;
@@ -107,27 +101,13 @@ export function TemplateSelector({
     : topTemplates;
 
   return (
-    <div className="space-y-3.5">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
-        <div>
-          <p className="text-sm font-semibold text-text">Content direction</p>
-          <p className="mt-1 text-sm text-muted">Pick a guided workflow or stay on a blank canvas.</p>
-        </div>
-        <label className="block">
-          <span className="mb-1 flex items-center gap-2 text-sm font-semibold text-text">
-            <Search className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-            Search templates
-          </span>
-          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search by category or use case" />
-        </label>
-      </div>
-
-      <p className="text-xs text-muted">Showing top 6 templates. Scroll to browse.</p>
-
+    <div>
       <div className="-mx-1 max-w-full overflow-x-auto overscroll-x-contain px-1 pb-2 [scrollbar-width:thin]">
-        <div className="inline-flex gap-3 snap-x snap-mandatory">
+        <div className="flex w-max gap-3 snap-x snap-mandatory">
         {visibleTemplates.map((template) => {
-          const Icon = template.icon;
+          const Icon = typeof template.icon === 'function' || (typeof template.icon === 'object' && template.icon !== null && '$$typeof' in template.icon)
+            ? template.icon
+            : Film;
           const active = selectedTemplate === template.key;
           const visual = TEMPLATE_VISUALS[template.key] ?? TEMPLATE_VISUALS.custom;
           const image = template.image ?? visual.image;
