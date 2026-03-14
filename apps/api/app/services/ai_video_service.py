@@ -292,18 +292,26 @@ class AIVideoCreateService:
             audio_sample_rate_hz=sample_rate_hz,
         )
         if project_id:
-            self.project_repo.touch_generation(
-                project_id,
-                medium='video',
-                prompt=script,
-                thumbnail_url=seed_image_url,
-                template=template,
-                language=language,
-                voice=voice,
-            )
-        self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=self.tagging.tag_script(script), source='auto')
-        if tags:
-            self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
+            try:
+                self.project_repo.touch_generation(
+                    project_id,
+                    medium='video',
+                    prompt=script,
+                    thumbnail_url=seed_image_url,
+                    template=template,
+                    language=language,
+                    voice=voice,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception('video_project_touch_failed', extra={'project_id': project_id, 'video_id': video.id, 'error': str(exc)})
+        try:
+            auto_tags = self.tagging.tag_script(script)
+            if auto_tags:
+                self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=auto_tags, source='auto')
+            if tags:
+                self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('video_tagging_failed', extra={'video_id': video.id, 'error': str(exc)})
         try:
             async_result = celery_process_ai_video.apply_async(args=[video.id])
             logger.info(

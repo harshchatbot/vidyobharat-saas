@@ -962,9 +962,12 @@ def enhance_script_v2(
 def extract_script_tags_v2(
     payload: ScriptTagsRequest,
     _: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
-    tags = AssetTaggingService(db).tag_script(payload.script)
+    try:
+        tags = AssetTaggingService(None).tag_script(payload.script)
+    except Exception:
+        logger.exception('ai_script_tags_failed')
+        tags = []
     return ScriptResponse(script=payload.script, tags=tags)
 
 
@@ -2570,7 +2573,6 @@ def get_tts_catalog(_: str = Depends(get_user_id)) -> TTSCatalogResponse:
 def generate_tts_preview(
     payload: TTSPreviewRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ) -> TTSPreviewResponse:
     preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
     credit_service = CreditService()
