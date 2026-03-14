@@ -306,10 +306,13 @@ class AIVideoCreateService:
                 logger.exception('video_project_touch_failed', extra={'project_id': project_id, 'video_id': video.id, 'error': str(exc)})
         try:
             auto_tags = self.tagging.tag_script(script)
-            if auto_tags:
-                self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=auto_tags, source='auto')
-            if tags:
-                self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
+            if self.tagging.repo is not None:
+                if auto_tags:
+                    self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=auto_tags, source='auto')
+                if tags:
+                    self.tagging.repo.add_tags(asset_id=video.id, asset_type='video', tags=tags, source='user')
+            else:
+                logger.info('video_tagging_repo_unavailable', extra={'video_id': video.id})
         except Exception as exc:  # noqa: BLE001
             logger.exception('video_tagging_failed', extra={'video_id': video.id, 'error': str(exc)})
         try:

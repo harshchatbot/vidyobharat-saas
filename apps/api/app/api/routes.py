@@ -1354,16 +1354,36 @@ def get_ai_video_status(
     if not video:
         raise HTTPException(status_code=404, detail='Video job not found')
 
-    # Guardrail: prevent jobs from staying "queued/processing" forever if the worker
-    # is unavailable or provider polling stalls.
+    # Guardrail: prevent jobs from staying queued/processing forever.
+    # Use created_at for queue starvation and updated_at for processing stalls.
+    MAX_DRAFT_AGE_SECONDS = 5 * 60
+    MAX_PROCESSING_STALE_SECONDS = 12 * 60
     status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
     if status_value in {'draft', 'processing'}:
         created_at = getattr(video, 'created_at', None)
+        updated_at = getattr(video, 'updated_at', None) or created_at
         now = datetime.now(UTC)
         if created_at and getattr(created_at, 'tzinfo', None) is None:
             created_at = created_at.replace(tzinfo=UTC)
-        age_seconds = int((now - created_at).total_seconds()) if created_at else 0
-        if age_seconds > 20 * 60:
+        if updated_at and getattr(updated_at, 'tzinfo', None) is None:
+            updated_at = updated_at.replace(tzinfo=UTC)
+        draft_age_seconds = int((now - created_at).total_seconds()) if created_at else 0
+        processing_stale_seconds = int((now - updated_at).total_seconds()) if updated_at else 0
+        should_timeout = (
+            (status_value == 'draft' and draft_age_seconds > MAX_DRAFT_AGE_SECONDS)
+            or (status_value == 'processing' and processing_stale_seconds > MAX_PROCESSING_STALE_SECONDS)
+        )
+        if should_timeout:
+            logger.warning(
+                'ai_video_status_stale_timeout',
+                extra={
+                    'request_id': get_request_id(),
+                    'render_id': video_id,
+                    'status': status_value,
+                    'draft_age_seconds': draft_age_seconds,
+                    'processing_stale_seconds': processing_stale_seconds,
+                },
+            )
             raw = service.repo.collection.document(video_id).get()
             raw_data = raw.to_dict() or {}
             if not bool(raw_data.get('timed_out_refunded', False)):
