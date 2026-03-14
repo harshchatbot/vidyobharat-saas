@@ -845,7 +845,11 @@ def generate_script_v2(
             template=payload.template,
             language=payload.language,
         )
-    tags = AssetTaggingService(db).tag_script(script_text)
+    try:
+        tags = AssetTaggingService(db).tag_script(script_text)
+    except Exception:
+        logger.exception('ai_script_generate_tagging_failed')
+        tags = []
     return ScriptResponse(script=script_text, tags=tags)
 
 
@@ -948,7 +952,11 @@ def enhance_script_v2(
                 status_code=402,
                 detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
             ) from exc
-    tags = AssetTaggingService(db).tag_script(script_text)
+    try:
+        tags = AssetTaggingService(db).tag_script(script_text)
+    except Exception:
+        logger.exception('ai_script_enhance_tagging_failed')
+        tags = []
     return ScriptResponse(script=script_text, tags=tags)
 
 
