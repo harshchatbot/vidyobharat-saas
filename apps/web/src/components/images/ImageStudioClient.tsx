@@ -470,8 +470,15 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [generatedFetchLimit, setGeneratedFetchLimit] = useState(IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
   const [loadingMoreGenerated, setLoadingMoreGenerated] = useState(false);
   const [hasMoreGenerated, setHasMoreGenerated] = useState(false);
-  const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
+  const { wallet, refreshing: creditsRefreshing, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
+
+  const reportUiError = (title: string, error: unknown, fallback: string) => {
+    const message = toErrorMessage(error, fallback);
+    setError(message);
+    show({ title, message, variant: 'error', durationMs: 5200 });
+    return message;
+  };
 
   const applyGeneratedFilters = (
     items: GeneratedImage[],
@@ -654,7 +661,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       show(`${project.title} created for this image workflow.`);
       return project.id;
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not create a project right now.'));
+      reportUiError('Project unavailable', error, 'Could not create a project right now.');
       return null;
     } finally {
       setProjectCreating(false);
@@ -700,7 +707,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
     if (estimateErrorShown === estimateError) return;
     setEstimateErrorShown(estimateError);
-    show('Could not estimate credits right now.');
+    show({ title: 'Estimate unavailable', message: estimateError, variant: 'error', durationMs: 4200 });
   }, [estimateError, estimateErrorShown, show]);
 
   useEffect(() => {
@@ -800,7 +807,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
-      setError(toErrorMessage(error, 'Failed to generate image. Please try again.'));
+      reportUiError('Image generation failed', error, 'Failed to generate image. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -822,7 +829,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       const response = await api.enhanceImagePrompt({ prompt: trimmedPrompt, model_key: selectedModel }, userId);
       setPrompt(response.prompt);
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not enhance the prompt right now.'));
+      reportUiError('Prompt enhancement failed', error, 'Could not enhance the prompt right now.');
     } finally {
       setEnhancing(false);
     }
@@ -871,7 +878,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       }
       setReferenceUploads((current) => [...current, ...nextUploads].slice(0, 4));
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not upload reference image right now.'));
+      reportUiError('Reference upload failed', error, 'Could not upload reference image right now.');
     } finally {
       setUploadingReference(false);
     }
@@ -896,7 +903,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       link.click();
       link.remove();
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not download image right now.'));
+      reportUiError('Download failed', error, 'Could not download image right now.');
     }
   };
 
@@ -913,7 +920,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not complete that action right now.'));
+      reportUiError('Image action failed', error, 'Could not complete that action right now.');
     } finally {
       setActionLoading(null);
     }
@@ -943,7 +950,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       const items = await refreshGeneratedFeed(generatedFetchLimit);
       await refreshTagFacets(items);
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not update tags right now.'));
+      reportUiError('Tag update failed', error, 'Could not update tags right now.');
     }
   };
 
@@ -987,7 +994,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         setInspiration(refreshedInspiration);
       }
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not update publish status.'));
+      reportUiError('Publish update failed', error, 'Could not update publish status.');
     } finally {
       setPublishingId(null);
     }
@@ -1021,7 +1028,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       setProjectAssignmentTarget(null);
       show('Image attached to project.');
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not update project assignment right now.'));
+      reportUiError('Project assignment failed', error, 'Could not update project assignment right now.');
     } finally {
       setAssigningProjectId(null);
     }
@@ -1042,7 +1049,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         current && current.id === item.id ? { ...current, liked_by_user: result.liked, like_count: result.like_count } : current,
       );
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not update like status.'));
+      reportUiError('Like update failed', error, 'Could not update like status.');
     } finally {
       setLikingId(null);
     }
@@ -1061,7 +1068,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       );
       setGeneratedFetchLimit(nextLimit);
     } catch (error) {
-      setError(toErrorMessage(error, 'Could not load more images right now.'));
+      reportUiError('Load more failed', error, 'Could not load more images right now.');
     } finally {
       setLoadingMoreGenerated(false);
     }
@@ -1463,6 +1470,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-text">{activeImageMode.label}</p>
                     <Badge>{wallet?.currentCredits ?? 0} credits left</Badge>
+                    {creditsRefreshing ? <span className="text-[11px] text-muted">Refreshing…</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted">
                     {composerMode === 'variation'

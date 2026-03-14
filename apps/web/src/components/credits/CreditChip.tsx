@@ -6,7 +6,7 @@ import { AlertTriangle, Coins, Wallet } from 'lucide-react';
 import { useCredits } from '@/components/credits/CreditContext';
 
 export function CreditChip() {
-  const { wallet, loading } = useCredits();
+  const { wallet, loading, refreshing } = useCredits();
   const low = (wallet?.currentCredits ?? 0) < 10;
 
   return (
@@ -20,11 +20,13 @@ export function CreditChip() {
       >
         {low ? <AlertTriangle className="h-4 w-4" /> : <Coins className="h-4 w-4 text-[hsl(var(--color-accent))]" />}
         {loading ? 'Loading credits…' : `${wallet?.currentCredits ?? 0} credits`}
+        {!loading && refreshing ? <span className="text-[11px] font-medium text-muted">Refreshing…</span> : null}
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-72 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-hard">
         <div className="flex items-center gap-2">
           <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
           <p className="text-sm font-semibold text-text">Credit wallet</p>
+          {refreshing ? <span className="text-[11px] text-muted">Refreshing…</span> : null}
         </div>
         {wallet ? (
           <>

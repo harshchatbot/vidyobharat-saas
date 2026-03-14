@@ -9,7 +9,6 @@ import logging
 
 from app.core.config import get_settings
 from app.db.repositories.user_repository import UserRepository
-from app.services.credit_service import CreditService
 from app.services.firestore_sync_service import FirestoreSyncService
 
 
@@ -109,8 +108,6 @@ async def get_user_id(
                 avatar_url=_derive_avatar_url(claims),
             )
             FirestoreSyncService().sync_user(user)
-            wallet = CreditService().ensure_wallet(user.id)
-            FirestoreSyncService().sync_wallet(wallet)
             request.state.user_claims = claims
             return user.id
         except HTTPException as exc:
@@ -131,8 +128,6 @@ async def get_user_id(
             avatar_url=None,
         )
         FirestoreSyncService().sync_user(user)
-        wallet = CreditService().ensure_wallet(user.id)
-        FirestoreSyncService().sync_wallet(wallet)
         return user.id
 
     raise HTTPException(status_code=401, detail='Authentication required')

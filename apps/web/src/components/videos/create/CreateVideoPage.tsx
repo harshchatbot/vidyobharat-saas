@@ -307,7 +307,7 @@ export function CreateVideoPage({
   const [jobResponseId, setJobResponseId] = useState<string | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [publishingVideoId, setPublishingVideoId] = useState<string | null>(null);
-  const { wallet: creditWallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
+  const { wallet: creditWallet, refreshing: creditsRefreshing, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
   const estimateErrorShownRef = useRef<string | null>(null);
 
@@ -1339,7 +1339,9 @@ export function CreateVideoPage({
         setTitle(effectiveTopic);
       }
     } catch (error) {
-      setScriptError(error instanceof Error ? error.message : 'Failed to generate script.');
+      const message = error instanceof Error ? error.message : 'Failed to generate script.';
+      setScriptError(message);
+      show({ title: 'Script generation failed', message, variant: 'error', durationMs: 5200 });
     } finally {
       setScriptLoading(false);
     }
@@ -1368,7 +1370,9 @@ export function CreateVideoPage({
       setScriptTags(result.tags);
       if (topic.trim()) setTitle(topic.trim());
     } catch (error) {
-      setScriptError(error instanceof Error ? error.message : 'Failed to enhance script.');
+      const message = error instanceof Error ? error.message : 'Failed to enhance script.';
+      setScriptError(message);
+      show({ title: 'Script enhancement failed', message, variant: 'error', durationMs: 5200 });
     } finally {
       setScriptLoading(false);
     }
@@ -1491,7 +1495,7 @@ export function CreateVideoPage({
       setVoicePreviewError(message);
       setVoicePreviewLimit('20 uncached previews / 10 min · 280 chars max');
       setVoicePreviewing(false);
-      show(message);
+      show({ title: 'Voice preview failed', message, variant: 'error', durationMs: 5200 });
     } finally {
       setVoicePreviewLoadingKey(null);
     }
@@ -1530,7 +1534,9 @@ export function CreateVideoPage({
         setVoicePreviewMessage(unchangedMessage);
       }
     } catch (error) {
-      setVoicePreviewError(error instanceof Error ? error.message : 'Preview text translation failed.');
+      const message = error instanceof Error ? error.message : 'Preview text translation failed.';
+      setVoicePreviewError(message);
+      show({ title: 'Preview text translation failed', message, variant: 'error', durationMs: 5200 });
       setLanguage(previousLanguage);
     } finally {
       setVoiceTranslationLoading(false);
@@ -1790,6 +1796,7 @@ export function CreateVideoPage({
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
               <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
               {creditWallet.currentCredits} credits available
+              {creditsRefreshing ? <span className="text-[11px] font-medium text-muted">Refreshing…</span> : null}
             </div>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-2">

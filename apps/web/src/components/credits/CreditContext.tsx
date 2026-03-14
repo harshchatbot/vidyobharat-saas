@@ -10,6 +10,7 @@ import type { CreditWallet } from '@/types/api';
 type CreditContextValue = {
   wallet: CreditWallet | null;
   loading: boolean;
+  refreshing: boolean;
   refresh: () => Promise<void>;
   applyWallet: (wallet: CreditWallet) => void;
   openLowBalanceModal: (requiredCredits?: number) => void;
@@ -25,15 +26,30 @@ export function CreditProvider({
 }: PropsWithChildren<{
   userId: string | null;
 }>) {
+  const cacheKey = userId ? `rangmanch:credit-wallet:${userId}` : null;
+  const readWalletCache = (): CreditWallet | null => {
+    if (!cacheKey || typeof window === 'undefined') return null;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts?: number; wallet?: CreditWallet };
+      if (!parsed.ts || !parsed.wallet) return null;
+      if (Date.now() - parsed.ts > WALLET_CACHE_TTL_MS) return null;
+      return parsed.wallet;
+    } catch {
+      return null;
+    }
+  };
+
   const { show } = useToast();
-  const [wallet, setWallet] = useState<CreditWallet | null>(null);
-  const [loading, setLoading] = useState(Boolean(userId));
+  const [wallet, setWallet] = useState<CreditWallet | null>(() => readWalletCache());
+  const [loading, setLoading] = useState(() => Boolean(userId) && !readWalletCache());
+  const [refreshing, setRefreshing] = useState(false);
   const [lowBalanceOpen, setLowBalanceOpen] = useState(false);
   const [requiredCredits, setRequiredCredits] = useState<number | undefined>(undefined);
   const inFlightRef = useRef<Promise<CreditWallet | null> | null>(null);
   const lastFetchedAtRef = useRef<number>(0);
   const walletErrorShownRef = useRef<string | null>(null);
-  const cacheKey = userId ? `rangmanch:credit-wallet:${userId}` : null;
 
   const persistWalletCache = (nextWallet: CreditWallet) => {
     if (!cacheKey || typeof window === 'undefined') return;
@@ -47,20 +63,6 @@ export function CreditProvider({
       );
     } catch {
       // ignore storage write issues
-    }
-  };
-
-  const readWalletCache = (): CreditWallet | null => {
-    if (!cacheKey || typeof window === 'undefined') return null;
-    try {
-      const raw = window.sessionStorage.getItem(cacheKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { ts?: number; wallet?: CreditWallet };
-      if (!parsed.ts || !parsed.wallet) return null;
-      if (Date.now() - parsed.ts > WALLET_CACHE_TTL_MS) return null;
-      return parsed.wallet;
-    } catch {
-      return null;
     }
   };
 
@@ -83,6 +85,7 @@ export function CreditProvider({
     }
 
     if (!silent) setLoading(true);
+    if (silent) setRefreshing(true);
 
     const request = (async () => {
       const nextWallet = await api.getCreditWallet(userId);
@@ -99,11 +102,12 @@ export function CreditProvider({
       const message = error instanceof Error ? error.message : 'Unable to load wallet balance.';
       if (walletErrorShownRef.current !== message) {
         walletErrorShownRef.current = message;
-        show('Unable to load wallet balance.');
+        show({ title: 'Wallet unavailable', message, variant: 'error', durationMs: 4200 });
       }
       return wallet;
     } finally {
       inFlightRef.current = null;
+      setRefreshing(false);
       if (!silent) setLoading(false);
     }
   };
@@ -111,6 +115,15 @@ export function CreditProvider({
   const refresh = async () => {
     await refreshInternal(false, true);
   };
+
+  useEffect(() => {
+    const cached = readWalletCache();
+    setWallet(cached);
+    setLoading(Boolean(userId) && !cached);
+    if (cached) {
+      lastFetchedAtRef.current = Date.now();
+    }
+  }, [userId]);
 
   useEffect(() => {
     const cached = readWalletCache();
@@ -133,6 +146,7 @@ export function CreditProvider({
     () => ({
       wallet,
       loading,
+      refreshing,
       refresh,
       applyWallet: (nextWallet: CreditWallet) => {
         setWallet(nextWallet);
@@ -144,7 +158,7 @@ export function CreditProvider({
         setLowBalanceOpen(true);
       },
     }),
-    [wallet, loading],
+    [wallet, loading, refreshing],
   );
 
   return (
