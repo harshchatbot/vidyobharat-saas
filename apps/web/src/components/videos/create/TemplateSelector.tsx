@@ -125,7 +125,7 @@ export function TemplateSelector({
       <p className="text-xs text-muted">Showing top 6 templates. Scroll to browse.</p>
 
       <div className="-mx-1 max-w-full overflow-x-auto overscroll-x-contain px-1 pb-2 [scrollbar-width:thin]">
-        <div className="flex min-w-full gap-3 snap-x snap-mandatory">
+        <div className="inline-flex gap-3 snap-x snap-mandatory">
         {visibleTemplates.map((template) => {
           const Icon = template.icon;
           const active = selectedTemplate === template.key;

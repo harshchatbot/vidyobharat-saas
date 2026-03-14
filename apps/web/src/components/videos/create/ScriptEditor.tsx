@@ -51,7 +51,7 @@ export function ScriptEditor({
   return (
     <div className="space-y-3">
       <div className="rounded-[24px] border border-border bg-[hsl(var(--color-bg)/0.72)] px-4 py-4 shadow-[var(--shadow-soft)]">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Topic</span>
             <Input
@@ -62,7 +62,7 @@ export function ScriptEditor({
               className="bg-[hsl(var(--color-surface)/0.3)]"
             />
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 2xl:justify-end">
             <Button type="button" onClick={onGenerate} disabled={loading} className="gap-2 rounded-full px-4 py-2 text-xs">
               {loading ? <Spinner /> : <Wand2 className="h-4 w-4" />}
               {loading ? 'Working...' : generateLabel}
