@@ -779,7 +779,6 @@ def update_my_settings(
 def generate_script_v2(
     payload: ScriptGenerateRequest,
     _: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     prompt = (
         'Write a high-quality short-form video script in plain text only.\n'
@@ -846,7 +845,7 @@ def generate_script_v2(
             language=payload.language,
         )
     try:
-        tags = AssetTaggingService(db).tag_script(script_text)
+        tags = AssetTaggingService(None).tag_script(script_text)
     except Exception:
         logger.exception('ai_script_generate_tagging_failed')
         tags = []
@@ -857,7 +856,6 @@ def generate_script_v2(
 def enhance_script_v2(
     payload: ScriptEnhanceRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     credit_service = CreditService()
     estimate = credit_service.estimate('script_enhance', {})
@@ -953,7 +951,7 @@ def enhance_script_v2(
                 detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
             ) from exc
     try:
-        tags = AssetTaggingService(db).tag_script(script_text)
+        tags = AssetTaggingService(None).tag_script(script_text)
     except Exception:
         logger.exception('ai_script_enhance_tagging_failed')
         tags = []
