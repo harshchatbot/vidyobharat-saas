@@ -28,6 +28,10 @@ export function VideoPreview({
   const videoUrl = toAbsoluteUrl(job?.output_url);
   const thumbnailUrl = toAbsoluteUrl(job?.thumbnail_url);
   const isProcessing = job && job.status !== 'completed' && job.status !== 'failed';
+  const isPortrait = (job?.aspect_ratio || '').trim() === '9:16';
+  const frameWidthClass = isPortrait
+    ? 'max-w-[260px] sm:max-w-[300px]'
+    : 'max-w-[430px] sm:max-w-[500px]';
   const allTags = [...(job?.auto_tags ?? []), ...(job?.user_tags ?? [])];
 
   const downloadVideo = async () => {
@@ -89,8 +93,13 @@ export function VideoPreview({
 
       {videoUrl ? (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-[28px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)]">
-            <video src={videoUrl} poster={thumbnailUrl ?? undefined} controls className="w-full bg-black" />
+          <div className={`mx-auto overflow-hidden rounded-[22px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)] ${frameWidthClass}`}>
+            <video
+              src={videoUrl}
+              poster={thumbnailUrl ?? undefined}
+              controls
+              className="max-h-[56vh] w-full bg-black object-contain"
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">

@@ -221,8 +221,9 @@ export function CreateVideoPage({
 
   const [templateSearch, setTemplateSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.key);
-  const [videoTemplates, setVideoTemplates] = useState<TemplateOption[]>(TEMPLATE_OPTIONS);
+  const [videoTemplates, setVideoTemplates] = useState<TemplateOption[]>([]);
   const [unifiedVideoTemplates, setUnifiedVideoTemplates] = useState<UnifiedTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
@@ -584,6 +585,8 @@ export function CreateVideoPage({
       const cached = JSON.parse(raw) as {
         ts: number;
         videoModels: AIVideoModel[];
+        videoTemplates?: TemplateOption[];
+        unifiedVideoTemplates?: UnifiedTemplate[];
         ttsCatalog: {
           voices: TTSVoiceOption[];
           languages: TTSLanguageOption[];
@@ -594,6 +597,19 @@ export function CreateVideoPage({
       if (!cached.ts || Date.now() - cached.ts > VIDEO_STUDIO_CACHE_TTL_MS) return;
       const warmModels = cached.videoModels?.length ? cached.videoModels : FALLBACK_VIDEO_MODELS;
       setModels(warmModels);
+      const warmUnifiedTemplates = cached.unifiedVideoTemplates ?? [];
+      const warmTemplates =
+        cached.videoTemplates && cached.videoTemplates.length > 0
+          ? cached.videoTemplates
+          : (warmUnifiedTemplates.length > 0 ? mergeVideoTemplateOptions(warmUnifiedTemplates) : TEMPLATE_OPTIONS);
+      setUnifiedVideoTemplates(warmUnifiedTemplates);
+      setVideoTemplates(warmTemplates);
+      setSelectedTemplate((current) =>
+        warmTemplates.some((item) => item.key === current)
+          ? current
+          : (warmTemplates[0]?.key ?? 'custom'),
+      );
+      setTemplatesLoading(false);
       if (cached.ttsCatalog) {
         setLanguageOptions(cached.ttsCatalog.languages.length > 0 ? cached.ttsCatalog.languages : LANGUAGE_OPTIONS);
         setVoiceOptions(cached.ttsCatalog.voices.length > 0 ? cached.ttsCatalog.voices : VOICE_OPTIONS);
@@ -617,6 +633,7 @@ export function CreateVideoPage({
     let cancelled = false;
     const hasWarmCache = typeof window !== 'undefined' && Boolean(window.sessionStorage.getItem(cacheKey));
     setModelsLoading(!hasWarmCache);
+    setTemplatesLoading(!hasWarmCache);
     setProjectsLoading(true);
     setInitialLoading(!hasWarmCache);
     void Promise.all([
@@ -663,6 +680,8 @@ export function CreateVideoPage({
             JSON.stringify({
               ts: Date.now(),
               videoModels: videoModels.length > 0 ? videoModels : FALLBACK_VIDEO_MODELS,
+              videoTemplates: nextTemplates,
+              unifiedVideoTemplates: unifiedTemplates,
               ttsCatalog: ttsCatalog
                 ? {
                     voices: ttsCatalog.voices.length > 0 ? ttsCatalog.voices : VOICE_OPTIONS,
@@ -680,6 +699,7 @@ export function CreateVideoPage({
     }).finally(() => {
       if (!cancelled) {
         setModelsLoading(false);
+        setTemplatesLoading(false);
         setProjectsLoading(false);
         setInitialLoading(false);
       }
@@ -1901,13 +1921,19 @@ export function CreateVideoPage({
         description="Pick a guided workflow or start from scratch."
         icon={<Film className="h-5 w-5" />}
       >
-        <TemplateSelector
-          search={templateSearch}
-          onSearchChange={setTemplateSearch}
-          templates={visibleTemplates}
-          selectedTemplate={selectedTemplate}
-          onSelect={applyTemplate}
-        />
+        {templatesLoading ? (
+          <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] px-4 py-3 text-sm text-muted">
+            Loading templates...
+          </div>
+        ) : (
+          <TemplateSelector
+            search={templateSearch}
+            onSearchChange={setTemplateSearch}
+            templates={visibleTemplates}
+            selectedTemplate={selectedTemplate}
+            onSelect={applyTemplate}
+          />
+        )}
           </SectionCard>
 
           <SectionCard

@@ -1142,7 +1142,10 @@ def celery_process_ai_video(video_id: str) -> None:
         )
         refreshed = repo.get_by_id(video_id)
         if refreshed:
-            service.tagging.auto_tag_video(refreshed)
+            if service.tagging.repo is not None:
+                service.tagging.auto_tag_video(refreshed)
+            else:
+                logger.info('video_auto_tag_repo_unavailable', extra={'render_id': video_id})
     except Exception as exc:
         logger.exception(
             'local_video_completion_failed',

@@ -18,6 +18,7 @@ from app.schemas.template_management import (
     TemplateGenerateRequest,
     TemplateGenerateResponse,
     TemplatePreviewResponse,
+    TemplateRecommendedModel,
     TemplateUpsertRequest,
     UnifiedTemplateResponse,
 )
@@ -228,16 +229,19 @@ class TemplateManagementService:
             raw_inputs=payload.inputs,
             prompt_override=payload.prompt_override,
         )
+        recommended_model_payload = get_recommended_model_display(assembly.recommended_model_mode) or {}
+        if isinstance(recommended_model_payload, TemplateRecommendedModel):
+            recommended_model = recommended_model_payload
+        elif isinstance(recommended_model_payload, dict):
+            recommended_model = TemplateRecommendedModel(**recommended_model_payload)
+        else:
+            recommended_model = TemplateRecommendedModel()
         return TemplatePreviewResponse(
-            templateId=template.id,
-            contentType=template.type,
-            title=template.title,
-            prompt=assembly.master_prompt,
-            imagePrompt=assembly.image_prompt,
-            videoPrompt=assembly.video_prompt,
-            scriptPreview=assembly.script_preview,
-            recommendedModel=get_recommended_model_display(assembly.recommended_model_mode),
-            recommendedModelMode=assembly.recommended_model_mode,
+            template_id=template.id,
+            content_type=template.type,
+            prompt_preview=(assembly.master_prompt or '').strip(),
+            script_preview=assembly.script_preview,
+            recommended_model=recommended_model,
         )
 
     def _generate_image_from_template(

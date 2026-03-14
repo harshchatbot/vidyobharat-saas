@@ -99,6 +99,8 @@ export function TemplateSelector({
   selectedTemplate: string;
   onSelect: (value: string) => void;
 }) {
+  const visibleTemplates = templates.slice(0, 6);
+
   return (
     <div className="space-y-3.5">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
@@ -115,9 +117,11 @@ export function TemplateSelector({
         </label>
       </div>
 
-      <div className="-mx-1 overflow-x-auto px-1 pb-1 xl:mx-0 xl:px-0 xl:overflow-visible">
-        <div className="flex gap-3 xl:grid xl:grid-cols-3">
-        {templates.map((template) => {
+      <p className="text-xs text-muted">Showing top 6 templates. Scroll to browse.</p>
+
+      <div className="-mx-1 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+        <div className="flex w-max gap-3">
+        {visibleTemplates.map((template) => {
           const Icon = template.icon;
           const active = selectedTemplate === template.key;
           const visual = TEMPLATE_VISUALS[template.key] ?? TEMPLATE_VISUALS.custom;
@@ -129,7 +133,7 @@ export function TemplateSelector({
               key={template.key}
               type="button"
               onClick={() => onSelect(template.key)}
-              className={`group w-[270px] shrink-0 overflow-hidden rounded-[24px] border text-left transition xl:w-auto ${
+              className={`group w-[250px] shrink-0 overflow-hidden rounded-[24px] border text-left transition sm:w-[260px] ${
                 active
                   ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
                   : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft'
