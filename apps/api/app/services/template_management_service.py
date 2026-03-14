@@ -685,6 +685,14 @@ class TemplateManagementService:
         recommended = get_recommended_model_mode(str(mode))
         if not recommended:
             return None
+        if isinstance(recommended, dict):
+            return {
+                'mode': mode,
+                'label': recommended.get('label'),
+                'description': recommended.get('description'),
+                'group': recommended.get('group'),
+                'internal_model_key': recommended.get('internal_model_key'),
+            }
         return {
             'mode': mode,
             'label': recommended.label,
@@ -697,4 +705,9 @@ class TemplateManagementService:
         if not mode:
             return None
         recommended = get_recommended_model_mode(mode)
-        return recommended.internal_model_key if recommended else None
+        if not recommended:
+            return None
+        if isinstance(recommended, dict):
+            value = recommended.get('internal_model_key')
+            return str(value) if value else None
+        return recommended.internal_model_key
