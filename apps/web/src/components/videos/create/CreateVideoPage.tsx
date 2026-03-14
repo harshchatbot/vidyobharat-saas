@@ -449,7 +449,7 @@ export function CreateVideoPage({
     '';
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
   const estimatedInr = estimateInrFromCredits(creditEstimate?.estimatedCredits ?? 0);
-  const laneHasOnlyGatedModels = visibleModels.length > 0 && visibleModels.every((model) => model.enabled === false);
+  const laneHasOnlyGatedModels = laneModels.length > 0 && laneModels.every((model) => model.enabled === false);
   const handleVideoLaneChange = (nextLane: VideoLaneKey) => {
     setVideoLane(nextLane);
     const nextLaneModels = models.filter((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === nextLane);
@@ -464,7 +464,7 @@ export function CreateVideoPage({
   };
 
   useEffect(() => {
-    if (!laneHasOnlyGatedModels) return;
+    if (laneModels.length > 0) return;
     const fallbackLane = VIDEO_LANES.find((laneOption) =>
       models.some((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === laneOption.key && model.enabled !== false),
     );
@@ -476,7 +476,7 @@ export function CreateVideoPage({
     if (fallbackModel && fallbackModel.key !== modelKey) {
       setModelKey(fallbackModel.key as VideoModelKey);
     }
-  }, [laneHasOnlyGatedModels, modelKey, models, sharedModelMap, videoLane]);
+  }, [laneModels.length, modelKey, models, sharedModelMap, videoLane]);
   const durationError =
     durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined
       ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)

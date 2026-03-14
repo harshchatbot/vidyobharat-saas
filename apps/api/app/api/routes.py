@@ -1181,7 +1181,6 @@ def list_ai_video_models(_: str = Depends(get_user_id)):
 def create_ai_video(
     payload: AIVideoCreateRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db),
 ):
     deduction_amount = 0
     error_stage = 'init'
@@ -1226,7 +1225,7 @@ def create_ai_video(
             )
             remaining_credits = deduction.wallet.current_credits
         error_stage = 'create_video_record'
-        service = AIVideoCreateService(db, settings)
+        service = AIVideoCreateService(None, settings)
         video = service.create_video(
             user_id=user_id,
             template=payload.template,
