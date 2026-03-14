@@ -112,7 +112,7 @@ from app.services.project_service import ProjectService
 from app.services.render_service import RenderService
 from app.services.template_service import TemplateService
 from app.services.template_management_service import TemplateManagementService
-from app.services.ai_video_service import AIVideoCreateService, ProviderError
+from app.services.ai_video_service import AIVideoCreateService, ProviderError, _launch_local_video_job
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
@@ -1356,6 +1356,7 @@ def get_ai_video_status(
 
     # Guardrail: prevent jobs from staying queued/processing forever.
     # Use created_at for queue starvation and updated_at for processing stalls.
+    DRAFT_LOCAL_RECOVERY_SECONDS = 90
     MAX_DRAFT_AGE_SECONDS = 5 * 60
     MAX_PROCESSING_STALE_SECONDS = 12 * 60
     status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
@@ -1369,6 +1370,41 @@ def get_ai_video_status(
             updated_at = updated_at.replace(tzinfo=UTC)
         draft_age_seconds = int((now - created_at).total_seconds()) if created_at else 0
         processing_stale_seconds = int((now - updated_at).total_seconds()) if updated_at else 0
+        if status_value == 'draft' and draft_age_seconds > DRAFT_LOCAL_RECOVERY_SECONDS:
+            raw = service.repo.collection.document(video_id).get()
+            raw_data = raw.to_dict() or {}
+            if not bool(raw_data.get('local_runner_kicked', False)):
+                try:
+                    logger.warning(
+                        'ai_video_queue_stall_recovery',
+                        extra={
+                            'request_id': get_request_id(),
+                            'render_id': video_id,
+                            'draft_age_seconds': draft_age_seconds,
+                        },
+                    )
+                    service.repo.update(
+                        video,
+                        status='processing',
+                        progress=max(int(video.progress or 0), 15),
+                        error_message=None,
+                        local_runner_kicked=True,
+                        local_runner_kicked_at=now,
+                    )
+                    _launch_local_video_job(video_id)
+                    refreshed = service.get_video(video_id, user_id)
+                    if refreshed is not None:
+                        video = refreshed
+                        status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
+                        updated_at = getattr(video, 'updated_at', None) or created_at
+                        if updated_at and getattr(updated_at, 'tzinfo', None) is None:
+                            updated_at = updated_at.replace(tzinfo=UTC)
+                        processing_stale_seconds = int((now - updated_at).total_seconds()) if updated_at else 0
+                except Exception:
+                    logger.exception(
+                        'ai_video_queue_stall_recovery_failed',
+                        extra={'request_id': get_request_id(), 'render_id': video_id},
+                    )
         should_timeout = (
             (status_value == 'draft' and draft_age_seconds > MAX_DRAFT_AGE_SECONDS)
             or (status_value == 'processing' and processing_stale_seconds > MAX_PROCESSING_STALE_SECONDS)
@@ -1389,10 +1425,15 @@ def get_ai_video_status(
             if not bool(raw_data.get('timed_out_refunded', False)):
                 charged_credits = int(raw_data.get('applied_credits') or 0)
                 if charged_credits > 0:
-                    CreditService().top_up_credits(
+                    credit_service = CreditService()
+                    credit_service.top_up_credits(
                         user_id=user_id,
                         credits=charged_credits,
                         metadata={'refund_for': 'video_create_timed_out', 'video_id': video_id},
+                        idempotency_key=credit_service.make_idempotency_key(
+                            'video_refund',
+                            {'video_id': video_id},
+                        ),
                     )
             video = service.repo.update(
                 video,

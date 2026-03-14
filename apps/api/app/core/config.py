@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     openai_model: str = 'gpt-4.1-mini'
     openai_image_model: str = 'gpt-image-1'
     openai_video_model: str = 'sora-2'
+    openai_video_timeout_seconds: int = 1200
+    openai_video_poll_interval_seconds: int = 5
     sarvam_api_key: str | None = None
     sarvam_model: str = 'bulbul:v3'
     kling_api_key: str | None = None

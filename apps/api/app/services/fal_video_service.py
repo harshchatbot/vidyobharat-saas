@@ -56,11 +56,39 @@ class FalVideoService:
                     raise RuntimeError(f'fal status failed ({status_response.status_code}): {status_response.text[:240]}')
                 last = status_response.json()
                 state = str(last.get('status') or last.get('state') or '').lower()
+                direct_video_url = self._extract_video_url(last)
+                if direct_video_url:
+                    return direct_video_url, {'raw': last, 'mode': 'async'}
                 if state in {'completed', 'succeeded', 'success', 'done'}:
                     video_url = self._extract_video_url(last)
-                    if not video_url:
+                    if video_url:
+                        return video_url, {'raw': last, 'mode': 'async'}
+                    # Some fal endpoints keep status payload minimal and expose output via response_url.
+                    # Fetch that payload before declaring failure.
+                    response_url = last.get('response_url') or data.get('response_url')
+                    if isinstance(response_url, str) and response_url.strip():
+                        response_payload = client.get(response_url, headers=headers)
+                        if response_payload.status_code >= 400:
+                            raise RuntimeError(
+                                f'fal response payload failed ({response_payload.status_code}): {response_payload.text[:240]}'
+                            )
+                        response_data = response_payload.json()
+                        video_url = self._extract_video_url(response_data)
+                        if video_url:
+                            return video_url, {'raw': response_data, 'mode': 'async_response_url'}
+                        logger.error(
+                            'fal_completed_missing_video_url',
+                            extra={
+                                'status_keys': sorted([str(k) for k in last.keys()]),
+                                'response_keys': sorted([str(k) for k in response_data.keys()]),
+                            },
+                        )
                         raise RuntimeError('fal completed without output video url')
-                    return video_url, {'raw': last, 'mode': 'async'}
+                    logger.error(
+                        'fal_completed_missing_video_url',
+                        extra={'status_keys': sorted([str(k) for k in last.keys()])},
+                    )
+                    raise RuntimeError('fal completed without output video url')
                 if state in {'failed', 'error', 'cancelled', 'canceled'}:
                     raise RuntimeError(f'fal generation failed: {last}')
                 time.sleep(5)
@@ -91,4 +119,44 @@ class FalVideoService:
                 value = output.get(key)
                 if isinstance(value, str) and value.strip():
                     return value.strip()
+        if isinstance(output, list):
+            for item in output:
+                if isinstance(item, dict):
+                    for key in ('url', 'video_url', 'mp4_url'):
+                        value = item.get(key)
+                        if isinstance(value, str) and value.strip():
+                            return value.strip()
+                elif isinstance(item, str) and item.strip().startswith('http'):
+                    return item.strip()
+
+        # Final fallback: recursively inspect nested payload for likely video URLs.
+        nested = self._find_url_recursive(payload)
+        if nested:
+            return nested
+        return None
+
+    def _find_url_recursive(self, node: Any, *, depth: int = 0) -> str | None:
+        if depth > 5:
+            return None
+        if isinstance(node, str):
+            value = node.strip()
+            if value.startswith('http') and ('.mp4' in value.lower() or '/video' in value.lower()):
+                return value
+            return None
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key.lower() in {'url', 'video_url', 'mp4_url', 'file_url', 'download_url'} and isinstance(value, str):
+                    candidate = value.strip()
+                    if candidate.startswith('http'):
+                        return candidate
+                nested = self._find_url_recursive(value, depth=depth + 1)
+                if nested:
+                    return nested
+            return None
+        if isinstance(node, list):
+            for item in node:
+                nested = self._find_url_recursive(item, depth=depth + 1)
+                if nested:
+                    return nested
+            return None
         return None

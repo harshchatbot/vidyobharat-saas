@@ -224,9 +224,15 @@ class CreditService:
     def make_idempotency_key(self, prefix: str, metadata: dict[str, Any]) -> str:
         return self._stable_key(prefix, metadata)
 
-    def top_up_credits(self, user_id: str, credits: int, metadata: dict[str, Any] | None = None) -> FirestoreCreditWallet:
+    def top_up_credits(
+        self,
+        user_id: str,
+        credits: int,
+        metadata: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> FirestoreCreditWallet:
         metadata = metadata or {}
-        idempotency_key = self._stable_key(
+        resolved_idempotency_key = idempotency_key or self._stable_key(
             'topup',
             {
                 'user_id': user_id,
@@ -242,8 +248,8 @@ class CreditService:
                 'plan_type': 'free',
                 'monthly_credits': self.FREE_PLAN_MONTHLY_CREDITS,
             },
-            idempotency_key=idempotency_key,
-            mutate=lambda wallet: self._topup_mutation(wallet, credits, metadata, idempotency_key),
+            idempotency_key=resolved_idempotency_key,
+            mutate=lambda wallet: self._topup_mutation(wallet, credits, metadata, resolved_idempotency_key),
         )
         if already_processed:
             return wallet

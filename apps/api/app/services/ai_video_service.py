@@ -31,7 +31,7 @@ from app.services.smart_model_router import SmartModelRouter
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
-OPENAI_VIDEO_TIMEOUT_SECONDS = 600
+OPENAI_VIDEO_TIMEOUT_SECONDS = 1200
 OPENAI_POLL_INTERVAL_SECONDS = 5
 
 VIDEO_INSPIRATION_ITEMS = [
@@ -412,6 +412,8 @@ class AIVideoCreateService:
                 raise ProviderError('OpenAI Sora create response did not include a video id')
 
             start = time.time()
+            timeout_seconds = int(getattr(self.settings, 'openai_video_timeout_seconds', OPENAI_VIDEO_TIMEOUT_SECONDS) or OPENAI_VIDEO_TIMEOUT_SECONDS)
+            poll_interval_seconds = int(getattr(self.settings, 'openai_video_poll_interval_seconds', OPENAI_POLL_INTERVAL_SECONDS) or OPENAI_POLL_INTERVAL_SECONDS)
             last_progress = 30
             final_status_payload: dict[str, Any] | None = None
             while True:
@@ -450,9 +452,12 @@ class AIVideoCreateService:
                 if status_value in {'failed', 'error', 'cancelled', 'canceled'}:
                     error_message = status_payload.get('error') or status_payload.get('last_error') or 'OpenAI Sora generation failed'
                     raise ProviderError(str(error_message))
-                if time.time() - start > OPENAI_VIDEO_TIMEOUT_SECONDS:
-                    raise ProviderError('OpenAI Sora generation timed out while waiting for completion')
-                time.sleep(OPENAI_POLL_INTERVAL_SECONDS)
+                elapsed_seconds = int(time.time() - start)
+                if elapsed_seconds > timeout_seconds:
+                    raise ProviderError(
+                        f'OpenAI Sora generation timed out after {elapsed_seconds}s (limit {timeout_seconds}s) while waiting for completion'
+                    )
+                time.sleep(max(1, poll_interval_seconds))
 
             content_response = client.get(
                 f'https://api.openai.com/v1/videos/{openai_video_id}/content',
@@ -1175,6 +1180,10 @@ def celery_process_ai_video(video_id: str) -> None:
                             'video_id': target.id,
                             'model_key': target.selected_model,
                         },
+                        idempotency_key=credit_service.make_idempotency_key(
+                            'video_refund',
+                            {'video_id': target.id},
+                        ),
                     )
                     logger.info(
                         'ai_video_job_refunded',

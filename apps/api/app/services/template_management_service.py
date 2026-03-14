@@ -189,7 +189,11 @@ class TemplateManagementService:
             raise ValueError('Template not found')
         if not template.active:
             raise ValueError('Template is inactive')
-        assembly = self.assembler.assemble(template, payload.inputs, payload.prompt_override)
+        assembly = self.assembler.assemble(
+            template=template,
+            raw_inputs=payload.inputs,
+            prompt_override=payload.prompt_override,
+        )
         project_id = payload.project_id or self._ensure_template_project(
             user_id=user_id,
             template=template,
@@ -219,7 +223,11 @@ class TemplateManagementService:
         template = self.get_template(payload.template_id)
         if not template:
             raise ValueError('Template not found')
-        assembly = self.assembler.assemble(template, payload.inputs, payload.prompt_override)
+        assembly = self.assembler.assemble(
+            template=template,
+            raw_inputs=payload.inputs,
+            prompt_override=payload.prompt_override,
+        )
         return TemplatePreviewResponse(
             templateId=template.id,
             contentType=template.type,
