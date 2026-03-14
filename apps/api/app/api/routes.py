@@ -137,6 +137,30 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+
+def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, object]:
+    return {
+        'template': payload.template,
+        'template_id': payload.templateId,
+        'project_id': payload.projectId,
+        'mode_id': payload.modeId,
+        'model_key': payload.modelKey,
+        'language': payload.language,
+        'voice': payload.voice,
+        'aspect_ratio': payload.aspectRatio,
+        'resolution': payload.resolution,
+        'quality': payload.quality,
+        'duration_mode': payload.durationMode,
+        'duration_seconds': payload.durationSeconds,
+        'image_count': len(payload.imageUrls),
+        'tags_count': len(payload.tags),
+        'script_length': len(payload.script or ''),
+        'music_type': payload.music.type,
+        'captions_enabled': payload.captionsEnabled,
+        'caption_style': payload.captionStyle,
+        'sample_rate_hz': payload.audioSettings.sampleRateHz,
+    }
+
 REEL_PROMPT_TEMPLATES: dict[str, str] = {
     'History_POV': 'Use first-person historical POV with dramatic authenticity.',
     'Mythology_POV': 'Use first-person mythology POV with vivid emotional storytelling.',
@@ -1160,11 +1184,20 @@ def create_ai_video(
     db: Session = Depends(get_db),
 ):
     deduction_amount = 0
+    error_stage = 'init'
+    request_id = get_request_id()
+    payload_summary = _summarize_video_create_payload(payload)
     try:
+        logger.info(
+            'ai_video_create_started',
+            extra={'request_id': request_id, 'user_id': user_id, 'stage': 'estimate', 'payload_summary': payload_summary},
+        )
         credit_service = CreditService()
+        error_stage = 'estimate'
         estimate = credit_service.estimate('video_create', payload.model_dump())
         remaining_credits: int | None = None
         if estimate.required_credits > 0:
+            error_stage = 'deduct_credits'
             deduction = credit_service.deduct_credits(
                 user_id=user_id,
                 amount=estimate.required_credits,
@@ -1179,6 +1212,7 @@ def create_ai_video(
             deduction_amount = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
         else:
+            error_stage = 'deduct_free_credits'
             deduction = credit_service.deduct_credits(
                 user_id=user_id,
                 amount=0,
@@ -1191,6 +1225,7 @@ def create_ai_video(
                 ),
             )
             remaining_credits = deduction.wallet.current_credits
+        error_stage = 'create_video_record'
         service = AIVideoCreateService(db, settings)
         video = service.create_video(
             user_id=user_id,
@@ -1214,13 +1249,18 @@ def create_ai_video(
             caption_style=payload.captionStyle,
         )
         # Persist charged credits on the video document so async failure refunds are exact.
+        error_stage = 'persist_applied_credits'
         service.repo.update(video, applied_credits=estimate.required_credits, request_quality=payload.quality)
         logger.info(
             'ai_video_created',
             extra={
-                'request_id': get_request_id(),
+                'request_id': request_id,
+                'user_id': user_id,
+                'stage': 'created',
                 'provider': video.provider_name,
                 'model_key': video.selected_model,
+                'video_id': video.id,
+                'payload_summary': payload_summary,
             },
         )
         return AIVideoCreateResponse(
@@ -1248,7 +1288,14 @@ def create_ai_video(
             )
         logger.warning(
             'ai_video_create_provider_error',
-            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
+            extra={
+                'request_id': request_id,
+                'user_id': user_id,
+                'error': str(exc),
+                'model_key': payload.modelKey,
+                'stage': error_stage,
+                'payload_summary': payload_summary,
+            },
         )
         error_text = str(exc)
         normalized_error = error_text.lower()
@@ -1278,11 +1325,23 @@ def create_ai_video(
             )
         logger.exception(
             'ai_video_create_failed',
-            extra={'request_id': get_request_id(), 'error': str(exc), 'model_key': payload.modelKey},
+            extra={
+                'request_id': request_id,
+                'user_id': user_id,
+                'error': str(exc),
+                'model_key': payload.modelKey,
+                'stage': error_stage,
+                'payload_summary': payload_summary,
+            },
         )
-        detail = str(exc).strip() or 'Failed to create AI video'
-        if settings.env != 'development':
-            detail = 'Failed to create AI video'
+        detail = {
+            'error': 'VIDEO_CREATE_FAILED',
+            'message': 'Failed to create AI video',
+            'request_id': request_id,
+            'stage': error_stage,
+        }
+        if settings.env == 'development':
+            detail['debug'] = str(exc).strip() or 'Failed to create AI video'
         raise HTTPException(status_code=500, detail=detail) from exc
 
 

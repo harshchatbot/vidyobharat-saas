@@ -450,6 +450,19 @@ export function CreateVideoPage({
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
   const estimatedInr = estimateInrFromCredits(creditEstimate?.estimatedCredits ?? 0);
   const laneHasOnlyGatedModels = visibleModels.length > 0 && visibleModels.every((model) => model.enabled === false);
+  const handleVideoLaneChange = (nextLane: VideoLaneKey) => {
+    setVideoLane(nextLane);
+    const nextLaneModels = models.filter((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === nextLane);
+    const nextEnabledModel =
+      nextLaneModels.find((model) => model.enabled !== false) ??
+      nextLaneModels[0] ??
+      models.find((model) => model.enabled !== false) ??
+      models[0];
+    if (nextEnabledModel && nextEnabledModel.key !== modelKey) {
+      setModelKey(nextEnabledModel.key as VideoModelKey);
+    }
+  };
+
   useEffect(() => {
     if (!laneHasOnlyGatedModels) return;
     const fallbackLane = VIDEO_LANES.find((laneOption) =>
@@ -767,14 +780,6 @@ export function CreateVideoPage({
       setModelKey(visibleModels.find((item) => item.enabled !== false)?.key as VideoModelKey ?? visibleModels[0].key as VideoModelKey);
     }
   }, [visibleModels, modelKey]);
-
-  useEffect(() => {
-    if (!selectedModel) return;
-    const resolvedLane = (sharedModelMap[selectedModel.key]?.lane ?? 'creator_pro') as VideoLaneKey;
-    if (resolvedLane !== videoLane) {
-      setVideoLane(resolvedLane);
-    }
-  }, [selectedModel, sharedModelMap, videoLane]);
 
   useEffect(() => {
     if (!languageOptions.some((item) => item.label === language) && languageOptions[0]) {
@@ -1963,7 +1968,7 @@ export function CreateVideoPage({
         action={modelsLoading ? <Spinner /> : null}
       >
         <div className="space-y-5">
-          <VideoLaneSelector lane={videoLane} onChange={setVideoLane} />
+          <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
           <ModelDropdown
             models={visibleModels}
             selectedModel={modelKey}
