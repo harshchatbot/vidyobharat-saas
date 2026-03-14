@@ -99,7 +99,12 @@ export function TemplateSelector({
   selectedTemplate: string;
   onSelect: (value: string) => void;
 }) {
-  const visibleTemplates = templates.slice(0, 6);
+  const topTemplates = templates.slice(0, 6);
+  const selectedInTop = topTemplates.some((template) => template.key === selectedTemplate);
+  const selectedTemplateOption = templates.find((template) => template.key === selectedTemplate);
+  const visibleTemplates = !selectedInTop && selectedTemplateOption
+    ? [...topTemplates.slice(0, 5), selectedTemplateOption]
+    : topTemplates;
 
   return (
     <div className="space-y-3.5">
@@ -119,8 +124,8 @@ export function TemplateSelector({
 
       <p className="text-xs text-muted">Showing top 6 templates. Scroll to browse.</p>
 
-      <div className="-mx-1 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
-        <div className="flex w-max gap-3">
+      <div className="-mx-1 max-w-full overflow-x-auto overscroll-x-contain px-1 pb-2 [scrollbar-width:thin]">
+        <div className="flex min-w-full gap-3 snap-x snap-mandatory">
         {visibleTemplates.map((template) => {
           const Icon = template.icon;
           const active = selectedTemplate === template.key;
@@ -133,7 +138,7 @@ export function TemplateSelector({
               key={template.key}
               type="button"
               onClick={() => onSelect(template.key)}
-              className={`group w-[250px] shrink-0 overflow-hidden rounded-[24px] border text-left transition sm:w-[260px] ${
+              className={`group w-[220px] shrink-0 snap-start overflow-hidden rounded-[22px] border text-left transition sm:w-[236px] lg:w-[244px] xl:w-[252px] ${
                 active
                   ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
                   : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft'

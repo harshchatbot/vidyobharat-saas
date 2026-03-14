@@ -2424,6 +2424,7 @@ def list_projects(
 @router.get('/projects/{project_id}')
 def get_project(
     project_id: str,
+    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     service = ProjectService(None)
@@ -2439,7 +2440,7 @@ def get_project(
         'project': ProjectResponse.model_validate(project),
         'renders': [RenderResponse.model_validate(item) for item in renders],
         'images': [_to_image_generation_response(item, None) for item in images],
-        'videos': [_to_video_response(item, None) for item in videos],
+        'videos': [_to_video_response(item, db) for item in videos],
         'summary': {
             'imageCount': len(images),
             'videoCount': len(videos),
@@ -2638,11 +2639,12 @@ def delete_upload(
 @router.get('/videos', response_model=list[VideoResponse])
 def list_videos(
     limit: int | None = None,
+    db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(None)
     videos = service.list_videos(user_id, limit=limit)
-    return [_to_video_response(video, None) for video in videos]
+    return [_to_video_response(video, db) for video in videos]
 
 
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])
