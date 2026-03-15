@@ -63,30 +63,45 @@ class FalVideoService:
                     video_url = self._extract_video_url(last)
                     if video_url:
                         return video_url, {'raw': last, 'mode': 'async'}
-                    # Some fal endpoints keep status payload minimal and expose output via response_url.
-                    # Fetch that payload before declaring failure.
-                    response_url = last.get('response_url') or data.get('response_url')
-                    if isinstance(response_url, str) and response_url.strip():
+                    # Some fal endpoints keep status payload minimal and expose output via a response url.
+                    # Try multiple candidates because some payloads include stale/model-level paths.
+                    response_url_candidates: list[str] = []
+                    for candidate in (last.get('response_url'), data.get('response_url')):
+                        if isinstance(candidate, str) and candidate.strip():
+                            response_url_candidates.append(candidate.strip())
+                    if '/status' in status_url:
+                        response_url_candidates.append(status_url.rsplit('/status', 1)[0])
+                    tried_response_urls: list[str] = []
+                    for response_url in list(dict.fromkeys(response_url_candidates)):
+                        tried_response_urls.append(response_url)
                         response_payload = client.get(response_url, headers=headers)
                         if response_payload.status_code >= 400:
-                            raise RuntimeError(
-                                f'fal response payload failed ({response_payload.status_code}): {response_payload.text[:240]}'
+                            logger.warning(
+                                'fal_response_url_fetch_failed',
+                                extra={
+                                    'response_url': response_url,
+                                    'status_code': response_payload.status_code,
+                                    'body': response_payload.text[:240],
+                                },
                             )
+                            continue
                         response_data = response_payload.json()
                         video_url = self._extract_video_url(response_data)
                         if video_url:
                             return video_url, {'raw': response_data, 'mode': 'async_response_url'}
-                        logger.error(
-                            'fal_completed_missing_video_url',
+                        logger.warning(
+                            'fal_response_url_missing_video',
                             extra={
-                                'status_keys': sorted([str(k) for k in last.keys()]),
+                                'response_url': response_url,
                                 'response_keys': sorted([str(k) for k in response_data.keys()]),
                             },
                         )
-                        raise RuntimeError('fal completed without output video url')
                     logger.error(
                         'fal_completed_missing_video_url',
-                        extra={'status_keys': sorted([str(k) for k in last.keys()])},
+                        extra={
+                            'status_keys': sorted([str(k) for k in last.keys()]),
+                            'tried_response_urls': tried_response_urls,
+                        },
                     )
                     raise RuntimeError('fal completed without output video url')
                 if state in {'failed', 'error', 'cancelled', 'canceled'}:
@@ -97,7 +112,8 @@ class FalVideoService:
 
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
-            'wan_2_5': 'fal-ai/wan/v2.5/text-to-video',
+            # fal deprecated older wan/v2.5 route; use the current WAN text-to-video model slug.
+            'wan_2_5': 'wan/v2.6/text-to-video',
             'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
             'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
         }
