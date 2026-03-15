@@ -68,9 +68,11 @@ class FalVideoService:
                     response_url_candidates: list[str] = []
                     for candidate in (last.get('response_url'), data.get('response_url')):
                         if isinstance(candidate, str) and candidate.strip():
-                            response_url_candidates.append(candidate.strip())
+                            response_url_candidates.append(self._normalize_candidate_url(candidate.strip()))
                     if '/status' in status_url:
-                        response_url_candidates.append(status_url.rsplit('/status', 1)[0])
+                        base_request_url = status_url.rsplit('/status', 1)[0]
+                        response_url_candidates.append(self._normalize_candidate_url(base_request_url))
+                        response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
                     tried_response_urls: list[str] = []
                     for response_url in list(dict.fromkeys(response_url_candidates)):
                         tried_response_urls.append(response_url)
@@ -112,12 +114,20 @@ class FalVideoService:
 
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
-            # fal deprecated older wan/v2.5 route; use the current WAN text-to-video model slug.
-            'wan_2_5': 'wan/v2.6/text-to-video',
+            # Use canonical fal-ai WAN route to keep status/response URLs compatible.
+            'wan_2_5': 'fal-ai/wan/v2.6/text-to-video',
             'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
             'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
         }
         return mapping.get(model_key, 'fal-ai/wan/v2.5/text-to-video')
+
+    def _normalize_candidate_url(self, value: str) -> str:
+        if value.startswith('http://') or value.startswith('https://'):
+            return value
+        base = self.settings.fal_api_base.rstrip('/')
+        if value.startswith('/'):
+            return f'{base}{value}'
+        return f'{base}/{value}'
 
     def _extract_video_url(self, payload: dict[str, Any]) -> str | None:
         direct = payload.get('video_url') or payload.get('url') or payload.get('mp4_url')
