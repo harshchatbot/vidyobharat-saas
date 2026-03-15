@@ -174,7 +174,8 @@ class AIVideoCreateService:
             'sora2': self.generate_with_sora2,
             'sora2_pro': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
-            'kling3': self.generate_with_kling3,
+            # Keep Kling 3 under fal routing so WAN fallbacks do not require separate KLING_API_KEY.
+            'kling3': self.generate_with_fal,
             'wan_2_5': self.generate_with_fal,
             'kling_turbo': self.generate_with_fal,
             'kling': self.generate_with_fal,
