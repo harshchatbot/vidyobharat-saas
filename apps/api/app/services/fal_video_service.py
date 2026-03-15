@@ -99,7 +99,6 @@ class FalVideoService:
                     if '/status' in status_url and not response_url_candidates:
                         base_request_url = status_url.rsplit('/status', 1)[0]
                         response_url_candidates.append(self._normalize_candidate_url(base_request_url))
-                        response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
                     tried_response_urls: list[str] = []
                     for response_url in list(dict.fromkeys(response_url_candidates)):
                         tried_response_urls.append(response_url)
