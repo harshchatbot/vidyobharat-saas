@@ -210,7 +210,7 @@ export function CreateVideoPage({
   initialTitle?: string;
   initialProjectId?: string;
 }) {
-  const cacheKey = `rangmanch:video-studio:v1:${userId}`;
+  const cacheKey = `rangmanch:video-studio:v2:${userId}`;
   const draftKey = `rangmanch-create-draft:${userId}`;
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
