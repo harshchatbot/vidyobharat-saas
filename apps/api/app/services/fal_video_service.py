@@ -21,7 +21,8 @@ class FalVideoService:
         if not getattr(self.settings, 'fal_api_key', None):
             raise RuntimeError('FAL_API_KEY is not configured for fal video generation')
 
-        endpoint = f'{self.settings.fal_api_base.rstrip("/")}/{self._endpoint_for(model_key)}'
+        resolved_endpoint = self._endpoint_for(model_key)
+        endpoint = f'{self.settings.fal_api_base.rstrip("/")}/{resolved_endpoint}'
         payload: dict[str, Any] = {
             'prompt': prompt,
             'aspect_ratio': aspect_ratio,
@@ -37,11 +38,36 @@ class FalVideoService:
         }
 
         with httpx.Client(timeout=httpx.Timeout(90.0, connect=20.0)) as client:
+            logger.info(
+                'fal_video_submit_started',
+                extra={
+                    'requested_model_key': model_key,
+                    'resolved_endpoint': resolved_endpoint,
+                    'endpoint': endpoint,
+                    'aspect_ratio': aspect_ratio,
+                    'resolution': resolution,
+                    'duration_seconds': duration_seconds,
+                    'has_image_seed': bool(image_url),
+                },
+            )
             submit = client.post(endpoint, headers=headers, json=payload)
             if submit.status_code >= 400:
                 raise RuntimeError(f'fal submit failed ({submit.status_code}): {submit.text[:240]}')
             data = submit.json()
-            status_url = data.get('status_url') or data.get('response_url') or data.get('url')
+            status_url = data.get('status_url')
+            response_url = data.get('response_url')
+            logger.info(
+                'fal_video_submit_succeeded',
+                extra={
+                    'requested_model_key': model_key,
+                    'resolved_endpoint': resolved_endpoint,
+                    'submit_keys': sorted([str(k) for k in data.keys()]),
+                    'status_url': status_url,
+                    'response_url': response_url,
+                },
+            )
+            if not status_url:
+                status_url = response_url or data.get('url')
             if not status_url:
                 video_url = self._extract_video_url(data)
                 if video_url:
@@ -66,10 +92,11 @@ class FalVideoService:
                     # Some fal endpoints keep status payload minimal and expose output via a response url.
                     # Try multiple candidates because some payloads include stale/model-level paths.
                     response_url_candidates: list[str] = []
-                    for candidate in (last.get('response_url'), data.get('response_url')):
+                    for candidate in (last.get('response_url'), response_url):
                         if isinstance(candidate, str) and candidate.strip():
                             response_url_candidates.append(self._normalize_candidate_url(candidate.strip()))
-                    if '/status' in status_url:
+                    # Only derive alternatives when queue did not provide a response_url.
+                    if '/status' in status_url and not response_url_candidates:
                         base_request_url = status_url.rsplit('/status', 1)[0]
                         response_url_candidates.append(self._normalize_candidate_url(base_request_url))
                         response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
@@ -77,6 +104,8 @@ class FalVideoService:
                     for response_url in list(dict.fromkeys(response_url_candidates)):
                         tried_response_urls.append(response_url)
                         response_payload = client.get(response_url, headers=headers)
+                        if response_payload.status_code == 405:
+                            response_payload = client.post(response_url, headers=headers, json={})
                         if response_payload.status_code >= 400:
                             logger.warning(
                                 'fal_response_url_fetch_failed',
@@ -101,7 +130,10 @@ class FalVideoService:
                     logger.error(
                         'fal_completed_missing_video_url',
                         extra={
+                            'requested_model_key': model_key,
+                            'resolved_endpoint': resolved_endpoint,
                             'status_keys': sorted([str(k) for k in last.keys()]),
+                            'status_payload_preview': str(last)[:480],
                             'tried_response_urls': tried_response_urls,
                         },
                     )
@@ -119,7 +151,7 @@ class FalVideoService:
             'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
             'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
         }
-        return mapping.get(model_key, 'fal-ai/wan/v2.5/text-to-video')
+        return mapping.get(model_key, 'fal-ai/wan/v2.6/text-to-video')
 
     def _normalize_candidate_url(self, value: str) -> str:
         if value.startswith('http://') or value.startswith('https://'):
@@ -132,28 +164,28 @@ class FalVideoService:
     def _extract_video_url(self, payload: dict[str, Any]) -> str | None:
         direct = payload.get('video_url') or payload.get('url') or payload.get('mp4_url')
         if isinstance(direct, str) and direct.strip():
-            return direct.strip()
+            return self._normalize_media_url(direct.strip())
         video = payload.get('video')
         if isinstance(video, dict):
             for key in ('url', 'video_url', 'mp4_url'):
                 value = video.get(key)
                 if isinstance(value, str) and value.strip():
-                    return value.strip()
+                    return self._normalize_media_url(value.strip())
         output = payload.get('output')
         if isinstance(output, dict):
             for key in ('url', 'video_url', 'mp4_url'):
                 value = output.get(key)
                 if isinstance(value, str) and value.strip():
-                    return value.strip()
+                    return self._normalize_media_url(value.strip())
         if isinstance(output, list):
             for item in output:
                 if isinstance(item, dict):
                     for key in ('url', 'video_url', 'mp4_url'):
                         value = item.get(key)
                         if isinstance(value, str) and value.strip():
-                            return value.strip()
-                elif isinstance(item, str) and item.strip().startswith('http'):
-                    return item.strip()
+                            return self._normalize_media_url(value.strip())
+                elif isinstance(item, str) and item.strip():
+                    return self._normalize_media_url(item.strip())
 
         # Final fallback: recursively inspect nested payload for likely video URLs.
         nested = self._find_url_recursive(payload)
@@ -166,15 +198,15 @@ class FalVideoService:
             return None
         if isinstance(node, str):
             value = node.strip()
-            if value.startswith('http') and ('.mp4' in value.lower() or '/video' in value.lower()):
-                return value
+            if (value.startswith('http') or value.startswith('/')) and ('.mp4' in value.lower() or '/video' in value.lower() or '/files/' in value.lower()):
+                return self._normalize_media_url(value)
             return None
         if isinstance(node, dict):
             for key, value in node.items():
                 if key.lower() in {'url', 'video_url', 'mp4_url', 'file_url', 'download_url'} and isinstance(value, str):
                     candidate = value.strip()
-                    if candidate.startswith('http'):
-                        return candidate
+                    if candidate.startswith('http') or candidate.startswith('/'):
+                        return self._normalize_media_url(candidate)
                 nested = self._find_url_recursive(value, depth=depth + 1)
                 if nested:
                     return nested
@@ -186,3 +218,8 @@ class FalVideoService:
                     return nested
             return None
         return None
+
+    def _normalize_media_url(self, value: str) -> str:
+        if value.startswith('http://') or value.startswith('https://'):
+            return value
+        return self._normalize_candidate_url(value)

@@ -1915,7 +1915,7 @@ export function CreateVideoPage({
 
       <SectionCard
         title="Content Template"
-        description="Pick a guided workflow or start from scratch."
+        description="Pick a workflow."
         icon={<Film className="h-5 w-5" />}
       >
         <TemplateSelector
@@ -1928,9 +1928,10 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Project"
-        description="Keep scripts, prompts, and renders organized when you need it."
+        description="Optional."
         icon={<GalleryVerticalEnd className="h-5 w-5" />}
         action={projectsLoading ? <Spinner /> : null}
+        defaultOpen={false}
       >
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
           <div className="space-y-1.5">
@@ -1943,9 +1944,7 @@ export function CreateVideoPage({
                 </option>
               ))}
             </Dropdown>
-            <p className="text-xs text-muted">
-              Hero-template runs will auto-create a project if you leave this empty. Legacy quick generations still stay frictionless.
-            </p>
+            <p className="text-xs text-muted">Leave empty to auto-create when needed.</p>
           </div>
           <div className="flex items-end">
             <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
@@ -1957,7 +1956,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Script Editor & AI Assist"
-        description="Write, refine, or regenerate the script."
+        description="Script"
         icon={<Wand2 className="h-5 w-5" />}
       >
         <ScriptEditor
@@ -1979,7 +1978,7 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Video Lane & Model"
-        description="Choose a lane first, then the best-fit model inside it."
+        description="Lane + model"
         icon={<Sparkles className="h-5 w-5" />}
         action={modelsLoading ? <Spinner /> : null}
       >
@@ -2010,7 +2009,7 @@ export function CreateVideoPage({
           </div>
           {laneHasOnlyGatedModels ? (
             <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-              Models for this lane are in beta and currently marked as coming soon.
+              Lane visible, generation disabled.
             </div>
           ) : null}
         </div>
@@ -2018,8 +2017,9 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Voice & Language"
-        description="Set the narration voice and language."
+        description="Narration"
         icon={<Mic2 className="h-5 w-5" />}
+        defaultOpen={false}
       >
         <VoiceSelector
           languageOptions={languageOptions}
@@ -2091,8 +2091,9 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Optional Reference Images"
-        description="Optional references for seeded video generation."
+        description="Image seed (optional)"
         icon={<Film className="h-5 w-5" />}
+        defaultOpen={false}
       >
         <ReferenceImagePicker
           generatedImages={generatedImages}
@@ -2108,8 +2109,9 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Background Audio"
-        description="Add music and set how it sits under narration."
+        description="Music (optional)"
         icon={<Mic2 className="h-5 w-5" />}
+        defaultOpen={false}
       >
         <MusicSelector
           mode={musicMode}
@@ -2133,8 +2135,9 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Output Settings"
-        description="Format, duration, quality, and captions."
+        description="Format + quality"
         icon={<Settings2 className="h-5 w-5" />}
+        defaultOpen={false}
       >
         <OutputSettings
           modelLabel={selectedModel.label}
@@ -2173,7 +2176,7 @@ export function CreateVideoPage({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
                 <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
-                <p className="mt-1 text-sm text-muted">One place for estimates, job state, and final output review.</p>
+                <p className="mt-1 text-sm text-muted">Estimate, status, output.</p>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
@@ -2274,8 +2277,9 @@ export function CreateVideoPage({
 
           <SectionCard
         title="Studio Feed"
-        description="Review your latest generated videos without leaving the create flow."
+        description="Recent videos"
         icon={<Film className="h-5 w-5" />}
+        defaultOpen={false}
       >
         {videos.length === 0 ? (
           <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>

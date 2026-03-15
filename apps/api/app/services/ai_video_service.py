@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 from base64 import b64decode
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -196,7 +196,17 @@ class AIVideoCreateService:
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
-        return list(self.VIDEO_MODEL_REGISTRY.values())
+        models = list(self.VIDEO_MODEL_REGISTRY.values())
+        if self.settings.wan_video_enabled:
+            return models
+        wan_aliases = {'wan2.1_t2v_turbo', 'wan2.6_i2v_flash', 'wan2.5_t2v_preview', 'wan2.6_t2v'}
+        gated: list[ModelRegistryEntry] = []
+        for model in models:
+            if model.key in wan_aliases:
+                gated.append(replace(model, enabled=False, feature_gate='wan_disabled'))
+            else:
+                gated.append(model)
+        return gated
 
     def list_inspiration(self) -> list[dict[str, object]]:
         return VIDEO_INSPIRATION_ITEMS
@@ -595,6 +605,16 @@ class AIVideoCreateService:
         requested_model = str(payload.get('modelKey') or '')
         route = resolve_generation_route(medium='video', model_key=requested_model)
         primary_key = route.canonical_model_key
+        logger.info(
+            'video_model_route_resolved',
+            extra={
+                'requested_model': requested_model,
+                'canonical_model_key': route.canonical_model_key,
+                'provider_id': route.provider_id,
+                'provider_model_key': route.provider_model_key,
+                'fallback_model_key': route.fallback_model_key,
+            },
+        )
         if primary_key not in self.providers:
             raise ProviderError(f'Unsupported model: {requested_model}')
 
@@ -620,6 +640,11 @@ class AIVideoCreateService:
             logger.warning(
                 'video_generation_model_fallback_used',
                 extra={'requested_model': requested_model, 'resolved_model': routed.resolved_model_id},
+            )
+        else:
+            logger.info(
+                'video_generation_model_executed',
+                extra={'requested_model': requested_model, 'resolved_model': routed.resolved_model_id, 'provider': result.provider},
             )
         return result
 
@@ -1206,6 +1231,8 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
     )
     provider_markers = (
         'provider',
+        'fal',
+        'wan',
         'openai',
         'sora',
         'gemini',

@@ -80,5 +80,9 @@ class SmartModelRouter:
             'unavailable',
             'rate limit',
             'temporarily unavailable',
+            'method not allowed',
+            'unprocessable entity',
+            'fal response payload failed',
+            'fal completed without output video url',
         )
         return any(marker in message for marker in retryable_markers)

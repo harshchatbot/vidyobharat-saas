@@ -36,7 +36,7 @@ export function GenerateButton({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-heading text-xl font-extrabold tracking-tight text-text">Generate Video</p>
-          <p className="mt-1 text-sm text-muted">Your current script, voice, media, and output settings will be sent as one render job.</p>
+          <p className="mt-1 text-sm text-muted">Run with current settings.</p>
         </div>
         <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.78))] px-6 py-3 text-base text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-hard)]">
           {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}
@@ -59,7 +59,7 @@ export function GenerateButton({
           </span>
         ) : null}
       </div>
-      {helperText ? <p className="text-xs text-muted">{helperText}</p> : null}
+      {helperText ? <p className="text-[11px] text-muted line-clamp-2">{helperText}</p> : null}
       {insufficientCredits ? (
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-danger)/0.24)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
           <p className="text-sm font-medium text-text">Insufficient credits for this generation.</p>
