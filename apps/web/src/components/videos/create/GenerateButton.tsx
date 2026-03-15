@@ -36,7 +36,6 @@ export function GenerateButton({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-heading text-xl font-extrabold tracking-tight text-text">Generate Video</p>
-          <p className="mt-1 text-sm text-muted">Run with current settings.</p>
         </div>
         <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.78))] px-6 py-3 text-base text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-hard)]">
           {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}

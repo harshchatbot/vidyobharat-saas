@@ -19,7 +19,7 @@ export const VIDEO_LANES: readonly VideoLaneDefinition[] = [
     label: 'Daily Reels',
     shortLabel: 'Daily',
     description: 'Affordable, budget-safe, and tuned for frequent short-form posting.',
-    helper: 'Best for practical daily reels and fast repeat publishing without expensive presets.',
+    helper: '',
     accentClassName:
       'border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)/0.72),hsl(var(--color-bg)/0.92))] text-text',
     pillClassName:

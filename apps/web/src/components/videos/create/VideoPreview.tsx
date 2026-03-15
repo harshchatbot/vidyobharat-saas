@@ -51,7 +51,7 @@ export function VideoPreview({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-heading text-lg font-bold tracking-tight text-text">Preview & output</h2>
-          <p className="mt-1 text-sm text-muted">Review the final job, metadata, and export actions.</p>
+          {/*<p className="mt-1 text-sm text-muted">Review the final job, metadata, and export actions.</p> */}
         </div>
         {job ? <Badge>{job.provider_name ?? job.selected_model ?? 'Queued'}</Badge> : null}
       </div>
@@ -151,9 +151,6 @@ export function VideoPreview({
             <Sparkles className="h-6 w-6" />
           </span>
           <p className="mt-4 text-base font-semibold text-text">Your next render will appear here</p>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-            Keep refining the script and output settings on the left. This pane will switch to preview mode as soon as a video job starts.
-          </p>
         </div>
       ) : null}
     </div>

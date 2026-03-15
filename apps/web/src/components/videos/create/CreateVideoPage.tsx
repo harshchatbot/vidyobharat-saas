@@ -2176,7 +2176,6 @@ export function CreateVideoPage({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
                 <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
-                <p className="mt-1 text-sm text-muted">Estimate, status, output.</p>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
