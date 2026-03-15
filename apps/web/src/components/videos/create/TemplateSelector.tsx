@@ -85,10 +85,12 @@ const TEMPLATE_VISUALS: Record<
 };
 
 export function TemplateSelector({
+  loading = false,
   templates,
   selectedTemplate,
   onSelect,
 }: {
+  loading?: boolean;
   templates: TemplateOption[];
   selectedTemplate: string;
   onSelect: (value: string) => void;
@@ -101,10 +103,29 @@ export function TemplateSelector({
     : topTemplates;
 
   return (
-    <div>
-      <div className="-mx-1 max-w-full overflow-x-auto overscroll-x-contain px-1 pb-2 [scrollbar-width:thin]">
-        <div className="flex w-max gap-3 snap-x snap-mandatory">
-        {visibleTemplates.map((template) => {
+    <div className="min-w-0">
+      <div className="w-full overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] touch-pan-x">
+        <div className="inline-flex min-w-max gap-3 snap-x snap-mandatory pr-1">
+        {loading
+          ? Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={`template-skeleton-${index}`}
+                className="w-[220px] shrink-0 snap-start overflow-hidden rounded-[22px] border border-border bg-[hsl(var(--color-surface)/0.42)] sm:w-[236px] lg:w-[244px] xl:w-[252px]"
+              >
+                <div className="aspect-[5/3] animate-pulse bg-[hsl(var(--color-elevated))]" />
+                <div className="space-y-2 px-3.5 py-3">
+                  <div className="h-3 w-24 animate-pulse rounded bg-[hsl(var(--color-elevated))]" />
+                  <div className="h-3 w-36 animate-pulse rounded bg-[hsl(var(--color-elevated))]" />
+                </div>
+              </div>
+            ))
+          : null}
+        {!loading && visibleTemplates.length === 0 ? (
+          <div className="w-[260px] shrink-0 rounded-[22px] border border-border bg-[hsl(var(--color-surface)/0.36)] px-4 py-5 text-sm text-muted">
+            Templates are loading. Please wait a moment.
+          </div>
+        ) : null}
+        {!loading ? visibleTemplates.map((template) => {
           const Icon = typeof template.icon === 'function' || (typeof template.icon === 'object' && template.icon !== null && '$$typeof' in template.icon)
             ? template.icon
             : Film;
@@ -158,7 +179,7 @@ export function TemplateSelector({
               </div>
             </button>
           );
-        })}
+        }) : null}
         </div>
       </div>
     </div>

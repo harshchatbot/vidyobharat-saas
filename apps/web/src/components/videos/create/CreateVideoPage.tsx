@@ -1910,25 +1910,20 @@ export function CreateVideoPage({
       ) : null}
 
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.05fr)_370px] 2xl:items-start">
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           
 
-          <SectionCard
+      <SectionCard
         title="Content Template"
         description="Pick a guided workflow or start from scratch."
         icon={<Film className="h-5 w-5" />}
       >
-        {templatesLoading ? (
-          <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.46)] px-4 py-3 text-sm text-muted">
-            Loading templates...
-          </div>
-        ) : (
-          <TemplateSelector
-            templates={visibleTemplates}
-            selectedTemplate={selectedTemplate}
-            onSelect={applyTemplate}
-          />
-        )}
+        <TemplateSelector
+          loading={templatesLoading}
+          templates={visibleTemplates}
+          selectedTemplate={selectedTemplate}
+          onSelect={applyTemplate}
+        />
           </SectionCard>
 
           <SectionCard
@@ -2172,7 +2167,7 @@ export function CreateVideoPage({
           </SectionCard>
         </div>
 
-        <div className="space-y-5 2xl:sticky 2xl:top-24">
+        <div className="min-w-0 space-y-5 2xl:sticky 2xl:top-24">
           <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] shadow-[var(--shadow-soft)] backdrop-blur-md">
             <div className="flex items-center justify-between gap-3">
               <div>
