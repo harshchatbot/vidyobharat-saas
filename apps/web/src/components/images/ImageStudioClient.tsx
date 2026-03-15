@@ -1074,15 +1074,6 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
   };
 
-  if (loading) {
-    return (
-      <Card className="flex items-center gap-3">
-        <Spinner />
-        <p className="text-sm text-muted">Loading image studio...</p>
-      </Card>
-    );
-  }
-
   const livePreviewImage =
     activeTab === 'generated'
       ? selectedGenerated ?? generatedImages[0] ?? null
@@ -1113,6 +1104,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       progress={submitProgress}
     />
     <div className="space-y-5 sm:space-y-6">
+      {loading ? (
+        <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] px-3 py-1 text-xs text-muted">
+          <Spinner />
+          <span>Refreshing studio data…</span>
+        </div>
+      ) : null}
       {activeProject ? (
         <ActiveProjectBar
           project={activeProject}
