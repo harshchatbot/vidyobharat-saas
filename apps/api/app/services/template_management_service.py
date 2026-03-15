@@ -351,6 +351,7 @@ class TemplateManagementService:
         estimate = self.credit_service.estimate('video_create', request_payload)
         deduction_amount = 0
         remaining_credits: int | None = None
+        error_stage = 'deduct_credits'
         try:
             deduction = self.credit_service.deduct_credits(
                 user_id=user_id,
@@ -365,6 +366,7 @@ class TemplateManagementService:
             )
             deduction_amount = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
+            error_stage = 'create_video'
             service = AIVideoCreateService(None, self.settings)
             video = service.create_video(
                 user_id=user_id,
@@ -387,6 +389,7 @@ class TemplateManagementService:
                 captions_enabled=True,
                 caption_style='Classic',
             )
+            error_stage = 'persist_video_metadata'
             service.repo.update(video, applied_credits=estimate.required_credits, request_quality=quality)
             return TemplateGenerateResponse(
                 templateId=template.id,
@@ -408,6 +411,28 @@ class TemplateManagementService:
                     metadata={'refund_for': 'template_generate_video_error', 'template_id': template.id},
                 )
             raise
+        except Exception as exc:
+            logger.exception(
+                'template_generate_video_unhandled_error',
+                extra={
+                    'template_id': template.id,
+                    'user_id': user_id,
+                    'model_key': model_key,
+                    'error_stage': error_stage,
+                    'error': str(exc),
+                },
+            )
+            if deduction_amount > 0:
+                self.credit_service.top_up_credits(
+                    user_id=user_id,
+                    credits=deduction_amount,
+                    metadata={
+                        'refund_for': 'template_generate_video_unhandled_error',
+                        'template_id': template.id,
+                        'error_stage': error_stage,
+                    },
+                )
+            raise ProviderError(f'Template video generation failed at {error_stage}: {str(exc)[:200]}') from exc
 
     def _ensure_template_project(
         self,

@@ -19,6 +19,7 @@ from app.db.repositories.project_repository import ProjectRepository
 from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.providers.storage import build_storage_provider
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.fal_image_service import FalImageService
 from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.generation_router import resolve_generation_route
 from app.services.model_registry import get_model_definition, resolve_model_key
@@ -244,6 +245,7 @@ class ImageGenerationService:
         self.settings = get_settings()
         self.storage = build_storage_provider(self.settings)
         self.together = TogetherImageService()
+        self.fal_image = FalImageService()
         self.model_router = SmartModelRouter(
             tier_registry={
                 'fast': TierModelConfig(
@@ -400,8 +402,13 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         reference_urls: list[str],
+        attempted_models: set[str] | None = None,
     ) -> tuple[str, str] | None:
         model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
+        attempted = attempted_models or set()
+        if model_key in attempted:
+            raise RuntimeError(f'Image model fallback loop detected for {model_key}')
+        attempted.add(model_key)
         route = resolve_generation_route(medium='image', model_key=model_key)
         canonical_key = resolve_model_key(model_key) or model_key
 
@@ -441,11 +448,32 @@ class ImageGenerationService:
                         aspect_ratio=aspect_ratio,
                         resolution=resolution,
                         reference_urls=reference_urls,
+                        attempted_models=attempted,
                     )
                 raise
 
         if route.provider_id == 'openai':
             if not self.settings.openai_api_key:
+                fallback = get_model_definition(route.fallback_model_key)
+                logger.warning(
+                    'image_generation_provider_fallback',
+                    extra={
+                        'provider': 'openai_images',
+                        'model_key': model_key,
+                        'canonical_model_key': canonical_key,
+                        'fallback_model_key': route.fallback_model_key,
+                        'error': 'OPENAI_API_KEY is not configured for OpenAI image generation',
+                    },
+                )
+                if fallback:
+                    return self._generate_with_router(
+                        model_key=fallback.model_key,
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                        reference_urls=reference_urls,
+                        attempted_models=attempted,
+                    )
                 raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
             logger.info(
                 'image_generation_provider_selected',
@@ -527,25 +555,81 @@ class ImageGenerationService:
                     raise
 
         if route.provider_id == 'recraft' and canonical_key in {'recraft', 'recraft_studio', 'recraft_studio_pro'}:
-            if not self.settings.recraft_api_key:
-                raise RuntimeError('RECRAFT_API_KEY is not configured for Recraft image generation')
-            logger.info(
-                'image_generation_provider_selected',
+            selected_model_key = 'recraft_studio' if canonical_key == 'recraft' else model_key
+            if self.settings.recraft_api_key:
+                logger.info(
+                    'image_generation_provider_selected',
+                    extra={
+                        'provider': 'recraft',
+                        'model_key': model_key,
+                        'canonical_model_key': canonical_key,
+                        'provider_model_key': route.provider_model_key,
+                    },
+                )
+                remote_url = self._generate_with_recraft(
+                    model_key=selected_model_key,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                )
+                return remote_url, remote_url
+
+            if self.settings.fal_api_key:
+                logger.info(
+                    'image_generation_provider_selected',
+                    extra={
+                        'provider': 'fal.ai',
+                        'model_key': model_key,
+                        'canonical_model_key': canonical_key,
+                        'provider_model_key': selected_model_key,
+                        'route': 'recraft-via-fal',
+                    },
+                )
+                try:
+                    width, height = self._together_dimensions(aspect_ratio, resolution)
+                    remote_url = self.fal_image.generate_recraft(
+                        model_key=selected_model_key,
+                        prompt=prompt,
+                        width=width,
+                        height=height,
+                        reference_urls=reference_urls,
+                    )
+                    return remote_url, remote_url
+                except Exception as exc:
+                    logger.warning(
+                        'image_generation_provider_fallback',
+                        extra={
+                            'provider': 'fal.ai',
+                            'model_key': model_key,
+                            'canonical_model_key': canonical_key,
+                            'fallback_model_key': route.fallback_model_key,
+                            'error': str(exc),
+                            'route': 'recraft-via-fal',
+                        },
+                    )
+
+            fallback = get_model_definition(route.fallback_model_key)
+            logger.warning(
+                'image_generation_provider_fallback',
                 extra={
                     'provider': 'recraft',
                     'model_key': model_key,
                     'canonical_model_key': canonical_key,
-                    'provider_model_key': route.provider_model_key,
+                    'fallback_model_key': route.fallback_model_key,
+                    'error': 'RECRAFT_API_KEY and fal recraft route are unavailable',
                 },
             )
-            remote_url = self._generate_with_recraft(
-                model_key='recraft_studio' if canonical_key == 'recraft' else model_key,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-                reference_urls=reference_urls,
-            )
-            return remote_url, remote_url
+            if fallback and fallback.model_key not in attempted:
+                return self._generate_with_router(
+                    model_key=fallback.model_key,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                    attempted_models=attempted,
+                )
+            raise RuntimeError('Recraft image generation is unavailable. Configure RECRAFT_API_KEY or FAL_API_KEY with a valid Recraft endpoint.')
 
         return None
 

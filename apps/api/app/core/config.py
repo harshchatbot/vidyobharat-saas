@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     together_image_model: str = 'black-forest-labs/FLUX.1-schnell'
     fal_api_key: str | None = None
     fal_api_base: str = 'https://queue.fal.run'
+    fal_recraft_image_endpoint: str = 'fal-ai/recraft-v3'
+    fal_recraft_image_pro_endpoint: str = 'fal-ai/recraft-v3'
     wan_video_enabled: bool = True
     heygen_api_key: str | None = None
     heygen_api_base: str = 'https://api.heygen.com'

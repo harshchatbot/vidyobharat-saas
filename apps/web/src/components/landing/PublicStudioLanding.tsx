@@ -88,13 +88,23 @@ function ToolTileMediaSurface({
   }
 
   return (
-    <Image
-      src={media.src}
-      alt={alt}
-      fill
-      sizes={sizes}
-      className="object-cover transition duration-500 group-hover:scale-[1.03]"
-    />
+    <>
+      <Image
+        src={media.src}
+        alt=""
+        aria-hidden
+        fill
+        sizes={sizes}
+        className="object-cover opacity-70 blur-md scale-[1.08] transition duration-500 group-hover:scale-[1.12]"
+      />
+      <Image
+        src={media.src}
+        alt={alt}
+        fill
+        sizes={sizes}
+        className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
+      />
+    </>
   );
 }
 
