@@ -777,10 +777,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
     setSubmitting(true);
     setError(null);
+    let createdItem: GeneratedImage | null = null;
     try {
       setSubmitProgress(14);
       const projectId = await ensureProjectForImageRun();
-      const item = await api.generateImage(
+      createdItem = await api.generateImage(
         {
           model_key: selectedModel,
           prompt: trimmedPrompt,
@@ -793,23 +794,35 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         },
         userId,
       );
-      if (typeof item.remaining_credits === 'number') {
-        if (wallet) {
-          applyWallet({ ...wallet, currentCredits: item.remaining_credits });
-        } else {
-          void refreshCredits();
-        }
-      }
       setSubmitProgress(100);
-      show(`Created! Credits Used: ${item.applied_credits} · Remaining Balance: ${item.remaining_credits ?? wallet?.currentCredits ?? 0}`);
-      setSelectedGenerated(item);
-      setActiveTab('generated');
-      const items = await refreshGeneratedFeed(generatedFetchLimit);
-      await refreshTagFacets(items);
     } catch (error) {
       reportUiError('Image generation failed', error, 'Failed to generate image. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+
+    if (!createdItem) return;
+
+    if (typeof createdItem.remaining_credits === 'number') {
+      if (wallet) {
+        applyWallet({ ...wallet, currentCredits: createdItem.remaining_credits });
+      } else {
+        void refreshCredits();
+      }
+    }
+    show(
+      `Created! Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
+        createdItem.remaining_credits ?? wallet?.currentCredits ?? 0
+      }`,
+    );
+    setSelectedGenerated(createdItem);
+    setActiveTab('generated');
+
+    try {
+      const items = await refreshGeneratedFeed(generatedFetchLimit);
+      await refreshTagFacets(items);
+    } catch (error) {
+      reportUiError('Studio refresh failed', error, 'Image was generated, but refreshing the feed took longer than expected.');
     }
   };
 

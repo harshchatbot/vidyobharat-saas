@@ -82,9 +82,6 @@ export function VoiceSelector({
             <p>
               Default behavior: if no explicit speaker is chosen, <span className="font-semibold text-text">Shubh</span> is used.
             </p>
-            <p>
-              Current mode: one narrator voice per video render. Multi-character voice casting (Heart/Lungs/Brain in different voices) is not enabled yet.
-            </p>
           </div>
         </div>
         <div className="grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">

@@ -160,25 +160,24 @@ function VideoLaneSelector({
     <div className="space-y-3">
       <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <div className="inline-flex min-w-full gap-2 rounded-[18px] bg-[hsl(var(--color-bg)/0.62)] p-1.5">
-        {VIDEO_LANES.map((item) => {
-          const active = item.key === lane;
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onChange(item.key)}
-              className={`inline-flex min-w-[132px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition ${
-                active
-                  ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]'
-                  : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          );
-        })}
+          {VIDEO_LANES.map((item) => {
+            const active = item.key === lane;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onChange(item.key)}
+                className={`inline-flex min-w-[132px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition ${active
+                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]'
+                    : 'bg-[hsl(var(--color-surface)/0.34)] text-muted hover:text-text'
+                  }`}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className={`rounded-[18px] border px-4 py-3.5 ${getVideoLaneDefinition(lane).accentClassName}`}>
@@ -681,9 +680,9 @@ export function CreateVideoPage({
               unifiedVideoTemplates: unifiedTemplates,
               ttsCatalog: ttsCatalog
                 ? {
-                    voices: ttsCatalog.voices.length > 0 ? ttsCatalog.voices : VOICE_OPTIONS,
-                    languages: ttsCatalog.languages.length > 0 ? ttsCatalog.languages : LANGUAGE_OPTIONS,
-                  }
+                  voices: ttsCatalog.voices.length > 0 ? ttsCatalog.voices : VOICE_OPTIONS,
+                  languages: ttsCatalog.languages.length > 0 ? ttsCatalog.languages : LANGUAGE_OPTIONS,
+                }
                 : null,
               userImages,
               userVideos,
@@ -1338,21 +1337,21 @@ export function CreateVideoPage({
       }
       const result = hasScriptInput
         ? await api.enhanceScriptV2(
-            {
-              script: script.trim(),
-              template: effectiveTemplate,
-              language,
-            },
-            userId,
-          )
+          {
+            script: script.trim(),
+            template: effectiveTemplate,
+            language,
+          },
+          userId,
+        )
         : await api.generateScriptV2(
-            {
-              template: effectiveTemplate,
-              topic: effectiveTopic,
-              language,
-            },
-            userId,
-          );
+          {
+            template: effectiveTemplate,
+            topic: effectiveTopic,
+            language,
+          },
+          userId,
+        );
       setScript(result.script);
       setScriptTags(result.tags);
       if (topic.trim()) {
@@ -1481,9 +1480,9 @@ export function CreateVideoPage({
       setVoicePreviewLimit(response.preview_limit);
       setVoicePreviewMessage(
         response.provider_message ??
-          (response.provider === 'Fallback TTS'
-            ? 'Sarvam preview was not used for this sample. Check the API server log or provider configuration.'
-            : null),
+        (response.provider === 'Fallback TTS'
+          ? 'Sarvam preview was not used for this sample. Check the API server log or provider configuration.'
+          : null),
       );
       if (response.provider === 'Fallback TTS' && response.provider_message) {
         show(response.provider_message);
@@ -1769,12 +1768,12 @@ export function CreateVideoPage({
         current.map((item) =>
           item.id === videoItem.id
             ? {
-                ...item,
-                is_public_inspiration: next.is_public_inspiration,
-                moderation_status: next.moderation_status,
-                inspiration_score: next.inspiration_score,
-                like_count: next.like_count,
-              }
+              ...item,
+              is_public_inspiration: next.is_public_inspiration,
+              moderation_status: next.moderation_status,
+              inspiration_score: next.inspiration_score,
+              like_count: next.like_count,
+            }
             : item,
         ),
       );
@@ -1801,7 +1800,7 @@ export function CreateVideoPage({
         progress={overlayProgress ?? undefined}
       />
 
-  {/*    <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
+      {/*    <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
         <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -1911,262 +1910,262 @@ export function CreateVideoPage({
 
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.05fr)_370px] 2xl:items-start">
         <div className="min-w-0 space-y-5">
-          
 
-      <SectionCard
-        title="Content Template"
-        description="Pick a workflow."
-        icon={<Film className="h-5 w-5" />}
-      >
-        <TemplateSelector
-          loading={templatesLoading}
-          templates={visibleTemplates}
-          selectedTemplate={selectedTemplate}
-          onSelect={applyTemplate}
-        />
+
+          <SectionCard
+            title="Content Template"
+            description="Pick a workflow."
+            icon={<Film className="h-5 w-5" />}
+          >
+            <TemplateSelector
+              loading={templatesLoading}
+              templates={visibleTemplates}
+              selectedTemplate={selectedTemplate}
+              onSelect={applyTemplate}
+            />
           </SectionCard>
 
           <SectionCard
-        title="Project"
-        description="Optional."
-        icon={<GalleryVerticalEnd className="h-5 w-5" />}
-        action={projectsLoading ? <Spinner /> : null}
-        defaultOpen={false}
-      >
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-text">Save into project</label>
-            <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
-              <option value="">Auto-create when needed</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </Dropdown>
-            <p className="text-xs text-muted">Leave empty to auto-create when needed.</p>
-          </div>
-          <div className="flex items-end">
-            <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
-              {projectCreating ? 'Creating...' : 'New project'}
-            </Button>
-          </div>
-        </div>
-      </SectionCard>
-
-          <SectionCard
-        title="Script Editor & AI Assist"
-        description="Script"
-        icon={<Wand2 className="h-5 w-5" />}
-      >
-        <ScriptEditor
-          topic={topic}
-          onTopicChange={setTopic}
-          topicPlaceholder={template.topicHint}
-          script={script}
-          onScriptChange={setScript}
-          scriptPlaceholder={template.scriptHint}
-          onGenerate={() => void generateScript()}
-          onEnhance={() => void enhanceScript()}
-          loading={scriptLoading}
-          error={scriptError}
-          tags={scriptTags}
-          generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
-          enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
-        />
+            title="Project"
+            description="Optional."
+            icon={<GalleryVerticalEnd className="h-5 w-5" />}
+            action={projectsLoading ? <Spinner /> : null}
+            defaultOpen={false}
+          >
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-text">Save into project</label>
+                <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                  <option value="">Auto-create when needed</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </Dropdown>
+                <p className="text-xs text-muted">Leave empty to auto-create when needed.</p>
+              </div>
+              <div className="flex items-end">
+                <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
+                  {projectCreating ? 'Creating...' : 'New project'}
+                </Button>
+              </div>
+            </div>
           </SectionCard>
 
           <SectionCard
-        title="Video Lane & Model"
-        description="Lane + model"
-        icon={<Sparkles className="h-5 w-5" />}
-        action={modelsLoading ? <Spinner /> : null}
-      >
-        <div className="space-y-5">
-          <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-          <ModelDropdown
-            models={visibleModels}
-            selectedModel={modelKey}
-            onChange={(value) => setModelKey(value as VideoModelKey)}
-            title={`${selectedLane.label} models`}
-            description="Pick a model for this lane."
-          />
-          <div className="grid gap-2.5 sm:grid-cols-3">
-            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
-              <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
-            </div>
-            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Selected engine</p>
-              <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
-            </div>
-            <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
-              <p className="mt-1 text-sm font-semibold text-text">
-                {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
-              </p>
-            </div>
-          </div>
-          {laneHasOnlyGatedModels ? (
-            <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-              Lane visible, generation disabled.
-            </div>
-          ) : null}
-        </div>
+            title="Script Editor & AI Assist"
+            description="Script"
+            icon={<Wand2 className="h-5 w-5" />}
+          >
+            <ScriptEditor
+              topic={topic}
+              onTopicChange={setTopic}
+              topicPlaceholder={template.topicHint}
+              script={script}
+              onScriptChange={setScript}
+              scriptPlaceholder={template.scriptHint}
+              onGenerate={() => void generateScript()}
+              onEnhance={() => void enhanceScript()}
+              loading={scriptLoading}
+              error={scriptError}
+              tags={scriptTags}
+              generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
+              enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+            />
           </SectionCard>
 
           <SectionCard
-        title="Voice & Language"
-        description="Narration"
-        icon={<Mic2 className="h-5 w-5" />}
-        defaultOpen={false}
-      >
-        <VoiceSelector
-          languageOptions={languageOptions}
-          voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
-          language={language}
-          onLanguageChange={(value) => void handleLanguageChange(value)}
-          voice={voice}
-          onVoiceChange={handleVoiceChange}
-          sampleRateHz={audioSampleRateHz}
-          onSampleRateHzChange={setAudioSampleRateHz}
-          previewText={voicePreviewText}
-          onPreviewTextChange={setVoicePreviewText}
-          onPreview={previewVoice}
-          previewing={voicePreviewing}
-          previewLoadingKey={voicePreviewLoadingKey}
-          previewProvider={voicePreviewProvider}
-          resolvedVoice={voicePreviewResolvedVoice}
-          previewCached={voicePreviewCached}
-          previewLimit={voicePreviewLimit}
-          previewError={voicePreviewError}
-          previewMessage={voicePreviewMessage}
-          translating={voiceTranslationLoading}
-          estimatedCredits={voiceEstimate?.estimatedCredits}
-          currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-          insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
-          onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
-          voiceCreditMap={voiceCreditMap}
-        />
-        <div ref={voicePreviewControlsRef} className="space-y-2">
-          {voicePreviewUrl ? (
-            <div className="space-y-2">
-              <audio
-                ref={voicePreviewAudioRef}
-                src={voicePreviewUrl}
-                controls
-                preload="auto"
-                className="w-full"
-                onEnded={() => setVoicePreviewing(false)}
-                onPause={() => setVoicePreviewing(false)}
-                onPlay={() => setVoicePreviewing(true)}
-                onError={() => {
-                  const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                  setVoicePreviewError(message);
-                  setVoicePreviewing(false);
-                  show(message);
-                }}
+            title="Video Lane & Model"
+            description="Lane + model"
+            icon={<Sparkles className="h-5 w-5" />}
+            action={modelsLoading ? <Spinner /> : null}
+          >
+            <div className="space-y-5">
+              <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+              <ModelDropdown
+                models={visibleModels}
+                selectedModel={modelKey}
+                onChange={(value) => setModelKey(value as VideoModelKey)}
+                title={`${selectedLane.label} models`}
+                description="Pick a model for this lane."
               />
-              {!voicePreviewing ? (
-                <button
-                  type="button"
-                  onClick={() => void playExistingVoicePreview()}
-                  className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
-                >
-                  <Mic2 className="h-3.5 w-3.5" />
-                  Play preview
-                </button>
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+                </div>
+                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Selected engine</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+                </div>
+                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
+                  <p className="mt-1 text-sm font-semibold text-text">
+                    {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
+                  </p>
+                </div>
+              </div>
+              {laneHasOnlyGatedModels ? (
+                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
+                  Lane visible, generation disabled.
+                </div>
               ) : null}
             </div>
-          ) : (
-            <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
-          )}
-          {voicePreviewUrl ? (
-            <p className="text-xs text-muted">
-              If autoplay does not start, use the built-in audio controls to play the preview manually.
-            </p>
-          ) : null}
-        </div>
           </SectionCard>
 
           <SectionCard
-        title="Optional Reference Images"
-        description="Image seed (optional)"
-        icon={<Film className="h-5 w-5" />}
-        defaultOpen={false}
-      >
-        <ReferenceImagePicker
-          generatedImages={generatedImages}
-          selectedImageUrls={selectedImageUrls}
-          onToggle={toggleImageSelection}
-          pastedUrl={referenceImageUrlInput}
-          onPastedUrlChange={setReferenceImageUrlInput}
-          onAddUrl={addReferenceImageUrl}
-          onMove={moveImage}
-          onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
-        />
+            title="Voice & Language"
+            description="Narration"
+            icon={<Mic2 className="h-5 w-5" />}
+            defaultOpen={false}
+          >
+            <VoiceSelector
+              languageOptions={languageOptions}
+              voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
+              language={language}
+              onLanguageChange={(value) => void handleLanguageChange(value)}
+              voice={voice}
+              onVoiceChange={handleVoiceChange}
+              sampleRateHz={audioSampleRateHz}
+              onSampleRateHzChange={setAudioSampleRateHz}
+              previewText={voicePreviewText}
+              onPreviewTextChange={setVoicePreviewText}
+              onPreview={previewVoice}
+              previewing={voicePreviewing}
+              previewLoadingKey={voicePreviewLoadingKey}
+              previewProvider={voicePreviewProvider}
+              resolvedVoice={voicePreviewResolvedVoice}
+              previewCached={voicePreviewCached}
+              previewLimit={voicePreviewLimit}
+              previewError={voicePreviewError}
+              previewMessage={voicePreviewMessage}
+              translating={voiceTranslationLoading}
+              estimatedCredits={voiceEstimate?.estimatedCredits}
+              currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+              insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
+              onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
+              voiceCreditMap={voiceCreditMap}
+            />
+            <div ref={voicePreviewControlsRef} className="space-y-2">
+              {voicePreviewUrl ? (
+                <div className="space-y-2">
+                  <audio
+                    ref={voicePreviewAudioRef}
+                    src={voicePreviewUrl}
+                    controls
+                    preload="auto"
+                    className="w-full"
+                    onEnded={() => setVoicePreviewing(false)}
+                    onPause={() => setVoicePreviewing(false)}
+                    onPlay={() => setVoicePreviewing(true)}
+                    onError={() => {
+                      const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                      setVoicePreviewError(message);
+                      setVoicePreviewing(false);
+                      show(message);
+                    }}
+                  />
+                  {!voicePreviewing ? (
+                    <button
+                      type="button"
+                      onClick={() => void playExistingVoicePreview()}
+                      className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                    >
+                      <Mic2 className="h-3.5 w-3.5" />
+                      Play preview
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
+              )}
+              {voicePreviewUrl ? (
+                <p className="text-xs text-muted">
+                  If autoplay does not start, use the built-in audio controls to play the preview manually.
+                </p>
+              ) : null}
+            </div>
           </SectionCard>
 
           <SectionCard
-        title="Background Audio"
-        description="Music (optional)"
-        icon={<Mic2 className="h-5 w-5" />}
-        defaultOpen={false}
-      >
-        <MusicSelector
-          mode={musicMode}
-          onModeChange={setMusicMode}
-          tracks={tracks}
-          tracksLoading={tracksLoading}
-          selectedTrackId={selectedTrackId}
-          onTrackChange={setSelectedTrackId}
-          uploadUrl={uploadedMusicUrl}
-          onUploadUrlChange={setUploadedMusicUrl}
-          onTogglePreview={() => void toggleMusicPreview()}
-          isPlaying={musicPlaying}
-          volume={musicVolume}
-          onVolumeChange={setMusicVolume}
-          ducking={ducking}
-          onDuckingChange={setDucking}
-          error={musicPreviewError}
-        />
-        {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
+            title="Optional Reference Images"
+            description="Image seed (optional)"
+            icon={<Film className="h-5 w-5" />}
+            defaultOpen={false}
+          >
+            <ReferenceImagePicker
+              generatedImages={generatedImages}
+              selectedImageUrls={selectedImageUrls}
+              onToggle={toggleImageSelection}
+              pastedUrl={referenceImageUrlInput}
+              onPastedUrlChange={setReferenceImageUrlInput}
+              onAddUrl={addReferenceImageUrl}
+              onMove={moveImage}
+              onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
+            />
           </SectionCard>
-
+{/*
           <SectionCard
-        title="Output Settings"
-        description="Format + quality"
-        icon={<Settings2 className="h-5 w-5" />}
-        defaultOpen={false}
-      >
-        <OutputSettings
-          modelLabel={selectedModel.label}
-          aspectRatio={aspectRatio}
-          availableAspectRatios={availableAspectRatios}
-          selectedAspectDescription={selectedAspectDescription}
-          onAspectRatioChange={setAspectRatio}
-          resolution={resolution}
-          onResolutionChange={setResolution}
-          availableResolutions={availableResolutions}
-          resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
-          selectedResolutionDimensions={selectedResolutionDimensions}
-          quality={quality}
-          onQualityChange={setQuality}
-          durationSeconds={durationSeconds}
-          onDurationSecondsChange={setDurationSeconds}
-          availableDurations={availableDurations}
-          supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
-          minDuration={klingMinDuration}
-          maxDuration={klingMaxDuration}
-          durationHelperText={hasReferenceImages && seededDuration
-            ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
-            : durationRule.helperText}
-          durationError={durationError}
-          captionsEnabled={captionsEnabled}
-          onCaptionsEnabledChange={setCaptionsEnabled}
-          captionStyle={captionStyle}
-          onCaptionStyleChange={setCaptionStyle}
-        />
+            title="Background Audio"
+            description="Music (optional)"
+            icon={<Mic2 className="h-5 w-5" />}
+            defaultOpen={false}
+          >
+            <MusicSelector
+              mode={musicMode}
+              onModeChange={setMusicMode}
+              tracks={tracks}
+              tracksLoading={tracksLoading}
+              selectedTrackId={selectedTrackId}
+              onTrackChange={setSelectedTrackId}
+              uploadUrl={uploadedMusicUrl}
+              onUploadUrlChange={setUploadedMusicUrl}
+              onTogglePreview={() => void toggleMusicPreview()}
+              isPlaying={musicPlaying}
+              volume={musicVolume}
+              onVolumeChange={setMusicVolume}
+              ducking={ducking}
+              onDuckingChange={setDucking}
+              error={musicPreviewError}
+            />
+            {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
+          </SectionCard>
+*/}
+          <SectionCard
+            title="Output Settings"
+            description="Format + quality"
+            icon={<Settings2 className="h-5 w-5" />}
+            defaultOpen={false}
+          >
+            <OutputSettings
+              modelLabel={selectedModel.label}
+              aspectRatio={aspectRatio}
+              availableAspectRatios={availableAspectRatios}
+              selectedAspectDescription={selectedAspectDescription}
+              onAspectRatioChange={setAspectRatio}
+              resolution={resolution}
+              onResolutionChange={setResolution}
+              availableResolutions={availableResolutions}
+              resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
+              selectedResolutionDimensions={selectedResolutionDimensions}
+              quality={quality}
+              onQualityChange={setQuality}
+              durationSeconds={durationSeconds}
+              onDurationSecondsChange={setDurationSeconds}
+              availableDurations={availableDurations}
+              supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
+              minDuration={klingMinDuration}
+              maxDuration={klingMaxDuration}
+              durationHelperText={hasReferenceImages && seededDuration
+                ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
+                : durationRule.helperText}
+              durationError={durationError}
+              captionsEnabled={captionsEnabled}
+              onCaptionsEnabledChange={setCaptionsEnabled}
+              captionStyle={captionStyle}
+              onCaptionStyleChange={setCaptionStyle}
+            />
           </SectionCard>
         </div>
 
@@ -2231,12 +2230,12 @@ export function CreateVideoPage({
                 laneHasOnlyGatedModels
                   ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`
                   : selectedModelDisabled
-                  ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
-                  : creditEstimate
-                  ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
-                  : isEstimating
-                    ? 'Estimating credits for selected settings.'
-                    : `${selectedLane.shortLabel} estimate is based on the shared pricing engine. Final validation happens on submit.`
+                    ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
+                    : creditEstimate
+                      ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
+                      : isEstimating
+                        ? 'Estimating credits for selected settings.'
+                        : `${selectedLane.shortLabel} estimate is based on the shared pricing engine. Final validation happens on submit.`
               }
             />
             {selectedModelDisabled ? (
@@ -2275,67 +2274,67 @@ export function CreateVideoPage({
           </Card>
 
           <SectionCard
-        title="Studio Feed"
-        description="Recent videos"
-        icon={<Film className="h-5 w-5" />}
-        defaultOpen={false}
-      >
-        {videos.length === 0 ? (
-          <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-            {videos.map((videoItem) => {
-              const videoUrl = toAssetUrl(videoItem.output_url);
-              const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
-              return (
-                <div key={videoItem.id} className="overflow-hidden rounded-[18px] border border-border bg-bg">
-                  {videoUrl ? (
-                    <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-40 w-full bg-black object-cover" />
-                  ) : thumbUrl ? (
-                    <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-40 w-full object-cover" />
-                  ) : (
-                    <div className="flex h-40 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
-                  )}
-                  <div className="space-y-2.5 p-3">
-                    <div>
-                      <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
-                      <p className="mt-0.5 text-[11px] text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>
-                      <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.aspect_ratio}</span>
-                      {videoItem.duration_seconds ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.duration_seconds}s</span> : null}
-                      {videoItem.is_public_inspiration ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">Inspiration · {videoItem.moderation_status}</span> : null}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text">
-                        Open
-                      </Link>
+            title="Studio Feed"
+            description="Recent videos"
+            icon={<Film className="h-5 w-5" />}
+            defaultOpen={false}
+          >
+            {videos.length === 0 ? (
+              <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {videos.map((videoItem) => {
+                  const videoUrl = toAssetUrl(videoItem.output_url);
+                  const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
+                  return (
+                    <div key={videoItem.id} className="overflow-hidden rounded-[18px] border border-border bg-bg">
                       {videoUrl ? (
-                        <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
-                          <Download className="h-4 w-4" />
-                          Download
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => void togglePublishVideo(videoItem)}
-                        disabled={publishingVideoId === videoItem.id}
-                        className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
-                      >
-                        {publishingVideoId === videoItem.id
-                          ? 'Updating...'
-                          : videoItem.is_public_inspiration
-                            ? 'Unpublish'
-                            : 'Publish'}
-                      </button>
+                        <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-40 w-full bg-black object-cover" />
+                      ) : thumbUrl ? (
+                        <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-40 w-full object-cover" />
+                      ) : (
+                        <div className="flex h-40 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
+                      )}
+                      <div className="space-y-2.5 p-3">
+                        <div>
+                          <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
+                          <p className="mt-0.5 text-[11px] text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>
+                          <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.aspect_ratio}</span>
+                          {videoItem.duration_seconds ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.duration_seconds}s</span> : null}
+                          {videoItem.is_public_inspiration ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">Inspiration · {videoItem.moderation_status}</span> : null}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text">
+                            Open
+                          </Link>
+                          {videoUrl ? (
+                            <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
+                              <Download className="h-4 w-4" />
+                              Download
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void togglePublishVideo(videoItem)}
+                            disabled={publishingVideoId === videoItem.id}
+                            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
+                          >
+                            {publishingVideoId === videoItem.id
+                              ? 'Updating...'
+                              : videoItem.is_public_inspiration
+                                ? 'Unpublish'
+                                : 'Publish'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            )}
           </SectionCard>
         </div>
       </div>
@@ -2419,11 +2418,10 @@ export function CreateVideoPage({
                               key={option.value}
                               type="button"
                               onClick={() => setTemplateFlowInputs((current) => ({ ...current, [primarySubtypeField.key]: option.value }))}
-                              className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                                active
+                              className={`rounded-full px-3 py-2 text-xs font-semibold transition ${active
                                   ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                                   : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
-                              }`}
+                                }`}
                             >
                               {option.label}
                             </button>

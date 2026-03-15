@@ -20,13 +20,13 @@
     "baseCredits": 10,
     "modelMultiplier": {
       "kling": 1.0,
-      "kling_turbo": 0.9,
-      "wan_2_5": 0.85,
-      "veo_3_1": 1.3,
-      "sora_2": 1.8,
-      "veo": 1.3,
-      "sora": 1.8,
-      "sora_pro": 3.1
+      "kling_turbo": 0.7,
+      "wan_2_5": 10.5,
+      "veo_3_1": 20.8,
+      "sora_2": 10.5,
+      "veo": 20.8,
+      "sora": 10.5,
+      "sora_pro": 31.2
     },
     "resolutionMultiplier": {
       "720p": 1.0,
@@ -38,7 +38,7 @@
       "standard": 1.0,
       "high": 1.3
     },
-    "maxCreditsCap": 150
+    "maxCreditsCap": 600
   },
   "image": {
     "baseCredits": 2,
@@ -66,14 +66,14 @@
         "2048": 10
       },
       "gpt_image_1_5": {
-        "1024": 6,
-        "1536": 7,
-        "2048": 8
+        "1024": 12,
+        "1536": 14,
+        "2048": 18
       },
       "openai_image": {
-        "1024": 6,
-        "1536": 7,
-        "2048": 8
+        "1024": 12,
+        "1536": 14,
+        "2048": 18
       },
       "recraft": {
         "1024": 7,

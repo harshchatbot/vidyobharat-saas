@@ -693,7 +693,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
                     placeholder="e.g. Ira Malhotra, the startup storyteller"
                   />
-                  <p className="mt-2 text-xs text-muted">Use the public-facing name you want to keep consistent across all content.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Gender / Identity</label>
@@ -702,7 +701,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onChange={(e) => setDraft((current) => ({ ...current, gender_identity: e.target.value }))}
                     placeholder="e.g. Female founder, androgynous creator, male fitness coach"
                   />
-                  <p className="mt-2 text-xs text-muted">Describe how the character should be represented, not just a one-word label.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Niche</label>
@@ -711,7 +709,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onChange={(e) => setDraft((current) => ({ ...current, niche: e.target.value }))}
                     placeholder="e.g. SaaS growth, luxury real estate, wellness coaching"
                   />
-                  <p className="mt-2 text-xs text-muted">This helps keep content topics and scene choices aligned with the brand persona.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Tone</label>
@@ -720,7 +717,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onChange={(e) => setDraft((current) => ({ ...current, tone: e.target.value }))}
                     placeholder="e.g. polished, bold, witty, mentor-like"
                   />
-                  <p className="mt-2 text-xs text-muted">Keep this stable so captions, hooks, and speaking style feel recognisable.</p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-medium text-text">Catchphrase</label>
@@ -850,7 +846,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
             ) : null}
             {!canGenerateContent ? (
-              <p className="text-xs text-muted">Add a content brief and select a persona to unlock content generation.</p>
             ) : null}
 
             {contentResult ? (
