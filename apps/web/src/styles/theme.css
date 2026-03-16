@@ -116,3 +116,108 @@
 .rangmanch-loader-bar {
   animation: rangmanch-loader-bar 2.1s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
 }
+
+@keyframes rangmanch-stage-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translateY(-50%) scale(0.92);
+  }
+  50% {
+    opacity: 0.72;
+    transform: translateY(-50%) scale(1.08);
+  }
+}
+
+@keyframes rangmanch-curtain-left {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(-5%);
+    opacity: 0.95;
+  }
+}
+
+@keyframes rangmanch-curtain-right {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(5%);
+    opacity: 0.95;
+  }
+}
+
+@keyframes rangmanch-spotlight {
+  0%, 100% {
+    opacity: 0.45;
+    transform: translateX(-50%) scaleX(0.96);
+  }
+  50% {
+    opacity: 0.82;
+    transform: translateX(-50%) scaleX(1.04);
+  }
+}
+
+@keyframes rangmanch-performer {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-8px) rotate(3deg);
+  }
+}
+
+@keyframes rangmanch-tabla-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes rangmanch-stage-floor {
+  0%, 100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(1.05);
+  }
+}
+
+.rangmanch-stage-glow {
+  animation: rangmanch-stage-glow 3.6s ease-in-out infinite;
+}
+
+.rangmanch-curtain-left {
+  animation: rangmanch-curtain-left 2.8s ease-in-out infinite;
+}
+
+.rangmanch-curtain-right {
+  animation: rangmanch-curtain-right 2.8s ease-in-out infinite;
+}
+
+.rangmanch-spotlight {
+  animation: rangmanch-spotlight 2.2s ease-in-out infinite;
+}
+
+.rangmanch-performer {
+  animation: rangmanch-performer 1.8s ease-in-out infinite;
+}
+
+.rangmanch-tabla-pulse {
+  animation: rangmanch-tabla-pulse 1.05s ease-in-out infinite;
+}
+
+.rangmanch-tabla-delay {
+  animation-delay: 0.28s;
+}
+
+.rangmanch-stage-floor {
+  animation: rangmanch-stage-floor 2.4s ease-in-out infinite;
+}
