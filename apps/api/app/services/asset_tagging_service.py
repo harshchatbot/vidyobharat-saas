@@ -46,12 +46,16 @@ class AssetTaggingService:
         return auto_tags, user_tags
 
     def auto_tag_image(self, generation: ImageGeneration) -> list[str]:
-        if self.repo is None:
-            raise RuntimeError('AssetTaggingService requires a database session for auto_tag_image')
         prompt = generation.prompt
         vision_tags = self._extract_vision_tags(image_url=generation.image_url, prompt=prompt, content_type='image')
         derived = self._derive_tags(f'{prompt} {generation.model_key} {generation.aspect_ratio} {generation.resolution}')
         tags = self._dedupe_tags([*vision_tags, *derived, generation.model_key, generation.aspect_ratio, generation.resolution])
+        if self.repo is None:
+            logger.warning(
+                'asset_auto_tagging_skipped_no_db',
+                extra={'asset_type': 'image', 'asset_id': generation.id},
+            )
+            return tags
         self.repo.add_tags(asset_id=generation.id, asset_type='image', tags=tags, source='auto')
         return tags
 

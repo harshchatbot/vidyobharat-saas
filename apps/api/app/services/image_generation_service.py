@@ -388,8 +388,17 @@ class ImageGenerationService:
                 prompt=prompt,
                 thumbnail_url=thumbnail_url,
             )
-        self.tagging.auto_tag_image(generation)
-        auto_tags, user_tags = self.tagging.list_tags(generation.id, 'image')
+        auto_tags: list[str] = []
+        user_tags: list[str] = []
+        try:
+            auto_tags = self.tagging.auto_tag_image(generation)
+            if self.tagging.repo is not None:
+                auto_tags, user_tags = self.tagging.list_tags(generation.id, 'image')
+        except Exception as exc:
+            logger.warning(
+                'image_auto_tagging_non_fatal',
+                extra={'render_id': generation.id, 'model_key': model_key, 'error': str(exc)},
+            )
         self.sync.sync_image(generation, auto_tags=auto_tags, user_tags=user_tags)
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
