@@ -1203,6 +1203,25 @@ export function CreateVideoPage({
     setScriptError(null);
   };
 
+  const openTemplateBrowser = () => {
+    const mappedSelectedTemplate = unifiedVideoTemplates.find(
+      (item) => item.id === selectedTemplate || (item.legacy_mappings || []).includes(selectedTemplate),
+    );
+    const nextTemplate = activeTemplateFlow ?? selectedHeroTemplate ?? mappedSelectedTemplate ?? unifiedVideoTemplates[0] ?? null;
+
+    if (!nextTemplate) {
+      show({
+        title: 'Templates still loading',
+        message: 'Please wait a moment and try again.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    setActiveTemplateFlow(nextTemplate);
+    setTemplateFlowOpen(true);
+  };
+
   const activeTemplateEstimatePayload = defaultTemplateEstimatePayload(
     activeTemplateFlow,
     templateFlowInputs,
@@ -1916,6 +1935,12 @@ export function CreateVideoPage({
             title="Content Template"
             description="Pick a workflow."
             icon={<Film className="h-5 w-5" />}
+            action={(
+              <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 px-3 py-2 text-xs">
+                <GalleryVerticalEnd className="h-3.5 w-3.5" />
+                Browse
+              </Button>
+            )}
           >
             <TemplateSelector
               loading={templatesLoading}

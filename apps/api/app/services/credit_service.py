@@ -80,7 +80,7 @@ class CreditTopUpOrderResult:
 
 
 class CreditService:
-    FREE_PLAN_MONTHLY_CREDITS = 25
+    FREE_PLAN_MONTHLY_CREDITS = 40
     VOICE_PROVIDER_ALIASES = {
         'sarvam ai': 'sarvam',
         'sarvam': 'sarvam',

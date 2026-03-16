@@ -733,6 +733,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0] ?? fallbackModels[0];
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
+  const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
+  const primaryActionLoading = composerMode === 'variation' ? variationLoading : submitting;
   const availableImageWorkflows = IMAGE_WORKFLOW_OPTIONS.map((option) => {
     const resolvedModelKey = resolveImageModeModel(models, option.key);
     const resolvedModel = resolvedModelKey ? models.find((item) => item.key === resolvedModelKey) ?? fallbackModels.find((item) => item.key === resolvedModelKey) ?? null : null;
@@ -1495,14 +1497,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   onClick={() => void handlePrimaryAction()}
                   disabled={
                     submitting ||
-                    actionLoading === variationActionKey ||
+                    variationLoading ||
                     (composerMode === 'variation'
                       ? !variationSource
                       : Boolean(estimate && !estimate.sufficient))
                   }
                   className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                 >
-                  {submitting || actionLoading === variationActionKey ? (
+                  {primaryActionLoading ? (
                     <>
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                       {composerMode === 'variation' ? 'Creating variations...' : 'Generating...'}

@@ -62,6 +62,7 @@ export type ApiOptions = {
   accessToken?: string;
   cache?: RequestCache;
   next?: { revalidate?: number };
+  timeoutMs?: number;
 };
 
 type CacheEntry<T> = {
@@ -167,17 +168,36 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
 
   for (const base of baseCandidates) {
     tried.push(base);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutMs = options.timeoutMs ?? 0;
+    const timeoutId =
+      controller && timeoutMs > 0
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : null;
+    if (controller && init.signal) {
+      if (init.signal.aborted) {
+        controller.abort();
+      } else {
+        init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
     try {
       response = await fetch(`${base}${path}`, {
         ...init,
         headers,
+        signal: controller?.signal ?? init.signal,
         cache: options.cache,
         next: options.next,
       });
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (error instanceof DOMException && error.name === 'AbortError' && timeoutMs > 0) {
+        throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+      }
       lastNetworkError = error;
       continue;
     }
+    if (timeoutId) clearTimeout(timeoutId);
 
     if (response.ok) break;
     if (![502, 503, 504].includes(response.status)) break;
@@ -663,7 +683,7 @@ export const api = {
     return request<GeneratedImage>('/ai/image/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' }).then((result) => {
+    }, { userId, cache: 'no-store', timeoutMs: 120_000 }).then((result) => {
       invalidateUserCache(userId, ['/api/credits/wallet', '/ai/images', '/assets/search', '/assets/tags']);
       return result;
     });
@@ -686,7 +706,7 @@ export const api = {
     return request<ImageActionResponse>('/ai/images/action', {
       method: 'POST',
       body: JSON.stringify({ image_id: imageId, action_type: action }),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store', timeoutMs: 120_000 });
   },
   getCreditWallet(userId: string) {
     const path = '/api/credits/wallet';

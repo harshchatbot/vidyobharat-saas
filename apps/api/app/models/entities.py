@@ -183,9 +183,9 @@ class CreditWallet(Base):
     __tablename__ = 'credit_wallets'
 
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
-    current_credits: Mapped[int] = mapped_column(Integer, default=25)
+    current_credits: Mapped[int] = mapped_column(Integer, default=40)
     plan_type: Mapped[str] = mapped_column(String(32), default='free')
-    monthly_credits: Mapped[int] = mapped_column(Integer, default=25)
+    monthly_credits: Mapped[int] = mapped_column(Integer, default=40)
     last_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     premium_usage_count: Mapped[int] = mapped_column(Integer, default=0)
     free_usage_count: Mapped[int] = mapped_column(Integer, default=0)

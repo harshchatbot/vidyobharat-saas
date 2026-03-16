@@ -458,7 +458,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         globalThis.clearTimeout(timeoutHandle);
       }
     };
-  }, [allAssets.length, cacheKey, imageInspiration.length, userId, videoInspiration.length]);
+  }, [cacheKey, userId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
