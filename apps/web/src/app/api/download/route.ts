@@ -8,6 +8,31 @@ function sanitizeFilename(value: string | null) {
   return safe || 'download';
 }
 
+function extensionFromContentType(contentType: string) {
+  if (contentType.includes('mp4')) return '.mp4';
+  if (contentType.includes('webm')) return '.webm';
+  if (contentType.includes('png')) return '.png';
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return '.jpg';
+  if (contentType.includes('webp')) return '.webp';
+  if (contentType.includes('gif')) return '.gif';
+  if (contentType.includes('svg')) return '.svg';
+  if (contentType.includes('avif')) return '.avif';
+  return '';
+}
+
+function extensionFromPathname(pathname: string) {
+  const normalized = pathname.toLowerCase().split('?')[0];
+  if (normalized.endsWith('.mp4')) return '.mp4';
+  if (normalized.endsWith('.webm')) return '.webm';
+  if (normalized.endsWith('.png')) return '.png';
+  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return '.jpg';
+  if (normalized.endsWith('.webp')) return '.webp';
+  if (normalized.endsWith('.gif')) return '.gif';
+  if (normalized.endsWith('.svg')) return '.svg';
+  if (normalized.endsWith('.avif')) return '.avif';
+  return '';
+}
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
   const filename = sanitizeFilename(request.nextUrl.searchParams.get('filename'));
@@ -32,6 +57,12 @@ export async function GET(request: NextRequest) {
     hostname === 'storage.googleapis.com' ||
     hostname.endsWith('.firebasestorage.app') ||
     hostname.endsWith('.appspot.com');
+  const isKnownMediaHost = (hostname: string) =>
+    hostname.endsWith('.fal.media') ||
+    hostname === 'fal.media' ||
+    hostname.endsWith('.openaiusercontent.com') ||
+    hostname.endsWith('.blob.core.windows.net') ||
+    hostname === 'images.unsplash.com';
 
   const firebaseBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '').replace(/\/+$/, '');
   const isBucketHostMatch = firebaseBucket ? parsed.hostname === firebaseBucket : false;
@@ -43,7 +74,8 @@ export async function GET(request: NextRequest) {
       const allowed =
         parsed.origin === configuredOrigin ||
         isFirebaseStorageHost(parsed.hostname) ||
-        isBucketHostMatch;
+        isBucketHostMatch ||
+        isKnownMediaHost(parsed.hostname);
       if (!allowed) {
         return new Response('Blocked origin', { status: 400 });
       }
@@ -51,7 +83,7 @@ export async function GET(request: NextRequest) {
       return new Response('Invalid API URL configuration', { status: 500 });
     }
   } else {
-    const allowed = isFirebaseStorageHost(parsed.hostname) || isBucketHostMatch;
+    const allowed = isFirebaseStorageHost(parsed.hostname) || isBucketHostMatch || isKnownMediaHost(parsed.hostname);
     if (!allowed) {
       return new Response('Blocked origin', { status: 400 });
     }
@@ -63,12 +95,7 @@ export async function GET(request: NextRequest) {
   }
 
   const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream';
-  const extension =
-    contentType.includes('mp4') ? '.mp4' :
-    contentType.includes('webm') ? '.webm' :
-    contentType.includes('png') ? '.png' :
-    contentType.includes('jpeg') ? '.jpg' :
-    '';
+  const extension = extensionFromContentType(contentType) || extensionFromPathname(parsed.pathname);
 
   return new Response(upstream.body, {
     status: 200,

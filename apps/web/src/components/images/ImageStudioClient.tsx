@@ -312,7 +312,8 @@ function renderTemplatePrompt(template: ImageTemplatePreset, values: Record<stri
     prompt = prompt.replaceAll(placeholder, replacement);
   }
   prompt = prompt.replace(/\{[^}]+\}/g, '').replace(/\s+/g, ' ').trim();
-  const details: string[] = [prompt];
+  const basePrompt = prompt || template.description || template.title;
+  const details: string[] = [basePrompt];
   if (template.visual_prompt) details.push(`Visual direction: ${template.visual_prompt}.`);
   return details.join(' ').trim();
 }
@@ -735,6 +736,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0] ?? fallbackModels[0];
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
+  const activeTemplatePromptPreview = activeTemplate ? renderTemplatePrompt(activeTemplate, templateInputs) : '';
   const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
   const primaryActionLoading = composerMode === 'variation' ? variationLoading : submitting;
   const availableImageWorkflows = IMAGE_WORKFLOW_OPTIONS.map((option) => {
@@ -863,7 +865,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   };
 
   const applyImageTemplate = (template: ImageTemplatePreset, values: Record<string, string>) => {
-    const nextPrompt = renderTemplatePrompt(template, values);
+    const nextPrompt = renderTemplatePrompt(template, values) || template.description || template.title;
     setPrompt(nextPrompt);
     setAspectRatio(template.aspect_ratio || '4:5');
     setResolution(template.resolution || '1536');
@@ -914,11 +916,24 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const downloadImage = async (imageUrl: string, fileNameBase: string) => {
     try {
       const safeName = fileNameBase.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'image';
+      const response = await fetch(
+        `/api/download?url=${encodeURIComponent(toAbsoluteUrl(imageUrl) ?? imageUrl)}&filename=${encodeURIComponent(safeName)}`,
+      );
+      if (!response.ok) {
+        const message = (await response.text()) || 'Download failed';
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = `/api/download?url=${encodeURIComponent(toAbsoluteUrl(imageUrl) ?? imageUrl)}&filename=${encodeURIComponent(safeName)}`;
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+      link.href = objectUrl;
+      link.download = filenameMatch?.[1] || safeName;
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(objectUrl);
     } catch (error) {
       reportUiError('Download failed', error, 'Could not download image right now.');
     }
@@ -1841,6 +1856,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       {activeTemplate.aspect_ratio}
                       {' · '}
                       {resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}
+                    </p>
+                  </div>
+                  <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.48)] p-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Prompt preview</p>
+                    <p className="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-text">
+                      {activeTemplatePromptPreview || 'Preview will appear after template inputs are filled.'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2.5">

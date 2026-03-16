@@ -140,13 +140,14 @@ class TemplatePromptAssembler:
 
     def _assemble_viral_dance_clip(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
-        subject = values.get('subjectName', values.get('subjectType', 'a cute subject'))
+        subject = values.get('character') or values.get('subjectName') or values.get('subjectType') or 'a cute subject'
         dance_style = values.get('danceStyle', 'playful groove')
+        scene_theme = values.get('sceneTheme') or values.get('backgroundTheme') or 'clean social dance set'
         music_mood = values.get('musicMood', 'upbeat')
         loop = values.get('loopPreference', 'seamless loop')
         prompt = self._compose(
             f"Create a loop-friendly viral dance clip for {base['platform']} featuring {subject}.",
-            f"Dance style: {dance_style}. Music mood: {music_mood}. Outfit: {values.get('outfitStyle', 'social-friendly')}. Background: {values.get('backgroundTheme', 'clean and energetic')}.",
+            f"Dance style: {dance_style}. Scene theme: {scene_theme}. Music mood: {music_mood}.",
             f"End behavior: {loop}. Keep it instantly shareable and high-retention.",
             base['quality'],
             base['safety'],
@@ -154,7 +155,7 @@ class TemplatePromptAssembler:
         script_preview = self._scene_script(
             ('Hook', f'Open on {subject} already in motion with a strong first-frame pose that matches a {music_mood} sound bed.'),
             ('Beat 1', f'Hit the first memorable move in {dance_style} style. Keep the framing vertical, social-first, and easy to loop.'),
-            ('Beat 2', f'Switch to a second motion beat or reaction shot that pushes retention. Highlight outfit and background styling without clutter.'),
+            ('Beat 2', f'Switch to a second motion beat or reaction shot that pushes retention. Highlight scene styling from {scene_theme} without clutter.'),
             ('Loop Close', f'Return to a pose or motion that cuts back into the opening frame for a {loop}.'),
         )
         return PromptAssemblyResult(prompt, video_prompt=prompt, script_preview=script_preview, recommended_model_mode=template.default_model_mode)

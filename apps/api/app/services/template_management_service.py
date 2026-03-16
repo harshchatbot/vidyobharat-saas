@@ -524,8 +524,15 @@ class TemplateManagementService:
     def _ensure_seeded(self) -> None:
         if self._seeded:
             return
+        seeds = self._seed_templates()
         try:
-            self.repo.seed_missing(self._seed_templates())
+            self.repo.seed_missing(seeds)
+            # Keep selected hero templates in sync even after initial seed,
+            # so guided workflow simplifications roll out without manual DB edits.
+            curated_ids = {'viral_dance_clip', 'cinematic_infographic'}
+            for seed in seeds:
+                if seed.get('id') in curated_ids:
+                    self.repo.upsert(str(seed['id']), seed)
         except Exception:
             logger.exception('template_seed_failed')
         self._seeded = True
@@ -562,7 +569,13 @@ class TemplateManagementService:
                 ],
                 'script_hint': 'Keep the composition readable and premium with clear visual hierarchy.',
                 'topic_hint': 'Aerial visual + 3 key data callouts',
-                'prompt_template': 'Create a premium cinematic infographic image about {topic}. Style: {style}. Language context: {language}.',
+                'prompt_template': (
+                    'Create a premium cinematic infographic image about {topic}. '
+                    'Style: {style}. Language context: {language}. '
+                    'Must include at least 3 clear data callouts, icon markers, '
+                    'clean chart fragments, and a visible information hierarchy. '
+                    'Avoid plain poster-only composition.'
+                ),
                 'badge': 'Quick Start',
                 'is_quick_start': True,
                 'default_model_mode': 'best_graphics',

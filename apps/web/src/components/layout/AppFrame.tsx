@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
+import { useFormStatus } from 'react-dom';
+import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { logoutAction } from '@/app/auth-actions';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -20,6 +21,20 @@ type Props = {
   accountAvatar?: string | null;
   children: React.ReactNode;
 };
+
+function LogoutSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))] disabled:opacity-70"
+    >
+      {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+      {pending ? 'Logging out...' : 'Logout'}
+    </button>
+  );
+}
 
 const appRoutePrefixes = ['/dashboard', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
 
@@ -49,6 +64,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [projectsNavPending, setProjectsNavPending] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
@@ -87,7 +103,21 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     setMobileNavOpen(false);
     setDesktopNavOpen(null);
     setAccountMenuOpen(false);
+    setProjectsNavPending(false);
   }, [pathname]);
+
+  const openProjectsWorkspace = () => {
+    if (pathname.startsWith('/projects')) {
+      setProjectsNavPending(false);
+      setDesktopNavOpen(null);
+      setMobileNavOpen(false);
+      return;
+    }
+    setProjectsNavPending(true);
+    setDesktopNavOpen(null);
+    setMobileNavOpen(false);
+    router.push('/projects');
+  };
 
   if (inApp) {
     const flyoutPreviews: Record<string, string> = {
@@ -205,8 +235,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     type="button"
                     onClick={() => {
                       if (groupKey === 'projects') {
-                        setDesktopNavOpen(null);
-                        router.push(item.href);
+                        openProjectsWorkspace();
                       } else if (groupKey === 'home') {
                         setDesktopNavOpen((current) => (current === 'home' ? null : 'home'));
                       } else {
@@ -230,7 +259,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       }`}
                     >
                       <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
-                      <Icon className="h-3.5 w-3.5" />
+                      {groupKey === 'projects' && projectsNavPending ? (
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Icon className="h-3.5 w-3.5" />
+                      )}
                     </span>
                     <span className="block text-[11px] font-medium leading-none text-inherit">{item.label}</span>
                   </button>
@@ -382,9 +415,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       </div>
                     </div>
                     <form action={logoutAction}>
-                      <button type="submit" className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
-                        Logout
-                      </button>
+                      <LogoutSubmitButton />
                     </form>
                   </div>
                   ) : null}
@@ -521,6 +552,29 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                 </div>
                               ) : null}
                             </div>
+                          );
+                        }
+
+                        if (item.label === 'Projects') {
+                          return (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={openProjectsWorkspace}
+                              className={baseClass}
+                            >
+                              <span className={iconClass}>
+                                {projectsNavPending ? (
+                                  <LoaderCircle className="h-3.5 w-3.5 animate-spin sm:h-4 sm:w-4" />
+                                ) : (
+                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                )}
+                              </span>
+                              <span className="min-w-0 flex-1 text-left">
+                                <span className="block font-semibold text-text">{item.label}</span>
+                                <span className="block text-xs text-muted">{projectsNavPending ? 'Opening workspace…' : item.hint}</span>
+                              </span>
+                            </button>
                           );
                         }
 
