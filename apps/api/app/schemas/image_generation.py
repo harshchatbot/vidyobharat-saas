@@ -58,6 +58,7 @@ class ImageGenerationResponse(BaseModel):
     like_count: int = 0
     auto_tags: list[str] = Field(default_factory=list)
     user_tags: list[str] = Field(default_factory=list)
+    tagging_status: str | None = None
     applied_credits: int = 0
     remaining_credits: int | None = None
     created_at: datetime

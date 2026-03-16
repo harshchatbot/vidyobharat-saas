@@ -354,8 +354,22 @@ def _to_image_generation_response(
             reference_urls = json.loads(raw_reference_urls or '[]')
         except (json.JSONDecodeError, TypeError):
             reference_urls = []
-    asset_tagging = AssetTaggingService(db)
-    auto_tags, user_tags = asset_tagging.list_tags(generation.id, 'image')
+    auto_tags = list(getattr(generation, 'auto_tags', []) or [])
+    user_tags = list(getattr(generation, 'user_tags', []) or [])
+    tagging_status = getattr(generation, 'tagging_status', None)
+    if db is not None:
+        try:
+            asset_tagging = AssetTaggingService(db)
+            auto_tags, user_tags = asset_tagging.list_tags(generation.id, 'image')
+            tagging_status = 'persisted'
+        except Exception as exc:
+            logger.warning(
+                'image_tag_load_non_fatal',
+                extra={'request_id': get_request_id(), 'image_id': generation.id, 'error': str(exc)},
+            )
+            tagging_status = tagging_status or 'unavailable'
+    else:
+        tagging_status = tagging_status or 'skipped_no_db'
 
     image_url = getattr(generation, 'image_url', None) or getattr(generation, 'thumbnail_url', None) or ''
     thumbnail_url = getattr(generation, 'thumbnail_url', None) or image_url
@@ -381,6 +395,7 @@ def _to_image_generation_response(
         like_count=int(getattr(generation, 'like_count', 0) or 0),
         auto_tags=auto_tags,
         user_tags=user_tags,
+        tagging_status=tagging_status,
         applied_credits=applied_credits,
         remaining_credits=remaining_credits,
         created_at=generation.created_at,

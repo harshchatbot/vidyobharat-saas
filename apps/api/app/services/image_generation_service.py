@@ -390,15 +390,23 @@ class ImageGenerationService:
             )
         auto_tags: list[str] = []
         user_tags: list[str] = []
+        tagging_status = 'skipped_no_db' if self.tagging.repo is None else 'persisted'
         try:
             auto_tags = self.tagging.auto_tag_image(generation)
             if self.tagging.repo is not None:
                 auto_tags, user_tags = self.tagging.list_tags(generation.id, 'image')
+                tagging_status = 'persisted'
+            else:
+                tagging_status = 'skipped_no_db'
         except Exception as exc:
+            tagging_status = 'failed'
             logger.warning(
                 'image_auto_tagging_non_fatal',
                 extra={'render_id': generation.id, 'model_key': model_key, 'error': str(exc)},
             )
+        setattr(generation, 'auto_tags', auto_tags)
+        setattr(generation, 'user_tags', user_tags)
+        setattr(generation, 'tagging_status', tagging_status)
         self.sync.sync_image(generation, auto_tags=auto_tags, user_tags=user_tags)
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
