@@ -122,6 +122,7 @@ class AIVideoCreateRequest(BaseModel):
     audioSettings: VideoAudioSettings = Field(default_factory=VideoAudioSettings)
     captionsEnabled: bool = True
     captionStyle: str = Field(default='classic', max_length=40)
+    narrationEnabled: bool = True
 
     @field_validator('aspectRatio')
     @classmethod

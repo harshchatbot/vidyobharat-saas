@@ -32,10 +32,10 @@ export function GenerateButton({
       : 'Generate Video · Free';
 
   return (
-    <div className="flex flex-col gap-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.94),hsl(var(--color-elevated)/0.86))] p-5 shadow-[var(--shadow-soft)]">
+    <div className="flex flex-col gap-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.94),hsl(var(--color-elevated)/0.86))] p-3.5 sm:gap-4 sm:rounded-[24px] sm:p-5 shadow-[var(--shadow-soft)]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-heading text-xl font-extrabold tracking-tight text-text">Generate Video</p>
+          <p className="font-heading text-lg font-extrabold tracking-tight text-text sm:text-xl">Generate Video</p>
         </div>
         <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.78))] px-6 py-3 text-base text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-hard)]">
           {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}

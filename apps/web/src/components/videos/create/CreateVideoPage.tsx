@@ -17,6 +17,7 @@ import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { ActiveProjectBar } from '@/components/projects/ActiveProjectBar';
 import { getVideoModelMap } from '@/config/videoModels';
+import creditEngine from '@/config/creditEngine';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Project, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
@@ -268,8 +269,9 @@ export function CreateVideoPage({
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [videoLane, setVideoLane] = useState<VideoLaneKey>('creator_pro');
-  const [modelKey, setModelKey] = useState<VideoModelKey>('sora2');
+  const [videoLane, setVideoLane] = useState<VideoLaneKey>('daily');
+  const [modelKey, setModelKey] = useState<VideoModelKey>('wan2.1_t2v_turbo');
+  const [showDailyAdvanced, setShowDailyAdvanced] = useState(false);
   const activeProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -290,11 +292,12 @@ export function CreateVideoPage({
   const [musicPlaying, setMusicPlaying] = useState(false);
 
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [resolution, setResolution] = useState<'720p' | '1080p'>('1080p');
+  const [resolution, setResolution] = useState<'720p' | '1080p'>('720p');
   const [quality, setQuality] = useState<'standard' | 'high'>('standard');
   const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('custom');
   const [durationSeconds, setDurationSeconds] = useState('8');
-  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [narrationEnabled, setNarrationEnabled] = useState(false);
   const [captionStyle, setCaptionStyle] = useState('Classic');
 
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -347,6 +350,7 @@ export function CreateVideoPage({
   const selectedModel = visibleModels.find((model) => model.key === modelKey) ?? visibleModels.find((model) => model.enabled !== false) ?? visibleModels[0];
   const selectedModelDisabled = selectedModel?.enabled === false;
   const selectedLane = getVideoLaneDefinition(videoLane);
+  const isDailyLane = videoLane === 'daily';
   const selectedLanguageCode =
     languageOptions.find((item) => item.label === language)?.code ??
     LANGUAGE_OPTIONS.find((item) => item.label === language)?.code ??
@@ -367,7 +371,9 @@ export function CreateVideoPage({
           durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
           quality,
           captionsEnabled,
+          narrationEnabled,
           voice,
+          provider: narrationEnabled ? undefined : 'free',
           imageUrls: selectedImageUrls,
           audioSettings: { sampleRateHz: audioSampleRateHz },
         },
@@ -409,6 +415,7 @@ export function CreateVideoPage({
       quality,
       captionsEnabled,
       voice,
+      narrationEnabled,
       selectedImageUrls,
       audioSampleRateHz,
       voiceProvider,
@@ -449,6 +456,13 @@ export function CreateVideoPage({
     '';
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
   const estimatedInr = estimateInrFromCredits(creditEstimate?.estimatedCredits ?? 0);
+  const fixedCosts = creditEngine.fixedCosts;
+  const narrationCredits = narrationEnabled ? (voiceEstimate?.estimatedCredits ?? 0) : 0;
+  const captionCredits = captionsEnabled ? Number(fixedCosts.auto_caption ?? 0) : 0;
+  const referenceCredits = selectedImageUrls.length > 0 ? Number(fixedCosts.character_consistency ?? 0) : 0;
+  const autoTagCredits = Number(fixedCosts.auto_tag ?? 0);
+  const addOnCreditsTotal = narrationCredits + captionCredits + referenceCredits + autoTagCredits;
+  const baseGenerationCredits = Math.max(0, (creditEstimate?.estimatedCredits ?? 0) - addOnCreditsTotal);
   const laneHasOnlyGatedModels = laneModels.length > 0 && laneModels.every((model) => model.enabled === false);
   const handleVideoLaneChange = (nextLane: VideoLaneKey) => {
     setVideoLane(nextLane);
@@ -462,6 +476,24 @@ export function CreateVideoPage({
       setModelKey(nextEnabledModel.key as VideoModelKey);
     }
   };
+
+  useEffect(() => {
+    if (!isDailyLane) {
+      setNarrationEnabled(true);
+      return;
+    }
+    setResolution('720p');
+    setQuality('standard');
+    setCaptionsEnabled(false);
+    setNarrationEnabled(false);
+    setSelectedImageUrls([]);
+    setDurationMode('custom');
+    const safeDailyDurations = availableDurations.filter((value) => value === 5 || value === 8);
+    const fallbackDailyDuration = safeDailyDurations[0] ?? availableDurations[0] ?? 8;
+    if (!safeDailyDurations.some((value) => value === Number(durationSeconds))) {
+      setDurationSeconds(String(fallbackDailyDuration));
+    }
+  }, [availableDurations, durationSeconds, isDailyLane]);
 
   useEffect(() => {
     if (laneModels.length > 0) return;
@@ -1728,6 +1760,7 @@ export function CreateVideoPage({
         durationMode: 'custom',
         durationSeconds: Number(durationSeconds),
         captionsEnabled,
+        narrationEnabled,
         captionStyle: captionStyle.toLowerCase(),
       }, userId);
       if (typeof result.remainingCredits === 'number') {
@@ -1809,7 +1842,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -1927,14 +1960,184 @@ export function CreateVideoPage({
         </Card>
       ) : null}
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.05fr)_370px] 2xl:items-start">
-        <div className="min-w-0 space-y-5">
+      <Card className="rounded-[20px] border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-elevated)/0.18)] p-2.5 sm:p-3.5">
+      <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] xl:items-start">
+        <div className="min-w-0 space-y-3 sm:space-y-4">
+          {isDailyLane ? (
+            <Card className="space-y-3 border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-elevated)/0.24)] p-3 sm:space-y-4 sm:p-4 shadow-[var(--shadow-soft)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Daily Reels</p>
+                  <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Fast, budget-safe reel generation</h2>
+                </div>
+                <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
+                  {showDailyAdvanced ? 'Hide advanced' : 'Show advanced'}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Prompt</label>
+                <Textarea
+                  value={script}
+                  onChange={(event) => setScript(event.target.value)}
+                  placeholder="Describe the reel scene, motion, vibe, and style in one clear prompt."
+                  rows={6}
+                />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Lane</label>
+                  <Dropdown value={videoLane} onChange={(event) => handleVideoLaneChange(event.target.value as VideoLaneKey)}>
+                    {VIDEO_LANES.map((lane) => (
+                      <option key={lane.key} value={lane.key}>
+                        {lane.label}
+                      </option>
+                    ))}
+                  </Dropdown>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Model</label>
+                  <Dropdown value={modelKey} onChange={(event) => setModelKey(event.target.value)}>
+                    {visibleModels.map((model) => (
+                      <option key={model.key} value={model.key} disabled={model.enabled === false}>
+                        {model.shortLabel ?? model.label}
+                      </option>
+                    ))}
+                  </Dropdown>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
+                  <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
+                    {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
+                      ? availableDurations.filter((value) => value === 5 || value === 8)
+                      : availableDurations
+                    ).map((duration) => (
+                      <option key={duration} value={String(duration)}>
+                        {duration}s
+                      </option>
+                    ))}
+                  </Dropdown>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
+                  <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
+                    {availableAspectRatios.map((aspect) => (
+                      <option key={aspect.value} value={aspect.value}>
+                        {aspect.label}
+                      </option>
+                    ))}
+                  </Dropdown>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
+                  <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
+                    {availableResolutions.map((res) => (
+                      <option key={res.value} value={res.value}>
+                        {res.label}
+                      </option>
+                    ))}
+                  </Dropdown>
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setNarrationEnabled((current) => !current)}
+                  className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                    narrationEnabled
+                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                  }`}
+                >
+                  Narration {narrationEnabled ? 'On' : 'Off'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCaptionsEnabled((current) => !current)}
+                  className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                    captionsEnabled
+                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                  }`}
+                >
+                  Captions {captionsEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
+                <div className="mt-2 space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between text-text">
+                    <span>Base generation</span>
+                    <span>{baseGenerationCredits} credits</span>
+                  </div>
+                  {narrationEnabled ? (
+                    <div className="flex items-center justify-between text-muted">
+                      <span>Narration</span>
+                      <span>{narrationCredits} credits</span>
+                    </div>
+                  ) : null}
+                  {captionsEnabled ? (
+                    <div className="flex items-center justify-between text-muted">
+                      <span>Captions</span>
+                      <span>{captionCredits} credits</span>
+                    </div>
+                  ) : null}
+                  {selectedImageUrls.length > 0 ? (
+                    <div className="flex items-center justify-between text-muted">
+                      <span>Reference image consistency</span>
+                      <span>{referenceCredits} credits</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between text-muted">
+                    <span>Auto tag</span>
+                    <span>{autoTagCredits} credits</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
+                    <span>Total</span>
+                    <span>{creditEstimate?.estimatedCredits ?? 0} credits</span>
+                  </div>
+                </div>
+              </div>
+
+              <GenerateButton
+                onClick={() => void submit()}
+                loading={renderSessionPhase === 'preparing'}
+                estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
+                estimatedTime={estimatedTime}
+                currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+                disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
+                insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
+                onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
+                helperText="Daily defaults use WAN budget routing: text-to-video, short duration, and 720p output."
+              />
+
+              <VideoPreview
+                job={job}
+                loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
+                error={
+                  submitError ??
+                  (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
+                    ? jobStatus.errorMessage ?? 'Generation failed.'
+                    : null)
+                }
+                onRetry={retry}
+              />
+            </Card>
+          ) : null}
 
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Content Template"
             description="Pick a workflow."
             icon={<Film className="h-5 w-5" />}
+            compact
             action={(
               <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 px-3 py-2 text-xs">
                 <GalleryVerticalEnd className="h-3.5 w-3.5" />
@@ -1949,11 +2152,14 @@ export function CreateVideoPage({
               onSelect={applyTemplate}
             />
           </SectionCard>
+          ) : null}
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Project"
             description="Optional."
             icon={<GalleryVerticalEnd className="h-5 w-5" />}
+            compact
             action={projectsLoading ? <Spinner /> : null}
             defaultOpen={false}
           >
@@ -1977,11 +2183,14 @@ export function CreateVideoPage({
               </div>
             </div>
           </SectionCard>
+          ) : null}
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Script Editor & AI Assist"
             description="Script"
             icon={<Wand2 className="h-5 w-5" />}
+            compact
           >
             <ScriptEditor
               topic={topic}
@@ -1999,11 +2208,14 @@ export function CreateVideoPage({
               enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
             />
           </SectionCard>
+          ) : null}
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Video Lane & Model"
             description="Lane + model"
             icon={<Sparkles className="h-5 w-5" />}
+            compact
             action={modelsLoading ? <Spinner /> : null}
           >
             <div className="space-y-5">
@@ -2038,11 +2250,14 @@ export function CreateVideoPage({
               ) : null}
             </div>
           </SectionCard>
+          ) : null}
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Voice & Language"
             description="Narration"
             icon={<Mic2 className="h-5 w-5" />}
+            compact
             defaultOpen={false}
           >
             <VoiceSelector
@@ -2112,11 +2327,14 @@ export function CreateVideoPage({
               ) : null}
             </div>
           </SectionCard>
+          ) : null}
 
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Optional Reference Images"
             description="Image seed (optional)"
             icon={<Film className="h-5 w-5" />}
+            compact
             defaultOpen={false}
           >
             <ReferenceImagePicker
@@ -2130,6 +2348,7 @@ export function CreateVideoPage({
               onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
             />
           </SectionCard>
+          ) : null}
 {/*
           <SectionCard
             title="Background Audio"
@@ -2157,10 +2376,12 @@ export function CreateVideoPage({
             {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
           </SectionCard>
 */}
+          {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Output Settings"
             description="Format + quality"
             icon={<Settings2 className="h-5 w-5" />}
+            compact
             defaultOpen={false}
           >
             <OutputSettings
@@ -2192,14 +2413,16 @@ export function CreateVideoPage({
               onCaptionStyleChange={setCaptionStyle}
             />
           </SectionCard>
+          ) : null}
         </div>
 
-        <div className="min-w-0 space-y-5 2xl:sticky 2xl:top-24">
-          <Card className="space-y-4 border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] shadow-[var(--shadow-soft)] backdrop-blur-md">
+        {(!isDailyLane || showDailyAdvanced) ? (
+        <div className="min-w-0 space-y-3 sm:space-y-4 xl:sticky xl:top-24">
+          <div className="space-y-3 rounded-[16px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-bg)/0.3)] p-2.5 sm:space-y-4 sm:p-3.5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
-                <h2 className="mt-2 text-lg font-semibold text-text">Render Console</h2>
+                <h2 className="mt-1.5 text-base font-semibold text-text sm:text-lg">Render Console</h2>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
@@ -2296,12 +2519,13 @@ export function CreateVideoPage({
               }
               onRetry={retry}
             />
-          </Card>
+          </div>
 
           <SectionCard
             title="Studio Feed"
             description="Recent videos"
             icon={<Film className="h-5 w-5" />}
+            compact
             defaultOpen={false}
           >
             {videos.length === 0 ? (
@@ -2362,7 +2586,9 @@ export function CreateVideoPage({
             )}
           </SectionCard>
         </div>
+        ) : null}
       </div>
+      </Card>
       <Modal
         open={templateFlowOpen}
         onClose={() => {

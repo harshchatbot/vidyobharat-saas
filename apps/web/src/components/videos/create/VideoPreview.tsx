@@ -47,17 +47,17 @@ export function VideoPreview({
   };
 
   return (
-    <div className="space-y-4 border-t border-[hsl(var(--color-border))] pt-5">
+    <div className="space-y-3 border-t border-[hsl(var(--color-border))] pt-3.5 sm:space-y-4 sm:pt-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-heading text-lg font-bold tracking-tight text-text">Preview & output</h2>
+          <h2 className="font-heading text-base font-bold tracking-tight text-text sm:text-lg">Preview & output</h2>
           {/*<p className="mt-1 text-sm text-muted">Review the final job, metadata, and export actions.</p> */}
         </div>
         {job ? <Badge>{job.provider_name ?? job.selected_model ?? 'Queued'}</Badge> : null}
       </div>
 
       {loading || isProcessing ? (
-        <div className="rounded-[24px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-6 text-center shadow-[var(--shadow-soft)]">
+        <div className="rounded-[20px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-4 sm:rounded-[24px] sm:p-6 text-center shadow-[var(--shadow-soft)]">
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
             <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
               <Spinner />
@@ -98,7 +98,7 @@ export function VideoPreview({
               src={videoUrl}
               poster={thumbnailUrl ?? undefined}
               controls
-              className="max-h-[56vh] w-full bg-black object-contain"
+              className="max-h-[48vh] sm:max-h-[56vh] w-full bg-black object-contain"
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -146,7 +146,7 @@ export function VideoPreview({
           </div>
         </div>
       ) : !loading && !error ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.4),hsl(var(--color-bg)/0.7))] px-6 py-8 text-center">
+        <div className="flex min-h-[170px] sm:min-h-[220px] flex-col items-center justify-center rounded-[20px] sm:rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.4),hsl(var(--color-bg)/0.7))] px-4 py-6 sm:px-6 sm:py-8 text-center">
           <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]">
             <Sparkles className="h-6 w-6" />
           </span>

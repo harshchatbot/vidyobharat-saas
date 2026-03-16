@@ -441,6 +441,7 @@ export type VideoCreateRequest = {
   durationSeconds?: number;
   captionsEnabled: boolean;
   captionStyle: string;
+  narrationEnabled?: boolean;
 };
 
 export type VideoCreateResponse = {

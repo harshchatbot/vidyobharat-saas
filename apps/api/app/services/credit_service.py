@@ -435,6 +435,7 @@ class CreditService:
         duration_seconds = int(payload.get('durationSeconds') or 15)
         quality = str(payload.get('quality') or 'standard')
         captions_enabled = bool(payload.get('captionsEnabled') if 'captionsEnabled' in payload else payload.get('captions_enabled'))
+        narration_enabled = bool(payload.get('narrationEnabled') if 'narrationEnabled' in payload else payload.get('narration_enabled', True))
         voice = str(payload.get('voice') or '')
         image_urls = payload.get('imageUrls') or payload.get('image_urls') or payload.get('reference_images') or []
         sample_rate = int(payload.get('sampleRateHz') or ((payload.get('audioSettings') or {}).get('sampleRateHz') if isinstance(payload.get('audioSettings'), dict) else 22050) or 22050)
@@ -444,12 +445,14 @@ class CreditService:
             duration_seconds=duration_seconds,
             quality=quality,
         )
-        voice_provider = self._resolve_voice_provider(voice=voice, provider=payload.get('provider'))
-        voice_total, voice_items = self._calculate_voice_credits_with_breakdown(
-            provider=voice_provider,
-            sample_rate=str(sample_rate),
-        )
-        items.extend(voice_items)
+        voice_total = 0
+        if narration_enabled:
+            voice_provider = self._resolve_voice_provider(voice=voice, provider=payload.get('provider'))
+            voice_total, voice_items = self._calculate_voice_credits_with_breakdown(
+                provider=voice_provider,
+                sample_rate=str(sample_rate),
+            )
+            items.extend(voice_items)
         if captions_enabled:
             items.append(self._item('auto_caption'))
         if isinstance(image_urls, list) and len(image_urls) > 0:

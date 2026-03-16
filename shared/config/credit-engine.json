@@ -21,7 +21,7 @@
     "modelMultiplier": {
       "kling": 1.0,
       "kling_turbo": 0.7,
-      "wan_2_5": 10.5,
+      "wan_2_5": 0.7,
       "veo_3_1": 20.8,
       "sora_2": 10.5,
       "veo": 20.8,

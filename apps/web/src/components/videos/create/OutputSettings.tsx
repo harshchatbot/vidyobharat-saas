@@ -59,9 +59,9 @@ export function OutputSettings({
   const summaryText = `${aspectRatio} • ${selectedResolutionDimensions || resolution} • ${VIDEO_QUALITY_OPTIONS.find((option) => option.value === quality)?.label ?? 'Standard'}`;
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-4 rounded-[24px] border border-border bg-[hsl(var(--color-bg)/0.72)] px-4 py-4 shadow-[var(--shadow-soft)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[hsl(var(--color-border))] pb-4">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="space-y-3 rounded-[20px] sm:rounded-[24px] border border-border bg-[hsl(var(--color-bg)/0.72)] px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 border-b border-[hsl(var(--color-border))] pb-3 sm:pb-4">
           <div>
             <p className="text-sm font-semibold text-text">Output</p>
             <p className="mt-1 text-xs text-muted">{summaryText}</p>
@@ -71,7 +71,7 @@ export function OutputSettings({
           </span>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Aspect ratio</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.28)] p-2">
@@ -133,7 +133,7 @@ export function OutputSettings({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.72fr)]">
+        <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.72fr)]">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.28)] p-2">
@@ -172,7 +172,7 @@ export function OutputSettings({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.28)] p-2">

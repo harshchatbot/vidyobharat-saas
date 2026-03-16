@@ -159,6 +159,9 @@ function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: n
   const captionsEnabled = Boolean(
     payload.captionsEnabled !== undefined ? payload.captionsEnabled : payload.captions_enabled,
   );
+  const narrationEnabled = Boolean(
+    payload.narrationEnabled !== undefined ? payload.narrationEnabled : payload.narration_enabled ?? true,
+  );
   const imageUrlsRaw = (payload.imageUrls ?? payload.image_urls ?? payload.reference_images ?? []) as unknown;
   const hasReferences = Array.isArray(imageUrlsRaw) && imageUrlsRaw.length > 0;
 
@@ -179,9 +182,12 @@ function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: n
     item('quality_multiplier', VIDEO_MULTIPLIERS.quality[quality] ?? 1, `${quality} quality multiplier`),
   ];
 
-  const voiceEstimate = estimateTtsPreview(payload, currentCredits);
-  let total = videoBase + voiceEstimate.estimatedCredits;
-  breakdown.push(...voiceEstimate.breakdown);
+  let total = videoBase;
+  if (narrationEnabled) {
+    const voiceEstimate = estimateTtsPreview(payload, currentCredits);
+    total += voiceEstimate.estimatedCredits;
+    breakdown.push(...voiceEstimate.breakdown);
+  }
 
   if (captionsEnabled) {
     total += CREDIT_COSTS.auto_caption;
