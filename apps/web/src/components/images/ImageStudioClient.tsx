@@ -731,6 +731,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     return () => window.clearInterval(interval);
   }, [submitting]);
 
+  const variationSource = selectedGenerated ?? allGeneratedImages[0] ?? generatedImages[0] ?? null;
+  const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
   const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0] ?? fallbackModels[0];
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
   const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
@@ -1093,8 +1095,6 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     activeTab === 'generated'
       ? selectedGenerated ?? generatedImages[0] ?? null
       : selectedInspiration ?? filteredInspiration[0] ?? null;
-  const variationSource = selectedGenerated ?? allGeneratedImages[0] ?? generatedImages[0] ?? null;
-  const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
 
   const handlePrimaryAction = async () => {
     if (composerMode === 'variation') {

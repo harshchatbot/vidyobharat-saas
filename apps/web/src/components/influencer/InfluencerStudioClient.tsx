@@ -845,9 +845,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             {!estimateError && isUsingFallback ? (
               <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
             ) : null}
-            {!canGenerateContent ? (
-            ) : null}
-
             {contentResult ? (
               <Card className="px-5 py-5">
                 <div className="text-sm uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output Preview</div>
