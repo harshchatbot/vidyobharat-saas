@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Clapperboard, Languages, Mic2, Sparkles } from 'lucide-react';
 
@@ -58,6 +59,7 @@ function summarizeScript(script?: string | null) {
 }
 
 export function ProjectsClient({ initialProjects, userId }: Props) {
+  const router = useRouter();
   const [projects, setProjects] = useState(initialProjects);
   const [title, setTitle] = useState('');
   const [script, setScript] = useState('');
@@ -216,17 +218,20 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                     </div>
 
                     <div className="mt-auto flex items-center justify-between gap-2">
-                      <Link href={`/projects/${project.id}`} className="text-xs font-semibold text-[hsl(var(--color-accent))]">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/projects/${project.id}`)}
+                        className="text-xs font-semibold text-[hsl(var(--color-accent))]"
+                      >
                         Open workspace
-                      </Link>
-                      <div className="flex items-start justify-between gap-3">
-                        <Link
-                          href={`/projects/${project.id}`}
-                          className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] px-2.5 py-1 text-xs font-semibold text-text transition group-hover:border-[hsl(var(--color-accent)/0.45)]"
-                        >
-                          Continue
-                        </Link>
-                      </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/create?projectId=${project.id}`)}
+                        className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.32)] px-2.5 py-1 text-xs font-semibold text-text transition group-hover:border-[hsl(var(--color-accent)/0.45)]"
+                      >
+                        Continue
+                      </button>
                     </div>
                   </div>
                 </article>
