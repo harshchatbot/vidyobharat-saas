@@ -318,6 +318,18 @@ function renderTemplatePrompt(template: ImageTemplatePreset, values: Record<stri
   return details.join(' ').trim();
 }
 
+function pickTemplatePreviewPrompt(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const payload = value as Record<string, unknown>;
+  const direct =
+    payload.promptPreview ??
+    payload.prompt ??
+    payload.imagePrompt ??
+    payload.videoPrompt ??
+    payload.scriptPreview;
+  return typeof direct === 'string' ? direct.trim() : '';
+}
+
 function mapUnifiedTemplateToImagePreset(template: Template): ImageTemplatePreset {
   const defaults = template.generation_defaults || {};
   return {
@@ -435,6 +447,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     [projects, selectedProjectId],
   );
   const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
+  const [templatePromptPreview, setTemplatePromptPreview] = useState('');
+  const [templatePromptPreviewLoading, setTemplatePromptPreviewLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
@@ -674,7 +688,42 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   useEffect(() => {
     setTemplateInputs(buildTemplateInputDefaults(activeTemplate));
+    setTemplatePromptPreview('');
   }, [activeTemplate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!templatePickerOpen || !activeTemplate) return;
+    setTemplatePromptPreviewLoading(true);
+    void api
+      .previewTemplate(
+        {
+          templateId: activeTemplate.id,
+          inputs: templateInputs,
+          modelKey: activeTemplate.model_key,
+          aspectRatio: activeTemplate.aspect_ratio,
+          resolution: activeTemplate.resolution,
+        },
+        userId,
+      )
+      .then((preview) => {
+        if (cancelled) return;
+        const assembled = pickTemplatePreviewPrompt(preview);
+        setTemplatePromptPreview(assembled || renderTemplatePrompt(activeTemplate, templateInputs));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTemplatePromptPreview(renderTemplatePrompt(activeTemplate, templateInputs));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setTemplatePromptPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTemplate, templateInputs, templatePickerOpen, userId]);
 
   useEffect(() => {
     applyGeneratedFilters(allGeneratedImages, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
@@ -879,8 +928,28 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     setPrompt(`${normalized}, ${word}`);
   };
 
-  const applyImageTemplate = (template: ImageTemplatePreset, values: Record<string, string>) => {
-    const nextPrompt = renderTemplatePrompt(template, values) || template.description || template.title;
+  const applyImageTemplate = async (template: ImageTemplatePreset, values: Record<string, string>) => {
+    let nextPrompt = templatePromptPreview.trim();
+    if (!nextPrompt) {
+      try {
+        const preview = await api.previewTemplate(
+          {
+            templateId: template.id,
+            inputs: values,
+            modelKey: template.model_key,
+            aspectRatio: template.aspect_ratio,
+            resolution: template.resolution,
+          },
+          userId,
+        );
+        nextPrompt = pickTemplatePreviewPrompt(preview);
+      } catch {
+        // fallback below
+      }
+    }
+    if (!nextPrompt) {
+      nextPrompt = renderTemplatePrompt(template, values) || template.description || template.title;
+    }
     setPrompt(nextPrompt);
     setAspectRatio(template.aspect_ratio || '4:5');
     setResolution(template.resolution || '1536');
@@ -1855,11 +1924,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.48)] p-2.5">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Prompt preview</p>
                     <p className="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-text">
-                      {activeTemplatePromptPreview || 'Preview will appear after template inputs are filled.'}
+                      {templatePromptPreviewLoading
+                        ? 'Assembling full prompt...'
+                        : (templatePromptPreview || activeTemplatePromptPreview || 'Preview will appear after template inputs are filled.')}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2.5">
-                    <Button onClick={() => applyImageTemplate(activeTemplate, templateInputs)}>
+                    <Button onClick={() => void applyImageTemplate(activeTemplate, templateInputs)}>
                       Apply template
                     </Button>
                     <Button variant="secondary" onClick={() => setTemplatePickerOpen(false)}>
