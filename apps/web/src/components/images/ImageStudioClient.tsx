@@ -421,9 +421,9 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
   const [cacheWarm, setCacheWarm] = useState(false);
-  const [composerMode, setComposerMode] = useState<'create' | 'variation'>('create');
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? '');
@@ -439,6 +439,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [inspiration, setInspiration] = useState<InspirationImage[]>([]);
   const [tagFacets, setTagFacets] = useState<AssetTagFacet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [studioFeedLoading, setStudioFeedLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [enhancing, setEnhancing] = useState(false);
@@ -546,6 +547,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         return resolveImageModeModel(nextModels, 'fast_social') ?? nextModels[0]?.key ?? 'budget_image_model';
       });
       setInspiration(cached.inspiration ?? []);
+      setStudioFeedLoading(false);
       setImageTemplates(cached.imageTemplates?.length ? cached.imageTemplates : quickTemplates.map((item) => ({
         id: item.id,
         category: item.category,
@@ -557,7 +559,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         model_key: item.model_key,
         thumbnail_url: '',
       })));
+      setTemplatesLoading(false);
       setProjects(cached.projects ?? []);
+      setProjectsLoading(false);
       setAllGeneratedImages(cached.imageData ?? []);
       applyGeneratedFilters(
         cached.imageData ?? [],
@@ -576,21 +580,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    if (cacheWarm) {
-      setProjectsLoading(false);
-      return () => {
-        cancelled = true;
-      };
+    if (!cacheWarm) {
+      setLoading(true);
+      setProjectsLoading(true);
+      setTemplatesLoading(true);
+      setStudioFeedLoading(true);
     }
-    setProjectsLoading(true);
-    void Promise.all([
+
+    const corePromise = Promise.all([
       api.listImageModels(userId).catch(() => fallbackModels),
       api.listUnifiedTemplates(userId, { type: 'image', active: true }).catch(() => []),
-      api.listImageInspiration(userId).catch(() => []),
-      api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT).catch(() => []),
-      api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
       api.listProjects(userId).catch(() => []),
-    ]).then(([modelData, templateData, inspirationData, imageData, tagData, projectData]) => {
+    ]).then(([modelData, templateData, projectData]) => {
       if (cancelled) return;
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       const nextTemplates = templateData.length > 0 ? templateData.map(mapUnifiedTemplateToImagePreset) : quickTemplates.map((item) => ({
@@ -611,31 +612,27 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         if (nextModels.some((item) => item.key === current)) return current;
         return resolveImageModeModel(nextModels, 'fast_social') ?? nextModels[0]?.key ?? 'budget_image_model';
       });
+      setTemplatesLoading(false);
+      setProjectsLoading(false);
+    });
+
+    const feedPromise = Promise.all([
+      api.listImageInspiration(userId).catch(() => []),
+      api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT).catch(() => []),
+      api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
+    ]).then(([inspirationData, imageData, tagData]) => {
+      if (cancelled) return;
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
       setHasMoreGenerated(imageData.length >= IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
       applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
       setTagFacets(tagData);
-      if (typeof window !== 'undefined') {
-        try {
-          window.sessionStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-              ts: Date.now(),
-              models: nextModels,
-              inspiration: inspirationData,
-              imageData,
-              tagData,
-              imageTemplates: nextTemplates,
-              projects: projectData,
-            }),
-          );
-        } catch {
-          // ignore cache write issues
-        }
-      }
+      setStudioFeedLoading(false);
+    });
+
+    void Promise.allSettled([corePromise, feedPromise]).then(() => {
+      if (cancelled) return;
       setLoading(false);
-      setProjectsLoading(false);
     });
 
     return () => {
@@ -738,7 +735,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
   const activeTemplatePromptPreview = activeTemplate ? renderTemplatePrompt(activeTemplate, templateInputs) : '';
   const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
-  const primaryActionLoading = composerMode === 'variation' ? variationLoading : submitting;
+  const primaryActionLoading = submitting;
   const availableImageWorkflows = IMAGE_WORKFLOW_OPTIONS.map((option) => {
     const resolvedModelKey = resolveImageModeModel(models, option.key);
     const resolvedModel = resolvedModelKey ? models.find((item) => item.key === resolvedModelKey) ?? fallbackModels.find((item) => item.key === resolvedModelKey) ?? null : null;
@@ -767,6 +764,24 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     const matchesResolution = selectedResolutionFilters.length === 0 || selectedResolutionFilters.includes(item.resolution);
     return matchesQuery && matchesTags && matchesModel && matchesResolution;
   });
+  const hasFacetFilters = selectedTags.length > 0 || selectedModelFilters.length > 0 || selectedResolutionFilters.length > 0;
+  const hasSearchFilter = searchQuery.trim().length > 0;
+  const clearStudioFilters = () => {
+    setSelectedTags([]);
+    setSelectedModelFilters([]);
+    setSelectedResolutionFilters([]);
+    setSearchQuery('');
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'inspiration') return;
+    if (inspiration.length === 0) return;
+    if (filteredInspiration.length > 0) return;
+    if (!hasFacetFilters) return;
+    setSelectedTags([]);
+    setSelectedModelFilters([]);
+    setSelectedResolutionFilters([]);
+  }, [activeTab, filteredInspiration.length, hasFacetFilters, inspiration.length]);
 
   const submit = async () => {
     const trimmedPrompt = prompt.trim();
@@ -1112,16 +1127,6 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       : selectedInspiration ?? filteredInspiration[0] ?? null;
 
   const handlePrimaryAction = async () => {
-    if (composerMode === 'variation') {
-      if (!variationSource) {
-        const message = 'Generate at least one image first, then use Image Variations.';
-        setError(message);
-        show(message);
-        return;
-      }
-      await runImageAction(variationSource.id, 'variation');
-      return;
-    }
     await submit();
   };
 
@@ -1177,65 +1182,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       <div className="space-y-4">
         <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-2 rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] p-1.5">
-              <button
-                type="button"
-                onClick={() => setComposerMode('create')}
-                className={`rounded-[14px] px-4 py-2.5 text-sm font-semibold transition ${
-                  composerMode === 'create'
-                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                    : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
-                }`}
-              >
-                Create Image
-              </button>
-              <button
-                type="button"
-                onClick={() => setComposerMode('variation')}
-                className={`rounded-[14px] px-4 py-2.5 text-sm font-semibold transition ${
-                  composerMode === 'variation'
-                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                    : 'text-muted hover:bg-[hsl(var(--color-elevated))] hover:text-text'
-                }`}
-              >
-                Image Variations
-              </button>
+            <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2">
+              <p className="text-sm font-semibold text-text">Create Image</p>
             </div>
-
-            {composerMode === 'variation' ? (
-              <div className="space-y-3 rounded-[20px] bg-[hsl(var(--color-bg)/0.58)] p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">Variation source</p>
-                    <p className="mt-1 text-xs text-muted">Use a selected image or your latest generation as the source.</p>
-                  </div>
-                  {variationSource ? <Badge>Ready</Badge> : <Badge>Needs source</Badge>}
-                </div>
-                {variationSource ? (
-                  <div className="flex items-center gap-3 rounded-[18px] bg-[hsl(var(--color-surface)/0.34)] p-3">
-                    <img
-                      src={toAbsoluteUrl(variationSource.image_url)}
-                      alt={variationSource.prompt}
-                      className="h-16 w-16 shrink-0 rounded-[14px] object-cover"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-semibold text-text">{variationSource.prompt}</p>
-                      <p className="mt-1 text-xs text-muted">
-                        {models.find((item) => item.key === variationSource.model_key)?.label ?? variationSource.model_key}
-                        {' · '}
-                        {variationSource.aspect_ratio}
-                        {' · '}
-                        {resolutionOptions.find((item) => item.value === variationSource.resolution)?.label ?? variationSource.resolution}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] px-4 py-4 text-sm text-muted">
-                    Generate an image first or pick one from the studio feed to create variations.
-                  </div>
-                )}
-              </div>
-            ) : null}
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
@@ -1249,7 +1198,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </Button>
               </div>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                {imageTemplates.slice(0, 6).map((template) => {
+                {templatesLoading ? (
+                  <div className="flex gap-2">
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div
+                        key={`template-skeleton-${idx}`}
+                        className="min-w-[128px] overflow-hidden rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)]"
+                      >
+                        <div className="aspect-[4/3] animate-pulse bg-[hsl(var(--color-elevated)/0.62)]" />
+                        <div className="space-y-1.5 p-2">
+                          <div className="h-2.5 w-20 animate-pulse rounded bg-[hsl(var(--color-elevated)/0.62)]" />
+                          <div className="h-2 w-24 animate-pulse rounded bg-[hsl(var(--color-elevated)/0.42)]" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : imageTemplates.slice(0, 6).map((template) => {
                   const selected = activeTemplate?.id === template.id;
                   return (
                     <button
@@ -1308,6 +1272,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
                   <option value="">Auto-create when a guided template is used</option>
+                  {projectsLoading && projects.length === 0 ? (
+                    <option value="" disabled>Loading projects...</option>
+                  ) : null}
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.title}
@@ -1411,14 +1378,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">
-                    {composerMode === 'variation' ? 'Variation prompt guidance' : 'Prompt'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {composerMode === 'variation'
-                      ? 'Optional prompt edits. The source image still drives the variation.'
-                      : 'Describe the subject, mood, setting, and visual style.'}
-                  </p>
+                  <p className="text-sm font-semibold text-text">Prompt</p>
+                  <p className="mt-1 text-xs text-muted">Describe the subject, mood, setting, and visual style.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -1468,6 +1429,23 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   />
                 </label>
               </div>
+              {variationSource ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] px-3 py-2.5">
+                  <p className="text-xs text-muted">
+                    Use your selected/latest image as base and generate 4 similar variations.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => void runImageAction(variationSource.id, 'variation')}
+                    disabled={variationLoading}
+                    className="gap-2 px-3 py-1.5 text-xs"
+                  >
+                    {variationLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Stars className="h-3.5 w-3.5" />}
+                    {variationLoading ? 'Creating...' : 'Create variations'}
+                  </Button>
+                </div>
+              ) : null}
               {referenceUploads.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.16)] px-4 py-4 text-xs text-muted">
                   No references uploaded yet.
@@ -1500,41 +1478,29 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     {creditsRefreshing ? <span className="text-[11px] text-muted">Refreshing…</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    {composerMode === 'variation'
-                      ? variationSource
-                        ? 'Creates 4 new variations from the selected source image.'
-                        : 'Select or generate a source image to enable variations.'
-                      : `${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
+                    {`${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
                   {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
                 </div>
                 <Button
                   onClick={() => void handlePrimaryAction()}
-                  disabled={
-                    submitting ||
-                    variationLoading ||
-                    (composerMode === 'variation'
-                      ? !variationSource
-                      : Boolean(estimate && !estimate.sufficient))
-                  }
+                  disabled={submitting || Boolean(estimate && !estimate.sufficient)}
                   className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                 >
                   {primaryActionLoading ? (
                     <>
                       <LoaderCircle className="h-4 w-4 animate-spin" />
-                      {composerMode === 'variation' ? 'Creating variations...' : 'Generating...'}
+                      Generating...
                     </>
                   ) : (
                     <>
-                      {composerMode === 'variation' ? <Stars className="h-4 w-4" /> : <Wand2 className="h-4 w-4" />}
-                      {composerMode === 'variation'
-                        ? 'Create 4 variations'
-                        : `Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
+                      <Wand2 className="h-4 w-4" />
+                      {`Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
                     </>
                   )}
                 </Button>
               </div>
-              {composerMode === 'create' && estimate && !estimate.sufficient ? (
+              {estimate && !estimate.sufficient ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
                   <button type="button" onClick={() => openLowBalanceModal(estimate.estimatedCredits)}>
                     Insufficient credits
@@ -1543,10 +1509,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <a href="/pricing">View plans</a>
                 </div>
               ) : null}
-              {composerMode === 'create' && estimateError ? (
+              {estimateError ? (
                 <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
               ) : null}
-              {composerMode === 'create' && !estimateError && isUsingFallback ? (
+              {!estimateError && isUsingFallback ? (
                 <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
               ) : null}
             </div>
@@ -1671,6 +1637,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
           </div>
 
+          {studioFeedLoading ? (
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 2xl:grid-cols-9">
+              {Array.from({ length: 16 }).map((_, idx) => (
+                <div
+                  key={`feed-skeleton-${idx}`}
+                  className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]"
+                >
+                  <div className="aspect-[5/4] animate-pulse bg-[hsl(var(--color-elevated)/0.64)]" />
+                  <div className="space-y-1.5 p-2">
+                    <div className="h-2.5 w-20 animate-pulse rounded bg-[hsl(var(--color-elevated)/0.62)]" />
+                    <div className="h-2 w-16 animate-pulse rounded bg-[hsl(var(--color-elevated)/0.42)]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 2xl:grid-cols-9">
             {(activeTab === 'generated' ? generatedImages : filteredInspiration).map((item) => {
               const imageUrl = getPreviewImageUrl(item);
@@ -1740,18 +1722,30 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               );
             })}
           </div>
+          )}
 
-          {(activeTab === 'generated' ? generatedImages : filteredInspiration).length === 0 ? (
+          {!studioFeedLoading && (activeTab === 'generated' ? generatedImages : filteredInspiration).length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] px-5 py-12 text-center">
               <ImageIcon className="mx-auto h-8 w-8 text-[hsl(var(--color-accent))]" />
               <p className="mt-4 text-sm font-semibold text-text">
-                {activeTab === 'generated' ? 'No generated images yet' : 'No inspiration items match these filters'}
+                {activeTab === 'generated'
+                  ? 'No generated images yet'
+                  : inspiration.length === 0
+                    ? 'No inspiration items available yet'
+                    : 'No inspiration items match current filters'}
               </p>
               <p className="mt-2 text-xs text-muted">
                 {activeTab === 'generated'
                   ? 'Generate your first image and it will appear here instantly.'
-                  : 'Try a different tag, model, or prompt search term.'}
+                  : 'Try a different search or clear active filters to see more inspiration.'}
               </p>
+              {activeTab === 'inspiration' && (hasFacetFilters || hasSearchFilter) ? (
+                <div className="mt-4">
+                  <Button variant="secondary" type="button" onClick={clearStudioFilters}>
+                    Clear filters
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {activeTab === 'generated' && generatedImages.length > 0 && hasMoreGenerated ? (
