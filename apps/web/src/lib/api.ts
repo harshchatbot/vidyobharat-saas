@@ -243,6 +243,91 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
 }
 
 export const api = {
+  async primeDashboardWarmCache(userId: string) {
+    if (!userId) return;
+    const [images, videos, imageInspiration, videoInspiration, projects, wallet] = await Promise.all([
+      api.listGeneratedImages(userId, 8).catch(() => [] as GeneratedImage[]),
+      api.listVideos(userId, 8).catch(() => [] as Video[]),
+      api.listImageInspiration(userId, 6).catch(() => [] as InspirationImage[]),
+      api.listVideoInspiration(userId, 6).catch(() => [] as InspirationVideo[]),
+      api.listProjects(userId).catch(() => [] as Project[]),
+      api.getCreditWallet(userId).catch(() => null as CreditWallet | null),
+    ]);
+
+    if (typeof window === 'undefined') return;
+    try {
+      window.sessionStorage.setItem(
+        `rangmanch:dashboard:v2:${userId}`,
+        JSON.stringify({
+          ts: Date.now(),
+          allAssets: [
+            ...videos.map((video) => ({
+              id: video.id,
+              content_type: 'video' as const,
+              project_id: video.project_id,
+              mode_id: video.mode_id,
+              template_id: video.template_id,
+              title: video.title || 'Generated video',
+              model_key: video.selected_model || video.provider_name || 'video',
+              resolution: video.resolution,
+              aspect_ratio: video.aspect_ratio,
+              prompt: video.script,
+              thumbnail_url: video.thumbnail_url,
+              asset_url: video.output_url,
+              status: video.status,
+              created_at: video.created_at,
+              reference_urls: video.reference_images,
+              auto_tags: video.auto_tags,
+              user_tags: video.user_tags,
+              is_public_inspiration: video.is_public_inspiration,
+              moderation_status: video.moderation_status,
+              inspiration_score: video.inspiration_score,
+              like_count: video.like_count,
+            })),
+            ...images.map((image) => ({
+              id: image.id,
+              content_type: 'image' as const,
+              project_id: image.project_id,
+              mode_id: image.mode_id,
+              template_id: image.template_id,
+              title: image.prompt.split('.').find(Boolean)?.trim() || 'Generated image',
+              model_key: image.model_key,
+              resolution: image.resolution,
+              aspect_ratio: image.aspect_ratio,
+              prompt: image.prompt,
+              thumbnail_url: image.thumbnail_url || image.image_url,
+              asset_url: image.image_url,
+              status: image.status,
+              created_at: image.created_at,
+              reference_urls: image.reference_urls,
+              auto_tags: image.auto_tags,
+              user_tags: image.user_tags,
+              is_public_inspiration: image.is_public_inspiration,
+              moderation_status: image.moderation_status,
+              inspiration_score: image.inspiration_score,
+              like_count: image.like_count,
+            })),
+          ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+          imageInspiration,
+          videoInspiration,
+        }),
+      );
+
+      if (wallet) {
+        const walletPayload = JSON.stringify({ ts: Date.now(), wallet });
+        window.sessionStorage.setItem(`rangmanch:credit-wallet:${userId}`, walletPayload);
+        window.localStorage.setItem(`rangmanch:credit-wallet:${userId}`, walletPayload);
+      }
+      if (projects.length > 0) {
+        window.sessionStorage.setItem(
+          `rangmanch:projects:v1:${userId}`,
+          JSON.stringify({ ts: Date.now(), projects }),
+        );
+      }
+    } catch {
+      // ignore storage write failures
+    }
+  },
   mockLogin(email?: string) {
     return request<{ user_id: string }>('/auth/mock-login', {
       method: 'POST',

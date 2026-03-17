@@ -46,7 +46,6 @@ type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
 const DASHBOARD_FEED_LIMIT = 8;
 const DASHBOARD_COMMUNITY_LIMIT = 6;
-const DASHBOARD_CACHE_TTL_MS = 90 * 1000;
 
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
@@ -302,7 +301,12 @@ export function DashboardVideosClient({ userId, userName }: Props) {
         imageInspiration?: InspirationImage[];
         videoInspiration?: InspirationVideo[];
       };
-      if (!cached.ts || Date.now() - cached.ts > DASHBOARD_CACHE_TTL_MS) return;
+      const hasAnyCachedData =
+        (cached.allAssets?.length ?? 0) > 0 ||
+        (cached.imageInspiration?.length ?? 0) > 0 ||
+        (cached.videoInspiration?.length ?? 0) > 0;
+      if (!hasAnyCachedData) return;
+      // Use cache immediately even if slightly stale, then revalidate in background.
       setAllAssets(cached.allAssets ?? []);
       setImageInspiration(cached.imageInspiration ?? []);
       setVideoInspiration(cached.videoInspiration ?? []);
@@ -318,17 +322,42 @@ export function DashboardVideosClient({ userId, userName }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.sessionStorage.getItem(`rangmanch:projects:v1:${userId}`);
+        if (raw) {
+          const cached = JSON.parse(raw) as { projects?: Project[] };
+          if (cached.projects?.length) {
+            setProjects(cached.projects);
+          }
+        }
+      } catch {
+        // ignore malformed project cache
+      }
+    }
     void api.listProjects(userId)
       .then((items) => {
-        if (!cancelled) setProjects(items);
+        if (!cancelled) {
+          setProjects(items);
+          if (typeof window !== 'undefined') {
+            try {
+              window.sessionStorage.setItem(
+                `rangmanch:projects:v1:${userId}`,
+                JSON.stringify({ ts: Date.now(), projects: items }),
+              );
+            } catch {
+              // ignore write failure
+            }
+          }
+        }
       })
       .catch(() => {
-        if (!cancelled) setProjects([]);
+        if (!cancelled && projects.length === 0) setProjects([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [projects.length, userId]);
 
   useEffect(() => {
     let cancelled = false;

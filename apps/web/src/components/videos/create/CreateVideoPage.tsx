@@ -455,14 +455,57 @@ export function CreateVideoPage({
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
-  const estimatedInr = estimateInrFromCredits(creditEstimate?.estimatedCredits ?? 0);
+  const derivedVideoEstimateCredits = useMemo(() => {
+    const apiEstimated = creditEstimate?.estimatedCredits;
+    if (typeof apiEstimated === 'number' && Number.isFinite(apiEstimated) && apiEstimated > 0) {
+      return apiEstimated;
+    }
+    const aliasMap = (creditEngine.videoModelAliases ?? {}) as Record<string, string>;
+    const normalizedModel = aliasMap[String(modelKey).toLowerCase()] ?? 'sora';
+    const modelMultiplier = Number((creditEngine.video.modelMultiplier as Record<string, number>)[normalizedModel] ?? 0);
+    const resolutionMultiplier = Number((creditEngine.video.resolutionMultiplier as Record<string, number>)[resolution] ?? 1);
+    const qualityMultiplier = Number((creditEngine.video.qualityMultiplier as Record<string, number>)[quality] ?? 1);
+    const baseCredits = Number(creditEngine.video.baseCredits ?? 0);
+    const baseDuration = Number(creditEngine.video.baseDuration ?? 15);
+    const duration = Math.max(1, Number(durationSeconds) || durationRule.defaultSeconds || 8);
+    const baseRaw = baseCredits * modelMultiplier * resolutionMultiplier * (duration / Math.max(baseDuration, 1)) * qualityMultiplier;
+    const base = Math.max(1, Math.ceil(baseRaw));
+
+    let total = base;
+    const provider = FREE_VOICE_KEYS.has(voice) ? 'free' : 'sarvam';
+    if (narrationEnabled && provider !== 'free') {
+      const voiceBase = Number(creditEngine.voice.baseCredits ?? 0);
+      const providerMul = Number((creditEngine.voice.providerMultiplier as Record<string, number>)?.[provider] ?? 0);
+      const sampleRateKey = audioSampleRateHz >= 48000 ? '48000' : '22050';
+      const sampleRateMul = Number((creditEngine.voice.sampleRateMultiplier as Record<string, number>)?.[sampleRateKey] ?? 1);
+      total += Math.max(1, Math.ceil(voiceBase * providerMul * sampleRateMul));
+    }
+    if (captionsEnabled) total += Number(creditEngine.fixedCosts.auto_caption ?? 0);
+    if (selectedImageUrls.length > 0) total += Number(creditEngine.fixedCosts.character_consistency ?? 0);
+    total += Number(creditEngine.fixedCosts.auto_tag ?? 0);
+    return Number.isFinite(total) ? Math.max(0, Math.ceil(total)) : 0;
+  }, [
+    audioSampleRateHz,
+    captionsEnabled,
+    creditEstimate?.estimatedCredits,
+    durationRule.defaultSeconds,
+    durationSeconds,
+    modelKey,
+    narrationEnabled,
+    quality,
+    resolution,
+    selectedImageUrls.length,
+    voice,
+  ]);
+  const estimatedInr = estimateInrFromCredits(derivedVideoEstimateCredits);
   const fixedCosts = creditEngine.fixedCosts;
   const narrationCredits = narrationEnabled ? (voiceEstimate?.estimatedCredits ?? 0) : 0;
   const captionCredits = captionsEnabled ? Number(fixedCosts.auto_caption ?? 0) : 0;
   const referenceCredits = selectedImageUrls.length > 0 ? Number(fixedCosts.character_consistency ?? 0) : 0;
   const autoTagCredits = Number(fixedCosts.auto_tag ?? 0);
+  const displayVideoEstimateCredits = Math.max(derivedVideoEstimateCredits, autoTagCredits > 0 ? autoTagCredits : 0);
   const addOnCreditsTotal = narrationCredits + captionCredits + referenceCredits + autoTagCredits;
-  const baseGenerationCredits = Math.max(0, (creditEstimate?.estimatedCredits ?? 0) - addOnCreditsTotal);
+  const baseGenerationCredits = Math.max(0, displayVideoEstimateCredits - addOnCreditsTotal);
   const laneHasOnlyGatedModels = laneModels.length > 0 && laneModels.every((model) => model.enabled === false);
   const handleVideoLaneChange = (nextLane: VideoLaneKey) => {
     setVideoLane(nextLane);
@@ -1842,7 +1885,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -1960,11 +2003,11 @@ export function CreateVideoPage({
         </Card>
       ) : null}
 
-      <Card className="rounded-[20px] border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-elevated)/0.18)] p-2.5 sm:p-3.5">
-      <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] xl:items-start">
+      <Card className="rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
         <div className="min-w-0 space-y-3 sm:space-y-4">
           {isDailyLane ? (
-            <Card className="space-y-3 border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-elevated)/0.24)] p-3 sm:space-y-4 sm:p-4 shadow-[var(--shadow-soft)]">
+            <div className="space-y-3 rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.28)] p-3.5 shadow-soft backdrop-blur-md sm:space-y-4 sm:p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Daily Reels</p>
@@ -2100,20 +2143,25 @@ export function CreateVideoPage({
                   </div>
                   <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
                     <span>Total</span>
-                    <span>{creditEstimate?.estimatedCredits ?? 0} credits</span>
+                    <span>{displayVideoEstimateCredits} credits</span>
                   </div>
                 </div>
               </div>
+              {estimateError ? (
+                <p className="text-xs text-amber-600">
+                  Live estimate sync is delayed. Showing fallback estimate from current settings.
+                </p>
+              ) : null}
 
               <GenerateButton
                 onClick={() => void submit()}
                 loading={renderSessionPhase === 'preparing'}
-                estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
+                estimatedCredits={displayVideoEstimateCredits}
                 estimatedTime={estimatedTime}
                 currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
                 disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
                 insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
-                onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
+                onOpenLowBalance={() => openLowBalanceModal(displayVideoEstimateCredits)}
                 helperText="Daily defaults use WAN budget routing: text-to-video, short duration, and 720p output."
               />
 
@@ -2128,7 +2176,7 @@ export function CreateVideoPage({
                 }
                 onRetry={retry}
               />
-            </Card>
+            </div>
           ) : null}
 
 
@@ -2418,7 +2466,7 @@ export function CreateVideoPage({
 
         {(!isDailyLane || showDailyAdvanced) ? (
         <div className="min-w-0 space-y-3 sm:space-y-4 xl:sticky xl:top-24">
-          <div className="space-y-3 rounded-[16px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-bg)/0.3)] p-2.5 sm:space-y-4 sm:p-3.5">
+          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:space-y-4 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
@@ -2450,7 +2498,7 @@ export function CreateVideoPage({
             <div className="grid gap-2.5 sm:grid-cols-3">
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
-                <p className="mt-1 text-base font-semibold text-text">{creditEstimate?.estimatedCredits ?? 0}</p>
+                <p className="mt-1 text-base font-semibold text-text">{displayVideoEstimateCredits}</p>
               </div>
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
@@ -2468,12 +2516,12 @@ export function CreateVideoPage({
             <GenerateButton
               onClick={() => void submit()}
               loading={renderSessionPhase === 'preparing'}
-              estimatedCredits={creditEstimate?.estimatedCredits ?? 0}
+              estimatedCredits={displayVideoEstimateCredits}
               estimatedTime={estimatedTime}
               currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
               disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
               insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
-              onOpenLowBalance={() => openLowBalanceModal(creditEstimate?.estimatedCredits)}
+              onOpenLowBalance={() => openLowBalanceModal(displayVideoEstimateCredits)}
               helperText={
                 laneHasOnlyGatedModels
                   ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`

@@ -30,7 +30,7 @@ export function CreditProvider({
   const readWalletCache = (): CreditWallet | null => {
     if (!cacheKey || typeof window === 'undefined') return null;
     try {
-      const raw = window.sessionStorage.getItem(cacheKey);
+      const raw = window.sessionStorage.getItem(cacheKey) ?? window.localStorage.getItem(cacheKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { ts?: number; wallet?: CreditWallet };
       if (!parsed.ts || !parsed.wallet) return null;
@@ -55,6 +55,13 @@ export function CreditProvider({
     if (!cacheKey || typeof window === 'undefined') return;
     try {
       window.sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          ts: Date.now(),
+          wallet: nextWallet,
+        }),
+      );
+      window.localStorage.setItem(
         cacheKey,
         JSON.stringify({
           ts: Date.now(),

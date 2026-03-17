@@ -300,7 +300,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <Link
                       key={groupItem.href}
                       href={groupItem.href}
-                      onClick={() => setDesktopNavOpen(null)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setDesktopNavOpen(null);
+                        setMobileNavOpen(false);
+                        router.push(groupItem.href);
+                      }}
                       className={`inline-flex items-center gap-2 rounded-[12px] border px-2 py-1.5 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
                     >
                       <span className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border ${activeChild ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'}`}>
@@ -509,9 +514,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                       <Link
                                         key={groupItem.href}
                                         href={groupItem.href}
-                                        onClick={() => {
+                                        onClick={(event) => {
+                                          event.preventDefault();
                                           setDesktopNavOpen(null);
                                           setMobileNavOpen(false);
+                                          router.push(groupItem.href);
                                         }}
                                         className={`inline-flex items-center gap-2.5 rounded-[12px] px-2 py-2 text-sm transition ${
                                           activeChild

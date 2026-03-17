@@ -95,21 +95,34 @@ class FalVideoService:
                     for candidate in (last.get('response_url'), response_url):
                         if isinstance(candidate, str) and candidate.strip():
                             response_url_candidates.append(self._normalize_candidate_url(candidate.strip()))
-                    # Only derive alternatives when queue did not provide a response_url.
-                    if '/status' in status_url and not response_url_candidates:
+                    # Derive request-level alternatives from status_url when present.
+                    if '/status' in status_url:
                         base_request_url = status_url.rsplit('/status', 1)[0]
                         response_url_candidates.append(self._normalize_candidate_url(base_request_url))
+                        response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
                     tried_response_urls: list[str] = []
                     for response_url in list(dict.fromkeys(response_url_candidates)):
-                        tried_response_urls.append(response_url)
-                        response_payload = client.get(response_url, headers=headers)
-                        if response_payload.status_code == 405:
-                            response_payload = client.post(response_url, headers=headers, json={})
+                        url_variants = [response_url]
+                        if '/requests/' in response_url and not response_url.rstrip('/').endswith('/response'):
+                            url_variants.append(f'{response_url.rstrip("/")}/response')
+                        response_payload = None
+                        attempted_url = response_url
+                        for candidate_url in url_variants:
+                            attempted_url = candidate_url
+                            tried_response_urls.append(candidate_url)
+                            response_payload = client.get(candidate_url, headers=headers)
+                            if response_payload.status_code in {404, 405, 422} and candidate_url == url_variants[0] and len(url_variants) > 1:
+                                continue
+                            if response_payload.status_code == 405:
+                                response_payload = client.post(candidate_url, headers=headers, json={})
+                            break
+                        if response_payload is None:
+                            continue
                         if response_payload.status_code >= 400:
                             logger.warning(
                                 'fal_response_url_fetch_failed',
                                 extra={
-                                    'response_url': response_url,
+                                    'response_url': attempted_url,
                                     'status_code': response_payload.status_code,
                                     'body': response_payload.text[:240],
                                 },
@@ -122,7 +135,7 @@ class FalVideoService:
                         logger.warning(
                             'fal_response_url_missing_video',
                             extra={
-                                'response_url': response_url,
+                                'response_url': attempted_url,
                                 'response_keys': sorted([str(k) for k in response_data.keys()]),
                             },
                         )

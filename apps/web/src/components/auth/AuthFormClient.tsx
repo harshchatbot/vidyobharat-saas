@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { useToast } from '@/components/ui/Toast';
+import { api } from '@/lib/api';
 import {
   signInWithGooglePopup,
   getProfileFields,
@@ -119,6 +120,7 @@ export function AuthFormClient({ mode }: Props) {
         email: profile.email,
         avatarUrl: profile.avatarUrl,
       });
+      void api.primeDashboardWarmCache(user.id);
       router.replace('/dashboard');
       router.refresh();
     } catch (caught) {
@@ -142,6 +144,7 @@ export function AuthFormClient({ mode }: Props) {
         email: profile.email,
         avatarUrl: profile.avatarUrl,
       });
+      void api.primeDashboardWarmCache(user.id);
       router.replace('/dashboard');
       router.refresh();
     } catch (caught) {
