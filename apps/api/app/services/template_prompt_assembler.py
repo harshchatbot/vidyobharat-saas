@@ -244,9 +244,36 @@ class TemplatePromptAssembler:
     def _assemble_quote_infographic_post(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)
         prompt = self._compose(
-            f"Create a shareable social post visual in {values.get('postType', 'educational_card')} format about {values.get('topic', 'the topic')}.",
-            f"Headline: {values.get('headline', 'strong curiosity-led hook')}. Tone: {values.get('tone', 'educational')}. Platform: {values.get('platform', 'Instagram')}. Color style: {values.get('colorStyle', 'clean editorial palette')}.",
-            'Design for instant readability, a single strong message, and high save/share potential.',
+            f"Create a shareable flat/semi-flat vector infographic post in {values.get('postType', 'educational_card')} format about {values.get('topic', 'the topic')}.",
+            f"Headline: {values.get('headline', 'strong curiosity-led hook')}. Tone: {values.get('tone', 'educational')}. Platform: {values.get('platform', 'Instagram')}. Color style: {values.get('colorStyle', 'soft blue and green educational palette')}.",
+            'Use clean section blocks, icon-led data highlights, subtle chart motifs, rounded vector shapes, and strong text hierarchy.',
+            'Keep background light and minimal. Keep typography readable and social-first.',
+            'Avoid cinematic lighting, photographic realism, dramatic depth-of-field, film grain, and moody poster composition.',
+            base['safety'],
+        )
+        return PromptAssemblyResult(prompt, image_prompt=prompt, recommended_model_mode=template.default_model_mode)
+
+    def _assemble_modern_infographic(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
+        base = self._base_blocks(template, values)
+        prompt = self._compose(
+            f"Create a clean modern flat/semi-flat vector infographic about {values.get('topic', 'the topic')}.",
+            f"Style: {values.get('style', 'Business')}. Language: {values.get('language', 'English')}.",
+            'Use a vertical structured layout with 4-6 concise insight blocks, bold numbers, icons, and compact chart snippets.',
+            'Design should feel like a professional social infographic: crisp hierarchy, balanced whitespace, readable labels, and clear section dividers.',
+            'Use light backgrounds, soft palette contrast, and polished vector illustration style.',
+            'Avoid cinematic poster mood, photo backgrounds, dramatic shadows, film look, and photoreal rendering.',
+            base['safety'],
+        )
+        return PromptAssemblyResult(prompt, image_prompt=prompt, recommended_model_mode=template.default_model_mode)
+
+    def _assemble_cinematic_infographic(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
+        base = self._base_blocks(template, values)
+        prompt = self._compose(
+            f"Create a cinematic infographic-style poster about {values.get('topic', 'the topic')}.",
+            f"Style: {values.get('style', 'Cinematic')}. Tone: {values.get('tone', 'dramatic and premium')}.",
+            'Blend one strong hero visual with limited high-impact data callouts and typography-safe zones.',
+            'Use dramatic lighting, depth, atmosphere, and premium visual storytelling suitable for cinematic social covers.',
+            'Keep layout readable, but prioritize mood and visual impact over dense chart detail.',
             base['quality'],
             base['safety'],
         )

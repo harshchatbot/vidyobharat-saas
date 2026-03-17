@@ -529,7 +529,12 @@ class TemplateManagementService:
             self.repo.seed_missing(seeds)
             # Keep selected hero templates in sync even after initial seed,
             # so guided workflow simplifications roll out without manual DB edits.
-            curated_ids = {'viral_dance_clip', 'cinematic_infographic'}
+            curated_ids = {
+                'viral_dance_clip',
+                'cinematic_infographic',
+                'quote_infographic_post',
+                'modern_infographic',
+            }
             for seed in seeds:
                 if seed.get('id') in curated_ids:
                     self.repo.upsert(str(seed['id']), seed)
@@ -556,11 +561,11 @@ class TemplateManagementService:
                 'name': 'Modern Infographic',
                 'title': 'Modern Infographic',
                 'slug': 'modern-infographic',
-                'description': 'Generate a clean, structured flat-design infographic with clear sections, bold data callouts, charts, and professional business-style layout.',
-                'short_description': 'Clean flat infographic with charts, icons, and bold data storytelling',
+                'description': 'Generate a clean, structured flat/semi-flat vector infographic with clear sections, bold data callouts, charts, and professional business-style layout.',
+                'short_description': 'Flat/semi-flat vector infographic with charts, icons, and clear hierarchy',
                 'thumbnail_url': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
                 'preview_image_url': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Flat vector infographic, clean section blocks, icon-led data cards, bold numbers, modern business layout, light background, crisp charts, structured hierarchy.',
+                'visual_prompt': 'Flat/semi-flat vector infographic, clean section blocks, icon-led data cards, bold numbers, modern business layout, light background, crisp charts, structured hierarchy.',
                 'aspect_ratio': '4:5',
                 'inputs': [
                     {
@@ -588,7 +593,7 @@ class TemplateManagementService:
                 'script_hint': 'Keep the infographic clean, readable, data-first, and well-structured with clear sections and strong visual hierarchy.',
                 'topic_hint': 'Use 4–6 key stats, icons, and chart fragments arranged in clean sections',
                 'prompt_template': (
-                    'Create a clean modern flat-design infographic about {topic}. '
+                    'Create a clean modern flat/semi-flat vector infographic about {topic}. '
                     'Style: {style}. Language context: {language}. '
                     'Make it look like a professional business infographic used in reports, presentations, and LinkedIn posts. '
                     'Use a vertical infographic layout with clearly divided sections, strong hierarchy, and clean grid alignment. '
@@ -611,6 +616,76 @@ class TemplateManagementService:
                 'trending': True,
                 'featured': True,
                 'order': 200,
+                'created_by': 'system',
+                'source': 'legacy_seed',
+                'generation_defaults': {
+                    'model_key': 'recraft_studio',
+                    'aspect_ratio': '4:5',
+                    'resolution': '1536'
+                },
+                'created_at': now,
+                'updated_at': now,
+            },
+            {
+                'id': 'cinematic_infographic',
+                'type': 'image',
+                'category': 'education',
+                'subcategory': 'infographic',
+                'name': 'Cinematic Infographic',
+                'title': 'Cinematic Infographic',
+                'slug': 'cinematic-infographic',
+                'description': 'Generate a cinematic infographic-style visual with dramatic atmosphere, hero composition, and selective high-impact data callouts.',
+                'short_description': 'Cinematic poster-style infographic with premium mood',
+                'thumbnail_url': 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+                'preview_image_url': 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+                'visual_prompt': 'Cinematic infographic visual, dramatic lighting, hero image composition, selective data overlays, premium poster atmosphere.',
+                'aspect_ratio': '4:5',
+                'inputs': [
+                    {
+                        'key': 'topic',
+                        'label': 'Topic',
+                        'type': 'text',
+                        'required': True,
+                        'placeholder': 'Future of Indian cities'
+                    },
+                    {
+                        'key': 'style',
+                        'label': 'Style',
+                        'type': 'select',
+                        'required': True,
+                        'options': ['Cinematic', 'Documentary', 'Premium Editorial']
+                    },
+                    {
+                        'key': 'tone',
+                        'label': 'Tone',
+                        'type': 'select',
+                        'required': False,
+                        'options': ['Dramatic', 'Inspirational', 'Serious', 'Visionary']
+                    },
+                ],
+                'script_hint': 'Use cinematic visual storytelling with limited but impactful infographic overlays.',
+                'topic_hint': 'Hero visual + selective data callouts',
+                'prompt_template': (
+                    'Create a cinematic infographic-style visual about {topic}. '
+                    'Style: {style}. Tone: {tone}. '
+                    'Use one strong hero visual with premium dramatic lighting and atmospheric depth. '
+                    'Overlay only a few high-impact stats or labels with clear typography-safe zones. '
+                    'Prioritize mood, composition, and story impact over dense charts. '
+                    'The output should feel like a cinematic poster with infographic cues.'
+                ),
+                'badge': 'Cinematic',
+                'is_quick_start': True,
+                'default_model_mode': 'best_graphics',
+                'prompt_assembler_key': 'cinematic_infographic',
+                'legacy_mappings': ['cinematic_infographic'],
+                'suggested_platforms': ['instagram', 'linkedin'],
+                'suggested_durations': [],
+                'suggested_styles': ['Cinematic', 'Documentary', 'Premium Editorial'],
+                'safety_profile': 'educational_safe',
+                'active': True,
+                'trending': True,
+                'featured': True,
+                'order': 199,
                 'created_by': 'system',
                 'source': 'legacy_seed',
                 'generation_defaults': {
