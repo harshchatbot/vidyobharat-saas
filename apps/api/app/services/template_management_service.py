@@ -549,41 +549,63 @@ class TemplateManagementService:
     def _legacy_seed_templates(self, now: Any) -> list[dict[str, Any]]:
         return [
             {
-                'id': 'cinematic_infographic',
+                'id': 'modern_infographic',
                 'type': 'image',
                 'category': 'education',
                 'subcategory': 'infographic',
-                'name': 'Cinematic Infographic',
-                'title': 'Cinematic Infographic',
-                'slug': 'cinematic-infographic',
-                'description': 'Generate an editorial infographic-style image with cinematic atmosphere and layered information hierarchy.',
-                'short_description': 'Aerial documentary visuals with infographic overlays',
-                'thumbnail_url': 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80',
-                'preview_image_url': 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80',
-                'visual_prompt': 'Aerial documentary frame, infographic overlays, premium editorial typography spacing, cinematic light.',
+                'name': 'Modern Infographic',
+                'title': 'Modern Infographic',
+                'slug': 'modern-infographic',
+                'description': 'Generate a clean, structured flat-design infographic with clear sections, bold data callouts, charts, and professional business-style layout.',
+                'short_description': 'Clean flat infographic with charts, icons, and bold data storytelling',
+                'thumbnail_url': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+                'preview_image_url': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+                'visual_prompt': 'Flat vector infographic, clean section blocks, icon-led data cards, bold numbers, modern business layout, light background, crisp charts, structured hierarchy.',
                 'aspect_ratio': '4:5',
                 'inputs': [
-                    {'key': 'topic', 'label': 'Topic', 'type': 'text', 'required': True, 'placeholder': 'Future of electric mobility'},
-                    {'key': 'style', 'label': 'Style', 'type': 'select', 'required': True, 'options': ['Documentary', 'Editorial', 'Premium News']},
-                    {'key': 'language', 'label': 'Language', 'type': 'select', 'required': False, 'options': ['English', 'Hindi', 'Hinglish']},
+                    {
+                        'key': 'topic',
+                        'label': 'Topic',
+                        'type': 'text',
+                        'required': True,
+                        'placeholder': 'Future of Indian cities'
+                    },
+                    {
+                        'key': 'style',
+                        'label': 'Style',
+                        'type': 'select',
+                        'required': True,
+                        'options': ['Business', 'Educational', 'LinkedIn', 'Startup Report']
+                    },
+                    {
+                        'key': 'language',
+                        'label': 'Language',
+                        'type': 'select',
+                        'required': False,
+                        'options': ['English', 'Hindi', 'Hinglish']
+                    },
                 ],
-                'script_hint': 'Keep the composition readable and premium with clear visual hierarchy.',
-                'topic_hint': 'Aerial visual + 3 key data callouts',
+                'script_hint': 'Keep the infographic clean, readable, data-first, and well-structured with clear sections and strong visual hierarchy.',
+                'topic_hint': 'Use 4–6 key stats, icons, and chart fragments arranged in clean sections',
                 'prompt_template': (
-                    'Create a premium cinematic infographic image about {topic}. '
+                    'Create a clean modern flat-design infographic about {topic}. '
                     'Style: {style}. Language context: {language}. '
-                    'Must include at least 3 clear data callouts, icon markers, '
-                    'clean chart fragments, and a visible information hierarchy. '
-                    'Avoid plain poster-only composition.'
+                    'Make it look like a professional business infographic used in reports, presentations, and LinkedIn posts. '
+                    'Use a vertical infographic layout with clearly divided sections, strong hierarchy, and clean grid alignment. '
+                    'Include 4 to 6 strong data points with large bold numbers, short explanation text, icon markers, and flat illustrations. '
+                    'Include at least one line chart, one bar chart, and one pie or donut chart. '
+                    'Use a light background, flat vector design, clean sans-serif typography, and evenly spaced data blocks. '
+                    'Avoid cinematic lighting, photo backgrounds, dark textures, glow effects, and poster-style composition. '
+                    'The result should feel like a polished modern infographic, not a cinematic poster.'
                 ),
                 'badge': 'Quick Start',
                 'is_quick_start': True,
                 'default_model_mode': 'best_graphics',
-                'prompt_assembler_key': 'cinematic_infographic',
-                'legacy_mappings': ['cinematic_infographic'],
+                'prompt_assembler_key': 'modern_infographic',
+                'legacy_mappings': ['cinematic_infographic', 'modern_infographic'],
                 'suggested_platforms': ['linkedin', 'instagram'],
                 'suggested_durations': [],
-                'suggested_styles': ['Documentary', 'Editorial', 'Premium News'],
+                'suggested_styles': ['Business', 'Educational', 'LinkedIn', 'Startup Report'],
                 'safety_profile': 'educational_safe',
                 'active': True,
                 'trending': True,
@@ -591,7 +613,11 @@ class TemplateManagementService:
                 'order': 200,
                 'created_by': 'system',
                 'source': 'legacy_seed',
-                'generation_defaults': {'model_key': 'recraft_studio', 'aspect_ratio': '4:5', 'resolution': '1536'},
+                'generation_defaults': {
+                    'model_key': 'recraft_studio',
+                    'aspect_ratio': '4:5',
+                    'resolution': '1536'
+                },
                 'created_at': now,
                 'updated_at': now,
             },
