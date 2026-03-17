@@ -66,7 +66,7 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         billing_unit='per_image',
         quality_tier='premium',
         user_facing_description='Best for graphics, carousels, and design-led assets.',
-        fallback_model_key='recraft_studio',
+        fallback_model_key='openai_image',
         aliases=('recraft_studio',),
     ),
     'gemini_flash_image': GenerationModelDefinition(
@@ -120,7 +120,7 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         billing_unit='per_image',
         quality_tier='premium',
         user_facing_description='Premium design-led image generation for branding and ad assets.',
-        fallback_model_key='recraft',
+        fallback_model_key='openai_image',
     ),
     'wan_2_5': GenerationModelDefinition(
         model_key='wan_2_5',

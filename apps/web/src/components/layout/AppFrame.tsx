@@ -119,6 +119,16 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     router.push('/projects');
   };
 
+  const navigateFromMobileMenu = (href: string) => {
+    setDesktopNavOpen(null);
+    setMobileNavOpen(false);
+    const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
+    if (isAlreadyOnTarget) return;
+    window.setTimeout(() => {
+      router.push(href);
+    }, 0);
+  };
+
   if (inApp) {
     const flyoutPreviews: Record<string, string> = {
       '/dashboard': '/illustrations/earth.png',
@@ -436,7 +446,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 onClick={() => setMobileNavOpen(false)}
                 className="absolute inset-0 bg-[hsl(var(--color-bg)/0.78)] backdrop-blur-sm"
               />
-              <div className="absolute inset-x-3 top-3 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3 shadow-soft sm:inset-x-4 sm:rounded-[24px] sm:p-4">
+              <div className="absolute inset-x-3 top-3 z-10 max-h-[calc(100vh-88px)] overflow-y-auto rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-3 shadow-soft sm:inset-x-4 sm:rounded-[24px] sm:p-4">
                 <div className="space-y-4">
                   <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[var(--radius-md)] sm:p-3">
                     <div className="flex items-center justify-between gap-3">
@@ -511,15 +521,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                     const GroupIcon = groupItem.icon;
                                     const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
                                     return (
-                                      <Link
+                                      <button
                                         key={groupItem.href}
-                                        href={groupItem.href}
-                                        onClick={(event) => {
-                                          event.preventDefault();
-                                          setDesktopNavOpen(null);
-                                          setMobileNavOpen(false);
-                                          router.push(groupItem.href);
-                                        }}
+                                        type="button"
+                                        onClick={() => navigateFromMobileMenu(groupItem.href)}
                                         className={`inline-flex items-center gap-2.5 rounded-[12px] px-2 py-2 text-sm transition ${
                                           activeChild
                                             ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
@@ -553,7 +558,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                                       : 'Workspace settings'}
                                           </span>
                                         </span>
-                                      </Link>
+                                      </button>
                                     );
                                   })}
                                 </div>
@@ -586,11 +591,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         }
 
                         return (
-                          <Link
+                          <button
                             key={item.label}
-                            href={item.href}
-                            onClick={() => setMobileNavOpen(false)}
-                            className={baseClass}
+                            type="button"
+                            onClick={() => navigateFromMobileMenu(item.href)}
+                            className={`w-full ${baseClass}`}
                           >
                             <span className={iconClass}>
                               <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -599,7 +604,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                               <span className="block font-semibold text-text">{item.label}</span>
                               <span className="block text-xs text-muted">{item.hint}</span>
                             </span>
-                          </Link>
+                          </button>
                         );
                       })}
                     </nav>

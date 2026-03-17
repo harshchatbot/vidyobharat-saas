@@ -101,9 +101,15 @@ class FalImageService:
         raise RuntimeError(f'fal image generation timed out: {last_payload}')
 
     def _resolve_recraft_endpoint(self, model_key: str) -> str:
-        if model_key == 'recraft_studio_pro':
-            return self.settings.fal_recraft_image_pro_endpoint
-        return self.settings.fal_recraft_image_endpoint
+        endpoint = (
+            self.settings.fal_recraft_image_pro_endpoint
+            if model_key == 'recraft_studio_pro'
+            else self.settings.fal_recraft_image_endpoint
+        )
+        endpoint = (endpoint or '').strip()
+        if not endpoint:
+            raise RuntimeError(f'fal recraft endpoint is not configured for model "{model_key}"')
+        return endpoint
 
     def _extract_image_url(self, payload: dict[str, Any]) -> str | None:
         def from_dict(value: dict[str, Any]) -> str | None:
