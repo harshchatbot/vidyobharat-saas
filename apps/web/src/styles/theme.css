@@ -319,16 +319,10 @@
   animation: rangmanch-stage-floor 2.4s ease-in-out infinite;
 }
 
-.rangmanch-landing-aionic {
-  --color-accent: var(--landing-accent);
-  --color-accent-contrast: var(--landing-accent-contrast);
-  --color-hero-glow: 145 82% 63%;
-}
-
 .rangmanch-landing-grid-hero {
   background:
-    radial-gradient(circle at 50% 18%, hsl(var(--landing-accent) / 0.16), transparent 18rem),
-    radial-gradient(circle at 82% 22%, hsl(var(--landing-accent-strong) / 0.12), transparent 16rem),
+    radial-gradient(circle at 50% 18%, hsl(var(--color-accent) / 0.12), transparent 18rem),
+    radial-gradient(circle at 82% 22%, hsl(var(--color-accent) / 0.08), transparent 16rem),
     linear-gradient(180deg, hsl(var(--landing-hero-bg) / 0.98), hsl(var(--landing-hero-bg-deep) / 0.98));
 }
 
@@ -350,29 +344,29 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 30%, hsl(var(--landing-accent) / 0.16), transparent 20rem),
+    radial-gradient(circle at 50% 30%, hsl(var(--color-accent) / 0.14), transparent 20rem),
     linear-gradient(180deg, transparent 0%, hsl(var(--landing-hero-bg-deep) / 0.18) 44%, hsl(var(--color-bg) / 0.88) 100%);
   pointer-events: none;
 }
 
 .rangmanch-landing-hero-kicker {
-  border-color: hsl(var(--landing-accent) / 0.28);
-  background: hsl(var(--landing-accent) / 0.12);
+  border-color: hsl(var(--color-accent) / 0.28);
+  background: hsl(var(--color-accent) / 0.12);
   color: hsl(var(--color-text));
-  box-shadow: 0 0 0 1px hsl(var(--landing-accent) / 0.08) inset;
+  box-shadow: 0 0 0 1px hsl(var(--color-accent) / 0.08) inset;
 }
 
 .rangmanch-landing-hero-title {
-  color: hsl(var(--landing-accent));
+  color: hsl(var(--color-accent));
   text-shadow:
-    0 0 18px hsl(var(--landing-accent) / 0.18),
-    0 0 42px hsl(var(--landing-accent) / 0.08);
+    0 0 18px hsl(var(--color-accent) / 0.18),
+    0 0 42px hsl(var(--color-accent) / 0.08);
 }
 
 .rangmanch-landing-cta-primary {
-  background: linear-gradient(135deg, hsl(var(--landing-accent)), hsl(var(--landing-accent-strong)));
-  color: hsl(var(--landing-accent-contrast));
-  box-shadow: 0 18px 50px hsl(var(--landing-accent) / 0.22);
+  background: linear-gradient(135deg, hsl(var(--color-accent)), hsl(var(--color-accent) / 0.78));
+  color: hsl(var(--color-accent-contrast));
+  box-shadow: 0 18px 50px hsl(var(--color-accent) / 0.22);
 }
 
 .rangmanch-landing-cta-primary:hover {
@@ -389,7 +383,7 @@
   inset: 16% 2% auto;
   height: 64%;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, hsl(var(--landing-accent) / 0.08), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--color-accent) / 0.08), transparent);
   filter: blur(18px);
   pointer-events: none;
 }

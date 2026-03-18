@@ -5,8 +5,6 @@ import {
   BriefcaseBusiness,
   Clapperboard,
   Film,
-  ImageIcon,
-  PlaySquare,
   ShieldCheck,
   Sparkles,
   Users2,
@@ -14,73 +12,10 @@ import {
 } from 'lucide-react';
 
 import { GlassPanel } from '@/components/landing/GlassPanel';
-import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
-import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LandingVideo } from '@/components/landing/LandingVideo';
-import { StudioSidebar } from '@/components/landing/StudioSidebar';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
-
-const heroBackgroundMedia = {
-  src: '/videos/samples/hindi-festival-9x16.mp4',
-  poster: '/illustrations/startup.png',
-} as const;
-
-type ToolTileMedia =
-  | {
-      type: 'image';
-      src: string;
-      frame?: 'default' | 'vertical';
-    }
-  | {
-      type: 'video';
-      src: string;
-      poster?: string;
-      frame?: 'default' | 'vertical';
-    };
-
-const toolTiles = [
-  {
-    title: 'Text to Video',
-    subtitle: 'Turn script into cinematic scenes',
-    href: '/signup',
-    media: { type: 'video', src: '/videos/samples/creator111.mp4', poster: '/illustrations/startup.png' } satisfies ToolTileMedia,
-    eyebrow: 'Script to scene',
-    icon: Clapperboard,
-  },
-  {
-    title: 'Image to Video',
-    subtitle: 'Animate reference visuals into motion',
-    href: '/signup',
-    media: { type: 'video', src: '/videos/samples/lip-sync.mp4', poster: '/illustrations/product-ads.png' } satisfies ToolTileMedia,
-    eyebrow: 'Reference motion',
-    icon: ImageIcon,
-  },
-  {
-    title: 'AI Influencer',
-    subtitle: 'Build a consistent character identity',
-    href: '/signup',
-    media: { type: 'image', src: '/videos/samples/creator-launch.png', frame: 'vertical' } satisfies ToolTileMedia,
-    eyebrow: 'Persona lock',
-    icon: Wand2,
-  },
-  {
-    title: 'Ad Shorts',
-    subtitle: 'High-frequency vertical reel workflows',
-    href: '/signup',
-    media: { type: 'video', src: '/videos/samples/advertisement.mp4', poster: '/illustrations/agency.png' } satisfies ToolTileMedia,
-    eyebrow: 'Vertical output',
-    icon: Sparkles,
-  },
-  {
-    title: 'Trending Templates',
-    subtitle: 'Start viral images and reels instantly',
-    href: '/templates',
-    media: { type: 'image', src: '/videos/samples/influncer-persona.png', frame: 'vertical' } satisfies ToolTileMedia,
-    eyebrow: 'Template-led',
-    icon: PlaySquare,
-  },
-];
 
 const whyRangManch = [
   {
@@ -139,62 +74,6 @@ const trustPoints = [
   'Clear task-based workflow lanes instead of an overwhelming model catalog',
 ];
 
-function ToolTileMediaSurface({
-  media,
-  alt,
-  sizes,
-}: {
-  media: ToolTileMedia;
-  alt: string;
-  sizes: string;
-}) {
-  const isVerticalFrame = media.frame === 'vertical';
-  const mediaShellClass = isVerticalFrame
-    ? 'flex h-full items-start justify-center bg-[hsl(var(--color-bg)/0.18)] px-4 pb-20 pt-3 sm:pb-24'
-    : 'h-full w-full';
-  const frameClass = isVerticalFrame
-    ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]'
-    : 'relative h-full w-full';
-
-  if (media.type === 'video') {
-    return (
-      <div className={mediaShellClass}>
-        <div className={frameClass}>
-          <LandingVideo
-            src={media.src}
-            poster={media.poster}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Image
-        src={media.src}
-        alt=""
-        aria-hidden
-        fill
-        sizes={sizes}
-        className="object-cover opacity-58 blur-md scale-[1.08] transition duration-500 group-hover:scale-[1.12]"
-      />
-      <div className={`relative z-[1] ${mediaShellClass}`}>
-        <div className={frameClass}>
-          <Image
-            src={media.src}
-            alt={alt}
-            fill
-            sizes={sizes}
-            className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
-          />
-        </div>
-      </div>
-    </>
-  );
-}
-
 function HeroMediaRibbon() {
   const ribbonItems = [
     { key: 'persona-1', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-32 sm:h-40 lg:h-52', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[2deg]' },
@@ -228,76 +107,57 @@ function HeroMediaRibbon() {
 
 export function PublicStudioLanding() {
   return (
-    <div className="rangmanch-landing-aionic min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
+    <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
       <div className="flex min-h-screen max-w-full overflow-x-clip">
-        <StudioSidebar />
-
-        <main className="min-w-0 max-w-full flex-1 overflow-x-clip pt-[72px] sm:pt-[76px] xl:pt-0">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 sm:px-4 sm:pb-10 lg:px-5 lg:pb-12 xl:px-6 2xl:px-8 2xl:pb-14">
+        <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 pt-3 sm:px-4 sm:pb-10 sm:pt-4 lg:px-5 lg:pb-12 xl:px-6 2xl:px-8 2xl:pb-14">
             <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
-              <div className="hidden items-center justify-between gap-4 pb-5 xl:flex">
-                <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.34)] px-4 py-2 text-xs uppercase tracking-[0.24em] text-[hsl(var(--color-muted))] backdrop-blur-md">
-                  Public Studio
-                  <span className="h-1 w-1 rounded-full bg-[hsl(var(--color-accent))]" />
-                  AI video creation
-                </div>
-                <div className="flex items-center gap-2">
-                  <ToggleTheme />
-                  <Link
-                    href="/login"
-                    className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.48)] px-4 py-2 text-sm font-medium backdrop-blur-md"
-                  >
-                    Sign in
-                  </Link>
-                  <Link
-                    href="/signup"
-                    className="rangmanch-landing-cta-primary inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
-                  >
-                    Start free
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
+              <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] px-4 py-4 sm:rounded-[32px] sm:px-5 sm:py-5 xl:rounded-[36px] xl:px-7 xl:py-6">
+                <div className="relative z-10">
+                  <header className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
+                    </div>
+                    <nav className="hidden items-center gap-8 text-sm font-medium text-[hsl(var(--color-text))] lg:flex">
+                      <Link href="/company">About</Link>
+                      <Link href="/use-cases">Workflows</Link>
+                      <Link href="/pricing">Pricing</Link>
+                      <Link href="/learning">Learning</Link>
+                    </nav>
+                    <div className="flex items-center gap-2">
+                      <div className="hidden sm:block">
+                        <ToggleTheme />
+                      </div>
+                      <Link
+                        href="/signup"
+                        className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]"
+                      >
+                        Start free
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </header>
 
-              <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
-                <HeroBackgroundVideo
-                  src={heroBackgroundMedia.src}
-                  poster={heroBackgroundMedia.poster}
-                />
-                <div className="relative z-10 min-h-[560px] px-4 py-5 sm:min-h-[640px] sm:px-5 sm:py-6 md:min-h-[720px] md:px-6 md:py-7 lg:min-h-[760px] lg:px-7 lg:py-8 2xl:min-h-[820px] 2xl:px-8 2xl:py-8">
-                  <div className="flex h-full flex-col justify-between gap-8 sm:gap-9 lg:gap-10">
-                    <div className="mx-auto flex max-w-[72rem] flex-col items-center space-y-5 pt-6 text-center sm:space-y-6 sm:pt-10 lg:pt-14">
-                      <div className="rangmanch-landing-hero-kicker inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur-md">
-                        <span className="inline-flex h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />
-                        Creator studio for AI influencers, reels, ads, and visual stories
-                      </div>
-                      <div className="space-y-4">
-                        <h1 className="rangmanch-landing-hero-title max-w-5xl font-heading text-[2.4rem] font-extrabold tracking-tight sm:text-[3.3rem] sm:leading-[1.02] md:text-[4.3rem] lg:text-[5.4rem] 2xl:text-[6.1rem]">
-                          Create the future of content with RangManch AI
-                        </h1>
-                        <p className="max-w-4xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1.06rem]">
-                          Turn prompts, photos, personas, and templates into publish-ready influencers, reels, product ads, and visual stories without stitching together multiple tools.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-3">
-                        <Link
-                          href="/signup"
-                          className="rangmanch-landing-cta-primary inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold"
-                        >
-                          Start your journey
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                        <Link
-                          href="/pricing"
-                          className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.22)] px-5 py-3 text-sm font-medium text-[hsl(var(--color-text))] backdrop-blur-md"
-                        >
-                          View pricing
-                        </Link>
-                      </div>
-                      <div className="w-full max-w-[58rem]">
-                        <HeroPromptBar />
-                      </div>
-                      <HeroMediaRibbon />
+                  <div className="mx-auto flex min-h-[640px] max-w-[78rem] flex-col items-center justify-center pt-10 text-center sm:min-h-[700px] sm:pt-14 lg:min-h-[760px] lg:pt-16">
+                    <div className="space-y-5">
+                      <h1 className="max-w-5xl font-heading text-[2.55rem] font-extrabold tracking-tight text-[hsl(var(--color-accent))] sm:text-[3.5rem] sm:leading-[1.02] md:text-[4.5rem] lg:text-[5.65rem] 2xl:text-[6.2rem]">
+                        Create the Future of Content
+                        <br />
+                        With RangManch AI
+                      </h1>
+                      <p className="mx-auto max-w-4xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1.06rem]">
+                        RangManch AI is a premium creator studio for AI influencers, reels, ads, and visual storytelling. Launch polished publish-ready content faster from one workflow.
+                      </p>
+                    </div>
+                    <HeroMediaRibbon />
+                    <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                      <Link
+                        href="/signup"
+                        className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]"
+                      >
+                        Start Your Journey
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -344,78 +204,6 @@ export function PublicStudioLanding() {
                     </GlassPanel>
                   );
                 })}
-              </div>
-            </section>
-
-            <section id="tools" className="scroll-mt-24 pt-8 lg:pt-10">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="rangmanch-section-eyebrow">Tool launcher</p>
-                  <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Launch the workflow you need, not a maze of settings.</h2>
-                </div>
-                <Link href="/signup" className="hidden rounded-full border border-[hsl(var(--color-border)/0.5)] px-4 py-2 text-sm font-medium text-[hsl(var(--color-text))] sm:inline-flex">
-                  Open studio
-                </Link>
-              </div>
-              <div className="mt-5 hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-                {toolTiles.map((tool) => {
-                  const Icon = tool.icon;
-                  return (
-                    <Link
-                      key={tool.title}
-                      href={tool.href}
-                      className="group overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-                    >
-                      <div className="relative aspect-[6/5]">
-                        <ToolTileMediaSurface
-                          media={tool.media}
-                          alt={tool.title}
-                          sizes="(max-width: 639px) 78vw, (max-width: 1279px) 50vw, (max-width: 1535px) 33vw, 20vw"
-                        />
-                        <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)),hsl(var(--color-bg)/0.92)_28%,transparent_58%)]" />
-                        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
-                          <Icon className="h-3.5 w-3.5" />
-                          {tool.eyebrow}
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 z-[2] p-3.5">
-                          <p className="text-base font-semibold text-[hsl(var(--color-text))]">{tool.title}</p>
-                          <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-              <div className="-mx-3 mt-5 overflow-x-auto px-3 sm:hidden">
-                <div className="flex w-max gap-3 pb-1">
-                  {toolTiles.map((tool) => {
-                    const Icon = tool.icon;
-                    return (
-                      <Link
-                        key={tool.title}
-                        href={tool.href}
-                        className="group block w-[72vw] max-w-[280px] shrink-0 overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] backdrop-blur-md transition duration-300 active:scale-[0.99]"
-                      >
-                        <div className="relative aspect-[6/5]">
-                          <ToolTileMediaSurface
-                            media={tool.media}
-                            alt={tool.title}
-                            sizes="72vw"
-                          />
-                          <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)),hsl(var(--color-bg)/0.92)_28%,transparent_58%)]" />
-                          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
-                            <Icon className="h-3.5 w-3.5" />
-                            {tool.eyebrow}
-                          </div>
-                          <div className="absolute inset-x-0 bottom-0 z-[2] p-3.5">
-                            <p className="text-base font-semibold text-[hsl(var(--color-text))]">{tool.title}</p>
-                            <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
               </div>
             </section>
 
