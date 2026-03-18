@@ -191,7 +191,7 @@ function VideoLaneSelector({
             {getVideoLaneDefinition(lane).shortLabel}
           </span>
         </div>
-        <p className="mt-3 text-xs leading-5 text-muted">{getVideoLaneDefinition(lane).helper}</p>
+        <p className="mt-2 text-xs leading-5 text-muted">{getVideoLaneDefinition(lane).helper}</p>
       </div>
     </div>
   );
@@ -2004,186 +2004,173 @@ export function CreateVideoPage({
       ) : null}
 
       <Card className="rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
-        <div className="min-w-0 space-y-3 sm:space-y-4">
+      <div className="grid gap-3.5 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
+        <div className="min-w-0 space-y-3">
           {isDailyLane ? (
-            <div className="space-y-3 rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.28)] p-3.5 shadow-soft backdrop-blur-md sm:space-y-4 sm:p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Daily Reels</p>
-                  <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Fast, budget-safe reel generation</h2>
+            <>
+              <SectionCard
+                title="Prompt"
+                description="Describe the reel scene, motion, and vibe."
+                icon={<Wand2 className="h-5 w-5" />}
+                compact
+              >
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Prompt</label>
+                  <Textarea
+                    value={script}
+                    onChange={(event) => setScript(event.target.value)}
+                    placeholder="Describe the reel scene, motion, vibe, and style in one clear prompt."
+                    rows={6}
+                  />
                 </div>
-                <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
-                  {showDailyAdvanced ? 'Hide advanced' : 'Show advanced'}
-                </Button>
-              </div>
+              </SectionCard>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Prompt</label>
-                <Textarea
-                  value={script}
-                  onChange={(event) => setScript(event.target.value)}
-                  placeholder="Describe the reel scene, motion, vibe, and style in one clear prompt."
-                  rows={6}
-                />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Lane</label>
-                  <Dropdown value={videoLane} onChange={(event) => handleVideoLaneChange(event.target.value as VideoLaneKey)}>
-                    {VIDEO_LANES.map((lane) => (
-                      <option key={lane.key} value={lane.key}>
-                        {lane.label}
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Model</label>
-                  <Dropdown value={modelKey} onChange={(event) => setModelKey(event.target.value)}>
-                    {visibleModels.map((model) => (
-                      <option key={model.key} value={model.key} disabled={model.enabled === false}>
-                        {model.shortLabel ?? model.label}
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
-                  <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
-                    {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
-                      ? availableDurations.filter((value) => value === 5 || value === 8)
-                      : availableDurations
-                    ).map((duration) => (
-                      <option key={duration} value={String(duration)}>
-                        {duration}s
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
-                  <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
-                    {availableAspectRatios.map((aspect) => (
-                      <option key={aspect.value} value={aspect.value}>
-                        {aspect.label}
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
-                  <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
-                    {availableResolutions.map((res) => (
-                      <option key={res.value} value={res.value}>
-                        {res.label}
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setNarrationEnabled((current) => !current)}
-                  className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                    narrationEnabled
-                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                  }`}
-                >
-                  Narration {narrationEnabled ? 'On' : 'Off'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCaptionsEnabled((current) => !current)}
-                  className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                    captionsEnabled
-                      ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                  }`}
-                >
-                  Captions {captionsEnabled ? 'On' : 'Off'}
-                </button>
-              </div>
-
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
-                <div className="mt-2 space-y-1.5 text-sm">
-                  <div className="flex items-center justify-between text-text">
-                    <span>Base generation</span>
-                    <span>{baseGenerationCredits} credits</span>
-                  </div>
-                  {narrationEnabled ? (
-                    <div className="flex items-center justify-between text-muted">
-                      <span>Narration</span>
-                      <span>{narrationCredits} credits</span>
+              <SectionCard
+                title="Video Lane & Model"
+                description="Quick reel settings"
+                icon={<Sparkles className="h-5 w-5" />}
+                compact
+                action={(
+                  <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
+                    {showDailyAdvanced ? 'Hide advanced' : 'Show advanced'}
+                  </Button>
+                )}
+              >
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Lane</label>
+                      <Dropdown value={videoLane} onChange={(event) => handleVideoLaneChange(event.target.value as VideoLaneKey)}>
+                        {VIDEO_LANES.map((lane) => (
+                          <option key={lane.key} value={lane.key}>
+                            {lane.label}
+                          </option>
+                        ))}
+                      </Dropdown>
                     </div>
-                  ) : null}
-                  {captionsEnabled ? (
-                    <div className="flex items-center justify-between text-muted">
-                      <span>Captions</span>
-                      <span>{captionCredits} credits</span>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Model</label>
+                      <Dropdown value={modelKey} onChange={(event) => setModelKey(event.target.value)}>
+                        {visibleModels.map((model) => (
+                          <option key={model.key} value={model.key} disabled={model.enabled === false}>
+                            {model.shortLabel ?? model.label}
+                          </option>
+                        ))}
+                      </Dropdown>
                     </div>
-                  ) : null}
-                  {selectedImageUrls.length > 0 ? (
-                    <div className="flex items-center justify-between text-muted">
-                      <span>Reference image consistency</span>
-                      <span>{referenceCredits} credits</span>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
+                      <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
+                        {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
+                          ? availableDurations.filter((value) => value === 5 || value === 8)
+                          : availableDurations
+                        ).map((duration) => (
+                          <option key={duration} value={String(duration)}>
+                            {duration}s
+                          </option>
+                        ))}
+                      </Dropdown>
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
+                      <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
+                        {availableAspectRatios.map((aspect) => (
+                          <option key={aspect.value} value={aspect.value}>
+                            {aspect.label}
+                          </option>
+                        ))}
+                      </Dropdown>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
+                      <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
+                        {availableResolutions.map((res) => (
+                          <option key={res.value} value={res.value}>
+                            {res.label}
+                          </option>
+                        ))}
+                      </Dropdown>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setNarrationEnabled((current) => !current)}
+                      className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                        narrationEnabled
+                          ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                      }`}
+                    >
+                      Narration {narrationEnabled ? 'On' : 'Off'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaptionsEnabled((current) => !current)}
+                      className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                        captionsEnabled
+                          ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                      }`}
+                    >
+                      Captions {captionsEnabled ? 'On' : 'Off'}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
+                    <div className="mt-2 space-y-1.5 text-sm">
+                      <div className="flex items-center justify-between text-text">
+                        <span>Base generation</span>
+                        <span>{baseGenerationCredits} credits</span>
+                      </div>
+                      {narrationEnabled ? (
+                        <div className="flex items-center justify-between text-muted">
+                          <span>Narration</span>
+                          <span>{narrationCredits} credits</span>
+                        </div>
+                      ) : null}
+                      {captionsEnabled ? (
+                        <div className="flex items-center justify-between text-muted">
+                          <span>Captions</span>
+                          <span>{captionCredits} credits</span>
+                        </div>
+                      ) : null}
+                      {selectedImageUrls.length > 0 ? (
+                        <div className="flex items-center justify-between text-muted">
+                          <span>Reference image consistency</span>
+                          <span>{referenceCredits} credits</span>
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-between text-muted">
+                        <span>Auto tag</span>
+                        <span>{autoTagCredits} credits</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
+                        <span>Total</span>
+                        <span>{displayVideoEstimateCredits} credits</span>
+                      </div>
+                    </div>
+                  </div>
+                  {estimateError ? (
+                    <p className="text-xs text-amber-600">
+                      Live estimate sync is delayed. Showing fallback estimate from current settings.
+                    </p>
                   ) : null}
-                  <div className="flex items-center justify-between text-muted">
-                    <span>Auto tag</span>
-                    <span>{autoTagCredits} credits</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
-                    <span>Total</span>
-                    <span>{displayVideoEstimateCredits} credits</span>
-                  </div>
                 </div>
-              </div>
-              {estimateError ? (
-                <p className="text-xs text-amber-600">
-                  Live estimate sync is delayed. Showing fallback estimate from current settings.
-                </p>
-              ) : null}
-
-              <GenerateButton
-                onClick={() => void submit()}
-                loading={renderSessionPhase === 'preparing'}
-                estimatedCredits={displayVideoEstimateCredits}
-                estimatedTime={estimatedTime}
-                currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-                disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
-                insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
-                onOpenLowBalance={() => openLowBalanceModal(displayVideoEstimateCredits)}
-                helperText="Daily defaults use WAN budget routing: text-to-video, short duration, and 720p output."
-              />
-
-              <VideoPreview
-                job={job}
-                loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
-                error={
-                  submitError ??
-                  (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
-                    ? jobStatus.errorMessage ?? 'Generation failed.'
-                    : null)
-                }
-                onRetry={retry}
-              />
-            </div>
+              </SectionCard>
+            </>
           ) : null}
 
 
           {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Content Template"
-            description="Pick a workflow."
+            description="Template"
             icon={<Film className="h-5 w-5" />}
             compact
             action={(
@@ -2205,7 +2192,7 @@ export function CreateVideoPage({
           {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Project"
-            description="Optional."
+            description="Save output"
             icon={<GalleryVerticalEnd className="h-5 w-5" />}
             compact
             action={projectsLoading ? <Spinner /> : null}
@@ -2222,7 +2209,7 @@ export function CreateVideoPage({
                     </option>
                   ))}
                 </Dropdown>
-                <p className="text-xs text-muted">Leave empty to auto-create when needed.</p>
+                <p className="text-xs text-muted">Leave empty to auto-create.</p>
               </div>
               <div className="flex items-end">
                 <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
@@ -2236,7 +2223,7 @@ export function CreateVideoPage({
           {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
             title="Script Editor & AI Assist"
-            description="Script"
+            description="Write or refine"
             icon={<Wand2 className="h-5 w-5" />}
             compact
           >
@@ -2293,7 +2280,7 @@ export function CreateVideoPage({
               </div>
               {laneHasOnlyGatedModels ? (
                 <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                  Lane visible, generation disabled.
+                  Visible in studio, not enabled for generation yet.
                 </div>
               ) : null}
             </div>
@@ -2379,8 +2366,8 @@ export function CreateVideoPage({
 
           {(!isDailyLane || showDailyAdvanced) ? (
           <SectionCard
-            title="Optional Reference Images"
-            description="Image seed (optional)"
+            title="Reference Images"
+            description="Optional"
             icon={<Film className="h-5 w-5" />}
             compact
             defaultOpen={false}
@@ -2464,13 +2451,12 @@ export function CreateVideoPage({
           ) : null}
         </div>
 
-        {(!isDailyLane || showDailyAdvanced) ? (
-        <div className="min-w-0 space-y-3 sm:space-y-4 xl:sticky xl:top-24">
-          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:space-y-4 sm:p-4">
+        <div className="min-w-0 space-y-3 xl:sticky xl:top-24">
+          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Output</p>
-                <h2 className="mt-1.5 text-base font-semibold text-text sm:text-lg">Render Console</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
+                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Preview & Generate</h2>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
@@ -2531,7 +2517,7 @@ export function CreateVideoPage({
                       ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
                       : isEstimating
                         ? 'Estimating credits for selected settings.'
-                        : `${selectedLane.shortLabel} estimate is based on the shared pricing engine. Final validation happens on submit.`
+                        : `${selectedLane.shortLabel} estimate uses the shared pricing engine. Final validation happens on submit.`
               }
             />
             {selectedModelDisabled ? (
@@ -2634,7 +2620,6 @@ export function CreateVideoPage({
             )}
           </SectionCard>
         </div>
-        ) : null}
       </div>
       </Card>
       <Modal
