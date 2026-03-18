@@ -32,7 +32,7 @@ export function CreditChip() {
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Monthly credits</p>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Monthly refill</p>
                 <p className="mt-1 text-sm font-semibold text-text">{wallet.monthlyCredits}</p>
               </div>
               <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
@@ -40,7 +40,7 @@ export function CreditChip() {
                 <p className="mt-1 text-sm font-semibold text-text">{wallet.usedCredits}</p>
               </div>
             </div>
-            <p className="mt-3 text-xs text-muted">Plan: {wallet.planName}</p>
+            <p className="mt-3 text-xs text-muted">Plan: {wallet.planName} · monthly credits refresh each cycle.</p>
           </>
         ) : (
           <p className="mt-3 text-sm text-muted">No wallet data available.</p>

@@ -830,7 +830,11 @@ export const api = {
     });
   },
   getPricing() {
-    return request<PricingResponse>('/api/pricing', {}, { cache: 'no-store' });
+    const path = '/api/pricing';
+    const cacheKey = makeCacheKey(path, undefined);
+    return cachedRequest(cacheKey, 5 * 60_000, () =>
+      request<PricingResponse>(path, {}, { cache: 'no-store' }),
+    );
   },
   createTopupOrder(planName: string, userId: string) {
     return request<CreditTopUpOrderResponse>('/api/topupCredits/order', {

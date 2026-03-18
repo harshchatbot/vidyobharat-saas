@@ -13,6 +13,7 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
+import { formatCreditFeatureLabel, formatCreditSourceLabel } from '@/lib/credits/historyLabels';
 import type { CreditHistoryItem, CreditWallet, PricingResponse } from '@/types/api';
 
 declare global {
@@ -202,7 +203,7 @@ export default function BillingPage() {
       <StudioPageHeader
         eyebrow="Wallet"
         title="Billing and credits"
-        description="Understand your balance, choose a plan, and keep premium generation predictable without turning the studio into a coin game."
+        description="Understand your balance, monthly refill, and top-up packs so premium generation stays predictable without turning the studio into a coin game."
         actions={
           <>
             <Link href="/pricing">
@@ -229,7 +230,7 @@ export default function BillingPage() {
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
                 <Coins className="h-5 w-5" />
               </div>
-              <p className="text-xs uppercase tracking-[0.16em] text-muted">Monthly credits</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Monthly refill</p>
               <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{wallet?.monthlyCredits ?? 0}</p>
             </Card>
             <Card className="rangmanch-studio-panel space-y-2 border-none bg-transparent">
@@ -254,7 +255,7 @@ export default function BillingPage() {
               <div>
                 <p className="text-sm font-semibold text-text">Choose a plan</p>
                 <p className="text-xs text-muted">
-                  {pricing ? `Detected region: ${pricing.region} · currency: ${pricing.currency} · provider: ${pricing.paymentProvider}` : 'Loading region-aware checkout...'}
+                  {pricing ? `Currency: ${pricing.currency} · secure checkout: ${pricing.paymentProvider}` : 'Loading checkout...'}
                 </p>
               </div>
             </div>
@@ -286,8 +287,8 @@ export default function BillingPage() {
               <div className="text-sm text-muted">
                 {pricing ? (
                   <>
-                    <p><span className="font-semibold text-text capitalize">{selectedPlan}</span> allocates <span className="font-semibold text-text">{pricing.creditAllocation[selectedPlan] ?? 0} credits</span>.</p>
-                    <p className="mt-1">Backend-controlled regional pricing prevents client-side tampering.</p>
+                    <p><span className="font-semibold text-text capitalize">{selectedPlan}</span> adds <span className="font-semibold text-text">{pricing.creditAllocation[selectedPlan] ?? 0} top-up credits</span> to your wallet.</p>
+                    <p className="mt-1">Top-up packs stay in the wallet. Monthly plan credits refresh each cycle and do not carry forward.</p>
                   </>
                 ) : null}
               </div>
@@ -316,7 +317,7 @@ export default function BillingPage() {
               {history.map((item) => (
                 <div key={item.id} className="rounded-[22px] border border-[hsl(var(--color-border)/0.78)] bg-[hsl(var(--color-bg)/0.45)] p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                    <p className="text-sm font-semibold text-text">{item.featureName}</p>
+                    <p className="text-sm font-semibold text-text">{formatCreditFeatureLabel(item)}</p>
                     <StatusChip variant={item.transactionType === 'credit' ? 'success' : 'default'}>
                       {item.transactionType === 'credit' ? '+' : '-'}
                       {item.creditsUsed}
@@ -325,7 +326,7 @@ export default function BillingPage() {
                   <p className="mt-1 text-xs text-muted">
                     {new Date(item.createdAt).toLocaleString()} • balance after {item.remainingBalance}
                   </p>
-                  <p className="mt-1 text-xs text-muted">Source: {item.source}</p>
+                  <p className="mt-1 text-xs text-muted">Source: {formatCreditSourceLabel(item)}</p>
                 </div>
               ))}
             </div>

@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
+import { formatCreditFeatureLabel, formatCreditSourceLabel } from '@/lib/credits/historyLabels';
 import type { CreditHistoryItem } from '@/types/api';
 
 function getUserIdFromCookie() {
@@ -73,7 +74,7 @@ export default function CreditHistoryPage() {
             <tbody className="divide-y divide-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.7)]">
               {items.map((item) => (
                 <tr key={item.id} className="transition hover:bg-[hsl(var(--color-bg)/0.56)]">
-                  <td className="px-4 py-3 text-text">{item.featureName}</td>
+                  <td className="px-4 py-3 text-text">{formatCreditFeatureLabel(item)}</td>
                   <td className="px-4 py-3 text-text">
                     <StatusChip variant={item.transactionType === 'credit' ? 'success' : 'default'}>
                       {item.transactionType === 'credit' ? '+' : '-'}
@@ -82,7 +83,7 @@ export default function CreditHistoryPage() {
                   </td>
                   <td className="px-4 py-3 text-muted">{new Date(item.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3 text-muted">{item.remainingBalance}</td>
-                  <td className="px-4 py-3 text-muted">{item.source}</td>
+                  <td className="px-4 py-3 text-muted">{formatCreditSourceLabel(item)}</td>
                 </tr>
               ))}
             </tbody>

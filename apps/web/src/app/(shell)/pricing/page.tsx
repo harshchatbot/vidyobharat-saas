@@ -44,7 +44,7 @@ const featureCopy: Record<string, string[]> = {
 const pricingFaqs = [
   {
     q: 'Do unused credits roll over?',
-    a: 'Top-up packs stay in your wallet. Monthly plan credits refresh based on your active subscription cycle.',
+    a: 'Top-up packs stay in your wallet. Monthly plan credits refresh on your active cycle and do not carry forward into the next cycle.',
   },
   {
     q: 'Can I mix image, voice, and video usage?',
@@ -102,16 +102,16 @@ export default function PricingPage() {
         <StudioPageHeader
           eyebrow="Plans"
           title="Flexible plans for creators and teams"
-          description="Choose a plan that fits your content volume, then scale with credits as you grow. Pricing stays region-aware while usage stays transparent."
+          description="Choose a plan that fits your content volume, then scale with credits as you grow. Pricing stays transparent while usage stays predictable."
           className="mx-auto max-w-5xl"
           actions={pricing ? (
             <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface-glass)/0.62)] px-4 py-2 text-sm text-muted">
               <span>
-                Billing region: <strong className="text-text">{pricing.region}</strong>
+                Currency: <strong className="text-text">{pricing.currency}</strong>
               </span>
               <span>•</span>
               <span>
-                Currency: <strong className="text-text">{pricing.currency}</strong>
+                Secure checkout: <strong className="text-text capitalize">{pricing.paymentProvider}</strong>
               </span>
             </div>
           ) : undefined}
@@ -127,7 +127,7 @@ export default function PricingPage() {
           <div className="rangmanch-studio-panel mx-auto mt-12 flex max-w-5xl items-center justify-center gap-3 rounded-[28px] p-6">
             <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
             <span className="text-[hsl(var(--color-muted))]">
-              Loading region-aware pricing...
+              Loading pricing...
             </span>
           </div>
         ) : (
@@ -152,7 +152,7 @@ export default function PricingPage() {
                 </div>
 
                 <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-                  40 credits included
+                  40 credits / month
                 </p>
 
                 <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
