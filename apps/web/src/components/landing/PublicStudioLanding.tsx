@@ -76,29 +76,30 @@ const trustPoints = [
 
 function HeroMediaRibbon() {
   const ribbonItems = [
-    { key: 'persona-1', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-32 sm:h-40 lg:h-52', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[2deg]' },
-    { key: 'persona-2', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-28 sm:h-36 lg:h-46', width: 'w-16 sm:w-20 lg:w-24', tilt: 'rotate-[1deg]' },
-    { key: 'reel-1', kind: 'video' as const, src: '/videos/samples/creator111.mp4', poster: '/illustrations/startup.png', height: 'h-36 sm:h-46 lg:h-60', width: 'w-18 sm:w-22 lg:w-28', tilt: '-rotate-[1deg]' },
-    { key: 'reel-2', kind: 'video' as const, src: '/videos/samples/lip-sync.mp4', poster: '/illustrations/product-ads.png', height: 'h-28 sm:h-34 lg:h-42', width: 'w-20 sm:w-24 lg:w-28', tilt: 'rotate-[1deg]' },
-    { key: 'ad-1', kind: 'video' as const, src: '/videos/samples/advertisement.mp4', poster: '/illustrations/agency.png', height: 'h-40 sm:h-50 lg:h-68', width: 'w-20 sm:w-24 lg:w-30', tilt: 'rotate-[1.5deg]' },
-    { key: 'ad-2', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-30 sm:h-38 lg:h-50', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[1.5deg]' },
-    { key: 'reel-3', kind: 'video' as const, src: '/videos/samples/creator111.mp4', poster: '/illustrations/earth.png', height: 'h-34 sm:h-42 lg:h-56', width: 'w-18 sm:w-22 lg:w-26', tilt: 'rotate-[0.75deg]' },
-    { key: 'persona-3', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-30 sm:h-38 lg:h-52', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[1deg]' },
+    { key: 'persona-1', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-32 sm:h-40 lg:h-52', tilt: '-rotate-[2deg]' },
+    { key: 'reel-1', kind: 'video' as const, src: '/videos/samples/hindi-festival-9x16.mp4', poster: '/videos/samples/creator-launch.png', height: 'h-36 sm:h-44 lg:h-58', tilt: 'rotate-[1.35deg]' },
+    { key: 'persona-2', kind: 'image' as const, src: '/videos/samples/divyanka-chauhan-ai-influencer.jpg', height: 'h-30 sm:h-38 lg:h-48', tilt: '-rotate-[1deg]' },
+    { key: 'reel-2', kind: 'video' as const, src: '/videos/samples/tamil-education-9x16.mp4', poster: '/videos/samples/earth.png', height: 'h-34 sm:h-42 lg:h-54', tilt: 'rotate-[0.9deg]' },
+    { key: 'persona-3', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-38 sm:h-48 lg:h-64', tilt: '-rotate-[1.4deg]' },
+    { key: 'reel-3', kind: 'video' as const, src: '/videos/samples/advertisement.mp4', poster: '/videos/samples/cr-launch.png', height: 'h-36 sm:h-46 lg:h-60', tilt: 'rotate-[1.8deg]' },
+    { key: 'persona-4', kind: 'image' as const, src: '/videos/samples/an-ultra-realistic-cinematic-8k-portrait-of-battle-worn-sun-wukong-with-glowing-amber-eyes-intricate-facial-hair-scarred-fur-ornate-weathered-armor-with-gold-and-jade-holding-a-glowing-ruyi-jingu-bang-atop-a-foggy-mountain-at-dawn-illuminat.png', height: 'h-30 sm:h-38 lg:h-48', tilt: '-rotate-[0.8deg]' },
+    { key: 'reel-4', kind: 'video' as const, src: '/videos/samples/lip-sync.mp4', poster: '/videos/samples/divyanka-chauhan-ai-influencer.jpg', height: 'h-32 sm:h-40 lg:h-52', tilt: 'rotate-[1deg]' },
   ];
 
   return (
-    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1100px] items-end justify-center gap-2 overflow-hidden px-2 pb-1 sm:mt-10 sm:gap-3 lg:mt-12 lg:gap-4">
+    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1160px] items-end justify-center gap-2 overflow-hidden px-2 pb-2 sm:mt-10 sm:gap-3 lg:mt-12 lg:gap-4">
       {ribbonItems.map((item) => (
         <div
           key={item.key}
-          className={`relative ${item.height} ${item.width} ${item.tilt} shrink-0 overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md lg:rounded-[22px]`}
+          className={`relative ${item.height} ${item.tilt} aspect-[9/16] w-[4.8rem] shrink-0 overflow-hidden rounded-[18px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md sm:w-[5.8rem] lg:w-[7rem] lg:rounded-[22px]`}
         >
           {item.kind === 'video' ? (
             <LandingVideo src={item.src} poster={item.poster} className="h-full w-full object-cover" />
           ) : (
             <Image src={item.src} alt="" aria-hidden fill sizes="(max-width: 1024px) 96px, 128px" className="object-cover" />
           )}
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--landing-hero-bg)/0.04),hsl(var(--landing-hero-bg-deep)/0.16))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--landing-hero-bg)/0.03),transparent_38%,hsl(var(--landing-hero-bg-deep)/0.24)_100%)]" />
+          <div className="absolute inset-x-[18%] bottom-0 h-8 rounded-full bg-[hsl(var(--color-accent)/0.22)] blur-2xl" />
         </div>
       ))}
     </div>
@@ -179,7 +180,7 @@ export function PublicStudioLanding() {
                   {trustPoints.map((point) => (
                     <span
                       key={point}
-                      className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.24)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-muted))] backdrop-blur-md"
+                      className="rangmanch-landing-accent-chip inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-muted))] backdrop-blur-md"
                     >
                       {point}
                     </span>
@@ -191,9 +192,9 @@ export function PublicStudioLanding() {
                 {whyRangManch.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <GlassPanel key={item.title} variant="matte" className="h-full p-4 sm:p-5">
+                    <GlassPanel key={item.title} variant="matte" className="rangmanch-landing-accent-panel h-full p-4 sm:p-5">
                       <div className="flex h-full flex-col gap-4">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface-glass)/0.26)]">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.26)] bg-[hsl(var(--color-accent)/0.1)]">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div>
@@ -208,7 +209,7 @@ export function PublicStudioLanding() {
             </section>
 
             <section id="what-you-can-create" className="scroll-mt-24 pt-8 lg:pt-10">
-              <GlassPanel variant="strong" className="overflow-hidden px-5 py-6 sm:px-6 sm:py-7 lg:px-7">
+              <GlassPanel variant="strong" className="rangmanch-landing-accent-panel overflow-hidden px-5 py-6 sm:px-6 sm:py-7 lg:px-7">
                 <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
                   <div className="max-w-2xl">
                     <p className="rangmanch-section-eyebrow">What You Can Create</p>
@@ -224,10 +225,10 @@ export function PublicStudioLanding() {
                     {creationUseCases.map((item, index) => (
                       <div
                         key={item}
-                        className="rounded-[22px] border border-[hsl(var(--color-border)/0.44)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-4 backdrop-blur-md"
+                        className="rounded-[22px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-4 backdrop-blur-md"
                       >
                         <div className="flex items-start gap-3">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-bg)/0.34)] text-xs font-semibold text-[hsl(var(--color-muted))]">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-accent)/0.24)] bg-[hsl(var(--color-accent)/0.12)] text-xs font-semibold text-[hsl(var(--color-text))]">
                             {index + 1}
                           </span>
                           <p className="pt-1 text-sm font-medium leading-6 text-[hsl(var(--color-text))]">{item}</p>
@@ -245,9 +246,9 @@ export function PublicStudioLanding() {
                   const icons = [Users2, BriefcaseBusiness, Film, Sparkles];
                   const Icon = icons[index] || Users2;
                   return (
-                    <GlassPanel key={group.title} className="h-full p-4 sm:p-5">
+                    <GlassPanel key={group.title} className="rangmanch-landing-accent-panel h-full p-4 sm:p-5">
                       <div className="flex h-full flex-col gap-4">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.26)]">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.26)] bg-[hsl(var(--color-accent)/0.1)]">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div>
@@ -262,7 +263,7 @@ export function PublicStudioLanding() {
             </section>
 
             <section id="commercial-use" className="scroll-mt-24 pt-8 lg:pt-10">
-              <GlassPanel variant="matte" className="px-5 py-6 sm:px-6 sm:py-7">
+              <GlassPanel variant="matte" className="rangmanch-landing-accent-panel px-5 py-6 sm:px-6 sm:py-7">
                 <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
                   <div className="max-w-3xl">
                     <p className="rangmanch-section-eyebrow">Commercial Use</p>
@@ -281,7 +282,7 @@ export function PublicStudioLanding() {
                     ].map((item) => (
                       <div
                         key={item}
-                        className="rounded-[20px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-3 text-sm leading-6 text-[hsl(var(--color-text))]"
+                        className="rounded-[20px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-3 text-sm leading-6 text-[hsl(var(--color-text))]"
                       >
                         {item}
                       </div>
@@ -376,7 +377,7 @@ export function PublicStudioLanding() {
             </section>
 */}
             <section id="pricing" className="scroll-mt-24 pt-8 sm:pt-10">
-              <div className="grid gap-5 2xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="rangmanch-landing-pricing-wrap grid gap-5 rounded-[28px] px-4 py-5 sm:px-5 sm:py-6 2xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="space-y-3">
                   <p className="rangmanch-section-eyebrow">Plans</p>
                   <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-4xl">Move from testing to production without changing your workflow.</h2>
@@ -387,7 +388,7 @@ export function PublicStudioLanding() {
                     Credits help you create test visuals, reels, template outputs, and premium generations without locking you into one rigid workflow.
                   </p>
                   <div className="flex flex-wrap gap-3 pt-2">
-                    <Link href="/pricing" className="inline-flex w-full items-center justify-center rounded-full bg-[hsl(var(--color-text))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))] sm:w-auto">
+                    <Link href="/pricing" className="rangmanch-landing-cta-primary inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold sm:w-auto">
                       View pricing
                     </Link>
                     <Link href="/signup" className="inline-flex w-full items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium sm:w-auto">
@@ -403,7 +404,7 @@ export function PublicStudioLanding() {
                   ].map(([name, credits, blurb]) => (
                     <div
                       key={name}
-                      className="rounded-[24px] border border-[hsl(var(--color-border)/0.44)] bg-[hsl(var(--color-surface-glass)/0.24)] p-4 backdrop-blur-md sm:rounded-[26px]"
+                      className="rangmanch-landing-accent-panel rounded-[24px] border p-4 backdrop-blur-md sm:rounded-[26px]"
                     >
                       <p className="text-sm font-semibold">{name}</p>
                       <p className="mt-4 text-2xl font-extrabold tracking-tight">{credits}</p>
