@@ -1,7 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, Clapperboard, ImageIcon, PlaySquare, Sparkles, Wand2 } from 'lucide-react';
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  Clapperboard,
+  Film,
+  ImageIcon,
+  PlaySquare,
+  ShieldCheck,
+  Sparkles,
+  Users2,
+  Wand2,
+} from 'lucide-react';
 
+import { GlassPanel } from '@/components/landing/GlassPanel';
 import { HeroBackgroundVideo } from '@/components/landing/HeroBackgroundVideo';
 import { HeroPromptBar } from '@/components/landing/HeroPromptBar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
@@ -66,6 +78,63 @@ const toolTiles = [
     eyebrow: 'Template-led',
     icon: PlaySquare,
   },
+];
+
+const whyRangManch = [
+  {
+    title: 'One creator studio, not five disconnected tools',
+    body: 'Generate images, reels, influencer visuals, and template-led assets from one workflow instead of stitching together separate apps.',
+    icon: Sparkles,
+  },
+  {
+    title: 'Built for repeatable persona and story workflows',
+    body: 'Keep visual direction, character consistency, and campaign output closer together so publishing feels faster and less chaotic.',
+    icon: Wand2,
+  },
+  {
+    title: 'Templates and guided lanes reduce prompt friction',
+    body: 'Move from blank page to usable output with presets designed for reels, social visuals, educational content, and commercial creative.',
+    icon: Clapperboard,
+  },
+  {
+    title: 'India-first creator workflows with global output goals',
+    body: 'Designed for creators, brands, and agencies that need fast short-form production with a commercially aware workflow.',
+    icon: ShieldCheck,
+  },
+];
+
+const creationUseCases = [
+  'AI influencer posts and character-led content',
+  'Product promo reels and short ad creatives',
+  'Faceless brand videos and daily reel workflows',
+  'Educational visuals, explainers, and infographic posts',
+  'Client-ready campaign concepts and social media assets',
+  'Short-form storytelling for creators and media pages',
+];
+
+const audienceGroups = [
+  {
+    title: 'Creators',
+    body: 'Build repeatable reels, visual stories, and character content without rebuilding your process each time.',
+  },
+  {
+    title: 'Agencies',
+    body: 'Prototype client-facing concepts, campaign visuals, and short-form variations from one organized studio.',
+  },
+  {
+    title: 'Brands & marketers',
+    body: 'Move faster on social ads, product storytelling, and visual testing while keeping output commercially usable.',
+  },
+  {
+    title: 'Educators & faceless content teams',
+    body: 'Turn topics, references, and templates into cleaner educational posts, explainers, and repeat publishing systems.',
+  },
+];
+
+const trustPoints = [
+  'Built for repeat creator workflows, not one-off experiments',
+  'Templates, personas, images, and videos work together in one studio',
+  'Clear task-based workflow lanes instead of an overwhelming model catalog',
 ];
 
 function ToolTileMediaSurface({
@@ -155,16 +224,59 @@ export function PublicStudioLanding() {
                       </div>
                       <div className="space-y-3">
                         <h1 className="max-w-3xl font-heading text-[2.1rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-[2.8rem] sm:leading-[1.02] md:text-[3.3rem] lg:text-[4rem] 2xl:text-6xl">
-                          Create cinematic AI videos from text, images, and character workflows.
+                          Create AI influencers, reels, ads, and visual stories from one creator studio.
                         </h1>
                         <p className="max-w-2xl text-sm leading-6 text-[hsl(var(--color-muted))] sm:text-[15px] sm:leading-7 lg:text-base">
-                          RangManch AI brings together text-to-video, image animation, AI influencer workflows, and short-form publishing inside one visual-first studio.
+                          Turn prompts, photos, personas, and templates into publish-ready content without juggling separate image, video, and workflow tools.
                         </p>
                       </div>
                       <HeroPromptBar />
                     </div>
                   </div>
                 </div>
+              </div>
+            </section>
+
+            <section id="why-rangmanch" className="scroll-mt-24 pt-8 lg:pt-10">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="max-w-3xl">
+                  <p className="rangmanch-section-eyebrow">Why RangManch AI</p>
+                  <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                    Built for creator output, not just raw generation.
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                    RangManch AI helps you move from idea to usable creative faster, with workflow structure that suits creators, teams, and client work.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {trustPoints.map((point) => (
+                    <span
+                      key={point}
+                      className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.24)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-muted))] backdrop-blur-md"
+                    >
+                      {point}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+                {whyRangManch.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <GlassPanel key={item.title} variant="matte" className="h-full p-4 sm:p-5">
+                      <div className="flex h-full flex-col gap-4">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface-glass)/0.26)]">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-base font-semibold text-[hsl(var(--color-text))]">{item.title}</p>
+                          <p className="mt-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{item.body}</p>
+                        </div>
+                      </div>
+                    </GlassPanel>
+                  );
+                })}
               </div>
             </section>
 
@@ -239,7 +351,90 @@ export function PublicStudioLanding() {
                 </div>
               </div>
             </section>
-            
+
+            <section id="what-you-can-create" className="scroll-mt-24 pt-8 lg:pt-10">
+              <GlassPanel variant="strong" className="overflow-hidden px-5 py-6 sm:px-6 sm:py-7 lg:px-7">
+                <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+                  <div className="max-w-2xl">
+                    <p className="rangmanch-section-eyebrow">What You Can Create</p>
+                    <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                      Real content workflows for publishing, campaigns, and client work.
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                      Use one studio to move across image generation, short-form video, influencer-style content, and template-driven creative production.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {creationUseCases.map((item, index) => (
+                      <div
+                        key={item}
+                        className="rounded-[22px] border border-[hsl(var(--color-border)/0.44)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-4 backdrop-blur-md"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-bg)/0.34)] text-xs font-semibold text-[hsl(var(--color-muted))]">
+                            {index + 1}
+                          </span>
+                          <p className="pt-1 text-sm font-medium leading-6 text-[hsl(var(--color-text))]">{item}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </GlassPanel>
+            </section>
+
+            <section id="who-its-for" className="scroll-mt-24 pt-8 lg:pt-10">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {audienceGroups.map((group, index) => {
+                  const icons = [Users2, BriefcaseBusiness, Film, Sparkles];
+                  const Icon = icons[index] || Users2;
+                  return (
+                    <GlassPanel key={group.title} className="h-full p-4 sm:p-5">
+                      <div className="flex h-full flex-col gap-4">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.26)]">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-base font-semibold">{group.title}</p>
+                          <p className="mt-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{group.body}</p>
+                        </div>
+                      </div>
+                    </GlassPanel>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section id="commercial-use" className="scroll-mt-24 pt-8 lg:pt-10">
+              <GlassPanel variant="matte" className="px-5 py-6 sm:px-6 sm:py-7">
+                <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+                  <div className="max-w-3xl">
+                    <p className="rangmanch-section-eyebrow">Commercial Use</p>
+                    <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                      Commercial-friendly workflows for brand content and client-facing output.
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                      Create content for campaigns, brands, and agency work from the same studio you use for creator publishing. Use generated assets for branded and client-facing content, subject to platform terms, provider terms, and applicable law.
+                    </p>
+                  </div>
+                  <div className="grid gap-3">
+                    {[
+                      'Create concept visuals, reels, explainers, and social creatives from one workspace.',
+                      'Keep templates, personas, and generation lanes organized for repeat campaign use.',
+                      'Scale from solo creator experiments into structured brand or client workflows.',
+                    ].map((item) => (
+                      <div
+                        key={item}
+                        className="rounded-[20px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-3 text-sm leading-6 text-[hsl(var(--color-text))]"
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </GlassPanel>
+            </section>
 
            {/* <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -331,7 +526,10 @@ export function PublicStudioLanding() {
                   <p className="rangmanch-section-eyebrow">Plans</p>
                   <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-4xl">Move from testing to production without changing your workflow.</h2>
                   <p className="max-w-2xl text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                    Start with the free studio, then move into creator-grade packs when you need more renders, more voice, and premium output.
+                    Start free, then scale into creator and client workflows with transparent credit-based creation for images, videos, and templates.
+                  </p>
+                  <p className="max-w-2xl text-xs leading-6 text-[hsl(var(--color-muted))] sm:text-sm">
+                    Credits help you create test visuals, reels, template outputs, and premium generations without locking you into one rigid workflow.
                   </p>
                   <div className="flex flex-wrap gap-3 pt-2">
                     <Link href="/pricing" className="inline-flex w-full items-center justify-center rounded-full bg-[hsl(var(--color-text))] px-5 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))] sm:w-auto">
