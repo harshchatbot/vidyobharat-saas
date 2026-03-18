@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
@@ -61,10 +61,12 @@ function getPageTitle(pathname: string) {
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [projectsNavPending, setProjectsNavPending] = useState(false);
+  const [routeTransitionLabel, setRouteTransitionLabel] = useState<string | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
@@ -104,29 +106,54 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     setDesktopNavOpen(null);
     setAccountMenuOpen(false);
     setProjectsNavPending(false);
+    setRouteTransitionLabel(null);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!inApp) return;
+    [
+      '/dashboard',
+      '/images',
+      '/create',
+      '/templates',
+      '/influencer',
+      '/projects',
+      '/billing',
+      '/settings',
+      '/pricing',
+      '/profile',
+    ].forEach((href) => router.prefetch(href));
+  }, [inApp, router]);
+
+  const navigateWithinApp = (href: string, label?: string) => {
+    const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
+    setDesktopNavOpen(null);
+    setMobileNavOpen(false);
+    setAccountMenuOpen(false);
+    if (isAlreadyOnTarget) {
+      setRouteTransitionLabel(null);
+      return;
+    }
+    setRouteTransitionLabel(label ?? getPageTitle(href));
+    startTransition(() => {
+      router.push(href);
+    });
+  };
 
   const openProjectsWorkspace = () => {
     if (pathname.startsWith('/projects')) {
       setProjectsNavPending(false);
       setDesktopNavOpen(null);
       setMobileNavOpen(false);
+      setRouteTransitionLabel(null);
       return;
     }
     setProjectsNavPending(true);
-    setDesktopNavOpen(null);
-    setMobileNavOpen(false);
-    router.push('/projects');
+    navigateWithinApp('/projects', 'Projects');
   };
 
   const navigateFromMobileMenu = (href: string) => {
-    setDesktopNavOpen(null);
-    setMobileNavOpen(false);
-    const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
-    if (isAlreadyOnTarget) return;
-    window.setTimeout(() => {
-      router.push(href);
-    }, 0);
+    navigateWithinApp(href);
   };
 
   if (inApp) {
@@ -213,6 +240,17 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     return (
       <CreditProvider userId={userId}>
       <div className="grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
+        <div className={`pointer-events-none fixed inset-x-0 top-0 z-[110] transition-opacity duration-200 ${isPending ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="h-[2px] w-full overflow-hidden bg-[hsl(var(--color-border)/0.3)]">
+            <div className="h-full w-1/3 animate-[rangmanch-route-slide_1.05s_ease-in-out_infinite] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0),hsl(var(--color-accent)),hsl(var(--color-accent)/0))]" />
+          </div>
+        </div>
+        <div className={`pointer-events-none fixed right-3 top-[84px] z-[95] transition-all duration-200 sm:right-6 sm:top-[92px] xl:right-8 ${isPending && routeTransitionLabel ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-surface)/0.9)] px-3 py-1.5 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[hsl(var(--color-accent))]" />
+            Opening {routeTransitionLabel}...
+          </div>
+        </div>
         <aside ref={desktopNavRef} className="rangmanch-app-rail relative z-[70] hidden overflow-visible px-2 py-4 xl:block">
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-center">
@@ -247,7 +285,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       if (groupKey === 'projects') {
                         openProjectsWorkspace();
                       } else if (groupKey === 'home') {
-                        setDesktopNavOpen((current) => (current === 'home' ? null : 'home'));
+                        navigateWithinApp('/dashboard', 'Dashboard');
                       } else {
                         setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
                       }
@@ -312,9 +350,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       href={groupItem.href}
                       onClick={(event) => {
                         event.preventDefault();
-                        setDesktopNavOpen(null);
-                        setMobileNavOpen(false);
-                        router.push(groupItem.href);
+                        navigateWithinApp(groupItem.href, groupItem.label);
                       }}
                       className={`inline-flex items-center gap-2 rounded-[12px] border px-2 py-1.5 text-sm font-medium transition ${activeChild ? 'border-[hsl(var(--color-accent)/0.55)] bg-[hsl(var(--color-accent)/0.12)] text-text' : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'}`}
                     >
@@ -417,15 +453,21 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         <span className="truncate">{accountEmail ?? 'No email set'}</span>
                       </div>
                     </div>
-                    <Link href="/profile" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                    <Link href="/profile" onClick={(event) => {
+                      event.preventDefault();
+                      navigateWithinApp('/profile', 'Profile');
+                    }} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <User className="h-4 w-4" /> Profile
                     </Link>
-                    <Link href="/settings" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
+                    <Link href="/settings" onClick={(event) => {
+                      event.preventDefault();
+                      navigateWithinApp('/settings', 'Settings');
+                    }} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))]">
                       <Settings className="h-4 w-4" /> Settings
                     </Link>
                     <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 md:hidden">
                       <div className="flex items-center justify-between gap-3">
-                        <CreditChip />
+                        <CreditChip onNavigate={navigateWithinApp} />
                         <ToggleTheme />
                       </div>
                     </div>
@@ -450,7 +492,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="space-y-4">
                   <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2.5 sm:rounded-[var(--radius-md)] sm:p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <BrandLogo href="/dashboard" variant="full" size="md" className="max-w-[250px]" priority="nav" />
+                      <button
+                        type="button"
+                        onClick={() => navigateWithinApp('/dashboard', 'Dashboard')}
+                        className="inline-flex min-w-0 shrink-0 items-center"
+                        aria-label="Go to dashboard"
+                      >
+                        <BrandLogo variant="full" size="md" className="max-w-[250px]" priority="nav" disableLink />
+                      </button>
                       <button
                         type="button"
                         aria-label="Close navigation menu"
@@ -463,7 +512,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   </div>
                   <div className="grid grid-cols-[1fr_auto] gap-3">
                     <div className="min-w-0">
-                      <CreditChip />
+                      <CreditChip onNavigate={navigateWithinApp} />
                     </div>
                     <div className="flex items-center justify-end">
                       <ToggleTheme />
@@ -613,7 +662,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className="mx-auto max-w-[1500px] px-4 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8">{children}</main>
+          <main className={`mx-auto max-w-[1500px] px-4 pb-8 pt-5 transition-[opacity,transform] duration-200 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
         </div>
       </div>
       </CreditProvider>

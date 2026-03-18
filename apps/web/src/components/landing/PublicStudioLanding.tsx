@@ -30,11 +30,13 @@ type ToolTileMedia =
   | {
       type: 'image';
       src: string;
+      frame?: 'default' | 'vertical';
     }
   | {
       type: 'video';
       src: string;
       poster?: string;
+      frame?: 'default' | 'vertical';
     };
 
 const toolTiles = [
@@ -58,7 +60,7 @@ const toolTiles = [
     title: 'AI Influencer',
     subtitle: 'Build a consistent character identity',
     href: '/signup',
-    media: { type: 'image', src: '/videos/creator-launch.png' } satisfies ToolTileMedia,
+    media: { type: 'image', src: '/videos/samples/creator-launch.png', frame: 'vertical' } satisfies ToolTileMedia,
     eyebrow: 'Persona lock',
     icon: Wand2,
   },
@@ -74,7 +76,7 @@ const toolTiles = [
     title: 'Trending Templates',
     subtitle: 'Start viral images and reels instantly',
     href: '/templates',
-    media: { type: 'image', src: '/videos/influencer-persona.png' } satisfies ToolTileMedia,
+    media: { type: 'image', src: '/videos/samples/influncer-persona.png', frame: 'vertical' } satisfies ToolTileMedia,
     eyebrow: 'Template-led',
     icon: PlaySquare,
   },
@@ -146,13 +148,19 @@ function ToolTileMediaSurface({
   alt: string;
   sizes: string;
 }) {
+  const isVerticalFrame = media.frame === 'vertical';
+
   if (media.type === 'video') {
     return (
-      <LandingVideo
-        src={media.src}
-        poster={media.poster}
-        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-      />
+      <div className={isVerticalFrame ? 'flex h-full items-center justify-center bg-[hsl(var(--color-bg)/0.18)] px-4 py-3' : 'h-full w-full'}>
+        <div className={isVerticalFrame ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]' : 'relative h-full w-full'}>
+          <LandingVideo
+            src={media.src}
+            poster={media.poster}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+          />
+        </div>
+      </div>
     );
   }
 
@@ -166,13 +174,17 @@ function ToolTileMediaSurface({
         sizes={sizes}
         className="object-cover opacity-70 blur-md scale-[1.08] transition duration-500 group-hover:scale-[1.12]"
       />
-      <Image
-        src={media.src}
-        alt={alt}
-        fill
-        sizes={sizes}
-        className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
-      />
+      <div className={isVerticalFrame ? 'relative z-[1] flex h-full items-center justify-center px-4 py-3' : 'relative z-[1] h-full w-full'}>
+        <div className={isVerticalFrame ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]' : 'relative h-full w-full'}>
+          <Image
+            src={media.src}
+            alt={alt}
+            fill
+            sizes={sizes}
+            className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
+          />
+        </div>
+      </div>
     </>
   );
 }

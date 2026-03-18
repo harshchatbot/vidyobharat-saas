@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { LoaderCircle } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
@@ -36,9 +36,8 @@ export default function CreditHistoryPage() {
 
   if (loading) {
     return (
-      <Card className="rangmanch-studio-panel flex items-center gap-3 border-none bg-transparent backdrop-blur-md">
-        <LoaderCircle className="h-4 w-4 animate-spin text-[hsl(var(--color-accent))]" />
-        <p className="text-sm text-muted">Loading credit history...</p>
+      <Card className="rangmanch-studio-panel border-none bg-transparent backdrop-blur-md">
+        <PacmanLoader centered size="md" label="Loading credit history..." />
       </Card>
     );
   }

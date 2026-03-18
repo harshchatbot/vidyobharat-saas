@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Coins, LoaderCircle } from 'lucide-react';
+import { Coins } from 'lucide-react';
 
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
 import type { PricingResponse } from '@/types/api';
@@ -124,11 +125,8 @@ export default function PricingPage() {
         )}
 
         {!pricing ? (
-          <div className="rangmanch-studio-panel mx-auto mt-12 flex max-w-5xl items-center justify-center gap-3 rounded-[28px] p-6">
-            <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
-            <span className="text-[hsl(var(--color-muted))]">
-              Loading pricing...
-            </span>
+          <div className="rangmanch-studio-panel mx-auto mt-12 max-w-5xl rounded-[28px] p-6">
+            <PacmanLoader centered size="lg" label="Loading pricing..." />
           </div>
         ) : (
           <>

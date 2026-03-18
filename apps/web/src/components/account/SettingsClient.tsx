@@ -5,6 +5,7 @@ import { Bell, Captions, LoaderCircle, Save, SlidersHorizontal, Volume2, WandSpa
 
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { api } from '@/lib/api';
 import { LANGUAGE_OPTIONS, VOICE_OPTIONS } from '@/components/videos/create/constants';
 import type { UserSettings } from '@/types/api';
@@ -70,9 +71,8 @@ export function SettingsClient({ userId }: { userId: string }) {
 
   if (loading || !settings) {
     return (
-      <Card className="flex items-center gap-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
-        <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
-        <p className="text-sm text-muted">Loading settings...</p>
+      <Card className="border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
+        <PacmanLoader centered size="md" label="Loading settings..." />
       </Card>
     );
   }

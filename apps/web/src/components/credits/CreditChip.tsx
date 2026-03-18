@@ -5,7 +5,11 @@ import { AlertTriangle, Coins, Wallet } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
 
-export function CreditChip() {
+type Props = {
+  onNavigate?: (href: string, label: string) => void;
+};
+
+export function CreditChip({ onNavigate }: Props) {
   const { wallet, loading, refreshing } = useCredits();
   const low = (wallet?.currentCredits ?? 0) < 10;
 
@@ -46,10 +50,24 @@ export function CreditChip() {
           <p className="mt-3 text-sm text-muted">No wallet data available.</p>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/billing" className="inline-flex rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
+          <Link
+            href="/billing"
+            onClick={onNavigate ? (event) => {
+              event.preventDefault();
+              onNavigate('/billing', 'Billing');
+            } : undefined}
+            className="inline-flex rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
+          >
             Billing
           </Link>
-          <Link href="/pricing" className="inline-flex rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text">
+          <Link
+            href="/pricing"
+            onClick={onNavigate ? (event) => {
+              event.preventDefault();
+              onNavigate('/pricing', 'Pricing');
+            } : undefined}
+            className="inline-flex rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text"
+          >
             View plans
           </Link>
         </div>

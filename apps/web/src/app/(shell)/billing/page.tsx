@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Coins, LoaderCircle, Receipt, Wallet } from 'lucide-react';
+import { ArrowRight, Coins, Receipt, Wallet } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -191,9 +192,8 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <Card className="rangmanch-studio-panel flex items-center gap-3 border-[hsl(var(--color-border))] bg-transparent backdrop-blur-md">
-        <LoaderCircle className="h-4 w-4 animate-spin text-[hsl(var(--color-accent))]" />
-        <p className="text-sm text-muted">Loading billing data...</p>
+      <Card className="rangmanch-studio-panel border-[hsl(var(--color-border))] bg-transparent backdrop-blur-md">
+        <PacmanLoader centered size="md" label="Loading billing..." />
       </Card>
     );
   }

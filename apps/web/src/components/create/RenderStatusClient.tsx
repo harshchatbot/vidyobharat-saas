@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Spinner } from '@/components/ui/Spinner';
 import { api } from '@/lib/api';
 import type { Render } from '@/types/api';
@@ -51,9 +52,8 @@ export function RenderStatusClient({ renderId, userId }: Props) {
 
   if (!render) {
     return (
-      <Card className="flex items-center gap-2">
-        <Spinner />
-        <p className="text-sm text-muted">Loading render status...</p>
+      <Card>
+        <PacmanLoader centered size="md" label="Loading render status..." />
       </Card>
     );
   }

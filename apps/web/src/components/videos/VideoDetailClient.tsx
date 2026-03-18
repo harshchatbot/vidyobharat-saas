@@ -6,6 +6,7 @@ import { AudioLines, CheckCircle2, Clapperboard, Sparkles, Tag, Wand2 } from 'lu
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Spinner } from '@/components/ui/Spinner';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
@@ -100,9 +101,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
   if (loading) {
     return (
-      <Card className="flex items-center gap-2">
-        <Spinner />
-        <p className="text-sm text-muted">Loading video...</p>
+      <Card>
+        <PacmanLoader centered size="md" label="Loading video..." />
       </Card>
     );
   }

@@ -7,6 +7,7 @@ import { Building2, Camera, LoaderCircle, Mail, MapPin, Phone, Save, ShieldCheck
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
@@ -184,9 +185,8 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
 
   if (loading) {
     return (
-      <Card className="flex items-center gap-3 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
-        <LoaderCircle className="h-5 w-5 animate-spin text-[hsl(var(--color-accent))]" />
-        <p className="text-sm text-muted">Loading profile...</p>
+      <Card className="border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.65)] backdrop-blur-md">
+        <PacmanLoader centered size="md" label="Loading profile..." />
       </Card>
     );
   }
