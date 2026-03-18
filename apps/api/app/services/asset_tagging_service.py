@@ -9,7 +9,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from openai import OpenAI
-from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.repositories.asset_tag_repository import AssetTagRepository
@@ -24,22 +23,20 @@ STOP_WORDS = {
 
 
 class AssetTaggingService:
-    def __init__(self, db: Session | None) -> None:
+    def __init__(self, db: object | None) -> None:
+        # Tag persistence is Firestore-backed via AssetTagRepository.
+        # Keep the optional db arg for backward compatibility with call sites.
         self.db = db
-        self.repo = AssetTagRepository(db) if db is not None else None
+        self.repo = AssetTagRepository(db)
         self.settings = get_settings()
 
     def list_tags(self, asset_id: str, asset_type: str) -> tuple[list[str], list[str]]:
-        if self.repo is None:
-            raise RuntimeError('AssetTaggingService requires a database session for list_tags')
         rows = self.repo.list_for_asset(asset_id=asset_id, asset_type=asset_type)
         auto_tags = [row.tag for row in rows if row.source == 'auto']
         user_tags = [row.tag for row in rows if row.source == 'user']
         return auto_tags, user_tags
 
     def replace_user_tags(self, asset_id: str, asset_type: str, tags: list[str]) -> tuple[list[str], list[str]]:
-        if self.repo is None:
-            raise RuntimeError('AssetTaggingService requires a database session for replace_user_tags')
         rows = self.repo.replace_user_tags(asset_id=asset_id, asset_type=asset_type, tags=tags)
         auto_tags = [row.tag for row in rows if row.source == 'auto']
         user_tags = [row.tag for row in rows if row.source == 'user']
@@ -50,18 +47,10 @@ class AssetTaggingService:
         vision_tags = self._extract_vision_tags(image_url=generation.image_url, prompt=prompt, content_type='image')
         derived = self._derive_tags(f'{prompt} {generation.model_key} {generation.aspect_ratio} {generation.resolution}')
         tags = self._dedupe_tags([*vision_tags, *derived, generation.model_key, generation.aspect_ratio, generation.resolution])
-        if self.repo is None:
-            logger.warning(
-                'asset_auto_tagging_skipped_no_db',
-                extra={'asset_type': 'image', 'asset_id': generation.id},
-            )
-            return tags
         self.repo.add_tags(asset_id=generation.id, asset_type='image', tags=tags, source='auto')
         return tags
 
     def auto_tag_video(self, video: Video) -> list[str]:
-        if self.repo is None:
-            raise RuntimeError('AssetTaggingService requires a database session for auto_tag_video')
         prompt = ' '.join(filter(None, [video.title or '', video.script or '', video.selected_model or '', video.aspect_ratio, video.resolution]))
         # Tag multiple representative frames so video search is not limited to a single thumbnail.
         frame_urls = self._extract_video_frame_urls(video)

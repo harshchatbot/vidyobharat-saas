@@ -619,7 +619,7 @@ class TemplateManagementService:
                 'created_by': 'system',
                 'source': 'legacy_seed',
                 'generation_defaults': {
-                    'model_key': 'recraft_studio',
+                    'model_key': 'gemini_flash_image',
                     'aspect_ratio': '4:5',
                     'resolution': '1536'
                 },
@@ -689,7 +689,7 @@ class TemplateManagementService:
                 'created_by': 'system',
                 'source': 'legacy_seed',
                 'generation_defaults': {
-                    'model_key': 'recraft_studio',
+                    'model_key': 'gemini_flash_image',
                     'aspect_ratio': '4:5',
                     'resolution': '1536'
                 },

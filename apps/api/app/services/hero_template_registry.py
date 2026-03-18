@@ -317,7 +317,7 @@ HERO_TEMPLATE_REGISTRY: list[HeroTemplateSeed] = [
         suggested_durations=[],
         suggested_styles=['Professional', 'Bold', 'Minimal'],
         safety_profile='professional_information',
-        generation_defaults={'model_key': 'recraft_studio', 'aspect_ratio': '4:5', 'resolution': '1536'},
+        generation_defaults={'model_key': 'gemini_flash_image', 'aspect_ratio': '4:5', 'resolution': '1536'},
     ),
     HeroTemplateSeed(
         id='product_ad_creative',

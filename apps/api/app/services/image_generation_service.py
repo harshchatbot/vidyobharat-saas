@@ -704,8 +704,16 @@ class ImageGenerationService:
             action_type='remove_background',
             status=ImageGenerationStatus.completed,
         )
-        self.tagging.auto_tag_image(item)
-        auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        auto_tags: list[str] = []
+        user_tags: list[str] = []
+        try:
+            self.tagging.auto_tag_image(item)
+            auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        except Exception as exc:
+            logger.warning(
+                'image_action_tagging_non_fatal',
+                extra={'action': 'remove_background', 'image_id': item.id, 'error': str(exc)},
+            )
         self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
         return item
 
@@ -762,8 +770,16 @@ class ImageGenerationService:
             action_type='upscale',
             status=ImageGenerationStatus.completed,
         )
-        self.tagging.auto_tag_image(item)
-        auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        auto_tags: list[str] = []
+        user_tags: list[str] = []
+        try:
+            self.tagging.auto_tag_image(item)
+            auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+        except Exception as exc:
+            logger.warning(
+                'image_action_tagging_non_fatal',
+                extra={'action': 'upscale', 'image_id': item.id, 'error': str(exc)},
+            )
         self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
         return item
 
@@ -826,8 +842,16 @@ class ImageGenerationService:
                 action_type='variation',
                 status=ImageGenerationStatus.completed,
             )
-            self.tagging.auto_tag_image(item)
-            auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+            auto_tags: list[str] = []
+            user_tags: list[str] = []
+            try:
+                self.tagging.auto_tag_image(item)
+                auto_tags, user_tags = self.tagging.list_tags(item.id, 'image')
+            except Exception as exc:
+                logger.warning(
+                    'image_action_tagging_non_fatal',
+                    extra={'action': 'variation', 'image_id': item.id, 'error': str(exc)},
+                )
             self.sync.sync_image(item, auto_tags=auto_tags, user_tags=user_tags)
             items.append(item)
         return items

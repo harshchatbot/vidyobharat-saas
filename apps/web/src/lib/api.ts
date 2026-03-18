@@ -788,10 +788,19 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   applyImageAction(imageId: string, action: 'remove_background' | 'upscale' | 'variation', userId: string) {
-    return request<ImageActionResponse>('/ai/images/action', {
-      method: 'POST',
-      body: JSON.stringify({ image_id: imageId, action_type: action }),
-    }, { userId, cache: 'no-store', timeoutMs: 120_000 });
+    const execute = () =>
+      request<ImageActionResponse>('/ai/images/action', {
+        method: 'POST',
+        body: JSON.stringify({ image_id: imageId, action_type: action }),
+      }, { userId, cache: 'no-store', timeoutMs: 120_000 });
+    return execute().catch(async (error) => {
+      // One lightweight retry for transient backend/network failures during long-running actions.
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return execute();
+    }).then((result) => {
+      invalidateUserCache(userId, ['/ai/images', '/assets/search', '/assets/tags', '/api/credits/wallet']);
+      return result;
+    });
   },
   getCreditWallet(userId: string) {
     const path = '/api/credits/wallet';
