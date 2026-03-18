@@ -344,7 +344,7 @@ export function PublicStudioLanding() {
                 </div>
                 <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {[
-                    ['Free', '40 credits', 'Start testing image, voice, and first renders.'],
+                    ['Free', '40 credits / month', 'Get 40 free credits every month for image, voice, and first renders.'],
                     ['Starter', '200 credits', 'Good for repeat creator workflows and short-form output.'],
                     ['Creator', '550 credits', 'Built for serious publishing and balanced premium usage.'],
                   ].map(([name, credits, blurb]) => (

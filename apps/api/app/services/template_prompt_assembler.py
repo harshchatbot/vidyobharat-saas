@@ -79,6 +79,8 @@ class TemplatePromptAssembler:
                 return 'Keep the design clean, factual, and professional. Avoid deceptive claims or sensational misinformation.'
             case 'educational_safe':
                 return 'Keep the framing informative, safe, and socially acceptable. Avoid medical misinformation or political propaganda cues.'
+            case 'historical_educational_safe':
+                return 'Keep the framing historically respectful and educational. Avoid extremist glorification, hateful symbolism, or revisionist misinformation.'
             case 'general_marketing_safe':
                 return 'Keep the visual hook strong but commercially safe and non-deceptive.'
             case _:
@@ -285,6 +287,19 @@ class TemplatePromptAssembler:
             f"Create premium cover art in {values.get('coverType', 'youtube_thumbnail')} format about {values.get('topic', 'the topic')}.",
             f"Headline: {values.get('headline', 'high-contrast headline zone')}. Tone: {values.get('tone', 'dramatic')}. Platform: {values.get('platform', 'YouTube')}. Color style: {values.get('colorStyle', 'high-contrast brand palette')}.",
             'Use a strong focal area, clean negative space for text, and high CTR visual hierarchy.',
+            base['quality'],
+            base['safety'],
+        )
+        return PromptAssemblyResult(prompt, image_prompt=prompt, recommended_model_mode=template.default_model_mode)
+
+    def _assemble_history_timeline(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
+        base = self._base_blocks(template, values)
+        prompt = self._compose(
+            f"Create a premium history timeline cover about {values.get('civilization', 'the civilization or era')}.",
+            f"Style: {values.get('style', 'Documentary')}.",
+            'Use archival visual language, historically grounded artifacts, map/timeline motifs, and cinematic documentary composition.',
+            'Show clear era cues (architecture, material culture, symbols) with balanced typography-safe space for title overlays.',
+            'Avoid fantasy tropes, modern anachronisms, and over-stylized sci-fi elements.',
             base['quality'],
             base['safety'],
         )

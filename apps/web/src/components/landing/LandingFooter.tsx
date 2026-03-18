@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { GlassPanel } from '@/components/landing/GlassPanel';
 
@@ -13,23 +15,35 @@ export function LandingFooter() {
           <div>
             <p className="text-sm font-semibold text-text">Product</p>
             <ul className="mt-2 space-y-1 text-sm text-muted">
-              <li>Text to video</li>
-              <li>Image to video</li>
-              <li>AI influencer studio</li>
+              <li><Link href="/signup" className="hover:text-text">Generate image</Link></li>
+              <li><Link href="/signup" className="hover:text-text">Text to video</Link></li>
+              <li><Link href="/signup" className="hover:text-text">Image to video</Link></li>
+              <li><Link href="/signup" className="hover:text-text">AI influencer studio</Link></li>
+              <li><Link href="/templates" className="hover:text-text">Templates & workflows</Link></li>
             </ul>
           </div>
           <div>
             <p className="text-sm font-semibold text-text">Company</p>
-            <p className="mt-2 text-sm text-muted">About</p>
-            <p className="mt-1 text-sm text-muted">Pricing</p>
-            <p className="mt-1 text-sm text-muted">Contact</p>
+            <ul className="mt-2 space-y-1 text-sm text-muted">
+              <li><Link href="/company" className="hover:text-text">About</Link></li>
+              <li><Link href="/pricing" className="hover:text-text">Pricing</Link></li>
+              <li>
+                <a href="mailto:harshveernirwan@techfilabs.com" className="hover:text-text">
+                  Contact
+                </a>
+              </li>
+            </ul>
           </div>
           <div>
             <p className="text-sm font-semibold text-text">Support</p>
             <ul className="mt-2 space-y-1 text-sm text-muted">
-              <li>Help Center</li>
-              <li>Creator workflows</li>
-              <li>Email support</li>
+              <li><Link href="/learning" className="hover:text-text">Help Center</Link></li>
+              <li><Link href="/use-cases" className="hover:text-text">Creator workflows</Link></li>
+              <li>
+                <a href="mailto:harshveernirwan@techfilabs.com" className="hover:text-text">
+                  Email support
+                </a>
+              </li>
             </ul>
           </div>
         </div>

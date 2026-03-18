@@ -18,6 +18,7 @@ import {
   Heart,
   LoaderCircle,
   Search,
+  RotateCcw,
   Sparkles,
   Stars,
   Tag,
@@ -63,6 +64,17 @@ type ImageTemplatePreset = {
   thumbnail_url: string;
   visual_prompt?: string | null;
   inputs?: TemplateInputField[];
+};
+
+type ImageGenerationPayload = {
+  model_key: string;
+  prompt: string;
+  aspect_ratio: string;
+  resolution: string;
+  reference_urls: string[];
+  project_id?: string;
+  mode_id?: string;
+  template_id?: string;
 };
 
 type ImageModeKey = 'fast_social' | 'premium_realism' | 'design_carousel' | 'portrait_character';
@@ -455,6 +467,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [loading, setLoading] = useState(true);
   const [studioFeedLoading, setStudioFeedLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [enhancing, setEnhancing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -473,6 +486,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [imageMode, setImageMode] = useState<ImageModeKey>('fast_social');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [lastGenerationPayload, setLastGenerationPayload] = useState<ImageGenerationPayload | null>(null);
   const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
   const [uploadingReference, setUploadingReference] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
@@ -832,6 +846,52 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     setSelectedResolutionFilters([]);
   }, [activeTab, filteredInspiration.length, hasFacetFilters, inspiration.length]);
 
+  const runImageGeneration = async (payload: ImageGenerationPayload, options?: { retry?: boolean }) => {
+    const isRetry = Boolean(options?.retry);
+    setSubmitting(true);
+    setRetrying(isRetry);
+    setError(null);
+    let createdItem: GeneratedImage | null = null;
+    try {
+      setSubmitProgress(14);
+      createdItem = await api.generateImage(
+        payload,
+        userId,
+      );
+      setSubmitProgress(100);
+    } catch (error) {
+      reportUiError('Image generation failed', error, isRetry ? 'Retry failed. Please try again.' : 'Failed to generate image. Please try again.');
+    } finally {
+      setSubmitting(false);
+      setRetrying(false);
+    }
+
+    if (!createdItem) return;
+    setLastGenerationPayload(payload);
+
+    if (typeof createdItem.remaining_credits === 'number') {
+      if (wallet) {
+        applyWallet({ ...wallet, currentCredits: createdItem.remaining_credits });
+      } else {
+        void refreshCredits();
+      }
+    }
+    show(
+      `${isRetry ? 'Retried!' : 'Created!'} Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
+        createdItem.remaining_credits ?? wallet?.currentCredits ?? 0
+      }`,
+    );
+    setSelectedGenerated(createdItem);
+    setActiveTab('generated');
+
+    try {
+      const items = await refreshGeneratedFeed(generatedFetchLimit);
+      await refreshTagFacets(items);
+    } catch (error) {
+      reportUiError('Studio refresh failed', error, 'Image was generated, but refreshing the feed took longer than expected.');
+    }
+  };
+
   const submit = async () => {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
@@ -845,55 +905,40 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     if (!window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    let createdItem: GeneratedImage | null = null;
-    try {
-      setSubmitProgress(14);
-      const projectId = await ensureProjectForImageRun();
-      createdItem = await api.generateImage(
-        {
-          model_key: selectedModel,
-          prompt: trimmedPrompt,
-          aspect_ratio: aspectRatio,
-          resolution,
-          reference_urls: referenceUrls,
-          project_id: projectId || undefined,
-          mode_id: imageMode,
-          template_id: activeTemplate?.id || undefined,
-        },
-        userId,
-      );
-      setSubmitProgress(100);
-    } catch (error) {
-      reportUiError('Image generation failed', error, 'Failed to generate image. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+    const projectId = await ensureProjectForImageRun();
+    const payload: ImageGenerationPayload = {
+      model_key: selectedModel,
+      prompt: trimmedPrompt,
+      aspect_ratio: aspectRatio,
+      resolution,
+      reference_urls: referenceUrls,
+      project_id: projectId || undefined,
+      mode_id: imageMode,
+      template_id: activeTemplate?.id || undefined,
+    };
+    await runImageGeneration(payload);
+  };
 
-    if (!createdItem) return;
-
-    if (typeof createdItem.remaining_credits === 'number') {
-      if (wallet) {
-        applyWallet({ ...wallet, currentCredits: createdItem.remaining_credits });
-      } else {
-        void refreshCredits();
-      }
+  const retryLastGeneration = async (source?: GeneratedImage) => {
+    const payload =
+      lastGenerationPayload ??
+      (source
+        ? {
+            model_key: source.model_key,
+            prompt: source.prompt,
+            aspect_ratio: source.aspect_ratio,
+            resolution: source.resolution,
+            reference_urls: source.reference_urls || [],
+            project_id: source.project_id || undefined,
+            mode_id: source.mode_id || undefined,
+            template_id: source.template_id || undefined,
+          }
+        : null);
+    if (!payload) {
+      setError('Generate at least one image first to use retry.');
+      return;
     }
-    show(
-      `Created! Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
-        createdItem.remaining_credits ?? wallet?.currentCredits ?? 0
-      }`,
-    );
-    setSelectedGenerated(createdItem);
-    setActiveTab('generated');
-
-    try {
-      const items = await refreshGeneratedFeed(generatedFetchLimit);
-      await refreshTagFacets(items);
-    } catch (error) {
-      reportUiError('Studio refresh failed', error, 'Image was generated, but refreshing the feed took longer than expected.');
-    }
+    await runImageGeneration(payload, { retry: true });
   };
 
   const enhancePrompt = async () => {
@@ -1551,23 +1596,34 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   </p>
                   {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
                 </div>
-                <Button
-                  onClick={() => void handlePrimaryAction()}
-                  disabled={submitting || Boolean(estimate && !estimate.sufficient)}
-                  className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
-                >
-                  {primaryActionLoading ? (
-                    <>
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4" />
-                      {`Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void retryLastGeneration(selectedGenerated ?? undefined)}
+                    disabled={submitting || (!lastGenerationPayload && !selectedGenerated)}
+                    className="h-11 gap-2 rounded-[16px] px-4 text-xs"
+                  >
+                    {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                    {retrying ? 'Retrying...' : 'Retry'}
+                  </Button>
+                  <Button
+                    onClick={() => void handlePrimaryAction()}
+                    disabled={submitting || Boolean(estimate && !estimate.sufficient)}
+                    className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                  >
+                    {primaryActionLoading ? (
+                      <>
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4" />
+                        {`Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
               {estimate && !estimate.sufficient ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[hsl(var(--color-danger))]">
@@ -2106,6 +2162,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'variation')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:variation`}>
                       <Stars className="h-4 w-4" />
                       {actionLoading === `${selectedGenerated.id}:variation` ? 'Creating variation...' : 'Give me 4 more like this'}
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => void retryLastGeneration(selectedGenerated)} className="justify-start gap-2" disabled={submitting}>
+                      {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                      {retrying ? 'Retrying...' : 'Retry this generation'}
                     </Button>
                   </div>
                 </div>

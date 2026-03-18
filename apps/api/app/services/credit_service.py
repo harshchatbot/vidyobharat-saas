@@ -131,6 +131,10 @@ class CreditService:
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
+            # Backward-compatible upgrade path: older free wallets may still have 25.
+            # Keep free plan users on the current product policy (40 monthly credits).
+            if (wallet.plan_type or 'free').lower() == 'free' and int(wallet.monthly_credits or 0) < self.FREE_PLAN_MONTHLY_CREDITS:
+                wallet.monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
             self._apply_monthly_reset_if_due(wallet)
             self.repo.update_wallet(wallet)
             return wallet
@@ -640,6 +644,8 @@ class CreditService:
 
     def _apply_monthly_reset_if_due(self, wallet: FirestoreCreditWallet) -> bool:
         now = datetime.now(UTC)
+        if (wallet.plan_type or 'free').lower() == 'free' and int(wallet.monthly_credits or 0) < self.FREE_PLAN_MONTHLY_CREDITS:
+            wallet.monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
         last_reset = wallet.last_reset
         if last_reset is None:
             wallet.last_reset = now
