@@ -26,6 +26,12 @@
   --shadow-float: 0 20px 60px hsl(var(--color-text) / 0.08);
   --shadow-cinematic: 0 28px 80px hsl(220 35% 12% / 0.16);
   --blur-glass: 16px;
+  --landing-accent: 136 87% 61%;
+  --landing-accent-strong: 132 85% 56%;
+  --landing-accent-contrast: 164 64% 9%;
+  --landing-grid: 158 38% 22%;
+  --landing-hero-bg: 166 70% 9%;
+  --landing-hero-bg-deep: 171 73% 7%;
 }
 
 .dark {
@@ -49,6 +55,12 @@
   --shadow-hard: 0 26px 72px hsl(220 45% 2% / 0.42);
   --shadow-float: 0 24px 72px hsl(220 45% 2% / 0.34);
   --shadow-cinematic: 0 36px 100px hsl(220 55% 2% / 0.54);
+  --landing-accent: 140 90% 63%;
+  --landing-accent-strong: 136 88% 58%;
+  --landing-accent-contrast: 165 64% 9%;
+  --landing-grid: 158 34% 21%;
+  --landing-hero-bg: 166 68% 8%;
+  --landing-hero-bg-deep: 171 72% 6%;
 }
 
 @keyframes rangmanch-loader-ring {
@@ -305,4 +317,79 @@
 
 .rangmanch-stage-floor {
   animation: rangmanch-stage-floor 2.4s ease-in-out infinite;
+}
+
+.rangmanch-landing-aionic {
+  --color-accent: var(--landing-accent);
+  --color-accent-contrast: var(--landing-accent-contrast);
+  --color-hero-glow: 145 82% 63%;
+}
+
+.rangmanch-landing-grid-hero {
+  background:
+    radial-gradient(circle at 50% 18%, hsl(var(--landing-accent) / 0.16), transparent 18rem),
+    radial-gradient(circle at 82% 22%, hsl(var(--landing-accent-strong) / 0.12), transparent 16rem),
+    linear-gradient(180deg, hsl(var(--landing-hero-bg) / 0.98), hsl(var(--landing-hero-bg-deep) / 0.98));
+}
+
+.rangmanch-landing-grid-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(hsl(var(--landing-grid) / 0.44) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--landing-grid) / 0.44) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(circle at 50% 36%, black 0%, black 48%, transparent 86%);
+  opacity: 0.56;
+  pointer-events: none;
+}
+
+.rangmanch-landing-grid-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 30%, hsl(var(--landing-accent) / 0.16), transparent 20rem),
+    linear-gradient(180deg, transparent 0%, hsl(var(--landing-hero-bg-deep) / 0.18) 44%, hsl(var(--color-bg) / 0.88) 100%);
+  pointer-events: none;
+}
+
+.rangmanch-landing-hero-kicker {
+  border-color: hsl(var(--landing-accent) / 0.28);
+  background: hsl(var(--landing-accent) / 0.12);
+  color: hsl(var(--color-text));
+  box-shadow: 0 0 0 1px hsl(var(--landing-accent) / 0.08) inset;
+}
+
+.rangmanch-landing-hero-title {
+  color: hsl(var(--landing-accent));
+  text-shadow:
+    0 0 18px hsl(var(--landing-accent) / 0.18),
+    0 0 42px hsl(var(--landing-accent) / 0.08);
+}
+
+.rangmanch-landing-cta-primary {
+  background: linear-gradient(135deg, hsl(var(--landing-accent)), hsl(var(--landing-accent-strong)));
+  color: hsl(var(--landing-accent-contrast));
+  box-shadow: 0 18px 50px hsl(var(--landing-accent) / 0.22);
+}
+
+.rangmanch-landing-cta-primary:hover {
+  filter: brightness(1.02);
+}
+
+.rangmanch-landing-ribbon {
+  position: relative;
+}
+
+.rangmanch-landing-ribbon::before {
+  content: '';
+  position: absolute;
+  inset: 16% 2% auto;
+  height: 64%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, hsl(var(--landing-accent) / 0.08), transparent);
+  filter: blur(18px);
+  pointer-events: none;
 }

@@ -152,7 +152,7 @@ export function StudioSidebar() {
         <Link
           href="/signup"
           onClick={onCloseMobile}
-          className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-[hsl(var(--color-text))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))]"
+          className="rangmanch-landing-cta-primary mt-4 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold"
         >
           Start free
         </Link>
@@ -186,7 +186,7 @@ export function StudioSidebar() {
           <Link
             href="/signup"
             onClick={onCloseMobile}
-            className="inline-flex flex-1 items-center justify-center rounded-full bg-[hsl(var(--color-text))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--color-bg))]"
+            className="rangmanch-landing-cta-primary inline-flex flex-1 items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold"
           >
             Start free
           </Link>

@@ -195,9 +195,40 @@ function ToolTileMediaSurface({
   );
 }
 
+function HeroMediaRibbon() {
+  const ribbonItems = [
+    { key: 'persona-1', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-32 sm:h-40 lg:h-52', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[2deg]' },
+    { key: 'persona-2', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-28 sm:h-36 lg:h-46', width: 'w-16 sm:w-20 lg:w-24', tilt: 'rotate-[1deg]' },
+    { key: 'reel-1', kind: 'video' as const, src: '/videos/samples/creator111.mp4', poster: '/illustrations/startup.png', height: 'h-36 sm:h-46 lg:h-60', width: 'w-18 sm:w-22 lg:w-28', tilt: '-rotate-[1deg]' },
+    { key: 'reel-2', kind: 'video' as const, src: '/videos/samples/lip-sync.mp4', poster: '/illustrations/product-ads.png', height: 'h-28 sm:h-34 lg:h-42', width: 'w-20 sm:w-24 lg:w-28', tilt: 'rotate-[1deg]' },
+    { key: 'ad-1', kind: 'video' as const, src: '/videos/samples/advertisement.mp4', poster: '/illustrations/agency.png', height: 'h-40 sm:h-50 lg:h-68', width: 'w-20 sm:w-24 lg:w-30', tilt: 'rotate-[1.5deg]' },
+    { key: 'ad-2', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-30 sm:h-38 lg:h-50', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[1.5deg]' },
+    { key: 'reel-3', kind: 'video' as const, src: '/videos/samples/creator111.mp4', poster: '/illustrations/earth.png', height: 'h-34 sm:h-42 lg:h-56', width: 'w-18 sm:w-22 lg:w-26', tilt: 'rotate-[0.75deg]' },
+    { key: 'persona-3', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-30 sm:h-38 lg:h-52', width: 'w-16 sm:w-20 lg:w-24', tilt: '-rotate-[1deg]' },
+  ];
+
+  return (
+    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1100px] items-end justify-center gap-2 overflow-hidden px-2 pb-1 sm:mt-10 sm:gap-3 lg:mt-12 lg:gap-4">
+      {ribbonItems.map((item) => (
+        <div
+          key={item.key}
+          className={`relative ${item.height} ${item.width} ${item.tilt} shrink-0 overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.42)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md lg:rounded-[22px]`}
+        >
+          {item.kind === 'video' ? (
+            <LandingVideo src={item.src} poster={item.poster} className="h-full w-full object-cover" />
+          ) : (
+            <Image src={item.src} alt="" aria-hidden fill sizes="(max-width: 1024px) 96px, 128px" className="object-cover" />
+          )}
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--landing-hero-bg)/0.04),hsl(var(--landing-hero-bg-deep)/0.16))]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PublicStudioLanding() {
   return (
-    <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
+    <div className="rangmanch-landing-aionic min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
       <div className="flex min-h-screen max-w-full overflow-x-clip">
         <StudioSidebar />
 
@@ -220,7 +251,7 @@ export function PublicStudioLanding() {
                   </Link>
                   <Link
                     href="/signup"
-                    className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-text))] px-4 py-2 text-sm font-semibold text-[hsl(var(--color-bg))]"
+                    className="rangmanch-landing-cta-primary inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
                   >
                     Start free
                     <ArrowRight className="h-4 w-4" />
@@ -228,27 +259,45 @@ export function PublicStudioLanding() {
                 </div>
               </div>
 
-              <div className="rangmanch-floating-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
+              <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] sm:rounded-[32px] xl:rounded-[36px]">
                 <HeroBackgroundVideo
                   src={heroBackgroundMedia.src}
                   poster={heroBackgroundMedia.poster}
                 />
-                <div className="relative z-10 min-h-[420px] px-4 py-5 sm:min-h-[470px] sm:px-5 sm:py-6 md:min-h-[520px] md:px-6 md:py-7 lg:min-h-[560px] lg:px-7 lg:py-8 2xl:min-h-[620px] 2xl:px-8 2xl:py-8">
-                  <div className="flex h-full flex-col justify-between gap-6 sm:gap-7 lg:gap-8">
-                    <div className="max-w-[44rem] space-y-4 sm:space-y-5">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.54)] bg-[hsl(var(--color-bg)/0.22)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-text))] backdrop-blur-md">
+                <div className="relative z-10 min-h-[560px] px-4 py-5 sm:min-h-[640px] sm:px-5 sm:py-6 md:min-h-[720px] md:px-6 md:py-7 lg:min-h-[760px] lg:px-7 lg:py-8 2xl:min-h-[820px] 2xl:px-8 2xl:py-8">
+                  <div className="flex h-full flex-col justify-between gap-8 sm:gap-9 lg:gap-10">
+                    <div className="mx-auto flex max-w-[72rem] flex-col items-center space-y-5 pt-6 text-center sm:space-y-6 sm:pt-10 lg:pt-14">
+                      <div className="rangmanch-landing-hero-kicker inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur-md">
                         <span className="inline-flex h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />
-                        Make one day your day one
+                        Creator studio for AI influencers, reels, ads, and visual stories
                       </div>
-                      <div className="space-y-3">
-                        <h1 className="max-w-3xl font-heading text-[2.1rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-[2.8rem] sm:leading-[1.02] md:text-[3.3rem] lg:text-[4rem] 2xl:text-6xl">
-                          Create AI influencers, reels, ads, and visual stories from one creator studio.
+                      <div className="space-y-4">
+                        <h1 className="rangmanch-landing-hero-title max-w-5xl font-heading text-[2.4rem] font-extrabold tracking-tight sm:text-[3.3rem] sm:leading-[1.02] md:text-[4.3rem] lg:text-[5.4rem] 2xl:text-[6.1rem]">
+                          Create the future of content with RangManch AI
                         </h1>
-                        <p className="max-w-2xl text-sm leading-6 text-[hsl(var(--color-muted))] sm:text-[15px] sm:leading-7 lg:text-base">
-                          Turn prompts, photos, personas, and templates into publish-ready content without juggling separate image, video, and workflow tools.
+                        <p className="max-w-4xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1.06rem]">
+                          Turn prompts, photos, personas, and templates into publish-ready influencers, reels, product ads, and visual stories without stitching together multiple tools.
                         </p>
                       </div>
-                      <HeroPromptBar />
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        <Link
+                          href="/signup"
+                          className="rangmanch-landing-cta-primary inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold"
+                        >
+                          Start your journey
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                        <Link
+                          href="/pricing"
+                          className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.56)] bg-[hsl(var(--color-surface-glass)/0.22)] px-5 py-3 text-sm font-medium text-[hsl(var(--color-text))] backdrop-blur-md"
+                        >
+                          View pricing
+                        </Link>
+                      </div>
+                      <div className="w-full max-w-[58rem]">
+                        <HeroPromptBar />
+                      </div>
+                      <HeroMediaRibbon />
                     </div>
                   </div>
                 </div>
