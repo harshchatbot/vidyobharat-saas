@@ -116,7 +116,13 @@ function matchActiveRail(pathname: string): string {
   if (pathname.startsWith('/images') || pathname.startsWith('/create/') || pathname === '/create') return 'tools';
   if (pathname.startsWith('/projects') || pathname.startsWith('/editor/')) return 'projects';
   if (pathname.startsWith('/renders/')) return 'renders';
-  if (pathname.startsWith('/billing')) return 'settings';
+  if (
+    pathname.startsWith('/billing') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/pricing') ||
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/credits')
+  ) return 'settings';
   return 'home';
 }
 

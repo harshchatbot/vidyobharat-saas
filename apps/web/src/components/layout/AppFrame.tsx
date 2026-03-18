@@ -43,6 +43,16 @@ function getPageTitle(pathname: string) {
   return 'RangManch AI';
 }
 
+function isMoreRoute(pathname: string) {
+  return (
+    pathname.startsWith('/billing') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/pricing') ||
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/credits')
+  );
+}
+
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
@@ -208,19 +218,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       ],
       more: [
         { href: '/billing', label: 'Billing', icon: Sparkles },
+        { href: '/pricing', label: 'Pricing', icon: Sparkles },
         { href: '/settings', label: 'Settings', icon: Settings },
+        { href: '/profile', label: 'Profile', icon: User },
+        { href: '/credits/history', label: 'Credit history', icon: FolderKanban },
       ],
     } as const;
-
-    const activeNavGroup = pathname.startsWith('/influencer')
-      ? 'avatar'
-      : pathname.startsWith('/projects')
-        ? 'projects'
-      : pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
-        ? 'tools'
-        : pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
-          ? 'more'
-          : 'home';
 
     return (
       <CreditProvider userId={userId}>
@@ -259,7 +262,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     : item.label === 'Projects'
                       ? pathname.startsWith('/projects')
                     : item.label === 'More'
-                      ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+                      ? isMoreRoute(pathname)
                       : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
                 const Icon = item.icon;
                 return (
@@ -516,14 +519,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
                   {navItems.map((item) => {
-                        const active = item.label === 'Tools'
+                const active = item.label === 'Tools'
               ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
               : item.label === 'Create Avatar'
                 ? pathname.startsWith('/influencer')
                 : item.label === 'Projects'
                   ? pathname.startsWith('/projects')
                 : item.label === 'More'
-                  ? pathname.startsWith('/billing') || pathname.startsWith('/settings') || pathname.startsWith('/pricing')
+                  ? isMoreRoute(pathname)
                   : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
                         const Icon = item.icon;
                         const baseClass = `inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
