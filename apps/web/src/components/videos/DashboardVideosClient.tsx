@@ -293,7 +293,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const raw = window.sessionStorage.getItem(cacheKey);
+      const raw = window.sessionStorage.getItem(cacheKey) ?? window.localStorage.getItem(cacheKey);
       if (!raw) return;
       const cached = JSON.parse(raw) as {
         ts?: number;
@@ -492,15 +492,14 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      window.sessionStorage.setItem(
-        cacheKey,
-        JSON.stringify({
-          ts: Date.now(),
-          allAssets,
-          imageInspiration,
-          videoInspiration,
-        }),
-      );
+      const payload = JSON.stringify({
+        ts: Date.now(),
+        allAssets,
+        imageInspiration,
+        videoInspiration,
+      });
+      window.sessionStorage.setItem(cacheKey, payload);
+      window.localStorage.setItem(cacheKey, payload);
     } catch {
       // ignore cache write issues
     }

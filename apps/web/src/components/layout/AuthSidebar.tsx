@@ -16,7 +16,7 @@ import {
   Wand2,
 } from 'lucide-react';
 
-import { logoutAction } from '@/app/auth-actions';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
@@ -194,15 +194,11 @@ export function AuthSidebar({ accountLabel }: Props) {
         <div className="mt-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
           <p className="text-xs text-muted">Personal</p>
           <p className="text-sm font-semibold text-text">{accountLabel ?? 'User'}</p>
-          <form action={logoutAction} className="mt-3">
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text"
-            >
-              <LogOut className="h-4 w-4" />
-              Log out
-            </button>
-          </form>
+          <LogoutButton
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text disabled:opacity-70"
+            label="Log out"
+            pendingLabel="Logging out..."
+          />
         </div>
       </div>
     </aside>

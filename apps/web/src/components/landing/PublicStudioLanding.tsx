@@ -149,11 +149,17 @@ function ToolTileMediaSurface({
   sizes: string;
 }) {
   const isVerticalFrame = media.frame === 'vertical';
+  const mediaShellClass = isVerticalFrame
+    ? 'flex h-full items-start justify-center bg-[hsl(var(--color-bg)/0.18)] px-4 pb-20 pt-3 sm:pb-24'
+    : 'h-full w-full';
+  const frameClass = isVerticalFrame
+    ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]'
+    : 'relative h-full w-full';
 
   if (media.type === 'video') {
     return (
-      <div className={isVerticalFrame ? 'flex h-full items-center justify-center bg-[hsl(var(--color-bg)/0.18)] px-4 py-3' : 'h-full w-full'}>
-        <div className={isVerticalFrame ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]' : 'relative h-full w-full'}>
+      <div className={mediaShellClass}>
+        <div className={frameClass}>
           <LandingVideo
             src={media.src}
             poster={media.poster}
@@ -172,10 +178,10 @@ function ToolTileMediaSurface({
         aria-hidden
         fill
         sizes={sizes}
-        className="object-cover opacity-70 blur-md scale-[1.08] transition duration-500 group-hover:scale-[1.12]"
+        className="object-cover opacity-58 blur-md scale-[1.08] transition duration-500 group-hover:scale-[1.12]"
       />
-      <div className={isVerticalFrame ? 'relative z-[1] flex h-full items-center justify-center px-4 py-3' : 'relative z-[1] h-full w-full'}>
-        <div className={isVerticalFrame ? 'relative aspect-[9/16] h-full max-h-full w-auto overflow-hidden rounded-[20px] shadow-[var(--shadow-soft)]' : 'relative h-full w-full'}>
+      <div className={`relative z-[1] ${mediaShellClass}`}>
+        <div className={frameClass}>
           <Image
             src={media.src}
             alt={alt}
@@ -317,13 +323,13 @@ export function PublicStudioLanding() {
                           alt={tool.title}
                           sizes="(max-width: 639px) 78vw, (max-width: 1279px) 50vw, (max-width: 1535px) 33vw, 20vw"
                         />
-                        <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)),hsl(var(--color-bg)/0.92)_28%,transparent_58%)]" />
                         <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
                           <Icon className="h-3.5 w-3.5" />
                           {tool.eyebrow}
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 p-3.5">
-                          <p className="text-base font-semibold">{tool.title}</p>
+                        <div className="absolute inset-x-0 bottom-0 z-[2] p-3.5">
+                          <p className="text-base font-semibold text-[hsl(var(--color-text))]">{tool.title}</p>
                           <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
                         </div>
                       </div>
@@ -347,13 +353,13 @@ export function PublicStudioLanding() {
                             alt={tool.title}
                             sizes="72vw"
                           />
-                          <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.96),transparent_55%)]" />
+                          <div className="absolute inset-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)),hsl(var(--color-bg)/0.92)_28%,transparent_58%)]" />
                           <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.4)] px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
                             <Icon className="h-3.5 w-3.5" />
                             {tool.eyebrow}
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 p-3.5">
-                            <p className="text-base font-semibold">{tool.title}</p>
+                          <div className="absolute inset-x-0 bottom-0 z-[2] p-3.5">
+                            <p className="text-base font-semibold text-[hsl(var(--color-text))]">{tool.title}</p>
                             <p className="mt-1 text-sm leading-5 text-[hsl(var(--color-muted))]">{tool.subtitle}</p>
                           </div>
                         </div>

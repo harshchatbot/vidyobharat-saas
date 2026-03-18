@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Mail, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Mail, ShieldCheck, ArrowLeft, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -46,11 +46,10 @@ export function AuthFormClient({ mode }: Props) {
     ? 'Sign in with email or Google to continue into RangManch AI.'
     : 'Create your account, verify your email, and get into the studio with a standard secure signup flow.';
   const authStages = useMemo(
-    () => (
+    () =>
       isLogin
         ? ['Signing you in', 'Loading dashboard', 'Fetching your creations']
-        : ['Creating your account', 'Securing your workspace', 'Preparing your dashboard']
-    ),
+        : ['Creating your account', 'Securing your workspace', 'Preparing your dashboard'],
     [isLogin],
   );
 
@@ -59,11 +58,9 @@ export function AuthFormClient({ mode }: Props) {
       setAuthStageIndex(0);
       return;
     }
-
     const timer = window.setInterval(() => {
       setAuthStageIndex((current) => (current + 1) % authStages.length);
     }, 1300);
-
     return () => window.clearInterval(timer);
   }, [submitting, authStages]);
 
@@ -153,38 +150,71 @@ export function AuthFormClient({ mode }: Props) {
     }
   }
 
+  /* ─── Email-confirmation state ──────────────────────────────────────────── */
   if (awaitingConfirmation && !isLogin) {
     return (
-      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
-        <Card>
-          <div className="flex items-start gap-4">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
-              <Mail className="h-6 w-6" />
+      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-8">
+        <Card className="overflow-hidden border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] backdrop-blur-md">
+          {/* Subtle accent strip at the top */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--color-accent)/0.6), transparent)' }}
+          />
+
+          <div className="flex items-start gap-5">
+            {/* Icon bubble */}
+            <div className="mt-0.5 flex-shrink-0">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))] ring-1 ring-[hsl(var(--color-accent)/0.2)]">
+                <Mail className="h-5 w-5" />
+              </div>
             </div>
-            <div className="flex-1">
-              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Check your email</h1>
-              <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
+
+            <div className="flex-1 min-w-0">
+              <h1 className="font-heading text-2xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">
+                Check your inbox
+              </h1>
+              <p className="mt-1.5 text-sm leading-relaxed text-[hsl(var(--color-muted))]">
                 {message || `We sent a confirmation email to ${email}. Open it and verify your account to continue.`}
               </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-3 text-sm">
-                  <CheckCircle2 className="mb-2 h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  <div className="font-medium text-[hsl(var(--color-text))]">Open inbox</div>
-                  <div className="mt-1 text-xs text-[hsl(var(--color-muted))]">Look for the verification message from Firebase Authentication / RangManch AI.</div>
-                </div>
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-3 text-sm">
-                  <ShieldCheck className="mb-2 h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  <div className="font-medium text-[hsl(var(--color-text))]">Confirm account</div>
-                  <div className="mt-1 text-xs text-[hsl(var(--color-muted))]">Click the verification link to activate your account.</div>
-                </div>
-                <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-3 py-3 text-sm">
-                  <Mail className="mb-2 h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  <div className="font-medium text-[hsl(var(--color-text))]">Log in</div>
-                  <div className="mt-1 text-xs text-[hsl(var(--color-muted))]">Come back here and sign in once your email is verified.</div>
-                </div>
+
+              {/* Steps */}
+              <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
+                {[
+                  {
+                    icon: <CheckCircle2 className="h-4 w-4" />,
+                    title: 'Open inbox',
+                    desc: 'Look for the verification message from RangManch AI.',
+                  },
+                  {
+                    icon: <ShieldCheck className="h-4 w-4" />,
+                    title: 'Confirm account',
+                    desc: 'Click the verification link to activate your account.',
+                  },
+                  {
+                    icon: <Mail className="h-4 w-4" />,
+                    title: 'Log in',
+                    desc: 'Come back here and sign in once your email is verified.',
+                  },
+                ].map((step) => (
+                  <div
+                    key={step.title}
+                    className="group rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3.5 py-3 transition-colors hover:border-[hsl(var(--color-accent)/0.35)] hover:bg-[hsl(var(--color-bg)/0.85)]"
+                  >
+                    <span className="mb-2 inline-flex text-[hsl(var(--color-accent)/0.75)] transition-colors group-hover:text-[hsl(var(--color-accent))]">
+                      {step.icon}
+                    </span>
+                    <div className="text-sm font-semibold text-[hsl(var(--color-text))]">{step.title}</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-[hsl(var(--color-muted))]">{step.desc}</div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Button type="button" className="w-full sm:w-auto" onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}>
+
+              <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}
+                >
                   Go to Login
                 </Button>
                 <Button
@@ -206,6 +236,7 @@ export function AuthFormClient({ mode }: Props) {
     );
   }
 
+  /* ─── Main auth form ─────────────────────────────────────────────────────── */
   return (
     <>
       <LoadingOverlay
@@ -219,128 +250,191 @@ export function AuthFormClient({ mode }: Props) {
         stepLabel={authStages[authStageIndex]}
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
-      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-6">
-        <div className="mb-4 flex items-center justify-between">
+
+      <div className="mx-auto max-w-xl px-1 py-4 sm:px-0 sm:py-8">
+        {/* Top nav bar */}
+        <div className="mb-5 flex items-center justify-between">
           <BrandLogo href="/" variant="mark" size="sm" />
-          <Link href="/" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[hsl(var(--color-muted))] transition-colors hover:text-[hsl(var(--color-accent))]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
             Back to home
           </Link>
         </div>
+
+        {/* Card */}
         <Card
-          className="border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md"
+          className="relative overflow-hidden border-[hsl(var(--color-border)/0.8)] backdrop-blur-md"
           style={{
             background:
-              'radial-gradient(circle at top right, hsl(var(--color-accent)/0.14), transparent 45%), linear-gradient(145deg, hsl(var(--color-surface)/0.82), hsl(var(--color-elevated)/0.72))',
+              'radial-gradient(circle at top right, hsl(var(--color-accent)/0.10), transparent 50%), linear-gradient(150deg, hsl(var(--color-surface)/0.88), hsl(var(--color-elevated)/0.78))',
           }}
         >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-md">
-            <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">{title}</h1>
-            <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{subtitle}</p>
+          {/* Decorative top accent line */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--color-accent)/0.55), transparent)' }}
+          />
+
+          {/* Header section */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-sm">
+              {/* Mode badge */}
+              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--color-accent))]">
+                <Sparkles className="h-3 w-3" />
+                {isLogin ? 'RangManch AI Studio' : 'New account'}
+              </div>
+              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">
+                {title}
+              </h1>
+              <p className="mt-1.5 text-sm leading-relaxed text-[hsl(var(--color-muted))]">{subtitle}</p>
+            </div>
+
+            {!isLogin ? (
+              <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.65)] px-4 py-3 text-sm text-[hsl(var(--color-muted))] lg:max-w-[220px]">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--color-accent)/0.75)]">
+                  Setup steps
+                </div>
+                <ol className="space-y-1 text-xs leading-relaxed">
+                  <li className="flex items-start gap-1.5">
+                    <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.15)] text-[10px] font-bold text-[hsl(var(--color-accent))]">1</span>
+                    Create your account
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.15)] text-[10px] font-bold text-[hsl(var(--color-accent))]">2</span>
+                    Verify your email
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.15)] text-[10px] font-bold text-[hsl(var(--color-accent))]">3</span>
+                    Sign in &amp; enter the studio
+                  </li>
+                </ol>
+              </div>
+            ) : null}
           </div>
-          {!isLogin ? (
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px]">
-              <div className="font-medium text-[hsl(var(--color-text))]">Account setup</div>
-              <div className="mt-1">Create account, verify your email, then sign in to activate your workspace.</div>
+
+          {/* Error / info messages */}
+          {error ? (
+            <div className="mt-4 flex items-start gap-2 rounded-xl border border-[hsl(var(--color-danger)/0.4)] bg-[hsl(var(--color-danger)/0.06)] px-3.5 py-2.5">
+              <span className="mt-px h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[hsl(var(--color-danger))]" />
+              <p className="text-xs leading-relaxed text-[hsl(var(--color-danger))]">{error}</p>
             </div>
           ) : null}
-        </div>
-        {error ? (
-          <p className="mt-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-danger))] px-3 py-2 text-xs text-[hsl(var(--color-danger))]">
-            {error}
-          </p>
-        ) : null}
-        {message ? (
-          <p className="mt-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-xs text-[hsl(var(--color-text))]">
-            {message}
-          </p>
-        ) : null}
+          {message ? (
+            <div className="mt-4 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.5)] px-3.5 py-2.5">
+              <p className="text-xs leading-relaxed text-[hsl(var(--color-text))]">{message}</p>
+            </div>
+          ) : null}
 
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition hover:bg-[hsl(var(--color-bg))]"
-        >
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-xs font-bold">
-            G
-          </span>
-          Continue with Google
-        </button>
+          {/* Google sign-in */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="group mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition-all duration-150 hover:border-[hsl(var(--color-accent)/0.4)] hover:bg-[hsl(var(--color-bg)/0.85)] hover:shadow-sm active:scale-[0.99]"
+          >
+            {/* Google colourful G icon */}
+            <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-white text-[11px] font-extrabold text-[#4285F4]">
+              G
+            </span>
+            Continue with Google
+          </button>
 
-        <div className="mt-4 flex items-center gap-2 text-xs text-[hsl(var(--color-muted))]">
-          <span className="h-px flex-1 bg-[hsl(var(--color-border))]" />
-          or continue with email
-          <span className="h-px flex-1 bg-[hsl(var(--color-border))]" />
-        </div>
+          {/* Divider */}
+          <div className="my-4 flex items-center gap-3 text-xs text-[hsl(var(--color-muted)/0.7)]">
+            <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
+            <span className="select-none">or continue with email</span>
+            <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
+          </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 grid gap-3">
-          {!isLogin ? (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2">
+          {/* Email / password form */}
+          <form onSubmit={handleSubmit} className="grid gap-3">
+            {!isLogin ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    name="full_name"
+                    type="text"
+                    placeholder="Full name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    required
+                  />
+                  <Input
+                    name="phone"
+                    type="tel"
+                    placeholder="Phone (optional)"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                </div>
+                <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
+                  Use your real name so your profile, billing, and workspace settings are initialized correctly.
+                </p>
+              </>
+            ) : null}
+
+            <Input
+              name="email"
+              type="email"
+              placeholder={isLogin ? 'you@domain.com' : 'Work email'}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+            <Input
+              name="password"
+              type="password"
+              placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+
+            {!isLogin ? (
+              <>
                 <Input
-                  name="full_name"
-                  type="text"
-                  placeholder="Full name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
+                  name="confirm_password"
+                  type="password"
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   required
                 />
-                <Input
-                  name="phone"
-                  type="tel"
-                  placeholder="Phone (optional)"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                />
-              </div>
-              <p className="text-xs text-[hsl(var(--color-muted))]">
-                Use your real name so your profile, billing, and workspace settings are initialized correctly.
-              </p>
-            </>
-          ) : null}
-          <Input
-            name="email"
-            type="email"
-            placeholder={isLogin ? 'you@domain.com' : 'Work email'}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <Input
-            name="password"
-            type="password"
-            placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          {!isLogin ? (
-            <>
-              <Input
-                name="confirm_password"
-                type="password"
-                placeholder="Confirm password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                required
-              />
-              <p className="text-xs text-[hsl(var(--color-muted))]">
-                Use at least 8 characters. After signup, Firebase will send a verification email before first login.
-              </p>
-            </>
-          ) : null}
-          <Button type="submit" disabled={submitting} className="min-h-11 w-full shadow-soft">
-            {submitting ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
-          </Button>
-        </form>
+                <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
+                  Use at least 8 characters. After signup, Firebase will send a verification email before first login.
+                </p>
+              </>
+            ) : null}
 
-        <p className="mt-4 text-xs text-[hsl(var(--color-muted))]">
-          {isLogin ? 'New here?' : 'Already have an account?'}{' '}
-          <Link href={isLogin ? '/signup' : '/login'} className="font-semibold text-[hsl(var(--color-accent))]">
-            {isLogin ? 'Create account' : 'Login'}
-          </Link>
-        </p>
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="mt-1 min-h-11 w-full shadow-soft transition-all duration-150 active:scale-[0.99]"
+            >
+              {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create Account'}
+            </Button>
+          </form>
+
+          {/* Footer link */}
+          <div className="mt-5 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.5)] pt-4">
+            <p className="text-xs text-[hsl(var(--color-muted))]">
+              {isLogin ? 'New here?' : 'Already have an account?'}
+            </p>
+            <Link
+              href={isLogin ? '/signup' : '/login'}
+              className="text-xs font-semibold text-[hsl(var(--color-accent))] transition-opacity hover:opacity-80"
+            >
+              {isLogin ? 'Create account →' : 'Sign in →'}
+            </Link>
+          </div>
         </Card>
+
+        {/* Fine-print below card */}
+        <p className="mt-4 text-center text-[11px] text-[hsl(var(--color-muted)/0.6)]">
+          Protected by Firebase Authentication &amp; end-to-end encryption.
+        </p>
       </div>
     </>
   );

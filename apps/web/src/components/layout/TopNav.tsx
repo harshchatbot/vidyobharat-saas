@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 
-import { logoutAction } from '@/app/auth-actions';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
@@ -115,11 +115,11 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
                     {accountLabel ?? 'Account'}
                   </span>
                 </Link>
-                <form action={logoutAction}>
-                  <button type="submit" className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))]">
-                    Logout
-                  </button>
-                </form>
+                <LogoutButton
+                  className="rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))] disabled:opacity-70"
+                  onBeforeNavigate={() => setOpen(false)}
+                  icon="none"
+                />
               </>
             )}
 
@@ -162,11 +162,11 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
               <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
                 Account
               </Link>
-              <form action={logoutAction}>
-                <button type="submit" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]">
-                  Logout
-                </button>
-              </form>
+              <LogoutButton
+                className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))] disabled:opacity-70"
+                onBeforeNavigate={() => setOpen(false)}
+                icon="none"
+              />
             </div>
           )}
         </div>

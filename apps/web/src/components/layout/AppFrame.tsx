@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { useFormStatus } from 'react-dom';
 import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
-import { logoutAction } from '@/app/auth-actions';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { CreditChip } from '@/components/credits/CreditChip';
 import { CreditProvider } from '@/components/credits/CreditContext';
@@ -21,20 +20,6 @@ type Props = {
   accountAvatar?: string | null;
   children: React.ReactNode;
 };
-
-function LogoutSubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))] disabled:opacity-70"
-    >
-      {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-      {pending ? 'Logging out...' : 'Logout'}
-    </button>
-  );
-}
 
 const appRoutePrefixes = ['/dashboard', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
 
@@ -471,9 +456,17 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         <ToggleTheme />
                       </div>
                     </div>
-                    <form action={logoutAction}>
-                      <LogoutSubmitButton />
-                    </form>
+                    <LogoutButton
+                      label="Logout"
+                      pendingLabel="Logging out..."
+                      icon="spinner-only"
+                      onBeforeNavigate={() => {
+                        setAccountMenuOpen(false);
+                        setDesktopNavOpen(null);
+                        setMobileNavOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-text hover:bg-[hsl(var(--color-bg))] disabled:opacity-70"
+                    />
                   </div>
                   ) : null}
                 </div>
