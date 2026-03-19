@@ -59,6 +59,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const [isPending, startTransition] = useTransition();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
+  const [mobileGroupOpen, setMobileGroupOpen] = useState<null | 'tools' | 'avatar' | 'more'>(null);
+  const [mobileNavTapLocked, setMobileNavTapLocked] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [projectsNavPending, setProjectsNavPending] = useState(false);
   const [routeTransitionLabel, setRouteTransitionLabel] = useState<string | null>(null);
@@ -84,6 +86,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       if (event.key === 'Escape') {
         setAccountMenuOpen(false);
         setMobileNavOpen(false);
+        setMobileGroupOpen(null);
+        setMobileNavTapLocked(false);
         setDesktopNavOpen(null);
       }
     };
@@ -98,11 +102,19 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   useEffect(() => {
     setMobileNavOpen(false);
+    setMobileGroupOpen(null);
+    setMobileNavTapLocked(false);
     setDesktopNavOpen(null);
     setAccountMenuOpen(false);
     setProjectsNavPending(false);
     setRouteTransitionLabel(null);
   }, [pathname]);
+
+  useEffect(() => {
+    if (mobileNavOpen) return;
+    setMobileGroupOpen(null);
+    setMobileNavTapLocked(false);
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     if (!inApp) return;
@@ -124,6 +136,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
     setDesktopNavOpen(null);
     setMobileNavOpen(false);
+    setMobileGroupOpen(null);
     setAccountMenuOpen(false);
     if (isAlreadyOnTarget) {
       setRouteTransitionLabel(null);
@@ -140,6 +153,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       setProjectsNavPending(false);
       setDesktopNavOpen(null);
       setMobileNavOpen(false);
+      setMobileGroupOpen(null);
+      setMobileNavTapLocked(false);
       setRouteTransitionLabel(null);
       return;
     }
@@ -147,8 +162,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     navigateWithinApp('/projects', 'Projects');
   };
 
-  const navigateFromMobileMenu = (href: string) => {
-    navigateWithinApp(href);
+  const navigateFromMobileMenu = (href: string, label?: string) => {
+    if (mobileNavTapLocked || isPending) return;
+    setMobileNavTapLocked(true);
+    navigateWithinApp(href, label);
+  };
+
+  const toggleMobileGroup = (group: 'tools' | 'avatar' | 'more') => {
+    if (mobileNavTapLocked || isPending) return;
+    setMobileGroupOpen((current) => (current === group ? null : group));
   };
 
   if (inApp) {
@@ -490,7 +512,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="flex items-center justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => navigateWithinApp('/dashboard', 'Dashboard')}
+                        onClick={() => navigateFromMobileMenu('/dashboard', 'Dashboard')}
                         className="inline-flex min-w-0 shrink-0 items-center"
                         aria-label="Go to dashboard"
                       >
@@ -499,7 +521,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       <button
                         type="button"
                         aria-label="Close navigation menu"
-                        onClick={() => setMobileNavOpen(false)}
+                        onClick={() => {
+                          setMobileNavOpen(false);
+                          setMobileGroupOpen(null);
+                          setMobileNavTapLocked(false);
+                        }}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text"
                       >
                         <X className="h-4 w-4" />
@@ -542,41 +568,31 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
                         if (item.kind === 'group') {
                           const groupKey = item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : 'more';
-                          const expanded = desktopNavOpen === groupKey;
+                          const expanded = mobileGroupOpen === groupKey;
                           return (
                             <div key={item.label} className="space-y-1.5">
-                              <div className="flex w-full items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => navigateFromMobileMenu(item.href)}
-                                  className={`flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left transition sm:rounded-[var(--radius-md)] ${
-                                    active
-                                      ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
-                                      : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
-                                  }`}
-                                >
-                                  <span className={iconClass}>
-                                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                  </span>
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block font-semibold text-text">{item.label}</span>
-                                    <span className="block text-xs text-muted">{item.hint}</span>
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
-                                  }}
-                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-muted transition hover:text-text"
-                                  aria-label={expanded ? `Collapse ${item.label}` : `Expand ${item.label}`}
-                                  aria-expanded={expanded}
-                                >
+                              <button
+                                type="button"
+                                onClick={() => toggleMobileGroup(groupKey)}
+                                className={`flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
+                                  active || expanded
+                                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
+                                    : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
+                                }`}
+                                aria-label={expanded ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                                aria-expanded={expanded}
+                              >
+                                <span className={iconClass}>
+                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block font-semibold text-text">{item.label}</span>
+                                  <span className="block text-xs text-muted">{item.hint}</span>
+                                </span>
+                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-muted transition">
                                   <ChevronDown className={`h-4 w-4 transition ${expanded ? 'rotate-180 text-text' : 'text-muted'}`} />
-                                </button>
-                              </div>
+                                </span>
+                              </button>
                               {expanded ? (
                                 <div className="ml-4 grid gap-1.5 border-l border-[hsl(var(--color-border)/0.7)] pl-3">
                                   {navGroups[groupKey].map((groupItem) => {
@@ -586,7 +602,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                       <button
                                         key={groupItem.href}
                                         type="button"
-                                        onClick={() => navigateFromMobileMenu(groupItem.href)}
+                                        onClick={() => navigateFromMobileMenu(groupItem.href, groupItem.label)}
                                         className={`inline-flex items-center gap-2.5 rounded-[12px] px-2 py-2 text-sm transition ${
                                           activeChild
                                             ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
@@ -634,7 +650,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                             <button
                               key={item.label}
                               type="button"
-                              onClick={openProjectsWorkspace}
+                              onClick={() => {
+                                if (mobileNavTapLocked || isPending) return;
+                                setMobileNavTapLocked(true);
+                                openProjectsWorkspace();
+                              }}
                               className={baseClass}
                             >
                               <span className={iconClass}>
@@ -656,7 +676,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                           <button
                             key={item.label}
                             type="button"
-                            onClick={() => navigateFromMobileMenu(item.href)}
+                            onClick={() => navigateFromMobileMenu(item.href, item.label)}
                             className={`w-full ${baseClass}`}
                           >
                             <span className={iconClass}>

@@ -110,6 +110,24 @@ function mapUnifiedTemplateToVideoOption(template: UnifiedTemplate): TemplateOpt
   };
 }
 
+const VIDEO_LANE_PROMPT_PLACEHOLDERS: Record<VideoLaneKey, { topic: string; script: string }> = {
+  daily: {
+    topic: 'Example: A short educational reel about why the brain uses so much energy',
+    script:
+      'Example: A stylized 3D animated brain glowing with electric pulses, dramatic close-up, strong first frame, vertical 9:16 reel, clean educational background, social-first motion, highly engaging short-form opener.',
+  },
+  creator_pro: {
+    topic: 'Example: Launch reel for a premium skincare product',
+    script:
+      'Example: A cinematic beauty promo showing a luxury skincare bottle on wet stone, soft moving camera, elegant lighting transitions, premium brand mood, polished text-to-video composition, vertical 9:16 creator ad aesthetic.',
+  },
+  premium: {
+    topic: 'Example: Hero launch film for a new electric car',
+    script:
+      'Example: A cinematic night-time reveal of a futuristic electric car emerging through rain and neon reflections, dramatic camera push, premium commercial lighting, rich motion detail, high-production flagship campaign look.',
+  },
+};
+
 function mergeVideoTemplateOptions(unifiedTemplates: UnifiedTemplate[]): TemplateOption[] {
   const localMap = new Map(TEMPLATE_OPTIONS.map((item) => [item.key, item]));
   const merged: TemplateOption[] = [];
@@ -353,6 +371,8 @@ export function CreateVideoPage({
   const selectedModelDisabled = selectedModel?.enabled === false;
   const selectedLane = getVideoLaneDefinition(videoLane);
   const isDailyLane = videoLane === 'daily';
+  const activeLanePromptPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].script;
+  const activeLaneTopicPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].topic;
   const selectedLanguageCode =
     languageOptions.find((item) => item.label === language)?.code ??
     LANGUAGE_OPTIONS.find((item) => item.label === language)?.code ??
@@ -1986,7 +2006,7 @@ export function CreateVideoPage({
                   <Textarea
                     value={script}
                     onChange={(event) => setScript(event.target.value)}
-                    placeholder="Describe the reel scene, motion, vibe, and style in one clear prompt."
+                    placeholder={activeLanePromptPlaceholder}
                     rows={6}
                   />
                 </div>
@@ -2197,10 +2217,10 @@ export function CreateVideoPage({
             <ScriptEditor
               topic={topic}
               onTopicChange={setTopic}
-              topicPlaceholder={template.topicHint}
+              topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
               script={script}
               onScriptChange={setScript}
-              scriptPlaceholder={template.scriptHint}
+              scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
               onGenerate={() => void generateScript()}
               onEnhance={() => void enhanceScript()}
               loading={scriptLoading}

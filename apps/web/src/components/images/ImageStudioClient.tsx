@@ -289,6 +289,41 @@ const IMAGE_WORKFLOW_OPTIONS: Array<{
   },
 ];
 
+const IMAGE_WORKFLOW_PLACEHOLDERS: Record<ImageModeKey, string> = {
+  fast_social:
+    'Example: A bright Instagram-friendly product shot of a mango drink bottle on a clean summer table, soft natural light, fresh lifestyle mood, crisp composition, scroll-stopping social ad style.',
+  premium_realism:
+    'Example: A photoreal luxury skincare bottle on wet black stone, cinematic studio lighting, premium reflections, shallow depth of field, high-end beauty campaign aesthetic, ultra-detailed commercial finish.',
+  design_carousel:
+    'Example: A modern carousel cover about 5 habits that improve focus, bold editorial typography, structured layout, clean infographic composition, brand-safe colors, premium social design style.',
+  portrait_character:
+    'Example: A confident cinematic portrait of a young Indian creator in a contemporary studio, expressive eyes, natural skin detail, soft dramatic rim light, polished wardrobe styling, premium character poster look.',
+};
+
+function resolveEstimateModel(models: ImageModel[], selectedModelKey: string) {
+  const selected =
+    models.find((item) => item.key === selectedModelKey) ??
+    fallbackModels.find((item) => item.key === selectedModelKey) ??
+    null;
+  if (!selected) {
+    return {
+      estimateModelKey: selectedModelKey,
+      estimateModelLabel: selectedModelKey,
+      displayModel: null as ImageModel | null,
+    };
+  }
+  const canonicalKey = selected.canonical_model_key || selected.key;
+  const canonicalModel =
+    models.find((item) => item.key === canonicalKey) ??
+    fallbackModels.find((item) => item.key === canonicalKey) ??
+    null;
+  return {
+    estimateModelKey: canonicalKey,
+    estimateModelLabel: canonicalModel?.label || selected.label,
+    displayModel: selected,
+  };
+}
+
 function getImageModeForModel(models: ImageModel[], modelKey: string): ImageModeKey {
   for (const option of IMAGE_WORKFLOW_OPTIONS) {
     const resolved = option.candidateModels.find((candidate) => models.some((item) => item.key === candidate));
@@ -745,6 +780,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   }, [allGeneratedImages, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters]);
 
   const referenceUrls = useMemo(() => referenceUploads.map((item) => item.url), [referenceUploads]);
+  const selectedEstimateModel = useMemo(
+    () => resolveEstimateModel(models, selectedModel),
+    [models, selectedModel],
+  );
 
   const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(
     [
@@ -752,7 +791,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         key: 'imageGenerate',
         action: 'image_generate',
         payload: {
-          model_key: selectedModel,
+          model_key: selectedEstimateModel.estimateModelKey,
           resolution,
           reference_urls: referenceUrls,
         },
@@ -795,8 +834,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   const variationSource = selectedGenerated ?? allGeneratedImages[0] ?? generatedImages[0] ?? null;
   const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
-  const selectedModelMeta = models.find((item) => item.key === selectedModel) ?? models[0] ?? fallbackModels[0];
+  const selectedModelMeta = selectedEstimateModel.displayModel ?? models[0] ?? fallbackModels[0];
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
+  const activePromptPlaceholder = IMAGE_WORKFLOW_PLACEHOLDERS[activeImageMode.key];
   const activeTemplatePromptPreview = activeTemplate ? renderTemplatePrompt(activeTemplate, templateInputs) : '';
   const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
   const primaryActionLoading = submitting;
@@ -1483,7 +1523,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Prompt</p>
-                  <p className="mt-1 text-xs text-muted">Describe the subject, mood, setting, and visual style.</p>
+                  <p className="mt-1 text-xs text-muted">
+                    Describe the subject, mood, setting, and visual style. {activeImageMode.label} works best for {activeImageMode.description.toLowerCase()}
+                  </p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -1495,7 +1537,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 maxLength={MAX_PROMPT_CHARS}
-                placeholder="Type your prompt here..."
+                placeholder={activePromptPlaceholder}
               />
               <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
                 <span>{prompt.length}/{MAX_PROMPT_CHARS}</span>
@@ -1590,6 +1632,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     {`${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
                   {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
+                  {selectedModelMeta && selectedEstimateModel.estimateModelLabel !== selectedModelMeta.label ? (
+                    <p className="mt-1 text-[11px] text-muted">Billed as {selectedEstimateModel.estimateModelLabel} for estimate consistency.</p>
+                  ) : null}
+                  {estimate?.breakdown?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {estimate.breakdown.map((item) => (
+                        <span
+                          key={`${item.component}-${item.label ?? 'estimate'}`}
+                          className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.28)] px-2.5 py-1 text-[10px] font-medium text-muted"
+                          title={item.label ?? item.component}
+                        >
+                          {item.label ?? item.component}: {typeof item.value === 'number' && item.value > 0 ? '+' : ''}{item.value}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
