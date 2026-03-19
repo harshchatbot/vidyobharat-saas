@@ -47,17 +47,17 @@ export function VideoPreview({
   };
 
   return (
-    <div className="space-y-3 border-t border-[hsl(var(--color-border))] pt-3.5 sm:space-y-4 sm:pt-5">
+    <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.72)] pt-3.5 sm:space-y-4 sm:pt-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-heading text-base font-bold tracking-tight text-text sm:text-lg">Preview & output</h2>
-          {/*<p className="mt-1 text-sm text-muted">Review the final job, metadata, and export actions.</p> */}
+          <p className="mt-1 text-xs text-muted">Review the current render, retry fast, or export when it’s ready.</p>
         </div>
         {job ? <Badge>{job.provider_name ?? job.selected_model ?? 'Queued'}</Badge> : null}
       </div>
 
       {loading || isProcessing ? (
-        <div className="rounded-[20px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-4 sm:rounded-[24px] sm:p-6 text-center shadow-[var(--shadow-soft)]">
+        <div className="rounded-[20px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-4 sm:rounded-[22px] sm:p-5 text-center shadow-[var(--shadow-soft)]">
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
             <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
               <Spinner />
@@ -93,7 +93,7 @@ export function VideoPreview({
 
       {videoUrl ? (
         <div className="space-y-4">
-          <div className={`mx-auto overflow-hidden rounded-[22px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)] ${frameWidthClass}`}>
+          <div className={`mx-auto overflow-hidden rounded-[20px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)] ${frameWidthClass}`}>
             <video
               src={videoUrl}
               poster={thumbnailUrl ?? undefined}
@@ -101,7 +101,7 @@ export function VideoPreview({
               className="max-h-[48vh] sm:max-h-[56vh] w-full bg-black object-contain"
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Provider</p>
               <p className="mt-1 text-sm font-semibold text-text">{job?.provider_name ?? job?.selected_model ?? 'Render'}</p>
@@ -129,7 +129,7 @@ export function VideoPreview({
               ))}
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               onClick={() => void downloadVideo()}

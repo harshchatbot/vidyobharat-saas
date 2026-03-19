@@ -32,33 +32,39 @@ export function GenerateButton({
       : 'Generate Video · Free';
 
   return (
-    <div className="flex flex-col gap-3 rounded-[20px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.94),hsl(var(--color-elevated)/0.86))] p-3.5 sm:gap-4 sm:rounded-[24px] sm:p-5 shadow-[var(--shadow-soft)]">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-heading text-lg font-extrabold tracking-tight text-text sm:text-xl">Generate Video</p>
+    <div className="flex flex-col gap-3 rounded-[20px] border border-[hsl(var(--color-border)/0.78)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.74),hsl(var(--color-bg)/0.56))] p-3.5 sm:gap-3.5 sm:rounded-[22px] sm:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-heading text-lg font-extrabold tracking-tight text-text">Generate Video</p>
+          <p className="mt-1 text-xs text-muted">We’ll submit the current script, media, and output settings as one render job.</p>
         </div>
-        <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.78))] px-6 py-3 text-base text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-hard)]">
-          {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-          {buttonLabel}
-        </Button>
-      </div>
-      <div className="flex flex-wrap gap-3 text-sm text-muted">
-        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.72)] px-3 py-1.5">
-          <Coins className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-          Est. {estimatedCredits} credits
+        <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-2.5 py-1 text-[11px] font-semibold text-text">
+          Ready
         </span>
-        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.72)] px-3 py-1.5">
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-sm text-muted">
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.64)] px-3 py-1.5">
+          <Coins className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+          {estimatedCredits} credits
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.64)] px-3 py-1.5">
           <Clock3 className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-          Est. {estimatedTime}
+          {estimatedTime}
         </span>
         {typeof currentBalance === 'number' ? (
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.72)] px-3 py-1.5">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-[hsl(var(--color-bg)/0.64)] px-3 py-1.5">
             <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-            {currentBalance} credits left
+            {currentBalance} left
           </span>
         ) : null}
       </div>
-      {helperText ? <p className="text-[11px] text-muted line-clamp-2">{helperText}</p> : null}
+
+      <Button type="button" onClick={onClick} disabled={loading || disabled || insufficientCredits} className="gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent)),hsl(var(--color-accent)/0.78))] px-6 py-3 text-base text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-hard)]">
+          {loading ? <Spinner /> : <Sparkles className="h-4 w-4" />}
+          {buttonLabel}
+      </Button>
+      {helperText ? <p className="text-[11px] leading-5 text-muted">{helperText}</p> : null}
       {insufficientCredits ? (
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--color-danger)/0.24)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
           <p className="text-sm font-medium text-text">Insufficient credits for this generation.</p>

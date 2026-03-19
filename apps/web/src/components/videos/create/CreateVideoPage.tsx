@@ -2005,67 +2005,114 @@ export function CreateVideoPage({
       ) : null}
 
       <Card className="rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
-      <div className="grid gap-3.5 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
-        <div className="min-w-0 space-y-3">
-          {isDailyLane ? (
-            <>
-              <SectionCard
-                title="Prompt"
-                description="Describe the reel scene, motion, and vibe."
-                icon={<Wand2 className="h-5 w-5" />}
-                compact
-              >
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Prompt</label>
-                  <Textarea
-                    value={script}
-                    onChange={(event) => setScript(event.target.value)}
-                    placeholder={activeLanePromptPlaceholder}
-                    rows={6}
-                  />
-                </div>
-              </SectionCard>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
+        <div className="min-w-0">
+          <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.74)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.62),hsl(var(--color-bg)/0.54))] p-4 shadow-soft sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
+                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Compose your video</h2>
+                <p className="mt-1 max-w-2xl text-sm text-muted">
+                  Write the scene, choose the engine, and keep the preview visible while you tune the final output.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="px-3 py-2 text-xs">
+                  {selectedLane.label}
+                </Badge>
+                <Badge variant="outline" className="px-3 py-2 text-xs">
+                  {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}
+                </Badge>
+                <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
+                  {showDailyAdvanced ? 'Hide studio panels' : 'Show studio panels'}
+                </Button>
+              </div>
+            </div>
 
-              <SectionCard
-                title="Video Lane & Model"
-                description="Quick reel settings"
-                icon={<Sparkles className="h-5 w-5" />}
-                compact
-                action={(
-                  <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
-                    {showDailyAdvanced ? 'Hide advanced' : 'Show advanced'}
-                  </Button>
-                )}
-              >
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Lane</label>
-                      <Dropdown value={videoLane} onChange={(event) => handleVideoLaneChange(event.target.value as VideoLaneKey)}>
-                        {VIDEO_LANES.map((lane) => (
-                          <option key={lane.key} value={lane.key}>
-                            {lane.label}
-                          </option>
-                        ))}
-                      </Dropdown>
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.14fr)_minmax(300px,0.86fr)]">
+              <div className="min-w-0 space-y-4">
+                {isDailyLane ? (
+                  <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
+                      <span className="text-xs text-muted">Best for a short, high-retention reel opener.</span>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Model</label>
-                      <Dropdown value={modelKey} onChange={(event) => setModelKey(event.target.value)}>
-                        {visibleModels.map((model) => (
-                          <option key={model.key} value={model.key} disabled={model.enabled === false}>
-                            {model.shortLabel ?? model.label}
-                          </option>
-                        ))}
-                      </Dropdown>
+                    <Textarea
+                      value={script}
+                      onChange={(event) => setScript(event.target.value)}
+                      placeholder={activeLanePromptPlaceholder}
+                      rows={11}
+                      className="min-h-[240px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                    <ScriptEditor
+                      topic={topic}
+                      onTopicChange={setTopic}
+                      topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
+                      script={script}
+                      onScriptChange={setScript}
+                      scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
+                      onGenerate={() => void generateScript()}
+                      onEnhance={() => void enhanceScript()}
+                      loading={scriptLoading}
+                      error={scriptError}
+                      tags={scriptTags}
+                      generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
+                      enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-4">
+                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                  <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                  <div className="mt-4">
+                    <ModelDropdown
+                      models={visibleModels}
+                      selectedModel={modelKey}
+                      onChange={(value) => setModelKey(value as VideoModelKey)}
+                      title={`${selectedLane.label} models`}
+                      description="Pick a model for this lane."
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
+                      <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
+                      <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Ready now</p>
+                      <p className="mt-1 text-sm font-semibold text-text">
+                        {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
+                      </p>
                     </div>
                   </div>
+                  {laneHasOnlyGatedModels ? (
+                    <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
+                      Visible in studio, not enabled for generation yet.
+                    </div>
+                  ) : null}
+                </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
+                      <p className="mt-1 text-xs text-muted">Keep the main decisions close to the script, like HeyGen-style editing.</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
                       <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
-                        {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
+                        {(isDailyLane && availableDurations.filter((value) => value === 5 || value === 8).length > 0
                           ? availableDurations.filter((value) => value === 5 || value === 8)
                           : availableDurations
                         ).map((duration) => (
@@ -2096,8 +2143,45 @@ export function CreateVideoPage({
                       </Dropdown>
                     </div>
                   </div>
+                  <div className="mt-3 space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'standard', label: 'Standard' },
+                        { value: 'high', label: 'High' },
+                      ].map((option) => {
+                        const active = quality === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setQuality(option.value as 'standard' | 'high')}
+                            className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                              active
+                                ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                                : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
+                  </div>
+                </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
+                      <p className="mt-1 text-xs text-muted">Keep narration off for budget-safe reels, or choose a Sarvam voice inline.</p>
+                    </div>
+                    <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                      {narrationEnabled ? 'Voice on' : 'Voice off'}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => setNarrationEnabled((current) => !current)}
@@ -2121,8 +2205,32 @@ export function CreateVideoPage({
                       Captions {captionsEnabled ? 'Auto captions' : 'Off'}
                     </button>
                   </div>
+                  {narrationEnabled ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
+                        <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
+                          {languageOptions.map((option) => (
+                            <option key={`${option.label}-${option.code}`} value={option.label}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Dropdown>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Sarvam voice</span>
+                        <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
+                          {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
+                            <option key={option.key} value={option.key}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Dropdown>
+                      </label>
+                    </div>
+                  ) : null}
 
-                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                  <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
                     <div className="mt-2 space-y-1.5 text-sm">
                       <div className="flex items-center justify-between text-text">
@@ -2158,306 +2266,23 @@ export function CreateVideoPage({
                     </div>
                   </div>
                   {estimateError ? (
-                    <p className="text-xs text-amber-600">
+                    <p className="mt-2 text-xs text-amber-600">
                       Live estimate sync is delayed. Showing fallback estimate from current settings.
                     </p>
                   ) : null}
                 </div>
-              </SectionCard>
-            </>
-          ) : null}
-
-
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Content Template"
-            description="Template"
-            icon={<Film className="h-5 w-5" />}
-            compact
-            action={(
-              <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 px-3 py-2 text-xs">
-                <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                Browse
-              </Button>
-            )}
-          >
-            <TemplateSelector
-              loading={templatesLoading}
-              templates={visibleTemplates}
-              selectedTemplate={selectedTemplate}
-              onSelect={applyTemplate}
-            />
-          </SectionCard>
-          ) : null}
-
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Project"
-            description="Save output"
-            icon={<GalleryVerticalEnd className="h-5 w-5" />}
-            compact
-            action={projectsLoading ? <Spinner /> : null}
-            defaultOpen={false}
-          >
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-text">Save into project</label>
-                <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
-                  <option value="">Auto-create when needed</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.title}
-                    </option>
-                  ))}
-                </Dropdown>
-                <p className="text-xs text-muted">Leave empty to auto-create.</p>
-              </div>
-              <div className="flex items-end">
-                <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
-                  {projectCreating ? 'Creating...' : 'New project'}
-                </Button>
               </div>
             </div>
-          </SectionCard>
-          ) : null}
+          </div>
 
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Script Editor & AI Assist"
-            description="Write or refine"
-            icon={<Wand2 className="h-5 w-5" />}
-            compact
-          >
-            <ScriptEditor
-              topic={topic}
-              onTopicChange={setTopic}
-              topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
-              script={script}
-              onScriptChange={setScript}
-              scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
-              onGenerate={() => void generateScript()}
-              onEnhance={() => void enhanceScript()}
-              loading={scriptLoading}
-              error={scriptError}
-              tags={scriptTags}
-              generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
-              enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
-            />
-          </SectionCard>
-          ) : null}
-
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Video Lane & Model"
-            description="Lane + model"
-            icon={<Sparkles className="h-5 w-5" />}
-            compact
-            action={modelsLoading ? <Spinner /> : null}
-          >
-            <div className="space-y-5">
-              <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-              <ModelDropdown
-                models={visibleModels}
-                selectedModel={modelKey}
-                onChange={(value) => setModelKey(value as VideoModelKey)}
-                title={`${selectedLane.label} models`}
-                description="Pick a model for this lane."
-              />
-              <div className="grid gap-2.5 sm:grid-cols-3">
-                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
-                  <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
-                </div>
-                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Selected engine</p>
-                  <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
-                </div>
-                <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
-                  <p className="mt-1 text-sm font-semibold text-text">
-                    {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
-                  </p>
-                </div>
-              </div>
-              {laneHasOnlyGatedModels ? (
-                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                  Visible in studio, not enabled for generation yet.
-                </div>
-              ) : null}
-            </div>
-          </SectionCard>
-          ) : null}
-
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Voice & Language"
-            description="Narration"
-            icon={<Mic2 className="h-5 w-5" />}
-            compact
-            defaultOpen={false}
-          >
-            <VoiceSelector
-              languageOptions={languageOptions}
-              voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
-              language={language}
-              onLanguageChange={(value) => void handleLanguageChange(value)}
-              voice={voice}
-              onVoiceChange={handleVoiceChange}
-              sampleRateHz={audioSampleRateHz}
-              onSampleRateHzChange={setAudioSampleRateHz}
-              previewText={voicePreviewText}
-              onPreviewTextChange={setVoicePreviewText}
-              onPreview={previewVoice}
-              previewing={voicePreviewing}
-              previewLoadingKey={voicePreviewLoadingKey}
-              previewProvider={voicePreviewProvider}
-              resolvedVoice={voicePreviewResolvedVoice}
-              previewCached={voicePreviewCached}
-              previewLimit={voicePreviewLimit}
-              previewError={voicePreviewError}
-              previewMessage={voicePreviewMessage}
-              translating={voiceTranslationLoading}
-              estimatedCredits={voiceEstimate?.estimatedCredits}
-              currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-              insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
-              onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
-              voiceCreditMap={voiceCreditMap}
-            />
-            <div ref={voicePreviewControlsRef} className="space-y-2">
-              {voicePreviewUrl ? (
-                <div className="space-y-2">
-                  <audio
-                    ref={voicePreviewAudioRef}
-                    src={voicePreviewUrl}
-                    controls
-                    preload="auto"
-                    className="w-full"
-                    onEnded={() => setVoicePreviewing(false)}
-                    onPause={() => setVoicePreviewing(false)}
-                    onPlay={() => setVoicePreviewing(true)}
-                    onError={() => {
-                      const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                      setVoicePreviewError(message);
-                      setVoicePreviewing(false);
-                      show(message);
-                    }}
-                  />
-                  {!voicePreviewing ? (
-                    <button
-                      type="button"
-                      onClick={() => void playExistingVoicePreview()}
-                      className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
-                    >
-                      <Mic2 className="h-3.5 w-3.5" />
-                      Play preview
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
-              )}
-              {voicePreviewUrl ? (
-                <p className="text-xs text-muted">
-                  If autoplay does not start, use the built-in audio controls to play the preview manually.
-                </p>
-              ) : null}
-            </div>
-          </SectionCard>
-          ) : null}
-
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Reference Images"
-            description="Optional"
-            icon={<Film className="h-5 w-5" />}
-            compact
-            defaultOpen={false}
-          >
-            <ReferenceImagePicker
-              generatedImages={generatedImages}
-              selectedImageUrls={selectedImageUrls}
-              onToggle={toggleImageSelection}
-              pastedUrl={referenceImageUrlInput}
-              onPastedUrlChange={setReferenceImageUrlInput}
-              onAddUrl={addReferenceImageUrl}
-              onMove={moveImage}
-              onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
-            />
-          </SectionCard>
-          ) : null}
-{/*
-          <SectionCard
-            title="Background Audio"
-            description="Music (optional)"
-            icon={<Mic2 className="h-5 w-5" />}
-            defaultOpen={false}
-          >
-            <MusicSelector
-              mode={musicMode}
-              onModeChange={setMusicMode}
-              tracks={tracks}
-              tracksLoading={tracksLoading}
-              selectedTrackId={selectedTrackId}
-              onTrackChange={setSelectedTrackId}
-              uploadUrl={uploadedMusicUrl}
-              onUploadUrlChange={setUploadedMusicUrl}
-              onTogglePreview={() => void toggleMusicPreview()}
-              isPlaying={musicPlaying}
-              volume={musicVolume}
-              onVolumeChange={setMusicVolume}
-              ducking={ducking}
-              onDuckingChange={setDucking}
-              error={musicPreviewError}
-            />
-            {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
-          </SectionCard>
-*/}
-          {(!isDailyLane || showDailyAdvanced) ? (
-          <SectionCard
-            title="Output Settings"
-            description="Format + quality"
-            icon={<Settings2 className="h-5 w-5" />}
-            compact
-            defaultOpen={false}
-          >
-            <OutputSettings
-              modelLabel={selectedModel.label}
-              aspectRatio={aspectRatio}
-              availableAspectRatios={availableAspectRatios}
-              selectedAspectDescription={selectedAspectDescription}
-              onAspectRatioChange={setAspectRatio}
-              resolution={resolution}
-              onResolutionChange={setResolution}
-              availableResolutions={availableResolutions}
-              resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
-              selectedResolutionDimensions={selectedResolutionDimensions}
-              quality={quality}
-              onQualityChange={setQuality}
-              durationSeconds={durationSeconds}
-              onDurationSecondsChange={setDurationSeconds}
-              availableDurations={availableDurations}
-              supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
-              minDuration={klingMinDuration}
-              maxDuration={klingMaxDuration}
-              durationHelperText={hasReferenceImages && seededDuration
-                ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
-                : durationRule.helperText}
-              durationError={durationError}
-              captionsEnabled={captionsEnabled}
-              onCaptionsEnabledChange={setCaptionsEnabled}
-              captionStyle={captionStyle}
-              onCaptionStyleChange={setCaptionStyle}
-            />
-          </SectionCard>
-          ) : null}
         </div>
 
-        <div className="min-w-0 space-y-3 xl:sticky xl:top-24">
-          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
+        <div className="min-w-0 order-2 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
+          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.36),hsl(var(--color-bg)/0.42))] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
-                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Preview & Generate</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Control tower</p>
+                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Preview, estimate, and publish</h2>
               </div>
               <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
                 {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
@@ -2465,7 +2290,7 @@ export function CreateVideoPage({
             </div>
             <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-2">
               <div className={`rounded-[16px] border px-3 py-2.5 ${selectedLane.accentClassName}`}>
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Category</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Lane</p>
                 <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
               </div>
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
@@ -2483,18 +2308,18 @@ export function CreateVideoPage({
             </div>
 
             <div className="grid gap-2.5 sm:grid-cols-3">
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
                 <p className="mt-1 text-base font-semibold text-text">{displayVideoEstimateCredits}</p>
               </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
                 <p className="mt-1 inline-flex items-center gap-1 text-base font-semibold text-text">
                   <BadgeIndianRupee className="h-4 w-4" />
                   {estimatedInr ?? 0}
                 </p>
               </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] px-3 py-2.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimate mode</p>
                 <p className="mt-1 text-base font-semibold text-text">{estimateError ? 'Fallback' : 'Shared engine'}</p>
               </div>
@@ -2555,7 +2380,231 @@ export function CreateVideoPage({
               onRetry={retry}
             />
           </div>
+        </div>
 
+        {(!isDailyLane || showDailyAdvanced) ? (
+          <div className="min-w-0 order-3 xl:col-start-1">
+            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.74)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.5),hsl(var(--color-bg)/0.42))] p-4 shadow-soft sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio panels</p>
+                  <h3 className="mt-1 text-lg font-semibold text-text">Assets, voices, and output controls</h3>
+                  <p className="mt-1 text-sm text-muted">Secondary controls stay here so the main workspace stays compact and focused.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 px-3 py-2 text-xs">
+                    <GalleryVerticalEnd className="h-3.5 w-3.5" />
+                    Browse templates
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <SectionCard
+                  title="Content Template"
+                  description="Template"
+                  icon={<Film className="h-5 w-5" />}
+                  compact
+                >
+                  <TemplateSelector
+                    loading={templatesLoading}
+                    templates={visibleTemplates}
+                    selectedTemplate={selectedTemplate}
+                    onSelect={applyTemplate}
+                  />
+                </SectionCard>
+
+                <SectionCard
+                  title="Project"
+                  description="Save output"
+                  icon={<GalleryVerticalEnd className="h-5 w-5" />}
+                  compact
+                  action={projectsLoading ? <Spinner /> : null}
+                  defaultOpen={false}
+                >
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-text">Save into project</label>
+                      <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                        <option value="">Auto-create when needed</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </Dropdown>
+                      <p className="text-xs text-muted">Leave empty to auto-create.</p>
+                    </div>
+                    <div className="flex items-end">
+                      <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
+                        {projectCreating ? 'Creating...' : 'New project'}
+                      </Button>
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Voice & Language"
+                  description="Narration"
+                  icon={<Mic2 className="h-5 w-5" />}
+                  compact
+                  defaultOpen={narrationEnabled}
+                >
+                  <VoiceSelector
+                    languageOptions={languageOptions}
+                    voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
+                    language={language}
+                    onLanguageChange={(value) => void handleLanguageChange(value)}
+                    voice={voice}
+                    onVoiceChange={handleVoiceChange}
+                    sampleRateHz={audioSampleRateHz}
+                    onSampleRateHzChange={setAudioSampleRateHz}
+                    previewText={voicePreviewText}
+                    onPreviewTextChange={setVoicePreviewText}
+                    onPreview={previewVoice}
+                    previewing={voicePreviewing}
+                    previewLoadingKey={voicePreviewLoadingKey}
+                    previewProvider={voicePreviewProvider}
+                    resolvedVoice={voicePreviewResolvedVoice}
+                    previewCached={voicePreviewCached}
+                    previewLimit={voicePreviewLimit}
+                    previewError={voicePreviewError}
+                    previewMessage={voicePreviewMessage}
+                    translating={voiceTranslationLoading}
+                    estimatedCredits={voiceEstimate?.estimatedCredits}
+                    currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+                    insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
+                    onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
+                    voiceCreditMap={voiceCreditMap}
+                  />
+                  <div ref={voicePreviewControlsRef} className="space-y-2">
+                    {voicePreviewUrl ? (
+                      <div className="space-y-2">
+                        <audio
+                          ref={voicePreviewAudioRef}
+                          src={voicePreviewUrl}
+                          controls
+                          preload="auto"
+                          className="w-full"
+                          onEnded={() => setVoicePreviewing(false)}
+                          onPause={() => setVoicePreviewing(false)}
+                          onPlay={() => setVoicePreviewing(true)}
+                          onError={() => {
+                            const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                            setVoicePreviewError(message);
+                            setVoicePreviewing(false);
+                            show(message);
+                          }}
+                        />
+                        {!voicePreviewing ? (
+                          <button
+                            type="button"
+                            onClick={() => void playExistingVoicePreview()}
+                            className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                          >
+                            <Mic2 className="h-3.5 w-3.5" />
+                            Play preview
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
+                    )}
+                    {voicePreviewUrl ? (
+                      <p className="text-xs text-muted">
+                        If autoplay does not start, use the built-in audio controls to play the preview manually.
+                      </p>
+                    ) : null}
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Reference Images"
+                  description="Optional"
+                  icon={<Film className="h-5 w-5" />}
+                  compact
+                  defaultOpen={false}
+                >
+                  <ReferenceImagePicker
+                    generatedImages={generatedImages}
+                    selectedImageUrls={selectedImageUrls}
+                    onToggle={toggleImageSelection}
+                    pastedUrl={referenceImageUrlInput}
+                    onPastedUrlChange={setReferenceImageUrlInput}
+                    onAddUrl={addReferenceImageUrl}
+                    onMove={moveImage}
+                    onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
+                  />
+                </SectionCard>
+{/*
+                <SectionCard
+                  title="Background Audio"
+                  description="Music (optional)"
+                  icon={<Mic2 className="h-5 w-5" />}
+                  defaultOpen={false}
+                >
+                  <MusicSelector
+                    mode={musicMode}
+                    onModeChange={setMusicMode}
+                    tracks={tracks}
+                    tracksLoading={tracksLoading}
+                    selectedTrackId={selectedTrackId}
+                    onTrackChange={setSelectedTrackId}
+                    uploadUrl={uploadedMusicUrl}
+                    onUploadUrlChange={setUploadedMusicUrl}
+                    onTogglePreview={() => void toggleMusicPreview()}
+                    isPlaying={musicPlaying}
+                    volume={musicVolume}
+                    onVolumeChange={setMusicVolume}
+                    ducking={ducking}
+                    onDuckingChange={setDucking}
+                    error={musicPreviewError}
+                  />
+                  {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
+                </SectionCard>
+*/}
+                <SectionCard
+                  title="Output Settings"
+                  description="Format + quality"
+                  icon={<Settings2 className="h-5 w-5" />}
+                  compact
+                  defaultOpen={false}
+                >
+                  <OutputSettings
+                    modelLabel={selectedModel.label}
+                    aspectRatio={aspectRatio}
+                    availableAspectRatios={availableAspectRatios}
+                    selectedAspectDescription={selectedAspectDescription}
+                    onAspectRatioChange={setAspectRatio}
+                    resolution={resolution}
+                    onResolutionChange={setResolution}
+                    availableResolutions={availableResolutions}
+                    resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
+                    selectedResolutionDimensions={selectedResolutionDimensions}
+                    quality={quality}
+                    onQualityChange={setQuality}
+                    durationSeconds={durationSeconds}
+                    onDurationSecondsChange={setDurationSeconds}
+                    availableDurations={availableDurations}
+                    supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
+                    minDuration={klingMinDuration}
+                    maxDuration={klingMaxDuration}
+                    durationHelperText={hasReferenceImages && seededDuration
+                      ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
+                      : durationRule.helperText}
+                    durationError={durationError}
+                    captionsEnabled={captionsEnabled}
+                    onCaptionsEnabledChange={setCaptionsEnabled}
+                    captionStyle={captionStyle}
+                    onCaptionStyleChange={setCaptionStyle}
+                  />
+                </SectionCard>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="min-w-0 xl:col-span-2">
           <SectionCard
             title="Studio Feed"
             description="Recent videos"
