@@ -79,6 +79,7 @@ class VideoPipelineService:
         duration_mode: str,
         duration_seconds: int | None,
         captions_enabled: bool,
+        narration_enabled: bool,
         caption_style: str | None,
         music_mode: str,
         music_track_id: str | None,
@@ -98,7 +99,7 @@ class VideoPipelineService:
         }
 
         image_paths = self._urls_to_local_paths(image_urls)
-        voice_exists = bool(script.strip())
+        voice_exists = bool(narration_enabled and script.strip())
         real_voice_exists = False
         target_size = self._resolve_target_size(aspect_ratio, resolution)
 

@@ -157,6 +157,7 @@ def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, 
         'script_length': len(payload.script or ''),
         'music_type': payload.music.type,
         'captions_enabled': payload.captionsEnabled,
+        'narration_enabled': payload.narrationEnabled,
         'caption_style': payload.captionStyle,
         'sample_rate_hz': payload.audioSettings.sampleRateHz,
     }
@@ -306,6 +307,7 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         duration_mode=video.duration_mode or 'auto',
         duration_seconds=video.duration_seconds,
         captions_enabled=bool(video.captions_enabled) if video.captions_enabled is not None else True,
+        narration_enabled=bool(getattr(video, 'narration_enabled', True)),
         caption_style=video.caption_style,
         audio_sample_rate_hz=video.audio_sample_rate_hz,
         status=video.status.value if hasattr(video.status, 'value') else str(video.status),
@@ -1260,6 +1262,7 @@ def create_ai_video(
             music=payload.music.model_dump(),
             audio_settings=payload.audioSettings.model_dump(),
             captions_enabled=payload.captionsEnabled,
+            narration_enabled=payload.narrationEnabled,
             caption_style=payload.captionStyle,
         )
         # Persist charged credits on the video document so async failure refunds are exact.

@@ -292,6 +292,30 @@ export function PublicStudioLanding() {
               </GlassPanel>
             </section>
 
+            <section id="voiceovers" className="scroll-mt-24 pt-8 lg:pt-10">
+              <GlassPanel className="rangmanch-landing-accent-panel px-5 py-5 sm:px-6 sm:py-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="rangmanch-section-eyebrow">Indian Voiceovers</p>
+                    <h2 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                      Natural Indian AI voiceovers for reels, explainers, and regional storytelling.
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                      RangManch supports Indian-language narration inside the video workflow, with voice support optimized for Hindi, Indian English, and other supported Indian languages.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Link href="/sarvam-ai-voiceovers" className="rangmanch-landing-cta-primary inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold">
+                      Explore voiceovers
+                    </Link>
+                    <Link href="/signup" className="inline-flex items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium">
+                      Start free
+                    </Link>
+                  </div>
+                </div>
+              </GlassPanel>
+            </section>
+
            {/* <section id="community" className="scroll-mt-24 pt-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>

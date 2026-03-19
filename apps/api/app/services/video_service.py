@@ -180,6 +180,7 @@ def process_video(video_id: str) -> None:
             duration_mode=video.duration_mode or 'auto',
             duration_seconds=video.duration_seconds,
             captions_enabled=True if video.captions_enabled is None else bool(video.captions_enabled),
+            narration_enabled=bool(getattr(video, 'narration_enabled', True)),
             caption_style=video.caption_style,
             music_mode=video.music_mode,
             music_track_id=video.music_track_id,

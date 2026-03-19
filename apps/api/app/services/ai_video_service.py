@@ -245,6 +245,7 @@ class AIVideoCreateService:
         music: dict[str, Any] | None = None,
         audio_settings: dict[str, Any] | None = None,
         captions_enabled: bool = True,
+        narration_enabled: bool = True,
         caption_style: str | None = None,
     ) -> Video:
         route = resolve_generation_route(medium='video', model_key=model_key)
@@ -286,6 +287,7 @@ class AIVideoCreateService:
             duration_mode=duration_mode,
             duration_seconds=normalized_duration,
             captions_enabled=captions_enabled,
+            narration_enabled=narration_enabled,
             caption_style=caption_style,
             status=VideoStatus.draft,
             progress=0,
@@ -545,6 +547,7 @@ class AIVideoCreateService:
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
             captions_enabled=bool(params.get('captionsEnabled', True)),
+            narration_enabled=bool(params.get('narrationEnabled', True)),
             caption_style=params.get('captionStyle'),
         )
         return ProviderResult(
@@ -578,6 +581,7 @@ class AIVideoCreateService:
             resolution=params['resolution'],
             duration_seconds=params['durationSeconds'],
             captions_enabled=bool(params.get('captionsEnabled', True)),
+            narration_enabled=bool(params.get('narrationEnabled', True)),
             caption_style=params.get('captionStyle'),
         )
         return ProviderResult(
@@ -664,6 +668,7 @@ class AIVideoCreateService:
         resolution: str,
         duration_seconds: int,
         captions_enabled: bool,
+        narration_enabled: bool,
         caption_style: str | None,
     ) -> tuple[str, str, dict[str, object]]:
         render_id = f'{render_id_prefix}-{Path.cwd().name}-{Path(script[:32]).stem}'.replace(' ', '-')
@@ -689,6 +694,7 @@ class AIVideoCreateService:
             duration_mode='custom',
             duration_seconds=duration_seconds,
             captions_enabled=captions_enabled,
+            narration_enabled=narration_enabled,
             caption_style=caption_style,
             music_mode='none',
             music_track_id=None,
@@ -987,6 +993,7 @@ class AIVideoCreateService:
                 'durationSeconds': video.duration_seconds or 8,
                 'quality': str(getattr(video, 'request_quality', None) or ('high' if (video.resolution or '').lower() == '1080p' else 'standard')),
                 'captionsEnabled': bool(video.captions_enabled),
+                'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
                 'voice': video.voice,
                 'imageUrls': json.loads(video.image_urls or '[]'),
                 'audioSettings': {'sampleRateHz': video.audio_sample_rate_hz or 22050},
@@ -1079,6 +1086,7 @@ def celery_process_ai_video(video_id: str) -> None:
             'durationSeconds': video.duration_seconds or 8,
             'voice': video.voice,
             'captionsEnabled': bool(video.captions_enabled),
+            'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
             'captionStyle': video.caption_style,
             'audioSettings': {
                 'sampleRateHz': video.audio_sample_rate_hz or 22050,

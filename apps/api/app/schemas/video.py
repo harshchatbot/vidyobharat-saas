@@ -19,6 +19,7 @@ class VideoResponse(BaseModel):
     duration_mode: str
     duration_seconds: int | None
     captions_enabled: bool
+    narration_enabled: bool = True
     caption_style: str | None = None
     audio_sample_rate_hz: int | None = None
     status: str

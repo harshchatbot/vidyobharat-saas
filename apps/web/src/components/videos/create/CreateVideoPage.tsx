@@ -278,6 +278,7 @@ export function CreateVideoPage({
   );
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
+  const previousLaneRef = useRef<VideoLaneKey>('daily');
   const [voicePreviewError, setVoicePreviewError] = useState<string | null>(null);
   const [voicePreviewProvider, setVoicePreviewProvider] = useState<string | null>(null);
   const [voicePreviewResolvedVoice, setVoicePreviewResolvedVoice] = useState<string | null>(null);
@@ -543,21 +544,30 @@ export function CreateVideoPage({
   };
 
   useEffect(() => {
-    if (!isDailyLane) {
-      setNarrationEnabled(true);
-      return;
-    }
+    const previousLane = previousLaneRef.current;
+    if (previousLane === videoLane) return;
+    previousLaneRef.current = videoLane;
+    if (videoLane !== 'daily') return;
+
     setResolution('720p');
     setQuality('standard');
     setCaptionsEnabled(false);
     setNarrationEnabled(false);
     setSelectedImageUrls([]);
     setDurationMode('custom');
+
     const safeDailyDurations = availableDurations.filter((value) => value === 5 || value === 8);
     const fallbackDailyDuration = safeDailyDurations[0] ?? availableDurations[0] ?? 8;
-    if (!safeDailyDurations.some((value) => value === Number(durationSeconds))) {
-      setDurationSeconds(String(fallbackDailyDuration));
-    }
+    setDurationSeconds(String(fallbackDailyDuration));
+  }, [availableDurations, videoLane]);
+
+  useEffect(() => {
+    if (!isDailyLane) return;
+    const safeDailyDurations = availableDurations.filter((value) => value === 5 || value === 8);
+    const allowedDurations = safeDailyDurations.length > 0 ? safeDailyDurations : availableDurations;
+    if (allowedDurations.length === 0) return;
+    if (allowedDurations.includes(Number(durationSeconds))) return;
+    setDurationSeconds(String(allowedDurations[0]));
   }, [availableDurations, durationSeconds, isDailyLane]);
 
   useEffect(() => {
@@ -931,6 +941,7 @@ export function CreateVideoPage({
       if (typeof parsed.durationMode === 'string') setDurationMode(parsed.durationMode as 'auto' | 'custom');
       if (typeof parsed.durationSeconds === 'string') setDurationSeconds(parsed.durationSeconds);
       if (typeof parsed.captionsEnabled === 'boolean') setCaptionsEnabled(parsed.captionsEnabled);
+      if (typeof parsed.narrationEnabled === 'boolean') setNarrationEnabled(parsed.narrationEnabled);
       if (typeof parsed.captionStyle === 'string') setCaptionStyle(parsed.captionStyle);
     } catch {
       window.localStorage.removeItem(draftKey);
@@ -965,6 +976,7 @@ export function CreateVideoPage({
       durationMode,
       durationSeconds,
       captionsEnabled,
+      narrationEnabled,
       captionStyle,
     };
     window.localStorage.setItem(draftKey, JSON.stringify(payload));
@@ -994,6 +1006,7 @@ export function CreateVideoPage({
     durationMode,
     durationSeconds,
     captionsEnabled,
+    narrationEnabled,
     captionStyle,
   ]);
 
@@ -1030,6 +1043,7 @@ export function CreateVideoPage({
       duration_mode: 'custom',
       duration_seconds: status.durationSeconds,
       captions_enabled: captionsEnabled,
+      narration_enabled: narrationEnabled,
       caption_style: captionStyle,
       audio_sample_rate_hz: audioSampleRateHz,
       status:
@@ -2093,7 +2107,7 @@ export function CreateVideoPage({
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
                       }`}
                     >
-                      Narration {narrationEnabled ? 'On' : 'Off'}
+                      Voice {narrationEnabled ? 'AI voice' : 'Off'}
                     </button>
                     <button
                       type="button"
@@ -2104,7 +2118,7 @@ export function CreateVideoPage({
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
                       }`}
                     >
-                      Captions {captionsEnabled ? 'On' : 'Off'}
+                      Captions {captionsEnabled ? 'Auto captions' : 'Off'}
                     </button>
                   </div>
 
@@ -2117,7 +2131,7 @@ export function CreateVideoPage({
                       </div>
                       {narrationEnabled ? (
                         <div className="flex items-center justify-between text-muted">
-                          <span>Narration</span>
+                          <span>AI voice</span>
                           <span>{narrationCredits} credits</span>
                         </div>
                       ) : null}
@@ -2459,8 +2473,8 @@ export function CreateVideoPage({
                 <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
               </div>
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration</p>
-                <p className="mt-1 text-sm font-semibold text-text">{voice} • {language}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Voice</p>
+                <p className="mt-1 text-sm font-semibold text-text">{narrationEnabled ? `${voice} • ${language}` : 'Off'}</p>
               </div>
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted">Mode</p>

@@ -198,6 +198,7 @@ export type Video = {
   duration_mode: 'auto' | 'custom' | string;
   duration_seconds: number | null;
   captions_enabled: boolean;
+  narration_enabled?: boolean;
   caption_style?: string | null;
   audio_sample_rate_hz?: number | null;
   status: 'draft' | 'processing' | 'completed' | 'failed' | 'timed_out' | 'provider_failed';

@@ -128,6 +128,7 @@ class FirestoreSyncService:
             'durationMode': video.duration_mode,
             'durationSeconds': video.duration_seconds,
             'captionsEnabled': video.captions_enabled,
+            'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
             'captionStyle': video.caption_style,
             'audioSampleRateHz': video.audio_sample_rate_hz,
             'status': video.status.value if hasattr(video.status, 'value') else str(video.status),

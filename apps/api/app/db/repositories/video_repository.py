@@ -260,6 +260,7 @@ class VideoRepository:
             duration_mode=data.get('duration_mode', data.get('durationMode')) or 'auto',
             duration_seconds=data.get('duration_seconds', data.get('durationSeconds')),
             captions_enabled=bool(data.get('captions_enabled', data.get('captionsEnabled', True))),
+            narration_enabled=bool(data.get('narration_enabled', data.get('narrationEnabled', True))),
             caption_style=data.get('caption_style', data.get('captionStyle')),
             audio_sample_rate_hz=int(data.get('audio_sample_rate_hz', data.get('audioSampleRateHz')) or 22050),
             status=coerce_enum(VideoStatus, data.get('status') or VideoStatus.draft.value),
@@ -292,4 +293,5 @@ class VideoRepository:
         setattr(model, 'project_id', data.get('project_id', data.get('projectId')))
         setattr(model, 'mode_id', data.get('mode_id', data.get('modeId')))
         setattr(model, 'template_id', data.get('template_id', data.get('templateId')))
+        setattr(model, 'narration_enabled', bool(data.get('narration_enabled', data.get('narrationEnabled', True))))
         return model
