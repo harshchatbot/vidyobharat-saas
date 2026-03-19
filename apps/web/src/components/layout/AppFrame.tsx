@@ -545,21 +545,38 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                           const expanded = desktopNavOpen === groupKey;
                           return (
                             <div key={item.label} className="space-y-1.5">
-                              <button
-                                type="button"
-                                onClick={() => setDesktopNavOpen((current) => (current === groupKey ? null : groupKey))}
-                                className={`w-full ${baseClass}`}
-                                aria-expanded={expanded}
-                              >
-                                <span className={iconClass}>
-                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                </span>
-                                <span className="min-w-0 flex-1 text-left">
-                                  <span className="block font-semibold text-text">{item.label}</span>
-                                  <span className="block text-xs text-muted">{item.hint}</span>
-                                </span>
-                                <ChevronDown className={`h-4 w-4 transition ${expanded ? 'rotate-180 text-text' : 'text-muted'}`} />
-                              </button>
+                              <div className="flex w-full items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => navigateFromMobileMenu(item.href)}
+                                  className={`flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left transition sm:rounded-[var(--radius-md)] ${
+                                    active
+                                      ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
+                                      : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
+                                  }`}
+                                >
+                                  <span className={iconClass}>
+                                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block font-semibold text-text">{item.label}</span>
+                                    <span className="block text-xs text-muted">{item.hint}</span>
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
+                                  }}
+                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-muted transition hover:text-text"
+                                  aria-label={expanded ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                                  aria-expanded={expanded}
+                                >
+                                  <ChevronDown className={`h-4 w-4 transition ${expanded ? 'rotate-180 text-text' : 'text-muted'}`} />
+                                </button>
+                              </div>
                               {expanded ? (
                                 <div className="ml-4 grid gap-1.5 border-l border-[hsl(var(--color-border)/0.7)] pl-3">
                                   {navGroups[groupKey].map((groupItem) => {

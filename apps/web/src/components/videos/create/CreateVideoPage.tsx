@@ -5,12 +5,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BadgeIndianRupee, Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
+import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { useCredits } from '@/components/credits/CreditContext';
@@ -1885,7 +1887,7 @@ export function CreateVideoPage({
   };
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="rangmanch-page-stack">
       <LoadingOverlay
         open={overlayVisible}
         title={overlayTitle}
@@ -1895,57 +1897,22 @@ export function CreateVideoPage({
         progress={overlayProgress ?? undefined}
       />
 
-      {/*    <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.22),transparent_20%),radial-gradient(circle_at_80%_20%,hsl(var(--color-accent)/0.12),transparent_22%),linear-gradient(135deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_42%,hsl(var(--color-bg)))] p-5 shadow-soft sm:p-7">
-        <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-[hsl(var(--color-accent)/0.14)] blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-3xl">
-          <p className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            <Clapperboard className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-            Video Studio
-          </p>
-          <h1 className="mt-3 max-w-2xl font-heading text-[1.9rem] font-extrabold tracking-tight text-text sm:text-[2.25rem]">Build premium video outputs with one focused studio.</h1>
-          <p className="mt-3 max-w-2xl text-sm text-muted sm:text-base">
-            Keep the control stack compact on the left, monitor your output on the right, and move from concept to render without scanning a long settings page.
-          </p>
-          {creditWallet ? (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.85)] px-4 py-2 text-sm font-semibold text-text">
-              <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-              {creditWallet.currentCredits} credits available
-              {creditsRefreshing ? <span className="text-[11px] font-medium text-muted">Refreshing…</span> : null}
-            </div>
-          ) : null}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {['Text to video', 'Frame to video', 'Multi-shot soon', 'Recent renders'].map((item) => (
-              <span
-                key={item}
-                className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.76)] px-3 py-1.5 text-xs font-medium text-text"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-3">
-          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
-            <Sparkles className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-            <p className="mt-3 text-sm font-semibold text-text">Narrative models</p>
-            <p className="mt-1 text-xs text-muted">Choose Sora, Veo, or Kling by realism, control, and turnaround time.</p>
-          </Card>
-          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
-            <Mic2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-            <p className="mt-3 text-sm font-semibold text-text">Regional voice</p>
-            <p className="mt-1 text-xs text-muted">Pair language, voice, and music before committing to the final render.</p>
-          </Card>
-          <Card className="border-[hsl(var(--color-border))] bg-[linear-gradient(160deg,hsl(var(--color-bg)/0.96),hsl(var(--color-surface)/0.9))] px-4 py-4">
-            <Settings2 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-            <p className="mt-3 text-sm font-semibold text-text">Output control</p>
-            <p className="mt-1 text-xs text-muted">Tune size, quality, and duration with a credit-aware studio workflow.</p>
-          </Card>
-        </div>
-        </div>
-      </section>
-*/}
+      <StudioPageHeader
+        eyebrow="Video Studio"
+        title="Create videos in one compact studio"
+        description="Write, guide, and render from the same workspace. Daily reels, creator outputs, references, and final preview stay connected."
+        actions={
+          <>
+            <Badge variant="outline" className="px-3 py-2 text-xs">
+              {creditWallet?.currentCredits ?? 0} credits
+              {creditsRefreshing ? ' · refreshing' : ''}
+            </Badge>
+            <Badge variant="outline" className="px-3 py-2 text-xs">
+              {getVideoLaneDefinition(videoLane).label}
+            </Badge>
+          </>
+        }
+      />
       {activeProject ? (
         <ActiveProjectBar
           project={activeProject}

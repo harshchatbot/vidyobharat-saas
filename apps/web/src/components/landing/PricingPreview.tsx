@@ -12,7 +12,7 @@ const plans = [
     price: '₹0',
     cadence: '/ forever',
     credits: '40 credits / month',
-    detail: 'Get 40 free credits every month and try the studio before upgrading.',
+    detail: 'Get 40 free credits every month, no watermark, and try the studio before upgrading.',
   },
   {
     label: 'Starter',

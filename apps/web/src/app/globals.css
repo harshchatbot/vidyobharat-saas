@@ -132,6 +132,32 @@ p {
   backdrop-filter: blur(var(--blur-glass));
 }
 
+.rangmanch-page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .rangmanch-page-stack {
+    gap: 1.5rem;
+  }
+}
+
+.rangmanch-toolbar-strip {
+  background:
+    linear-gradient(180deg, hsl(var(--color-surface-glass) / 0.48), hsl(var(--color-elevated) / 0.34));
+  border: 1px solid hsl(var(--color-border) / 0.52);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+.rangmanch-inline-status {
+  border: 1px solid hsl(var(--color-border) / 0.72);
+  background: hsl(var(--color-surface) / 0.7);
+  backdrop-filter: blur(calc(var(--blur-glass) - 2px));
+}
+
 .rangmanch-poster-card {
   background: hsl(var(--color-surface-glass) / 0.2);
   border: 1px solid hsl(var(--color-border) / 0.42);

@@ -246,7 +246,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
   }
 
   return (
-    <div className="space-y-8">
+    <div className="rangmanch-page-stack">
       {activeProject ? (
         <ActiveProjectBar
           project={activeProject}
@@ -277,7 +277,12 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
         </div>
       </section>
 
-      {loading ? <div className="flex items-center gap-3 text-muted"><Spinner /> Loading templates...</div> : null}
+      {loading ? (
+        <div className="rangmanch-inline-status inline-flex items-center gap-3 rounded-full px-3 py-1.5 text-sm text-muted">
+          <Spinner />
+          Loading templates...
+        </div>
+      ) : null}
       {error ? <div className="rounded-[24px] border border-[hsl(var(--color-danger)/0.3)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">{error}</div> : null}
       {!loading && !error ? (
         <div className="space-y-10">

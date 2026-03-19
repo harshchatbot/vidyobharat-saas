@@ -43,6 +43,7 @@ import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { ActiveProjectBar } from '@/components/projects/ActiveProjectBar';
 import { ProjectAssignmentDialog } from '@/components/projects/ProjectAssignmentDialog';
+import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, InspirationImage, Project, Template, TemplateInputField } from '@/types/api';
@@ -1252,9 +1253,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       description=""
       progress={submitProgress}
     />
-    <div className="space-y-5 sm:space-y-6">
+    <div className="rangmanch-page-stack">
       {loading ? (
-        <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.66)] px-3 py-1 text-xs text-muted">
+        <div className="rangmanch-inline-status inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-muted">
           <Spinner />
           <span>Refreshing studio data…</span>
         </div>
@@ -1265,33 +1266,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           description="This image workspace is attached to the active project. New outputs, template-driven runs, and prompt variations will stay grouped there."
         />
       ) : null}
- {/*     <section className="relative overflow-hidden rounded-[32px] border border-[hsl(var(--color-border))] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_24%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-elevated))_44%,hsl(var(--color-bg)))] px-5 py-5 shadow-soft sm:px-6">
-        <div className="pointer-events-none absolute -left-8 top-4 h-32 w-32 rounded-full bg-[hsl(var(--color-accent)/0.12)] blur-3xl" />
-        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              Create Image
-            </div>
-            <h1 className="mt-2.5 font-heading text-[1.9rem] font-extrabold tracking-tight text-text sm:text-[2.25rem]">
-              Prompt, reference, and generate in one compact studio.
-            </h1>
-            <p className="mt-2 max-w-xl text-sm text-muted">
-              Keep the composer tight, tune the output quickly, and review recent generations below the canvas.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3 backdrop-blur-md">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
-              <Wallet className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Credits</p>
-              <p className="text-sm font-semibold text-text">{wallet?.currentCredits ?? 0} available</p>
-            </div>
-          </div>
-        </div>
-      </section>
-      */}
+      <StudioPageHeader
+        eyebrow="Image Studio"
+        title="Generate images in one focused workspace"
+        description="Prompt, reference, and iterate without leaving the studio. Templates, inspiration, and recent outputs stay close to the canvas."
+        actions={
+          <>
+            <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2">
+              <GalleryVerticalEnd className="h-4 w-4" />
+              Browse templates
+            </Button>
+            <Badge variant="outline" className="px-3 py-2 text-xs">
+              {wallet?.currentCredits ?? 0} credits
+            </Badge>
+          </>
+        }
+      />
 
       <div className="space-y-4">
         <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
@@ -1580,6 +1570,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   ))}
                 </div>
               )}
+              {referenceUploads.length > 0 ? (
+                <div className="rounded-[16px] border border-[hsl(var(--color-accent)/0.28)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5 text-xs leading-5 text-muted">
+                  Uploaded references are now passed into the selected image model. They help guide identity, composition, and style, but exact face locking can still vary by provider. For repeatable persona consistency, AI Influencer remains the strongest workflow.
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
@@ -2095,13 +2090,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       ) : null}
 
       {selectedGenerated ? (
-        <div className="fixed inset-0 z-50 bg-[hsl(var(--color-text)/0.62)] p-4 backdrop-blur-sm" onClick={() => setSelectedGenerated(null)}>
-          <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.48fr)_272px]">
-              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:p-3">
-                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[84vh] w-full object-contain" />
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedGenerated(null)}>
+          <div className="flex min-h-full items-start justify-center py-2 sm:items-center sm:py-4" onClick={(event) => event.stopPropagation()}>
+            <div className="grid w-full max-w-7xl overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:max-h-[94vh] xl:grid-cols-[minmax(0,1.48fr)_272px]">
+              <div className="flex min-h-[260px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:min-h-[320px] sm:p-3">
+                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[50vh] w-full object-contain xl:max-h-[84vh]" />
               </div>
-              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-3.5 sm:p-4">
+              <div className="flex flex-col overflow-visible p-3.5 sm:p-4 xl:max-h-[92vh] xl:overflow-y-auto">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</h3>

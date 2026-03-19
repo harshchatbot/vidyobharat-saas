@@ -89,7 +89,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="rangmanch-page-stack">
       <StudioPageHeader
         eyebrow="Projects"
         title="Build and revisit working concepts"

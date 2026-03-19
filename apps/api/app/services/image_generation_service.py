@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import urllib.error
 import urllib.request
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -505,6 +505,7 @@ class ImageGenerationService:
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
+                reference_urls=reference_urls,
             )
 
         if route.provider_id == 'gemini' and canonical_key in {'gemini_flash_image', 'gemini_pro_image'} and self.settings.gemini_api_key:
@@ -520,6 +521,7 @@ class ImageGenerationService:
                             aspect_ratio=aspect_ratio,
                             resolution=resolution,
                             model_id=model_id,
+                            reference_urls=reference_urls,
                         ),
                     )
                     if route.fallback_used:
@@ -556,6 +558,7 @@ class ImageGenerationService:
                             prompt=prompt,
                             aspect_ratio=aspect_ratio,
                             resolution=resolution,
+                            reference_urls=reference_urls,
                         )
                     raise
                 except RuntimeError as exc:
@@ -568,6 +571,7 @@ class ImageGenerationService:
                             prompt=prompt,
                             aspect_ratio=aspect_ratio,
                             resolution=resolution,
+                            reference_urls=reference_urls,
                         )
                     raise
 
@@ -1158,22 +1162,39 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         model_id: str,
+        reference_urls: list[str] | None = None,
     ) -> tuple[str, str]:
         image_id = str(uuid4())
         output_file = self.output_dir / f'{image_id}.png'
         thumb_file = self.output_dir / f'{image_id}_thumb.png'
 
+        parts: list[dict[str, object]] = []
+        for mime_type, encoded_data, source_url in self._reference_inline_parts(reference_urls or [], limit=1):
+            logger.info(
+                'image_reference_attached',
+                extra={'provider': 'gemini', 'model_id': model_id, 'source_url': source_url},
+            )
+            parts.append(
+                {
+                    'inline_data': {
+                        'mime_type': mime_type,
+                        'data': encoded_data,
+                    }
+                }
+            )
+        parts.append(
+            {
+                'text': (
+                    f'{prompt}. Create a high-quality image output with aspect ratio {aspect_ratio} '
+                    f'and resolution target around {resolution}px.'
+                )
+            }
+        )
+
         payload = {
             'contents': [
                 {
-                    'parts': [
-                        {
-                            'text': (
-                                f'{prompt}. Create a high-quality image output with aspect ratio {aspect_ratio} '
-                                f'and resolution target around {resolution}px.'
-                            )
-                        }
-                    ]
+                    'parts': parts
                 }
             ],
             'generationConfig': {
@@ -1259,24 +1280,40 @@ class ImageGenerationService:
         prompt: str,
         aspect_ratio: str,
         resolution: str,
+        reference_urls: list[str] | None = None,
     ) -> tuple[str, str]:
         image_id = str(uuid4())
         size = self._openai_image_size(aspect_ratio, resolution)
-        client = OpenAI(api_key=self.settings.openai_api_key)
-        response = client.images.generate(
-            model=self.settings.openai_image_model,
-            prompt=(
-                f'{prompt}. Create a polished creator-grade image with aspect ratio {aspect_ratio} '
-                f'optimized for {resolution}px output.'
-            ),
-            size=size,
-        )
+        if reference_urls:
+            response = self._openai_image_edit_with_references(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                size=size,
+                reference_urls=reference_urls,
+            )
+        else:
+            client = OpenAI(api_key=self.settings.openai_api_key)
+            response = client.images.generate(
+                model=self.settings.openai_image_model,
+                prompt=(
+                    f'{prompt}. Create a polished creator-grade image with aspect ratio {aspect_ratio} '
+                    f'optimized for {resolution}px output.'
+                ),
+                size=size,
+            )
 
-        if not response.data:
+        response_data = response.get('data') if isinstance(response, dict) else getattr(response, 'data', None)
+        if not response_data:
             raise RuntimeError('OpenAI Image returned no image data')
 
-        image_base64 = getattr(response.data[0], 'b64_json', None)
-        image_url = getattr(response.data[0], 'url', None)
+        first_item = response_data[0]
+        if isinstance(first_item, dict):
+            image_base64 = first_item.get('b64_json')
+            image_url = first_item.get('url')
+        else:
+            image_base64 = getattr(first_item, 'b64_json', None)
+            image_url = getattr(first_item, 'url', None)
         output_file = self.output_dir / f'{image_id}.png'
         thumb_file = self.output_dir / f'{image_id}_thumb.png'
 
@@ -1293,6 +1330,79 @@ class ImageGenerationService:
             return (str(image_url), str(image_url))
 
         raise RuntimeError('OpenAI Image returned neither base64 data nor URL')
+
+    def _openai_image_edit_with_references(
+        self,
+        *,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        size: str,
+        reference_urls: list[str],
+    ):
+        payload = {
+            'model': self.settings.openai_image_model,
+            'prompt': (
+                f'{prompt}. Use the provided reference image as the source of truth for identity, face structure, '
+                f'and key visual traits wherever possible. Create a polished creator-grade image with aspect ratio '
+                f'{aspect_ratio} optimized for {resolution}px output.'
+            ),
+            'size': size,
+            'n': 1,
+            'images': [{'image_url': url} for url in reference_urls[:5] if url],
+            'input_fidelity': 'high',
+        }
+        logger.info(
+            'image_reference_attached',
+            extra={
+                'provider': 'openai_images',
+                'model': self.settings.openai_image_model,
+                'reference_count': len(payload['images']),
+            },
+        )
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=20.0)) as client:
+            response = client.post(
+                'https://api.openai.com/v1/images/edits',
+                headers={
+                    'Authorization': f'Bearer {self.settings.openai_api_key}',
+                    'Content-Type': 'application/json',
+                },
+                json=payload,
+            )
+            if response.status_code >= 400:
+                raise RuntimeError(f'OpenAI image edit failed ({response.status_code}): {response.text[:400]}')
+            return response.json()
+
+    def _reference_inline_parts(
+        self,
+        reference_urls: list[str],
+        *,
+        limit: int = 1,
+    ) -> list[tuple[str, str, str]]:
+        parts: list[tuple[str, str, str]] = []
+        for url in reference_urls[:limit]:
+            fetched = self._fetch_reference_image(url)
+            if fetched is None:
+                continue
+            mime_type, image_bytes = fetched
+            parts.append((mime_type, b64encode(image_bytes).decode('utf-8'), url))
+        return parts
+
+    def _fetch_reference_image(self, url: str) -> tuple[str, bytes] | None:
+        try:
+            request = urllib.request.Request(url, headers={'User-Agent': 'RangManchAI/1.0'})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                image_bytes = response.read()
+                mime_type = response.headers.get_content_type() or mimetypes.guess_type(url)[0] or 'image/jpeg'
+        except Exception as exc:
+            logger.warning('image_reference_fetch_failed', extra={'source_url': url, 'error': str(exc)})
+            return None
+        if not image_bytes:
+            logger.warning('image_reference_fetch_empty', extra={'source_url': url})
+            return None
+        if not mime_type.startswith('image/'):
+            mime_type = mimetypes.guess_type(url)[0] or 'image/jpeg'
+        return mime_type, image_bytes
 
     def _together_dimensions(self, aspect_ratio: str, resolution: str) -> tuple[int, int]:
         base = int(resolution) if resolution.isdigit() else 1024

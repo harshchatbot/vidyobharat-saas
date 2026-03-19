@@ -12,6 +12,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
+import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
@@ -592,7 +593,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="rangmanch-page-stack">
       <LoadingOverlay
         open={loading}
         title="Preparing Influencer Studio"
@@ -614,10 +615,23 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         stepLabel="Applying persona memory and platform voice"
         accentLabel="Influencer Studio"
       />
+      <StudioPageHeader
+        eyebrow="Influencer Studio"
+        title="Build persona-led content with a cleaner workflow"
+        description="Lock identity, shape content voice, and generate campaign-ready visuals from one studio tuned for character consistency."
+        actions={
+          <>
+            <Badge variant="outline" className="px-3 py-2 text-xs">
+              {personas.length} personas
+            </Badge>
+            <Badge variant="outline" className="px-3 py-2 text-xs">
+              {wallet?.currentCredits ?? 0} credits
+            </Badge>
+          </>
+        }
+      />
 
-      
-
-      <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-1.5 sm:p-2">
+      <div className="rangmanch-toolbar-strip flex gap-2 overflow-x-auto rounded-[var(--radius-md)] p-1.5 sm:p-2">
         {tabItems.map((item) => (
           <button
             key={item.key}

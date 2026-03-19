@@ -725,7 +725,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   //const viewAllLabel = mediaFilter === 'image' ? 'View all images' : mediaFilter === 'video' ? 'View all videos' : 'View all projects';
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="rangmanch-page-stack">
       <section className="overflow-hidden rounded-[32px]">
         <div
           className="rangmanch-studio-panel-strong space-y-5 rounded-[32px] p-5 sm:p-8"

@@ -160,6 +160,10 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
+                    <span>No watermark on free creations</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
                     <span>Good for first images, voice tests, and lightweight runs</span>
                   </li>
                   <li className="flex items-start gap-2">
