@@ -300,6 +300,15 @@ const IMAGE_WORKFLOW_PLACEHOLDERS: Record<ImageModeKey, string> = {
     'Example: A confident cinematic portrait of a young Indian creator in a contemporary studio, expressive eyes, natural skin detail, soft dramatic rim light, polished wardrobe styling, premium character poster look.',
 };
 
+function toFriendlyImageEstimateLabel(component: string, label?: string | null) {
+  if (component === 'model_price') return 'Base generation';
+  if (component === 'base') return 'Base generation';
+  if (component === 'character_consistency') return 'Reference guidance';
+  if (component === 'resolution_multiplier') return 'Resolution';
+  if (component === 'model_multiplier') return 'Model quality';
+  return label || component;
+}
+
 function resolveEstimateModel(models: ImageModel[], selectedModelKey: string) {
   const selected =
     models.find((item) => item.key === selectedModelKey) ??
@@ -1643,7 +1652,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                           className="inline-flex items-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.28)] px-2.5 py-1 text-[10px] font-medium text-muted"
                           title={item.label ?? item.component}
                         >
-                          {item.label ?? item.component}: {typeof item.value === 'number' && item.value > 0 ? '+' : ''}{item.value}
+                          {toFriendlyImageEstimateLabel(item.component, item.label)}: {typeof item.value === 'number' && item.value > 0 ? '+' : ''}{item.value}
                         </span>
                       ))}
                     </div>
