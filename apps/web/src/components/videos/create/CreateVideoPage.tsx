@@ -1860,6 +1860,16 @@ export function CreateVideoPage({
     completionToastRef.current = null;
 
     try {
+      const freshWallet = await api.getCreditWallet(userId);
+      applyWallet(freshWallet);
+      if (freshWallet.currentCredits < displayVideoEstimateCredits) {
+        const message = `You need ${displayVideoEstimateCredits} credits, but only ${freshWallet.currentCredits} are available right now.`;
+        setSubmitError(message);
+        setRenderSessionPhase('idle');
+        openLowBalanceModal(displayVideoEstimateCredits);
+        show({ title: 'Not enough credits', message, variant: 'error', durationMs: 4200 });
+        return;
+      }
       const projectId = await ensureProjectForVideoRun();
       const result = await api.createAIVideo({
         template: template.label,
@@ -2086,7 +2096,28 @@ export function CreateVideoPage({
                 {isDailyLane ? (
                   <>
                     <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void enhanceScript()}
+                          disabled={scriptLoading || !script.trim()}
+                          className="min-h-9 rounded-full px-3 py-2 text-xs"
+                        >
+                          {scriptLoading ? (
+                            <>
+                              <Spinner className="h-3.5 w-3.5" />
+                              Enhancing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Enhance prompt
+                            </>
+                          )}
+                        </Button>
+                      </div>
                       <Textarea
                         value={script}
                         onChange={(event) => setScript(event.target.value)}
@@ -2094,6 +2125,12 @@ export function CreateVideoPage({
                         rows={10}
                         className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
                       />
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                        <span>{script.trim().length > 0 ? 'Refine your current prompt for stronger motion and framing.' : 'Add a prompt first, then enhance it.'}</span>
+                        {scriptEnhanceEstimate?.estimatedCredits ? (
+                          <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
