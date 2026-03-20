@@ -22,7 +22,7 @@ import { getVideoModelMap } from '@/config/videoModels';
 import creditEngine from '@/config/creditEngine';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, AIVideoStatusResponse, GeneratedImage, MusicTrack, Project, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
+import type { AIVideoModel, AIVideoStatusResponse, CreditEstimateResponse, GeneratedImage, MusicTrack, Project, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 
 import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS, type TemplateOption } from './constants';
 import { GenerateButton } from './GenerateButton';
@@ -448,7 +448,8 @@ export function CreateVideoPage({
   const { estimates, isEstimating, estimateError, isUsingFallback } = useCreditEstimator(estimateRequests, {
     currentCredits: creditWallet?.currentCredits ?? 0,
   });
-  const creditEstimate = estimates.videoCreate ?? null;
+  const localVideoEstimate = estimates.videoCreate ?? null;
+  const [serverVideoEstimate, setServerVideoEstimate] = useState<CreditEstimateResponse | null>(null);
   const voiceEstimate = estimates.voicePreview ?? null;
   const premiumVoiceEstimate = estimates.premiumVoicePreview ?? null;
   const scriptGenerateEstimate = estimates.scriptGenerate ?? null;
@@ -470,6 +471,35 @@ export function CreateVideoPage({
   const availableResolutions = RESOLUTION_OPTIONS.filter((option) =>
     supportedResolutions.includes(option.value),
   );
+  const videoEstimatePayload = useMemo(
+    () => ({
+      model: modelKey,
+      resolution,
+      durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
+      quality,
+      captionsEnabled,
+      narrationEnabled,
+      voice,
+      provider: narrationEnabled ? voiceProvider : 'free',
+      imageUrls: selectedImageUrls,
+      audioSettings: { sampleRateHz: audioSampleRateHz },
+    }),
+    [
+      modelKey,
+      resolution,
+      durationSeconds,
+      durationRule.defaultSeconds,
+      quality,
+      captionsEnabled,
+      narrationEnabled,
+      voice,
+      voiceProvider,
+      selectedImageUrls,
+      audioSampleRateHz,
+    ],
+  );
+  const videoEstimateFingerprint = useMemo(() => JSON.stringify(videoEstimatePayload), [videoEstimatePayload]);
+  const creditEstimate = serverVideoEstimate ?? localVideoEstimate ?? null;
   const selectedAspectDescription =
     availableAspectRatios.find((option) => option.value === aspectRatio)?.description ??
     availableAspectRatios[0]?.description ??
@@ -479,6 +509,27 @@ export function CreateVideoPage({
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      void api
+        .estimateCredits('video_create', videoEstimatePayload, userId)
+        .then((result) => {
+          if (cancelled) return;
+          setServerVideoEstimate(result);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setServerVideoEstimate(null);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [userId, videoEstimateFingerprint, videoEstimatePayload]);
+
   const derivedVideoEstimateCredits = useMemo(() => {
     const apiEstimated = creditEstimate?.estimatedCredits;
     if (typeof apiEstimated === 'number' && Number.isFinite(apiEstimated) && apiEstimated > 0) {

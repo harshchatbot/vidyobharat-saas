@@ -1210,7 +1210,26 @@ def create_ai_video(
         )
         credit_service = CreditService()
         error_stage = 'estimate'
-        estimate = credit_service.estimate('video_create', payload.model_dump())
+        wallet_for_estimate, estimate = credit_service.estimate_for_user(user_id, 'video_create', payload.model_dump())
+        logger.info(
+            'ai_video_create_estimated',
+            extra={
+                'request_id': request_id,
+                'user_id': user_id,
+                'required_credits': estimate.required_credits,
+                'available_credits': wallet_for_estimate.current_credits,
+                'sufficient_credits': wallet_for_estimate.current_credits >= estimate.required_credits,
+                'estimate_breakdown': [
+                    {
+                        'component': item.component,
+                        'label': item.label,
+                        'value': item.value,
+                    }
+                    for item in estimate.breakdown
+                ],
+                'payload_summary': payload_summary,
+            },
+        )
         remaining_credits: int | None = None
         if estimate.required_credits > 0:
             error_stage = 'deduct_credits'
