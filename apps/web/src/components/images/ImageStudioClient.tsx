@@ -1335,8 +1335,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       <div className="space-y-4">
         <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
           <div className="space-y-5">
-            <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2">
-              <p className="text-sm font-semibold text-text">Create Image</p>
+            <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
+              <p className="mt-1 text-sm font-semibold text-text">Create image</p>
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
@@ -1706,11 +1707,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.3)] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
+        <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.36),hsl(var(--color-bg)/0.42))] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output</p>
-              <h2 className="mt-2 text-base font-semibold text-text">Current image</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Control tower</p>
+              <h2 className="mt-2 text-base font-semibold text-text">Preview, estimate, and export</h2>
             </div>
             <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
           </div>

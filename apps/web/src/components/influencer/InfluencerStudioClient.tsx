@@ -648,6 +648,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         ))}
       </div>
 
+      <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
+        <p className="mt-1 text-sm font-semibold text-text">Persona, content, and render workflow</p>
+      </div>
+
       <div className="grid gap-5 xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
         <div className="space-y-5 sm:space-y-6">
           {personaError ? (
