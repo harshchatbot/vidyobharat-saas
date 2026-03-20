@@ -2029,22 +2029,245 @@ export function CreateVideoPage({
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.14fr)_minmax(300px,0.86fr)]">
+            <div className={isDailyLane ? 'mt-4 space-y-4' : 'mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.14fr)_minmax(300px,0.86fr)]'}>
               <div className="min-w-0 space-y-4">
                 {isDailyLane ? (
-                  <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
-                    <div className="flex items-center justify-between gap-3">
+                  <>
+                    <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
                       <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
-                      <span className="text-xs text-muted">Best for a short, high-retention reel opener.</span>
+                      <Textarea
+                        value={script}
+                        onChange={(event) => setScript(event.target.value)}
+                        placeholder={activeLanePromptPlaceholder}
+                        rows={10}
+                        className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
+                      />
                     </div>
-                    <Textarea
-                      value={script}
-                      onChange={(event) => setScript(event.target.value)}
-                      placeholder={activeLanePromptPlaceholder}
-                      rows={11}
-                      className="min-h-[240px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
-                    />
-                  </div>
+
+                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                      <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                      <div className="mt-4">
+                        <ModelDropdown
+                          models={visibleModels}
+                          selectedModel={modelKey}
+                          onChange={(value) => setModelKey(value as VideoModelKey)}
+                          title={`${selectedLane.label} models`}
+                          description="Pick a model for this lane."
+                        />
+                      </div>
+                      <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
+                          <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+                        </div>
+                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
+                          <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+                        </div>
+                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
+                          <p className="mt-1 text-sm font-semibold text-text">
+                            {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
+                          </p>
+                        </div>
+                      </div>
+                      {laneHasOnlyGatedModels ? (
+                        <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
+                          Visible in studio, not enabled for generation yet.
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
+                          <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
+                            {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
+                              ? availableDurations.filter((value) => value === 5 || value === 8)
+                              : availableDurations
+                            ).map((duration) => (
+                              <option key={duration} value={String(duration)}>
+                                {duration}s
+                              </option>
+                            ))}
+                          </Dropdown>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
+                          <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
+                            {availableAspectRatios.map((aspect) => (
+                              <option key={aspect.value} value={aspect.value}>
+                                {aspect.label}
+                              </option>
+                            ))}
+                          </Dropdown>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
+                          <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
+                            {availableResolutions.map((res) => (
+                              <option key={res.value} value={res.value}>
+                                {res.label}
+                              </option>
+                            ))}
+                          </Dropdown>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { value: 'standard', label: 'Standard' },
+                            { value: 'high', label: 'High' },
+                          ].map((option) => {
+                            const active = quality === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setQuality(option.value as 'standard' | 'high')}
+                                className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                                  active
+                                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                                    : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
+                        </div>
+                        <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                          {narrationEnabled ? 'Voice on' : 'Voice off'}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setNarrationEnabled((current) => !current)}
+                          className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                            narrationEnabled
+                              ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                          }`}
+                        >
+                          Voice {narrationEnabled ? 'AI voice' : 'Off'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCaptionsEnabled((current) => !current)}
+                          className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                            captionsEnabled
+                              ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                          }`}
+                        >
+                          Captions {captionsEnabled ? 'Auto captions' : 'Off'}
+                        </button>
+                      </div>
+                      {narrationEnabled ? (
+                        <>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
+                              <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
+                                {languageOptions.map((option) => (
+                                  <option key={`${option.label}-${option.code}`} value={option.label}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Dropdown>
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Sarvam voice</span>
+                              <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
+                                {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
+                                  <option key={option.key} value={option.key}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Dropdown>
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio quality</span>
+                              <Dropdown value={String(audioSampleRateHz)} onChange={(event) => setAudioSampleRateHz(Number(event.target.value))}>
+                                {AUDIO_QUALITY_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Dropdown>
+                            </label>
+                          </div>
+                          <label className="mt-3 block">
+                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice preview text</span>
+                            <Textarea
+                              value={voicePreviewText}
+                              onChange={(event) => setVoicePreviewText(event.target.value)}
+                              rows={3}
+                              maxLength={280}
+                              className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
+                              placeholder="Welcome to RangManch AI. Let’s create something good today for your audience."
+                            />
+                          </label>
+                        </>
+                      ) : null}
+
+                      <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
+                        <div className="mt-2 space-y-1.5 text-sm">
+                          <div className="flex items-center justify-between text-text">
+                            <span>Base generation</span>
+                            <span>{baseGenerationCredits} credits</span>
+                          </div>
+                          {narrationEnabled ? (
+                            <div className="flex items-center justify-between text-muted">
+                              <span>AI voice</span>
+                              <span>{narrationCredits} credits</span>
+                            </div>
+                          ) : null}
+                          {captionsEnabled ? (
+                            <div className="flex items-center justify-between text-muted">
+                              <span>Captions</span>
+                              <span>{captionCredits} credits</span>
+                            </div>
+                          ) : null}
+                          {selectedImageUrls.length > 0 ? (
+                            <div className="flex items-center justify-between text-muted">
+                              <span>Reference image consistency</span>
+                              <span>{referenceCredits} credits</span>
+                            </div>
+                          ) : null}
+                          <div className="flex items-center justify-between text-muted">
+                            <span>Auto tag</span>
+                            <span>{autoTagCredits} credits</span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
+                            <span>Total</span>
+                            <span>{displayVideoEstimateCredits} credits</span>
+                          </div>
+                        </div>
+                      </div>
+                      {estimateError ? (
+                        <p className="mt-2 text-xs text-amber-600">
+                          Live estimate sync is delayed. Showing fallback estimate from current settings.
+                        </p>
+                      ) : null}
+                    </div>
+                  </>
                 ) : (
                   <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
                     <ScriptEditor
@@ -2066,6 +2289,7 @@ export function CreateVideoPage({
                 )}
               </div>
 
+              {!isDailyLane ? (
               <div className="min-w-0 space-y-4">
                 <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
                   <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
@@ -2272,6 +2496,7 @@ export function CreateVideoPage({
                   ) : null}
                 </div>
               </div>
+              ) : null}
             </div>
           </div>
 

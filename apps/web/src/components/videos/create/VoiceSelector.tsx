@@ -10,6 +10,13 @@ import type { TTSLanguageOption, TTSVoiceOption } from '@/types/api';
 import { AUDIO_QUALITY_OPTIONS } from './constants';
 import { Spinner } from '@/components/ui/Spinner';
 
+function getVoiceCreditLabel(value: number | undefined) {
+  if (typeof value !== 'number') return 'Estimating';
+  if (value < 0) return 'Estimating';
+  if (value === 0) return 'Free';
+  return `+${value} credits`;
+}
+
 export function VoiceSelector({
   languageOptions,
   voiceOptions,
@@ -64,6 +71,7 @@ export function VoiceSelector({
   voiceCreditMap?: Record<string, number>;
 }) {
   const selected = voiceOptions.find((item) => item.key === voice) ?? voiceOptions[0];
+  const selectedVoiceCredit = voiceCreditMap?.[selected?.key ?? ''];
 
   return (
     <div className="space-y-3">
@@ -73,6 +81,7 @@ export function VoiceSelector({
             <Badge>{selected?.tone ?? 'Voice selected'}</Badge>
             <Badge>{language}</Badge>
             <Badge>Natural cadence</Badge>
+            <Badge>{getVoiceCreditLabel(selectedVoiceCredit)}</Badge>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted">
             <Languages className="h-4 w-4 text-[hsl(var(--color-accent))]" />
@@ -229,7 +238,18 @@ export function VoiceSelector({
                     <UserRound className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
-                    <p className="text-sm font-semibold text-text">{option.label}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-text">{option.label}</p>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                          (voiceCreditMap?.[option.key] ?? -1) === 0
+                            ? 'bg-[hsl(var(--color-success)/0.14)] text-[hsl(var(--color-success))]'
+                            : 'bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+                        }`}
+                      >
+                        {getVoiceCreditLabel(voiceCreditMap?.[option.key])}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted">{option.tone}</p>
                   </span>
                 </div>
@@ -254,15 +274,7 @@ export function VoiceSelector({
                       <Mic2 className="h-3.5 w-3.5" />
                       {previewing && active
                     ? 'Stop'
-                    : `Preview · ${
-                        typeof voiceCreditMap?.[option.key] === 'number'
-                          ? voiceCreditMap[option.key] >= 0
-                            ? voiceCreditMap[option.key] > 0
-                              ? `${voiceCreditMap[option.key]} cr`
-                              : 'Free'
-                            : 'Estimating'
-                          : 'Estimating'
-                      }`}
+                    : `Preview · ${getVoiceCreditLabel(voiceCreditMap?.[option.key])}`}
                     </>
                   )}
                 </Button>
