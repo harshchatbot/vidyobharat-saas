@@ -181,16 +181,9 @@ class VideoPipelineService:
             raise FileNotFoundError(f'Input video not found: {input_video_path}')
 
         duration = max(0.1, self._probe_duration(input_video_path))
-        title_text = self._escape_drawtext(title or '')
         text_filters: list[str] = []
-        if title_text:
-            title_font = self._font_clause(title or '')
-            text_filters.append(
-                f"drawtext=text='{title_text}'{title_font}:fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
-            )
         if captions_enabled and script.strip():
             text_filters.extend(self._build_caption_filters(script=script, total_duration=duration, caption_style=caption_style))
-        text_filters.append("drawtext=text='RangManch AI':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24")
 
         if not text_filters:
             return input_video_path
@@ -216,6 +209,50 @@ class VideoPipelineService:
                 '192k',
                 '-movflags',
                 '+faststart',
+                str(output_video_path),
+            ]
+        )
+        return output_video_path
+
+    def video_has_audio_stream(self, video_path: Path) -> bool:
+        if not video_path.exists():
+            return False
+        try:
+            result = subprocess.run(
+                [
+                    'ffprobe',
+                    '-v',
+                    'error',
+                    '-select_streams',
+                    'a',
+                    '-show_entries',
+                    'stream=codec_type',
+                    '-of',
+                    'csv=p=0',
+                    str(video_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return bool((result.stdout or '').strip())
+        except Exception:
+            logger.warning('video_audio_probe_failed', extra={'path': str(video_path)})
+            return False
+
+    def strip_audio_from_video(self, *, input_video_path: Path, output_video_path: Path) -> Path:
+        if not input_video_path.exists():
+            raise FileNotFoundError(f'Input video not found: {input_video_path}')
+        output_video_path.parent.mkdir(parents=True, exist_ok=True)
+        self._run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(input_video_path),
+                '-c:v',
+                'copy',
+                '-an',
                 str(output_video_path),
             ]
         )
@@ -254,18 +291,9 @@ class VideoPipelineService:
         target_size: tuple[int, int],
     ) -> None:
         target_w, target_h = target_size
-        title_text = self._escape_drawtext(title or '')
         text_filters: list[str] = []
-        if title_text:
-            title_font = self._font_clause(title or '')
-            text_filters.append(
-                f"drawtext=text='{title_text}'{title_font}:fontcolor=white:fontsize=34:x=40:y=h-th-40:box=1:boxcolor=black@0.45:boxborderw=12"
-            )
         if captions_enabled and script.strip():
             text_filters.extend(self._build_caption_filters(script=script, total_duration=total_duration, caption_style=caption_style))
-        text_filters.append(
-            "drawtext=text='RangManch AI':fontcolor=white@0.65:fontsize=18:x=w-tw-30:y=24"
-        )
         video_filter = (
             f'scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,'
             f'pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p'

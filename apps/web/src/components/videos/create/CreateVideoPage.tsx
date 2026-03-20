@@ -2142,587 +2142,376 @@ export function CreateVideoPage({
               </div>
             </div>
 
-            <div className={isDailyLane ? 'mt-4 space-y-4' : 'mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.14fr)_minmax(300px,0.86fr)]'}>
-              <div className="min-w-0 space-y-4">
-                {isDailyLane ? (
-                  <>
-                    <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
-                        <Button
+            <div className="mt-4 space-y-4">
+              {isDailyLane ? (
+                <>
+                  <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void enhanceScript()}
+                        disabled={scriptLoading || !script.trim()}
+                        className="min-h-9 rounded-full px-3 py-2 text-xs"
+                      >
+                        {scriptLoading ? (
+                          <>
+                            <Spinner className="h-3.5 w-3.5" />
+                            Enhancing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Enhance prompt
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={script}
+                      onChange={(event) => setScript(event.target.value)}
+                      placeholder={activeLanePromptPlaceholder}
+                      rows={10}
+                      className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                      <span>{script.trim().length > 0 ? 'Refine your current prompt for stronger motion and framing.' : 'Add a prompt first, then enhance it.'}</span>
+                      {scriptEnhanceEstimate?.estimatedCredits ? (
+                        <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                  <ScriptEditor
+                    topic={topic}
+                    onTopicChange={setTopic}
+                    topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
+                    script={script}
+                    onScriptChange={setScript}
+                    scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
+                    onGenerate={() => void generateScript()}
+                    onEnhance={() => void enhanceScript()}
+                    loading={scriptLoading}
+                    error={scriptError}
+                    tags={scriptTags}
+                    generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
+                    enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+                  />
+                </div>
+              )}
+
+              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                <div className="mt-4">
+                  <ModelDropdown
+                    models={visibleModels}
+                    selectedModel={modelKey}
+                    onChange={(value) => setModelKey(value as VideoModelKey)}
+                    title={`${selectedLane.label} models`}
+                    description="Pick a model for this lane."
+                  />
+                </div>
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
+                    <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
+                    <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available</p>
+                    <p className="mt-1 text-sm font-semibold text-text">
+                      {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
+                    </p>
+                  </div>
+                </div>
+                {laneHasOnlyGatedModels ? (
+                  <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
+                    Shown in studio, not enabled yet.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
+                    <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
+                      {(isDailyLane && availableDurations.filter((value) => value === 5 || value === 8).length > 0
+                        ? availableDurations.filter((value) => value === 5 || value === 8)
+                        : availableDurations
+                      ).map((duration) => (
+                        <option key={duration} value={String(duration)}>
+                          {duration}s
+                        </option>
+                      ))}
+                    </Dropdown>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Aspect</label>
+                    <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
+                      {availableAspectRatios.map((aspect) => (
+                        <option key={aspect.value} value={aspect.value}>
+                          {aspect.label}
+                        </option>
+                      ))}
+                    </Dropdown>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
+                    <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
+                      {availableResolutions.map((res) => (
+                        <option key={res.value} value={res.value}>
+                          {res.label}
+                        </option>
+                      ))}
+                    </Dropdown>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 'standard', label: 'Standard' },
+                      { value: 'high', label: 'High' },
+                    ].map((option) => {
+                      const active = quality === option.value;
+                      return (
+                        <button
+                          key={option.value}
                           type="button"
-                          variant="secondary"
-                          onClick={() => void enhanceScript()}
-                          disabled={scriptLoading || !script.trim()}
-                          className="min-h-9 rounded-full px-3 py-2 text-xs"
+                          onClick={() => setQuality(option.value as 'standard' | 'high')}
+                          className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                            active
+                              ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                              : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
+                          }`}
                         >
-                          {scriptLoading ? (
-                            <>
-                              <Spinner className="h-3.5 w-3.5" />
-                              Enhancing...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="h-3.5 w-3.5" />
-                              Enhance prompt
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      <Textarea
-                        value={script}
-                        onChange={(event) => setScript(event.target.value)}
-                        placeholder={activeLanePromptPlaceholder}
-                        rows={10}
-                        className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
-                      />
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                        <span>{script.trim().length > 0 ? 'Refine your current prompt for stronger motion and framing.' : 'Add a prompt first, then enhance it.'}</span>
-                        {scriptEnhanceEstimate?.estimatedCredits ? (
-                          <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
+                  </div>
+                  <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                    {narrationEnabled ? 'Voice on' : 'Voice off'}
+                  </Badge>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setNarrationEnabled((current) => !current)}
+                    className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                      narrationEnabled
+                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                    }`}
+                  >
+                    Voice {narrationEnabled ? 'On' : 'Off'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCaptionsEnabled((current) => !current)}
+                    className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                      captionsEnabled
+                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                    }`}
+                  >
+                    Captions {captionsEnabled ? 'Auto' : 'Off'}
+                  </button>
+                </div>
+                {narrationEnabled ? (
+                  <>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
+                      <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
+                        {languageOptions.map((option) => (
+                          <option key={`${option.label}-${option.code}`} value={option.label}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Dropdown>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
+                      <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
+                        {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
+                          <option key={option.key} value={option.key}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Dropdown>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</span>
+                      <Dropdown value={String(audioSampleRateHz)} onChange={(event) => setAudioSampleRateHz(Number(event.target.value))}>
+                        {AUDIO_QUALITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Dropdown>
+                    </label>
+                  </div>
+                  <label className="mt-3 block">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview line</span>
+                    <Textarea
+                      value={voicePreviewText}
+                      onChange={(event) => setVoicePreviewText(event.target.value)}
+                      rows={3}
+                      maxLength={280}
+                      className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
+                      placeholder="Welcome to RangManch AI. Let’s create something great for your audience."
+                    />
+                  </label>
+                  <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void previewVoice()}
+                        disabled={!voicePreviewText.trim() || voiceTranslationLoading || Boolean(voicePreviewLoadingKey)}
+                      >
+                        {voicePreviewLoadingKey === voice ? (
+                          <>
+                            <Spinner className="h-4 w-4" />
+                            Previewing...
+                          </>
+                        ) : (
+                          <>
+                            <Mic2 className="h-4 w-4" />
+                            Preview voice
+                          </>
+                        )}
+                      </Button>
+                      {voiceCreditMap ? (
+                        <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                          {(() => {
+                            const voiceCost = voiceCreditMap[voice];
+                            if (typeof voiceCost !== 'number' || voiceCost < 0) return 'Estimating';
+                            if (voiceCost === 0) return 'Free preview';
+                            return `+${voiceCost} credits`;
+                          })()}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {voicePreviewUrl ? (
+                      <div className="space-y-2">
+                        <audio
+                          ref={voicePreviewAudioRef}
+                          src={voicePreviewUrl}
+                          controls
+                          preload="auto"
+                          className="w-full"
+                          onEnded={() => setVoicePreviewing(false)}
+                          onPause={() => setVoicePreviewing(false)}
+                          onPlay={() => setVoicePreviewing(true)}
+                          onError={() => {
+                            const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                            setVoicePreviewError(message);
+                            setVoicePreviewing(false);
+                            show(message);
+                          }}
+                        />
+                        {!voicePreviewing ? (
+                          <button
+                            type="button"
+                            onClick={() => void playExistingVoicePreview()}
+                            className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                          >
+                            <Mic2 className="h-3.5 w-3.5" />
+                            Play preview
+                          </button>
                         ) : null}
                       </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                      <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-                      <div className="mt-4">
-                        <ModelDropdown
-                          models={visibleModels}
-                          selectedModel={modelKey}
-                          onChange={(value) => setModelKey(value as VideoModelKey)}
-                          title={`${selectedLane.label} models`}
-                          description="Pick a model for this lane."
-                        />
-                      </div>
-                      <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
-                          <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
-                        </div>
-                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
-                          <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
-                        </div>
-                        <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available</p>
-                          <p className="mt-1 text-sm font-semibold text-text">
-                            {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
-                          </p>
-                        </div>
-                      </div>
-                      {laneHasOnlyGatedModels ? (
-                        <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                          Shown in studio, not enabled yet.
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
-                          <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
-                            {(availableDurations.filter((value) => value === 5 || value === 8).length > 0
-                              ? availableDurations.filter((value) => value === 5 || value === 8)
-                              : availableDurations
-                            ).map((duration) => (
-                              <option key={duration} value={String(duration)}>
-                                {duration}s
-                              </option>
-                            ))}
-                          </Dropdown>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Aspect</label>
-                          <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
-                            {availableAspectRatios.map((aspect) => (
-                              <option key={aspect.value} value={aspect.value}>
-                                {aspect.label}
-                              </option>
-                            ))}
-                          </Dropdown>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
-                          <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
-                            {availableResolutions.map((res) => (
-                              <option key={res.value} value={res.value}>
-                                {res.label}
-                              </option>
-                            ))}
-                          </Dropdown>
-                        </div>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { value: 'standard', label: 'Standard' },
-                            { value: 'high', label: 'High' },
-                          ].map((option) => {
-                            const active = quality === option.value;
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setQuality(option.value as 'standard' | 'high')}
-                                className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                                  active
-                                    ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                                    : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
-                        </div>
-                        <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
-                          {narrationEnabled ? 'Voice on' : 'Voice off'}
-                        </Badge>
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => setNarrationEnabled((current) => !current)}
-                          className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                            narrationEnabled
-                              ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                          }`}
-                        >
-                          Voice {narrationEnabled ? 'On' : 'Off'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCaptionsEnabled((current) => !current)}
-                          className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                            captionsEnabled
-                              ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                          }`}
-                        >
-                          Captions {captionsEnabled ? 'Auto' : 'Off'}
-                        </button>
-                      </div>
-                      {narrationEnabled ? (
-                        <>
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <label className="block">
-                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
-                              <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
-                                {languageOptions.map((option) => (
-                                  <option key={`${option.label}-${option.code}`} value={option.label}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </Dropdown>
-                            </label>
-                            <label className="block">
-                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
-                              <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
-                                {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
-                                  <option key={option.key} value={option.key}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </Dropdown>
-                            </label>
-                            <label className="block">
-                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</span>
-                              <Dropdown value={String(audioSampleRateHz)} onChange={(event) => setAudioSampleRateHz(Number(event.target.value))}>
-                                {AUDIO_QUALITY_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </Dropdown>
-                            </label>
-                          </div>
-                          <label className="mt-3 block">
-                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview line</span>
-                            <Textarea
-                              value={voicePreviewText}
-                              onChange={(event) => setVoicePreviewText(event.target.value)}
-                              rows={3}
-                              maxLength={280}
-                              className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
-                              placeholder="Welcome to RangManch AI. Let’s create something great for your audience."
-                            />
-                          </label>
-                          <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => void previewVoice()}
-                                disabled={!voicePreviewText.trim() || voiceTranslationLoading || Boolean(voicePreviewLoadingKey)}
-                              >
-                                {voicePreviewLoadingKey === voice ? (
-                                  <>
-                                    <Spinner className="h-4 w-4" />
-                                    Previewing...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Mic2 className="h-4 w-4" />
-                                    Preview voice
-                                  </>
-                                )}
-                              </Button>
-                              {voiceCreditMap ? (
-                                <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
-                                  {(() => {
-                                    const voiceCost = voiceCreditMap[voice];
-                                    if (typeof voiceCost !== 'number' || voiceCost < 0) return 'Estimating';
-                                    if (voiceCost === 0) return 'Free preview';
-                                    return `+${voiceCost} credits`;
-                                  })()}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            {voicePreviewUrl ? (
-                              <div className="space-y-2">
-                                <audio
-                                  ref={voicePreviewAudioRef}
-                                  src={voicePreviewUrl}
-                                  controls
-                                  preload="auto"
-                                  className="w-full"
-                                  onEnded={() => setVoicePreviewing(false)}
-                                  onPause={() => setVoicePreviewing(false)}
-                                  onPlay={() => setVoicePreviewing(true)}
-                                  onError={() => {
-                                    const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                                    setVoicePreviewError(message);
-                                    setVoicePreviewing(false);
-                                    show(message);
-                                  }}
-                                />
-                                {!voicePreviewing ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void playExistingVoicePreview()}
-                                    className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
-                                  >
-                                    <Mic2 className="h-3.5 w-3.5" />
-                                    Play preview
-                                  </button>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <audio
-                                ref={voicePreviewAudioRef}
-                                onEnded={() => setVoicePreviewing(false)}
-                                onPause={() => setVoicePreviewing(false)}
-                              />
-                            )}
-                            {voicePreviewProvider || voicePreviewLimit || voicePreviewMessage || voicePreviewError ? (
-                              <div className="space-y-1 text-xs leading-5 text-muted">
-                                {voicePreviewProvider ? (
-                                  <p>
-                                    Provider: <span className="font-medium text-text">{voicePreviewProvider}</span>
-                                    {voicePreviewResolvedVoice ? (
-                                      <>
-                                        {' '}· Resolved voice: <span className="font-medium text-text">{voicePreviewResolvedVoice}</span>
-                                      </>
-                                    ) : null}
-                                    {' '}· {voicePreviewCached ? 'served from cache' : 'new synthesis'}
-                                  </p>
-                                ) : null}
-                                {voicePreviewLimit ? <p>{voicePreviewLimit}</p> : null}
-                                {voicePreviewMessage ? <p className="text-[hsl(var(--color-warning))]">{voicePreviewMessage}</p> : null}
-                                {voicePreviewError ? <p className="text-[hsl(var(--color-danger))]">{voicePreviewError}</p> : null}
-                              </div>
+                    ) : (
+                      <audio
+                        ref={voicePreviewAudioRef}
+                        onEnded={() => setVoicePreviewing(false)}
+                        onPause={() => setVoicePreviewing(false)}
+                      />
+                    )}
+                    {voicePreviewProvider || voicePreviewLimit || voicePreviewMessage || voicePreviewError ? (
+                      <div className="space-y-1 text-xs leading-5 text-muted">
+                        {voicePreviewProvider ? (
+                          <p>
+                            Provider: <span className="font-medium text-text">{voicePreviewProvider}</span>
+                            {voicePreviewResolvedVoice ? (
+                              <>
+                                {' '}· Resolved voice: <span className="font-medium text-text">{voicePreviewResolvedVoice}</span>
+                              </>
                             ) : null}
-                          </div>
-                        </>
-                      ) : null}
-
-                      <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
-                        <div className="mt-2 space-y-1.5 text-sm">
-                          <div className="flex items-center justify-between text-text">
-                            <span>Base generation</span>
-                            <span>{baseGenerationCredits} credits</span>
-                          </div>
-                          {narrationEnabled ? (
-                            <div className="flex items-center justify-between text-muted">
-                              <span>AI voice</span>
-                              <span>{narrationCredits} credits</span>
-                            </div>
-                          ) : null}
-                          {captionsEnabled ? (
-                            <div className="flex items-center justify-between text-muted">
-                              <span>Captions</span>
-                              <span>{captionCredits} credits</span>
-                            </div>
-                          ) : null}
-                          {selectedImageUrls.length > 0 ? (
-                            <div className="flex items-center justify-between text-muted">
-                            <span>Reference guidance</span>
-                              <span>{referenceCredits} credits</span>
-                            </div>
-                          ) : null}
-                          <div className="flex items-center justify-between text-muted">
-                            <span>Auto tag</span>
-                            <span>{autoTagCredits} credits</span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
-                            <span>Total</span>
-                            <span>{displayVideoEstimateCredits} credits</span>
-                          </div>
-                        </div>
+                            {' '}· {voicePreviewCached ? 'served from cache' : 'new synthesis'}
+                          </p>
+                        ) : null}
+                        {voicePreviewLimit ? <p>{voicePreviewLimit}</p> : null}
+                        {voicePreviewMessage ? <p className="text-[hsl(var(--color-warning))]">{voicePreviewMessage}</p> : null}
+                        {voicePreviewError ? <p className="text-[hsl(var(--color-danger))]">{voicePreviewError}</p> : null}
                       </div>
-                      {estimateError ? (
-                        <p className="mt-2 text-xs text-amber-600">
-                          Estimate sync is delayed. Showing fallback pricing.
-                        </p>
-                      ) : null}
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
-                    <ScriptEditor
-                      topic={topic}
-                      onTopicChange={setTopic}
-                      topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
-                      script={script}
-                      onScriptChange={setScript}
-                      scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
-                      onGenerate={() => void generateScript()}
-                      onEnhance={() => void enhanceScript()}
-                      loading={scriptLoading}
-                      error={scriptError}
-                      tags={scriptTags}
-                      generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
-                      enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
-                    />
+                    ) : null}
                   </div>
-                )}
-              </div>
+                </>
+                ) : null}
 
-              {!isDailyLane ? (
-              <div className="min-w-0 space-y-4">
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                  <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-                  <div className="mt-4">
-                    <ModelDropdown
-                      models={visibleModels}
-                      selectedModel={modelKey}
-                      onChange={(value) => setModelKey(value as VideoModelKey)}
-                      title={`${selectedLane.label} models`}
-                      description="Pick a model for this lane."
-                    />
-                  </div>
-                  <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
-                      <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+                <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
+                  <div className="mt-2 space-y-1.5 text-sm">
+                    <div className="flex items-center justify-between text-text">
+                      <span>Base generation</span>
+                      <span>{baseGenerationCredits} credits</span>
                     </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
-                      <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Ready now</p>
-                      <p className="mt-1 text-sm font-semibold text-text">
-                        {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
-                      </p>
-                    </div>
-                  </div>
-                  {laneHasOnlyGatedModels ? (
-                    <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                      Visible in studio, not enabled for generation yet.
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
-                      <p className="mt-1 text-xs text-muted">Keep the main decisions close to the script, like HeyGen-style editing.</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
-                      <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
-                        {(isDailyLane && availableDurations.filter((value) => value === 5 || value === 8).length > 0
-                          ? availableDurations.filter((value) => value === 5 || value === 8)
-                          : availableDurations
-                        ).map((duration) => (
-                          <option key={duration} value={String(duration)}>
-                            {duration}s
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
-                      <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
-                        {availableAspectRatios.map((aspect) => (
-                          <option key={aspect.value} value={aspect.value}>
-                            {aspect.label}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
-                      <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
-                        {availableResolutions.map((res) => (
-                          <option key={res.value} value={res.value}>
-                            {res.label}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { value: 'standard', label: 'Standard' },
-                        { value: 'high', label: 'High' },
-                      ].map((option) => {
-                        const active = quality === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setQuality(option.value as 'standard' | 'high')}
-                            className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                              active
-                                ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                                : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
-                      <p className="mt-1 text-xs text-muted">Keep narration off for budget-safe reels, or choose a Sarvam voice inline.</p>
-                    </div>
-                    <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
-                      {narrationEnabled ? 'Voice on' : 'Voice off'}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setNarrationEnabled((current) => !current)}
-                      className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                        narrationEnabled
-                          ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                      }`}
-                    >
-                      Voice {narrationEnabled ? 'AI voice' : 'Off'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCaptionsEnabled((current) => !current)}
-                      className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                        captionsEnabled
-                          ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                      }`}
-                    >
-                      Captions {captionsEnabled ? 'Auto captions' : 'Off'}
-                    </button>
-                  </div>
-                  {narrationEnabled ? (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
-                        <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
-                          {languageOptions.map((option) => (
-                            <option key={`${option.label}-${option.code}`} value={option.label}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </Dropdown>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Sarvam voice</span>
-                        <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
-                          {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
-                            <option key={option.key} value={option.key}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </Dropdown>
-                      </label>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
-                    <div className="mt-2 space-y-1.5 text-sm">
-                      <div className="flex items-center justify-between text-text">
-                        <span>Base generation</span>
-                        <span>{baseGenerationCredits} credits</span>
-                      </div>
-                      {narrationEnabled ? (
-                        <div className="flex items-center justify-between text-muted">
-                          <span>AI voice</span>
-                          <span>{narrationCredits} credits</span>
-                        </div>
-                      ) : null}
-                      {captionsEnabled ? (
-                        <div className="flex items-center justify-between text-muted">
-                          <span>Captions</span>
-                          <span>{captionCredits} credits</span>
-                        </div>
-                      ) : null}
-                      {selectedImageUrls.length > 0 ? (
-                        <div className="flex items-center justify-between text-muted">
-                          <span>Reference image consistency</span>
-                          <span>{referenceCredits} credits</span>
-                        </div>
-                      ) : null}
+                    {narrationEnabled ? (
                       <div className="flex items-center justify-between text-muted">
-                        <span>Auto tag</span>
-                        <span>{autoTagCredits} credits</span>
+                        <span>AI voice</span>
+                        <span>{narrationCredits} credits</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
-                        <span>Total</span>
-                        <span>{displayVideoEstimateCredits} credits</span>
+                    ) : null}
+                    {captionsEnabled ? (
+                      <div className="flex items-center justify-between text-muted">
+                        <span>Captions</span>
+                        <span>{captionCredits} credits</span>
                       </div>
+                    ) : null}
+                    {selectedImageUrls.length > 0 ? (
+                      <div className="flex items-center justify-between text-muted">
+                        <span>Reference guidance</span>
+                        <span>{referenceCredits} credits</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between text-muted">
+                      <span>Auto tag</span>
+                      <span>{autoTagCredits} credits</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
+                      <span>Total</span>
+                      <span>{displayVideoEstimateCredits} credits</span>
                     </div>
                   </div>
-                  {estimateError ? (
-                    <p className="mt-2 text-xs text-amber-600">
-                      Live estimate sync is delayed. Showing fallback estimate from current settings.
-                    </p>
-                  ) : null}
                 </div>
+                {estimateError ? (
+                  <p className="mt-2 text-xs text-amber-600">
+                    Estimate sync is delayed. Showing fallback pricing.
+                  </p>
+                ) : null}
               </div>
-              ) : null}
             </div>
           </div>
 

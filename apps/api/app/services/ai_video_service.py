@@ -1095,20 +1095,32 @@ def celery_process_ai_video(video_id: str) -> None:
         repo.update(video, progress=55)
         result = service.execute_model_with_router(payload)
         local_result_path = _resolve_local_generated_file(result.video_url)
-        if local_result_path and local_result_path.exists() and (bool(video.captions_enabled) or bool((video.title or '').strip())):
-            overlay_output = Path('data/renders') / f'{video.id}-overlay.mp4'
-            try:
-                final_overlay_path = service.pipeline.burn_overlays_on_video(
-                    input_video_path=local_result_path,
-                    output_video_path=overlay_output,
-                    title=video.title,
-                    script=video.script,
-                    captions_enabled=bool(video.captions_enabled),
-                    caption_style=video.caption_style,
-                )
-                result.video_url = f'/static/renders/{final_overlay_path.name}'
-            except Exception:
-                logger.exception('ai_video_overlay_burn_failed', extra={'render_id': video.id})
+        post_processed_path = local_result_path
+        if local_result_path and local_result_path.exists():
+            if not bool(getattr(video, 'narration_enabled', True)) and service.pipeline.video_has_audio_stream(local_result_path):
+                silent_output = Path('data/renders') / f'{video.id}-silent.mp4'
+                try:
+                    post_processed_path = service.pipeline.strip_audio_from_video(
+                        input_video_path=local_result_path,
+                        output_video_path=silent_output,
+                    )
+                    result.video_url = f'/static/renders/{post_processed_path.name}'
+                except Exception:
+                    logger.exception('ai_video_audio_strip_failed', extra={'render_id': video.id})
+            if post_processed_path and post_processed_path.exists() and bool(video.captions_enabled):
+                overlay_output = Path('data/renders') / f'{video.id}-overlay.mp4'
+                try:
+                    final_overlay_path = service.pipeline.burn_overlays_on_video(
+                        input_video_path=post_processed_path,
+                        output_video_path=overlay_output,
+                        title=video.title,
+                        script=video.script,
+                        captions_enabled=bool(video.captions_enabled),
+                        caption_style=video.caption_style,
+                    )
+                    result.video_url = f'/static/renders/{final_overlay_path.name}'
+                except Exception:
+                    logger.exception('ai_video_overlay_burn_failed', extra={'render_id': video.id})
         final_duration_seconds = _probe_video_duration_seconds(result.video_url)
         logger.info(
             'ai_video_render_diagnostics',
