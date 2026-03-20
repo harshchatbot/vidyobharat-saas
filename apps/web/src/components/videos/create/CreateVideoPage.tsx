@@ -273,6 +273,7 @@ export function CreateVideoPage({
   const [voicePreviewLoadingKey, setVoicePreviewLoadingKey] = useState<string | null>(null);
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [voicePreviewVoiceKey, setVoicePreviewVoiceKey] = useState<string | null>(null);
+  const [voicePreviewSignature, setVoicePreviewSignature] = useState<string | null>(null);
   const [voicePreviewText, setVoicePreviewText] = useState(
     'Welcome to RangManch AI. Let us create something amazing for your audience today.',
   );
@@ -1532,6 +1533,12 @@ export function CreateVideoPage({
   const previewVoice = async (previewVoiceKey?: string) => {
     const activeVoice = previewVoiceKey ?? voice;
     const previewText = voicePreviewText.trim();
+    const previewSignature = JSON.stringify({
+      text: previewText,
+      language,
+      voice: activeVoice,
+      sampleRateHz: audioSampleRateHz,
+    });
     const player = voicePreviewAudioRef.current;
     const scrollToVoicePreviewControls = () => {
       if (!voicePreviewControlsRef.current) return;
@@ -1551,6 +1558,7 @@ export function CreateVideoPage({
       player &&
       voicePreviewUrl &&
       voicePreviewVoiceKey === activeVoice &&
+      voicePreviewSignature === previewSignature &&
       !voicePreviewing
     ) {
       try {
@@ -1582,6 +1590,7 @@ export function CreateVideoPage({
     setVoicePreviewMessage(null);
     setVoicePreviewUrl(null);
     setVoicePreviewVoiceKey(null);
+    setVoicePreviewSignature(null);
     setVoicePreviewLoadingKey(activeVoice);
     try {
       const response = await api.previewTts(
@@ -1598,6 +1607,7 @@ export function CreateVideoPage({
       const nextPreviewUrl = response.preview_url.startsWith('http') ? response.preview_url : `${API_URL}${response.preview_url}`;
       setVoicePreviewUrl(nextPreviewUrl);
       setVoicePreviewVoiceKey(activeVoice);
+      setVoicePreviewSignature(previewSignature);
       player.pause();
       player.removeAttribute('src');
       player.load();
