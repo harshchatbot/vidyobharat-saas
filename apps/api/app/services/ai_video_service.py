@@ -189,10 +189,10 @@ class AIVideoCreateService:
             'sora2_pro': [],
             'veo3': ['kling3'],
             'kling3': ['veo3'],
-            # WAN/Kling fast lanes can return completed states without a usable video URL on some fal routes.
-            # Add proven non-fal fallback paths to keep user generations succeeding.
-            'wan_2_5': ['kling_turbo', 'kling3', 'sora2'],
-            'kling_turbo': ['wan_2_5', 'kling3', 'sora2'],
+            # Keep Daily Reels fallbacks inside budget-safe lanes only.
+            # Do not silently escalate a low-cost user choice into premium-priced Sora fallback.
+            'wan_2_5': ['kling_turbo', 'kling3'],
+            'kling_turbo': ['wan_2_5', 'kling3'],
             'kling': ['sora_2', 'sora2'],
             'sora_2': ['kling', 'kling3'],
             'veo_3_1': ['sora_2', 'sora2'],
