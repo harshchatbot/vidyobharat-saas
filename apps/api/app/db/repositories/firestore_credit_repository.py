@@ -23,6 +23,8 @@ class FirestoreCreditWallet:
     free_usage_count: int
     lifetime_purchased: int = 0
     lifetime_used: int = 0
+    recurring_plan_type: str = 'free'
+    recurring_monthly_credits: int = 40
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -108,6 +110,8 @@ class FirestoreCreditRepository:
             'current_credits': current_credits,
             'plan_type': plan_type,
             'monthly_credits': monthly_credits,
+            'recurring_plan_type': plan_type,
+            'recurring_monthly_credits': monthly_credits,
             'last_reset': now,
             'premium_usage_count': 0,
             'free_usage_count': 0,
@@ -312,8 +316,6 @@ class FirestoreCreditRepository:
                 return wallet, updated_order, True
 
             wallet.current_credits += order.credits
-            wallet.plan_type = order.plan_name or wallet.plan_type
-            wallet.monthly_credits = max(wallet.monthly_credits, order.credits)
             wallet.lifetime_purchased += order.credits
             wallet.updated_at = utcnow()
 
@@ -360,6 +362,12 @@ class FirestoreCreditRepository:
             'current_credits': current,
             'plan_type': create_defaults.get('plan_type') or 'free',
             'monthly_credits': int(create_defaults.get('monthly_credits') or 0),
+            'recurring_plan_type': create_defaults.get('recurring_plan_type') or create_defaults.get('plan_type') or 'free',
+            'recurring_monthly_credits': int(
+                create_defaults.get('recurring_monthly_credits')
+                or create_defaults.get('monthly_credits')
+                or 0
+            ),
             'last_reset': now,
             'premium_usage_count': 0,
             'free_usage_count': 0,
@@ -377,6 +385,8 @@ class FirestoreCreditRepository:
             'current_credits': wallet.current_credits,
             'plan_type': wallet.plan_type,
             'monthly_credits': wallet.monthly_credits,
+            'recurring_plan_type': wallet.recurring_plan_type,
+            'recurring_monthly_credits': wallet.recurring_monthly_credits,
             'last_reset': wallet.last_reset or utcnow(),
             'premium_usage_count': wallet.premium_usage_count,
             'free_usage_count': wallet.free_usage_count,
@@ -420,16 +430,26 @@ class FirestoreCreditRepository:
 
     def _to_wallet(self, data: dict[str, Any]) -> FirestoreCreditWallet:
         current_credits_raw = data.get('current_credits', data.get('currentCredits', data.get('balance')))
+        legacy_plan_type = data.get('plan_type', data.get('planType')) or 'free'
+        legacy_monthly_credits = int(data.get('monthly_credits', data.get('monthlyCredits')) or 0)
+        recurring_plan_type = data.get('recurring_plan_type', data.get('recurringPlanType'))
+        recurring_monthly_credits = data.get('recurring_monthly_credits', data.get('recurringMonthlyCredits'))
         return FirestoreCreditWallet(
             user_id=data.get('user_id') or data.get('userId'),
             current_credits=int(current_credits_raw or 0),
-            plan_type=data.get('plan_type', data.get('planType')) or 'free',
-            monthly_credits=int(data.get('monthly_credits', data.get('monthlyCredits')) or 0),
+            plan_type=legacy_plan_type,
+            monthly_credits=legacy_monthly_credits,
             last_reset=coerce_datetime(data.get('last_reset', data.get('lastReset'))),
             premium_usage_count=int(data.get('premium_usage_count', data.get('premiumUsageCount')) or 0),
             free_usage_count=int(data.get('free_usage_count', data.get('freeUsageCount')) or 0),
             lifetime_purchased=int(data.get('lifetime_purchased', data.get('lifetimePurchased')) or 0),
             lifetime_used=int(data.get('lifetime_used', data.get('lifetimeUsed')) or 0),
+            recurring_plan_type=str(recurring_plan_type or (legacy_plan_type if legacy_plan_type == 'free' else 'free')),
+            recurring_monthly_credits=int(
+                recurring_monthly_credits
+                if recurring_monthly_credits is not None
+                else (legacy_monthly_credits if legacy_plan_type == 'free' else 40)
+            ),
             created_at=coerce_datetime(data.get('created_at', data.get('createdAt'))) if data.get('created_at', data.get('createdAt')) else None,
             updated_at=coerce_datetime(data.get('updated_at', data.get('updatedAt'))) if data.get('updated_at', data.get('updatedAt')) else None,
         )

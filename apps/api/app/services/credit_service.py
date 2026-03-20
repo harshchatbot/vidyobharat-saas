@@ -81,6 +81,7 @@ class CreditTopUpOrderResult:
 
 class CreditService:
     FREE_PLAN_MONTHLY_CREDITS = 40
+    DEFAULT_RECURRING_PLAN = 'free'
     VOICE_PROVIDER_ALIASES = {
         'sarvam ai': 'sarvam',
         'sarvam': 'sarvam',
@@ -131,10 +132,7 @@ class CreditService:
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
-            # Backward-compatible upgrade path: older free wallets may still have 25.
-            # Keep free plan users on the current product policy (40 monthly credits).
-            if (wallet.plan_type or 'free').lower() == 'free' and int(wallet.monthly_credits or 0) < self.FREE_PLAN_MONTHLY_CREDITS:
-                wallet.monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
+            self._normalize_wallet_entitlement(wallet)
             self._apply_monthly_reset_if_due(wallet)
             self.repo.update_wallet(wallet)
             return wallet
@@ -311,7 +309,7 @@ class CreditService:
             'topup_verify_credit_applied' if not already_paid else 'topup_verify_already_paid',
             extra={'user_id': user_id, 'provider_order_id': razorpay_order_id, 'credits': topup_order.credits},
         )
-        return wallet
+        return self.ensure_wallet(user_id)
 
     def reconcile_razorpay_topup(
         self,
@@ -340,7 +338,7 @@ class CreditService:
                 'razorpay_payment_id': razorpay_payment_id,
             },
         )
-        return wallet
+        return self.ensure_wallet(topup_order.user_id)
 
     def deduct_credits(
         self,
@@ -644,8 +642,7 @@ class CreditService:
 
     def _apply_monthly_reset_if_due(self, wallet: FirestoreCreditWallet) -> bool:
         now = datetime.now(UTC)
-        if (wallet.plan_type or 'free').lower() == 'free' and int(wallet.monthly_credits or 0) < self.FREE_PLAN_MONTHLY_CREDITS:
-            wallet.monthly_credits = self.FREE_PLAN_MONTHLY_CREDITS
+        self._normalize_wallet_entitlement(wallet)
         last_reset = wallet.last_reset
         if last_reset is None:
             wallet.last_reset = now
@@ -654,7 +651,7 @@ class CreditService:
             last_reset = last_reset.replace(tzinfo=UTC)
         if last_reset.year == now.year and last_reset.month == now.month:
             return False
-        wallet.current_credits += wallet.monthly_credits
+        wallet.current_credits += wallet.recurring_monthly_credits
         wallet.last_reset = now
         wallet.free_usage_count = 0
         wallet.premium_usage_count = 0
@@ -666,11 +663,11 @@ class CreditService:
             self.repo.add_transaction(
                 user_id=wallet.user_id,
                 feature_key='monthly_reset',
-                amount=wallet.monthly_credits,
+                amount=wallet.recurring_monthly_credits,
                 balance_after=wallet.current_credits,
                 transaction_type='credit',
                 source='reset',
-                metadata_json=json.dumps({'plan_type': wallet.plan_type}),
+                metadata_json=json.dumps({'plan_type': wallet.recurring_plan_type}),
                 idempotency_key=reset_key,
             )
         return True
@@ -696,12 +693,10 @@ class CreditService:
         idempotency_key: str,
     ) -> tuple[FirestoreCreditWallet, dict[str, Any]]:
         self._apply_monthly_reset_if_due(wallet)
-        plan_name = str(metadata.get('plan_name') or '').strip().lower()
-        plan_credits = int(metadata.get('plan_credits') or 0)
-        if plan_name and plan_credits > 0:
-            wallet.plan_type = plan_name
-            wallet.monthly_credits = plan_credits
+        # One-time purchases increase spendable balance only. Recurring entitlement
+        # is normalized separately so top-ups cannot alter future monthly resets.
         wallet.current_credits += credits
+        wallet.lifetime_purchased += credits
         tx_id = self.repo._new_int_id()
         return wallet, {
             'id': tx_id,
@@ -715,6 +710,24 @@ class CreditService:
             'idempotency_key': idempotency_key,
             'created_at': datetime.now(UTC),
         }
+
+    def _normalize_wallet_entitlement(self, wallet: FirestoreCreditWallet) -> None:
+        recurring_plan = str(getattr(wallet, 'recurring_plan_type', None) or '').strip().lower() or self.DEFAULT_RECURRING_PLAN
+        recurring_monthly = int(getattr(wallet, 'recurring_monthly_credits', 0) or 0)
+
+        # Current product behavior provides a monthly free refill plus optional one-time top-ups.
+        # Older wallets may have had one-time top-up plan data written into recurring fields.
+        if recurring_plan != self.DEFAULT_RECURRING_PLAN:
+            recurring_plan = self.DEFAULT_RECURRING_PLAN
+        if recurring_monthly < self.FREE_PLAN_MONTHLY_CREDITS:
+            recurring_monthly = self.FREE_PLAN_MONTHLY_CREDITS
+
+        wallet.recurring_plan_type = recurring_plan
+        wallet.recurring_monthly_credits = recurring_monthly
+
+        # Keep legacy fields aligned for API compatibility and synced read models.
+        wallet.plan_type = recurring_plan
+        wallet.monthly_credits = recurring_monthly
 
     def _deduction_mutation(
         self,

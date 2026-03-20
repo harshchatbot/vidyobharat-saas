@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.services.geo_service import resolve_country_code
 
 logger = logging.getLogger(__name__)
+PLAN_ORDER = ('starter', 'creator', 'growth', 'pro')
 
 
 @dataclass
@@ -46,10 +47,44 @@ class PricingService:
         self.credit_plans = self._load_json('credit_plans.json')
         self.credit_costs = self._load_json('credit_pricing.json')
         self.regional_pricing = self._load_json('regional_pricing.json')
+        self._validate_pricing_ladder()
 
     def _load_json(self, filename: str) -> dict[str, Any]:
         path = Path(__file__).resolve().parents[1] / 'core' / filename
         return json.loads(path.read_text())
+
+    def _validate_pricing_ladder(self) -> None:
+        missing_plan_credits = [plan for plan in PLAN_ORDER if plan not in self.credit_plans]
+        if missing_plan_credits:
+            raise ValueError(f'Missing credit allocation for plans: {", ".join(missing_plan_credits)}')
+
+        for plan in PLAN_ORDER:
+            allocated = int(self.credit_plans[plan])
+            if allocated <= 0:
+                raise ValueError(f'Invalid credit allocation for plan "{plan}": {allocated}')
+
+        for region, bucket in self.regional_pricing.items():
+            plans = bucket.get('plans') or {}
+            missing_region_plans = [plan for plan in PLAN_ORDER if plan not in plans]
+            if missing_region_plans:
+                raise ValueError(f'Missing pricing entries for region "{region}": {", ".join(missing_region_plans)}')
+
+            previous_plan: str | None = None
+            previous_cost_per_credit: float | None = None
+            for plan in PLAN_ORDER:
+                price = float(plans[plan])
+                credits = float(self.credit_plans[plan])
+                if price <= 0:
+                    raise ValueError(f'Invalid price for region "{region}" plan "{plan}": {price}')
+                cost_per_credit = price / credits
+                if previous_cost_per_credit is not None and cost_per_credit > previous_cost_per_credit:
+                    raise ValueError(
+                        'Irrational pricing ladder detected for '
+                        f'region "{region}": "{plan}" is worse value per credit than "{previous_plan}" '
+                        f'({cost_per_credit:.4f} > {previous_cost_per_credit:.4f}).',
+                    )
+                previous_plan = plan
+                previous_cost_per_credit = cost_per_credit
 
     def get_pricing_quote(self, request: Request) -> PricingQuote:
         country = self._extract_country(request)
