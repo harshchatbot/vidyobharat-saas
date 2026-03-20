@@ -2065,7 +2065,7 @@ export function CreateVideoPage({
                           <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
                         </div>
                         <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available now</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available</p>
                           <p className="mt-1 text-sm font-semibold text-text">
                             {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
                           </p>
@@ -2073,7 +2073,7 @@ export function CreateVideoPage({
                       </div>
                       {laneHasOnlyGatedModels ? (
                         <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                          Visible in studio, not enabled for generation yet.
+                          Shown in studio, not enabled yet.
                         </div>
                       ) : null}
                     </div>
@@ -2097,7 +2097,7 @@ export function CreateVideoPage({
                           </Dropdown>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Format</label>
+                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Aspect</label>
                           <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
                             {availableAspectRatios.map((aspect) => (
                               <option key={aspect.value} value={aspect.value}>
@@ -2118,7 +2118,7 @@ export function CreateVideoPage({
                         </div>
                       </div>
                       <div className="mt-3 space-y-2">
-                        <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
+                          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
                         <div className="flex flex-wrap gap-2">
                           {[
                             { value: 'standard', label: 'Standard' },
@@ -2164,7 +2164,7 @@ export function CreateVideoPage({
                               : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
                           }`}
                         >
-                          Voice {narrationEnabled ? 'AI voice' : 'Off'}
+                          Voice {narrationEnabled ? 'On' : 'Off'}
                         </button>
                         <button
                           type="button"
@@ -2175,7 +2175,7 @@ export function CreateVideoPage({
                               : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
                           }`}
                         >
-                          Captions {captionsEnabled ? 'Auto captions' : 'Off'}
+                          Captions {captionsEnabled ? 'Auto' : 'Off'}
                         </button>
                       </div>
                       {narrationEnabled ? (
@@ -2192,7 +2192,7 @@ export function CreateVideoPage({
                               </Dropdown>
                             </label>
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Sarvam voice</span>
+                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
                               <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
                                 {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
                                   <option key={option.key} value={option.key}>
@@ -2202,7 +2202,7 @@ export function CreateVideoPage({
                               </Dropdown>
                             </label>
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio quality</span>
+                              <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</span>
                               <Dropdown value={String(audioSampleRateHz)} onChange={(event) => setAudioSampleRateHz(Number(event.target.value))}>
                                 {AUDIO_QUALITY_OPTIONS.map((option) => (
                                   <option key={option.value} value={option.value}>
@@ -2213,14 +2213,14 @@ export function CreateVideoPage({
                             </label>
                           </div>
                           <label className="mt-3 block">
-                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice preview text</span>
+                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview line</span>
                             <Textarea
                               value={voicePreviewText}
                               onChange={(event) => setVoicePreviewText(event.target.value)}
                               rows={3}
                               maxLength={280}
                               className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
-                              placeholder="Welcome to RangManch AI. Let’s create something good today for your audience."
+                              placeholder="Welcome to RangManch AI. Let’s create something great for your audience."
                             />
                           </label>
                         </>
@@ -2247,7 +2247,7 @@ export function CreateVideoPage({
                           ) : null}
                           {selectedImageUrls.length > 0 ? (
                             <div className="flex items-center justify-between text-muted">
-                              <span>Reference image consistency</span>
+                            <span>Reference guidance</span>
                               <span>{referenceCredits} credits</span>
                             </div>
                           ) : null}
@@ -2263,7 +2263,7 @@ export function CreateVideoPage({
                       </div>
                       {estimateError ? (
                         <p className="mt-2 text-xs text-amber-600">
-                          Live estimate sync is delayed. Showing fallback estimate from current settings.
+                          Estimate sync is delayed. Showing fallback pricing.
                         </p>
                       ) : null}
                     </div>
