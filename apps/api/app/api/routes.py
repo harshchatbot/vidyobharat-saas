@@ -1290,9 +1290,24 @@ def create_ai_video(
             remainingCredits=remaining_credits,
         )
     except InsufficientCreditsError as exc:
+        logger.warning(
+            'ai_video_create_insufficient_credits',
+            extra={
+                'request_id': request_id,
+                'user_id': user_id,
+                'required_credits': exc.required,
+                'available_credits': exc.available,
+                'payload_summary': payload_summary,
+            },
+        )
         raise HTTPException(
             status_code=402,
-            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+            detail={
+                'error': 'INSUFFICIENT_CREDITS',
+                'message': f'You need {exc.required} credits, but only {exc.available} are available.',
+                'required': exc.required,
+                'available': exc.available,
+            },
         ) from exc
     except CreditCapExceededError as exc:
         raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
