@@ -397,7 +397,7 @@ export function CreateVideoPage({
           captionsEnabled,
           narrationEnabled,
           voice,
-          provider: narrationEnabled ? undefined : 'free',
+          provider: narrationEnabled ? voiceProvider : 'free',
           imageUrls: selectedImageUrls,
           audioSettings: { sampleRateHz: audioSampleRateHz },
         },
@@ -531,6 +531,48 @@ export function CreateVideoPage({
   const addOnCreditsTotal = narrationCredits + captionCredits + referenceCredits + autoTagCredits;
   const baseGenerationCredits = Math.max(0, displayVideoEstimateCredits - addOnCreditsTotal);
   const laneHasOnlyGatedModels = laneModels.length > 0 && laneModels.every((model) => model.enabled === false);
+  const submitStateFingerprint = useMemo(
+    () => JSON.stringify({
+      modelKey,
+      resolution,
+      durationSeconds,
+      quality,
+      captionsEnabled,
+      narrationEnabled,
+      voice,
+      audioSampleRateHz,
+      imageCount: selectedImageUrls.length,
+      script: script.trim(),
+    }),
+    [
+      modelKey,
+      resolution,
+      durationSeconds,
+      quality,
+      captionsEnabled,
+      narrationEnabled,
+      voice,
+      audioSampleRateHz,
+      selectedImageUrls.length,
+      script,
+    ],
+  );
+  const previousSubmitStateFingerprintRef = useRef(submitStateFingerprint);
+
+  useEffect(() => {
+    if (previousSubmitStateFingerprintRef.current === submitStateFingerprint) return;
+    previousSubmitStateFingerprintRef.current = submitStateFingerprint;
+    if (!submitError) return;
+    setSubmitError(null);
+  }, [submitError, submitStateFingerprint]);
+
+  useEffect(() => {
+    if (!submitError?.toLowerCase().includes('insufficient credits')) return;
+    if (creditEstimate?.sufficient) {
+      setSubmitError(null);
+    }
+  }, [creditEstimate?.sufficient, submitError]);
+
   const handleVideoLaneChange = (nextLane: VideoLaneKey) => {
     setVideoLane(nextLane);
     const nextLaneModels = models.filter((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === nextLane);
@@ -2658,10 +2700,12 @@ export function CreateVideoPage({
               helperText={
                 laneHasOnlyGatedModels
                   ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`
-                  : selectedModelDisabled
-                    ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
-                    : creditEstimate
-                      ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
+                    : selectedModelDisabled
+                      ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
+                      : creditEstimate
+                      ? narrationEnabled
+                        ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
+                        : `Estimated remaining balance ${creditEstimate.remainingCredits} credits`
                       : isEstimating
                         ? 'Estimating credits for selected settings.'
                         : `${selectedLane.shortLabel} estimate uses the shared pricing engine. Final validation happens on submit.`
