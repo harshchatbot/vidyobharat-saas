@@ -2223,6 +2223,92 @@ export function CreateVideoPage({
                               placeholder="Welcome to RangManch AI. Let’s create something great for your audience."
                             />
                           </label>
+                          <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => void previewVoice()}
+                                disabled={!voicePreviewText.trim() || voiceTranslationLoading || Boolean(voicePreviewLoadingKey)}
+                              >
+                                {voicePreviewLoadingKey === voice ? (
+                                  <>
+                                    <Spinner className="h-4 w-4" />
+                                    Previewing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mic2 className="h-4 w-4" />
+                                    Preview voice
+                                  </>
+                                )}
+                              </Button>
+                              {voiceCreditMap ? (
+                                <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                                  {(() => {
+                                    const voiceCost = voiceCreditMap[voice];
+                                    if (typeof voiceCost !== 'number' || voiceCost < 0) return 'Estimating';
+                                    if (voiceCost === 0) return 'Free preview';
+                                    return `+${voiceCost} credits`;
+                                  })()}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {voicePreviewUrl ? (
+                              <div className="space-y-2">
+                                <audio
+                                  ref={voicePreviewAudioRef}
+                                  src={voicePreviewUrl}
+                                  controls
+                                  preload="auto"
+                                  className="w-full"
+                                  onEnded={() => setVoicePreviewing(false)}
+                                  onPause={() => setVoicePreviewing(false)}
+                                  onPlay={() => setVoicePreviewing(true)}
+                                  onError={() => {
+                                    const message = 'Preview audio could not be loaded. Please try another voice or retry.';
+                                    setVoicePreviewError(message);
+                                    setVoicePreviewing(false);
+                                    show(message);
+                                  }}
+                                />
+                                {!voicePreviewing ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void playExistingVoicePreview()}
+                                    className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                                  >
+                                    <Mic2 className="h-3.5 w-3.5" />
+                                    Play preview
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <audio
+                                ref={voicePreviewAudioRef}
+                                onEnded={() => setVoicePreviewing(false)}
+                                onPause={() => setVoicePreviewing(false)}
+                              />
+                            )}
+                            {voicePreviewProvider || voicePreviewLimit || voicePreviewMessage || voicePreviewError ? (
+                              <div className="space-y-1 text-xs leading-5 text-muted">
+                                {voicePreviewProvider ? (
+                                  <p>
+                                    Provider: <span className="font-medium text-text">{voicePreviewProvider}</span>
+                                    {voicePreviewResolvedVoice ? (
+                                      <>
+                                        {' '}· Resolved voice: <span className="font-medium text-text">{voicePreviewResolvedVoice}</span>
+                                      </>
+                                    ) : null}
+                                    {' '}· {voicePreviewCached ? 'served from cache' : 'new synthesis'}
+                                  </p>
+                                ) : null}
+                                {voicePreviewLimit ? <p>{voicePreviewLimit}</p> : null}
+                                {voicePreviewMessage ? <p className="text-[hsl(var(--color-warning))]">{voicePreviewMessage}</p> : null}
+                                {voicePreviewError ? <p className="text-[hsl(var(--color-danger))]">{voicePreviewError}</p> : null}
+                              </div>
+                            ) : null}
+                          </div>
                         </>
                       ) : null}
 

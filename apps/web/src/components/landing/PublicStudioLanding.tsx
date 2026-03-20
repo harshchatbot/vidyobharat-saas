@@ -424,7 +424,7 @@ export function PublicStudioLanding() {
                   {[
                     ['Free', '40 credits / month', 'Get 40 free credits every month, no watermark, for image, voice, and first renders.'],
                     ['Starter', '200 credits', 'Good for repeat creator workflows and short-form output.'],
-                    ['Creator', '550 credits', 'Built for serious publishing and balanced premium usage.'],
+                    ['Creator', '650 credits', 'Built for serious publishing and balanced premium usage.'],
                   ].map(([name, credits, blurb]) => (
                     <div
                       key={name}

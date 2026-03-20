@@ -25,7 +25,7 @@ const plans = [
     label: 'Creator',
     price: '₹1,499',
     cadence: '/ pack',
-    credits: '550 credits',
+    credits: '650 credits',
     detail: 'Built for serious creators and regular publishing cadence.',
   },
 ] as const;
