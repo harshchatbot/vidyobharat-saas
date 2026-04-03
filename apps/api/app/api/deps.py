@@ -95,6 +95,20 @@ async def get_user_id(
     authorization: str | None = Header(default=None),
     x_user_id: str | None = Header(default=None),
 ) -> str:
+    if x_user_id:
+        # Transitional fast path for current web app flows. The frontend already
+        # forwards X-User-ID on authenticated requests, and using it first avoids
+        # blocking the full app on external Firebase cert fetches during local or
+        # degraded-network sessions.
+        user = UserRepository(None).get_or_create_auth_user(
+            user_id=x_user_id,
+            email=None,
+            display_name=None,
+            avatar_url=None,
+        )
+        FirestoreSyncService().sync_user(user)
+        return user.id
+
     if authorization and authorization.lower().startswith('bearer '):
         token = authorization.split(' ', 1)[1].strip()
         try:
@@ -117,18 +131,6 @@ async def get_user_id(
                 'firebase_token_verification_failed_falling_back_to_user_id',
                 extra={'request_id': getattr(request.state, 'request_id', 'system'), 'detail': exc.detail},
             )
-
-    if x_user_id:
-        # Transitional fallback for existing server-rendered flows until all API calls
-        # consistently forward Firebase bearer tokens.
-        user = UserRepository(None).get_or_create_auth_user(
-            user_id=x_user_id,
-            email=None,
-            display_name=None,
-            avatar_url=None,
-        )
-        FirestoreSyncService().sync_user(user)
-        return user.id
 
     raise HTTPException(status_code=401, detail='Authentication required')
 

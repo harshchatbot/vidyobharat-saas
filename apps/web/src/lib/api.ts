@@ -65,6 +65,8 @@ export type ApiOptions = {
   timeoutMs?: number;
 };
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
 type CacheEntry<T> = {
   expiresAt: number;
   value: T;
@@ -168,11 +170,12 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   const tried: string[] = [];
   let response: Response | null = null;
   let lastNetworkError: unknown = null;
+  let lastTimeoutError: Error | null = null;
 
   for (const base of baseCandidates) {
     tried.push(base);
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutMs = options.timeoutMs ?? 0;
+    const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     const timeoutId =
       controller && timeoutMs > 0
         ? setTimeout(() => controller.abort(), timeoutMs)
@@ -195,7 +198,8 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
       if (error instanceof DOMException && error.name === 'AbortError' && timeoutMs > 0) {
-        throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        lastTimeoutError = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        continue;
       }
       lastNetworkError = error;
       continue;
@@ -207,6 +211,9 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   }
 
   if (!response) {
+    if (lastTimeoutError) {
+      throw lastTimeoutError;
+    }
     if (lastNetworkError instanceof Error) {
       throw new Error(
         `Network request failed for ${path}. Please check API availability/CORS and try again.`,
@@ -379,7 +386,7 @@ export const api = {
     if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
     if (params?.search) query.set('search', params.search);
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<Template[]>(`/api/templates${suffix}`, {}, { userId, cache: 'no-store' });
+    return request<Template[]>(`/api/templates${suffix}`, {}, { userId, cache: 'no-store', timeoutMs: 30_000 });
   },
   getTemplate(templateId: string, userId: string) {
     return request<Template>(`/api/templates/${templateId}`, {}, { userId, cache: 'no-store' });
@@ -451,7 +458,7 @@ export const api = {
     const path = '/projects';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, revalidateSeconds * 1000, () =>
-      request<Project[]>(path, {}, { userId, cache: 'no-store' }),
+      request<Project[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
     );
   },
   getProject(projectId: string, userId: string, cache: RequestCache = 'default') {
@@ -652,20 +659,20 @@ export const api = {
     return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store' });
   },
   listImageModels(userId: string) {
-    return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store' });
+    return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store', timeoutMs: 20_000 });
   },
   listGeneratedImages(userId: string, limit?: number) {
     const path = limit ? `/ai/images?limit=${limit}` : '/ai/images';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 6_000, () =>
-      request<GeneratedImage[]>(path, {}, { userId, cache: 'no-store' }),
+      request<GeneratedImage[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 35_000 }),
     );
   },
   listImageInspiration(userId: string, limit?: number) {
     const path = limit ? `/ai/images/inspiration?limit=${limit}` : '/ai/images/inspiration';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 10_000, () =>
-      request<InspirationImage[]>(path, {}, { userId, cache: 'no-store' }),
+      request<InspirationImage[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 35_000 }),
     );
   },
   listVideoInspiration(userId: string, limit?: number) {
@@ -712,7 +719,7 @@ export const api = {
     const path = `/assets/tags${suffix}`;
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 8_000, () =>
-      request<AssetTagFacet[]>(path, {}, { userId, cache: 'no-store' }),
+      request<AssetTagFacet[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
     );
   },
   searchAssets(
@@ -810,7 +817,7 @@ export const api = {
     const path = '/api/credits/wallet';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 8_000, () =>
-      request<CreditWallet>(path, {}, { userId, cache: 'no-store' }),
+      request<CreditWallet>(path, {}, { userId, cache: 'no-store', timeoutMs: 25_000 }),
     );
   },
   estimateCredits(action: string, payload: Record<string, unknown>, userId: string) {

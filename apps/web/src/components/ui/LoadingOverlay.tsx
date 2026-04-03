@@ -21,12 +21,12 @@ export function LoadingOverlay({
     : null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.84),hsl(var(--color-bg)/0.72))] px-4 py-6 backdrop-blur-xl sm:px-6">
+    <div className="fixed inset-0 z-[90] flex min-h-[100dvh] items-start justify-center overflow-y-auto bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.84),hsl(var(--color-bg)/0.72))] px-4 py-4 backdrop-blur-xl sm:items-center sm:px-6 sm:py-6">
       <div
         aria-busy="true"
         aria-live="polite"
         role="status"
-        className="relative w-full max-w-md rounded-[28px] border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.96),hsl(var(--color-surface)/0.94))] p-6 shadow-[var(--shadow-hard)] sm:p-7"
+        className="relative my-10 w-full max-w-sm rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.96),hsl(var(--color-surface)/0.94))] p-5 shadow-[var(--shadow-hard)] sm:my-auto sm:max-w-md sm:rounded-[28px] sm:p-7"
       >
         <div className="flex flex-col items-center text-center">
           <PacmanLoader size="lg" label="" />

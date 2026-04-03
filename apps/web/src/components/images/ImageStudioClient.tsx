@@ -681,12 +681,15 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       setStudioFeedLoading(true);
     }
 
-    const corePromise = Promise.all([
-      api.listImageModels(userId).catch(() => fallbackModels),
-      api.listUnifiedTemplates(userId, { type: 'image', active: true }).catch(() => []),
-      api.listProjects(userId).catch(() => []),
-    ]).then(([modelData, templateData, projectData]) => {
+    const corePromise = Promise.allSettled([
+      api.listImageModels(userId),
+      api.listUnifiedTemplates(userId, { type: 'image', active: true }),
+      api.listProjects(userId),
+    ]).then(([modelResult, templateResult, projectResult]) => {
       if (cancelled) return;
+      const modelData = modelResult.status === 'fulfilled' ? modelResult.value : fallbackModels;
+      const templateData = templateResult.status === 'fulfilled' ? templateResult.value : [];
+      const projectData = projectResult.status === 'fulfilled' ? projectResult.value : [];
       const nextModels = modelData.length > 0 ? modelData : fallbackModels;
       const nextTemplates = templateData.length > 0 ? templateData.map(mapUnifiedTemplateToImagePreset) : quickTemplates.map((item) => ({
         id: item.id,
@@ -710,18 +713,29 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       setProjectsLoading(false);
     });
 
-    const feedPromise = Promise.all([
-      api.listImageInspiration(userId).catch(() => []),
-      api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT).catch(() => []),
-      api.listAssetTags(userId, { content_type: 'image' }).catch(() => []),
-    ]).then(([inspirationData, imageData, tagData]) => {
+    const feedPromise = Promise.allSettled([
+      api.listImageInspiration(userId),
+      api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT),
+      api.listAssetTags(userId, { content_type: 'image' }),
+    ]).then(([inspirationResult, imagesResult, tagsResult]) => {
       if (cancelled) return;
+      const inspirationData = inspirationResult.status === 'fulfilled' ? inspirationResult.value : [];
+      const imageData = imagesResult.status === 'fulfilled' ? imagesResult.value : [];
+      const tagData = tagsResult.status === 'fulfilled' ? tagsResult.value : [];
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
       setHasMoreGenerated(imageData.length >= IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
       applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
       setTagFacets(tagData);
       setStudioFeedLoading(false);
+      if (inspirationResult.status === 'rejected' && imagesResult.status === 'rejected') {
+        show({
+          title: 'Studio feed unavailable',
+          message: 'Your images and inspiration took too long to load. Please refresh and check the API connection.',
+          variant: 'error',
+          durationMs: 5200,
+        });
+      }
     });
 
     void Promise.allSettled([corePromise, feedPromise]).then(() => {
@@ -732,7 +746,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, cacheWarm, userId]);
+  }, [cacheKey, cacheWarm, show, userId]);
 
   const createProjectFromCurrentImageDraft = async () => {
     setProjectCreating(true);
