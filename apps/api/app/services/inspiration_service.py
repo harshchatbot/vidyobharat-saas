@@ -143,10 +143,20 @@ class InspirationService:
             by_id[row.id] = row
         items = list(by_id.values())
         ranked = self._diverse_rank(items, key_fn=lambda item: str(getattr(item, 'model_key', 'image')))
+        selected_items = ranked[:limit]
+        users_by_id = self.users.get_many([item.user_id for item in selected_items])
+        tags_by_asset = self.tags.list_for_assets([('image', item.id) for item in selected_items])
+        liked_asset_ids = self.likes.list_liked_asset_ids(
+            asset_type='image',
+            user_id=viewer_user_id,
+            asset_ids=[item.id for item in selected_items],
+        )
         result: list[dict[str, object]] = []
-        for item in ranked[:limit]:
-            auto_tags, user_tags = self._tags_for(asset_id=item.id, asset_type='image')
-            owner = self.users.get(item.user_id)
+        for item in selected_items:
+            rows = tags_by_asset.get(('image', item.id), [])
+            auto_tags = [row.tag for row in rows if row.source == 'auto']
+            user_tags = [row.tag for row in rows if row.source == 'user']
+            owner = users_by_id.get(item.user_id)
             result.append(
                 {
                     'id': item.id,
@@ -161,7 +171,7 @@ class InspirationService:
                     'reference_urls': self._parse_json_list(item.reference_urls),
                     'tags': list(dict.fromkeys([*auto_tags, *user_tags]))[:8],
                     'like_count': int(getattr(item, 'like_count', 0) or 0),
-                    'liked_by_user': self.likes.has_liked(asset_type='image', asset_id=item.id, user_id=viewer_user_id),
+                    'liked_by_user': item.id in liked_asset_ids,
                     'moderation_status': str(getattr(item, 'moderation_status', 'approved')),
                 }
             )

@@ -631,7 +631,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         }
       />
 
-      <div className="flex gap-2 overflow-x-auto border-b border-[hsl(var(--color-border))] pb-2">
+      <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-[hsl(var(--color-border))] px-1 pb-2">
         {tabItems.map((item) => (
           <button
             key={item.key}
@@ -680,7 +680,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             ) : null
           }
         >
-          <div className="grid gap-5 2xl:grid-cols-[250px_1fr]">
+              <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[250px_1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-text">Saved personas</h3>
@@ -697,7 +697,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       key={persona.id}
                       type="button"
                       onClick={() => syncDraftFromPersona(persona)}
-                      className={`min-w-[180px] rounded-[18px] border px-4 py-3 text-left transition 2xl:min-w-0 ${
+                      className={`min-w-[150px] rounded-[18px] border px-4 py-3 text-left transition sm:min-w-[180px] 2xl:min-w-0 ${
                         selectedPersonaId === persona.id
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)]'
@@ -836,7 +836,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           icon={<Camera className="h-5 w-5" />}
           compact
         >
-          <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+          <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)]">
             <div className="space-y-4">
               <div className="mx-auto w-full max-w-[220px] overflow-hidden rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
                 <div className="aspect-[3/4] bg-[hsl(var(--color-bg))]">
@@ -860,7 +860,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 />
               </label>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className={`rounded-[14px] border px-4 py-3 ${imageFlowStepClass(uploadStepState)}`}>
                 <div className="flex items-center justify-between gap-2">
                   <Badge variant="outline">Upload</Badge>
@@ -994,7 +994,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               </div>
             </div>
             <div className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Pose</label>
                   <Dropdown value={selectedPose} onChange={(e) => setSelectedPose(e.target.value)}>
@@ -1127,7 +1127,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.5)] px-4 py-4 text-sm">
                   <div className="font-semibold text-text">{selectedScenePreset.label}</div>
                   <p className="mt-1 text-muted">{selectedScenePreset.description}</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Environment</div>
                       <div className="mt-1 text-text">{selectedScenePreset.environment || 'Uses the preset background context.'}</div>
@@ -1394,7 +1394,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           </div>
 
           <div className={`${showMobileSummary ? 'block' : 'hidden'} space-y-5 sm:space-y-6 2xl:block`}>
-          <div className="space-y-3 border-l border-[hsl(var(--color-border))] pl-5">
+          <div className="space-y-3 border-t border-[hsl(var(--color-border))] pt-4 2xl:border-l 2xl:border-t-0 2xl:pl-5 2xl:pt-0">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Character</p>
@@ -1414,7 +1414,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
           </div>
 
-          <div className="space-y-3 border-l border-[hsl(var(--color-border))] pl-5">
+          <div className="space-y-3 border-t border-[hsl(var(--color-border))] pt-4 2xl:border-l 2xl:border-t-0 2xl:pl-5 2xl:pt-0">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Outputs</p>

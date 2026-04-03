@@ -42,6 +42,10 @@ const DRAFT_VERSION = 2;
 const FREE_VOICE_KEYS = new Set(['Aarav', 'Mira', 'Dev', 'Shubh', 'Priya']);
 const VIDEO_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 
+function formatVoiceOptionLabel(option: TTSVoiceOption) {
+  return FREE_VOICE_KEYS.has(option.key) ? `${option.label} - Free` : option.label;
+}
+
 function sanitizeTags(tags: string[]) {
   return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)));
 }
@@ -77,6 +81,13 @@ function buildInitialTemplateInputs(template: UnifiedTemplate | null): Record<st
   return Object.fromEntries(
     template.inputs.map((field) => [field.key, field.placeholder || normalizeTemplateOptions(field)[0]?.value || '']),
   );
+}
+
+function sanitizeInitialTitle(initialTitle: string | undefined, initialTemplate: TemplateOption) {
+  const trimmed = (initialTitle || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.toLowerCase() === initialTemplate.label.trim().toLowerCase()) return '';
+  return trimmed;
 }
 
 const HERO_SUBTYPE_KEYS = new Set(['speakerType', 'subjectType', 'businessType', 'subtype', 'carouselType', 'productType']);
@@ -239,6 +250,7 @@ export function CreateVideoPage({
   const lastTaggedScriptRef = useRef('');
 
   const initialTemplate = TEMPLATE_OPTIONS.find((item) => item.key === templateKey) ?? TEMPLATE_OPTIONS[0];
+  const sanitizedInitialTitle = sanitizeInitialTitle(initialTitle, initialTemplate);
 
   const [templateSearch, setTemplateSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.key);
@@ -260,8 +272,8 @@ export function CreateVideoPage({
   const [appliedHeroTemplateInputs, setAppliedHeroTemplateInputs] = useState<Record<string, string>>({});
   const [appliedHeroTemplatePromptOverride, setAppliedHeroTemplatePromptOverride] = useState('');
   const [appliedHeroTemplateModelOverride, setAppliedHeroTemplateModelOverride] = useState('');
-  const [title, setTitle] = useState(initialTitle ?? '');
-  const [topic, setTopic] = useState(initialTitle ?? '');
+  const [title, setTitle] = useState(sanitizedInitialTitle);
+  const [topic, setTopic] = useState(sanitizedInitialTitle);
   const [script, setScript] = useState(initialScript ?? '');
   const [scriptTags, setScriptTags] = useState<string[]>([]);
   const [scriptError, setScriptError] = useState<string | null>(null);
@@ -2167,14 +2179,14 @@ export function CreateVideoPage({
       ) : null}
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
-        <div className="min-w-0">
+        <div className="min-w-0 order-2 xl:order-2 xl:col-start-1 xl:row-start-2">
           <section className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
-                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Compose your video</h2>
+                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Write and refine your video</h2>
               </div>
-              <div className="text-right text-xs text-muted">
+              <div className="w-full text-left text-xs text-muted sm:w-auto sm:text-right">
                 <p>{selectedLane.label}</p>
                 <p>{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
               </div>
@@ -2285,7 +2297,7 @@ export function CreateVideoPage({
                 </div>
                 {narrationEnabled ? (
                   <>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <label className="block">
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
                       <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
@@ -2301,7 +2313,7 @@ export function CreateVideoPage({
                       <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
                         {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
                           <option key={option.key} value={option.key}>
-                            {option.label}
+                            {formatVoiceOptionLabel(option)}
                           </option>
                         ))}
                       </Dropdown>
@@ -2465,7 +2477,7 @@ export function CreateVideoPage({
 
         <div className="min-w-0 order-3 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
           <section className="space-y-4 xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
                 <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Review and publish</h2>
@@ -2550,15 +2562,15 @@ export function CreateVideoPage({
           </section>
         </div>
 
-        <div className="min-w-0 order-2 xl:col-start-1">
+        <div className="min-w-0 order-1 xl:order-1 xl:col-start-1 xl:row-start-1">
             <section className="border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Setup</p>
-                  <h3 className="mt-1 text-lg font-semibold text-text">Model, template, voice, and output</h3>
+                  <h3 className="mt-1 text-lg font-semibold text-text">Choose template, model, and output first</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
+                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
                     <GalleryVerticalEnd className="h-3.5 w-3.5" />
                     Browse templates
                   </Button>
@@ -2594,7 +2606,7 @@ export function CreateVideoPage({
 
                 <SectionCard
                   title="Content Template"
-                  description="Template"
+                  description="Pick the structure before writing"
                   icon={<Film className="h-5 w-5" />}
                   compact
                 >

@@ -716,17 +716,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     const feedPromise = Promise.allSettled([
       api.listImageInspiration(userId),
       api.listGeneratedImages(userId, IMAGE_STUDIO_INITIAL_GENERATED_LIMIT),
-      api.listAssetTags(userId, { content_type: 'image' }),
-    ]).then(([inspirationResult, imagesResult, tagsResult]) => {
+    ]).then(([inspirationResult, imagesResult]) => {
       if (cancelled) return;
       const inspirationData = inspirationResult.status === 'fulfilled' ? inspirationResult.value : [];
       const imageData = imagesResult.status === 'fulfilled' ? imagesResult.value : [];
-      const tagData = tagsResult.status === 'fulfilled' ? tagsResult.value : [];
       setInspiration(inspirationData);
       setAllGeneratedImages(imageData);
       setHasMoreGenerated(imageData.length >= IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
       applyGeneratedFilters(imageData, searchQuery, selectedTags, selectedModelFilters, selectedResolutionFilters);
-      setTagFacets(tagData);
       setStudioFeedLoading(false);
       if (inspirationResult.status === 'rejected' && imagesResult.status === 'rejected') {
         show({
@@ -737,6 +734,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         });
       }
     });
+
+    void api.listAssetTags(userId, { content_type: 'image' })
+      .then((tagData) => {
+        if (cancelled) return;
+        setTagFacets(tagData);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTagFacets(buildTagFacets(allGeneratedImages));
+      });
 
     void Promise.allSettled([corePromise, feedPromise]).then(() => {
       if (cancelled) return;
@@ -1413,11 +1420,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">Template</p>
                 </div>
-                <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
+                <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
                   Browse templates
                 </Button>
@@ -1428,7 +1435,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     {Array.from({ length: 4 }).map((_, idx) => (
                       <div
                         key={`template-skeleton-${idx}`}
-                        className="min-w-[128px] overflow-hidden rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)]"
+                        className="min-w-[112px] overflow-hidden rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] sm:min-w-[128px]"
                       >
                         <div className="aspect-[4/3] animate-pulse bg-[hsl(var(--color-elevated)/0.62)]" />
                         <div className="space-y-1.5 p-2">
@@ -1448,7 +1455,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         setActiveTemplate(template);
                         setTemplatePickerOpen(true);
                       }}
-                      className={`group min-w-[128px] overflow-hidden rounded-[16px] text-left transition ${
+                      className={`group min-w-[112px] overflow-hidden rounded-[16px] text-left transition sm:min-w-[128px] ${
                         selected
                           ? 'bg-[hsl(var(--color-accent)/0.1)]'
                           : 'bg-[hsl(var(--color-surface)/0.34)] hover:bg-[hsl(var(--color-surface)/0.48)]'
@@ -1487,7 +1494,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">Project</p>
                 </div>
@@ -1531,7 +1538,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         setSelectedModel(workflow.resolvedModelKey);
                         setImageMode(workflow.key);
                       }}
-                      className={`min-w-[170px] rounded-full border px-3 py-2 text-left transition ${
+                      className={`min-w-[148px] rounded-full border px-3 py-2 text-left transition sm:min-w-[170px] ${
                         active
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] text-muted hover:text-text'
@@ -1598,12 +1605,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">Prompt</p>
                   <p className="mt-1 text-xs text-muted">{activeImageMode.label} works best for {activeImageMode.description.toLowerCase()}</p>
                 </div>
-                <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
+                <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="w-full gap-2 px-3 py-1.5 text-xs sm:w-auto">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                   {enhancing ? 'Enhancing...' : 'Enhance'}
                 </Button>
@@ -1633,7 +1640,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">References</p>
                   <p className="mt-1 text-xs text-muted">Optional. Add up to 4 images, or use one source image for an edit.</p>
@@ -1772,12 +1779,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </div>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Button
                     variant="secondary"
                     onClick={() => void retryLastGeneration(selectedGenerated ?? undefined)}
                     disabled={submitting || (!lastGenerationPayload && !selectedGenerated)}
-                    className="h-11 gap-2 rounded-[12px] px-4 text-xs"
+                    className="h-11 w-full gap-2 rounded-[12px] px-4 text-xs sm:w-auto"
                   >
                     {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                     {retrying ? 'Retrying...' : 'Retry'}
@@ -1785,7 +1792,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <Button
                     onClick={() => void handlePrimaryAction()}
                     disabled={submitting || Boolean(estimate && !estimate.sufficient)}
-                    className="min-w-[190px] rounded-[12px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                    className="w-full rounded-[12px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95 sm:min-w-[190px] sm:w-auto"
                   >
                     {primaryActionLoading ? (
                       <>

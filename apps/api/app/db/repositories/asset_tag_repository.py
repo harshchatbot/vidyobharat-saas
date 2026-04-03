@@ -51,6 +51,32 @@ class AssetTagRepository:
         items.sort(key=lambda item: (item.source, item.tag))
         return items
 
+    def list_for_assets(self, asset_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], list[AssetTag]]:
+        if not asset_pairs:
+            return {}
+        targets = {(asset_type, asset_id) for asset_type, asset_id in asset_pairs if asset_type and asset_id}
+        if not targets:
+            return {}
+        grouped: dict[tuple[str, str], list[AssetTag]] = {key: [] for key in targets}
+        asset_types = {asset_type for asset_type, _ in targets}
+        for asset_type in asset_types:
+            try:
+                rows = self.collection.where('asset_type', '==', asset_type).stream()
+            except Exception:
+                rows = self.collection.stream()
+            for doc in rows:
+                data = doc.to_dict() or {}
+                key = (str(data.get('asset_type') or ''), str(data.get('asset_id') or ''))
+                if key not in targets:
+                    continue
+                try:
+                    grouped.setdefault(key, []).append(self._to_model(data))
+                except Exception:
+                    continue
+        for items in grouped.values():
+            items.sort(key=lambda item: (item.source, item.tag))
+        return grouped
+
     def replace_user_tags(self, asset_id: str, asset_type: str, tags: list[str]) -> list[AssetTag]:
         for doc in self.collection.stream():
             data = doc.to_dict() or {}
@@ -64,8 +90,9 @@ class AssetTagRepository:
         if not asset_pairs:
             return []
         rows: list[AssetTag] = []
-        for asset_type, asset_id in asset_pairs:
-            rows.extend(self.list_for_asset(asset_id=asset_id, asset_type=asset_type))
+        grouped = self.list_for_assets(asset_pairs)
+        for items in grouped.values():
+            rows.extend(items)
         counts = Counter(item.tag for item in rows)
         return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
 

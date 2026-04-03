@@ -491,6 +491,12 @@ class TemplateManagementService:
             parts.append(f'Visual direction: {template.visual_prompt}.')
         if template.script_hint:
             parts.append(f'Creative goal: {template.script_hint}.')
+        parts.append(
+            'Best-practice image direction: use one clear focal idea, preserve strong visual hierarchy, keep the composition clean and platform-ready, avoid clutter, and finish with a polished professional look.'
+        )
+        parts.append(
+            'If text is implied, leave typography-safe negative space and keep the layout readable instead of overcrowded.'
+        )
         return ' '.join(part.strip() for part in parts if part and part.strip())
 
     def _build_video_script(self, *, template: UnifiedTemplateResponse, prompt: str, language: str) -> str:

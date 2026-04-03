@@ -34,6 +34,28 @@ class UserRepository:
             return None
         return self._to_model(snapshot.to_dict() or {})
 
+    def get_many(self, user_ids: list[str]) -> dict[str, User]:
+        unique_ids = [user_id for user_id in dict.fromkeys(user_ids) if user_id]
+        if not unique_ids:
+            return {}
+        refs = [self.collection.document(user_id) for user_id in unique_ids]
+        users: dict[str, User] = {}
+        try:
+            snapshots = self.firestore.get_all(refs)
+        except Exception:
+            snapshots = [ref.get() for ref in refs]
+        for snapshot in snapshots:
+            if not snapshot.exists:
+                continue
+            data = snapshot.to_dict() or {}
+            data.setdefault('id', snapshot.id)
+            try:
+                user = self._to_model(data)
+            except Exception:
+                continue
+            users[user.id] = user
+        return users
+
     def get_by_email(self, email: str) -> User | None:
         rows = list(self.collection.where('email', '==', email).limit(1).stream())
         if not rows:

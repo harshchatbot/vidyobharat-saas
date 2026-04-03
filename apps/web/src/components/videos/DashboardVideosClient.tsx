@@ -837,7 +837,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           {storyCards.map((item) => (
             <Link
               key={item.title}
-              href={`/create?template=${encodeURIComponent(item.templateKey)}&title=${encodeURIComponent(item.titleHint)}`}
+              href={`/create?template=${encodeURIComponent(item.templateKey)}`}
               className="group rounded-[20px] border border-[hsl(var(--color-border))] p-3.5 shadow-soft transition hover:-translate-y-0.5"
               style={{ background: item.gradient }}
             >

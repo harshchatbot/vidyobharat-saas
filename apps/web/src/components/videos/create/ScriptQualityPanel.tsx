@@ -18,10 +18,10 @@ export function ScriptQualityPanel({
 }) {
   const scoreTone =
     report.score >= 85
-      ? 'text-emerald-300'
+      ? 'text-[hsl(var(--color-accent))]'
       : report.score >= 70
         ? 'text-[hsl(var(--color-accent))]'
-        : 'text-amber-300';
+        : 'text-[hsl(var(--color-accent))]';
   const enhanceLabel =
     typeof enhanceCredits === 'number'
       ? enhanceCredits > 0
@@ -55,7 +55,7 @@ export function ScriptQualityPanel({
               key={finding.id}
               className="flex items-start gap-2 rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.36)] px-3 py-2.5"
             >
-              <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${finding.severity === 'warning' ? 'text-amber-300' : 'text-[hsl(var(--color-accent))]'}`} />
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--color-accent))]" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-text">{finding.title}</p>
                 <p className="mt-0.5 text-xs leading-5 text-muted">{finding.detail}</p>
@@ -72,7 +72,7 @@ export function ScriptQualityPanel({
               key={strength}
               className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.3)] px-3 py-1.5 text-xs text-muted"
             >
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
               {strength}
             </div>
           ))}

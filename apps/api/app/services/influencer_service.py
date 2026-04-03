@@ -352,7 +352,7 @@ class InfluencerService:
 
     def _build_image_prompt(self, persona: InfluencerPersona, pose: str, scene: dict[str, str | None]) -> str:
         lock_clause = (
-            'Never change facial structure, hairstyle, skin tone, or identity markers. '
+            'Never change facial structure, hairstyle, skin tone, age impression, body identity, or signature identity markers. '
             if persona.character_locked
             else ''
         )
@@ -363,6 +363,11 @@ class InfluencerService:
             f"Mood: {scene.get('mood') or 'confident and polished'}. "
         )
         negative_constraints = scene.get('negative_constraints') or 'Do not alter face, hairstyle, or core identity.'
+        reference_clause = (
+            f'Reference image source of truth: {persona.reference_image_url}. '
+            'Treat the uploaded reference as the non-negotiable identity anchor for likeness, face geometry, skin tone, hair, and overall personhood. '
+            'This must remain the same exact person across poses and scenes. '
+        )
         wardrobe_clause = (
             'Wardrobe must be one coherent complete look only. '
             'Do not mix two different fashion directions in one outfit. '
@@ -378,11 +383,13 @@ class InfluencerService:
             f'Pose: {pose}. '
             f'{scene_block}'
             'Change only pose, body language, background, lighting, and scene mood as required. '
+            f'{reference_clause}'
             f'{lock_clause}'
             f'Visual description source of truth: {persona.visual_description}. '
             f'{wardrobe_clause}'
             f'{negative_constraints} '
-            'Keep clothing style fully consistent and believable.'
+            'Keep clothing style fully consistent and believable. '
+            'The final render should feel like a new photo of the same person, not a new character inspired by them.'
         ).strip()
 
     def _resolve_scene(self, scene: str, *, user_id: str, persona_id: str) -> dict[str, str | None]:
@@ -423,8 +430,10 @@ class InfluencerService:
             f'You always speak with {tone or "a confident creator tone"}.',
             f'Maintain personality: {", ".join(traits) or "consistent, memorable, creator-first"}',
             f'Visual appearance: {visual_description}',
-            'Never change facial structure.',
-            'Keep clothing style consistent unless scene requires variation.',
+            'Never change facial structure, skin tone, age impression, or core identity.',
+            'Reference image is the authoritative identity anchor whenever one is provided.',
+            'Keep clothing style consistent unless the scene clearly requires a believable variation.',
+            'Every new render should read as the same person in a different shot, not a new person with similar styling.',
         ]
         if niche:
             bullets.append(f'Niche: {niche}')

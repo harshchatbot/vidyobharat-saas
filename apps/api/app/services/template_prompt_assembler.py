@@ -117,7 +117,9 @@ class TemplatePromptAssembler:
         prompt = template.prompt_template
         for field in template.inputs:
             prompt = prompt.replace('{' + field.key + '}', values.get(field.key) or field.placeholder or '')
-        return self._compose(prompt, template.visual_prompt or '', template.script_hint or '')
+        quality = self._base_blocks(template, values)['quality']
+        motion = self._motion_block(template.type)
+        return self._compose(prompt, template.visual_prompt or '', template.script_hint or '', quality, motion)
 
     def _assemble_character_explainer_reel(self, template: UnifiedTemplateResponse, values: dict[str, str]) -> PromptAssemblyResult:
         base = self._base_blocks(template, values)

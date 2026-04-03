@@ -16,6 +16,26 @@ class InspirationLikeRepository:
         snapshot = self.collection.document(self._doc_id(asset_type=asset_type, asset_id=asset_id, user_id=user_id)).get()
         return snapshot.exists
 
+    def list_liked_asset_ids(self, *, asset_type: str, user_id: str, asset_ids: list[str]) -> set[str]:
+        targets = {asset_id for asset_id in asset_ids if asset_id}
+        if not targets:
+            return set()
+        liked: set[str] = set()
+        try:
+            rows = self.collection.where('user_id', '==', user_id).where('asset_type', '==', asset_type).stream()
+        except Exception:
+            rows = self.collection.stream()
+        for row in rows:
+            data = row.to_dict() or {}
+            if str(data.get('user_id') or '') != user_id:
+                continue
+            if str(data.get('asset_type') or '') != asset_type:
+                continue
+            asset_id = str(data.get('asset_id') or '')
+            if asset_id in targets:
+                liked.add(asset_id)
+        return liked
+
     def set_like(self, *, asset_type: str, asset_id: str, user_id: str, liked: bool) -> bool:
         ref = self.collection.document(self._doc_id(asset_type=asset_type, asset_id=asset_id, user_id=user_id))
         if liked:
