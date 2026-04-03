@@ -20,10 +20,10 @@ export function SectionCard({
 }>) {
   if (compact) {
     return (
-      <details open={defaultOpen} className="group border-t border-[hsl(var(--color-border)/0.55)] first:border-t-0">
+      <details open={defaultOpen} className="group border-b border-[hsl(var(--color-border)/0.5)] py-1 last:border-b-0">
         <summary className="relative flex cursor-pointer list-none items-start justify-between gap-3 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
           <div className="flex min-w-0 items-start gap-2.5">
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.55)] text-[hsl(var(--color-accent))]">
+            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[hsl(var(--color-accent))]">
               {icon}
             </span>
             <div className="min-w-0">
@@ -33,12 +33,12 @@ export function SectionCard({
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
             {action}
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-[hsl(var(--color-bg)/0.7)] text-text transition group-open:rotate-180">
+            <span className="inline-flex h-5 w-5 items-center justify-center text-muted transition group-open:rotate-180">
               <ChevronDown className="h-3.5 w-3.5" />
             </span>
           </div>
         </summary>
-        <div className="pb-3">{children}</div>
+        <div className="pb-4 pl-7">{children}</div>
       </details>
     );
   }

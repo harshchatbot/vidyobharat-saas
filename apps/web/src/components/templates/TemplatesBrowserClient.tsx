@@ -227,10 +227,10 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
     }
   }
 
-  function renderSection(title: string, items: Template[]) {
+  function renderSection(sectionKey: string, title: string, items: Template[]) {
     if (items.length === 0) return null;
     return (
-      <section className="space-y-4">
+      <section key={sectionKey} className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="rangmanch-section-eyebrow">Templates</p>
@@ -286,8 +286,8 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
       {error ? <div className="rounded-[24px] border border-[hsl(var(--color-danger)/0.3)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">{error}</div> : null}
       {!loading && !error ? (
         <div className="space-y-10">
-          {renderSection('Trending Templates', trendingTemplates)}
-          {Object.entries(groupedTemplates).map(([group, items]) => renderSection(GROUP_LABELS[group] || group, items))}
+          {renderSection('trending', 'Trending Templates', trendingTemplates)}
+          {Object.entries(groupedTemplates).map(([group, items]) => renderSection(group, GROUP_LABELS[group] || group, items))}
         </div>
       ) : null}
 

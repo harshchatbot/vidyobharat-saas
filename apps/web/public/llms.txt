@@ -1,0 +1,27 @@
+# RangManch AI
+
+> RangManch AI is an India-first AI creation platform for videos, images, templates, AI influencer workflows, and voice-led creator content.
+
+RangManch AI helps creators, marketers, agencies, startups, and brands generate short-form videos, image assets, template-based creative, and reference-guided AI influencer visuals from a unified workflow.
+
+## Main pages
+
+- [Home](https://rangmanchai.com/)
+- [Pricing](https://rangmanchai.com/pricing)
+- [Video Studio](https://rangmanchai.com/create)
+- [Image Studio](https://rangmanchai.com/images)
+- [AI Influencer Studio](https://rangmanchai.com/influencer)
+- [Templates](https://rangmanchai.com/templates)
+- [Indian AI Voiceovers](https://rangmanchai.com/sarvam-ai-voiceovers)
+
+## Product focus
+
+- AI video generation for creator and campaign workflows
+- AI image generation for ads, social, and branded visuals
+- Guided template workflows for prompt and asset generation
+- Reference-guided AI influencer creation and content ideation
+- Indian-language and creator-oriented voiceover workflows
+
+## For richer context
+
+- [Full LLM guide](https://rangmanchai.com/llms-full.txt)

@@ -2,16 +2,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRight,
-  BriefcaseBusiness,
   Clapperboard,
-  Film,
   ShieldCheck,
   Sparkles,
-  Users2,
   Wand2,
 } from 'lucide-react';
 
-import { GlassPanel } from '@/components/landing/GlassPanel';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LandingVideo } from '@/components/landing/LandingVideo';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -19,59 +15,33 @@ import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
 const whyRangManch = [
   {
-    title: 'One creator studio, not five disconnected tools',
-    body: 'Generate images, reels, influencer visuals, and template-led assets from one workflow instead of stitching together separate apps.',
+    title: 'One studio for images, reels, and influencer content',
+    body: 'Create and organize everything from one workflow.',
     icon: Sparkles,
   },
   {
-    title: 'Built for repeatable persona and story workflows',
-    body: 'Keep visual direction, character consistency, and campaign output closer together so publishing feels faster and less chaotic.',
+    title: 'Built for repeatable creative workflows',
+    body: 'Keep prompts, references, and outputs aligned.',
     icon: Wand2,
   },
   {
     title: 'Templates and guided lanes reduce prompt friction',
-    body: 'Move from blank page to usable output with presets designed for reels, social visuals, educational content, and commercial creative.',
+    body: 'Start faster and reach a usable output sooner.',
     icon: Clapperboard,
-  },
-  {
-    title: 'India-first creator workflows with global output goals',
-    body: 'Designed for creators, brands, and agencies that need fast short-form production with a commercially aware workflow.',
-    icon: ShieldCheck,
   },
 ];
 
 const creationUseCases = [
-  'AI influencer posts and character-led content',
-  'Product promo reels and short ad creatives',
-  'Faceless brand videos and daily reel workflows',
-  'Educational visuals, explainers, and infographic posts',
-  'Client-ready campaign concepts and social media assets',
-  'Short-form storytelling for creators and media pages',
-];
-
-const audienceGroups = [
-  {
-    title: 'Creators',
-    body: 'Build repeatable reels, visual stories, and character content without rebuilding your process each time.',
-  },
-  {
-    title: 'Agencies',
-    body: 'Prototype client-facing concepts, campaign visuals, and short-form variations from one organized studio.',
-  },
-  {
-    title: 'Brands & marketers',
-    body: 'Move faster on social ads, product storytelling, and visual testing while keeping output commercially usable.',
-  },
-  {
-    title: 'Educators & faceless content teams',
-    body: 'Turn topics, references, and templates into cleaner educational posts, explainers, and repeat publishing systems.',
-  },
+  'AI influencer visuals',
+  'Short ad creatives',
+  'Social media images',
+  'Voice-led short videos',
 ];
 
 const trustPoints = [
-  'Built for repeat creator workflows, not one-off experiments',
-  'Templates, personas, images, and videos work together in one studio',
-  'Clear task-based workflow lanes instead of an overwhelming model catalog',
+  'One workspace',
+  'Guided templates',
+  'Fast creator workflows',
 ];
 
 function HeroMediaRibbon() {
@@ -111,7 +81,7 @@ export function PublicStudioLanding() {
     <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
       <div className="flex min-h-screen max-w-full overflow-x-clip">
         <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 pt-3 sm:px-4 sm:pb-10 sm:pt-4 lg:px-5 lg:pb-12 xl:px-6 2xl:px-8 2xl:pb-14">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 pt-3 sm:px-4 sm:pb-9 sm:pt-4 lg:px-5 lg:pb-10 xl:px-6 2xl:px-8 2xl:pb-12">
             <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
               <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] px-4 py-4 sm:rounded-[32px] sm:px-5 sm:py-5 xl:rounded-[36px] xl:px-7 xl:py-6">
                 <div className="relative z-10">
@@ -139,25 +109,31 @@ export function PublicStudioLanding() {
                     </div>
                   </header>
 
-                  <div className="mx-auto flex min-h-[640px] max-w-[78rem] flex-col items-center justify-center pt-10 text-center sm:min-h-[700px] sm:pt-14 lg:min-h-[760px] lg:pt-16">
-                    <div className="space-y-5">
-                      <h1 className="max-w-5xl font-heading text-[2.55rem] font-extrabold tracking-tight text-[hsl(var(--color-accent))] sm:text-[3.5rem] sm:leading-[1.02] md:text-[4.5rem] lg:text-[5.65rem] 2xl:text-[6.2rem]">
-                        Create the Future of Content
+                  <div className="mx-auto flex min-h-[600px] max-w-[78rem] flex-col items-center justify-center pt-8 text-center sm:min-h-[660px] sm:pt-12 lg:min-h-[710px] lg:pt-14">
+                    <div className="space-y-4">
+                      <h1 className="max-w-5xl font-heading text-[2.55rem] font-extrabold tracking-tight text-[hsl(var(--color-accent))] sm:text-[3.4rem] sm:leading-[1.02] md:text-[4.3rem] lg:text-[5.3rem] 2xl:text-[5.9rem]">
+                        Create with
                         <br />
-                        With RangManch AI
+                        RangManch AI
                       </h1>
-                      <p className="mx-auto max-w-4xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1.06rem]">
-                        RangManch AI is a premium creator studio for AI influencers, reels, ads, and visual storytelling. Launch polished publish-ready content faster from one workflow.
+                      <p className="mx-auto max-w-3xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1rem]">
+                        Create images, reels, influencer visuals, and Indian voice-led content in one studio.
                       </p>
                     </div>
                     <HeroMediaRibbon />
-                    <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                       <Link
                         href="/signup"
                         className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]"
                       >
-                        Start Your Journey
+                        Start free
                         <ArrowRight className="h-4 w-4" />
+                      </Link>
+                      <Link
+                        href="/pricing"
+                        className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-3 text-sm font-medium"
+                      >
+                        View pricing
                       </Link>
                     </div>
                   </div>
@@ -165,15 +141,15 @@ export function PublicStudioLanding() {
               </div>
             </section>
 
-            <section id="why-rangmanch" className="scroll-mt-24 pt-8 lg:pt-10">
+            <section id="why-rangmanch" className="scroll-mt-24 pt-7 lg:pt-8">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="max-w-3xl">
                   <p className="rangmanch-section-eyebrow">Why RangManch AI</p>
-                  <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                    Built for creator output, not just raw generation.
+                  <h2 className="mt-1 text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">
+                    Built to make creation feel faster and cleaner.
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                    RangManch AI helps you move from idea to usable creative faster, with workflow structure that suits creators, teams, and client work.
+                  <p className="mt-2 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                    Focus on the idea, not the tool-hopping.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -188,13 +164,13 @@ export function PublicStudioLanding() {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+              <div className="mt-4 grid gap-4 border-t border-[hsl(var(--color-border)/0.45)] pt-4 md:grid-cols-2 2xl:grid-cols-3">
                 {whyRangManch.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <GlassPanel key={item.title} variant="matte" className="rangmanch-landing-accent-panel h-full p-4 sm:p-5">
+                    <div key={item.title} className="h-full border-l border-[hsl(var(--color-border)/0.45)] pl-4 sm:pl-5">
                       <div className="flex h-full flex-col gap-4">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.26)] bg-[hsl(var(--color-accent)/0.1)]">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-accent)/0.08)]">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div>
@@ -202,22 +178,22 @@ export function PublicStudioLanding() {
                           <p className="mt-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{item.body}</p>
                         </div>
                       </div>
-                    </GlassPanel>
+                    </div>
                   );
                 })}
               </div>
             </section>
 
-            <section id="what-you-can-create" className="scroll-mt-24 pt-8 lg:pt-10">
-              <GlassPanel variant="strong" className="rangmanch-landing-accent-panel overflow-hidden px-5 py-6 sm:px-6 sm:py-7 lg:px-7">
+            <section id="what-you-can-create" className="scroll-mt-24 pt-7 lg:pt-8">
+              <div className="overflow-hidden border-y border-[hsl(var(--color-border)/0.45)] px-1 py-5 sm:px-0 sm:py-6 lg:py-7">
                 <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
                   <div className="max-w-2xl">
                     <p className="rangmanch-section-eyebrow">What You Can Create</p>
-                    <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                      Real content workflows for publishing, campaigns, and client work.
+                    <h2 className="mt-1 text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">
+                      A few strong workflows, all in one place.
                     </h2>
-                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                      Use one studio to move across image generation, short-form video, influencer-style content, and template-driven creative production.
+                    <p className="mt-2 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
+                      Use one studio for the most common creator and brand outputs.
                     </p>
                   </div>
 
@@ -225,10 +201,10 @@ export function PublicStudioLanding() {
                     {creationUseCases.map((item, index) => (
                       <div
                         key={item}
-                        className="rounded-[22px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-4 backdrop-blur-md"
+                        className="border-l border-[hsl(var(--color-border)/0.45)] pl-4"
                       >
                         <div className="flex items-start gap-3">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-accent)/0.24)] bg-[hsl(var(--color-accent)/0.12)] text-xs font-semibold text-[hsl(var(--color-text))]">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-accent)/0.08)] text-xs font-semibold text-[hsl(var(--color-text))]">
                             {index + 1}
                           </span>
                           <p className="pt-1 text-sm font-medium leading-6 text-[hsl(var(--color-text))]">{item}</p>
@@ -237,183 +213,20 @@ export function PublicStudioLanding() {
                     ))}
                   </div>
                 </div>
-              </GlassPanel>
-            </section>
-
-            <section id="who-its-for" className="scroll-mt-24 pt-8 lg:pt-10">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {audienceGroups.map((group, index) => {
-                  const icons = [Users2, BriefcaseBusiness, Film, Sparkles];
-                  const Icon = icons[index] || Users2;
-                  return (
-                    <GlassPanel key={group.title} className="rangmanch-landing-accent-panel h-full p-4 sm:p-5">
-                      <div className="flex h-full flex-col gap-4">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.26)] bg-[hsl(var(--color-accent)/0.1)]">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold">{group.title}</p>
-                          <p className="mt-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{group.body}</p>
-                        </div>
-                      </div>
-                    </GlassPanel>
-                  );
-                })}
               </div>
             </section>
 
-            <section id="commercial-use" className="scroll-mt-24 pt-8 lg:pt-10">
-              <GlassPanel variant="matte" className="rangmanch-landing-accent-panel px-5 py-6 sm:px-6 sm:py-7">
-                <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-                  <div className="max-w-3xl">
-                    <p className="rangmanch-section-eyebrow">Commercial Use</p>
-                    <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                      Commercial-friendly workflows for brand content and client-facing output.
-                    </h2>
-                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                      Create content for campaigns, brands, and agency work from the same studio you use for creator publishing. Use generated assets for branded and client-facing content, subject to platform terms, provider terms, and applicable law.
-                    </p>
-                  </div>
-                  <div className="grid gap-3">
-                    {[
-                      'Create concept visuals, reels, explainers, and social creatives from one workspace.',
-                      'Keep templates, personas, and generation lanes organized for repeat campaign use.',
-                      'Scale from solo creator experiments into structured brand or client workflows.',
-                    ].map((item) => (
-                      <div
-                        key={item}
-                        className="rounded-[20px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.2)] px-4 py-3 text-sm leading-6 text-[hsl(var(--color-text))]"
-                      >
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </GlassPanel>
-            </section>
-
-            <section id="voiceovers" className="scroll-mt-24 pt-8 lg:pt-10">
-              <GlassPanel className="rangmanch-landing-accent-panel px-5 py-5 sm:px-6 sm:py-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="max-w-3xl">
-                    <p className="rangmanch-section-eyebrow">Indian Voiceovers</p>
-                    <h2 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
-                      Natural Indian AI voiceovers for reels, explainers, and regional storytelling.
-                    </h2>
-                    <p className="mt-3 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                      RangManch supports Indian-language narration inside the video workflow, with voice support optimized for Hindi, Indian English, and other supported Indian languages.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Link href="/sarvam-ai-voiceovers" className="rangmanch-landing-cta-primary inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold">
-                      Explore voiceovers
-                    </Link>
-                    <Link href="/signup" className="inline-flex items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium">
-                      Start free
-                    </Link>
-                  </div>
-                </div>
-              </GlassPanel>
-            </section>
-
-           {/* <section id="community" className="scroll-mt-24 pt-10">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="rangmanch-section-eyebrow">Community / Explore</p>
-                  <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Browse public inspiration in a live creative wall.</h2>
-                </div>
-                <div className="inline-flex w-fit flex-wrap items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.46)] bg-[hsl(var(--color-surface-glass)/0.28)] p-1 backdrop-blur-md">
-                  {[
-                    { key: 'all', label: 'All' },
-                    { key: 'videos', label: 'Videos' },
-                    { key: 'images', label: 'Images' },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setCommunityFilter(item.key as 'all' | 'videos' | 'images')}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                        communityFilter === item.key
-                          ? 'bg-[hsl(var(--color-text))] text-[hsl(var(--color-bg))]'
-                          : 'text-[hsl(var(--color-muted))] hover:text-[hsl(var(--color-text))]'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-6 columns-1 gap-4 md:columns-2 xl:columns-4">
-                {communityItems.length === 0 ? (
-                  <GlassPanel className="mb-4 px-5 py-8 text-sm text-[hsl(var(--color-muted))]">
-                    Community creations are loading. Published videos and images will appear here automatically.
-                  </GlassPanel>
-                ) : null}
-
-                {communityItems.map((entry) => {
-                  if (entry.type === 'video') {
-                    const video = entry.item;
-                    return (
-                      <article
-                        key={`video-${video.id}`}
-                        className="group relative mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.38)] bg-[hsl(var(--color-surface-glass)/0.18)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-                      >
-                        <div style={{ aspectRatio: aspectRatioToCss(video.aspect_ratio) }}>
-                          <LandingVideo src={video.video_url} poster={video.thumbnail_url || undefined} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-                        </div>
-                        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.64)] bg-[hsl(var(--color-bg)/0.5)] px-3 py-1.5 text-[11px] font-medium backdrop-blur-md">
-                          <Layers3 className="h-3.5 w-3.5" />
-                          {video.model_key}
-                        </div>
-                        <div className="absolute right-3 top-3 rounded-full border border-[hsl(var(--color-border)/0.64)] bg-[hsl(var(--color-bg)/0.5)] px-3 py-1.5 text-[11px] font-medium backdrop-blur-md">
-                          {video.duration_seconds}s
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent)] p-4">
-                          <p className="line-clamp-1 text-base font-semibold">{video.title}</p>
-                          <p className="mt-1 line-clamp-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{video.prompt}</p>
-                        </div>
-                      </article>
-                    );
-                  }
-
-                  const image = entry.item;
-                  return (
-                    <article
-                      key={`image-${image.id}`}
-                      className="group relative mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.38)] bg-[hsl(var(--color-surface-glass)/0.18)] backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-                    >
-                      <div style={{ aspectRatio: aspectRatioToCss(image.aspect_ratio) }}>
-                        <img src={image.image_url} alt={image.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" loading="lazy" />
-                      </div>
-                      <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.64)] bg-[hsl(var(--color-bg)/0.5)] px-3 py-1.5 text-[11px] font-medium backdrop-blur-md">
-                        <Layers3 className="h-3.5 w-3.5" />
-                        {image.model_key}
-                      </div>
-                      <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,hsl(var(--color-bg)/0.94),transparent)] p-4">
-                        <p className="line-clamp-1 text-base font-semibold">{image.title}</p>
-                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{image.prompt}</p>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-*/}
-            <section id="pricing" className="scroll-mt-24 pt-8 sm:pt-10">
-              <div className="rangmanch-landing-pricing-wrap grid gap-5 rounded-[28px] px-4 py-5 sm:px-5 sm:py-6 2xl:grid-cols-[1.05fr_0.95fr]">
+            <section id="pricing" className="scroll-mt-24 pt-7 sm:pt-8">
+              <div className="grid gap-5 border-t border-[hsl(var(--color-border)/0.45)] px-1 py-5 sm:px-0 sm:py-5 2xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="space-y-3">
                   <p className="rangmanch-section-eyebrow">Plans</p>
-                  <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-4xl">Move from testing to production without changing your workflow.</h2>
+                  <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">Start simple. Scale when needed.</h2>
                   <p className="max-w-2xl text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                    Start free, then scale into creator and client workflows with transparent credit-based creation for images, videos, and templates.
-                  </p>
-                  <p className="max-w-2xl text-xs leading-6 text-[hsl(var(--color-muted))] sm:text-sm">
-                    Credits help you create test visuals, reels, template outputs, and premium generations without locking you into one rigid workflow.
+                    Start free with 40 monthly credits, get a one-time activation bonus after your first real workflow win, and scale only when you need more volume.
                   </p>
                   <div className="flex flex-wrap gap-3 pt-2">
                     <Link href="/pricing" className="rangmanch-landing-cta-primary inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold sm:w-auto">
-                      View pricing
+                      See plans
                     </Link>
                     <Link href="/signup" className="inline-flex w-full items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium sm:w-auto">
                       Start free
@@ -422,13 +235,13 @@ export function PublicStudioLanding() {
                 </div>
                 <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {[
-                    ['Free', '40 credits / month', 'Get 40 free credits every month, no watermark, for image, voice, and first renders.'],
-                    ['Starter', '200 credits', 'Good for repeat creator workflows and short-form output.'],
-                    ['Creator', '650 credits', 'Built for serious publishing and balanced premium usage.'],
+                    ['Free', '40 credits / month', 'Enough to test real image, template, voice, and fast-draft workflows.'],
+                    ['Starter', '200 credits', 'For repeat creator work and your first premium runs.'],
+                    ['Creator', '650 credits', 'For active publishing and heavier weekly output.'],
                   ].map(([name, credits, blurb]) => (
                     <div
                       key={name}
-                      className="rangmanch-landing-accent-panel rounded-[24px] border p-4 backdrop-blur-md sm:rounded-[26px]"
+                      className="border-l border-[hsl(var(--color-border)/0.45)] pl-4"
                     >
                       <p className="text-sm font-semibold">{name}</p>
                       <p className="mt-4 text-2xl font-extrabold tracking-tight">{credits}</p>
@@ -439,7 +252,7 @@ export function PublicStudioLanding() {
               </div>
             </section>
 
-            <div className="pt-10">
+            <div className="pt-8">
               <LandingFooter />
             </div>
           </div>

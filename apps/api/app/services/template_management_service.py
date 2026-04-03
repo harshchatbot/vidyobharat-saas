@@ -298,6 +298,12 @@ class TemplateManagementService:
                     metadata={'refund_for': 'template_generate_image_failed', 'template_id': template.id},
                 )
                 deduction_amount = 0
+            bonus_wallet, _ = self.credit_service.grant_activation_bonus_if_eligible(
+                user_id=user_id,
+                trigger='first_template_image_generated',
+                trigger_ref=generation.id,
+            )
+            remaining_credits = bonus_wallet.current_credits
             return TemplateGenerateResponse(
                 templateId=template.id,
                 contentType='image',
@@ -491,17 +497,20 @@ class TemplateManagementService:
         hook = template.topic_hint or template.short_description or template.name
         return (
             f'[Opening shot: {template.name} visual hook]\n'
-            f'Narrator: "{hook}."\n\n'
+            f'Narrator: "{hook}."\n'
+            'Motion cue: begin with a gentle visual settle-in or soft fade-in, never an abrupt first frame.\n\n'
             f'[Scene 1: Establish the idea]\n'
             f'Narrator: "{prompt}."\n'
             'Camera cue: cinematic medium shot with premium motion.\n'
-            'Mood cue: clear, engaging, and creator-ready.\n\n'
+            'Mood cue: clear, engaging, and creator-ready.\n'
+            'Transition cue: keep scene changes smooth and visually coherent.\n\n'
             f'[Scene 2: Explain the core story]\n'
             f'Narrator: "{template.script_hint or template.description}."\n'
             'Camera cue: dynamic cutaways with infographic or environmental detail.\n'
             'Mood cue: polished and informative.\n\n'
             '[Closing shot: End frame and CTA]\n'
-            f'Narrator: "Create with RangManch AI and share your next story in {language}."'
+            f'Narrator: "Create with RangManch AI and share your next story in {language}."\n'
+            'Ending cue: hold the final branded frame briefly or ease out naturally so the outro feels smooth, not abrupt.'
         )
 
     def _to_unified_template(self, data: dict[str, Any]) -> UnifiedTemplateResponse:

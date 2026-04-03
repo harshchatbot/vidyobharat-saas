@@ -183,19 +183,18 @@ class AIVideoCreateService:
             'veo_3_1': self.generate_with_veo3,
         }
         self.model_router = SmartModelRouter()
-        # Keep fallbacks conservative: only retry with another compatible short-form provider.
+        # Keep fallbacks conservative. Do not route into disabled or unstable fal video models,
+        # and do not silently escalate creator/daily requests into incompatible Sora paths.
         self.video_fallbacks: dict[str, list[str]] = {
             'sora2': [],
             'sora2_pro': [],
-            'veo3': ['kling3'],
-            'kling3': ['veo3'],
-            # Keep Daily Reels fallbacks inside budget-safe lanes only.
-            # Do not silently escalate a low-cost user choice into premium-priced Sora fallback.
-            'wan_2_5': ['kling_turbo', 'kling3'],
-            'kling_turbo': ['wan_2_5', 'kling3'],
-            'kling': ['sora_2', 'sora2'],
-            'sora_2': ['kling', 'kling3'],
-            'veo_3_1': ['sora_2', 'sora2'],
+            'veo3': [],
+            'kling3': [],
+            'wan_2_5': [],
+            'kling_turbo': [],
+            'kling': [],
+            'sora_2': [],
+            'veo_3_1': [],
         }
 
     def list_models(self) -> list[ModelRegistryEntry]:
@@ -254,10 +253,10 @@ class AIVideoCreateService:
         adapter = self.providers.get(model_key) or self.providers.get(resolve_model_key(model_key) or model_key)
         if not registry_entry or not adapter:
             raise ProviderError(f'Unsupported model: {model_key}')
-        if not registry_entry.enabled and (resolve_model_key(model_key) or model_key) not in {'wan_2_5', 'kling_turbo', 'kling'}:
+        if not registry_entry.enabled:
             raise ProviderError(
-                f'{registry_entry.short_label or registry_entry.label} is not available yet. '
-                'Keep it visible in UI, but enable backend routing before allowing generation.'
+                f'{registry_entry.short_label or registry_entry.label} is temporarily unavailable. '
+                'Please choose an active studio model.'
             )
 
         self._validate_output_settings(model_key=registry_model_key, aspect_ratio=aspect_ratio, resolution=resolution)

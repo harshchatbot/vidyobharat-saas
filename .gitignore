@@ -41,6 +41,9 @@ apps/api/venv/
 build/
 dist/
 *.log
+playwright-report/
+test-results/
+blob-report/
 
 # Local data artifacts (keep structure, ignore generated contents)
 apps/api/data/uploads/*
@@ -60,3 +63,7 @@ tmp/
 
 
 infra/firebase-migration/service-account.json
+
+apps/api/service-account.json
+
+apps/api/service-account.json

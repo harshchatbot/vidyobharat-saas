@@ -43,6 +43,20 @@ function getPageTitle(pathname: string) {
   return 'RangManch AI';
 }
 
+function getRouteTransitionCopy(label: string) {
+  const normalized = label.trim().toLowerCase();
+  if (['dashboard', 'projects'].includes(normalized)) {
+    return 'Loading workspace';
+  }
+  if (['image studio', 'create video', 'template browser', 'influencer studio'].includes(normalized)) {
+    return 'Preparing studio';
+  }
+  if (['billing', 'pricing', 'settings', 'profile', 'credit history'].includes(normalized)) {
+    return 'Fetching account';
+  }
+  return `Loading ${label}`;
+}
+
 function isMoreRoute(pathname: string) {
   return (
     pathname.startsWith('/billing') ||
@@ -142,6 +156,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       setRouteTransitionLabel(null);
       return;
     }
+    window.dispatchEvent(new CustomEvent('rangmanch:navigation-start'));
     setRouteTransitionLabel(label ?? getPageTitle(href));
     startTransition(() => {
       router.push(href);
@@ -256,9 +271,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           </div>
         </div>
         <div className={`pointer-events-none fixed right-3 top-[84px] z-[95] transition-all duration-200 sm:right-6 sm:top-[92px] xl:right-8 ${isPending && routeTransitionLabel ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-surface)/0.9)] px-3 py-1.5 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[hsl(var(--color-accent))]" />
-            Opening {routeTransitionLabel}...
+          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.96),hsl(var(--color-elevated)/0.94))] px-3.5 py-2 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
+            <span className="relative inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
+              <span className="absolute h-4 w-4 rounded-full border border-[hsl(var(--color-accent)/0.24)]" />
+              <span className="absolute h-4 w-4 rounded-full border border-transparent border-t-[hsl(var(--color-accent))] border-r-[hsl(var(--color-accent)/0.5)] rangmanch-loader-ring" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent)/0.85)]" />
+            </span>
+            {routeTransitionLabel ? getRouteTransitionCopy(routeTransitionLabel) : 'Loading'}
           </div>
         </div>
         <aside ref={desktopNavRef} className="rangmanch-app-rail relative z-[70] hidden overflow-visible px-2 py-4 xl:block">
@@ -666,7 +685,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                               </span>
                               <span className="min-w-0 flex-1 text-left">
                                 <span className="block font-semibold text-text">{item.label}</span>
-                                <span className="block text-xs text-muted">{projectsNavPending ? 'Opening workspace…' : item.hint}</span>
+                                <span className="block text-xs text-muted">{projectsNavPending ? 'Loading workspace…' : item.hint}</span>
                               </span>
                             </button>
                           );

@@ -175,12 +175,56 @@ def _split_sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r'(?<=[.!?।])\s+', text.strip()) if part.strip()]
 
 
+def _estimate_script_word_budget(duration_seconds: int | None) -> tuple[int, int]:
+    duration = max(5, min(int(duration_seconds or 12), 60))
+    lower = max(24, duration * 4)
+    upper = max(lower + 8, duration * 6)
+    return lower, upper
+
+
+def _script_context_lines(payload: ScriptGenerateRequest | ScriptEnhanceRequest) -> list[str]:
+    lines: list[str] = []
+    if payload.template:
+        lines.append(f'Template: {payload.template}')
+    if getattr(payload, 'tone', None):
+        lines.append(f'Tone direction: {payload.tone}')
+    if getattr(payload, 'scriptHint', None):
+        lines.append(f'Creative brief: {payload.scriptHint}')
+    if getattr(payload, 'topicHint', None):
+        lines.append(f'Topic hint: {payload.topicHint}')
+    if getattr(payload, 'lane', None):
+        lines.append(f'Studio lane: {payload.lane}')
+    if getattr(payload, 'modelLabel', None):
+        lines.append(f'Preferred model: {payload.modelLabel}')
+    elif getattr(payload, 'modelKey', None):
+        lines.append(f'Preferred model key: {payload.modelKey}')
+    if getattr(payload, 'aspectRatio', None):
+        lines.append(f'Aspect ratio: {payload.aspectRatio}')
+    if getattr(payload, 'resolution', None):
+        lines.append(f'Resolution: {payload.resolution}')
+    if getattr(payload, 'quality', None):
+        lines.append(f'Quality target: {payload.quality}')
+    if getattr(payload, 'durationSeconds', None):
+        lines.append(f'Duration target: {payload.durationSeconds} seconds')
+    lines.append(
+        'Narration: '
+        + ('enabled' if bool(getattr(payload, 'narrationEnabled', True)) else 'disabled, so keep visual beats self-sufficient without relying on spoken audio')
+    )
+    lines.append(
+        'Captions: '
+        + ('enabled, so wording can support readable overlays' if bool(getattr(payload, 'captionsEnabled', False)) else 'disabled, so the script should stay visually clear even without on-screen text')
+    )
+    return lines
+
+
 def _build_structured_script_fallback(
     *,
     topic: str,
     template: str,
     language: str,
     source_script: str | None = None,
+    tone: str | None = None,
+    duration_seconds: int | None = None,
 ) -> str:
     base_lines = _split_sentences(source_script or '')
     if not base_lines:
@@ -193,9 +237,12 @@ def _build_structured_script_fallback(
     while len(base_lines) < 4:
         base_lines.append(base_lines[-1])
     scene_lines = base_lines[:4]
+    tone_label = tone or 'clear and engaging'
+    lower_words, upper_words = _estimate_script_word_budget(duration_seconds)
     return (
         f"[Opening shot: Cinematic hook visual aligned with {template}]\n"
-        f"Narrator (energetic): \"{scene_lines[0]}\"\n\n"
+        f"Narrator ({tone_label}): \"{scene_lines[0]}\"\n"
+        "Opening cue: Start with a smooth visual lead-in, not an abrupt first frame.\n\n"
         f"[Scene 1: Context and problem framing]\n"
         f"Narrator: \"{scene_lines[1]}\"\n"
         "Visual cue: Show the real-world setup and the user pain.\n"
@@ -213,7 +260,8 @@ def _build_structured_script_fallback(
         "Mood cue: Inspiring and uplifting.\n\n"
         "[Closing shot: Brand lockup with clear end frame]\n"
         "Narrator: \"Follow for more creator-ready videos and start creating now.\"\n"
-        f"Language note: Keep narration natural in {language}."
+        "Ending cue: Hold the final frame briefly or ease out naturally so the outro does not feel abrupt.\n"
+        f"Language note: Keep narration natural in {language}. Approximate total spoken length: {lower_words}-{upper_words} words."
     )
 
 
@@ -659,9 +707,10 @@ async def razorpay_topup_webhook(
     if event_name not in {'payment.captured', 'order.paid'}:
         return {'status': 'ignored', 'event': event_name}
 
-    entity = payload.get('payload', {}).get('payment', {}).get('entity', {})
-    order_id = str(entity.get('order_id') or '')
-    payment_id = str(entity.get('id') or '')
+    payment_entity = payload.get('payload', {}).get('payment', {}).get('entity', {})
+    order_entity = payload.get('payload', {}).get('order', {}).get('entity', {})
+    order_id = str(payment_entity.get('order_id') or order_entity.get('id') or '')
+    payment_id = str(payment_entity.get('id') or '')
     if not order_id or not payment_id:
         return {'status': 'ignored', 'event': event_name}
 
@@ -821,11 +870,14 @@ def generate_script_v2(
     payload: ScriptGenerateRequest,
     _: str = Depends(get_user_id),
 ):
+    lower_words, upper_words = _estimate_script_word_budget(payload.durationSeconds)
+    context_block = '\n'.join(_script_context_lines(payload))
     prompt = (
         'Write a high-quality short-form video script in plain text only.\n'
         'Return exactly this pattern:\n'
         '[Opening shot: ...]\n'
         'Narrator (tone): "..."\n'
+        'Opening cue: ...\n'
         '\n'
         '[Scene 1: ...]\n'
         'Narrator: "..."\n'
@@ -847,15 +899,20 @@ def generate_script_v2(
         '\n'
         '[Closing shot: ...]\n'
         'Narrator: "..."\n'
+        'Ending cue: ...\n'
         '\n'
         'Quality rules:\n'
         '- Script must be production-ready and scene-aligned.\n'
         '- Keep narration in the requested language only.\n'
         '- Keep it cinematic and creator-focused.\n'
+        '- Make the opening feel intentional and smooth, never abrupt.\n'
+        '- Keep transitions coherent from opening through closing shot.\n'
+        '- Make the outro feel natural with a held frame or ease-out, not a hard cut.\n'
         '- End with a clear CTA.\n'
-        f'Template: {payload.template}\n'
+        f'- Target roughly {lower_words}-{upper_words} spoken words for the full script.\n'
         f'Topic: {payload.topic}\n'
         f'Language: {payload.language}\n'
+        f'{context_block}\n'
     )
     script_text = ''
     if settings.openai_api_key:
@@ -869,8 +926,8 @@ def generate_script_v2(
                         'role': 'system',
                         'content': (
                             'You are a senior short-video scriptwriter. '
-                            'Always output scene-wise scripts using Opening shot, Scene 1/2/3, Closing shot, narrator lines, visual/camera/mood cues, and CTA ending. '
-                            'Return plain text only.'
+                            'Always output scene-wise scripts using Opening shot, Scene 1/2/3, Closing shot, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA ending. '
+                            'Respect timing, keep language natural, and return plain text only.'
                         ),
                     },
                     {'role': 'user', 'content': prompt},
@@ -884,6 +941,8 @@ def generate_script_v2(
             topic=payload.topic,
             template=payload.template,
             language=payload.language,
+            tone=payload.tone,
+            duration_seconds=payload.durationSeconds,
         )
     try:
         tags = AssetTaggingService(None).tag_script(script_text)
@@ -909,11 +968,14 @@ def enhance_script_v2(
             'script_hash': hashlib.sha256(payload.script.encode('utf-8')).hexdigest(),
         },
     )
+    lower_words, upper_words = _estimate_script_word_budget(payload.durationSeconds)
+    context_block = '\n'.join(_script_context_lines(payload))
     prompt = (
         'Enhance the following user-provided script into a production-ready scene script while preserving intent.\n'
         'Return plain text using this exact pattern:\n'
         '[Opening shot: ...]\n'
         'Narrator (tone): "..."\n'
+        'Opening cue: ...\n'
         '\n'
         '[Scene 1: ...]\n'
         'Narrator: "..."\n'
@@ -935,14 +997,20 @@ def enhance_script_v2(
         '\n'
         '[Closing shot: ...]\n'
         'Narrator: "..."\n'
+        'Ending cue: ...\n'
         '\n'
         'Rules:\n'
         '- Keep requested language naturally.\n'
         '- Keep user meaning intact.\n'
         '- Improve flow, scene pacing, and cinematic clarity.\n'
+        '- Smooth the intro so the first beat does not feel abrupt.\n'
+        '- Keep transitions visually coherent between scenes.\n'
+        '- Smooth the ending with a held frame or gentle ease-out instead of an abrupt cut.\n'
         '- End with a strong CTA.\n'
+        f'- Target roughly {lower_words}-{upper_words} spoken words for the full script.\n'
         f'Template: {payload.template or "general"}\n'
         f'Language: {payload.language}\n'
+        f'{context_block}\n'
         f'Script: {payload.script}'
     )
     script_text = ''
@@ -959,7 +1027,7 @@ def enhance_script_v2(
                         'content': (
                             'You are a senior video script editor. '
                             'Improve flow and cinematic quality while preserving intent. '
-                            'Always return Opening shot, Scene blocks, narrator lines, visual/camera/mood cues, and CTA in plain text.'
+                            'Always return Opening shot, Scene blocks, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA in plain text.'
                         ),
                     },
                     {'role': 'user', 'content': prompt},
@@ -975,6 +1043,8 @@ def enhance_script_v2(
             template=payload.template or 'general',
             language=payload.language,
             source_script=payload.script,
+            tone=payload.tone,
+            duration_seconds=payload.durationSeconds,
         )
     if provider_success and estimate.required_credits > 0:
         try:
@@ -1856,17 +1926,20 @@ def generate_ai_image(
                 ),
             )
             remaining_credits = deduction.wallet.current_credits
-        generation = service.create_image(
+        generations = service.create_images(
             user_id=user_id,
             model_key=payload.model_key,
             prompt=payload.prompt,
             aspect_ratio=payload.aspect_ratio,
             resolution=payload.resolution,
             reference_urls=payload.reference_urls,
+            reference_mode=payload.reference_mode,
+            image_count=payload.image_count,
             project_id=payload.project_id,
             mode_id=payload.mode_id,
             template_id=payload.template_id,
         )
+        generation = generations[0]
         if deduction_amount > 0 and getattr(generation, 'status', None) == ImageGenerationStatus.failed:
             CreditService().top_up_credits(
                 user_id=user_id,
@@ -1878,6 +1951,12 @@ def generate_ai_image(
                 },
             )
             deduction_amount = 0
+        bonus_wallet, _ = credit_service.grant_activation_bonus_if_eligible(
+            user_id=user_id,
+            trigger='first_image_generated',
+            trigger_ref=generation.id,
+        )
+        remaining_credits = bonus_wallet.current_credits
         return _to_image_generation_response(
             generation,
             None,
@@ -2253,6 +2332,12 @@ def generate_influencer_image(
             aspect_ratio=payload.aspect_ratio,
             resolution=payload.resolution,
         )
+        bonus_wallet, _ = credit_service.grant_activation_bonus_if_eligible(
+            user_id=user_id,
+            trigger='first_influencer_image_generated',
+            trigger_ref=image.id,
+        )
+        remaining_credits = bonus_wallet.current_credits
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -2460,7 +2545,13 @@ def create_project(
     if payload.user_id != user_id:
         raise HTTPException(status_code=403, detail='Forbidden user_id')
     service = ProjectService(None)
-    return service.create_project(payload)
+    project = service.create_project(payload)
+    CreditService().grant_activation_bonus_if_eligible(
+        user_id=user_id,
+        trigger='first_project_created',
+        trigger_ref=project.id,
+    )
+    return project
 
 
 @router.get('/projects', response_model=list[ProjectResponse])

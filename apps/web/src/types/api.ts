@@ -335,12 +335,36 @@ export type ScriptGenerateRequest = {
   template: string;
   topic: string;
   language: string;
+  tone?: string;
+  lane?: string;
+  modelKey?: string;
+  modelLabel?: string;
+  aspectRatio?: string;
+  resolution?: string;
+  quality?: string;
+  durationSeconds?: number;
+  scriptHint?: string;
+  topicHint?: string;
+  narrationEnabled?: boolean;
+  captionsEnabled?: boolean;
 };
 
 export type ScriptEnhanceRequest = {
   script: string;
   template?: string;
   language: string;
+  tone?: string;
+  lane?: string;
+  modelKey?: string;
+  modelLabel?: string;
+  aspectRatio?: string;
+  resolution?: string;
+  quality?: string;
+  durationSeconds?: number;
+  scriptHint?: string;
+  topicHint?: string;
+  narrationEnabled?: boolean;
+  captionsEnabled?: boolean;
 };
 
 export type ScriptTagsRequest = {

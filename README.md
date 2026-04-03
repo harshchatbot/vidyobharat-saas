@@ -26,6 +26,45 @@ India-first Hybrid Text-to-Video SaaS MVP with a Next.js frontend and FastAPI + 
 2. Ensure frontend points to API:
 - `NEXT_PUBLIC_API_URL=http://localhost:8000`
 
+## Local Dev Quick Start
+
+Open 3 terminals in VS Code.
+
+### 1. Backend API
+
+```bash
+cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/api
+source venv/bin/activate
+uvicorn app.main:app --reload --port 8000
+```
+
+### 2. Celery worker
+
+```bash
+cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/api
+source venv/bin/activate
+celery -A app.workers.worker.celery_app worker --loglevel=INFO
+```
+
+### 3. Frontend
+
+```bash
+cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/web
+npm install
+npm run dev
+```
+
+### Backend virtualenv activation only
+
+```bash
+cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/api
+source venv/bin/activate
+```
+
+Local URLs:
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:8000`
+
 ## Run API + Worker + Redis
 
 ```bash

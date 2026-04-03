@@ -327,6 +327,64 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         reference_urls: list[str],
+        reference_mode: str = 'inspiration',
+        project_id: str | None = None,
+        mode_id: str | None = None,
+        template_id: str | None = None,
+    ) -> ImageGeneration:
+        return self._create_single_image(
+            user_id=user_id,
+            model_key=model_key,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            reference_urls=reference_urls,
+            reference_mode=reference_mode,
+            project_id=project_id,
+            mode_id=mode_id,
+            template_id=template_id,
+        )
+
+    def create_images(
+        self,
+        user_id: str,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        reference_urls: list[str],
+        reference_mode: str = 'inspiration',
+        image_count: int = 1,
+        project_id: str | None = None,
+        mode_id: str | None = None,
+        template_id: str | None = None,
+    ) -> list[ImageGeneration]:
+        prompts = self._build_generation_prompts(prompt, image_count)
+        return [
+            self._create_single_image(
+                user_id=user_id,
+                model_key=model_key,
+                prompt=prompt_variant,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                reference_urls=reference_urls,
+                reference_mode=reference_mode,
+                project_id=project_id,
+                mode_id=mode_id,
+                template_id=template_id,
+            )
+            for prompt_variant in prompts
+        ]
+
+    def _create_single_image(
+        self,
+        user_id: str,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        reference_urls: list[str],
+        reference_mode: str = 'inspiration',
         project_id: str | None = None,
         mode_id: str | None = None,
         template_id: str | None = None,
@@ -342,6 +400,7 @@ class ImageGenerationService:
             aspect_ratio=aspect_ratio,
             resolution=resolution,
             reference_urls=reference_urls,
+            reference_mode=reference_mode,
         )
         if provider_result:
             image_url, thumbnail_url = provider_result
@@ -411,6 +470,18 @@ class ImageGenerationService:
         logger.info('image_generation_created', extra={'render_id': generation.id, 'model_key': model_key})
         return generation
 
+    def _build_generation_prompts(self, prompt: str, image_count: int) -> list[str]:
+        count = max(1, min(image_count, 4))
+        if count == 1:
+            return [prompt]
+        prompt_variants = [
+            prompt,
+            f'{prompt}. Variation 2: alternate framing, fresh composition, same core idea.',
+            f'{prompt}. Variation 3: stronger lighting contrast, refined subject emphasis, same core idea.',
+            f'{prompt}. Variation 4: richer atmosphere, premium finish, same core idea.',
+        ]
+        return prompt_variants[:count]
+
     def _generate_with_router(
         self,
         *,
@@ -419,6 +490,7 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         reference_urls: list[str],
+        reference_mode: str = 'inspiration',
         attempted_models: set[str] | None = None,
     ) -> tuple[str, str] | None:
         model_key = IMAGE_MODEL_ALIASES.get(model_key, model_key)
@@ -428,6 +500,25 @@ class ImageGenerationService:
         attempted.add(model_key)
         route = resolve_generation_route(medium='image', model_key=model_key)
         canonical_key = resolve_model_key(model_key) or model_key
+
+        if reference_mode == 'edit' and reference_urls and route.provider_id != 'openai':
+            if self.settings.openai_api_key:
+                logger.info(
+                    'image_generation_edit_routed_to_openai',
+                    extra={
+                        'requested_model_key': model_key,
+                        'requested_provider': route.provider_id,
+                        'reference_count': len(reference_urls),
+                    },
+                )
+                return self._generate_with_openai_image(
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    reference_urls=reference_urls,
+                    reference_mode=reference_mode,
+                )
+            raise RuntimeError('Source-image editing currently requires OpenAI Image')
 
         if route.provider_id == 'together':
             logger.info(
@@ -465,6 +556,7 @@ class ImageGenerationService:
                         aspect_ratio=aspect_ratio,
                         resolution=resolution,
                         reference_urls=reference_urls,
+                        reference_mode=reference_mode,
                         attempted_models=attempted,
                     )
                 raise
@@ -489,6 +581,7 @@ class ImageGenerationService:
                         aspect_ratio=aspect_ratio,
                         resolution=resolution,
                         reference_urls=reference_urls,
+                        reference_mode=reference_mode,
                         attempted_models=attempted,
                     )
                 raise RuntimeError('OPENAI_API_KEY is not configured for OpenAI image generation')
@@ -506,6 +599,7 @@ class ImageGenerationService:
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
                 reference_urls=reference_urls,
+                reference_mode=reference_mode,
             )
 
         if route.provider_id == 'gemini' and canonical_key in {'gemini_flash_image', 'gemini_pro_image'} and self.settings.gemini_api_key:
@@ -559,6 +653,7 @@ class ImageGenerationService:
                             aspect_ratio=aspect_ratio,
                             resolution=resolution,
                             reference_urls=reference_urls,
+                            reference_mode=reference_mode,
                         )
                     raise
                 except RuntimeError as exc:
@@ -572,6 +667,7 @@ class ImageGenerationService:
                             aspect_ratio=aspect_ratio,
                             resolution=resolution,
                             reference_urls=reference_urls,
+                            reference_mode=reference_mode,
                         )
                     raise
 
@@ -648,6 +744,7 @@ class ImageGenerationService:
                     aspect_ratio=aspect_ratio,
                     resolution=resolution,
                     reference_urls=reference_urls,
+                    reference_mode=reference_mode,
                     attempted_models=attempted,
                 )
             raise RuntimeError('Recraft image generation is unavailable. Configure RECRAFT_API_KEY or FAL_API_KEY with a valid Recraft endpoint.')
@@ -1281,10 +1378,11 @@ class ImageGenerationService:
         aspect_ratio: str,
         resolution: str,
         reference_urls: list[str] | None = None,
+        reference_mode: str = 'inspiration',
     ) -> tuple[str, str]:
         image_id = str(uuid4())
         size = self._openai_image_size(aspect_ratio, resolution)
-        if reference_urls:
+        if reference_urls and reference_mode == 'edit':
             response = self._openai_image_edit_with_references(
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
@@ -1294,11 +1392,14 @@ class ImageGenerationService:
             )
         else:
             client = OpenAI(api_key=self.settings.openai_api_key)
+            guidance = ''
+            if reference_urls:
+                guidance = ' Take broad visual inspiration from the uploaded reference images without cloning them exactly.'
             response = client.images.generate(
                 model=self.settings.openai_image_model,
                 prompt=(
                     f'{prompt}. Create a polished creator-grade image with aspect ratio {aspect_ratio} '
-                    f'optimized for {resolution}px output.'
+                    f'optimized for {resolution}px output.{guidance}'
                 ),
                 size=size,
             )

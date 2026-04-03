@@ -31,10 +31,11 @@ import { MusicSelector } from './MusicSelector';
 import { OutputSettings } from './OutputSettings';
 import { ReferenceImagePicker } from './ReferenceImagePicker';
 import { ScriptEditor } from './ScriptEditor';
+import { ScriptQualityPanel } from './ScriptQualityPanel';
 import { SectionCard } from './SectionCard';
 import { TemplateSelector } from './TemplateSelector';
 import { VideoPreview } from './VideoPreview';
-import { VoiceSelector } from './VoiceSelector';
+import { evaluateScriptQuality } from './scriptQuality';
 import { getVideoLaneDefinition, VIDEO_LANES, type VideoLaneKey } from './videoLanes';
 
 const DRAFT_VERSION = 2;
@@ -279,7 +280,7 @@ export function CreateVideoPage({
   );
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>(VOICE_OPTIONS);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>(LANGUAGE_OPTIONS);
-  const previousLaneRef = useRef<VideoLaneKey>('daily');
+  const previousLaneRef = useRef<VideoLaneKey>('creator_pro');
   const [voicePreviewError, setVoicePreviewError] = useState<string | null>(null);
   const [voicePreviewProvider, setVoicePreviewProvider] = useState<string | null>(null);
   const [voicePreviewResolvedVoice, setVoicePreviewResolvedVoice] = useState<string | null>(null);
@@ -291,9 +292,8 @@ export function CreateVideoPage({
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [videoLane, setVideoLane] = useState<VideoLaneKey>('daily');
-  const [modelKey, setModelKey] = useState<VideoModelKey>('wan2.1_t2v_turbo');
-  const [showDailyAdvanced, setShowDailyAdvanced] = useState(false);
+  const [videoLane, setVideoLane] = useState<VideoLaneKey>('creator_pro');
+  const [modelKey, setModelKey] = useState<VideoModelKey>('kling3');
   const activeProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -665,6 +665,14 @@ export function CreateVideoPage({
   }, [availableDurations, durationSeconds, isDailyLane]);
 
   useEffect(() => {
+    if (videoLane !== 'daily') return;
+    const fallbackLane = VIDEO_LANES[0]?.key ?? 'creator_pro';
+    if (fallbackLane !== videoLane) {
+      setVideoLane(fallbackLane);
+    }
+  }, [videoLane]);
+
+  useEffect(() => {
     if (laneModels.length > 0) return;
     const fallbackLane = VIDEO_LANES.find((laneOption) =>
       models.some((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === laneOption.key && model.enabled !== false),
@@ -686,6 +694,15 @@ export function CreateVideoPage({
       : (!availableDurations.includes(Number(durationSeconds))
         ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
         : null);
+  const scriptQualityReport = useMemo(
+    () =>
+      evaluateScriptQuality({
+        script,
+        durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds || 8,
+        structuredPreferred: !isDailyLane,
+      }),
+    [durationRule.defaultSeconds, durationSeconds, isDailyLane, script],
+  );
   const generationOverlayVisible = renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing';
   const overlayVisible = generationOverlayVisible || voiceTranslationLoading || initialLoading;
   const overlayTitle = initialLoading
@@ -1545,6 +1562,21 @@ export function CreateVideoPage({
     const hasScriptInput = script.trim().length > 0;
     const effectiveTemplate = selectedTemplate === 'custom' ? 'General' : template.label;
     const effectiveTopic = topic.trim() || (selectedTemplate === 'custom' ? 'General creator video concept' : template.topicHint);
+    const durationForScript = Number(durationSeconds) || durationRule.defaultSeconds;
+    const scriptContext = {
+      tone: template.description || selectedLane.description,
+      lane: selectedLane.label,
+      modelKey,
+      modelLabel: selectedModel?.label,
+      aspectRatio: aspectRatio,
+      resolution,
+      quality,
+      durationSeconds: durationForScript,
+      scriptHint: template.scriptHint,
+      topicHint: template.topicHint,
+      narrationEnabled,
+      captionsEnabled,
+    };
 
     setScriptLoading(true);
     setScriptError(null);
@@ -1565,6 +1597,7 @@ export function CreateVideoPage({
             script: script.trim(),
             template: effectiveTemplate,
             language,
+            ...scriptContext,
           },
           userId,
         )
@@ -1573,6 +1606,7 @@ export function CreateVideoPage({
             template: effectiveTemplate,
             topic: effectiveTopic,
             language,
+            ...scriptContext,
           },
           userId,
         );
@@ -1600,6 +1634,21 @@ export function CreateVideoPage({
     setScriptLoading(true);
     setScriptError(null);
     try {
+      const durationForScript = Number(durationSeconds) || durationRule.defaultSeconds;
+      const scriptContext = {
+        tone: template.description || selectedLane.description,
+        lane: selectedLane.label,
+        modelKey,
+        modelLabel: selectedModel?.label,
+        aspectRatio,
+        resolution,
+        quality,
+        durationSeconds: durationForScript,
+        scriptHint: template.scriptHint,
+        topicHint: template.topicHint,
+        narrationEnabled,
+        captionsEnabled,
+      };
       if (selectedHeroTemplate && appliedHeroTemplateId) {
         const preview = await previewAppliedHeroTemplate(script.trim());
         if (!preview) throw new Error('Template preview unavailable.');
@@ -1610,7 +1659,7 @@ export function CreateVideoPage({
         if (preview.title) setTitle(preview.title);
         return;
       }
-      const result = await api.enhanceScriptV2({ script: script.trim(), template: template.label, language }, userId);
+      const result = await api.enhanceScriptV2({ script: script.trim(), template: template.label, language, ...scriptContext }, userId);
       setScript(result.script);
       setScriptTags(result.tags);
       if (topic.trim()) setTitle(topic.trim());
@@ -2117,35 +2166,24 @@ export function CreateVideoPage({
         </Card>
       ) : null}
 
-      <Card className="rounded-[28px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
         <div className="min-w-0">
-          <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.74)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.62),hsl(var(--color-bg)/0.54))] p-4 shadow-soft sm:p-5">
+          <section className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
                 <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Compose your video</h2>
-                <p className="mt-1 max-w-2xl text-sm text-muted">
-                  Write the scene, choose the engine, and keep the preview visible while you tune the final output.
-                </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="px-3 py-2 text-xs">
-                  {selectedLane.label}
-                </Badge>
-                <Badge variant="outline" className="px-3 py-2 text-xs">
-                  {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}
-                </Badge>
-                <Button variant="ghost" type="button" onClick={() => setShowDailyAdvanced((current) => !current)} className="text-xs">
-                  {showDailyAdvanced ? 'Hide studio panels' : 'Show studio panels'}
-                </Button>
+              <div className="text-right text-xs text-muted">
+                <p>{selectedLane.label}</p>
+                <p>{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
               </div>
             </div>
 
-            <div className="mt-4 space-y-4">
+            <div className="space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               {isDailyLane ? (
                 <>
-                  <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                  <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
                       <Button
@@ -2153,7 +2191,7 @@ export function CreateVideoPage({
                         variant="secondary"
                         onClick={() => void enhanceScript()}
                         disabled={scriptLoading || !script.trim()}
-                        className="min-h-9 rounded-full px-3 py-2 text-xs"
+                        className="min-h-9 rounded-[12px] px-3 py-2 text-xs"
                       >
                         {scriptLoading ? (
                           <>
@@ -2181,10 +2219,18 @@ export function CreateVideoPage({
                         <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
                       ) : null}
                     </div>
+                    <div className="mt-3">
+                      <ScriptQualityPanel
+                        report={scriptQualityReport}
+                        onEnhance={() => void enhanceScript()}
+                        loading={scriptLoading}
+                        enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+                      />
+                    </div>
                   </div>
                 </>
               ) : (
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-4">
+                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
                   <ScriptEditor
                     topic={topic}
                     onTopicChange={setTopic}
@@ -2199,112 +2245,12 @@ export function CreateVideoPage({
                     tags={scriptTags}
                     generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
                     enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+                    qualityReport={scriptQualityReport}
                   />
                 </div>
               )}
 
-              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-                <div className="mt-4">
-                  <ModelDropdown
-                    models={visibleModels}
-                    selectedModel={modelKey}
-                    onChange={(value) => setModelKey(value as VideoModelKey)}
-                    title={`${selectedLane.label} models`}
-                    description="Pick a model for this lane."
-                  />
-                </div>
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Lane</p>
-                    <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
-                  </div>
-                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Engine</p>
-                    <p className="mt-1 text-sm font-semibold text-text">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
-                  </div>
-                  <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Available</p>
-                    <p className="mt-1 text-sm font-semibold text-text">
-                      {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} models
-                    </p>
-                  </div>
-                </div>
-                {laneHasOnlyGatedModels ? (
-                  <div className="mt-3 rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] px-4 py-3 text-sm text-muted">
-                    Shown in studio, not enabled yet.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quick settings</p>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Duration</label>
-                    <Dropdown value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)}>
-                      {(isDailyLane && availableDurations.filter((value) => value === 5 || value === 8).length > 0
-                        ? availableDurations.filter((value) => value === 5 || value === 8)
-                        : availableDurations
-                      ).map((duration) => (
-                        <option key={duration} value={String(duration)}>
-                          {duration}s
-                        </option>
-                      ))}
-                    </Dropdown>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Aspect</label>
-                    <Dropdown value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as '9:16' | '16:9' | '1:1')}>
-                      {availableAspectRatios.map((aspect) => (
-                        <option key={aspect.value} value={aspect.value}>
-                          {aspect.label}
-                        </option>
-                      ))}
-                    </Dropdown>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Resolution</label>
-                    <Dropdown value={resolution} onChange={(event) => setResolution(event.target.value as '720p' | '1080p')}>
-                      {availableResolutions.map((res) => (
-                        <option key={res.value} value={res.value}>
-                          {res.label}
-                        </option>
-                      ))}
-                    </Dropdown>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-2">
-                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Quality</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: 'standard', label: 'Standard' },
-                      { value: 'high', label: 'High' },
-                    ].map((option) => {
-                      const active = quality === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setQuality(option.value as 'standard' | 'high')}
-                          className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                            active
-                              ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                              : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] text-muted hover:text-text'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {durationError ? <p className="text-xs text-[hsl(var(--color-danger))]">{durationError}</p> : null}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.36)] p-3.5">
+              <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
@@ -2435,7 +2381,7 @@ export function CreateVideoPage({
                           <button
                             type="button"
                             onClick={() => void playExistingVoicePreview()}
-                            className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                            className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
                           >
                             <Mic2 className="h-3.5 w-3.5" />
                             Play preview
@@ -2471,7 +2417,7 @@ export function CreateVideoPage({
                 </>
                 ) : null}
 
-                <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] p-3">
+                <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.38)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
                   <div className="mt-2 space-y-1.5 text-sm">
                     <div className="flex items-center justify-between text-text">
@@ -2513,57 +2459,37 @@ export function CreateVideoPage({
                 ) : null}
               </div>
             </div>
-          </div>
+          </section>
 
         </div>
 
-        <div className="min-w-0 order-2 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
-          <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.36),hsl(var(--color-bg)/0.42))] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
+        <div className="min-w-0 order-3 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
+          <section className="space-y-4 xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Control tower</p>
-                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Preview, estimate, and publish</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
+                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Review and publish</h2>
               </div>
-              <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-1 text-xs font-semibold text-text">
-                {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}
-              </span>
+              <span className="text-xs font-medium text-muted">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}</span>
             </div>
-            <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-2">
-              <div className={`rounded-[16px] border px-3 py-2.5 ${selectedLane.accentClassName}`}>
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Lane</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedLane.label}</p>
+            <dl className="grid gap-x-4 gap-y-2 border-y border-[hsl(var(--color-border)/0.45)] py-3 text-sm sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-3 sm:block">
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Format</dt>
+                <dd className="font-medium text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</dd>
               </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Format</p>
-                <p className="mt-1 text-sm font-semibold text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</p>
+              <div className="flex items-center justify-between gap-3 sm:block">
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Voice</dt>
+                <dd className="font-medium text-text">{narrationEnabled ? `${voice} • ${language}` : 'Off'}</dd>
               </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Voice</p>
-                <p className="mt-1 text-sm font-semibold text-text">{narrationEnabled ? `${voice} • ${language}` : 'Off'}</p>
+              <div className="flex items-center justify-between gap-3 sm:block">
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Mode</dt>
+                <dd className="font-medium text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</dd>
               </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.64)] px-3 py-2.5">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Mode</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</p>
+              <div className="flex items-center justify-between gap-3 sm:block">
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Estimate</dt>
+                <dd className="font-medium text-text">₹{estimatedInr ?? 0} · {displayVideoEstimateCredits} credits</dd>
               </div>
-            </div>
-
-            <div className="grid gap-2.5 sm:grid-cols-3">
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimated credits</p>
-                <p className="mt-1 text-base font-semibold text-text">{displayVideoEstimateCredits}</p>
-              </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Approx cost</p>
-                <p className="mt-1 inline-flex items-center gap-1 text-base font-semibold text-text">
-                  <BadgeIndianRupee className="h-4 w-4" />
-                  {estimatedInr ?? 0}
-                </p>
-              </div>
-              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.52)] px-3 py-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Estimate mode</p>
-                <p className="mt-1 text-base font-semibold text-text">{estimateError ? 'Fallback' : 'Shared engine'}</p>
-              </div>
-            </div>
+            </dl>
 
             <GenerateButton
               onClick={() => void submit()}
@@ -2621,20 +2547,18 @@ export function CreateVideoPage({
               }
               onRetry={retry}
             />
-          </div>
+          </section>
         </div>
 
-        {(!isDailyLane || showDailyAdvanced) ? (
-          <div className="min-w-0 order-3 xl:col-start-1">
-            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.74)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.5),hsl(var(--color-bg)/0.42))] p-4 shadow-soft sm:p-5">
+        <div className="min-w-0 order-2 xl:col-start-1">
+            <section className="border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio panels</p>
-                  <h3 className="mt-1 text-lg font-semibold text-text">Assets, voices, and output controls</h3>
-                  <p className="mt-1 text-sm text-muted">Secondary controls stay here so the main workspace stays compact and focused.</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Setup</p>
+                  <h3 className="mt-1 text-lg font-semibold text-text">Model, template, voice, and output</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 px-3 py-2 text-xs">
+                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
                     <GalleryVerticalEnd className="h-3.5 w-3.5" />
                     Browse templates
                   </Button>
@@ -2642,6 +2566,32 @@ export function CreateVideoPage({
               </div>
 
               <div className="mt-3">
+                <SectionCard
+                  title="Model"
+                  description="Lane and engine"
+                  icon={<Film className="h-5 w-5" />}
+                  compact
+                >
+                  <div className="space-y-3">
+                    <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                    <ModelDropdown
+                      models={visibleModels}
+                      selectedModel={modelKey}
+                      onChange={(value) => setModelKey(value as VideoModelKey)}
+                      title={`${selectedLane.label} models`}
+                      description="Choose a model."
+                    />
+                    <p className="text-xs text-muted">
+                      {selectedLane.label} · {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'} · {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} active
+                    </p>
+                    {laneHasOnlyGatedModels ? (
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-2 text-sm text-muted">
+                        Shown in studio, not enabled yet.
+                      </div>
+                    ) : null}
+                  </div>
+                </SectionCard>
+
                 <SectionCard
                   title="Content Template"
                   description="Template"
@@ -2664,7 +2614,7 @@ export function CreateVideoPage({
                   action={projectsLoading ? <Spinner /> : null}
                   defaultOpen={false}
                 >
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-text">Save into project</label>
                       <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
@@ -2675,88 +2625,17 @@ export function CreateVideoPage({
                           </option>
                         ))}
                       </Dropdown>
-                      <p className="text-xs text-muted">Leave empty to auto-create.</p>
                     </div>
-                    <div className="flex items-end">
-                      <Button variant="secondary" onClick={() => void createProjectFromCurrentDraft()} disabled={projectCreating}>
+                    <div className="flex sm:pt-[30px]">
+                      <Button
+                        variant="secondary"
+                        onClick={() => void createProjectFromCurrentDraft()}
+                        disabled={projectCreating}
+                        className="w-full sm:w-auto"
+                      >
                         {projectCreating ? 'Creating...' : 'New project'}
                       </Button>
                     </div>
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  title="Voice & Language"
-                  description="Narration"
-                  icon={<Mic2 className="h-5 w-5" />}
-                  compact
-                  defaultOpen={narrationEnabled}
-                >
-                  <VoiceSelector
-                    languageOptions={languageOptions}
-                    voiceOptions={filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions}
-                    language={language}
-                    onLanguageChange={(value) => void handleLanguageChange(value)}
-                    voice={voice}
-                    onVoiceChange={handleVoiceChange}
-                    sampleRateHz={audioSampleRateHz}
-                    onSampleRateHzChange={setAudioSampleRateHz}
-                    previewText={voicePreviewText}
-                    onPreviewTextChange={setVoicePreviewText}
-                    onPreview={previewVoice}
-                    previewing={voicePreviewing}
-                    previewLoadingKey={voicePreviewLoadingKey}
-                    previewProvider={voicePreviewProvider}
-                    resolvedVoice={voicePreviewResolvedVoice}
-                    previewCached={voicePreviewCached}
-                    previewLimit={voicePreviewLimit}
-                    previewError={voicePreviewError}
-                    previewMessage={voicePreviewMessage}
-                    translating={voiceTranslationLoading}
-                    estimatedCredits={voiceEstimate?.estimatedCredits}
-                    currentBalance={voiceEstimate?.currentCredits ?? premiumVoiceEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-                    insufficientCredits={Boolean(voiceEstimate && !voiceEstimate.sufficient)}
-                    onOpenLowBalance={() => openLowBalanceModal(voiceEstimate?.estimatedCredits)}
-                    voiceCreditMap={voiceCreditMap}
-                  />
-                  <div ref={voicePreviewControlsRef} className="space-y-2">
-                    {voicePreviewUrl ? (
-                      <div className="space-y-2">
-                        <audio
-                          ref={voicePreviewAudioRef}
-                          src={voicePreviewUrl}
-                          controls
-                          preload="auto"
-                          className="w-full"
-                          onEnded={() => setVoicePreviewing(false)}
-                          onPause={() => setVoicePreviewing(false)}
-                          onPlay={() => setVoicePreviewing(true)}
-                          onError={() => {
-                            const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                            setVoicePreviewError(message);
-                            setVoicePreviewing(false);
-                            show(message);
-                          }}
-                        />
-                        {!voicePreviewing ? (
-                          <button
-                            type="button"
-                            onClick={() => void playExistingVoicePreview()}
-                            className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
-                          >
-                            <Mic2 className="h-3.5 w-3.5" />
-                            Play preview
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
-                    )}
-                    {voicePreviewUrl ? (
-                      <p className="text-xs text-muted">
-                        If autoplay does not start, use the built-in audio controls to play the preview manually.
-                      </p>
-                    ) : null}
                   </div>
                 </SectionCard>
 
@@ -2807,7 +2686,7 @@ export function CreateVideoPage({
 */}
                 <SectionCard
                   title="Output Settings"
-                  description="Format + quality"
+                  description="Format and quality"
                   icon={<Settings2 className="h-5 w-5" />}
                   compact
                   defaultOpen={false}
@@ -2842,27 +2721,26 @@ export function CreateVideoPage({
                   />
                 </SectionCard>
               </div>
-            </div>
-          </div>
-        ) : null}
+            </section>
+        </div>
 
         <div className="min-w-0 xl:col-span-2">
           <SectionCard
             title="Studio Feed"
-            description="Recent videos"
+            description="Latest videos"
             icon={<Film className="h-5 w-5" />}
             compact
             defaultOpen={false}
           >
             {videos.length === 0 ? (
-              <p className="text-sm text-muted">No videos generated yet. Your latest video jobs will appear here.</p>
+              <p className="text-sm text-muted">No videos yet.</p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                 {videos.map((videoItem) => {
                   const videoUrl = toAssetUrl(videoItem.output_url);
                   const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
                   return (
-                    <div key={videoItem.id} className="overflow-hidden rounded-[18px] border border-border bg-bg">
+                    <div key={videoItem.id} className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.3)]">
                       {videoUrl ? (
                         <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-40 w-full bg-black object-cover" />
                       ) : thumbUrl ? (
@@ -2870,23 +2748,23 @@ export function CreateVideoPage({
                       ) : (
                         <div className="flex h-40 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
                       )}
-                      <div className="space-y-2.5 p-3">
+                      <div className="space-y-2 p-3">
                         <div>
                           <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
                           <p className="mt-0.5 text-[11px] text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.status}</span>
-                          <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.aspect_ratio}</span>
-                          {videoItem.duration_seconds ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">{videoItem.duration_seconds}s</span> : null}
-                          {videoItem.is_public_inspiration ? <span className="inline-flex rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text">Inspiration · {videoItem.moderation_status}</span> : null}
+                          <span className="text-[11px] font-medium text-muted">{videoItem.status}</span>
+                          <span className="text-[11px] font-medium text-muted">{videoItem.aspect_ratio}</span>
+                          {videoItem.duration_seconds ? <span className="text-[11px] font-medium text-muted">{videoItem.duration_seconds}s</span> : null}
+                          {videoItem.is_public_inspiration ? <span className="text-[11px] font-medium text-muted">Inspiration</span> : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text">
+                          <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2 text-sm font-semibold text-text">
                             Open
                           </Link>
                           {videoUrl ? (
-                            <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
+                            <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[12px] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
                               <Download className="h-4 w-4" />
                               Download
                             </button>
@@ -2895,7 +2773,7 @@ export function CreateVideoPage({
                             type="button"
                             onClick={() => void togglePublishVideo(videoItem)}
                             disabled={publishingVideoId === videoItem.id}
-                            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
+                            className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
                           >
                             {publishingVideoId === videoItem.id
                               ? 'Updating...'
@@ -2913,7 +2791,6 @@ export function CreateVideoPage({
           </SectionCard>
         </div>
       </div>
-      </Card>
       <Modal
         open={templateFlowOpen}
         onClose={() => {
@@ -2924,7 +2801,7 @@ export function CreateVideoPage({
         {activeTemplateFlow ? (
           <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
             <div className="space-y-3">
-              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)]">
+              <div className="overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.28)]">
                 {activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url ? (
                   <img
                     src={activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url}
@@ -2937,7 +2814,7 @@ export function CreateVideoPage({
                   </div>
                 )}
               </div>
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">Video</span>
                   {activeTemplateFlow.badge ? (
@@ -2953,24 +2830,24 @@ export function CreateVideoPage({
                 </div>
                 <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplateFlow.title || activeTemplateFlow.name}</h3>
                 <p className="mt-2 text-sm text-muted">{activeTemplateFlow.description || activeTemplateFlow.short_description}</p>
-                <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Recommended model</p>
+                <div className="mt-4 rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Recommended</p>
                   <p className="mt-2 text-sm font-semibold text-text">
                     {templateFlowPreview?.recommendedModel?.label || activeTemplateFlow.recommended_model?.label || 'Included'}
                   </p>
                   <p className="mt-1 text-sm text-muted">
-                    {templateFlowPreview?.recommendedModel?.description || activeTemplateFlow.recommended_model?.description || 'No complex prompt writing needed.'}
+                    {templateFlowPreview?.recommendedModel?.description || activeTemplateFlow.recommended_model?.description || 'Use as-is or adjust before applying.'}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Template inputs</p>
-                    <p className="mt-1 text-sm text-muted">Answer a few questions. RangManch will assemble the script and defaults for you.</p>
+                    <p className="mt-1 text-sm text-muted">Answer a few questions and apply.</p>
                   </div>
                   {templateFlowEstimate ? (
                     <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
@@ -2980,11 +2857,10 @@ export function CreateVideoPage({
                 </div>
                 <div className="mt-4 space-y-3">
                   {primarySubtypeField ? (
-                    <div className="space-y-2 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] p-3.5">
+                    <div className="space-y-2 rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] p-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Step 1</p>
                         <p className="mt-1 text-sm font-semibold text-text">{primarySubtypeField.label}</p>
-                        <p className="mt-1 text-xs text-muted">Choose the exact workflow first. The preview will adapt around this choice.</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {normalizeTemplateOptions(primarySubtypeField).map((option) => {
@@ -3042,7 +2918,7 @@ export function CreateVideoPage({
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-text">Model override</label>
@@ -3052,12 +2928,11 @@ export function CreateVideoPage({
                       placeholder={activeTemplateFlow.recommended_model?.internal_model_key || activeTemplateFlow.generation_defaults?.model_key || 'Leave blank to use recommended'}
                     />
                   </div>
-                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] px-4 py-3">
+                  <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Prompt mode</p>
                     <p className="mt-2 text-sm font-semibold text-text">
                       {templateFlowPreview?.recommendedModelMode || activeTemplateFlow.default_model_mode || 'Smart default'}
                     </p>
-                    <p className="mt-1 text-sm text-muted">You can still edit the assembled output before generating.</p>
                   </div>
                 </div>
 
@@ -3071,7 +2946,6 @@ export function CreateVideoPage({
                       </option>
                     ))}
                   </Dropdown>
-                  <p className="text-xs text-muted">Serious guided workflows are easier to revisit when their prompt, script, and outputs stay grouped together.</p>
                 </div>
 
                 <div className="mt-4 space-y-1.5">
@@ -3085,11 +2959,11 @@ export function CreateVideoPage({
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] p-4.5">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Preview</p>
-                    <p className="mt-1 text-sm text-muted">Review the assembled output before applying it to the studio.</p>
+                    <p className="mt-1 text-sm text-muted">Review before applying.</p>
                   </div>
                   {templateFlowPreviewLoading ? <Spinner /> : null}
                 </div>

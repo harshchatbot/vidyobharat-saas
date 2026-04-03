@@ -915,10 +915,17 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
             const meta = videoItem ? `${videoItem.duration_seconds}s` : timeAgo(item.created_at);
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedInspirationItem(item)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedInspirationItem(item);
+                  }
+                }}
                 className="group relative mb-2.5 block w-full break-inside-avoid overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.34)] text-left shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.24)] hover:shadow-[var(--shadow-hard)] sm:rounded-[16px]"
                 style={{ aspectRatio: aspectRatioToCss(videoItem ? videoItem.aspect_ratio : imageItem?.aspect_ratio) }}
               >
@@ -983,9 +990,9 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 <div className="absolute inset-x-2 bottom-9 rounded-[10px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.66)] p-2 opacity-0 backdrop-blur-md transition group-hover:opacity-100 sm:inset-x-2.5 sm:bottom-10 sm:rounded-[12px] sm:p-2.5">
                   <p className="line-clamp-2 text-[10px] leading-4 text-text sm:text-[11px]">{item.prompt}</p>
                 </div>
-              </button>
+              </div>
             );
-            })}
+          })}
           </div>
         )}
         {communityError ? (

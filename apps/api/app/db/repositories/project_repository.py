@@ -32,7 +32,10 @@ class ProjectRepository:
                 continue
             data.setdefault('id', row.id)
             items.append(self._to_model(data))
-        items.sort(key=lambda item: item.created_at, reverse=True)
+        items.sort(
+            key=lambda item: item.last_activity_at or item.updated_at or item.created_at,
+            reverse=True,
+        )
         return items
 
     def get_by_id(self, project_id: str) -> Project | None:

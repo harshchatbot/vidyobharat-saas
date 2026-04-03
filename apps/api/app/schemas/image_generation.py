@@ -86,7 +86,9 @@ class ImageGenerationCreateRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
     aspect_ratio: str = Field(min_length=3, max_length=10)
     resolution: str = Field(min_length=3, max_length=10)
+    image_count: int = Field(default=1, ge=1, le=4, alias='imageCount')
     reference_urls: list[str] = Field(default_factory=list)
+    reference_mode: str = Field(default='inspiration', max_length=24, alias='referenceMode')
     project_id: str | None = Field(default=None, max_length=64, alias='projectId')
     mode_id: str | None = Field(default=None, max_length=80, alias='modeId')
     template_id: str | None = Field(default=None, max_length=120, alias='templateId')
@@ -114,6 +116,13 @@ class ImageGenerationCreateRequest(BaseModel):
     def validate_resolution(cls, value: str) -> str:
         if value not in SUPPORTED_RESOLUTIONS:
             raise ValueError('Unsupported resolution')
+        return value
+
+    @field_validator('reference_mode')
+    @classmethod
+    def validate_reference_mode(cls, value: str) -> str:
+        if value not in {'inspiration', 'edit'}:
+            raise ValueError('Unsupported reference mode')
         return value
 
 

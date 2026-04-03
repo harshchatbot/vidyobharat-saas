@@ -42,8 +42,8 @@ export function CreditProvider({
   };
 
   const { show } = useToast();
-  const [wallet, setWallet] = useState<CreditWallet | null>(() => readWalletCache());
-  const [loading, setLoading] = useState(() => Boolean(userId) && !readWalletCache());
+  const [wallet, setWallet] = useState<CreditWallet | null>(null);
+  const [loading, setLoading] = useState(() => Boolean(userId));
   const [refreshing, setRefreshing] = useState(false);
   const [lowBalanceOpen, setLowBalanceOpen] = useState(false);
   const [requiredCredits, setRequiredCredits] = useState<number | undefined>(undefined);

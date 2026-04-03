@@ -7,21 +7,21 @@ type Props = {
 
 const sizeClasses = {
   sm: {
-    wrap: 'gap-2',
-    pacman: 'h-5 w-5',
-    dot: 'h-2 w-2',
+    shell: 'h-10 w-10',
+    ring: 'h-10 w-10 border-[2px]',
+    core: 'h-4 w-4',
     label: 'text-xs',
   },
   md: {
-    wrap: 'gap-3',
-    pacman: 'h-8 w-8',
-    dot: 'h-2.5 w-2.5',
+    shell: 'h-14 w-14',
+    ring: 'h-14 w-14 border-[2.5px]',
+    core: 'h-5 w-5',
     label: 'text-sm',
   },
   lg: {
-    wrap: 'gap-4',
-    pacman: 'h-10 w-10',
-    dot: 'h-3 w-3',
+    shell: 'h-16 w-16',
+    ring: 'h-16 w-16 border-[3px]',
+    core: 'h-6 w-6',
     label: 'text-sm',
   },
 } as const;
@@ -42,18 +42,16 @@ export function PacmanLoader({
       className={`${centered ? 'flex min-h-[140px] w-full items-center justify-center' : ''} ${className}`.trim()}
     >
       <div className="flex flex-col items-center justify-center gap-3">
-        <div className={`flex items-center ${config.wrap}`}>
-          <div className={`rangmanch-pacman ${config.pacman}`} aria-hidden="true" />
-          <div className="relative flex items-center gap-2" aria-hidden="true">
-            <span className={`rangmanch-pacman-dot ${config.dot}`} style={{ animationDelay: '0s' }} />
-            <span className={`rangmanch-pacman-dot ${config.dot}`} style={{ animationDelay: '0.18s' }} />
-            <span className={`rangmanch-pacman-dot ${config.dot}`} style={{ animationDelay: '0.36s' }} />
-          </div>
+        <div className={`relative flex items-center justify-center ${config.shell}`} aria-hidden="true">
+          <span className={`absolute rounded-full border-[hsl(var(--color-accent)/0.22)] ${config.ring}`} />
+          <span className={`absolute rounded-full border-t-[hsl(var(--color-accent))] border-r-[hsl(var(--color-accent)/0.55)] border-b-transparent border-l-transparent rangmanch-loader-ring ${config.ring}`} />
+          <span className={`absolute rounded-full bg-[radial-gradient(circle,hsl(var(--color-accent)/0.28),transparent_70%)] rangmanch-loader-glow ${config.shell}`} />
+          <span className={`relative rounded-full bg-[hsl(var(--color-surface))] shadow-[0_10px_30px_hsl(var(--color-accent)/0.14)] ${config.core}`} />
         </div>
         {label ? (
           <>
             <span className="sr-only">{label}</span>
-            <p className={`${config.label} font-medium text-[hsl(var(--color-muted))]`}>{label}</p>
+            <p className={`${config.label} font-medium tracking-[0.08em] text-[hsl(var(--color-muted))]`}>{label}</p>
           </>
         ) : null}
       </div>

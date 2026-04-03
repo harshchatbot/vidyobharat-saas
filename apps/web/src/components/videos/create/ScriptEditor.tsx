@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 
+import { ScriptQualityPanel } from './ScriptQualityPanel';
+import type { ScriptQualityReport } from './scriptQuality';
+
 export function ScriptEditor({
   topic,
   onTopicChange,
@@ -20,6 +23,7 @@ export function ScriptEditor({
   tags,
   generateCredits,
   enhanceCredits,
+  qualityReport,
 }: {
   topic: string;
   onTopicChange: (value: string) => void;
@@ -34,6 +38,7 @@ export function ScriptEditor({
   tags: string[];
   generateCredits?: number | null;
   enhanceCredits?: number | null;
+  qualityReport: ScriptQualityReport;
 }) {
   const generateLabel =
     typeof generateCredits === 'number'
@@ -84,6 +89,8 @@ export function ScriptEditor({
         />
       </label>
       {error ? <p className="text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
+
+      <ScriptQualityPanel report={qualityReport} onEnhance={onEnhance} loading={loading} enhanceCredits={enhanceCredits} />
 
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.48)] px-3.5 py-3">
         <div>

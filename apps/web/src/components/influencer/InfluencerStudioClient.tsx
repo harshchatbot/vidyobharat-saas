@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronRight, Download, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, ChevronUp, Download, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
 import { useCreditEstimator } from '@/components/credits/useCreditEstimator';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -86,7 +85,7 @@ const IMAGE_MODEL_PROVIDER_STYLES: Record<string, string> = {
 
 const INFLUENCER_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 
-type TabKey = 'persona' | 'content' | 'images' | 'scenes' | 'settings';
+type TabKey = 'persona' | 'reference' | 'content' | 'render' | 'advanced';
 
 type PersonaDraft = {
   name: string;
@@ -166,14 +165,16 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [personaError, setPersonaError] = useState<string | null>(null);
   const [estimateErrorShown, setEstimateErrorShown] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showMobileSummary, setShowMobileSummary] = useState(false);
   const { wallet, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
   const sectionRefs: Record<TabKey, React.RefObject<HTMLDivElement | null>> = {
     persona: useRef<HTMLDivElement>(null),
+    reference: useRef<HTMLDivElement>(null),
     content: useRef<HTMLDivElement>(null),
-    images: useRef<HTMLDivElement>(null),
-    scenes: useRef<HTMLDivElement>(null),
-    settings: useRef<HTMLDivElement>(null),
+    render: useRef<HTMLDivElement>(null),
+    advanced: useRef<HTMLDivElement>(null),
   };
 
   const selectedPersona = useMemo(
@@ -545,7 +546,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
       setCustomSceneLighting('');
       setCustomSceneMood('');
       show(`Custom scene saved. ${created.label} is now available in your scene library.`);
-      scrollToSection('images');
+      scrollToSection('render');
     } catch (error) {
       setPersonaError(error instanceof Error ? error.message : 'Failed to save custom scene');
     } finally {
@@ -585,11 +586,10 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
   }
 
   const tabItems: { key: TabKey; label: string }[] = [
-    { key: 'persona', label: 'Persona' },
-    { key: 'content', label: 'Content' },
-    { key: 'images', label: 'Images' },
-    { key: 'scenes', label: 'Scenes' },
-    { key: 'settings', label: 'Settings' },
+    { key: 'persona', label: '1 Create Character' },
+    { key: 'reference', label: '2 Reference' },
+    { key: 'content', label: '3 Content' },
+    { key: 'render', label: '4 Generate Visual' },
   ];
 
   return (
@@ -631,16 +631,16 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         }
       />
 
-      <div className="rangmanch-toolbar-strip flex gap-2 overflow-x-auto rounded-[var(--radius-md)] p-1.5 sm:p-2">
+      <div className="flex gap-2 overflow-x-auto border-b border-[hsl(var(--color-border))] pb-2">
         {tabItems.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => scrollToSection(item.key)}
-            className={`whitespace-nowrap rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium transition ${
+            className={`whitespace-nowrap rounded-[12px] px-3 py-1.5 text-sm font-medium transition ${
               activeTab === item.key
-                ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                : 'text-muted hover:bg-[hsl(var(--color-bg))]'
+                ? 'bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+                : 'text-muted hover:bg-[hsl(var(--color-bg))] hover:text-text'
             }`}
           >
             {item.label}
@@ -648,9 +648,16 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         ))}
       </div>
 
-      <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2.5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
-        <p className="mt-1 text-sm font-semibold text-text">Persona, content, and render workflow</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+        <span className="font-medium text-text">Simple 4-step workflow</span>
+        <span>Create the character, upload one reference, shape the content, then render.</span>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[hsl(var(--color-border))] pb-3">
+        <p className="text-sm text-muted">Advanced controls stay available, but they are tucked away until you need them.</p>
+        <Button type="button" variant="secondary" onClick={() => setShowAdvanced((current) => !current)}>
+          {showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
+        </Button>
       </div>
 
       <div className="grid gap-5 xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
@@ -663,9 +670,10 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
 
           <div ref={sectionRefs.persona} className="scroll-mt-24">
         <SectionCard
-          title="Persona Builder"
-          description="Define the memory, voice, visuals, and emotional core of the influencer."
+          title="1. Create Character"
+          description="Set the name, niche, tone, and visual identity for the influencer."
           icon={<UserRound className="h-5 w-5" />}
+          compact
           action={
             selectedPersona ? (
               <Badge variant="outline">{selectedPersona.name}</Badge>
@@ -691,7 +699,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       onClick={() => syncDraftFromPersona(persona)}
                       className={`min-w-[180px] rounded-[18px] border px-4 py-3 text-left transition 2xl:min-w-0 ${
                         selectedPersonaId === persona.id
-                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
+                          ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)]'
                       }`}
                     >
@@ -737,20 +745,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     placeholder="e.g. polished, bold, witty, mentor-like"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-text">Catchphrase</label>
-                  <Input
-                    value={draft.catchphrase}
-                    onChange={(e) => setDraft((current) => ({ ...current, catchphrase: e.target.value }))}
-                    placeholder="e.g. Let's build smarter, not louder."
-                  />
-                  <p className="mt-2 text-xs text-muted">Optional, but useful if you want signature intros or closes in content.</p>
-                </div>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Core Personality</label>
-                <p className="mb-3 text-xs text-muted">Choose 3-5 traits that should stay constant even when the scene or platform changes.</p>
+                <p className="mb-3 text-xs text-muted">Choose traits that stay constant across platforms and scenes.</p>
                 <div className="flex flex-wrap gap-2">
                   {PERSONALITY_OPTIONS.map((trait) => {
                     const active = draft.personality_traits.includes(trait);
@@ -780,17 +779,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-text">Long-form backstory</label>
-                <Textarea
-                  rows={5}
-                  value={draft.backstory}
-                  onChange={(e) => setDraft((current) => ({ ...current, backstory: e.target.value }))}
-                  placeholder="Explain where this influencer comes from, what shaped them, what they care about, and what personal history informs their content."
-                />
-                <p className="mt-2 text-xs text-muted">Think of this as memory for future content, not public-facing copy.</p>
-              </div>
-
-              <div>
                 <label className="mb-2 block text-sm font-medium text-text">Visual description</label>
                 <Textarea
                   rows={4}
@@ -798,8 +786,33 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   onChange={(e) => setDraft((current) => ({ ...current, visual_description: e.target.value }))}
                   placeholder="Describe face shape, hairstyle, skin tone, fashion signatures, accessories, and identity markers."
                 />
-                <p className="mt-2 text-xs text-muted">Be specific. This description is used to keep the character visually locked across future generations.</p>
+                <p className="mt-2 text-xs text-muted">Be specific so future generations stay visually consistent.</p>
               </div>
+
+              {showAdvanced ? (
+                <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.42)] p-4">
+                  <p className="text-sm font-semibold text-text">Advanced character memory</p>
+                  <div className="mt-4 grid gap-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-text">Catchphrase</label>
+                      <Input
+                        value={draft.catchphrase}
+                        onChange={(e) => setDraft((current) => ({ ...current, catchphrase: e.target.value }))}
+                        placeholder="e.g. Let's build smarter, not louder."
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-text">Long-form backstory</label>
+                      <Textarea
+                        rows={5}
+                        value={draft.backstory}
+                        onChange={(e) => setDraft((current) => ({ ...current, backstory: e.target.value }))}
+                        placeholder="Explain where this influencer comes from, what shaped them, and what informs their content."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap gap-3">
                 <Button type="button" onClick={savePersona} disabled={savingPersona}>
@@ -816,11 +829,84 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         </SectionCard>
           </div>
 
+          <div ref={sectionRefs.reference} className="scroll-mt-24">
+        <SectionCard
+          title="2. Reference"
+          description="Upload one base face and lock identity before generating variations."
+          icon={<Camera className="h-5 w-5" />}
+          compact
+        >
+          <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+            <div className="space-y-4">
+              <div className="mx-auto w-full max-w-[220px] overflow-hidden rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
+                <div className="aspect-[3/4] bg-[hsl(var(--color-bg))]">
+                  {selectedPersona?.reference_image_url ? (
+                    <img src={toAbsoluteUrl(selectedPersona.reference_image_url) ?? ''} alt={selectedPersona.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted">No reference uploaded</div>
+                  )}
+                </div>
+              </div>
+              <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-[14px] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-medium text-text">
+                {uploadingReference ? 'Uploading...' : 'Upload reference'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void onReferenceUpload(file);
+                  }}
+                />
+              </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className={`rounded-[14px] border px-4 py-3 ${imageFlowStepClass(uploadStepState)}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline">Upload</Badge>
+                  {hasReferenceImage ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Required</Badge>}
+                </div>
+                <p className="mt-3 text-sm font-semibold text-text">Base face</p>
+                <p className="mt-1 text-xs text-muted">Use one clean portrait with stable lighting.</p>
+              </div>
+              <div className={`rounded-[14px] border px-4 py-3 ${imageFlowStepClass(lockStepState)}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline">Lock</Badge>
+                  {selectedPersona?.character_locked ? <Badge variant="success">Locked</Badge> : <Badge variant="outline">Next</Badge>}
+                </div>
+                <p className="mt-3 text-sm font-semibold text-text">Identity</p>
+                <p className="mt-1 text-xs text-muted">Freeze face structure and identity markers.</p>
+              </div>
+              <div className="rounded-[14px] border border-[hsl(var(--color-border))] px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline">Credits</Badge>
+                  <Badge variant="outline">{referenceEstimate?.estimatedCredits ?? 0}</Badge>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-text">Reference lock</p>
+                <p className="mt-1 text-xs text-muted">One-time setup before rendering consistent visuals.</p>
+              </div>
+              <div className="sm:col-span-3 flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onLockReference}
+                  disabled={lockingReference || !canLockIdentity}
+                >
+                  {lockingReference ? 'Locking...' : `Lock Identity · ${referenceEstimate?.estimatedCredits ?? 0} credits`}
+                </Button>
+                <p className="text-xs text-muted">Upload first, then lock once. After that you can render scenes and poses.</p>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+          </div>
+
           <div ref={sectionRefs.content} className="scroll-mt-24">
         <SectionCard
-          title="Influencer Content Generator"
-          description="Generate structured platform content from the locked persona memory."
+          title="3. Content"
+          description="Optional: generate platform-ready content from the saved character memory."
           icon={<Sparkles className="h-5 w-5" />}
+          compact
         >
           <div className="grid gap-4">
             <div className="grid gap-4 xl:grid-cols-[1fr_220px]">
@@ -832,7 +918,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   onChange={(e) => setContentIntent(e.target.value)}
                   placeholder="e.g. Create a LinkedIn post about why Indian founders should ship faster, with a motivating close and a confident CTA."
                 />
-                <p className="mt-2 text-xs text-muted">Describe the topic, angle, and desired outcome. The persona memory will shape the voice automatically.</p>
+                <p className="mt-2 text-xs text-muted">Describe the topic, angle, and goal. Persona memory shapes the voice.</p>
               </div>
               <div className="space-y-3">
                 <div>
@@ -844,18 +930,19 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     <option value="youtube">YouTube</option>
                   </Dropdown>
                 </div>
-                <Card className={`px-4 py-3 text-sm ${canGenerateContent ? 'border-[hsl(var(--color-success)/0.28)]' : 'border-[hsl(var(--color-border))]'}`}>
+                <div className={`rounded-[14px] border px-4 py-3 text-sm ${canGenerateContent ? 'border-[hsl(var(--color-success)/0.28)] bg-[hsl(var(--color-success)/0.05)]' : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)]'}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-semibold text-text">Generate Content</div>
-                    {canGenerateContent ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Needs brief</Badge>}
+                    <span className="text-xs text-muted">{canGenerateContent ? 'Ready' : 'Add a brief'}</span>
                   </div>
                   <div className="mt-1 text-muted">
                     {contentEstimate ? `${contentEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}
                   </div>
-                </Card>
+                </div>
                 <Button type="button" onClick={onGenerateContent} disabled={generatingContent || !contentIntent.trim()}>
                   {`Generate Content · ${contentEstimate?.estimatedCredits ?? 0} credits`}
                 </Button>
+                <p className="text-xs text-muted">Skip this if you only want the visual.</p>
               </div>
             </div>
             {estimateError ? (
@@ -865,13 +952,13 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
             ) : null}
             {contentResult ? (
-              <Card className="px-5 py-5">
-                <div className="text-sm uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Output Preview</div>
+              <div className="space-y-4 border-t border-[hsl(var(--color-border))] pt-4">
+                <div className="text-sm font-semibold text-text">Output</div>
                 <h3 className="mt-2 font-heading text-2xl font-bold text-text">{contentResult.title}</h3>
                 <p className="mt-3 text-sm text-muted">{contentResult.intro}</p>
                 <div className="mt-4 grid gap-3">
                   {contentResult.content_blocks.map((block, index) => (
-                    <div key={`${block}-${index}`} className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-3 text-sm text-text">
+                    <div key={`${block}-${index}`} className="rounded-[14px] border border-[hsl(var(--color-border))] px-4 py-3 text-sm text-text">
                       {block}
                     </div>
                   ))}
@@ -883,107 +970,29 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     <Badge key={tag} variant="outline">{tag}</Badge>
                   ))}
                 </div>
-              </Card>
+              </div>
             ) : null}
           </div>
         </SectionCard>
           </div>
 
-          <div ref={sectionRefs.images} className="scroll-mt-24">
+          <div ref={sectionRefs.render} className="scroll-mt-24">
         <SectionCard
-          title="Reference Locking & Image Consistency"
-          description="Upload a base face, lock the identity, then generate pose and scene variations without changing the character."
+          title="4. Generate Visual"
+          description="Choose pose, scene, and model, then generate a consistent influencer image."
           icon={<ImageIcon className="h-5 w-5" />}
+          compact
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-3">
-            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(uploadStepState)}`}>
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline">1 Upload</Badge>
-                {hasReferenceImage ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Required</Badge>}
-              </div>
-              <p className="mt-3 text-sm font-semibold text-text">Base reference</p>
-              <p className="mt-1 text-xs text-muted">Upload the anchor portrait that locks the face and identity.</p>
-            </div>
-            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(lockStepState)}`}>
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline">2 Lock</Badge>
-                {selectedPersona?.character_locked ? (
-                  <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Locked</Badge>
-                ) : canLockIdentity ? (
-                  <Badge variant="warning">Next</Badge>
-                ) : (
-                  <Badge variant="outline">Waiting</Badge>
-                )}
-              </div>
-              <p className="mt-3 text-sm font-semibold text-text">Identity freeze</p>
-              <p className="mt-1 text-xs text-muted">Freeze facial structure before changing pose, scene, or styling.</p>
-            </div>
-            <div className={`rounded-[20px] border px-4 py-3 ${imageFlowStepClass(generateStepState)}`}>
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline">3 Generate</Badge>
-                {canGenerateImage ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Waiting</Badge>}
-              </div>
-              <p className="mt-3 text-sm font-semibold text-text">Pose + scene render</p>
-              <p className="mt-1 text-xs text-muted">Use the locked identity to create consistent image variations.</p>
-            </div>
-          </div>
-          <div className="grid gap-6 2xl:grid-cols-[320px_1fr]">
-            <div className="space-y-4">
-              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)]">
-                <div className="aspect-[4/5] bg-[hsl(var(--color-bg))]">
-                  {selectedPersona?.reference_image_url ? (
-                    <img src={toAbsoluteUrl(selectedPersona.reference_image_url) ?? ''} alt={selectedPersona.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-muted">No reference uploaded</div>
-                  )}
+          <div className="grid gap-4">
+            <div className={`rounded-[14px] border px-4 py-3 ${imageFlowStepClass(generateStepState)}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-text">Render readiness</p>
+                  <p className="mt-1 text-xs text-muted">Reference should be uploaded and locked before rendering.</p>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Upload base reference</span>
-                  {hasReferenceImage ? (
-                    <Badge variant="success">Ready</Badge>
-                  ) : (
-                    <Badge variant="outline">Required</Badge>
-                  )}
-                </div>
-                <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-medium text-text">
-                  {uploadingReference ? 'Uploading...' : 'Upload base reference'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void onReferenceUpload(file);
-                    }}
-                  />
-                </label>
-              </div>
-              <p className="text-xs text-muted">Use a clean front-facing portrait with clear lighting. This becomes the identity anchor for future image and video generation.</p>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Lock character identity</span>
-                  {selectedPersona?.character_locked ? (
-                    <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Locked</Badge>
-                  ) : canLockIdentity ? (
-                    <Badge variant="outline">Ready to lock</Badge>
-                  ) : (
-                    <Badge variant="outline">Needs reference</Badge>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={onLockReference}
-                  disabled={lockingReference || !canLockIdentity}
-                  className="w-full"
-                >
-                  {lockingReference ? 'Locking...' : `Lock Character Identity · ${referenceEstimate?.estimatedCredits ?? 0} credits`}
-                </Button>
+                <span className="text-xs font-medium text-muted">{canGenerateImage ? 'Ready' : 'Waiting'}</span>
               </div>
             </div>
-
             <div className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 <div>
@@ -993,7 +1002,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       <option key={pose.key} value={pose.key}>{pose.label}</option>
                     ))}
                   </Dropdown>
-                  <p className="mt-2 text-xs text-muted">Pose changes body stance only. It should not alter facial identity.</p>
+                  <p className="mt-2 text-xs text-muted">Pose changes stance, not identity.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Scene</label>
@@ -1002,14 +1011,14 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       <option key={scene.key} value={scene.key}>{scene.label}</option>
                     ))}
                   </Dropdown>
-                  <p className="mt-2 text-xs text-muted">Scene controls the background, lighting, and mood only. It should not change the face or identity.</p>
+                  <p className="mt-2 text-xs text-muted">Scene changes background, lighting, and mood only.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-text">Image model</label>
                   <button
                     type="button"
                     onClick={() => setImageModelPickerOpen(true)}
-                    className="w-full rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3 text-left transition hover:bg-[hsl(var(--color-elevated))]"
+                    className="w-full rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-3 text-left transition hover:bg-[hsl(var(--color-elevated))]"
                   >
                     <div className="flex items-start gap-3">
                       <span
@@ -1025,9 +1034,6 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                           <p className="text-sm font-semibold text-text">
                             {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Choose model'}
                           </p>
-                          {imageModels.find((model) => model.key === selectedImageModel)?.badge ? (
-                            <Badge>{imageModels.find((model) => model.key === selectedImageModel)?.badge}</Badge>
-                          ) : null}
                         </div>
                         <p className="mt-1 text-xs text-muted">
                           {imageModels.find((model) => model.key === selectedImageModel)?.frontend_hint ??
@@ -1040,7 +1046,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="space-y-3 border-t border-[hsl(var(--color-border))] pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Output</p>
@@ -1048,11 +1054,11 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       {aspectRatio} • {resolution === '1024' ? '1K' : resolution === '1536' ? '1.5K' : resolution === '2048' ? '2K' : resolution} • {imageModels.find((model) => model.key === selectedImageModel)?.label ?? 'Selected model'}
                     </p>
                   </div>
-                  <Badge variant="outline">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}</Badge>
+                  <span className="text-xs font-medium text-muted">{imageEstimate ? `${imageEstimate.estimatedCredits} credits` : isEstimating ? 'Estimating...' : 'Unavailable'}</span>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-text">Aspect ratio</p>
-                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                  <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] p-2">
                     <div className="flex flex-wrap gap-2">
                       {[
                         ['9:16', 'Reels'],
@@ -1079,7 +1085,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-text">Resolution</p>
-                  <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.32)] p-2">
+                  <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] p-2">
                     <div className="flex flex-wrap gap-2">
                       {[
                         ['1024', '1K'],
@@ -1101,7 +1107,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-muted">Higher resolutions cost more credits but help when the asset will be reused in thumbnails or campaigns.</p>
+                  <p className="text-xs text-muted">Higher resolutions cost more but help for thumbnails and campaigns.</p>
                 </div>
               </div>
 
@@ -1113,12 +1119,12 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                     onChange={(e) => setCustomPose(e.target.value)}
                     placeholder="e.g. leaning on a glass desk, one hand raised mid-explanation"
                   />
-                  <p className="mt-2 text-xs text-muted">Describe body positioning only. Avoid redefining face or identity features here.</p>
+                  <p className="mt-2 text-xs text-muted">Describe body positioning only.</p>
                 </div>
               ) : null}
 
               {selectedScenePreset ? (
-                <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)] px-4 py-4 text-sm">
+                <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.5)] px-4 py-4 text-sm">
                   <div className="font-semibold text-text">{selectedScenePreset.label}</div>
                   <p className="mt-1 text-muted">{selectedScenePreset.description}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1145,22 +1151,17 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Generate image</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {selectedPersona?.character_locked ? (
-                      <Badge variant="success"><Lock className="mr-1 h-3 w-3" /> Identity locked</Badge>
-                    ) : (
-                      <Badge variant="outline">Identity unlocked</Badge>
-                    )}
-                    {canGenerateImage ? (
-                      <Badge variant="success">Ready</Badge>
-                    ) : !selectedPersonaId ? (
-                      <Badge variant="outline">Needs persona</Badge>
-                    ) : !hasReferenceImage ? (
-                      <Badge variant="outline">Needs reference</Badge>
-                    ) : (
-                      <Badge variant="outline">Needs pose detail</Badge>
-                    )}
-                  </div>
+                  <span className="text-xs text-muted">
+                    {selectedPersona?.character_locked
+                      ? 'Identity locked'
+                      : !selectedPersonaId
+                        ? 'Needs character'
+                        : !hasReferenceImage
+                          ? 'Needs reference'
+                          : canGenerateImage
+                            ? 'Ready'
+                            : 'Needs pose detail'}
+                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
@@ -1185,8 +1186,10 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
               ) : null}
 
               {generatedImage ? (
-                <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)]">
-                  <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="w-full object-cover" />
+                <div className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.62)]">
+                  <div className="mx-auto w-full max-w-[340px]">
+                    <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="aspect-[4/5] w-full object-cover" />
+                  </div>
                   <div className="px-4 py-4 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="font-semibold text-text">Latest influencer render</div>
@@ -1225,21 +1228,23 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
         </SectionCard>
           </div>
 
-          <div ref={sectionRefs.scenes} className="scroll-mt-24">
+          {showAdvanced ? (
+          <div ref={sectionRefs.advanced} className="scroll-mt-24 space-y-5 sm:space-y-6">
         <SectionCard
-          title="Scene Variations Engine"
-          description="Use saved scene presets to vary environment, lighting, and mood without changing the face."
+          title="Advanced scene library"
+          description="Save and reuse custom scenes without changing the face."
           icon={<Layers3 className="h-5 w-5" />}
+          compact
         >
-          <div className="mb-4 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] px-4 py-4 text-sm text-muted">
+          <div className="mb-4 border-l-2 border-[hsl(var(--color-border))] pl-4 text-sm text-muted">
             These presets define the background, lighting, and overall scene mood behind the influencer. Identity remains locked separately through the reference image and character memory.
           </div>
 
-          <div className={`mb-4 rounded-[var(--radius-md)] border bg-[hsl(var(--color-surface))] p-4 ${canSaveCustomScene ? 'border-[hsl(var(--color-success)/0.3)]' : 'border-[hsl(var(--color-border))]'}`}>
+          <div className={`mb-4 rounded-[14px] border bg-[hsl(var(--color-surface)/0.2)] p-4 ${canSaveCustomScene ? 'border-[hsl(var(--color-success)/0.3)]' : 'border-[hsl(var(--color-border))]'}`}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-text">Save custom scene</p>
-                <p className="mt-1 text-xs text-muted">Create reusable scene presets with the same readiness language used elsewhere in the studio.</p>
+                <p className="mt-1 text-xs text-muted">Create reusable scene presets for future renders.</p>
               </div>
               {canSaveCustomScene ? <Badge variant="success">Ready</Badge> : <Badge variant="outline">Needs name + environment</Badge>}
             </div>
@@ -1251,7 +1256,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   onChange={(e) => setCustomSceneLabel(e.target.value)}
                   placeholder="e.g. Luxury car reveal"
                 />
-                <p className="mt-2 text-xs text-muted">This becomes a reusable scene preset in the persona library.</p>
+                <p className="mt-2 text-xs text-muted">Saved to the persona library.</p>
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Environment</label>
@@ -1260,7 +1265,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   onChange={(e) => setCustomSceneEnvironment(e.target.value)}
                   placeholder="e.g. premium driveway with a black luxury sedan and reflective marble entrance"
                 />
-                <p className="mt-2 text-xs text-muted">Describe the background and physical setting behind the influencer.</p>
+                <p className="mt-2 text-xs text-muted">Describe the background and setting.</p>
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Props</label>
@@ -1310,9 +1315,9 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                 type="button"
                 onClick={() => {
                   setSelectedScene(scene.key);
-                  scrollToSection('images');
+                  scrollToSection('render');
                 }}
-                className={`rounded-[var(--radius-md)] border px-4 py-4 text-left transition ${
+                className={`rounded-[14px] border px-4 py-4 text-left transition ${
                   selectedScene === scene.key
                     ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)]'
                     : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]'
@@ -1333,16 +1338,15 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
             </div>
           </div>
         </SectionCard>
-          </div>
 
-          <div ref={sectionRefs.settings} className="scroll-mt-24">
         <SectionCard
-          title="Character Lock Mode"
-          description="Freeze core identity and rebuild style memory without changing the persona’s face."
+          title="Advanced character controls"
+          description="Use these controls when you need to rebuild or manually adjust character memory."
           icon={<Wand2 className="h-5 w-5" />}
+          compact
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="px-5 py-5">
+            <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] px-5 py-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-semibold text-text">Lock Character Identity</div>
@@ -1356,85 +1360,83 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   }`}
                   aria-pressed={draft.character_locked}
                 >
-                  <span className={`h-8 w-8 rounded-full bg-[hsl(var(--color-surface))] shadow transition ${draft.character_locked ? 'translate-x-10' : 'translate-x-0'}`} />
+                  <span className={`h-8 w-8 rounded-full bg-[hsl(var(--color-surface))] transition ${draft.character_locked ? 'translate-x-10' : 'translate-x-0'}`} />
                 </button>
               </div>
-            </Card>
-            <Card className="px-5 py-5">
+            </div>
+            <div className="rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.56)] px-5 py-5">
               <div className="font-semibold text-text">Regenerate embeddings</div>
               <p className="mt-1 text-sm text-muted">Rebuild the internal style memory from your latest persona state and saved reference.</p>
               <Button type="button" variant="secondary" className="mt-4" onClick={savePersona}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Rebuild Character Memory
               </Button>
-            </Card>
+            </div>
           </div>
         </SectionCard>
           </div>
+          ) : null}
         </div>
 
-        <div className="space-y-5 sm:space-y-6 2xl:sticky 2xl:top-24">
-          <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-5">
+        <div className="space-y-4 sm:space-y-5 2xl:sticky 2xl:top-24">
+          <div className="2xl:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMobileSummary((current) => !current)}
+              className="flex w-full items-center justify-between rounded-[14px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3 text-left transition hover:bg-[hsl(var(--color-surface)/0.35)]"
+              aria-expanded={showMobileSummary}
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Summary</p>
+                <p className="mt-1 text-sm text-text">Character, scene, and output overview</p>
+              </div>
+              {showMobileSummary ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+            </button>
+          </div>
+
+          <div className={`${showMobileSummary ? 'block' : 'hidden'} space-y-5 sm:space-y-6 2xl:block`}>
+          <div className="space-y-3 border-l border-[hsl(var(--color-border))] pl-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Live Character</p>
                 <h2 className="mt-2 text-lg font-semibold text-text">{selectedPersona?.name ?? draft.name ?? 'New persona'}</h2>
               </div>
-              {draft.character_locked ? <Badge variant="success">Locked</Badge> : <Badge variant="outline">Unlocked</Badge>}
+              <span className="text-xs text-muted">{draft.character_locked ? 'Locked' : 'Unlocked'}</span>
             </div>
-            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
-              {generatedImage?.image_url ? (
-                <img src={toAbsoluteUrl(generatedImage.image_url) ?? ''} alt="Generated influencer" className="aspect-[4/5] w-full object-cover" />
-              ) : selectedPersona?.reference_image_url ? (
-                <img src={toAbsoluteUrl(selectedPersona.reference_image_url) ?? ''} alt={selectedPersona.name} className="aspect-[4/5] w-full object-cover" />
-              ) : (
-                <div className="flex aspect-[4/5] items-center justify-center text-sm text-muted">
-                  Save a persona and upload a reference to start.
-                </div>
-              )}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Niche</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedPersona?.niche || draft.niche || 'Not set'}</p>
-              </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Tone</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedPersona?.tone || draft.tone || 'Not set'}</p>
-              </div>
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Scene</p>
-                <p className="mt-1 text-sm font-semibold text-text">{selectedScenePreset?.label || 'No scene selected'}</p>
-              </div>
+            <p className="text-sm text-muted">
+              {selectedPersona?.reference_image_url
+                ? 'Reference uploaded. Character is ready for content and render work.'
+                : 'Save a persona and upload one reference image to get started.'}
+            </p>
+            <div className="space-y-1.5 text-sm text-muted">
+              <p><span className="font-medium text-text">Niche:</span> {selectedPersona?.niche || draft.niche || 'Not set'}</p>
+              <p><span className="font-medium text-text">Tone:</span> {selectedPersona?.tone || draft.tone || 'Not set'}</p>
+              <p><span className="font-medium text-text">Scene:</span> {selectedScenePreset?.label || 'No scene selected'}</p>
             </div>
           </div>
 
-          <div className="space-y-4 rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)),hsl(var(--color-elevated)))] p-5">
+          <div className="space-y-3 border-l border-[hsl(var(--color-border))] pl-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Outputs</p>
-                <h3 className="mt-2 text-base font-semibold text-text">Content & scenes</h3>
+                <h3 className="mt-2 text-base font-semibold text-text">Quick summary</h3>
               </div>
-              <Badge variant="outline">{platform}</Badge>
+              <span className="text-xs text-muted">{platform}</span>
             </div>
             {contentResult ? (
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+              <div className="rounded-[12px] border border-[hsl(var(--color-border))] p-3.5">
                 <p className="text-sm font-semibold text-text">{contentResult.title}</p>
                 <p className="mt-2 text-sm text-muted">{contentResult.intro}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {contentResult.tags.slice(0, 4).map((tag) => (
-                    <Badge key={tag} variant="outline">{tag}</Badge>
-                  ))}
-                </div>
               </div>
             ) : (
-              <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4 text-sm text-muted">
-                Generated captions, hooks, and CTA blocks will appear here.
+              <div className="rounded-[12px] border border-[hsl(var(--color-border))] p-3.5 text-sm text-muted">
+                Content generation is optional. You can go straight to render.
               </div>
             )}
-            <div className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-4">
+            <div className="rounded-[12px] border border-[hsl(var(--color-border))] p-3.5">
               <p className="text-sm font-semibold text-text">Current scene preset</p>
               <p className="mt-2 text-sm text-muted">{selectedScenePreset?.description || 'Choose or create a scene to shape environment, props, and lighting.'}</p>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -1459,7 +1461,7 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
                   }}
                   className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${
                     active
-                      ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)] shadow-soft'
+                      ? 'border-[hsl(var(--color-accent))] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.16),transparent)]'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] hover:bg-[hsl(var(--color-elevated))]'
                   }`}
                 >

@@ -48,6 +48,10 @@ const pricingFaqs = [
     a: 'Top-up packs stay in your wallet. Monthly plan credits refresh on your active cycle and do not carry forward into the next cycle.',
   },
   {
+    q: 'What can I realistically do on the free plan?',
+    a: 'The free plan is designed for real testing: image drafts, template runs, voice previews, influencer setup, and lightweight Kling experiments. It is not meant to cover sustained premium Sora or Veo usage.',
+  },
+  {
     q: 'Can I mix image, voice, and video usage?',
     a: 'Yes. One shared wallet powers all premium generation actions across the studio.',
   },
@@ -97,13 +101,19 @@ export default function PricingPage() {
     router.push(`/billing?plan=${encodeURIComponent(planKey)}`);
   };
 
+  const freeTierExamples = [
+    'Around 8 Gemini Flash 1536 image drafts',
+    'A few short Kling draft clips with free voice',
+    'One influencer setup plus a few consistent renders',
+  ];
+
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <StudioPageHeader
           eyebrow="Plans"
-          title="Flexible plans for creators and teams"
-          description="Choose a plan that fits your content volume, then scale with credits as you grow. Pricing stays transparent while usage stays predictable."
+          title="Simple credits for India-first creators and teams"
+          description="Start with reliable workflows on the free tier, then scale into premium video, image, and voice usage only when your output volume grows."
           className="mx-auto max-w-5xl"
           actions={pricing ? (
             <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface-glass)/0.62)] px-4 py-2 text-sm text-muted">
@@ -156,19 +166,19 @@ export default function PricingPage() {
                 <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>Try the studio before upgrading</span>
+                    <span>40 credits every month for real product testing</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>No watermark on free creations</span>
+                    <span>25-credit activation bonus after your first real workflow win</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>Good for first images, voice tests, and lightweight runs</span>
+                    <span>Good for first images, templates, voice tests, and lightweight Kling runs</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>Upgrade later without changing your workflow</span>
+                    <span>Upgrade later for premium Sora, Veo, and higher-volume output</span>
                   </li>
                 </ul>
 
@@ -250,6 +260,23 @@ export default function PricingPage() {
             </div>
 
             <div className="rangmanch-studio-panel mt-16 rounded-[28px] border-none bg-transparent p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
+              <div className="mb-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
+                  <p className="text-sm font-semibold text-text">What 40 free credits are best for</p>
+                  <div className="mt-3 space-y-2 text-sm text-muted">
+                    {freeTierExamples.map((item) => (
+                      <p key={item}>{item}</p>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
+                  <p className="text-sm font-semibold text-text">Best way to use the free tier</p>
+                  <p className="mt-3 text-sm text-muted">
+                    Start with images, templates, influencer visuals, and fast drafts. Save Sora 2 and Veo 3.1 for the moment you need premium output quality.
+                  </p>
+                </div>
+              </div>
+
               <div className="mb-6 flex items-center gap-3">
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                 <div>
@@ -319,7 +346,7 @@ export default function PricingPage() {
 
             <div className="mt-16 text-center lg:mt-20">
               <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">
-                Start with a plan today and top up anytime as your usage grows.
+                Start free, earn the activation bonus on your first real win, and upgrade when you need more polished output or more weekly volume.
               </p>
               <Link href="/billing">
                 <button className="rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-8 py-3 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">

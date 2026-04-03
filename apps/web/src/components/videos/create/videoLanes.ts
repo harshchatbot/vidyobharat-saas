@@ -1,4 +1,5 @@
-import { Film, PlaySquare, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Film, Sparkles } from 'lucide-react';
 
 export type VideoLaneKey = 'daily' | 'creator_pro' | 'premium';
 
@@ -10,22 +11,10 @@ export type VideoLaneDefinition = {
   helper: string;
   accentClassName: string;
   pillClassName: string;
-  icon: typeof PlaySquare;
+  icon: LucideIcon;
 };
 
 export const VIDEO_LANES: readonly VideoLaneDefinition[] = [
-  {
-    key: 'daily',
-    label: 'Daily Reels',
-    shortLabel: 'Daily',
-    description: 'Affordable, budget-safe, and tuned for frequent short-form posting.',
-    helper: '',
-    accentClassName:
-      'border-[hsl(var(--color-border))] bg-[linear-gradient(135deg,hsl(var(--color-surface)/0.72),hsl(var(--color-bg)/0.92))] text-text',
-    pillClassName:
-      'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-text',
-    icon: PlaySquare,
-  },
   {
     key: 'creator_pro',
     label: 'Creator Pro',
@@ -53,5 +42,5 @@ export const VIDEO_LANES: readonly VideoLaneDefinition[] = [
 ] as const;
 
 export function getVideoLaneDefinition(lane: VideoLaneKey): VideoLaneDefinition {
-  return VIDEO_LANES.find((item) => item.key === lane) ?? VIDEO_LANES[1];
+  return VIDEO_LANES.find((item) => item.key === lane) ?? VIDEO_LANES[0];
 }

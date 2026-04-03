@@ -97,6 +97,9 @@ async function cachedRequest<T>(
   ttlMs: number,
   fetcher: () => Promise<T>,
 ): Promise<T> {
+  if (ttlMs <= 0) {
+    return fetcher();
+  }
   const now = Date.now();
   const cached = responseCache.get(key);
   if (cached && cached.expiresAt > now) {
@@ -757,7 +760,9 @@ export const api = {
       prompt: string;
       aspect_ratio: string;
       resolution: string;
+      image_count?: number;
       reference_urls: string[];
+      reference_mode?: 'inspiration' | 'edit';
       project_id?: string;
       mode_id?: string;
       template_id?: string;

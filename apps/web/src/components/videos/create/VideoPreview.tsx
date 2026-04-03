@@ -47,24 +47,23 @@ export function VideoPreview({
   };
 
   return (
-    <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.72)] pt-3.5 sm:space-y-4 sm:pt-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-3 sm:space-y-4 sm:pt-4">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-heading text-base font-bold tracking-tight text-text sm:text-lg">Preview & output</h2>
-          <p className="mt-1 text-xs text-muted">Review the current render, retry fast, or export when it’s ready.</p>
+          <h2 className="font-heading text-base font-bold tracking-tight text-text sm:text-lg">Preview</h2>
         </div>
-        {job ? <Badge>{job.provider_name ?? job.selected_model ?? 'Queued'}</Badge> : null}
+        {job ? <span className="text-xs text-muted">{job.provider_name ?? job.selected_model ?? 'Queued'}</span> : null}
       </div>
 
       {loading || isProcessing ? (
-        <div className="rounded-[20px] border border-border bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.76),hsl(var(--color-surface)/0.52))] p-4 sm:rounded-[22px] sm:p-5 text-center shadow-[var(--shadow-soft)]">
+        <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.28)] p-4 text-center">
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
-            <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]">
               <Spinner />
             </span>
             <div>
               <p className="text-base font-semibold text-text">Generating your video</p>
-              <p className="mt-1 text-sm text-muted">This job is being processed. The page polls automatically for completion.</p>
+              <p className="mt-1 text-sm text-muted">This page updates automatically.</p>
             </div>
             <div className="h-2 w-full rounded-full bg-[hsl(var(--color-border))]">
               <div className="h-2 rounded-full bg-[hsl(var(--color-accent))] transition-all" style={{ width: `${job?.progress ?? 18}%` }} />
@@ -78,7 +77,7 @@ export function VideoPreview({
       {job?.status === 'failed' ? <p className="text-sm text-[hsl(var(--color-danger))]">{job.error_message ?? 'Generation failed.'}</p> : null}
 
       {job?.tts_provider ? (
-        <div className="rounded-[20px] border border-border bg-[hsl(var(--color-bg)/0.62)] px-4 py-3">
+        <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.28)] px-3 py-2.5">
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Narration Provider</p>
           <p className="mt-1 text-sm font-semibold text-text">
             {job.tts_provider}
@@ -93,32 +92,32 @@ export function VideoPreview({
 
       {videoUrl ? (
         <div className="space-y-4">
-          <div className={`mx-auto overflow-hidden rounded-[20px] border border-[hsl(var(--color-border))] bg-black shadow-[var(--shadow-soft)] ${frameWidthClass}`}>
+          <div className={`mx-auto overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-black ${frameWidthClass}`}>
             <video
               src={videoUrl}
               poster={thumbnailUrl ?? undefined}
               controls
-              className="max-h-[48vh] sm:max-h-[56vh] w-full bg-black object-contain"
+              className="max-h-[46vh] sm:max-h-[54vh] w-full bg-black object-contain"
             />
           </div>
-          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Provider</p>
-              <p className="mt-1 text-sm font-semibold text-text">{job?.provider_name ?? job?.selected_model ?? 'Render'}</p>
+          <dl className="grid gap-x-4 gap-y-2 border-y border-[hsl(var(--color-border)/0.45)] py-3 text-sm sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">Provider</dt>
+              <dd className="font-medium text-text">{job?.provider_name ?? job?.selected_model ?? 'Render'}</dd>
             </div>
-            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Resolution</p>
-              <p className="mt-1 text-sm font-semibold text-text">{job?.resolution ?? '—'}</p>
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">Resolution</dt>
+              <dd className="font-medium text-text">{job?.resolution ?? '—'}</dd>
             </div>
-            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Duration</p>
-              <p className="mt-1 text-sm font-semibold text-text">{job?.duration_seconds ? `${job.duration_seconds}s` : '—'}</p>
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">Duration</dt>
+              <dd className="font-medium text-text">{job?.duration_seconds ? `${job.duration_seconds}s` : '—'}</dd>
             </div>
-            <div className="rounded-[18px] border border-border bg-[hsl(var(--color-bg)/0.68)] px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Frame</p>
-              <p className="mt-1 text-sm font-semibold text-text">{job?.aspect_ratio ?? '—'}</p>
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-[11px] uppercase tracking-[0.16em] text-muted">Frame</dt>
+              <dd className="font-medium text-text">{job?.aspect_ratio ?? '—'}</dd>
             </div>
-          </div>
+          </dl>
           {allTags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {allTags.map((tag) => (
@@ -146,11 +145,11 @@ export function VideoPreview({
           </div>
         </div>
       ) : !loading && !error ? (
-        <div className="flex min-h-[170px] sm:min-h-[220px] flex-col items-center justify-center rounded-[20px] sm:rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.4),hsl(var(--color-bg)/0.7))] px-4 py-6 sm:px-6 sm:py-8 text-center">
-          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]">
+        <div className="flex min-h-[150px] sm:min-h-[190px] flex-col items-center justify-center rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.24)] px-4 py-6 text-center">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-accent)/0.08)] text-[hsl(var(--color-accent))]">
             <Sparkles className="h-6 w-6" />
           </span>
-          <p className="mt-4 text-base font-semibold text-text">Your next render will appear here</p>
+          <p className="mt-3 text-base font-semibold text-text">Your next render will appear here</p>
         </div>
       ) : null}
     </div>

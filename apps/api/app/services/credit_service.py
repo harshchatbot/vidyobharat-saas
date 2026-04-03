@@ -81,6 +81,8 @@ class CreditTopUpOrderResult:
 
 class CreditService:
     FREE_PLAN_MONTHLY_CREDITS = 40
+    ACTIVATION_BONUS_CREDITS = 25
+    ACTIVATION_BONUS_PROGRAM = 'activation_bonus_v1'
     DEFAULT_RECURRING_PLAN = 'free'
     VOICE_PROVIDER_ALIASES = {
         'sarvam ai': 'sarvam',
@@ -258,6 +260,51 @@ class CreditService:
         wallet = self.ensure_wallet(user_id)
         return wallet
 
+    def grant_activation_bonus_if_eligible(
+        self,
+        *,
+        user_id: str,
+        trigger: str,
+        trigger_ref: str | None = None,
+    ) -> tuple[FirestoreCreditWallet, bool]:
+        wallet = self.ensure_wallet(user_id)
+        if str(wallet.recurring_plan_type or wallet.plan_type or '').strip().lower() != self.DEFAULT_RECURRING_PLAN:
+            return wallet, False
+
+        idempotency_key = self._stable_key(
+            'activation_bonus',
+            {
+                'user_id': user_id,
+                'program': self.ACTIVATION_BONUS_PROGRAM,
+            },
+        )
+        if self.repo.get_transaction_by_idempotency_key(idempotency_key):
+            return wallet, False
+
+        wallet = self.top_up_credits(
+            user_id=user_id,
+            credits=self.ACTIVATION_BONUS_CREDITS,
+            metadata={
+                'transaction_feature_key': 'activation_bonus',
+                'transaction_source': 'bonus',
+                'program': self.ACTIVATION_BONUS_PROGRAM,
+                'trigger': trigger,
+                'trigger_ref': trigger_ref,
+            },
+            idempotency_key=idempotency_key,
+        )
+        logger.info(
+            'activation_bonus_granted',
+            extra={
+                'user_id': user_id,
+                'credits': self.ACTIVATION_BONUS_CREDITS,
+                'trigger': trigger,
+                'trigger_ref': trigger_ref,
+                'program': self.ACTIVATION_BONUS_PROGRAM,
+            },
+        )
+        return wallet, True
+
     def create_topup_order(self, user_id: str, selection: CheckoutPlanSelection) -> CreditTopUpOrderResult:
         if selection.payment_provider == 'razorpay':
             return self._create_razorpay_topup_order(user_id, selection)
@@ -403,6 +450,7 @@ class CreditService:
     def _estimate_image_generate(self, payload: dict[str, Any]) -> CreditEstimate:
         model_key = self._resolve_image_model_key(str(payload.get('model_key') or payload.get('modelKey') or payload.get('model') or ''))
         resolution = str(payload.get('resolution') or '')
+        image_count = max(1, min(int(payload.get('image_count') or payload.get('imageCount') or 1), 4))
         reference_urls = payload.get('reference_urls') or payload.get('referenceUrls') or []
         items: list[CreditCostItem] = []
         if model_key not in self.free_image_models or resolution not in self.free_image_resolutions:
@@ -416,7 +464,21 @@ class CreditService:
             dynamic_total = 0
         if isinstance(reference_urls, list) and len(reference_urls) > 0:
             items.append(self._item('character_consistency'))
-        return self._sum(items, base_total=dynamic_total)
+        estimate = self._sum(items, base_total=dynamic_total)
+        if image_count <= 1:
+            return estimate
+        additional_images_cost = estimate.required_credits * (image_count - 1)
+        estimate.breakdown.append(
+            CreditCostItem(
+                component='additional_images',
+                label=f'Additional images ({image_count - 1})',
+                value=float(additional_images_cost),
+            )
+        )
+        estimate.required_credits += additional_images_cost
+        if additional_images_cost > 0:
+            estimate.premium = True
+        return estimate
 
     def _estimate_image_action(self, payload: dict[str, Any]) -> CreditEstimate:
         action = str(payload.get('action_type') or payload.get('action') or '')
@@ -618,6 +680,7 @@ class CreditService:
 
     def _label_for_key(self, key: str) -> str:
         labels = {
+            'activation_bonus': 'Activation bonus',
             'premium_voice': 'Premium voice generation',
             'premium_voice_preview': 'Premium voice preview',
             'voice_retry': 'Voice retry',
@@ -698,18 +761,31 @@ class CreditService:
         wallet.current_credits += credits
         wallet.lifetime_purchased += credits
         tx_id = self.repo._new_int_id()
+        feature_key, source = self._resolve_credit_transaction_labels(metadata)
         return wallet, {
             'id': tx_id,
             'user_id': wallet.user_id,
-            'feature_key': 'topup',
+            'feature_key': feature_key,
             'amount': credits,
             'balance_after': wallet.current_credits,
             'transaction_type': 'credit',
-            'source': 'topup',
+            'source': source,
             'metadata_json': json.dumps(metadata),
             'idempotency_key': idempotency_key,
             'created_at': datetime.now(UTC),
         }
+
+    def _resolve_credit_transaction_labels(self, metadata: dict[str, Any]) -> tuple[str, str]:
+        explicit_feature_key = str(metadata.get('transaction_feature_key') or '').strip()
+        explicit_source = str(metadata.get('transaction_source') or '').strip()
+        if explicit_feature_key:
+            return explicit_feature_key, explicit_source or 'system'
+
+        refund_for = str(metadata.get('refund_for') or '').strip()
+        if refund_for:
+            return refund_for, 'refund'
+
+        return 'topup', 'topup'
 
     def _normalize_wallet_entitlement(self, wallet: FirestoreCreditWallet) -> None:
         recurring_plan = str(getattr(wallet, 'recurring_plan_type', None) or '').strip().lower() or self.DEFAULT_RECURRING_PLAN

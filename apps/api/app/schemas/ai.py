@@ -194,12 +194,36 @@ class ScriptGenerateRequest(BaseModel):
     template: str = Field(min_length=2, max_length=80)
     topic: str = Field(min_length=2, max_length=300)
     language: str = Field(min_length=2, max_length=40)
+    tone: str | None = Field(default=None, max_length=80)
+    lane: str | None = Field(default=None, max_length=40)
+    modelKey: str | None = Field(default=None, max_length=64)
+    modelLabel: str | None = Field(default=None, max_length=120)
+    aspectRatio: str | None = Field(default=None, max_length=10)
+    resolution: str | None = Field(default=None, max_length=20)
+    quality: str | None = Field(default=None, max_length=20)
+    durationSeconds: int | None = Field(default=None, ge=3, le=300)
+    scriptHint: str | None = Field(default=None, max_length=1200)
+    topicHint: str | None = Field(default=None, max_length=500)
+    narrationEnabled: bool = True
+    captionsEnabled: bool = False
 
 
 class ScriptEnhanceRequest(BaseModel):
     script: str = Field(min_length=3, max_length=6000)
     template: str | None = Field(default=None, max_length=80)
     language: str = Field(default='English', max_length=40)
+    tone: str | None = Field(default=None, max_length=80)
+    lane: str | None = Field(default=None, max_length=40)
+    modelKey: str | None = Field(default=None, max_length=64)
+    modelLabel: str | None = Field(default=None, max_length=120)
+    aspectRatio: str | None = Field(default=None, max_length=10)
+    resolution: str | None = Field(default=None, max_length=20)
+    quality: str | None = Field(default=None, max_length=20)
+    durationSeconds: int | None = Field(default=None, ge=3, le=300)
+    scriptHint: str | None = Field(default=None, max_length=1200)
+    topicHint: str | None = Field(default=None, max_length=500)
+    narrationEnabled: bool = True
+    captionsEnabled: bool = False
 
 
 class ScriptTagsRequest(BaseModel):

@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Coins, Wallet } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
@@ -10,23 +12,70 @@ type Props = {
 };
 
 export function CreditChip({ onNavigate }: Props) {
+  const pathname = usePathname();
   const { wallet, loading, refreshing } = useCredits();
   const low = (wallet?.currentCredits ?? 0) < 10;
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const onNavigationStart = () => setOpen(false);
+    window.addEventListener('rangmanch:navigation-start', onNavigationStart);
+    return () => {
+      window.removeEventListener('rangmanch:navigation-start', onNavigationStart);
+    };
+  }, []);
 
   return (
-    <details className="relative">
-      <summary
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         className={`flex list-none cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold ${
           low
             ? 'border-[hsl(var(--color-danger)/0.35)] bg-[hsl(var(--color-danger)/0.08)] text-[hsl(var(--color-danger))]'
             : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
         }`}
+        onClick={() => setOpen((current) => !current)}
       >
         {low ? <AlertTriangle className="h-4 w-4" /> : <Coins className="h-4 w-4 text-[hsl(var(--color-accent))]" />}
         {loading ? 'Loading credits…' : `${wallet?.currentCredits ?? 0} credits`}
         {!loading && refreshing ? <span className="text-[11px] font-medium text-muted">Refreshing…</span> : null}
-      </summary>
-      <div className="absolute right-0 z-30 mt-2 w-72 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-hard">
+      </button>
+      {open ? (
+      <div
+        role="dialog"
+        aria-label="Credit wallet"
+        className="absolute right-0 z-30 mt-2 w-72 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 shadow-hard"
+      >
         <div className="flex items-center gap-2">
           <Wallet className="h-4 w-4 text-[hsl(var(--color-accent))]" />
           <p className="text-sm font-semibold text-text">Credit wallet</p>
@@ -54,8 +103,9 @@ export function CreditChip({ onNavigate }: Props) {
             href="/billing"
             onClick={onNavigate ? (event) => {
               event.preventDefault();
+              setOpen(false);
               onNavigate('/billing', 'Billing');
-            } : undefined}
+            } : () => setOpen(false)}
             className="inline-flex rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
           >
             Billing
@@ -64,14 +114,16 @@ export function CreditChip({ onNavigate }: Props) {
             href="/pricing"
             onClick={onNavigate ? (event) => {
               event.preventDefault();
+              setOpen(false);
               onNavigate('/pricing', 'Pricing');
-            } : undefined}
+            } : () => setOpen(false)}
             className="inline-flex rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text"
           >
             View plans
           </Link>
         </div>
       </div>
-    </details>
+      ) : null}
+    </div>
   );
 }

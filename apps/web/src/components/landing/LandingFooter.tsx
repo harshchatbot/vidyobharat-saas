@@ -1,12 +1,11 @@
 import Link from 'next/link';
 
 import { BrandLogo } from '@/components/brand/BrandLogo';
-import { GlassPanel } from '@/components/landing/GlassPanel';
 
 export function LandingFooter() {
   return (
     <footer className="py-8">
-      <GlassPanel className="px-6 py-6">
+      <div className="border-t border-[hsl(var(--color-border)/0.6)] px-2 py-6 sm:px-0">
         <div className="grid items-start gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <BrandLogo href="/" variant="full" size="md" className="max-w-[250px]" priority="footer" />
@@ -49,7 +48,7 @@ export function LandingFooter() {
         </div>
         <div className="mt-5 flex flex-col gap-3 border-t border-[hsl(var(--color-border)/0.72)] pt-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} RangManch AI. All rights reserved.</p>
-          <span className="inline-flex w-fit rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.42)] px-3 py-1 font-medium text-text">
+          <span className="inline-flex w-fit rounded-[12px] border border-[hsl(var(--color-border)/0.72)] px-3 py-1 font-medium text-text">
             Made with ❤️ in India by&nbsp;
             <a
               href="https://techfilabs.com/"
@@ -61,7 +60,7 @@ export function LandingFooter() {
             </a>
           </span>
         </div>
-      </GlassPanel>
+      </div>
     </footer>
   );
 }

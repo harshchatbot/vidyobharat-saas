@@ -175,19 +175,26 @@ export default function BillingPage() {
               show(`Top-up successful! Credits Added: ${verification.addedCredits} · Balance: ${verification.wallet.currentCredits}`);
             } catch (verifyError) {
               setError(verifyError instanceof Error ? verifyError.message : 'Payment verification failed.');
+            } finally {
+              setSubmitting(false);
             }
+          },
+          modal: {
+            ondismiss: () => {
+              setSubmitting(false);
+            },
           },
           theme: { color: '#f6c21a' },
         });
         checkout.open();
+        return;
       } else {
         setError(order.message ?? 'Stripe checkout is prepared but not enabled yet for this region.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Top-up failed.');
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   if (loading) {

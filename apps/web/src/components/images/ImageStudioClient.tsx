@@ -20,7 +20,6 @@ import {
   Search,
   RotateCcw,
   Sparkles,
-  Stars,
   Tag,
   Trash2,
   Upload,
@@ -72,13 +71,16 @@ type ImageGenerationPayload = {
   prompt: string;
   aspect_ratio: string;
   resolution: string;
+  image_count?: number;
   reference_urls: string[];
+  reference_mode?: 'inspiration' | 'edit';
   project_id?: string;
   mode_id?: string;
   template_id?: string;
 };
 
 type ImageModeKey = 'fast_social' | 'premium_realism' | 'design_carousel' | 'portrait_character';
+type ReferenceMode = 'inspiration' | 'edit';
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 3;
@@ -346,6 +348,21 @@ function resolveImageModeModel(models: ImageModel[], modeKey: ImageModeKey) {
   return option.candidateModels.find((candidate) => models.some((item) => item.key === candidate)) ?? null;
 }
 
+function isOpenAIImageModel(models: ImageModel[], modelKey: string) {
+  const match = models.find((item) => item.key === modelKey) ?? fallbackModels.find((item) => item.key === modelKey) ?? null;
+  return match?.provider_id === 'openai' || match?.provider === 'OpenAI';
+}
+
+function findOpenAIImageModelKey(models: ImageModel[]) {
+  return (
+    models.find((item) => item.key === 'openai_image')?.key ??
+    fallbackModels.find((item) => item.key === 'openai_image')?.key ??
+    models.find((item) => item.provider_id === 'openai' || item.provider === 'OpenAI')?.key ??
+    fallbackModels.find((item) => item.provider_id === 'openai' || item.provider === 'OpenAI')?.key ??
+    null
+  );
+}
+
 function normalizeTemplateOptions(field: TemplateInputField): Array<{ label: string; value: string }> {
   return (field.options || []).map((option) =>
     typeof option === 'string'
@@ -533,9 +550,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [prompt, setPrompt] = useState('');
   const [lastGenerationPayload, setLastGenerationPayload] = useState<ImageGenerationPayload | null>(null);
   const [referenceUploads, setReferenceUploads] = useState<Array<{ id: string; url: string; name: string }>>([]);
+  const [referenceMode, setReferenceMode] = useState<ReferenceMode>('inspiration');
   const [uploadingReference, setUploadingReference] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
+  const [wantsVariations, setWantsVariations] = useState(false);
+  const [imageCount, setImageCount] = useState(2);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedModelFilters, setSelectedModelFilters] = useState<string[]>([]);
@@ -547,6 +567,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [hasMoreGenerated, setHasMoreGenerated] = useState(false);
   const { wallet, refreshing: creditsRefreshing, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
+  const requestedImageCount = wantsVariations ? imageCount : 1;
 
   const reportUiError = (title: string, error: unknown, fallback: string) => {
     const message = toErrorMessage(error, fallback);
@@ -802,7 +823,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         payload: {
           model_key: selectedEstimateModel.estimateModelKey,
           resolution,
+          image_count: requestedImageCount,
           reference_urls: referenceUrls,
+          reference_mode: referenceMode,
         },
       },
     ],
@@ -825,9 +848,27 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   }, [selectedGenerated]);
 
   useEffect(() => {
+    if (referenceUploads.length === 0) {
+      setReferenceMode('inspiration');
+      return;
+    }
+    if (referenceUploads.length > 1 && referenceMode === 'edit') {
+      setReferenceMode('inspiration');
+    }
+  }, [referenceMode, referenceUploads.length]);
+
+  useEffect(() => {
     const nextMode = getImageModeForModel(models, selectedModel);
     setImageMode((current) => (current === nextMode ? current : nextMode));
   }, [models, selectedModel]);
+
+  useEffect(() => {
+    if (referenceMode !== 'edit') return;
+    const openaiModelKey = findOpenAIImageModelKey(models);
+    if (!openaiModelKey) return;
+    if (isOpenAIImageModel(models, selectedModel)) return;
+    setSelectedModel(openaiModelKey);
+  }, [models, referenceMode, selectedModel]);
 
   useEffect(() => {
     if (!submitting) {
@@ -841,13 +882,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     return () => window.clearInterval(interval);
   }, [submitting]);
 
-  const variationSource = selectedGenerated ?? allGeneratedImages[0] ?? generatedImages[0] ?? null;
-  const variationActionKey = variationSource ? `${variationSource.id}:variation` : null;
   const selectedModelMeta = selectedEstimateModel.displayModel ?? models[0] ?? fallbackModels[0];
   const activeImageMode = IMAGE_WORKFLOW_OPTIONS.find((mode) => mode.key === imageMode) ?? IMAGE_WORKFLOW_OPTIONS[0];
   const activePromptPlaceholder = IMAGE_WORKFLOW_PLACEHOLDERS[activeImageMode.key];
   const activeTemplatePromptPreview = activeTemplate ? renderTemplatePrompt(activeTemplate, templateInputs) : '';
-  const variationLoading = Boolean(variationActionKey && actionLoading === variationActionKey);
   const primaryActionLoading = submitting;
   const availableImageWorkflows = IMAGE_WORKFLOW_OPTIONS.map((option) => {
     const resolvedModelKey = resolveImageModeModel(models, option.key);
@@ -927,7 +965,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       }
     }
     show(
-      `${isRetry ? 'Retried!' : 'Created!'} Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
+      `${isRetry ? 'Retried!' : 'Created!'} ${payload.image_count ?? 1} image${(payload.image_count ?? 1) > 1 ? 's' : ''} · Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
         createdItem.remaining_credits ?? wallet?.currentCredits ?? 0
       }`,
     );
@@ -952,6 +990,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       setError(`Prompt is too long. Keep it under ${MAX_PROMPT_CHARS} characters.`);
       return;
     }
+    if (referenceMode === 'edit') {
+      if (referenceUrls.length !== 1) {
+        setError('Source image edit mode needs exactly one uploaded reference image.');
+        return;
+      }
+      if (!isOpenAIImageModel(models, selectedModel)) {
+        setError('Source image editing currently runs on OpenAI Image. Please use the OpenAI model for this edit.');
+        return;
+      }
+    }
     if (!window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
       return;
     }
@@ -961,7 +1009,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       prompt: trimmedPrompt,
       aspect_ratio: aspectRatio,
       resolution,
+      image_count: requestedImageCount,
       reference_urls: referenceUrls,
+      reference_mode: referenceMode,
       project_id: projectId || undefined,
       mode_id: imageMode,
       template_id: activeTemplate?.id || undefined,
@@ -978,7 +1028,9 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             prompt: source.prompt,
             aspect_ratio: source.aspect_ratio,
             resolution: source.resolution,
+            image_count: 1,
             reference_urls: source.reference_urls || [],
+            reference_mode: 'inspiration' as ReferenceMode,
             project_id: source.project_id || undefined,
             mode_id: source.mode_id || undefined,
             template_id: source.template_id || undefined,
@@ -1074,7 +1126,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           name: file.name,
         });
       }
-      setReferenceUploads((current) => [...current, ...nextUploads].slice(0, 4));
+      setReferenceUploads((current) => {
+        const merged = [...current, ...nextUploads].slice(0, 4);
+        if (current.length === 0 && merged.length === 1) {
+          setReferenceMode('edit');
+        }
+        return merged;
+      });
     } catch (error) {
       reportUiError('Reference upload failed', error, 'Could not upload reference image right now.');
     } finally {
@@ -1295,14 +1353,14 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   };
 
   return (
-    <>
-    <LoadingOverlay
-      open={submitting}
-      title="Generating your image"
-      description=""
-      progress={submitProgress}
-    />
-    <div className="rangmanch-page-stack">
+    <div className="space-y-0">
+      <LoadingOverlay
+        open={submitting}
+        title="Generating your image"
+        description=""
+        progress={submitProgress}
+      />
+      <div className="rangmanch-page-stack">
       {loading ? (
         <div className="rangmanch-inline-status inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-muted">
           <Spinner />
@@ -1318,10 +1376,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       <StudioPageHeader
         eyebrow="Image Studio"
         title="Generate images in one focused workspace"
-        description="Prompt, reference, and iterate without leaving the studio. Templates, inspiration, and recent outputs stay close to the canvas."
+        description="Prompt, reference, and iterate from one workspace."
         actions={
           <>
-            <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2">
+            <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
               <GalleryVerticalEnd className="h-4 w-4" />
               Browse templates
             </Button>
@@ -1332,23 +1390,22 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         }
       />
 
-      <div className="space-y-4">
-        <div className="rounded-[28px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.34)] p-3.5 shadow-soft backdrop-blur-md sm:p-4 md:p-5">
-          <div className="space-y-5">
-            <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.72)] px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Studio canvas</p>
-              <p className="mt-1 text-sm font-semibold text-text">Create image</p>
+      <div className="space-y-8">
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
+          <div className="min-w-0 space-y-5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
+              <p className="mt-1 text-xl font-extrabold tracking-tight text-text">Create image</p>
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Quick Starts</p>
-                  <p className="mt-1 text-xs text-muted">Fast starting points. You can still rewrite everything before generating.</p>
+                  <p className="text-sm font-semibold text-text">Template</p>
                 </div>
-                <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="gap-2 px-3 py-2 text-xs">
+                <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                  Browse
+                  Browse templates
                 </Button>
               </div>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -1419,9 +1476,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Project</p>
-                  <p className="mt-1 text-xs text-muted">Keep prompts, templates, and generated outputs together when needed.</p>
                 </div>
-                {projectsLoading ? <Spinner /> : activeTemplate ? <Badge>Auto-create ready</Badge> : null}
+                {projectsLoading ? <Spinner /> : activeTemplate ? <span className="text-xs text-muted">Auto-create ready</span> : null}
               </div>
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
@@ -1445,9 +1501,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Model</p>
-                  <p className="mt-1 text-xs text-muted">Choose the result style. The engine runs behind the scenes.</p>
                 </div>
-                <Badge>{activeImageMode.badge}</Badge>
+                <span className="text-xs text-muted">{activeImageMode.badge}</span>
               </div>
               <div className="-mx-1 overflow-x-auto px-1 pb-1">
                 <div className="flex min-w-max gap-2">
@@ -1486,7 +1541,6 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div>
                 <p className="text-sm font-semibold text-text">Orientation & output</p>
-                <p className="mt-1 text-xs text-muted">Keep the framing clean and pick the size you actually need.</p>
               </div>
               <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
@@ -1533,9 +1587,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">Prompt</p>
-                  <p className="mt-1 text-xs text-muted">
-                    Describe the subject, mood, setting, and visual style. {activeImageMode.label} works best for {activeImageMode.description.toLowerCase()}
-                  </p>
+                  <p className="mt-1 text-xs text-muted">{activeImageMode.label} works best for {activeImageMode.description.toLowerCase()}</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="gap-2 px-3 py-1.5 text-xs">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -1570,7 +1622,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">References</p>
-                  <p className="mt-1 text-xs text-muted">Optional. Add up to 4 images for composition or style guidance.</p>
+                  <p className="mt-1 text-xs text-muted">Optional. Add up to 4 images, or use one source image for an edit.</p>
                 </div>
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
                   <Upload className="h-3.5 w-3.5" />
@@ -1585,29 +1637,81 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   />
                 </label>
               </div>
-              {variationSource ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] px-3 py-2.5">
-                  <p className="text-xs text-muted">
-                    Use your selected/latest image as base and generate 4 similar variations.
-                  </p>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => void runImageAction(variationSource.id, 'variation')}
-                    disabled={variationLoading}
-                    className="gap-2 px-3 py-1.5 text-xs"
-                  >
-                    {variationLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Stars className="h-3.5 w-3.5" />}
-                    {variationLoading ? 'Creating...' : 'Create variations'}
-                  </Button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReferenceMode('edit')}
+                  disabled={referenceUploads.length > 1}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    referenceMode === 'edit'
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
+                  } ${referenceUploads.length > 1 ? 'cursor-not-allowed opacity-55' : ''}`}
+                >
+                  Use as source image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReferenceMode('inspiration')}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    referenceMode === 'inspiration'
+                      ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                      : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
+                  }`}
+                >
+                  Use as inspiration
+                </button>
+              </div>
+              <p className="text-xs text-muted">
+                {referenceMode === 'edit'
+                  ? 'Edit mode keeps the uploaded subject as the source image and uses OpenAI Image for reliable changes.'
+                  : 'Inspiration mode uses uploaded references as visual guidance for a fresh generation.'}
+              </p>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Variations</p>
+                    <p className="mt-1 text-xs text-muted">Generate one image or a small set of variations in a single run.</p>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-text">
+                    <input
+                      type="checkbox"
+                      checked={wantsVariations}
+                      onChange={(event) => setWantsVariations(event.target.checked)}
+                      className="h-4 w-4 rounded border-[hsl(var(--color-border))]"
+                    />
+                    Create variations
+                  </label>
                 </div>
-              ) : null}
+                {wantsVariations ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                      <span>How many images</span>
+                      <span className="font-semibold text-text">{imageCount}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={4}
+                      step={1}
+                      value={imageCount}
+                      onChange={(event) => setImageCount(Number(event.target.value))}
+                      className="w-full accent-[hsl(var(--color-accent))]"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-muted">
+                      <span>2</span>
+                      <span>3</span>
+                      <span>4</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               {referenceUploads.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.16)] px-4 py-4 text-xs text-muted">
                   No references uploaded yet.
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {referenceUploads.map((item) => (
                     <div key={item.id} className="group relative overflow-hidden rounded-[16px] bg-[hsl(var(--color-surface)/0.28)]">
                       <img src={toAbsoluteUrl(item.url)} alt={item.name} className="aspect-square w-full object-cover" />
@@ -1622,16 +1726,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   ))}
                 </div>
               )}
-              {referenceUploads.length > 0 ? (
-                <div className="rounded-[16px] border border-[hsl(var(--color-accent)/0.28)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5 text-xs leading-5 text-muted">
-                  Uploaded references are now passed into the selected image model. They help guide identity, composition, and style, but exact face locking can still vary by provider. For repeatable persona consistency, AI Influencer remains the strongest workflow.
-                </div>
-              ) : null}
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               {error ? <p className="text-sm text-danger">{error}</p> : null}
-              <div className="flex flex-col gap-3 rounded-[20px] bg-[hsl(var(--color-bg)/0.62)] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-[16px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.28)] p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-text">{activeImageMode.label}</p>
@@ -1639,7 +1738,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     {creditsRefreshing ? <span className="text-[11px] text-muted">Refreshing…</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    {`${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
+                    {`${requestedImageCount} image${requestedImageCount > 1 ? 's' : ''} • ${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
                   {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
                   {selectedModelMeta && selectedEstimateModel.estimateModelLabel !== selectedModelMeta.label ? (
@@ -1664,7 +1763,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     variant="secondary"
                     onClick={() => void retryLastGeneration(selectedGenerated ?? undefined)}
                     disabled={submitting || (!lastGenerationPayload && !selectedGenerated)}
-                    className="h-11 gap-2 rounded-[16px] px-4 text-xs"
+                    className="h-11 gap-2 rounded-[12px] px-4 text-xs"
                   >
                     {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                     {retrying ? 'Retrying...' : 'Retry'}
@@ -1672,7 +1771,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <Button
                     onClick={() => void handlePrimaryAction()}
                     disabled={submitting || Boolean(estimate && !estimate.sufficient)}
-                    className="min-w-[190px] rounded-[18px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
+                    className="min-w-[190px] rounded-[12px] border-0 bg-[linear-gradient(135deg,hsl(var(--color-accent)),rgb(236_72_153))] px-5 py-3 text-sm font-semibold text-white shadow-soft hover:opacity-95"
                   >
                     {primaryActionLoading ? (
                       <>
@@ -1703,19 +1802,18 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               {!estimateError && isUsingFallback ? (
                 <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
               ) : null}
-            </div>
           </div>
-        </div>
+          </div>
 
-        <div className="rounded-[24px] border border-[hsl(var(--color-border))] bg-[linear-gradient(180deg,hsl(var(--color-elevated)/0.36),hsl(var(--color-bg)/0.42))] p-3.5 shadow-soft backdrop-blur-md sm:p-4">
+          <div className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Control tower</p>
-              <h2 className="mt-2 text-base font-semibold text-text">Preview, estimate, and export</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
+              <h2 className="mt-1 text-base font-semibold text-text">Review and export</h2>
             </div>
-            <Badge>{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</Badge>
+            <span className="text-xs text-muted">{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</span>
           </div>
-          <div className="mt-3 overflow-hidden rounded-[22px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))]">
+          <div className="overflow-hidden rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg))]">
             {livePreviewImage ? (
               <img
                 src={getPreviewImageUrl(livePreviewImage) ?? ''}
@@ -1728,23 +1826,31 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               </div>
             )}
           </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Badge>
-              {activeTab === 'generated'
-                ? selectedGeneratedModel?.label ?? activeImageMode.label
-                : selectedInspirationModel?.label ?? activeImageMode.label}
-            </Badge>
-            <Badge>{aspectRatio}</Badge>
-            <Badge>{resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</Badge>
-          </div>
+          <dl className="grid gap-x-4 gap-y-2 border-y border-[hsl(var(--color-border)/0.45)] py-3 text-sm sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted">Model</dt>
+              <dd className="font-medium text-text">
+                {activeTab === 'generated'
+                  ? selectedGeneratedModel?.label ?? activeImageMode.label
+                  : selectedInspirationModel?.label ?? activeImageMode.label}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted">Aspect</dt>
+              <dd className="font-medium text-text">{aspectRatio}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 sm:block">
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted">Resolution</dt>
+              <dd className="font-medium text-text">{resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution}</dd>
+            </div>
+          </dl>
         </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Studio Feed</h2>
-            <p className="mt-1 text-sm text-muted">Browse your latest outputs or switch into curated inspiration without leaving the canvas.</p>
+            <h2 className="font-heading text-xl font-extrabold tracking-tight text-text">Studio Feed</h2>
           </div>
           <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] p-1 backdrop-blur-md">
             <button
@@ -1764,7 +1870,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
 
-        <Card className="space-y-4 rounded-[22px] border-[hsl(var(--color-border))] bg-[hsl(var(--color-elevated)/0.28)] backdrop-blur-md">
+        <Card className="space-y-4 rounded-[16px] border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-elevated)/0.18)] backdrop-blur-md">
           <div className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
@@ -1847,9 +1953,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               const itemModel = models.find((model) => model.key === item.model_key);
               const isGenerated = activeTab === 'generated';
               return (
-                <button
+                <div
                   key={`${activeTab}-${item.id}`}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     if (isGenerated) {
                       setSelectedGenerated(item as GeneratedImage);
@@ -1857,7 +1964,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       setSelectedInspiration(item as InspirationImage);
                     }
                   }}
-                  className={`overflow-hidden rounded-[14px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    if (isGenerated) {
+                      setSelectedGenerated(item as GeneratedImage);
+                    } else {
+                      setSelectedInspiration(item as InspirationImage);
+                    }
+                  }}
+                  className={`overflow-hidden rounded-[14px] border text-left transition hover:-translate-y-0.5 hover:shadow-soft focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent)/0.35)] ${
                     ((isGenerated ? selectedGenerated?.id : selectedInspiration?.id) === item.id)
                       ? 'border-[hsl(var(--color-accent))] shadow-soft'
                       : 'border-[hsl(var(--color-border))]'
@@ -1906,7 +2022,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       </div>
                     ) : null}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -1959,13 +2075,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <h3 className="mt-1 text-lg font-semibold text-text">Choose a visual starting point</h3>
             <p className="mt-1 text-xs text-muted">Pick a template, adjust a few fields, then apply it into the studio.</p>
           </div>
-          <div className="grid gap-3.5 xl:grid-cols-[0.8fr_1.2fr]">
+          <div className="grid gap-3.5 xl:grid-cols-[0.62fr_1.38fr]">
             <div className="space-y-2.5">
-              <div className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.3)]">
+              <div className="overflow-hidden rounded-[12px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.3)]">
                 {activeTemplate?.thumbnail_url ? (
-                  <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[5/4] w-full object-cover" />
+                  <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[16/10] max-h-[190px] w-full object-cover xl:max-h-[220px]" />
                 ) : (
-                  <div className="flex aspect-[5/4] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-2.5">
+                  <div className="flex aspect-[16/10] max-h-[190px] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-2.5 xl:max-h-[220px]">
                     <div className="space-y-1.5">
                       <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
                       <p className="text-sm font-semibold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
@@ -1978,7 +2094,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 {activeTemplate ? <Badge>{activeTemplate.category}</Badge> : null}
                 {activeTemplate ? <Badge>{resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}</Badge> : null}
               </div>
-              <div className="grid gap-2">
+              <div className="grid max-h-[360px] gap-2 overflow-y-auto pr-1">
                 {imageTemplates.map((template) => (
                   <button
                     key={template.id}
@@ -2222,15 +2338,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       <Zap className="h-4 w-4" />
                       {actionLoading === `${selectedGenerated.id}:upscale` ? 'Upscaling...' : 'Smart Upscaler'}
                     </Button>
-                    <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'variation')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:variation`}>
-                      <Stars className="h-4 w-4" />
-                      {actionLoading === `${selectedGenerated.id}:variation` ? 'Creating variation...' : 'Give me 4 more like this'}
-                    </Button>
                     <Button variant="secondary" type="button" onClick={() => void retryLastGeneration(selectedGenerated)} className="justify-start gap-2" disabled={submitting}>
                       {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                       {retrying ? 'Retrying...' : 'Retry this generation'}
                     </Button>
                   </div>
+                  <p className="mt-2 text-xs text-muted">Need multiple options? Use the Variations control before generating to request 2-4 images and see the credit estimate upfront.</p>
                 </div>
                 <div className="mt-4.5">
                   <p className="mb-3 text-sm font-semibold text-text">Information</p>
@@ -2311,7 +2424,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+      </div>
 
       <ProjectAssignmentDialog
         open={Boolean(projectAssignmentTarget)}
@@ -2377,6 +2491,6 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
         </div>
       </Modal>
-    </>
+    </div>
   );
 }
