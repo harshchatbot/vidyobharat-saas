@@ -1429,13 +1429,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   Browse templates
                 </Button>
               </div>
-              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              <div className="-mx-1 px-1 pb-1">
                 {templatesLoading ? (
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2 sm:overflow-x-auto">
                     {Array.from({ length: 4 }).map((_, idx) => (
                       <div
                         key={`template-skeleton-${idx}`}
-                        className="min-w-[112px] overflow-hidden rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] sm:min-w-[128px]"
+                        className="min-w-0 overflow-hidden rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] sm:min-w-[128px]"
                       >
                         <div className="aspect-[4/3] animate-pulse bg-[hsl(var(--color-elevated)/0.62)]" />
                         <div className="space-y-1.5 p-2">
@@ -1445,35 +1445,38 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       </div>
                     ))}
                   </div>
-                ) : imageTemplates.slice(0, 6).map((template) => {
-                  const selected = activeTemplate?.id === template.id;
-                  return (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTemplate(template);
-                        setTemplatePickerOpen(true);
-                      }}
-                      className={`group min-w-[112px] overflow-hidden rounded-[16px] text-left transition sm:min-w-[128px] ${
-                        selected
-                          ? 'bg-[hsl(var(--color-accent)/0.1)]'
-                          : 'bg-[hsl(var(--color-surface)/0.34)] hover:bg-[hsl(var(--color-surface)/0.48)]'
-                      }`}
-                    >
-                      <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
-                        {template.thumbnail_url ? (
-                          <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
-                        ) : null}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
-                        <div className="absolute inset-x-2 bottom-2">
-                          <p className="line-clamp-1 text-xs font-semibold text-white">{template.title}</p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2 sm:overflow-x-auto">
+                    {imageTemplates.slice(0, 6).map((template) => {
+                      const selected = activeTemplate?.id === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTemplate(template);
+                            setTemplatePickerOpen(true);
+                          }}
+                          className={`group min-w-0 overflow-hidden rounded-[16px] text-left transition sm:min-w-[128px] ${
+                            selected
+                              ? 'bg-[hsl(var(--color-accent)/0.1)]'
+                              : 'bg-[hsl(var(--color-surface)/0.34)] hover:bg-[hsl(var(--color-surface)/0.48)]'
+                          }`}
+                        >
+                          <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))]">
+                            {template.thumbnail_url ? (
+                              <img src={template.thumbnail_url} alt={template.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                            ) : null}
+                            <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.94)] via-transparent to-transparent" />
+                            <div className="absolute inset-x-2 bottom-2">
+                              <p className="line-clamp-1 text-xs font-semibold text-white">{template.title}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {activeTemplate ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1525,8 +1528,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </div>
                 <span className="text-xs text-muted">{activeImageMode.badge}</span>
               </div>
-              <div className="-mx-1 overflow-x-auto px-1 pb-1">
-                <div className="flex min-w-max gap-2">
+              <div className="-mx-1 px-1 pb-1">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {availableImageWorkflows.map((workflow) => {
                   const active = workflow.key === imageMode;
                   return (
@@ -1538,7 +1541,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         setSelectedModel(workflow.resolvedModelKey);
                         setImageMode(workflow.key);
                       }}
-                      className={`min-w-[148px] rounded-full border px-3 py-2 text-left transition sm:min-w-[170px] ${
+                      className={`min-w-0 rounded-[16px] border px-3 py-2.5 text-left transition ${
                         active
                           ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
                           : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.26)] text-muted hover:text-text'
@@ -1556,6 +1559,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     </button>
                   );
                 })}
+                </div>
               </div>
             </div>
 
@@ -1563,15 +1567,15 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div>
                 <p className="text-sm font-semibold text-text">Orientation & output</p>
               </div>
-              <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-3 md:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {aspectOptions.map((option) => (
                       <button
                         key={option.value}
                         type="button"
                         onClick={() => setAspectRatio(option.value)}
-                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                        className={`rounded-full px-3 py-2 text-center text-xs font-semibold transition ${
                           aspectRatio === option.value
                             ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                             : 'bg-[hsl(var(--color-surface)/0.35)] text-muted hover:text-text'
@@ -1584,13 +1588,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   </div>
                 </div>
                 <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {resolutionOptions.map((option) => (
                       <button
                         key={option.value}
                         type="button"
                         onClick={() => setResolution(option.value)}
-                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                        className={`rounded-full px-3 py-2 text-center text-xs font-semibold transition ${
                           resolution === option.value
                             ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
                             : 'bg-[hsl(var(--color-surface)/0.35)] text-muted hover:text-text'
@@ -1622,7 +1626,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 maxLength={MAX_PROMPT_CHARS}
                 placeholder={activePromptPlaceholder}
               />
-              <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+              <div className="flex flex-col gap-2 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>{prompt.length}/{MAX_PROMPT_CHARS}</span>
                 <div className="flex flex-wrap gap-2">
                   {powerWords.slice(0, 4).map((word) => (
@@ -1645,7 +1649,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   <p className="text-sm font-semibold text-text">References</p>
                   <p className="mt-1 text-xs text-muted">Optional. Add up to 4 images, or use one source image for an edit.</p>
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))]">
+                <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] px-3 py-2 text-xs font-semibold text-text hover:border-[hsl(var(--color-accent))] sm:w-auto">
                   <Upload className="h-3.5 w-3.5" />
                   {uploadingReference ? 'Uploading...' : 'Upload'}
                   <input
@@ -1658,12 +1662,12 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   />
                 </label>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setReferenceMode('edit')}
                   disabled={referenceUploads.length > 1}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
                     referenceMode === 'edit'
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
@@ -1674,7 +1678,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 <button
                   type="button"
                   onClick={() => setReferenceMode('inspiration')}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
                     referenceMode === 'inspiration'
                       ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
                       : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
@@ -1689,7 +1693,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                   : 'Inspiration mode uses uploaded references as visual guidance for a fresh generation.'}
               </p>
               <div className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.2)] px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-text">Variations</p>
                     <p className="mt-1 text-xs text-muted">Generate one image or a small set of variations in a single run.</p>
@@ -1826,7 +1830,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           </div>
           </div>
 
-          <div className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
+          <div className="min-w-0 space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4 xl:sticky xl:top-24 xl:self-start xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:border-t-0 xl:pl-6 xl:pt-0">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>

@@ -22,6 +22,7 @@ import { getVideoModelMap } from '@/config/videoModels';
 import creditEngine from '@/config/creditEngine';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
+import { describeVideoEstimate } from '@/lib/pricingEstimates';
 import type { AIVideoModel, AIVideoStatusResponse, CreditEstimateResponse, GeneratedImage, MusicTrack, Project, TTSLanguageOption, TTSVoiceOption, Video, Template as UnifiedTemplate, TemplateInputField, TemplatePreviewResponse } from '@/types/api';
 
 import { ASPECT_OPTIONS, AUDIO_QUALITY_OPTIONS, FALLBACK_VIDEO_MODELS, LANGUAGE_OPTIONS, RESOLUTION_DISPLAY_OPTIONS, RESOLUTION_OPTIONS, TEMPLATE_OPTIONS, VIDEO_DURATION_RULES, VIDEO_OUTPUT_RULES, VOICE_OPTIONS, type TemplateOption } from './constants';
@@ -591,6 +592,10 @@ export function CreateVideoPage({
   const referenceCredits = selectedImageUrls.length > 0 ? Number(fixedCosts.character_consistency ?? 0) : 0;
   const autoTagCredits = Number(fixedCosts.auto_tag ?? 0);
   const displayVideoEstimateCredits = Math.max(derivedVideoEstimateCredits, autoTagCredits > 0 ? autoTagCredits : 0);
+  const estimateContextMessage = useMemo(
+    () => describeVideoEstimate(modelKey, displayVideoEstimateCredits),
+    [modelKey, displayVideoEstimateCredits],
+  );
   const addOnCreditsTotal = narrationCredits + captionCredits + referenceCredits + autoTagCredits;
   const baseGenerationCredits = Math.max(0, displayVideoEstimateCredits - addOnCreditsTotal);
   const laneHasOnlyGatedModels = laneModels.length > 0 && laneModels.every((model) => model.enabled === false);
@@ -2534,6 +2539,9 @@ export function CreateVideoPage({
             ) : null}
             {!estimateError && isUsingFallback ? (
               <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
+            ) : null}
+            {!estimateError && estimateContextMessage ? (
+              <p className="text-xs text-muted">{estimateContextMessage}</p>
             ) : null}
 
             {submitError ? (

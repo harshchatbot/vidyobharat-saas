@@ -10,11 +10,38 @@ test.describe('Public smoke', () => {
   });
 
   test('pricing page explains free credits and activation bonus', async ({ page }) => {
+    await page.route('**/api/pricing**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currency: 'INR',
+          paymentProvider: 'razorpay',
+          plans: {
+            starter: 499,
+            creator: 1499,
+            growth: 2999,
+            pro: 5999,
+          },
+          creditAllocation: {
+            starter: 200,
+            creator: 650,
+            growth: 1400,
+            pro: 3000,
+          },
+          actionCosts: [
+            { feature: 'Gemini Flash image', cost: 5 },
+            { feature: 'Kling 3.0 draft clip', cost: 5 },
+          ],
+        }),
+      });
+    });
+
     await page.goto('/pricing');
 
     await expect(page.getByRole('heading', { level: 1, name: /simple credits for india-first creators and teams/i })).toBeVisible();
     await expect(page.getByText(/40 credits \/ month/i)).toBeVisible();
-    await expect(page.getByText(/25-credit activation bonus/i)).toBeVisible();
+    await expect(page.getByText(/25-credit activation bonus/i).first()).toBeVisible();
   });
 
   test('login page renders the auth form', async ({ page }) => {

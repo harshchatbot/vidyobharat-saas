@@ -155,6 +155,8 @@ GTTS_LANGUAGE_MAP = {
     'kn-IN': 'kn',
     'ml-IN': 'ml',
     'mr-IN': 'mr',
+    'od-IN': 'or',
+    'pa-IN': 'pa',
     'ta-IN': 'ta',
     'te-IN': 'te',
 }

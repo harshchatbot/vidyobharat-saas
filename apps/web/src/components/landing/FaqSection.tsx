@@ -3,7 +3,7 @@
 const faqs = [
   {
     q: 'Can I generate videos in Indian languages?',
-    a: 'Yes. RangManch AI is designed for Indian language workflows including Hindi and Tamil in MVP.',
+    a: 'Yes. RangManch AI supports 11 language options in the current voice workflow, including Hindi, Hinglish, Punjabi, Bengali, Gujarati, Marathi, Tamil, Telugu, Kannada, Malayalam, Odia, and Indian English.',
   },
   {
     q: 'Can I use both 9:16 and 16:9?',

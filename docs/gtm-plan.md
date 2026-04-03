@@ -1,119 +1,222 @@
-# RangManch AI GTM Plan
+# RangManch 30-Day Beta GTM Plan
 
-## Positioning
+## Summary
 
-RangManch AI should be positioned as an India-first creator workflow platform, not as a generic AI model marketplace.
-
-Core promise:
+RangManch should launch as an **India-first creator workflow studio** for **creators first**.  
+The strongest current promise is:
 
 > Create images, reels, influencer visuals, and Indian voice-led content in one studio.
 
-## Best-fit audience
+This first 30-day GTM window is for:
+- activation
+- message testing
+- early user learning
 
-- India-first creators
+It is **not** a scale phase.
+
+## Core Positioning
+
+### Positioning baseline
+
+RangManch helps India-first creators turn ideas into usable images, short videos, influencer visuals, and regional voice-led content from one workflow.
+
+### Lead with
+
+- image creation
+- templates
+- AI influencer visuals
+- Kling-based short video drafts
+
+### Present carefully
+
+- Veo 3.1
+- Sora 2
+
+These should be presented as:
+- premium paths
+- polished output options
+- not the default promise of the beta
+
+### Avoid saying
+
+- best AI video platform
+- all premium HD video at low cost
+- enterprise-grade collaboration
+- top-tier identity consistency engine
+
+## Audience and Channels
+
+### Primary audience
+
+- short-form creators
+- freelancers
+- solo creator-operators
 - small creator-led teams
-- agencies handling repeat social output
 
-## Strongest current workflows
+### Primary acquisition motion
 
-1. AI influencer visuals
-2. social images and templates
-3. voice-led short videos
+- founder-led content
 
-## Product truth
-
-### What is strong today
-
-- video, image, template, voice, and influencer workflows live in one product
-- templates reduce prompt-writing friction
-- Indian voice workflow is a real differentiator
-- Kling works as the lower-friction video hook
-- Sora 2 and Veo 3.1 work as premium proof-of-quality
-
-### What should not lead the pitch
-
-- “best AI video model access”
-- unstable or disabled WAN routes
-- frontier-model breadth as the main story
-
-## Free-tier strategy
-
-- Keep `40` monthly free credits
-- Grant a one-time `25` credit activation bonus after the first meaningful workflow win
-- Message the free plan as:
-  - enough to test real workflows
-  - not a full premium-video production plan
-
-Recommended examples:
-
-- around 8 Gemini Flash 1536 image drafts
-- a few short Kling drafts with free voice
-- one influencer setup plus a few consistent renders
-
-## 90-day go-to-market
-
-### Phase 1: sharpen the offer
-
-- lead public messaging with the three reliable workflows
-- push Sora 2 and Veo 3.1 as premium quality options, not the first hook
-- make the “40 credits + activation bonus” story visible on landing and pricing
-
-### Phase 2: drive activation
-
-Channels:
-
+Use:
 - Instagram Reels
 - YouTube Shorts
 - LinkedIn
-- creator WhatsApp, Discord, and Telegram groups
-- founder-led demo content
+
+### Secondary distribution
+
+- creator WhatsApp groups
+- Telegram communities
+- Discord creator and AI communities
+- maker and founder circles
+- LinkedIn outreach
+
+### Do not lead with yet
+
+- paid ads
+- agency-first outreach
+- business ROI messaging
+
+## 30-Day Plan
+
+### Week 1: launch setup and asset pack
+
+Prepare the minimum GTM kit:
+
+- founder story:
+  - why RangManch exists
+  - why India-first creator workflows matter
+- one clean value comparison:
+  - one studio for images, reels, influencer visuals, and Indian voice-led content
+- one pricing explainer:
+  - what free credits allow
+  - what Starter usually covers
+- one beta invite message for creators
+
+Asset pack to prepare:
+- 3 image workflow demos
+- 3 video workflow demos
+- 2 influencer consistency demos
+- 1 pricing and credit clarity visual
+- 1 regional voice demo using 2 to 3 languages
+
+### Week 2: founder-led content push
+
+Posting cadence:
+- 1 short-form demo every day
+- 3 to 4 LinkedIn posts each week
+- 1 founder breakdown thread each week
 
 Content formats:
-
 - prompt to output demos
-- before/after template examples
-- one idea -> image + influencer visual + reel
-- what you can make with free credits
+- before and after template examples
+- one idea to image plus reel plus influencer output
+- what 40 free credits can actually do
+- what ₹499 Starter can roughly create
+- language and voice demos
+- Kling vs Veo explanation
+- image-first vs premium-video explanation
 
-### Phase 3: convert activated users
+Every post should have a CTA:
+- start free
+- try one workflow
+- reply or DM for beta access or feedback
 
-Upgrade moments:
+### Week 3: warm community distribution
 
-- after the first usable output
-- when users need more weekly volume
-- when they hit premium image or premium video limits
+Use content from week 2 as proof assets.
 
-Upgrade framing:
+Outreach format:
+- short intro
+- one demo
+- one-line value proposition
+- invite them to try one narrow workflow
 
-- more output volume
-- more polished premium models
-- easier repeat publishing
+Best outreach wedges:
+- AI influencer visuals
+- social media image generation
+- short ad creatives
+- Indian voice-led explainers
 
-## Metrics to track
+Do not send:
+- dense pricing tables
+- long feature lists
+- premium-model complexity first
 
-- visitor -> signup
-- signup -> first generated asset
-- signup -> first kept/downloaded/saved usable asset
+### Week 4: retention and conversion refinement
+
+Review:
+- most-used first workflow
+- where users drop before first useful output
+- pricing questions that still cause hesitation
+- which channel drives the best activated users
+
+Then tighten:
+- landing hero copy
+- pricing examples
+- beta invite messaging
+- onboarding hints
+- upgrade prompts
+
+## Metrics
+
+### Funnel
+
+- visitor to signup
+- signup to first generated asset
+- signup to first saved or downloaded usable asset
+- usable asset to return visit
+- return visit to paid conversion
+
+### Core beta metrics
+
+- visitor to signup
+- signup to first generated asset
+- signup to first usable asset
 - 7-day return rate
-- credits consumed in first 7 days
-- free -> paid conversion
-- first successful workflow by type
-- upgrade trigger source
+- free to paid conversion
+- first workflow used:
+  - image
+  - template
+  - influencer
+  - video
+- first paid trigger:
+  - volume
+  - premium model
+  - influencer workflow
+  - creator repetition
 
-Recommended targets:
+### Beta targets
 
-- signup -> first generated asset: `35%+`
-- signup -> first usable kept asset: `20%+`
+- signup to first generated asset: `35%+`
+- signup to first usable asset: `20%+`
 - 7-day return: `20%+`
-- activated free -> paid: `5-8%+`
+- activated free to paid: `5-8%+`
 
-## Competitive framing
+## Operating Notes
 
-- Do not fight Runway on model depth
-- Do not fight HeyGen on polished enterprise avatar positioning
-- Do not fight InVideo on “all models, one prompt” abundance
-- Do compete on:
-  - India-first workflows
-  - template-guided creation
-  - influencer reference-guided consistency
-  - regional voice + image + video in one system
+### Public consistency
+
+Keep the same positioning across:
+- landing
+- pricing
+- billing
+- launch posts
+- demo scripts
+
+### Content production system
+
+Maintain one repeatable structure each for:
+- image demos
+- reel demos
+- influencer demos
+- pricing clarity visuals
+
+### Measurement minimums
+
+Track:
+- signup source
+- first workflow used
+- first generated asset
+- first paid plan
+- selected plan
+- whether the user came from founder-led content or community outreach

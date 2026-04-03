@@ -8,6 +8,7 @@ import { Coins } from 'lucide-react';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
+import { getBestForCopy, getEstimateAssumptions, getPlanOutputEstimates } from '@/lib/pricingEstimates';
 import type { PricingResponse } from '@/types/api';
 
 function formatMoney(currency: string, amount: number) {
@@ -21,24 +22,24 @@ function formatMoney(currency: string, amount: number) {
 
 const featureCopy: Record<string, string[]> = {
   starter: [
-    'Good for first premium generations',
-    'For solo creators testing the studio',
-    'Balanced top-up pack',
+    'Good first paid step after the free tier',
+    'Balanced for images, drafts, and a few premium clips',
+    'Straightforward top-up pack for solo creators',
   ],
   creator: [
-    'Best value for active creators',
-    'Frequent video and voice usage',
-    'Strong monthly working budget',
+    'Strong working budget for repeat creation',
+    'Good mix of image, voice, and premium video usage',
+    'Best fit for active solo creators',
   ],
   growth: [
-    'Built for growing teams',
-    'Higher generation throughput',
-    'Good for agency-style operations',
+    'Built for growing teams and client work',
+    'Higher throughput for repeat campaigns',
+    'Useful for agency-style workflows',
   ],
   pro: [
-    'Best for production workloads',
-    'Maximum credit headroom',
-    'For studios and heavy campaign output',
+    'Maximum headroom for production-heavy work',
+    'Best for studios and frequent premium generations',
+    'Designed for sustained campaign output',
   ],
 };
 
@@ -96,16 +97,12 @@ export default function PricingPage() {
       }));
   }, [pricing]);
 
+  const estimateAssumptions = useMemo(() => getEstimateAssumptions(), []);
+
   const handleSelectPlan = (planKey: string) => {
     setSelectedPlan(planKey);
     router.push(`/billing?plan=${encodeURIComponent(planKey)}`);
   };
-
-  const freeTierExamples = [
-    'Around 8 Gemini Flash 1536 image drafts',
-    'A few short Kling draft clips with free voice',
-    'One influencer setup plus a few consistent renders',
-  ];
 
   return (
     <main className="bg-[hsl(var(--color-bg))] py-20">
@@ -163,6 +160,20 @@ export default function PricingPage() {
                   40 credits / month
                 </p>
 
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
+                  {getBestForCopy('free')}
+                </p>
+
+                <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
+                  <p className="text-sm font-semibold text-text">What you can roughly create</p>
+                  <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
+                    {getPlanOutputEstimates(40, 3).map((estimate) => (
+                      <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-muted">Plus a one-time 25-credit activation bonus after your first real workflow win.</p>
+                </div>
+
                 <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
@@ -190,9 +201,7 @@ export default function PricingPage() {
               {orderedPlans.map((plan) => {
                 const isPopular = plan.key === 'creator';
                 const isSelected = selectedPlan === plan.key;
-                const hdVideos = Math.floor(plan.credits / 18);
-                const videos720p = Math.floor(plan.credits / 12);
-                const images = Math.floor(plan.credits / 3);
+                const outputEstimates = getPlanOutputEstimates(plan.credits, 4);
 
                 return (
                   <button
@@ -228,12 +237,17 @@ export default function PricingPage() {
                       {plan.credits} credits included
                     </p>
 
-                    <div className="mt-3 space-y-1 text-sm text-[hsl(var(--color-muted))]">
-                      <p>~{hdVideos} HD videos</p>
-                      <p>~{images} images</p>
-                      <p className="text-xs" title={`~${videos720p} 720p videos`}>
-                        Best for repeat video and image workflows
-                      </p>
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
+                      {getBestForCopy(plan.key)}
+                    </p>
+
+                    <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
+                      <p className="text-sm font-semibold text-text">What you can roughly create</p>
+                      <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
+                        {outputEstimates.map((estimate) => (
+                          <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                        ))}
+                      </div>
                     </div>
 
                     <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
@@ -259,13 +273,27 @@ export default function PricingPage() {
               })}
             </div>
 
+            <section className="mt-8 rounded-[28px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.26)] px-5 py-5 sm:px-6">
+              <div className="max-w-5xl">
+                <p className="text-sm font-semibold text-text">Estimates based on common setups</p>
+                <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
+                  {estimateAssumptions.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                </div>
+                <p className="mt-4 text-sm text-muted">
+                  Premium models like <span className="font-semibold text-text">Veo 3.1</span> use significantly more credits than images or Kling drafts.
+                </p>
+              </div>
+            </section>
+
             <div className="rangmanch-studio-panel mt-16 rounded-[28px] border-none bg-transparent p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
               <div className="mb-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
                   <p className="text-sm font-semibold text-text">What 40 free credits are best for</p>
                   <div className="mt-3 space-y-2 text-sm text-muted">
-                    {freeTierExamples.map((item) => (
-                      <p key={item}>{item}</p>
+                    {getPlanOutputEstimates(40, 3).map((estimate) => (
+                      <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
                     ))}
                   </div>
                 </div>

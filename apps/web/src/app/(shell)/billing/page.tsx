@@ -15,6 +15,7 @@ import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { formatCreditFeatureLabel, formatCreditSourceLabel } from '@/lib/credits/historyLabels';
+import { getBestForCopy, getEstimateAssumptions, getPlanOutputEstimates } from '@/lib/pricingEstimates';
 import type { CreditHistoryItem, CreditWallet, PricingResponse } from '@/types/api';
 
 declare global {
@@ -119,6 +120,14 @@ export default function BillingPage() {
       }));
   }, [pricing]);
 
+  const selectedPlanEstimate = useMemo(() => {
+    if (!pricing) return [];
+    const credits = pricing.creditAllocation[selectedPlan] ?? 0;
+    return getPlanOutputEstimates(credits, 4);
+  }, [pricing, selectedPlan]);
+
+  const estimateAssumptions = useMemo(() => getEstimateAssumptions(), []);
+
   const loadRazorpayScript = async () => {
     if (window.Razorpay) return true;
     return new Promise<boolean>((resolve) => {
@@ -210,7 +219,7 @@ export default function BillingPage() {
       <StudioPageHeader
         eyebrow="Wallet"
         title="Billing and credits"
-        description="Understand your balance, monthly refill, and top-up packs so premium generation stays predictable without turning the studio into a coin game."
+        description="Keep creator workflows predictable with a clear wallet, practical plan guidance, and top-up packs that map to real image, reel, and voice usage."
         actions={
           <>
             <Link href="/pricing">
@@ -262,7 +271,7 @@ export default function BillingPage() {
               <div>
                 <p className="text-sm font-semibold text-text">Choose a plan</p>
                 <p className="text-xs text-muted">
-                  {pricing ? `Currency: ${pricing.currency} · secure checkout: ${pricing.paymentProvider}` : 'Loading checkout...'}
+                  {pricing ? `Creator-friendly pricing in ${pricing.currency} · secure checkout: ${pricing.paymentProvider}` : 'Loading checkout...'}
                 </p>
               </div>
             </div>
@@ -290,11 +299,39 @@ export default function BillingPage() {
                 </button>
               ))}
             </div>
+            {pricing ? (
+              <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.5)] p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-text">What this pack usually covers</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
+                      {getBestForCopy(selectedPlan)}
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted">
+                    {pricing.creditAllocation[selectedPlan] ?? 0} credits
+                  </p>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
+                  {selectedPlanEstimate.map((estimate) => (
+                    <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                  ))}
+                </div>
+                <div className="mt-4 space-y-1 text-xs text-muted">
+                  {estimateAssumptions.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                </div>
+                <p className="mt-4 text-sm text-muted">
+                  Premium models like <span className="font-semibold text-text">Veo 3.1</span> use significantly more credits than images or Kling drafts.
+                </p>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-3 rounded-[24px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-bg)/0.52)] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted">
                 {pricing ? (
                   <>
-                    <p><span className="font-semibold text-text capitalize">{selectedPlan}</span> adds <span className="font-semibold text-text">{pricing.creditAllocation[selectedPlan] ?? 0} top-up credits</span> to your wallet.</p>
+                    <p><span className="font-semibold text-text capitalize">{selectedPlan}</span> adds <span className="font-semibold text-text">{pricing.creditAllocation[selectedPlan] ?? 0} top-up credits</span> for repeat creator workflows.</p>
                     <p className="mt-1">Top-up packs stay in the wallet. Monthly plan credits refresh each cycle and do not carry forward.</p>
                   </>
                 ) : null}

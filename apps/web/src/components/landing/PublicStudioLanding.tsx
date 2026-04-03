@@ -57,11 +57,11 @@ function HeroMediaRibbon() {
   ];
 
   return (
-    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1160px] items-end justify-center gap-2 overflow-hidden px-2 pb-2 sm:mt-10 sm:gap-3 lg:mt-12 lg:gap-4">
+    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1160px] items-end justify-between gap-1.5 overflow-hidden px-1 pb-2 sm:mt-10 sm:justify-center sm:gap-3 sm:px-2 lg:mt-12 lg:gap-4">
       {ribbonItems.map((item) => (
         <div
           key={item.key}
-          className={`relative ${item.height} ${item.tilt} aspect-[9/16] w-[4.8rem] shrink-0 overflow-hidden rounded-[18px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md sm:w-[5.8rem] lg:w-[7rem] lg:rounded-[22px]`}
+          className={`relative ${item.height} ${item.tilt} aspect-[9/16] w-[11.5%] min-w-[2.35rem] shrink overflow-hidden rounded-[14px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md sm:w-[5.8rem] sm:min-w-[5.8rem] sm:shrink-0 sm:rounded-[18px] lg:w-[7rem] lg:min-w-[7rem] lg:rounded-[22px]`}
         >
           {item.kind === 'video' ? (
             <LandingVideo src={item.src} poster={item.poster} className="h-full w-full object-cover" />
@@ -76,6 +76,30 @@ function HeroMediaRibbon() {
   );
 }
 
+function HeroFlagBackdrop() {
+  const spokes = Array.from({ length: 12 });
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[72%] overflow-hidden">
+      <div className="rangmanch-hero-flag-glow absolute inset-x-[10%] top-[8%] h-40 rounded-full bg-[radial-gradient(circle,hsl(var(--color-accent)/0.18),transparent_68%)] blur-3xl sm:h-48" />
+      <div className="rangmanch-hero-flag-wave absolute inset-x-[-6%] top-[6%] h-[8.5rem] rounded-[42%] bg-[linear-gradient(180deg,hsl(var(--landing-flag-saffron)/0.22)_0%,hsl(var(--landing-flag-saffron)/0.08)_52%,transparent_100%)] blur-[2px] sm:h-[10rem] lg:h-[11rem]" />
+      <div className="rangmanch-hero-flag-wave absolute inset-x-[-8%] top-[16%] h-[9.25rem] rounded-[44%] bg-[linear-gradient(180deg,hsl(0_0%_100%/0.48)_0%,hsl(0_0%_100%/0.14)_58%,transparent_100%)] [animation-delay:-2.5s] sm:h-[10.5rem] lg:h-[11.5rem]" />
+      <div className="rangmanch-hero-flag-wave absolute inset-x-[-7%] top-[27%] h-[8.75rem] rounded-[44%] bg-[linear-gradient(180deg,hsl(var(--landing-flag-green)/0.18)_0%,hsl(var(--landing-flag-green)/0.06)_55%,transparent_100%)] [animation-delay:-4.5s] sm:h-[10rem] lg:h-[11rem]" />
+      <div className="rangmanch-hero-chakra absolute left-1/2 top-[21.5%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
+        <div className="absolute inset-0 rounded-full border border-[hsl(214_85%_34%/0.4)]" />
+        <div className="absolute inset-[22%] rounded-full border border-[hsl(214_85%_34%/0.32)]" />
+        <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_85%_34%/0.55)]" />
+        {spokes.map((_, index) => (
+          <span
+            key={`chakra-spoke-${index}`}
+            className="absolute left-1/2 top-1/2 h-[42%] w-px origin-bottom bg-[linear-gradient(180deg,hsl(214_85%_34%/0.05),hsl(214_85%_34%/0.48))]"
+            style={{ transform: `translate(-50%, -100%) rotate(${index * 30}deg)` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PublicStudioLanding() {
   return (
     <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
@@ -84,6 +108,7 @@ export function PublicStudioLanding() {
           <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 pt-3 sm:px-4 sm:pb-9 sm:pt-4 lg:px-5 lg:pb-10 xl:px-6 2xl:px-8 2xl:pb-12">
             <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
               <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] px-4 py-4 sm:rounded-[32px] sm:px-5 sm:py-5 xl:rounded-[36px] xl:px-7 xl:py-6">
+                <HeroFlagBackdrop />
                 <div className="relative z-10">
                   <header className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -111,13 +136,21 @@ export function PublicStudioLanding() {
 
                   <div className="mx-auto flex min-h-[600px] max-w-[78rem] flex-col items-center justify-center pt-8 text-center sm:min-h-[660px] sm:pt-12 lg:min-h-[710px] lg:pt-14">
                     <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <span className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.58)] bg-[hsl(var(--color-surface-glass)/0.56)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))] backdrop-blur-md">
+                          India-first creator studio
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface-glass)/0.44)] px-3 py-1 text-[11px] font-medium text-muted backdrop-blur-md">
+                          11 language options • 30+ regional voices
+                        </span>
+                      </div>
                       <h1 className="max-w-5xl font-heading text-[2.55rem] font-extrabold tracking-tight text-[hsl(var(--color-accent))] sm:text-[3.4rem] sm:leading-[1.02] md:text-[4.3rem] lg:text-[5.3rem] 2xl:text-[5.9rem]">
                         Create with
                         <br />
                         RangManch AI
                       </h1>
                       <p className="mx-auto max-w-3xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1rem]">
-                        Create images, reels, influencer visuals, and Indian voice-led content in one studio.
+                        Create images, reels, influencer visuals, and Indian voice-led content with regional narration in one studio.
                       </p>
                     </div>
                     <HeroMediaRibbon />

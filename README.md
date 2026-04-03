@@ -50,6 +50,7 @@ celery -A app.workers.worker.celery_app worker --loglevel=INFO
 
 ```bash
 cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/web
+rm -rf .next
 npm install
 npm run dev
 ```
@@ -64,6 +65,46 @@ source venv/bin/activate
 Local URLs:
 - Frontend: `http://localhost:3000`
 - API: `http://localhost:8000`
+
+## Razorpay Test Mode QA
+
+Use Razorpay **Test Mode** before accepting paid beta users.
+
+Required backend env values:
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET` for webhook validation
+
+Relevant code paths:
+- order create: `POST /api/topupCredits/order`
+- checkout verify: `POST /api/topupCredits/verify`
+- webhook backup: `POST /api/topupCredits/webhook`
+
+Recommended local flow:
+1. start API + frontend
+2. log in with a test user
+3. open `/billing`
+4. choose a small plan like `Starter`
+5. complete Razorpay test checkout
+6. confirm:
+   - checkout opens
+   - success toast appears
+   - credits are added once
+   - billing history updates
+   - refresh keeps the new balance
+
+Recommended first payment method:
+- UPI with `success@razorpay`
+
+Useful docs:
+- [Razorpay test UPI IDs](https://razorpay.com/docs/payments/payments/test-upi-details/)
+- [Razorpay test cards](https://razorpay.com/docs/payments/payments/test-card-details/)
+- [Detailed repo checklist](docs/razorpay-test-mode-checklist.md)
+
+## Beta Launch Docs
+
+- [Soft beta launch checklist](docs/soft-beta-launch-checklist.md)
+- [30-day beta GTM plan](docs/gtm-plan.md)
 
 ## Run API + Worker + Redis
 

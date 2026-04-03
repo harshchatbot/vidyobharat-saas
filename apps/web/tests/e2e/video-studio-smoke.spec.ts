@@ -335,7 +335,7 @@ test.describe('Video studio smoke', () => {
     await page.goto('/create', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByRole('heading', { level: 1, name: /create videos in one compact studio/i })).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: /compose your video/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: /write and refine your video/i })).toBeVisible();
     await expect(page.getByText(/^voice & captions$/i)).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: /review and publish/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /generate video/i })).toBeVisible();

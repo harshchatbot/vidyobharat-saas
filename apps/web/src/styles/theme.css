@@ -32,6 +32,8 @@
   --landing-grid: 334 26% 29%;
   --landing-hero-bg: 329 47% 95%;
   --landing-hero-bg-deep: 334 58% 91%;
+  --landing-flag-saffron: 28 94% 58%;
+  --landing-flag-green: 148 56% 34%;
 }
 
 .dark {
@@ -61,6 +63,55 @@
   --landing-grid: 0 0% 20%;
   --landing-hero-bg: 0 0% 6%;
   --landing-hero-bg-deep: 0 0% 4%;
+  --landing-flag-saffron: 28 92% 62%;
+  --landing-flag-green: 148 42% 56%;
+}
+
+@keyframes rangmanch-flag-wave {
+  0%, 100% {
+    transform: translate3d(-2%, 0, 0) rotate(-1deg) scaleX(1.01);
+  }
+  50% {
+    transform: translate3d(2%, -1.2%, 0) rotate(1deg) scaleX(0.99);
+  }
+}
+
+@keyframes rangmanch-flag-glow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: translate3d(0, 0, 0) scale(0.98);
+  }
+  50% {
+    opacity: 0.34;
+    transform: translate3d(0, -1%, 0) scale(1.02);
+  }
+}
+
+@keyframes rangmanch-chakra-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.52;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+.rangmanch-hero-flag-wave {
+  animation: rangmanch-flag-wave 11s ease-in-out infinite;
+  transform-origin: center top;
+}
+
+.rangmanch-hero-flag-glow {
+  animation: rangmanch-flag-glow 9s ease-in-out infinite;
+}
+
+.rangmanch-hero-chakra {
+  animation: rangmanch-chakra-spin 28s linear infinite;
 }
 
 @keyframes rangmanch-loader-ring {
