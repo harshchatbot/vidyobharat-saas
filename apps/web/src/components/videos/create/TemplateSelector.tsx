@@ -1,4 +1,4 @@
-import { Film } from 'lucide-react';
+import { Check, Film, Sparkles } from 'lucide-react';
 
 import type { TemplateOption } from './constants';
 
@@ -12,8 +12,8 @@ const TEMPLATE_VISUALS: Record<
   }
 > = {
   custom: {
-    eyebrow: 'Blank canvas',
-    helper: 'Manual start',
+    eyebrow: 'Start from scratch',
+    helper: 'Build your own flow',
     gradient: 'linear-gradient(135deg, hsl(var(--color-accent)/0.18), hsl(var(--color-elevated)))',
   },
   'music-video': {
@@ -88,12 +88,18 @@ export function TemplateSelector({
   loading = false,
   templates,
   selectedTemplate,
+  activeTemplateState,
   onSelect,
+  onCustomize,
+  applyingTemplateKey,
 }: {
   loading?: boolean;
   templates: TemplateOption[];
   selectedTemplate: string;
+  activeTemplateState?: 'ready' | 'customized' | null;
   onSelect: (value: string) => void;
+  onCustomize: (value: string) => void;
+  applyingTemplateKey?: string | null;
 }) {
   const topTemplates = templates.slice(0, 6);
   const selectedInTop = topTemplates.some((template) => template.key === selectedTemplate);
@@ -110,7 +116,7 @@ export function TemplateSelector({
           ? Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`template-skeleton-${index}`}
-                className="w-[220px] shrink-0 snap-start overflow-hidden rounded-[22px] border border-border bg-[hsl(var(--color-surface)/0.42)] sm:w-[236px] lg:w-[244px] xl:w-[252px]"
+                className="w-[188px] shrink-0 snap-start overflow-hidden rounded-[22px] border border-border bg-[hsl(var(--color-surface)/0.42)] sm:w-[236px] lg:w-[244px] xl:w-[252px]"
               >
                 <div className="aspect-[5/3] animate-pulse bg-[hsl(var(--color-elevated))]" />
                 <div className="space-y-2 px-3.5 py-3">
@@ -122,7 +128,7 @@ export function TemplateSelector({
           : null}
         {!loading && visibleTemplates.length === 0 ? (
           <div className="w-[260px] shrink-0 rounded-[22px] border border-border bg-[hsl(var(--color-surface)/0.36)] px-4 py-5 text-sm text-muted">
-            Templates are loading. Please wait a moment.
+            Workflows are loading. Please wait a moment.
           </div>
         ) : null}
         {!loading ? visibleTemplates.map((template) => {
@@ -130,20 +136,53 @@ export function TemplateSelector({
             ? template.icon
             : Film;
           const active = selectedTemplate === template.key;
+          const activeStateLabel =
+            active && activeTemplateState === 'customized'
+              ? 'Customized'
+              : active && activeTemplateState === 'ready'
+                ? 'Ready to generate'
+                : null;
+          const ActiveStateIcon = active && activeTemplateState === 'customized'
+            ? Sparkles
+            : active && activeTemplateState === 'ready'
+              ? Check
+              : null;
+          const activeStateBadgeClass =
+            active && activeTemplateState === 'customized'
+              ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+              : active && activeTemplateState === 'ready'
+                ? 'border-[hsl(var(--color-success)/0.3)] bg-[hsl(var(--color-success)/0.12)] text-[hsl(var(--color-success))]'
+                : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] text-muted';
+          const activeCardClass =
+            active && activeTemplateState === 'customized'
+              ? 'border-[hsl(var(--color-accent)/0.65)] bg-[hsl(var(--color-accent)/0.1)] shadow-soft'
+              : active && activeTemplateState === 'ready'
+                ? 'border-[hsl(var(--color-success)/0.58)] bg-[hsl(var(--color-success)/0.08)] shadow-soft'
+                : active
+                  ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
+                  : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft';
           const visual = TEMPLATE_VISUALS[template.key] ?? TEMPLATE_VISUALS.custom;
           const image = template.image ?? visual.image;
           const eyebrow = template.eyebrow ?? visual.eyebrow;
           const helper = template.helper ?? visual.helper;
           return (
-            <button
+            <div
               key={template.key}
-              type="button"
-              onClick={() => onSelect(template.key)}
-              className={`group w-[220px] shrink-0 snap-start overflow-hidden rounded-[22px] border text-left transition sm:w-[236px] lg:w-[244px] xl:w-[252px] ${
-                active
-                  ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.08)] shadow-soft'
-                  : 'border-border bg-bg hover:border-[hsl(var(--color-accent)/0.35)] hover:shadow-soft'
-              }`}
+              role="button"
+              tabIndex={0}
+              aria-disabled={applyingTemplateKey === template.key}
+              onClick={() => {
+                if (applyingTemplateKey === template.key) return;
+                onSelect(template.key);
+              }}
+              onKeyDown={(event) => {
+                if (applyingTemplateKey === template.key) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelect(template.key);
+                }
+              }}
+              className={`group w-[188px] shrink-0 snap-start overflow-hidden rounded-[22px] border text-left transition sm:w-[236px] lg:w-[244px] xl:w-[252px] ${activeCardClass} ${applyingTemplateKey === template.key ? 'cursor-progress opacity-90' : 'cursor-pointer'}`}
             >
               <div className="relative aspect-[5/3] overflow-hidden bg-[hsl(var(--color-elevated))]">
                 {image ? (
@@ -172,12 +211,33 @@ export function TemplateSelector({
                 </div>
               </div>
               <div className="space-y-1.5 px-3.5 py-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  {template.badge || 'Hint'}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${activeStateBadgeClass}`}>
+                    {ActiveStateIcon ? <ActiveStateIcon className="h-3 w-3" /> : null}
+                    {activeStateLabel || template.badge || 'Best for'}
+                  </div>
+                  <div className="text-[11px] font-semibold text-[hsl(var(--color-accent))]">
+                    {applyingTemplateKey === template.key ? 'Applying…' : 'Quick apply'}
+                  </div>
                 </div>
                 <p className="line-clamp-2 text-xs text-muted">{template.topicHint}</p>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] text-muted">
+                    {activeStateLabel ? `${activeStateLabel} in studio` : 'Recommended settings already applied'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onCustomize(template.key);
+                    }}
+                    className="rounded-full border border-[hsl(var(--color-border))] px-2.5 py-1 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                  >
+                    Customize
+                  </button>
+                </div>
               </div>
-            </button>
+            </div>
           );
         }) : null}
         </div>

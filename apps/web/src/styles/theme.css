@@ -472,3 +472,17 @@
     radial-gradient(circle at 12% 0%, hsl(var(--color-accent) / 0.08), transparent 18rem),
     linear-gradient(180deg, hsl(var(--color-surface-glass) / 0.16), hsl(var(--color-surface-glass) / 0.06));
 }
+
+@keyframes rangmanch-confetti-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.7);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--confetti-x, 0px)), calc(-50% + var(--confetti-y, 0px))) rotate(var(--confetti-rotate, 160deg)) scale(1);
+  }
+}

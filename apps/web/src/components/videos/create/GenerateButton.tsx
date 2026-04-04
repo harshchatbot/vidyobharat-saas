@@ -26,17 +26,17 @@ export function GenerateButton({
   onOpenLowBalance?: () => void;
 }) {
   const buttonLabel = loading
-    ? 'Submitting job...'
+    ? 'Starting render...'
     : estimatedCredits > 0
-      ? `Generate Video · ${estimatedCredits} credits`
-      : 'Generate Video · Free';
+      ? `Create reel · ${estimatedCredits} credits`
+      : 'Create reel · Free';
 
   return (
     <div className="flex flex-col gap-3 rounded-[20px] border border-[hsl(var(--color-border)/0.78)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.74),hsl(var(--color-bg)/0.56))] p-3.5 sm:gap-3.5 sm:rounded-[22px] sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-heading text-lg font-extrabold tracking-tight text-text">Generate Video</p>
-          <p className="mt-1 text-xs text-muted">We’ll submit the current script, media, and output settings as one render job.</p>
+          <p className="font-heading text-lg font-extrabold tracking-tight text-text">Create your reel</p>
+          <p className="mt-1 text-xs text-muted">We’ll use your current script, references, voice, and output settings for this render.</p>
         </div>
         <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.66)] px-2.5 py-1 text-[11px] font-semibold text-text">
           Ready

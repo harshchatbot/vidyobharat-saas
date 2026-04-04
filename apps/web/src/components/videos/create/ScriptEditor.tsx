@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { Wand2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -24,6 +25,7 @@ export function ScriptEditor({
   generateCredits,
   enhanceCredits,
   qualityReport,
+  scriptTextareaRef,
 }: {
   topic: string;
   onTopicChange: (value: string) => void;
@@ -39,25 +41,26 @@ export function ScriptEditor({
   generateCredits?: number | null;
   enhanceCredits?: number | null;
   qualityReport: ScriptQualityReport;
+  scriptTextareaRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const generateLabel =
     typeof generateCredits === 'number'
       ? generateCredits > 0
-        ? `Generate Script · ${generateCredits} credits`
-        : 'Generate Script · Free'
-      : 'Generate Script';
+        ? `Generate script draft · ${generateCredits} credits`
+        : 'Generate script draft · Free'
+      : 'Generate script draft';
   const enhanceLabel =
     typeof enhanceCredits === 'number'
       ? enhanceCredits > 0
-        ? `Enhance Script · ${enhanceCredits} credits`
-        : 'Enhance Script · Free'
-      : 'Enhance Script';
+        ? `Improve script · ${enhanceCredits} credits`
+        : 'Improve script · Free'
+      : 'Improve script';
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Topic</span>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Video idea</span>
           <Input
             value={topic}
             onChange={(event) => onTopicChange(event.target.value)}
@@ -79,8 +82,9 @@ export function ScriptEditor({
       </div>
 
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Script</span>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Script / voiceover</span>
         <Textarea
+          ref={scriptTextareaRef}
           value={script}
           onChange={(event) => onScriptChange(event.target.value)}
           rows={11}
@@ -95,7 +99,7 @@ export function ScriptEditor({
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.48)] px-3.5 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Auto tags</p>
-          <p className="mt-1 text-xs text-muted">Generated from your script for search and project organization.</p>
+          <p className="mt-1 text-xs text-muted">Created from your script so it is easier to search, organize, and revisit later.</p>
         </div>
         {tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">

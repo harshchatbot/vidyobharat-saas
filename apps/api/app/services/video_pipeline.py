@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -105,32 +106,14 @@ class VideoPipelineService:
 
         voice_duration = 0.0
         if voice_exists:
-            voice_result = generate_voiceover_detailed(
+            voice_path, voice_duration, tts_diagnostics = self.generate_narration_track(
+                render_id=video_id,
                 script=script,
-                voice=voice_name,
-                cache_dir=self.tts_cache_dir,
-                language=language_name,
-                sample_rate_hz=audio_sample_rate_hz,
+                language_name=language_name,
+                voice_name=voice_name,
+                audio_sample_rate_hz=audio_sample_rate_hz,
             )
-            voice_path = voice_result.path
-            resolved_voice = voice_result.resolved_voice
-            voice_duration = self._probe_duration(voice_path)
-            real_voice_exists = True
-            tts_diagnostics = {
-                'tts_provider': voice_result.provider,
-                'tts_resolved_voice': voice_result.resolved_voice,
-                'tts_provider_message': voice_result.provider_message,
-                'tts_fallback_used': voice_result.provider != 'Sarvam AI',
-            }
-            logger.info(
-                f'TTS generated voiceover at {voice_path}',
-                extra={
-                    'render_id': video_id,
-                    'voice': resolved_voice,
-                    'tts_provider': voice_result.provider,
-                    'tts_fallback_used': voice_result.provider != 'Sarvam AI',
-                },
-            )
+            real_voice_exists = voice_path is not None
 
         total_duration, per_image_duration = self._resolve_timing(
             voice_duration=voice_duration,
@@ -166,6 +149,57 @@ class VideoPipelineService:
 
         self._make_thumbnail(output_path, thumb_path)
         return str(output_path), str(thumb_path), tts_diagnostics
+
+    def ensure_local_media_path(self, url: str) -> Path | None:
+        path = self._ensure_local_media(url)
+        if path and path.exists():
+            return path.resolve()
+        return None
+
+    def generate_narration_track(
+        self,
+        *,
+        render_id: str,
+        script: str,
+        language_name: str | None,
+        voice_name: str,
+        audio_sample_rate_hz: int,
+    ) -> tuple[Path | None, float, dict[str, object]]:
+        if not script.strip():
+            return None, 0.0, {
+                'tts_provider': None,
+                'tts_resolved_voice': None,
+                'tts_provider_message': None,
+                'tts_fallback_used': False,
+            }
+        voice_result = generate_voiceover_detailed(
+            script=script,
+            voice=voice_name,
+            cache_dir=self.tts_cache_dir,
+            language=language_name,
+            sample_rate_hz=audio_sample_rate_hz,
+        )
+        voice_path = voice_result.path
+        voice_duration = self._probe_duration(voice_path)
+        tts_diagnostics: dict[str, object] = {
+            'tts_provider': voice_result.provider,
+            'tts_resolved_voice': voice_result.resolved_voice,
+            'tts_provider_message': voice_result.provider_message,
+            'tts_fallback_used': voice_result.provider != 'Sarvam AI',
+        }
+        logger.info(
+            'tts_generated',
+            extra={
+                'render_id': render_id,
+                'voice': voice_result.resolved_voice,
+                'tts_provider': voice_result.provider,
+                'tts_fallback_used': voice_result.provider != 'Sarvam AI',
+                'cached': voice_result.cached,
+                'voice_duration_seconds': round(voice_duration, 3),
+                'voice_path': str(voice_path),
+            },
+        )
+        return voice_path, voice_duration, tts_diagnostics
 
     def burn_overlays_on_video(
         self,
@@ -257,6 +291,94 @@ class VideoPipelineService:
             ]
         )
         return output_video_path
+
+    def merge_narration_with_video(
+        self,
+        *,
+        input_video_path: Path,
+        output_video_path: Path,
+        voice_path: Path,
+        render_id: str,
+    ) -> Path:
+        if not input_video_path.exists():
+            raise FileNotFoundError(f'Input video not found: {input_video_path}')
+        if not voice_path.exists():
+            raise FileNotFoundError(f'Voice track not found: {voice_path}')
+        output_video_path.parent.mkdir(parents=True, exist_ok=True)
+        video_duration = max(0.1, self._probe_duration(input_video_path))
+        logger.info(
+            'audio_merge_started',
+            extra={
+                'render_id': render_id,
+                'input_video_path': str(input_video_path),
+                'voice_path': str(voice_path),
+                'video_duration_seconds': round(video_duration, 3),
+            },
+        )
+        self._run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(input_video_path),
+                '-i',
+                str(voice_path),
+                '-filter_complex',
+                f'[1:a]apad=pad_dur={video_duration:.2f},atrim=0:{video_duration:.2f},asetpts=N/SR/TB[aout]',
+                '-map',
+                '0:v',
+                '-map',
+                '[aout]',
+                '-c:v',
+                'copy',
+                '-c:a',
+                'aac',
+                '-b:a',
+                '192k',
+                '-movflags',
+                '+faststart',
+                '-shortest',
+                str(output_video_path),
+            ]
+        )
+        logger.info(
+            'audio_merge_completed',
+            extra={
+                'render_id': render_id,
+                'output_video_path': str(output_video_path),
+            },
+        )
+        return output_video_path
+
+    def probe_media_streams(self, media_path: Path) -> dict[str, Any]:
+        if not media_path.exists():
+            return {'video_streams': 0, 'audio_streams': 0, 'path': str(media_path)}
+        try:
+            result = subprocess.run(
+                [
+                    'ffprobe',
+                    '-v',
+                    'error',
+                    '-show_entries',
+                    'stream=codec_type',
+                    '-of',
+                    'csv=p=0',
+                    str(media_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            stream_types = [line.strip() for line in (result.stdout or '').splitlines() if line.strip()]
+            return {
+                'path': str(media_path),
+                'video_streams': stream_types.count('video'),
+                'audio_streams': stream_types.count('audio'),
+                'stream_types': stream_types,
+            }
+        except Exception:
+            logger.warning('media_stream_probe_failed', extra={'path': str(media_path)})
+            return {'video_streams': 0, 'audio_streams': 0, 'path': str(media_path)}
 
     def _resolve_timing(
         self,

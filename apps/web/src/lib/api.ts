@@ -65,6 +65,12 @@ export type ApiOptions = {
   timeoutMs?: number;
 };
 
+export type InspirationListOptions = {
+  limit?: number;
+  offset?: number;
+  sort?: 'curated' | 'newest' | 'liked';
+};
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 type CacheEntry<T> = {
@@ -147,6 +153,15 @@ function getStoredAccessToken(): string | null {
   } catch {
     return null;
   }
+}
+
+function buildInspirationQuery(options?: InspirationListOptions): string {
+  const params = new URLSearchParams();
+  if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
+  if (typeof options?.offset === 'number' && options.offset > 0) params.set('offset', String(options.offset));
+  if (options?.sort) params.set('sort', options.sort);
+  const query = params.toString();
+  return query ? `?${query}` : '';
 }
 
 async function request<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}): Promise<T> {
@@ -386,7 +401,11 @@ export const api = {
     if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
     if (params?.search) query.set('search', params.search);
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<Template[]>(`/api/templates${suffix}`, {}, { userId, cache: 'no-store', timeoutMs: 30_000 });
+    const path = `/api/templates${suffix}`;
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 60_000, () =>
+      request<Template[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+    );
   },
   getTemplate(templateId: string, userId: string) {
     return request<Template>(`/api/templates/${templateId}`, {}, { userId, cache: 'no-store' });
@@ -556,7 +575,7 @@ export const api = {
     return request<TTSPreviewResponse>('/tts/preview', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store', timeoutMs: 35_000 });
   },
   createVideo(payload: FormData, userId: string) {
     return request<{ id: string; status: string }>('/videos', {
@@ -653,10 +672,10 @@ export const api = {
     return request<VideoCreateResponse>('/api/ai/video/create', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    }, { userId, cache: 'no-store', timeoutMs: 60_000 });
   },
   getAIVideoStatus(videoId: string, userId: string) {
-    return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store' });
+    return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store', timeoutMs: 25_000 });
   },
   listImageModels(userId: string) {
     return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store', timeoutMs: 20_000 });
@@ -668,19 +687,31 @@ export const api = {
       request<GeneratedImage[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 35_000 }),
     );
   },
-  listImageInspiration(userId: string, limit?: number) {
-    const path = limit ? `/ai/images/inspiration?limit=${limit}` : '/ai/images/inspiration';
+  listImageInspiration(userId: string, options?: number | InspirationListOptions) {
+    const normalized = typeof options === 'number' ? { limit: options } : options;
+    const path = `/ai/images/inspiration${buildInspirationQuery(normalized)}`;
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 10_000, () =>
       request<InspirationImage[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 35_000 }),
     );
   },
-  listVideoInspiration(userId: string, limit?: number) {
-    const path = limit ? `/api/videos/inspiration?limit=${limit}` : '/api/videos/inspiration';
+  listPublicImageInspiration(options?: number | InspirationListOptions) {
+    const normalized = typeof options === 'number' ? { limit: options } : options;
+    const path = `/public/images/inspiration${buildInspirationQuery(normalized)}`;
+    return request<InspirationImage[]>(path, {}, { cache: 'no-store', timeoutMs: 35_000 });
+  },
+  listVideoInspiration(userId: string, options?: number | InspirationListOptions) {
+    const normalized = typeof options === 'number' ? { limit: options } : options;
+    const path = `/api/videos/inspiration${buildInspirationQuery(normalized)}`;
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 10_000, () =>
-      request<InspirationVideo[]>(path, {}, { userId, cache: 'no-store' }),
+      request<InspirationVideo[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 35_000 }),
     );
+  },
+  listPublicVideoInspiration(options?: number | InspirationListOptions) {
+    const normalized = typeof options === 'number' ? { limit: options } : options;
+    const path = `/public/videos/inspiration${buildInspirationQuery(normalized)}`;
+    return request<InspirationVideo[]>(path, {}, { cache: 'no-store', timeoutMs: 35_000 });
   },
   publishInspiration(contentType: 'image' | 'video', assetId: string, publish: boolean, userId: string) {
     return request<InspirationPublishResponse>('/inspiration/publish', {
@@ -773,6 +804,7 @@ export const api = {
       project_id?: string;
       mode_id?: string;
       template_id?: string;
+      request_id?: string;
     },
     userId: string,
   ) {

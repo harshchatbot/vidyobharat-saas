@@ -592,12 +592,16 @@ class AIVideoCreateService:
 
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
+        duration_seconds = int(params['durationSeconds'])
+        if requested_model == 'kling' and duration_seconds not in {5, 10}:
+            logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
+            duration_seconds = 5
         video_url, metadata = self.fal.generate(
             model_key=requested_model,
             prompt=params['script'],
             aspect_ratio=params['aspectRatio'],
             resolution=params['resolution'],
-            duration_seconds=params['durationSeconds'],
+            duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
         )
         return ProviderResult(
@@ -957,6 +961,9 @@ class AIVideoCreateService:
 
         if 'presets' in rules:
             allowed = sorted(int(item) for item in rules['presets'])
+            if model_key == 'kling3' and duration_seconds not in allowed:
+                logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
+                return 5
             if duration_seconds not in rules['presets']:
                 raise ProviderError(
                     f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports only {", ".join(f"{value}s" for value in allowed)} durations'
@@ -1091,11 +1098,47 @@ def celery_process_ai_video(video_id: str) -> None:
                 'sampleRateHz': video.audio_sample_rate_hz or 22050,
             },
         }
+        logger.info(
+            'voice_requested',
+            extra={
+                'render_id': video.id,
+                'narration_enabled': bool(getattr(video, 'narration_enabled', True)),
+                'voice': video.voice,
+                'language': video.language,
+                'audio_sample_rate_hz': video.audio_sample_rate_hz or 22050,
+                'script_length': len(video.script or ''),
+                'requested_model': video.selected_model,
+            },
+        )
         repo.update(video, progress=55)
         result = service.execute_model_with_router(payload)
-        local_result_path = _resolve_local_generated_file(result.video_url)
+        local_result_path = service.pipeline.ensure_local_media_path(result.video_url) or _resolve_local_generated_file(result.video_url)
         post_processed_path = local_result_path
+        tts_metadata = {
+            'tts_provider': (result.metadata or {}).get('tts_provider'),
+            'tts_resolved_voice': (result.metadata or {}).get('tts_resolved_voice'),
+            'tts_provider_message': (result.metadata or {}).get('tts_provider_message'),
+            'tts_fallback_used': bool((result.metadata or {}).get('tts_fallback_used', False)),
+        }
         if local_result_path and local_result_path.exists():
+            if bool(getattr(video, 'narration_enabled', True)) and (video.script or '').strip():
+                voice_path, _, tts_diagnostics = service.pipeline.generate_narration_track(
+                    render_id=video.id,
+                    script=video.script,
+                    language_name=video.language,
+                    voice_name=video.voice,
+                    audio_sample_rate_hz=video.audio_sample_rate_hz or 22050,
+                )
+                if voice_path:
+                    narrated_output = Path('data/renders') / f'{video.id}-narrated.mp4'
+                    post_processed_path = service.pipeline.merge_narration_with_video(
+                        input_video_path=post_processed_path,
+                        output_video_path=narrated_output,
+                        voice_path=voice_path,
+                        render_id=video.id,
+                    )
+                    result.video_url = f'/static/renders/{post_processed_path.name}'
+                    tts_metadata = tts_diagnostics
             if not bool(getattr(video, 'narration_enabled', True)) and service.pipeline.video_has_audio_stream(local_result_path):
                 silent_output = Path('data/renders') / f'{video.id}-silent.mp4'
                 try:
@@ -1120,6 +1163,14 @@ def celery_process_ai_video(video_id: str) -> None:
                     result.video_url = f'/static/renders/{final_overlay_path.name}'
                 except Exception:
                     logger.exception('ai_video_overlay_burn_failed', extra={'render_id': video.id})
+        if post_processed_path and post_processed_path.exists():
+            logger.info(
+                'final_output_streams',
+                extra={
+                    'render_id': video.id,
+                    **service.pipeline.probe_media_streams(post_processed_path),
+                },
+            )
         final_duration_seconds = _probe_video_duration_seconds(result.video_url)
         logger.info(
             'ai_video_render_diagnostics',
@@ -1131,11 +1182,11 @@ def celery_process_ai_video(video_id: str) -> None:
                 'requested_model': video.selected_model,
                 'resolved_model': (result.metadata or {}).get('resolved_model'),
                 'fallback_used': bool((result.metadata or {}).get('fallback_used', False)),
-                'tts_provider': (result.metadata or {}).get('tts_provider'),
-                'tts_fallback_used': bool((result.metadata or {}).get('tts_fallback_used', False)),
+                'tts_provider': tts_metadata.get('tts_provider'),
+                'tts_fallback_used': bool(tts_metadata.get('tts_fallback_used', False)),
             },
         )
-        existing_provider_message = (result.metadata or {}).get('tts_provider_message')
+        existing_provider_message = tts_metadata.get('tts_provider_message')
         provider_notes: list[str] = []
         mode = str((result.metadata or {}).get('mode') or '')
         requested_model = str((result.metadata or {}).get('requested_model') or video.selected_model or '')
@@ -1170,10 +1221,10 @@ def celery_process_ai_video(video_id: str) -> None:
             provider_name=result.provider,
             output_url=stored_video_url,
             thumbnail_url=stored_thumb_url,
-            tts_provider=(result.metadata or {}).get('tts_provider'),
-            tts_resolved_voice=(result.metadata or {}).get('tts_resolved_voice'),
+            tts_provider=tts_metadata.get('tts_provider'),
+            tts_resolved_voice=tts_metadata.get('tts_resolved_voice'),
             tts_provider_message=combined_provider_message,
-            tts_fallback_used=bool((result.metadata or {}).get('tts_fallback_used', False)),
+            tts_fallback_used=bool(tts_metadata.get('tts_fallback_used', False)),
             progress=100,
             status=VideoStatus.completed,
             error_message=None,

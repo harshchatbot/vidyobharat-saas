@@ -62,8 +62,8 @@ export function VideoPreview({
               <Spinner />
             </span>
             <div>
-              <p className="text-base font-semibold text-text">Generating your video</p>
-              <p className="mt-1 text-sm text-muted">This page updates automatically.</p>
+              <p className="text-base font-semibold text-text">Creating your video</p>
+              <p className="mt-1 text-sm text-muted">Stay here. The preview updates automatically as the render progresses.</p>
             </div>
             <div className="h-2 w-full rounded-full bg-[hsl(var(--color-border))]">
               <div className="h-2 rounded-full bg-[hsl(var(--color-accent))] transition-all" style={{ width: `${job?.progress ?? 18}%` }} />
@@ -149,7 +149,8 @@ export function VideoPreview({
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-accent)/0.08)] text-[hsl(var(--color-accent))]">
             <Sparkles className="h-6 w-6" />
           </span>
-          <p className="mt-3 text-base font-semibold text-text">Your next render will appear here</p>
+          <p className="mt-3 text-base font-semibold text-text">Your reel preview will appear here</p>
+          <p className="mt-1 text-sm text-muted">Pick a quick start or write your own idea to generate your first reel.</p>
         </div>
       ) : null}
     </div>

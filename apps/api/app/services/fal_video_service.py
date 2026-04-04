@@ -14,12 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 class FalVideoService:
-    _COMPLETED_RESPONSE_RETRY_LIMIT = 8
-    _COMPLETED_RESPONSE_RETRY_SLEEP_SECONDS = 3
+    _STATUS_POLL_INTERVAL_SECONDS = 3
+    _TERMINAL_STATUS_TIMEOUT_SECONDS = 90
+    _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
+        'kling': 180,
+    }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 120
     _FOLLOW_UP_REQUEST_DEPTH_LIMIT = 3
     _STATUS_REQUEST_TIMEOUT = httpx.Timeout(25.0, connect=10.0)
     _RESPONSE_REQUEST_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
+    _SUCCESS_STATES = {'completed', 'succeeded', 'success', 'done'}
+    _FAILURE_STATES = {'failed', 'error', 'cancelled', 'canceled'}
+    _ACTIVE_STATES = {'in_queue', 'queued', 'pending', 'processing', 'in_progress', 'running'}
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -81,124 +87,210 @@ class FalVideoService:
                     return video_url, {'raw': data, 'mode': 'immediate'}
                 raise RuntimeError('fal response did not include a polling url or video output')
 
-            started = time.time()
-            last = data
-            while time.time() - started < 900:
-                status_response = self._request_with_timeout(
-                    client=client,
-                    method='GET',
-                    url=status_url,
-                    headers=headers,
-                    timeout=self._STATUS_REQUEST_TIMEOUT,
-                    failure_label='fal status poll',
-                )
-                if status_response is None:
-                    continue
-                if status_response.status_code >= 400:
-                    raise RuntimeError(f'fal status failed ({status_response.status_code}): {status_response.text[:240]}')
-                last = status_response.json()
-                state = str(last.get('status') or last.get('state') or '').lower()
-                direct_video_url = self._extract_video_url(last)
-                if direct_video_url:
-                    return direct_video_url, {'raw': last, 'mode': 'async'}
-                if state in {'completed', 'succeeded', 'success', 'done'}:
-                    video_url = self._extract_video_url(last)
-                    if video_url:
-                        return video_url, {'raw': last, 'mode': 'async'}
-                    # Some fal endpoints keep status payload minimal and expose output via a response url.
-                    # Try multiple candidates because some payloads include stale/model-level paths.
-                    response_url_candidates: list[str] = []
-                    for candidate in (last.get('response_url'), response_url):
-                        if isinstance(candidate, str) and candidate.strip():
-                            response_url_candidates.append(self._normalize_candidate_url(candidate.strip()))
-                    # Derive request-level alternatives from status_url when present.
-                    if '/status' in status_url:
-                        base_request_url = status_url.rsplit('/status', 1)[0]
-                        response_url_candidates.append(self._normalize_candidate_url(base_request_url))
-                        response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
-                    tried_response_urls: list[str] = []
-                    for response_url in list(dict.fromkeys(response_url_candidates)):
-                        url_variants = [response_url]
-                        if '/requests/' in response_url and not response_url.rstrip('/').endswith('/response'):
-                            url_variants.append(f'{response_url.rstrip("/")}/response')
-                        for attempt_index in range(self._COMPLETED_RESPONSE_RETRY_LIMIT):
-                            response_payload = None
-                            attempted_url = response_url
-                            for candidate_url in url_variants:
-                                attempted_url = candidate_url
-                                tried_response_urls.append(candidate_url)
-                                response_payload = self._request_with_timeout(
-                                    client=client,
-                                    method='GET',
-                                    url=candidate_url,
-                                    headers=headers,
-                                    timeout=self._RESPONSE_REQUEST_TIMEOUT,
-                                    failure_label='fal response fetch',
-                                )
-                                if response_payload is None:
-                                    continue
-                                if response_payload.status_code in {404, 405, 422} and candidate_url == url_variants[0] and len(url_variants) > 1:
-                                    continue
-                                if response_payload.status_code == 405:
-                                    response_payload = self._request_with_timeout(
-                                        client=client,
-                                        method='POST',
-                                        url=candidate_url,
-                                        headers=headers,
-                                        json={},
-                                        timeout=self._RESPONSE_REQUEST_TIMEOUT,
-                                        failure_label='fal response fetch',
-                                    )
-                                    if response_payload is None:
-                                        continue
-                                break
-                            if response_payload is None:
-                                continue
-                            if response_payload.status_code >= 400:
-                                logger.warning(
-                                    'fal_response_url_fetch_failed attempt=%s response_url=%s status_code=%s body=%s',
-                                    attempt_index + 1,
-                                    attempted_url,
-                                    response_payload.status_code,
-                                    response_payload.text[:240],
-                                )
-                                break
-                            response_data = response_payload.json()
-                            video_url = self._extract_video_url(response_data)
-                            if video_url:
-                                return video_url, {'raw': response_data, 'mode': 'async_response_url'}
-                            followed_video = self._follow_queued_response_request(
-                                client=client,
-                                headers=headers,
-                                payload=response_data,
-                                depth=0,
-                            )
-                            if followed_video is not None:
-                                followed_url, followed_payload = followed_video
-                                return followed_url, {'raw': followed_payload, 'mode': 'async_response_followup'}
-                            logger.warning(
-                                'fal_response_url_missing_video attempt=%s response_url=%s response_keys=%s preview=%s',
-                                attempt_index + 1,
-                                attempted_url,
-                                sorted([str(k) for k in response_data.keys()]),
-                                str(response_data)[:480],
-                            )
-                            if attempt_index < self._COMPLETED_RESPONSE_RETRY_LIMIT - 1:
-                                time.sleep(self._COMPLETED_RESPONSE_RETRY_SLEEP_SECONDS)
-                    logger.error(
-                        'fal_completed_missing_video_url requested_model_key=%s resolved_endpoint=%s status_keys=%s tried_response_urls=%s status_preview=%s',
-                        model_key,
-                        resolved_endpoint,
-                        sorted([str(k) for k in last.keys()]),
-                        tried_response_urls,
-                        str(last)[:480],
-                    )
-                    raise RuntimeError('fal completed without output video url')
-                if state in {'failed', 'error', 'cancelled', 'canceled'}:
-                    raise RuntimeError(f'fal generation failed: {last}')
-                time.sleep(5)
+            terminal_payload = self._poll_status_until_terminal(
+                client=client,
+                headers=headers,
+                status_url=self._normalize_candidate_url(str(status_url).strip()),
+                requested_model_key=model_key,
+                resolved_endpoint=resolved_endpoint,
+            )
+            direct_video_url = self._extract_video_url(terminal_payload)
+            if direct_video_url:
+                return direct_video_url, {'raw': terminal_payload, 'mode': 'async'}
 
-        raise RuntimeError('fal video generation timed out while waiting for completion')
+            state = self._normalize_state(terminal_payload)
+            if state in self._FAILURE_STATES:
+                raise RuntimeError(f'fal generation failed: {terminal_payload}')
+            if state not in self._SUCCESS_STATES:
+                raise RuntimeError(f'fal video generation timed out while waiting for completion: {terminal_payload}')
+
+            response_data, tried_response_urls = self._fetch_completed_response_payload(
+                client=client,
+                headers=headers,
+                status_url=self._normalize_candidate_url(str(status_url).strip()),
+                submit_response_url=response_url if isinstance(response_url, str) else None,
+                completed_payload=terminal_payload,
+            )
+            if response_data is not None:
+                video_url = self._extract_video_url(response_data)
+                if video_url:
+                    return video_url, {'raw': response_data, 'mode': 'async_response_url'}
+                followed_video = self._follow_queued_response_request(
+                    client=client,
+                    headers=headers,
+                    payload=response_data,
+                    depth=0,
+                )
+                if followed_video is not None:
+                    followed_url, followed_payload = followed_video
+                    return followed_url, {'raw': followed_payload, 'mode': 'async_response_followup'}
+                logger.warning(
+                    'fal_response_url_missing_video response_urls=%s response_keys=%s preview=%s',
+                    tried_response_urls,
+                    sorted([str(k) for k in response_data.keys()]),
+                    str(response_data)[:480],
+                )
+
+            logger.error(
+                'fal_completed_missing_video_url requested_model_key=%s resolved_endpoint=%s request_id=%s status_keys=%s tried_response_urls=%s status_preview=%s',
+                model_key,
+                resolved_endpoint,
+                terminal_payload.get('request_id') or data.get('request_id'),
+                sorted([str(k) for k in terminal_payload.keys()]),
+                tried_response_urls,
+                str(terminal_payload)[:480],
+            )
+            raise RuntimeError('fal completed without output video url')
+
+    def _normalize_state(self, payload: dict[str, Any]) -> str:
+        return str(payload.get('status') or payload.get('state') or '').strip().lower()
+
+    def _classify_lifecycle_state(self, state: str) -> str:
+        if state in self._SUCCESS_STATES:
+            return 'COMPLETED'
+        if state in self._FAILURE_STATES:
+            return state.upper()
+        if state in {'processing', 'in_progress', 'running'}:
+            return 'PROCESSING'
+        return 'QUEUED'
+
+    def _poll_status_until_terminal(
+        self,
+        *,
+        client: httpx.Client,
+        headers: dict[str, str],
+        status_url: str,
+        requested_model_key: str,
+        resolved_endpoint: str,
+    ) -> dict[str, Any]:
+        started = time.time()
+        last_payload: dict[str, Any] | None = None
+        last_lifecycle_state: str | None = None
+        timeout_seconds = self._terminal_timeout_for_model(requested_model_key)
+
+        while time.time() - started < timeout_seconds:
+            status_response = self._request_with_timeout(
+                client=client,
+                method='GET',
+                url=status_url,
+                headers=headers,
+                timeout=self._STATUS_REQUEST_TIMEOUT,
+                failure_label='fal status poll',
+            )
+            if status_response is None:
+                time.sleep(self._STATUS_POLL_INTERVAL_SECONDS)
+                continue
+            if status_response.status_code >= 400:
+                raise RuntimeError(f'fal status failed ({status_response.status_code}): {status_response.text[:240]}')
+
+            current_payload = status_response.json()
+            last_payload = current_payload
+            state = self._normalize_state(current_payload)
+            lifecycle_state = self._classify_lifecycle_state(state)
+            if lifecycle_state != last_lifecycle_state:
+                logger.info(
+                    'fal_video_status_transition',
+                    extra={
+                        'requested_model_key': requested_model_key,
+                        'resolved_endpoint': resolved_endpoint,
+                        'request_id': current_payload.get('request_id'),
+                        'status_url': status_url,
+                        'lifecycle_state': lifecycle_state,
+                        'raw_state': state or None,
+                    },
+                )
+                last_lifecycle_state = lifecycle_state
+
+            if state in self._SUCCESS_STATES or state in self._FAILURE_STATES:
+                if state in self._FAILURE_STATES:
+                    logger.error(
+                        'fal_video_terminal_failure',
+                        extra={
+                            'requested_model_key': requested_model_key,
+                            'resolved_endpoint': resolved_endpoint,
+                            'request_id': current_payload.get('request_id'),
+                            'raw_state': state or None,
+                            'payload_preview': str(current_payload)[:480],
+                        },
+                    )
+                return current_payload
+
+            direct_video_url = self._extract_video_url(current_payload)
+            if direct_video_url:
+                return current_payload
+
+            time.sleep(self._STATUS_POLL_INTERVAL_SECONDS)
+
+        logger.error(
+            'fal_video_status_timeout',
+            extra={
+                'requested_model_key': requested_model_key,
+                'resolved_endpoint': resolved_endpoint,
+                'status_url': status_url,
+                'request_id': (last_payload or {}).get('request_id'),
+                'last_state': self._normalize_state(last_payload or {}),
+                'timeout_seconds': timeout_seconds,
+                'payload_preview': str(last_payload)[:480],
+            },
+        )
+        raise RuntimeError(f'fal video generation timed out while waiting for completion: {last_payload or {"status_url": status_url}}')
+
+    def _terminal_timeout_for_model(self, requested_model_key: str) -> int:
+        normalized = str(requested_model_key or '').strip().lower()
+        return int(self._MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS.get(normalized, self._TERMINAL_STATUS_TIMEOUT_SECONDS))
+
+    def _fetch_completed_response_payload(
+        self,
+        *,
+        client: httpx.Client,
+        headers: dict[str, str],
+        status_url: str,
+        submit_response_url: str | None,
+        completed_payload: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, list[str]]:
+        response_url_candidates: list[str] = []
+        for candidate in (completed_payload.get('response_url'), submit_response_url):
+            if isinstance(candidate, str) and candidate.strip():
+                response_url_candidates.append(self._normalize_candidate_url(candidate.strip()))
+        if '/status' in status_url:
+            base_request_url = status_url.rsplit('/status', 1)[0]
+            response_url_candidates.append(self._normalize_candidate_url(f'{base_request_url}/response'))
+
+        tried_response_urls: list[str] = []
+        for response_url in list(dict.fromkeys(response_url_candidates)):
+            tried_response_urls.append(response_url)
+            response_payload = self._request_with_timeout(
+                client=client,
+                method='GET',
+                url=response_url,
+                headers=headers,
+                timeout=self._RESPONSE_REQUEST_TIMEOUT,
+                failure_label='fal response fetch',
+            )
+            if response_payload is None:
+                continue
+            if response_payload.status_code == 405:
+                response_payload = self._request_with_timeout(
+                    client=client,
+                    method='POST',
+                    url=response_url,
+                    headers=headers,
+                    json={},
+                    timeout=self._RESPONSE_REQUEST_TIMEOUT,
+                    failure_label='fal response fetch',
+                )
+                if response_payload is None:
+                    continue
+            if response_payload.status_code >= 400:
+                logger.warning(
+                    'fal_response_url_fetch_failed response_url=%s status_code=%s body=%s',
+                    response_url,
+                    response_payload.status_code,
+                    response_payload.text[:240],
+                )
+                continue
+            return response_payload.json(), tried_response_urls
+        return None, tried_response_urls
 
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
@@ -218,30 +310,31 @@ class FalVideoService:
         return f'{base}/{value}'
 
     def _extract_video_url(self, payload: dict[str, Any]) -> str | None:
-        direct = payload.get('video_url') or payload.get('url') or payload.get('mp4_url')
-        if isinstance(direct, str) and direct.strip():
-            return self._normalize_media_url(direct.strip())
+        direct_candidates = (
+            payload.get('video_url'),
+            payload.get('mp4_url'),
+            payload.get('output_url'),
+            payload.get('result_url'),
+            payload.get('download_url'),
+            payload.get('file_url'),
+            payload.get('url'),
+        )
+        for candidate in direct_candidates:
+            normalized = self._coerce_media_candidate(candidate)
+            if normalized:
+                return normalized
         video = payload.get('video')
         if isinstance(video, dict):
-            for key in ('url', 'video_url', 'mp4_url'):
-                value = video.get(key)
-                if isinstance(value, str) and value.strip():
-                    return self._normalize_media_url(value.strip())
-        output = payload.get('output')
-        if isinstance(output, dict):
-            for key in ('url', 'video_url', 'mp4_url'):
-                value = output.get(key)
-                if isinstance(value, str) and value.strip():
-                    return self._normalize_media_url(value.strip())
-        if isinstance(output, list):
-            for item in output:
-                if isinstance(item, dict):
-                    for key in ('url', 'video_url', 'mp4_url'):
-                        value = item.get(key)
-                        if isinstance(value, str) and value.strip():
-                            return self._normalize_media_url(value.strip())
-                elif isinstance(item, str) and item.strip():
-                    return self._normalize_media_url(item.strip())
+            for key in ('url', 'video_url', 'mp4_url', 'output_url', 'result_url', 'download_url', 'file_url'):
+                normalized = self._coerce_media_candidate(video.get(key))
+                if normalized:
+                    return normalized
+
+        for container_key in ('output', 'outputs', 'result', 'response', 'data', 'artifact', 'artifacts', 'asset', 'assets', 'media', 'files'):
+            container = payload.get(container_key)
+            normalized = self._extract_from_container(container)
+            if normalized:
+                return normalized
 
         # Final fallback: recursively inspect nested payload for likely video URLs.
         nested = self._find_url_recursive(payload)
@@ -249,20 +342,63 @@ class FalVideoService:
             return nested
         return None
 
+    def _extract_from_container(self, container: Any) -> str | None:
+        if isinstance(container, dict):
+            for key in ('url', 'video_url', 'mp4_url', 'output_url', 'result_url', 'download_url', 'file_url', 'src', 'href'):
+                normalized = self._coerce_media_candidate(container.get(key))
+                if normalized:
+                    return normalized
+            for nested_value in container.values():
+                normalized = self._extract_from_container(nested_value)
+                if normalized:
+                    return normalized
+            return None
+        if isinstance(container, list):
+            for item in container:
+                normalized = self._extract_from_container(item)
+                if normalized:
+                    return normalized
+            return None
+        return self._coerce_media_candidate(container)
+
+    def _coerce_media_candidate(self, candidate: Any) -> str | None:
+        if not isinstance(candidate, str):
+            return None
+        value = candidate.strip()
+        if not value:
+            return None
+        if value.startswith('data:video/'):
+            return value
+        if value.startswith('//'):
+            return f'https:{value}'
+        if value.startswith('http://') or value.startswith('https://') or value.startswith('/'):
+            lowered = value.lower()
+            if (
+                '.mp4' in lowered
+                or '.mov' in lowered
+                or '.webm' in lowered
+                or '.m3u8' in lowered
+                or '/files/' in lowered
+                or '/media/' in lowered
+                or '/storage/' in lowered
+                or '/download' in lowered
+            ):
+                return self._normalize_media_url(value)
+            if lowered.startswith('https://v3.fal.media/') or lowered.startswith('https://fal.media/') or lowered.startswith('http://fal.media/'):
+                return self._normalize_media_url(value)
+        return None
+
     def _find_url_recursive(self, node: Any, *, depth: int = 0) -> str | None:
         if depth > 5:
             return None
         if isinstance(node, str):
-            value = node.strip()
-            if (value.startswith('http') or value.startswith('/')) and ('.mp4' in value.lower() or '/video' in value.lower() or '/files/' in value.lower()):
-                return self._normalize_media_url(value)
-            return None
+            return self._coerce_media_candidate(node)
         if isinstance(node, dict):
             for key, value in node.items():
-                if key.lower() in {'url', 'video_url', 'mp4_url', 'file_url', 'download_url'} and isinstance(value, str):
-                    candidate = value.strip()
-                    if candidate.startswith('http') or candidate.startswith('/'):
-                        return self._normalize_media_url(candidate)
+                if key.lower() in {'url', 'video_url', 'mp4_url', 'file_url', 'download_url', 'output_url', 'result_url', 'src', 'href'}:
+                    normalized = self._coerce_media_candidate(value)
+                    if normalized:
+                        return normalized
                 nested = self._find_url_recursive(value, depth=depth + 1)
                 if nested:
                     return nested
@@ -276,6 +412,8 @@ class FalVideoService:
         return None
 
     def _normalize_media_url(self, value: str) -> str:
+        if value.startswith('//'):
+            return f'https:{value}'
         if value.startswith('http://') or value.startswith('https://'):
             return value
         return self._normalize_candidate_url(value)
@@ -295,7 +433,7 @@ class FalVideoService:
         status_url = payload.get('status_url')
         if not isinstance(status_url, str) or not status_url.strip():
             return None
-        if state not in {'in_queue', 'queued', 'pending', 'processing', 'in_progress', 'running'}:
+        if state not in self._ACTIVE_STATES:
             return None
 
         normalized_status_url = self._normalize_candidate_url(status_url.strip())
@@ -308,13 +446,15 @@ class FalVideoService:
                 return direct_video_url, current_payload
 
             current_state = str(current_payload.get('status') or current_payload.get('state') or '').lower()
-            if current_state in {'completed', 'succeeded', 'success', 'done'}:
+            if current_state in self._SUCCESS_STATES:
                 response_url = current_payload.get('response_url')
                 if isinstance(response_url, str) and response_url.strip():
-                    nested_payload = self._fetch_response_payload(
+                    nested_payload, _ = self._fetch_completed_response_payload(
                         client=client,
                         headers=headers,
-                        response_url=self._normalize_candidate_url(response_url.strip()),
+                        status_url=normalized_status_url,
+                        submit_response_url=self._normalize_candidate_url(response_url.strip()),
+                        completed_payload=current_payload,
                     )
                     if nested_payload is not None:
                         nested_video = self._extract_video_url(nested_payload)
@@ -329,10 +469,10 @@ class FalVideoService:
                         if nested_follow_up is not None:
                             return nested_follow_up
                 return None
-            if current_state in {'failed', 'error', 'cancelled', 'canceled'}:
+            if current_state in self._FAILURE_STATES:
                 raise RuntimeError(f'fal follow-up request failed: {current_payload}')
 
-            time.sleep(self._COMPLETED_RESPONSE_RETRY_SLEEP_SECONDS)
+            time.sleep(self._STATUS_POLL_INTERVAL_SECONDS)
             status_response = self._request_with_timeout(
                 client=client,
                 method='GET',
@@ -358,60 +498,6 @@ class FalVideoService:
             normalized_status_url,
             payload.get('request_id'),
         )
-        return None
-
-    def _fetch_response_payload(
-        self,
-        *,
-        client: httpx.Client,
-        headers: dict[str, str],
-        response_url: str,
-    ) -> dict[str, Any] | None:
-        variants = [response_url]
-        if '/requests/' in response_url and not response_url.rstrip('/').endswith('/response'):
-            variants.append(f'{response_url.rstrip("/")}/response')
-
-        last_response: httpx.Response | None = None
-        attempted_url = response_url
-        for candidate_url in list(dict.fromkeys(variants)):
-            attempted_url = candidate_url
-            response_payload = self._request_with_timeout(
-                client=client,
-                method='GET',
-                url=candidate_url,
-                headers=headers,
-                timeout=self._RESPONSE_REQUEST_TIMEOUT,
-                failure_label='fal follow-up response fetch',
-            )
-            if response_payload is None:
-                continue
-            if response_payload.status_code in {404, 405, 422} and candidate_url == variants[0] and len(variants) > 1:
-                last_response = response_payload
-                continue
-            if response_payload.status_code == 405:
-                response_payload = self._request_with_timeout(
-                    client=client,
-                    method='POST',
-                    url=candidate_url,
-                    headers=headers,
-                    json={},
-                    timeout=self._RESPONSE_REQUEST_TIMEOUT,
-                    failure_label='fal follow-up response fetch',
-                )
-                if response_payload is None:
-                    continue
-            last_response = response_payload
-            if response_payload.status_code < 400:
-                return response_payload.json()
-
-        if last_response is not None:
-            logger.warning(
-                'fal_follow_up_response_fetch_failed response_url=%s attempted_url=%s status_code=%s body=%s',
-                response_url,
-                attempted_url,
-                last_response.status_code,
-                last_response.text[:240],
-            )
         return None
 
     def _request_with_timeout(

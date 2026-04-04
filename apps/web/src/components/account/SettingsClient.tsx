@@ -6,6 +6,7 @@ import { Bell, Captions, LoaderCircle, Save, SlidersHorizontal, Volume2, WandSpa
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { LANGUAGE_OPTIONS, VOICE_OPTIONS } from '@/components/videos/create/constants';
 import type { UserSettings } from '@/types/api';
@@ -19,7 +20,7 @@ export function SettingsClient({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { show } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +47,6 @@ export function SettingsClient({ userId }: { userId: string }) {
     if (!settings) return;
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const updated = await api.updateMySettings(
         {
@@ -61,9 +61,11 @@ export function SettingsClient({ userId }: { userId: string }) {
         userId,
       );
       setSettings(updated);
-      setSuccess('Settings saved.');
+      show({ title: 'Settings saved', message: 'Your default creative preferences were updated.', variant: 'success' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save settings');
+      const message = err instanceof Error ? err.message : 'Failed to save settings';
+      setError(message);
+      show({ title: 'Could not save settings', message, variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -91,7 +93,6 @@ export function SettingsClient({ userId }: { userId: string }) {
       </Card>
 
       {error ? <p className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger)/0.3)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
-      {success ? <p className="rounded-[var(--radius-md)] border border-[hsl(var(--color-success)/0.25)] bg-[hsl(var(--color-success)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-success))]">{success}</p> : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <Card className="space-y-5 border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.62)] backdrop-blur-md">

@@ -27,8 +27,8 @@ const config: Config = {
         hard: 'var(--shadow-hard)'
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        heading: ['Plus Jakarta Sans', 'sans-serif'],
+        sans: ['Manrope', 'sans-serif'],
+        heading: ['Sora', 'sans-serif'],
       },
       animation: {
         'infinite-scroll': 'infinite-scroll 25s linear infinite',

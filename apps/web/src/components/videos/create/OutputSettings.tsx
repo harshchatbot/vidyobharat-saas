@@ -62,7 +62,7 @@ export function OutputSettings({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.44)] px-3.5 py-3">
         <div>
-          <p className="text-sm font-semibold text-text">Output</p>
+          <p className="text-sm font-semibold text-text">Recommended output</p>
           <p className="mt-1 text-xs text-muted">{summaryText}</p>
         </div>
         <span className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.38)] px-3 py-1 text-xs font-semibold text-text">
@@ -72,7 +72,7 @@ export function OutputSettings({
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Aspect ratio</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Format</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] p-2">
               <div className="flex flex-wrap gap-2">
                 {availableAspectRatios.map((option) => {
@@ -99,7 +99,7 @@ export function OutputSettings({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Resolution</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Visual quality</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] p-2">
               <div className="flex flex-wrap gap-2">
                 {resolutionDisplayOptions.map((option) => {
@@ -128,13 +128,13 @@ export function OutputSettings({
                 })}
               </div>
             </div>
-            <p className="text-xs text-muted">{selectedResolutionDimensions || 'Resolution will follow model output settings.'}</p>
+            <p className="text-xs text-muted">{selectedResolutionDimensions || 'Resolution will follow the selected engine output settings.'}</p>
           </div>
       </div>
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.72fr)]">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Motion quality</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] p-2">
               <div className="flex flex-wrap gap-2">
                 {VIDEO_QUALITY_OPTIONS.map((option) => {
@@ -160,7 +160,7 @@ export function OutputSettings({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Caption style</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Caption look</p>
             <Dropdown value={captionStyle} onChange={(event) => onCaptionStyleChange(event.target.value)}>
               {CAPTION_STYLE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -173,7 +173,7 @@ export function OutputSettings({
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Clip length</p>
             <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.18)] p-2">
               <div className="flex flex-wrap gap-2">
                 {availableDurations.map((seconds) => {
@@ -218,7 +218,7 @@ export function OutputSettings({
             <span>
               <span className="flex items-center gap-2 text-sm font-semibold text-text">
                 <Captions className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                Enable captions
+                Auto captions
               </span>
               <span className="mt-1 block text-xs leading-5 text-muted">
                 Burned-in captions help short-form videos perform better on mute.

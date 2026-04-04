@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, PropsWithChildren, useCallback, useContext, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 
 type ToastVariant = 'default' | 'success' | 'error' | 'info';
@@ -13,6 +14,7 @@ type ToastInput =
       actionLabel?: string;
       onAction?: () => void;
       durationMs?: number;
+      celebrate?: boolean;
     };
 
 type ToastItem = {
@@ -22,6 +24,11 @@ type ToastItem = {
   variant: ToastVariant;
   actionLabel?: string;
   onAction?: () => void;
+  celebrate?: boolean;
+};
+
+type ConfettiBurst = {
+  id: number;
 };
 
 const ToastContext = createContext<{ show: (toast: ToastInput) => void } | null>(null);
@@ -32,6 +39,7 @@ function normalizeToast(input: ToastInput): Omit<ToastItem, 'id'> & { durationMs
       message: input,
       variant: 'default',
       durationMs: 2500,
+      celebrate: false,
     };
   }
   return {
@@ -41,6 +49,7 @@ function normalizeToast(input: ToastInput): Omit<ToastItem, 'id'> & { durationMs
     actionLabel: input.actionLabel,
     onAction: input.onAction,
     durationMs: input.durationMs ?? 3200,
+    celebrate: input.celebrate ?? false,
   };
 }
 
@@ -70,8 +79,35 @@ function VariantIcon({ variant }: { variant: ToastVariant }) {
   }
 }
 
+function confettiStyle(seed: number, index: number) {
+  const angle = -84 + index * 12 + (seed % 7);
+  const distance = 62 + ((index * 13 + seed) % 58);
+  const delay = ((index % 5) * 35);
+  const size = 7 + ((index + seed) % 6);
+  const rotate = (seed * (index + 3)) % 360;
+  const palette = [
+    'hsl(var(--color-accent))',
+    'hsl(var(--color-success))',
+    'hsl(var(--color-surface))',
+    'hsl(var(--color-text))',
+  ];
+  return {
+    width: `${size}px`,
+    height: `${Math.max(4, size * 0.72)}px`,
+    background: palette[index % palette.length],
+    left: '50%',
+    top: '50%',
+    animationDelay: `${delay}ms`,
+    transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
+    ['--confetti-x' as string]: `${Math.cos((angle * Math.PI) / 180) * distance}px`,
+    ['--confetti-y' as string]: `${Math.sin((angle * Math.PI) / 180) * distance}px`,
+    ['--confetti-rotate' as string]: `${rotate + 160}deg`,
+  } as CSSProperties;
+}
+
 export function ToastProvider({ children }: PropsWithChildren) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const [bursts, setBursts] = useState<ConfettiBurst[]>([]);
 
   const remove = useCallback((id: number) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
@@ -81,6 +117,12 @@ export function ToastProvider({ children }: PropsWithChildren) {
     const toast = normalizeToast(input);
     const id = Date.now();
     setItems((prev) => [...prev, { id, ...toast }]);
+    if (toast.celebrate && toast.variant === 'success') {
+      setBursts((prev) => [...prev, { id }]);
+      window.setTimeout(() => {
+        setBursts((prev) => prev.filter((burst) => burst.id !== id));
+      }, 2200);
+    }
     window.setTimeout(() => {
       setItems((prev) => prev.filter((item) => item.id !== id));
     }, toast.durationMs);
@@ -89,6 +131,19 @@ export function ToastProvider({ children }: PropsWithChildren) {
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
+      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex justify-center sm:justify-end sm:pr-8">
+        {bursts.map((burst) => (
+          <div key={burst.id} className="relative h-32 w-32 sm:h-36 sm:w-36">
+            {Array.from({ length: 18 }).map((_, index) => (
+              <span
+                key={`${burst.id}-${index}`}
+                className="absolute rounded-[3px] opacity-0 [animation:rangmanch-confetti-burst_1400ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+                style={confettiStyle(burst.id, index)}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
       <div className="fixed bottom-4 right-4 z-40 space-y-2 px-4 sm:px-0">
         {items.map((item) => (
           <div

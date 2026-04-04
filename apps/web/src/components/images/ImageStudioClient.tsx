@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronRight,
@@ -77,10 +77,20 @@ type ImageGenerationPayload = {
   project_id?: string;
   mode_id?: string;
   template_id?: string;
+  request_id?: string;
 };
 
 type ImageModeKey = 'fast_social' | 'premium_realism' | 'design_carousel' | 'portrait_character';
 type ReferenceMode = 'inspiration' | 'edit';
+type ImageQuickStartKey = 'daily_reel_visual' | 'premium_reel_visual' | 'carousel_ad_visual' | 'character_influencer_portrait';
+type ImageQuickStartPreset = {
+  title: string;
+  description: string;
+  imageMode: ImageModeKey;
+  aspectRatio: string;
+  resolution: string;
+  prompt: string;
+};
 
 const IMAGE_STUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
 const IMAGE_STUDIO_INITIAL_GENERATED_LIMIT = 3;
@@ -259,47 +269,82 @@ const IMAGE_WORKFLOW_OPTIONS: Array<{
 }> = [
   {
     key: 'fast_social',
-    label: 'Fast / Affordable',
+    label: 'Fast Social',
     badge: 'Affordable',
-    description: 'Cheapest route for quick social visuals and rapid iterations.',
-    helper: 'Prefers Together budget image generation when available.',
+    description: 'Best for quick daily reel visuals, social drafts, and rapid creative testing.',
+    helper: 'Best value for everyday creator content.',
     candidateModels: ['budget_image_model', 'gemini_flash_image'],
   },
   {
     key: 'premium_realism',
-    label: 'Premium Realism',
+    label: 'Creator Quality',
     badge: 'Recommended',
-    description: 'Best for photoreal ads, thumbnails, and polished brand visuals.',
-    helper: 'Uses the strongest realistic model available, with OpenAI preferred.',
+    description: 'Better polish for important posts, premium ads, thumbnails, and hero visuals.',
+    helper: 'Use when quality matters more than speed.',
     candidateModels: ['gpt_image_1_5', 'openai_image', 'gemini_pro_image'],
   },
   {
     key: 'design_carousel',
-    label: 'Design & Carousel',
+    label: 'Design / Carousel',
     badge: 'Hot',
-    description: 'Best for posters, graphics, ads, and carousel-style layouts.',
-    helper: 'Design-focused route with Recraft first.',
+    description: 'Ideal for branded social posts, carousels, graphics, and layout-first content.',
+    helper: 'Use for structured designs, ads, and typography-safe compositions.',
     candidateModels: ['recraft', 'recraft_studio'],
   },
   {
     key: 'portrait_character',
-    label: 'Portrait / Character',
+    label: 'Character / Influencer',
     badge: 'Character',
-    description: 'Best for portraits, avatars, and character-consistent creative work.',
-    helper: 'Uses the strongest portrait-capable route currently available.',
+    description: 'Best for portraits, creator avatars, influencer looks, and character-led content.',
+    helper: 'Use when identity, face quality, or character presence matters most.',
     candidateModels: ['gemini_pro_image', 'gpt_image_1_5', 'openai_image'],
   },
 ];
 
 const IMAGE_WORKFLOW_PLACEHOLDERS: Record<ImageModeKey, string> = {
   fast_social:
-    'Example: A bright Instagram-friendly product shot of a mango drink bottle on a clean summer table, soft natural light, fresh lifestyle mood, crisp composition, scroll-stopping social ad style.',
+    'Describe the visual for your reel or post. Example: a bright Indian street-food product shot at golden hour, crisp composition, social-first framing, scroll-stopping daily content style.',
   premium_realism:
-    'Example: A photoreal luxury skincare bottle on wet black stone, cinematic studio lighting, premium reflections, shallow depth of field, high-end beauty campaign aesthetic, ultra-detailed commercial finish.',
+    'Describe the visual for your important post or ad. Example: a photoreal premium skincare bottle on wet black stone, cinematic studio lighting, premium reflections, ultra-detailed commercial finish.',
   design_carousel:
-    'Example: A modern carousel cover about 5 habits that improve focus, bold editorial typography, structured layout, clean infographic composition, brand-safe colors, premium social design style.',
+    'Describe the design you want to create. Example: a modern carousel cover about 5 habits that improve focus, bold editorial typography, structured layout, brand-safe colors, premium social design style.',
   portrait_character:
-    'Example: A confident cinematic portrait of a young Indian creator in a contemporary studio, expressive eyes, natural skin detail, soft dramatic rim light, polished wardrobe styling, premium character poster look.',
+    'Describe the character or creator look you want. Example: a confident cinematic portrait of a young Indian creator in a contemporary studio, expressive eyes, natural skin detail, premium influencer poster look.',
+};
+
+const IMAGE_QUICK_START_PRESETS: Record<ImageQuickStartKey, ImageQuickStartPreset> = {
+  daily_reel_visual: {
+    title: 'Daily Reel Visual',
+    description: 'A fast creator-ready start for everyday social posts and reels.',
+    imageMode: 'fast_social',
+    aspectRatio: '9:16',
+    resolution: '1536',
+    prompt: 'A cinematic vertical visual for a motivational reel about consistency, dramatic lighting, strong focal subject, emotional mood, premium social content style.',
+  },
+  premium_reel_visual: {
+    title: 'Premium Reel Visual',
+    description: 'A stronger starting point for standout storytelling and polished social visuals.',
+    imageMode: 'premium_realism',
+    aspectRatio: '9:16',
+    resolution: '1536',
+    prompt: 'A high-impact vertical visual for a premium storytelling reel, rich cinematic lighting, dramatic composition, polished textures, and scroll-stopping detail.',
+  },
+  carousel_ad_visual: {
+    title: 'Carousel / Ad Visual',
+    description: 'A clean setup for branded graphics, ad creatives, and carousel covers.',
+    imageMode: 'design_carousel',
+    aspectRatio: '4:5',
+    resolution: '1536',
+    prompt: 'A clean, premium Instagram carousel cover for a business growth tip, modern design aesthetic, bold focal composition, and space for headline text.',
+  },
+  character_influencer_portrait: {
+    title: 'Character / Influencer Portrait',
+    description: 'A guided portrait setup for creators, personas, and character-led visuals.',
+    imageMode: 'portrait_character',
+    aspectRatio: '9:16',
+    resolution: '1536',
+    prompt: 'A premium portrait of a confident creator-style character with cinematic lighting, strong facial detail, stylish wardrobe, and high-end social branding aesthetic.',
+  },
 };
 
 function toFriendlyImageEstimateLabel(component: string, label?: string | null) {
@@ -506,6 +551,7 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
 
 export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
+  const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cacheWarm, setCacheWarm] = useState(false);
   const [models, setModels] = useState<ImageModel[]>(fallbackModels);
   const [imageTemplates, setImageTemplates] = useState<ImageTemplatePreset[]>([]);
@@ -554,6 +600,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [uploadingReference, setUploadingReference] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
+  const [quickStartFeedback, setQuickStartFeedback] = useState<{ title: string; description: string } | null>(null);
   const [wantsVariations, setWantsVariations] = useState(false);
   const [imageCount, setImageCount] = useState(2);
   const [searchQuery, setSearchQuery] = useState('');
@@ -918,6 +965,29 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       available: Boolean(resolvedModelKey),
     };
   }).filter((option) => option.available);
+  const applyImageQuickStartPreset = (presetKey: ImageQuickStartKey) => {
+    const preset = IMAGE_QUICK_START_PRESETS[presetKey];
+    const nextModelKey =
+      resolveImageModeModel(models, preset.imageMode) ??
+      resolveImageModeModel(fallbackModels, preset.imageMode) ??
+      selectedModel;
+    setImageMode(preset.imageMode);
+    setSelectedModel(nextModelKey);
+    setAspectRatio(preset.aspectRatio);
+    setResolution(preset.resolution);
+    setWantsVariations(false);
+    setPrompt(preset.prompt);
+    setActiveTemplate(null);
+    setTemplateInputs({});
+    setQuickStartFeedback({
+      title: 'Starter settings loaded',
+      description: 'We applied a strong default prompt and recommended output settings. You can edit everything below.',
+    });
+    window.setTimeout(() => {
+      promptTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      promptTextareaRef.current?.focus();
+    }, 80);
+  };
   const activeTemplateEstimateText = activeTemplate
     ? `${resolutionOptions.find((item) => item.value === (activeTemplate.resolution || resolution))?.label ?? activeTemplate.resolution} • ${activeTemplate.category}`
     : null;
@@ -957,6 +1027,13 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
 
   const runImageGeneration = async (payload: ImageGenerationPayload, options?: { retry?: boolean }) => {
     const isRetry = Boolean(options?.retry);
+    const requestScopedPayload: ImageGenerationPayload = {
+      ...payload,
+      request_id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    };
     setSubmitting(true);
     setRetrying(isRetry);
     setError(null);
@@ -964,7 +1041,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     try {
       setSubmitProgress(14);
       createdItem = await api.generateImage(
-        payload,
+        requestScopedPayload,
         userId,
       );
       setSubmitProgress(100);
@@ -976,7 +1053,10 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
 
     if (!createdItem) return;
-    setLastGenerationPayload(payload);
+    setLastGenerationPayload({
+      ...requestScopedPayload,
+      request_id: undefined,
+    });
 
     if (typeof createdItem.remaining_credits === 'number') {
       if (wallet) {
@@ -985,11 +1065,15 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         void refreshCredits();
       }
     }
-    show(
-      `${isRetry ? 'Retried!' : 'Created!'} ${payload.image_count ?? 1} image${(payload.image_count ?? 1) > 1 ? 's' : ''} · Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
+    show({
+      title: isRetry ? 'Image retry complete' : 'Image created',
+      message: `${requestScopedPayload.image_count ?? 1} image${(requestScopedPayload.image_count ?? 1) > 1 ? 's' : ''} ready · Credits Used: ${createdItem.applied_credits} · Remaining Balance: ${
         createdItem.remaining_credits ?? wallet?.currentCredits ?? 0
       }`,
-    );
+      variant: 'success',
+      celebrate: true,
+      durationMs: 3600,
+    });
     setSelectedGenerated(createdItem);
     setActiveTab('generated');
 
@@ -1097,6 +1181,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   };
 
   const applyImageTemplate = async (template: ImageTemplatePreset, values: Record<string, string>) => {
+    setQuickStartFeedback(null);
     let nextPrompt = templatePromptPreview.trim();
     if (!nextPrompt) {
       try {
@@ -1396,8 +1481,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       ) : null}
       <StudioPageHeader
         eyebrow="Image Studio"
-        title="Generate images in one focused workspace"
-        description="Prompt, reference, and iterate from one workspace."
+        title="Create your reel visual"
+        description="Generate images for reels, ads, carousels, and character content from one creator-first workspace."
         actions={
           <>
             <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
@@ -1415,14 +1500,42 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
           <div className="min-w-0 space-y-5">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
-              <p className="mt-1 text-xl font-extrabold tracking-tight text-text">Create image</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Create</p>
+              <p className="mt-1 text-xl font-extrabold tracking-tight text-text">Build the visual for your next post or reel</p>
+              <p className="mt-1 text-sm text-muted">Start with the type of output you want, then write the prompt and generate.</p>
+            </div>
+
+            <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
+              <div>
+                <p className="text-sm font-semibold text-text">Quick start</p>
+                <p className="mt-1 text-xs text-muted">Pick a creator-ready starting point and we’ll prefill the prompt and recommended settings.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.entries(IMAGE_QUICK_START_PRESETS).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyImageQuickStartPreset(key as ImageQuickStartKey)}
+                    className="rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] px-3 py-3 text-left transition hover:text-text"
+                  >
+                    <p className="text-sm font-semibold text-text">{preset.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">{preset.description}</p>
+                  </button>
+                ))}
+              </div>
+              {quickStartFeedback ? (
+                <div className="rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
+                  <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
+                  <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-text">Template</p>
+                  <p className="text-sm font-semibold text-text">Template / use case</p>
+                  <p className="mt-1 text-xs text-muted">Start from a proven structure instead of a blank canvas.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
@@ -1454,6 +1567,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                           key={template.id}
                           type="button"
                           onClick={() => {
+                            setQuickStartFeedback(null);
                             setActiveTemplate(template);
                             setTemplatePickerOpen(true);
                           }}
@@ -1500,6 +1614,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">Project</p>
+                  <p className="mt-1 text-xs text-muted">Optional. Keep related outputs grouped together.</p>
                 </div>
                 {projectsLoading ? <Spinner /> : activeTemplate ? <span className="text-xs text-muted">Auto-create ready</span> : null}
               </div>
@@ -1524,7 +1639,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text">Model</p>
+                  <p className="text-sm font-semibold text-text">Output goal</p>
+                  <p className="mt-1 text-xs text-muted">Choose the kind of result you want. The best available engine is selected behind the scenes.</p>
                 </div>
                 <span className="text-xs text-muted">{activeImageMode.badge}</span>
               </div>
@@ -1538,6 +1654,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                       type="button"
                       onClick={() => {
                         if (!workflow.resolvedModelKey) return;
+                        setQuickStartFeedback(null);
                         setSelectedModel(workflow.resolvedModelKey);
                         setImageMode(workflow.key);
                       }}
@@ -1551,22 +1668,24 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                         <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-[10px] font-semibold ${PROVIDER_LOGO_STYLES[workflow.resolvedModel?.provider ?? ''] ?? 'bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'}`}>
                           {typeof workflow.resolvedModel?.logo_label === 'string' ? workflow.resolvedModel.logo_label : 'AI'}
                         </span>
-                        <div>
-                          <p className="text-sm font-semibold text-text">{workflow.label}</p>
-                          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{workflow.badge}</p>
-                        </div>
+                      <div>
+                        <p className="text-sm font-semibold text-text">{workflow.label}</p>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{workflow.badge}</p>
                       </div>
-                    </button>
-                  );
-                })}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted">{workflow.helper}</p>
+                  </button>
+                );
+              })}
                 </div>
               </div>
             </div>
 
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div>
-                <p className="text-sm font-semibold text-text">Orientation & output</p>
-              </div>
+                  <p className="text-sm font-semibold text-text">Output settings</p>
+                  <p className="mt-1 text-xs text-muted">Choose the format and quality that best fit where you plan to publish.</p>
+                </div>
               <div className="grid gap-3 md:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-[18px] bg-[hsl(var(--color-bg)/0.58)] p-2">
                   <div className="grid grid-cols-2 gap-2">
@@ -1611,15 +1730,16 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-text">Prompt</p>
-                  <p className="mt-1 text-xs text-muted">{activeImageMode.label} works best for {activeImageMode.description.toLowerCase()}</p>
+                  <p className="text-sm font-semibold text-text">Describe your visual</p>
+                  <p className="mt-1 text-xs text-muted">{activeImageMode.label} is best when you want {activeImageMode.description.toLowerCase()}</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="w-full gap-2 px-3 py-1.5 text-xs sm:w-auto">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                  {enhancing ? 'Enhancing...' : 'Enhance'}
+                  {enhancing ? 'Improving...' : 'Improve prompt'}
                 </Button>
               </div>
               <Textarea
+                ref={promptTextareaRef}
                 rows={6}
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
@@ -1733,7 +1853,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               </div>
               {referenceUploads.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.16)] px-4 py-4 text-xs text-muted">
-                  No references uploaded yet.
+                  Add up to 4 reference images. Use one as a source edit, or use multiple images for inspiration.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1763,7 +1883,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     {creditsRefreshing ? <span className="text-[11px] text-muted">Refreshing…</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    {`${requestedImageCount} image${requestedImageCount > 1 ? 's' : ''} • ${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `${estimate.estimatedCredits} credits estimated` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
+                    {`${requestedImageCount} image${requestedImageCount > 1 ? 's' : ''} • ${aspectRatio} • ${resolutionOptions.find((item) => item.value === resolution)?.label ?? resolution} • ${estimate ? `estimated ${estimate.estimatedCredits} credits` : isEstimating ? 'Estimating credits...' : 'Credits unavailable'}`}
                   </p>
                   {selectedModelMeta ? <p className="mt-1 text-[11px] text-muted">{selectedModelMeta.label} {selectedModelMeta.provider ? `· ${selectedModelMeta.provider}` : ''}</p> : null}
                   {selectedModelMeta && selectedEstimateModel.estimateModelLabel !== selectedModelMeta.label ? (
@@ -1806,7 +1926,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     ) : (
                       <>
                         <Wand2 className="h-4 w-4" />
-                        {`Generate · ${estimate ? `${estimate.estimatedCredits} cr` : '...'}`}
+                        {`Create image · ${estimate ? `${estimate.estimatedCredits} credits` : '...'}`}
                       </>
                     )}
                   </Button>
@@ -1834,7 +1954,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
-              <h2 className="mt-1 text-base font-semibold text-text">Review and export</h2>
+              <h2 className="mt-1 text-base font-semibold text-text">Review and download</h2>
             </div>
             <span className="text-xs text-muted">{activeTab === 'generated' ? 'Your image' : 'Inspiration'}</span>
           </div>
@@ -1843,11 +1963,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <img
                 src={getPreviewImageUrl(livePreviewImage) ?? ''}
                 alt={getPreviewImageLabel(livePreviewImage)}
-                className="max-h-[420px] w-full object-contain bg-[hsl(var(--color-bg))]"
+                className="max-h-[320px] w-full object-contain bg-[hsl(var(--color-bg))] sm:max-h-[420px]"
               />
             ) : (
-              <div className="flex min-h-[240px] items-center justify-center text-sm text-muted">
-                Generate an image to preview it here.
+              <div className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted sm:min-h-[240px]">
+                Start with a quick preset, template, or prompt to generate your visual. Your generated image will appear here.
               </div>
             )}
           </div>
@@ -1875,7 +1995,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
       <div className="space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-heading text-xl font-extrabold tracking-tight text-text">Studio Feed</h2>
+            <h2 className="font-heading text-xl font-extrabold tracking-tight text-text">Your creative feed</h2>
+            <p className="mt-1 text-sm text-muted">Browse your latest images or explore inspiration without leaving the studio.</p>
           </div>
           <div className="inline-flex rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.45)] p-1 backdrop-blur-md">
             <button
@@ -2065,7 +2186,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               </p>
               <p className="mt-2 text-xs text-muted">
                 {activeTab === 'generated'
-                  ? 'Generate your first image and it will appear here instantly.'
+                  ? 'Start with a prompt, template, or reference image and your first result will appear here.'
                   : 'Try a different search or clear active filters to see more inspiration.'}
               </p>
               {activeTab === 'inspiration' && (hasFacetFilters || hasSearchFilter) ? (
@@ -2098,15 +2219,15 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">Quick starts</p>
             <h3 className="mt-1 text-lg font-semibold text-text">Choose a visual starting point</h3>
-            <p className="mt-1 text-xs text-muted">Pick a template, adjust a few fields, then apply it into the studio.</p>
+            <p className="mt-1 text-xs text-muted">Pick a creator-ready starting point, answer a few fields, and apply it into the studio.</p>
           </div>
           <div className="grid gap-3.5 xl:grid-cols-[0.62fr_1.38fr]">
             <div className="space-y-2.5">
               <div className="overflow-hidden rounded-[12px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.3)]">
                 {activeTemplate?.thumbnail_url ? (
-                  <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[16/10] max-h-[190px] w-full object-cover xl:max-h-[220px]" />
+                  <img src={activeTemplate.thumbnail_url} alt={activeTemplate.title} className="aspect-[16/10] max-h-[160px] w-full object-cover sm:max-h-[190px] xl:max-h-[220px]" />
                 ) : (
-                  <div className="flex aspect-[16/10] max-h-[190px] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-2.5 xl:max-h-[220px]">
+                  <div className="flex aspect-[16/10] max-h-[160px] items-end bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-elevated)))] p-2.5 sm:max-h-[190px] xl:max-h-[220px]">
                     <div className="space-y-1.5">
                       <Badge>{activeTemplate?.category ?? 'Template'}</Badge>
                       <p className="text-sm font-semibold text-text">{activeTemplate?.title ?? 'Select a template'}</p>
@@ -2119,7 +2240,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 {activeTemplate ? <Badge>{activeTemplate.category}</Badge> : null}
                 {activeTemplate ? <Badge>{resolutionOptions.find((item) => item.value === activeTemplate.resolution)?.label ?? activeTemplate.resolution}</Badge> : null}
               </div>
-              <div className="grid max-h-[360px] gap-2 overflow-y-auto pr-1">
+              <div className="grid max-h-[280px] gap-2 overflow-y-auto pr-1 sm:max-h-[360px]">
                 {imageTemplates.map((template) => (
                   <button
                     key={template.id}
@@ -2138,11 +2259,11 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               </div>
             </div>
             <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.28)] p-3.5 sm:p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-text">Template inputs</p>
-                  <p className="mt-1 text-xs text-muted">Answer a few simple fields. The studio will fill the rest.</p>
-                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Template inputs</p>
+                    <p className="mt-1 text-xs text-muted">Answer a few simple fields. We’ll turn them into a stronger starting prompt for you.</p>
+                  </div>
                 {activeTemplate ? <Badge>{models.find((item) => item.key === activeTemplate.model_key)?.label ?? activeTemplate.model_key}</Badge> : null}
               </div>
               {activeTemplate ? (
@@ -2168,7 +2289,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     })
                   ) : (
                     <div className="rounded-[12px] bg-[hsl(var(--color-bg)/0.55)] px-3.5 py-3 text-xs text-muted">
-                      This quick start uses a ready-made prompt. Apply it directly into the composer.
+                      This quick start already includes a ready-made prompt. Apply it directly if you want to move fast.
                     </div>
                   )}
                   <div className="rounded-[12px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-bg)/0.48)] p-2.5">
@@ -2185,8 +2306,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Prompt preview</p>
                     <p className="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-text">
                       {templatePromptPreviewLoading
-                        ? 'Assembling full prompt...'
-                        : (templatePromptPreview || activeTemplatePromptPreview || 'Preview will appear after template inputs are filled.')}
+                        ? 'Building your prompt preview...'
+                        : (templatePromptPreview || activeTemplatePromptPreview || 'Your prompt preview will appear after the key fields are filled.')}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2.5">
@@ -2200,7 +2321,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 </div>
               ) : (
                 <div className="mt-3.5 rounded-[14px] bg-[hsl(var(--color-bg)/0.55)] px-3.5 py-5 text-xs text-muted">
-                  Select an image template to load its visual direction and generation defaults.
+                  Select a template to load its visual direction and recommended starting settings.
                 </div>
               )}
             </div>

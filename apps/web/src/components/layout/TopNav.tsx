@@ -21,6 +21,7 @@ const compactNavLinks = navLinks.slice(0, 4);
 type TopNavProps = {
   userId: string | null;
   accountLabel: string | null;
+  accountEmail?: string | null;
 };
 
 function getInitials(label: string | null) {
@@ -30,7 +31,7 @@ function getInitials(label: string | null) {
   return label.slice(0, 2).toUpperCase();
 }
 
-export function TopNav({ userId, accountLabel }: TopNavProps) {
+export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -124,8 +125,8 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
                     {initials}
                   </span>
-                  <span className="max-w-[120px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
-                    {accountLabel ?? 'Account'}
+                  <span className="max-w-[180px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
+                    {accountEmail ?? accountLabel ?? 'Account'}
                   </span>
                 </Link>
                 <LogoutButton
@@ -173,7 +174,7 @@ export function TopNav({ userId, accountLabel }: TopNavProps) {
           {userId && (
             <div className="mt-1 flex gap-2">
               <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
-                Account
+                {accountEmail ?? 'Account'}
               </Link>
               <LogoutButton
                 className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))] disabled:opacity-70"

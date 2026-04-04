@@ -33,8 +33,8 @@ export function ReferenceImagePicker({
     <div className="space-y-5">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.6fr)]">
         <div>
-          <p className="text-sm font-semibold text-text">Select from Your Images</p>
-          <p className="mt-1 text-sm text-muted">Use one or more existing generated images to seed the motion. If none are selected, generation will be text-to-video only.</p>
+          <p className="text-sm font-semibold text-text">Choose from your images</p>
+          <p className="mt-1 text-sm text-muted">Use one or more existing images for consistency, inspiration, or source-guided motion. Leave this empty if you want text-to-video only.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {generatedImages.slice(0, 6).map((image) => {
               const absoluteUrl = toAbsoluteUrl(image.image_url);
@@ -62,8 +62,8 @@ export function ReferenceImagePicker({
         </div>
 
         <div className="rounded-[var(--radius-lg)] border border-border bg-bg p-4">
-          <p className="text-sm font-semibold text-text">Add external image URL</p>
-          <p className="mt-1 text-sm text-muted">Use this when you want to seed from an image outside your library.</p>
+          <p className="text-sm font-semibold text-text">Add an external image URL</p>
+          <p className="mt-1 text-sm text-muted">Use this when the reference image is outside your library.</p>
           <div className="mt-4 space-y-3">
             <Input value={pastedUrl} onChange={(event) => onPastedUrlChange(event.target.value)} placeholder="https://example.com/reference.jpg" />
             <Button type="button" variant="secondary" onClick={onAddUrl} className="w-full gap-2">
@@ -77,7 +77,7 @@ export function ReferenceImagePicker({
       <div>
         <p className="text-sm font-semibold text-text">Selected references</p>
         {selectedImageUrls.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No reference images selected.</p>
+          <p className="mt-2 text-sm text-muted">No references selected yet. Add one if you want stronger visual consistency.</p>
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {selectedImageUrls.map((url, index) => (

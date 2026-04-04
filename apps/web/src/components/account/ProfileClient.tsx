@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Textarea } from '@/components/ui/Textarea';
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { UserProfile, UserProfileUpdateRequest } from '@/types/api';
@@ -32,7 +33,6 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<UserProfileUpdateRequest>({
     display_name: initialName ?? 'User',
     email: initialEmail,
@@ -54,6 +54,7 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
   const [cropZoom, setCropZoom] = useState(1);
   const [cropX, setCropX] = useState(0);
   const [cropY, setCropY] = useState(0);
+  const { show } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +124,6 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
     if (!avatarDraftUrl) return;
     setUploading(true);
     setError(null);
-    setSuccess(null);
     try {
       const blob = await createCroppedAvatarBlob({
         imageUrl: avatarDraftUrl,
@@ -138,9 +138,11 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
       setCropModalOpen(false);
       setAvatarDraftUrl(null);
       await syncSession(form.display_name, form.email, response.avatar_url);
-      setSuccess('Profile photo updated.');
+      show({ title: 'Profile photo updated', message: 'Your new photo is now active across the workspace.', variant: 'success' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload avatar');
+      const message = err instanceof Error ? err.message : 'Failed to upload avatar';
+      setError(message);
+      show({ title: 'Could not update photo', message, variant: 'error' });
     } finally {
       setUploading(false);
     }
@@ -149,11 +151,11 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
   const saveProfile = async () => {
     if (!form.display_name?.trim()) {
       setError('Display name is required.');
+      show({ title: 'Profile incomplete', message: 'Display name is required before saving.', variant: 'error' });
       return;
     }
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const updated = await api.updateMyProfile(
         {
@@ -175,9 +177,11 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
       );
       setProfile(updated);
       await syncSession(updated.display_name, updated.email, avatarUrl);
-      setSuccess('Profile saved.');
+      show({ title: 'Profile saved', message: 'Your account details were updated successfully.', variant: 'success' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile');
+      const message = err instanceof Error ? err.message : 'Failed to save profile';
+      setError(message);
+      show({ title: 'Could not save profile', message, variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -238,7 +242,6 @@ export function ProfileClient({ userId, initialName, initialEmail, initialAvatar
             </div>
 
             {error ? <p className="rounded-[var(--radius-md)] border border-[hsl(var(--color-danger)/0.3)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">{error}</p> : null}
-            {success ? <p className="rounded-[var(--radius-md)] border border-[hsl(var(--color-success)/0.25)] bg-[hsl(var(--color-success)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-success))]">{success}</p> : null}
 
             <div className="grid gap-5">
               <Card className="space-y-4">

@@ -4,6 +4,7 @@ import json
 import random
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -130,8 +131,18 @@ class InspirationService:
             self.sync.sync_video(updated, auto_tags=auto_tags, user_tags=user_tags)
         return LikeResult(asset_id=asset_id, content_type=content_type, liked=next_liked, like_count=like_count)
 
-    def list_image_inspiration(self, *, viewer_user_id: str, limit: int = 60) -> list[dict[str, object]]:
-        items = self.images.list_inspiration_candidates(limit=limit * 3)
+    def list_image_inspiration(
+        self,
+        *,
+        viewer_user_id: str,
+        limit: int = 60,
+        offset: int = 0,
+        sort: Literal['curated', 'newest', 'liked'] = 'curated',
+    ) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(limit, 60))
+        bounded_offset = max(0, offset)
+        candidate_limit = max((bounded_limit + bounded_offset) * 3, bounded_limit * 3)
+        items = self.images.list_inspiration_candidates(limit=candidate_limit)
         viewer_pending = [
             row
             for row in self.images.list_by_user(viewer_user_id)
@@ -142,8 +153,8 @@ class InspirationService:
         for row in viewer_pending:
             by_id[row.id] = row
         items = list(by_id.values())
-        ranked = self._diverse_rank(items, key_fn=lambda item: str(getattr(item, 'model_key', 'image')))
-        selected_items = ranked[:limit]
+        ranked = self._ordered_items(items, sort=sort, key_fn=lambda item: str(getattr(item, 'model_key', 'image')))
+        selected_items = ranked[bounded_offset:bounded_offset + bounded_limit]
         users_by_id = self.users.get_many([item.user_id for item in selected_items])
         tags_by_asset = self.tags.list_for_assets([('image', item.id) for item in selected_items])
         liked_asset_ids = self.likes.list_liked_asset_ids(
@@ -177,8 +188,18 @@ class InspirationService:
             )
         return result
 
-    def list_video_inspiration(self, *, viewer_user_id: str, limit: int = 60) -> list[dict[str, object]]:
-        items = self.videos.list_inspiration_candidates(limit=limit * 3)
+    def list_video_inspiration(
+        self,
+        *,
+        viewer_user_id: str,
+        limit: int = 60,
+        offset: int = 0,
+        sort: Literal['curated', 'newest', 'liked'] = 'curated',
+    ) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(limit, 60))
+        bounded_offset = max(0, offset)
+        candidate_limit = max((bounded_limit + bounded_offset) * 3, bounded_limit * 3)
+        items = self.videos.list_inspiration_candidates(limit=candidate_limit)
         viewer_pending = [
             row
             for row in self.videos.list_by_user(viewer_user_id)
@@ -189,11 +210,21 @@ class InspirationService:
         for row in viewer_pending:
             by_id[row.id] = row
         items = list(by_id.values())
-        ranked = self._diverse_rank(items, key_fn=lambda item: str(getattr(item, 'selected_model', 'video')))
+        ranked = self._ordered_items(items, sort=sort, key_fn=lambda item: str(getattr(item, 'selected_model', 'video')))
+        selected_items = ranked[bounded_offset:bounded_offset + bounded_limit]
+        users_by_id = self.users.get_many([item.user_id for item in selected_items])
+        tags_by_asset = self.tags.list_for_assets([('video', item.id) for item in selected_items])
+        liked_asset_ids = self.likes.list_liked_asset_ids(
+            asset_type='video',
+            user_id=viewer_user_id,
+            asset_ids=[item.id for item in selected_items],
+        )
         result: list[dict[str, object]] = []
-        for item in ranked[:limit]:
-            auto_tags, user_tags = self._tags_for(asset_id=item.id, asset_type='video')
-            owner = self.users.get(item.user_id)
+        for item in selected_items:
+            rows = tags_by_asset.get(('video', item.id), [])
+            auto_tags = [row.tag for row in rows if row.source == 'auto']
+            user_tags = [row.tag for row in rows if row.source == 'user']
+            owner = users_by_id.get(item.user_id)
             result.append(
                 {
                     'id': item.id,
@@ -210,7 +241,7 @@ class InspirationService:
                     'created_at': getattr(item, 'inspiration_published_at', None) or item.created_at,
                     'tags': list(dict.fromkeys([*auto_tags, *user_tags]))[:8],
                     'like_count': int(getattr(item, 'like_count', 0) or 0),
-                    'liked_by_user': self.likes.has_liked(asset_type='video', asset_id=item.id, user_id=viewer_user_id),
+                    'liked_by_user': item.id in liked_asset_ids,
                     'moderation_status': str(getattr(item, 'moderation_status', 'approved')),
                 }
             )
@@ -285,6 +316,30 @@ class InspirationService:
         except json.JSONDecodeError:
             return []
         return [str(item) for item in data if str(item).strip()]
+
+    def _ordered_items(self, items: list, *, sort: str, key_fn) -> list:
+        normalized = str(sort or 'curated').lower()
+        if normalized == 'newest':
+            return sorted(
+                items,
+                key=lambda item: (
+                    getattr(item, 'inspiration_published_at', None) or getattr(item, 'created_at', datetime.min),
+                    int(getattr(item, 'inspiration_score', 0) or 0),
+                    int(getattr(item, 'like_count', 0) or 0),
+                ),
+                reverse=True,
+            )
+        if normalized == 'liked':
+            return sorted(
+                items,
+                key=lambda item: (
+                    int(getattr(item, 'like_count', 0) or 0),
+                    int(getattr(item, 'inspiration_score', 0) or 0),
+                    getattr(item, 'inspiration_published_at', None) or getattr(item, 'created_at', datetime.min),
+                ),
+                reverse=True,
+            )
+        return self._diverse_rank(items, key_fn=key_fn)
 
     def _diverse_rank(self, items: list, *, key_fn) -> list:
         buckets: dict[str, list] = {}

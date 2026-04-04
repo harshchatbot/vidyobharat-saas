@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 @import '../styles/theme.css';
 
 @tailwind base;
@@ -14,7 +14,7 @@ body {
 
 body {
   @apply bg-bg text-text antialiased font-sans;
-  line-height: 1.45;
+  line-height: 1.5;
   max-width: 100%;
   background:
     radial-gradient(circle at top right, hsl(var(--color-accent) / 0.12), transparent 32%),

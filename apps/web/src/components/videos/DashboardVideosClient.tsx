@@ -45,7 +45,8 @@ type InspirationFilter = 'all' | 'video' | 'image';
 type DashboardInspirationItem = InspirationImage | InspirationVideo;
 
 const DASHBOARD_FEED_LIMIT = 8;
-const DASHBOARD_COMMUNITY_LIMIT = 6;
+const DASHBOARD_COMMUNITY_LIMIT = 18;
+const COMMUNITY_PAGE_SIZE = 6;
 
 function formatStatus(status: string) {
   if (status === 'processing') return 'Processing';
@@ -278,6 +279,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
   const [inspirationFilter, setInspirationFilter] = useState<InspirationFilter>('all');
+  const [visibleInspirationCount, setVisibleInspirationCount] = useState(COMMUNITY_PAGE_SIZE);
   const [selectedInspirationItem, setSelectedInspirationItem] = useState<DashboardInspirationItem | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
@@ -516,6 +518,10 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   }, [inspirationFilter, imageInspiration.length, videoInspiration.length]);
 
   useEffect(() => {
+    setVisibleInspirationCount(COMMUNITY_PAGE_SIZE);
+  }, [inspirationFilter]);
+
+  useEffect(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const filtered = allAssets.filter((item) => {
       const matchesMedia = mediaFilter === 'all' || item.content_type === mediaFilter;
@@ -561,6 +567,20 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       return right - left;
     });
   }, [imageInspiration, inspirationFilter, videoInspiration]);
+
+  const visibleInspirationItems = useMemo(
+    () => inspirationItems.slice(0, visibleInspirationCount),
+    [inspirationItems, visibleInspirationCount],
+  );
+  const hasMoreInspirationItems = visibleInspirationItems.length < inspirationItems.length;
+  const remainingInspirationItems = Math.max(0, inspirationItems.length - visibleInspirationItems.length);
+
+  useEffect(() => {
+    setVisibleInspirationCount((current) => {
+      if (inspirationItems.length === 0) return COMMUNITY_PAGE_SIZE;
+      return Math.min(Math.max(current, COMMUNITY_PAGE_SIZE), inspirationItems.length);
+    });
+  }, [inspirationItems.length]);
 
   const copyPrompt = async (prompt: string) => {
     await navigator.clipboard.writeText(prompt);
@@ -865,6 +885,11 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <p className="mt-1 text-sm text-muted">A lightweight preview of approved public creations.</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link href="/community">
+              <Button variant="secondary" className="rounded-full px-4">
+                View all community
+              </Button>
+            </Link>
             <Badge variant="outline" className="h-9 rounded-full px-4 text-xs text-muted">
               Preview only
             </Badge>
@@ -901,7 +926,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
         ) : (
           <div className="columns-1 gap-2.5 sm:columns-2 md:columns-3 xl:columns-4">
-            {inspirationItems.map((item) => {
+            {visibleInspirationItems.map((item) => {
             const videoItem = isVideoInspiration(item) ? item : null;
             const imageItem = !videoItem ? (item as InspirationImage) : null;
             const preview =
@@ -1007,6 +1032,20 @@ export function DashboardVideosClient({ userId, userName }: Props) {
               Publish a high-quality generated {inspirationFilter === 'video' ? 'video' : inspirationFilter === 'image' ? 'image' : 'image or video'} to start building this feed.
             </p>
           </Card>
+        ) : null}
+        {!communityLoading && hasMoreInspirationItems ? (
+          <div className="flex justify-center pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-w-[200px]"
+              onClick={() => setVisibleInspirationCount((current) => current + COMMUNITY_PAGE_SIZE)}
+            >
+              {remainingInspirationItems > COMMUNITY_PAGE_SIZE
+                ? `Load more (${remainingInspirationItems} left)`
+                : 'Load more'}
+            </Button>
+          </div>
         ) : null}
       </section>
 

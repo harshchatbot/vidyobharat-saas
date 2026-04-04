@@ -103,11 +103,9 @@
         "16:9": { "720p": "1280x720", "1080p": "1920x1080" },
         "1:1": { "720p": "720x720", "1080p": "1080x1080" }
       },
-      "durationPresets": [3, 5, 8, 10],
-      "minDurationSeconds": 3,
-      "maxDurationSeconds": 10,
+      "durationPresets": [5, 10],
       "defaultDurationSeconds": 5,
-      "durationHelperText": "Kling 3.0 supports flexible durations from 3s to 10s."
+      "durationHelperText": "Kling 3.0 currently supports 5s and 10s clips."
     },
     {
       "key": "wan2.1_t2v_turbo",

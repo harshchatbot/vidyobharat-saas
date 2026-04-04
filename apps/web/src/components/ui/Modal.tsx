@@ -4,10 +4,10 @@ import { X } from 'lucide-react';
 export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boolean; onClose: () => void }>) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-text/40 p-3 backdrop-blur-sm sm:p-4" onClick={onClose}>
-      <div className="flex min-h-full items-start justify-center py-2 sm:items-center sm:py-4">
+    <div className="fixed inset-0 z-50 bg-text/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-contain p-2 sm:p-4">
         <div
-          className="relative w-full max-w-5xl overflow-hidden rounded-[24px] border border-border bg-surface shadow-hard sm:rounded-[32px]"
+          className="relative mt-1 w-full max-w-5xl overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:mt-4 sm:rounded-[32px]"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -18,7 +18,7 @@ export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boo
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="max-h-[calc(100vh-1.5rem)] overflow-y-auto p-4 pt-14 sm:max-h-[calc(100vh-3rem)] sm:p-6 sm:pt-16">
+          <div className="max-h-[calc(100dvh-0.5rem)] overflow-y-auto p-3 pt-14 sm:max-h-[calc(100dvh-2rem)] sm:p-6 sm:pt-16">
             {children}
           </div>
         </div>

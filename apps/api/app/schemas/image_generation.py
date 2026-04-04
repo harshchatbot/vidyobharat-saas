@@ -92,6 +92,7 @@ class ImageGenerationCreateRequest(BaseModel):
     project_id: str | None = Field(default=None, max_length=64, alias='projectId')
     mode_id: str | None = Field(default=None, max_length=80, alias='modeId')
     template_id: str | None = Field(default=None, max_length=120, alias='templateId')
+    request_id: str | None = Field(default=None, max_length=120, alias='requestId')
 
     model_config = {'populate_by_name': True}
 

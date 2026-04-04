@@ -1643,11 +1643,13 @@ def list_ai_images(
 @router.get('/ai/images/inspiration', response_model=list[InspirationImageResponse])
 def list_ai_image_inspiration(
     limit: int = 60,
+    offset: int = 0,
+    sort: str = 'curated',
     user_id: str = Depends(get_user_id),
 ):
     service = InspirationService(None)
     result: list[InspirationImageResponse] = []
-    for item in service.list_image_inspiration(viewer_user_id=user_id, limit=limit):
+    for item in service.list_image_inspiration(viewer_user_id=user_id, limit=limit, offset=offset, sort=sort):
         try:
             result.append(InspirationImageResponse.model_validate(item))
         except Exception:
@@ -1662,11 +1664,13 @@ def list_ai_image_inspiration(
 @router.get('/api/videos/inspiration', response_model=list[InspirationVideoResponse])
 def list_ai_video_inspiration(
     limit: int = 60,
+    offset: int = 0,
+    sort: str = 'curated',
     user_id: str = Depends(get_user_id),
 ):
     service = InspirationService(None)
     result: list[InspirationVideoResponse] = []
-    for item in service.list_video_inspiration(viewer_user_id=user_id, limit=limit):
+    for item in service.list_video_inspiration(viewer_user_id=user_id, limit=limit, offset=offset, sort=sort):
         try:
             result.append(InspirationVideoResponse.model_validate(item))
         except Exception:
@@ -1679,10 +1683,14 @@ def list_ai_video_inspiration(
 
 
 @router.get('/public/images/inspiration', response_model=list[InspirationImageResponse])
-def list_public_image_inspiration():
+def list_public_image_inspiration(
+    limit: int = 60,
+    offset: int = 0,
+    sort: str = 'curated',
+):
     service = InspirationService(None)
     result: list[InspirationImageResponse] = []
-    for item in service.list_image_inspiration(viewer_user_id='public'):
+    for item in service.list_image_inspiration(viewer_user_id='public', limit=limit, offset=offset, sort=sort):
         try:
             result.append(InspirationImageResponse.model_validate(item))
         except Exception:
@@ -1695,10 +1703,14 @@ def list_public_image_inspiration():
 
 
 @router.get('/public/videos/inspiration', response_model=list[InspirationVideoResponse])
-def list_public_video_inspiration():
+def list_public_video_inspiration(
+    limit: int = 60,
+    offset: int = 0,
+    sort: str = 'curated',
+):
     service = InspirationService(None)
     result: list[InspirationVideoResponse] = []
-    for item in service.list_video_inspiration(viewer_user_id='public'):
+    for item in service.list_video_inspiration(viewer_user_id='public', limit=limit, offset=offset, sort=sort):
         try:
             result.append(InspirationVideoResponse.model_validate(item))
         except Exception:
@@ -1900,6 +1912,9 @@ def generate_ai_image(
         estimate = credit_service.estimate('image_generate', payload.model_dump())
         remaining_credits: int | None = None
         if estimate.required_credits > 0:
+            idempotency_metadata = {'user_id': user_id, **payload.model_dump()}
+            if payload.request_id:
+                idempotency_metadata['request_id'] = payload.request_id
             deduction = credit_service.deduct_credits(
                 user_id=user_id,
                 amount=estimate.required_credits,
@@ -1908,12 +1923,15 @@ def generate_ai_image(
                 source='premium',
                 idempotency_key=credit_service.make_idempotency_key(
                     'image_generate',
-                    {'user_id': user_id, **payload.model_dump()},
+                    idempotency_metadata,
                 ),
             )
             deduction_amount = estimate.required_credits
             remaining_credits = deduction.wallet.current_credits
         else:
+            idempotency_metadata = {'user_id': user_id, **payload.model_dump()}
+            if payload.request_id:
+                idempotency_metadata['request_id'] = payload.request_id
             deduction = credit_service.deduct_credits(
                 user_id=user_id,
                 amount=0,
@@ -1922,7 +1940,7 @@ def generate_ai_image(
                 source='free',
                 idempotency_key=credit_service.make_idempotency_key(
                     'image_generate_free',
-                    {'user_id': user_id, **payload.model_dump()},
+                    idempotency_metadata,
                 ),
             )
             remaining_credits = deduction.wallet.current_credits

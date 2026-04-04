@@ -134,9 +134,12 @@ class CreditService:
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
         if wallet:
+            before = self._wallet_signature(wallet)
             self._normalize_wallet_entitlement(wallet)
-            self._apply_monthly_reset_if_due(wallet)
-            self.repo.update_wallet(wallet)
+            reset_applied = self._apply_monthly_reset_if_due(wallet)
+            after = self._wallet_signature(wallet)
+            if reset_applied or after != before:
+                self.repo.update_wallet(wallet)
             return wallet
 
         plan = 'free'
@@ -804,6 +807,20 @@ class CreditService:
         # Keep legacy fields aligned for API compatibility and synced read models.
         wallet.plan_type = recurring_plan
         wallet.monthly_credits = recurring_monthly
+
+    def _wallet_signature(self, wallet: FirestoreCreditWallet) -> tuple[Any, ...]:
+        return (
+            wallet.current_credits,
+            wallet.plan_type,
+            wallet.monthly_credits,
+            wallet.last_reset,
+            wallet.premium_usage_count,
+            wallet.free_usage_count,
+            wallet.lifetime_purchased,
+            wallet.lifetime_used,
+            wallet.recurring_plan_type,
+            wallet.recurring_monthly_credits,
+        )
 
     def _deduction_mutation(
         self,

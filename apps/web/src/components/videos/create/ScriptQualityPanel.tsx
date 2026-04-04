@@ -25,9 +25,9 @@ export function ScriptQualityPanel({
   const enhanceLabel =
     typeof enhanceCredits === 'number'
       ? enhanceCredits > 0
-        ? `Enhance Script · ${enhanceCredits} credits`
-        : 'Enhance Script · Free'
-      : 'Enhance Script';
+        ? `Improve script · ${enhanceCredits} credits`
+        : 'Improve script · Free'
+      : 'Improve script';
 
   return (
     <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.48)] px-4 py-3.5">
@@ -37,7 +37,7 @@ export function ScriptQualityPanel({
           <div className="mt-1 flex items-center gap-2">
             <p className={`text-sm font-semibold ${scoreTone}`}>{report.score}/100</p>
             <Badge variant="outline" className="text-[10px]">
-              Best-practice check
+              Creator best-practice check
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted">{report.summary}</p>

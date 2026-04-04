@@ -151,7 +151,7 @@ export function AuthFormClient({ mode }: Props) {
 
   if (awaitingConfirmation && !isLogin) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-8 flex items-center justify-between">
           <BrandLogo href="/" variant="mark" size="sm" />
           <Link
@@ -247,7 +247,7 @@ export function AuthFormClient({ mode }: Props) {
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
 
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-8 flex items-center justify-between">
           <BrandLogo href="/" variant="mark" size="sm" />
           <Link
@@ -259,161 +259,148 @@ export function AuthFormClient({ mode }: Props) {
           </Link>
         </div>
 
-        <div className="space-y-8">
-          <div className="flex flex-col gap-6 border-b border-[hsl(var(--color-border)/0.55)] pb-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-sm">
-              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--color-accent))]">
-                <Sparkles className="h-3 w-3" />
-                {isLogin ? 'RangManch AI Studio' : 'New account'}
-              </div>
-              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">
-                {title}
-              </h1>
-              <p className="mt-1.5 text-sm leading-relaxed text-[hsl(var(--color-muted))]">{subtitle}</p>
-            </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(380px,0.76fr)] lg:items-stretch">
+          <AuthShowcasePanel />
 
-            {!isLogin ? (
-              <div className="border-t border-[hsl(var(--color-border)/0.55)] pt-4 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--color-accent)/0.75)]">
-                  Setup steps
+          <div className="rangmanch-floating-hero rounded-[30px] px-5 py-6 sm:px-7 sm:py-7">
+            <div className="space-y-8">
+              <div className="flex flex-col gap-6 border-b border-[hsl(var(--color-border)/0.55)] pb-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-sm">
+                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--color-accent))]">
+                    <Sparkles className="h-3 w-3" />
+                    {isLogin ? 'RangManch AI Studio' : 'New account'}
+                  </div>
+                  <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-[2.35rem]">
+                    {title}
+                  </h1>
+                  <p className="mt-1.5 text-sm leading-relaxed text-[hsl(var(--color-muted))]">{subtitle}</p>
                 </div>
-                <ol className="space-y-1 text-xs leading-relaxed">
-                  <li>Create your account</li>
-                  <li>Verify your email</li>
-                  <li>Sign in and enter the studio</li>
-                </ol>
-              </div>
-            ) : null}
-          </div>
 
-          {error ? (
-            <div className="flex items-start gap-2 rounded-xl border border-[hsl(var(--color-danger)/0.4)] bg-[hsl(var(--color-danger)/0.06)] px-3.5 py-2.5">
-              <span className="mt-px h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[hsl(var(--color-danger))]" />
-              <p className="text-xs leading-relaxed text-[hsl(var(--color-danger))]">{error}</p>
-            </div>
-          ) : null}
-          {message ? (
-            <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.5)] px-3.5 py-2.5">
-              <p className="text-xs leading-relaxed text-[hsl(var(--color-text))]">{message}</p>
-            </div>
-          ) : null}
-
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
-            <div className="space-y-5">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="group inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.35)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition-all duration-150 hover:border-[hsl(var(--color-accent)/0.4)] hover:bg-[hsl(var(--color-bg)/0.6)] hover:shadow-sm active:scale-[0.99]"
-              >
-                <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-white text-[11px] font-extrabold text-[#4285F4]">
-                  G
-                </span>
-                Continue with Google
-              </button>
-
-              <div className="flex items-center gap-3 text-xs text-[hsl(var(--color-muted)/0.7)]">
-                <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
-                <span className="select-none">or continue with email</span>
-                <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
-              </div>
-
-              <form onSubmit={handleSubmit} className="grid gap-3">
                 {!isLogin ? (
-                  <>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="border-t border-[hsl(var(--color-border)/0.55)] pt-4 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--color-accent)/0.75)]">
+                      Setup steps
+                    </div>
+                    <ol className="space-y-1 text-xs leading-relaxed">
+                      <li>Create your account</li>
+                      <li>Verify your email</li>
+                      <li>Sign in and enter the studio</li>
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
+
+              {error ? (
+                <div className="flex items-start gap-2 rounded-xl border border-[hsl(var(--color-danger)/0.4)] bg-[hsl(var(--color-danger)/0.06)] px-3.5 py-2.5">
+                  <span className="mt-px h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[hsl(var(--color-danger))]" />
+                  <p className="text-xs leading-relaxed text-[hsl(var(--color-danger))]">{error}</p>
+                </div>
+              ) : null}
+              {message ? (
+                <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.5)] px-3.5 py-2.5">
+                  <p className="text-xs leading-relaxed text-[hsl(var(--color-text))]">{message}</p>
+                </div>
+              ) : null}
+
+              <div className="space-y-5">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="group inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.35)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text))] transition-all duration-150 hover:border-[hsl(var(--color-accent)/0.4)] hover:bg-[hsl(var(--color-bg)/0.6)] hover:shadow-sm active:scale-[0.99]"
+                >
+                  <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-white text-[11px] font-extrabold text-[#4285F4]">
+                    G
+                  </span>
+                  Continue with Google
+                </button>
+
+                <div className="flex items-center gap-3 text-xs text-[hsl(var(--color-muted)/0.7)]">
+                  <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
+                  <span className="select-none">or continue with email</span>
+                  <span className="h-px flex-1 bg-[hsl(var(--color-border)/0.6)]" />
+                </div>
+
+                <form onSubmit={handleSubmit} className="grid gap-3">
+                  {!isLogin ? (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          name="full_name"
+                          type="text"
+                          placeholder="Full name"
+                          value={fullName}
+                          onChange={(event) => setFullName(event.target.value)}
+                          required
+                        />
+                        <Input
+                          name="phone"
+                          type="tel"
+                          placeholder="Phone (optional)"
+                          value={phone}
+                          onChange={(event) => setPhone(event.target.value)}
+                        />
+                      </div>
+                      <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
+                        Use your real name so your profile, billing, and workspace settings are initialized correctly.
+                      </p>
+                    </>
+                  ) : null}
+
+                  <Input
+                    name="email"
+                    type="email"
+                    placeholder={isLogin ? 'you@domain.com' : 'Work email'}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                  <Input
+                    name="password"
+                    type="password"
+                    placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+
+                  {!isLogin ? (
+                    <>
                       <Input
-                        name="full_name"
-                        type="text"
-                        placeholder="Full name"
-                        value={fullName}
-                        onChange={(event) => setFullName(event.target.value)}
+                        name="confirm_password"
+                        type="password"
+                        placeholder="Confirm password"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
                         required
                       />
-                      <Input
-                        name="phone"
-                        type="tel"
-                        placeholder="Phone (optional)"
-                        value={phone}
-                        onChange={(event) => setPhone(event.target.value)}
-                      />
-                    </div>
-                    <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
-                      Use your real name so your profile, billing, and workspace settings are initialized correctly.
-                    </p>
-                  </>
-                ) : null}
+                      <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
+                        Use at least 8 characters. After signup, Firebase will send a verification email before first login.
+                      </p>
+                    </>
+                  ) : null}
 
-                <Input
-                  name="email"
-                  type="email"
-                  placeholder={isLogin ? 'you@domain.com' : 'Work email'}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-                <Input
-                  name="password"
-                  type="password"
-                  placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="mt-1 min-h-11 w-full shadow-soft transition-all duration-150 active:scale-[0.99]"
+                  >
+                    {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create Account'}
+                  </Button>
+                </form>
+              </div>
 
-                {!isLogin ? (
-                  <>
-                    <Input
-                      name="confirm_password"
-                      type="password"
-                      placeholder="Confirm password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      required
-                    />
-                    <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
-                      Use at least 8 characters. After signup, Firebase will send a verification email before first login.
-                    </p>
-                  </>
-                ) : null}
-
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="mt-1 min-h-11 w-full shadow-soft transition-all duration-150 active:scale-[0.99]"
+              <div className="flex items-center justify-between border-t border-[hsl(var(--color-border)/0.5)] pt-4">
+                <p className="text-xs text-[hsl(var(--color-muted))]">
+                  {isLogin ? 'New here?' : 'Already have an account?'}
+                </p>
+                <Link
+                  href={isLogin ? '/signup' : '/login'}
+                  className="text-xs font-semibold text-[hsl(var(--color-accent))] transition-opacity hover:opacity-80"
                 >
-                  {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create Account'}
-                </Button>
-              </form>
-            </div>
-
-            <div className="border-l border-[hsl(var(--color-border)/0.55)] pl-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent)/0.78)]">
-                What you get
-              </p>
-              <div className="mt-3 space-y-3">
-                {[
-                  'Image, video, and template workflows in one studio',
-                  'Project-based organization for outputs and prompts',
-                  'Secure Firebase authentication with session persistence',
-                ].map((item) => (
-                  <div key={item} className="text-sm leading-6 text-[hsl(var(--color-muted))]">
-                    {item}
-                  </div>
-                ))}
+                  {isLogin ? 'Create account →' : 'Sign in →'}
+                </Link>
               </div>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-[hsl(var(--color-border)/0.5)] pt-4">
-            <p className="text-xs text-[hsl(var(--color-muted))]">
-              {isLogin ? 'New here?' : 'Already have an account?'}
-            </p>
-            <Link
-              href={isLogin ? '/signup' : '/login'}
-              className="text-xs font-semibold text-[hsl(var(--color-accent))] transition-opacity hover:opacity-80"
-            >
-              {isLogin ? 'Create account →' : 'Sign in →'}
-            </Link>
           </div>
         </div>
 
@@ -422,5 +409,28 @@ export function AuthFormClient({ mode }: Props) {
         </p>
       </div>
     </>
+  );
+}
+
+function AuthShowcasePanel() {
+  return (
+    <div className="order-2 overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.56)] bg-[linear-gradient(145deg,hsl(var(--color-surface)/0.9),hsl(var(--color-elevated)/0.82))] shadow-[var(--shadow-cinematic)] lg:order-1">
+      <div className="relative min-h-[280px] sm:min-h-[360px] lg:min-h-full">
+        <img src="/rangmanciai_login.jpg" alt="RangManch AI login visual" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.1),hsl(var(--color-bg)/0.18)_26%,hsl(var(--color-bg)/0.88)_92%)]" />
+        <div className="relative flex h-full flex-col justify-between p-5 sm:p-6 lg:p-8">
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.3)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
+              Creator studio
+            </span>
+            <span className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">
+              India-first
+            </span>
+          </div>
+
+    
+        </div>
+      </div>
+    </div>
   );
 }

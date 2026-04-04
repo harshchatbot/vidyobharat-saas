@@ -53,10 +53,40 @@ function sanitizeTags(tags: string[]) {
 
 type VideoModelKey = string;
 type RenderSessionPhase = 'idle' | 'preparing' | 'queued' | 'processing' | 'success' | 'failed';
+type CreatorIntentKey = 'viral_reel' | 'story_reel' | 'ad_reel' | 'explainer_reel' | 'character_reel' | 'cute_fun_clip';
+type VideoQuickStartPreset = {
+  title: string;
+  description: string;
+  preferredTemplateKeys: string[];
+  lane: VideoLaneKey;
+  modelKey: string;
+  aspectRatio: '9:16' | '16:9' | '1:1';
+  resolution: '720p' | '1080p';
+  quality: 'standard' | 'high';
+  durationSeconds: string;
+  captionsEnabled: boolean;
+  topic: string;
+  script: string;
+};
+type VideoTemplateQuickApplyPreset = {
+  title: string;
+  script: string;
+  inputDefaults?: Record<string, string>;
+  captionsEnabled?: boolean;
+  narrationEnabled?: boolean;
+};
 
 function estimateInrFromCredits(credits: number) {
   if (credits <= 0) return null;
   return Math.max(0, Math.ceil(credits * 2.5));
+}
+
+function normalizeDurationForModel(modelKey: string, durationSeconds: number | null | undefined) {
+  const duration = Number(durationSeconds);
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+  if (modelKey !== 'kling3') return Math.trunc(duration);
+  if (duration === 5 || duration === 10) return duration;
+  return 5;
 }
 
 function buildTierStageLabel(phase: RenderSessionPhase, progress: number) {
@@ -77,10 +107,18 @@ function normalizeTemplateOptions(field: TemplateInputField): Array<{ label: str
   );
 }
 
+function buildTemplateScaffoldValue(field: TemplateInputField): string {
+  if (field.type === 'select') {
+    return normalizeTemplateOptions(field)[0]?.value || '';
+  }
+  const label = (field.label || field.key || 'value').trim().toLowerCase();
+  return `[Insert ${label} here]`;
+}
+
 function buildInitialTemplateInputs(template: UnifiedTemplate | null): Record<string, string> {
   if (!template?.inputs?.length) return {};
   return Object.fromEntries(
-    template.inputs.map((field) => [field.key, field.placeholder || normalizeTemplateOptions(field)[0]?.value || '']),
+    template.inputs.map((field) => [field.key, buildTemplateScaffoldValue(field)]),
   );
 }
 
@@ -140,6 +178,290 @@ const VIDEO_LANE_PROMPT_PLACEHOLDERS: Record<VideoLaneKey, { topic: string; scri
       'Example: A cinematic night-time reveal of a futuristic electric car emerging through rain and neon reflections, dramatic camera push, premium commercial lighting, rich motion detail, high-production flagship campaign look.',
   },
 };
+
+const CREATOR_INTENT_OPTIONS: Array<{
+  key: CreatorIntentKey;
+  label: string;
+  description: string;
+}> = [
+  { key: 'viral_reel', label: 'Viral Reel', description: 'Fast-moving, social-first content with strong hooks.' },
+  { key: 'story_reel', label: 'Story Reel', description: 'Narrative, top-5, before-after, and scene-based storytelling.' },
+  { key: 'ad_reel', label: 'Ad Reel', description: 'Product, brand, and conversion-focused promo content.' },
+  { key: 'explainer_reel', label: 'Explainer Reel', description: 'Educational and product explainers with clear structure.' },
+  { key: 'character_reel', label: 'Character Reel', description: 'Persona-led or character-led storytelling.' },
+  { key: 'cute_fun_clip', label: 'Cute / Fun Clip', description: 'Playful, light, entertaining short-form content.' },
+];
+
+const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset> = {
+  viral_reel: {
+    title: 'Viral Reel',
+    description: 'Hook-first setup for fast, social storytelling.',
+    preferredTemplateKeys: ['music-video', 'storyboard', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '10',
+    captionsEnabled: true,
+    topic: 'A cinematic reel about why consistency matters more than talent',
+    script: 'Create a short, cinematic reel about why consistency matters more than talent. Start with a frustrated creator, show editing chaos and burnout, then end on a powerful message about showing up every day.',
+  },
+  story_reel: {
+    title: 'Story Reel',
+    description: 'A guided narrative setup for before-after and emotional storytelling.',
+    preferredTemplateKeys: ['storyboard', 'history', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '10',
+    captionsEnabled: true,
+    topic: 'An inspiring creator story about starting with nothing but an idea',
+    script: 'Create a story-style reel about a beginner who had ideas but no camera, no editing skills, and no confidence, yet still started creating with AI. Make it emotional, inspiring, and social-first.',
+  },
+  ad_reel: {
+    title: 'Ad Reel',
+    description: 'Best-value ad setup for product visuals and conversion-focused pacing.',
+    preferredTemplateKeys: ['product', 'startup', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '5',
+    captionsEnabled: false,
+    topic: 'A premium short-form ad for a mango drink brand',
+    script: 'Create a premium short-form ad for a mango drink bottle with bright summer visuals, clean product framing, lifestyle energy, and conversion-focused pacing.',
+  },
+  explainer_reel: {
+    title: 'Explainer Reel',
+    description: 'A guided explainer setup with captions on by default.',
+    preferredTemplateKeys: ['explainer-video', 'tech', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '10',
+    captionsEnabled: true,
+    topic: 'A character-led explainer about what the human heart does',
+    script: 'Create a character-led explainer where the human heart explains what it does for the body in a simple, engaging, and visually memorable way.',
+  },
+  character_reel: {
+    title: 'Character Reel',
+    description: 'A strong starting point for persona-led and mythology-style visuals.',
+    preferredTemplateKeys: ['character-vlog', 'mythology', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '10',
+    captionsEnabled: true,
+    topic: 'A mythology-inspired hero speaking about strength and devotion',
+    script: 'Create a cinematic character-led reel featuring a mythology-inspired hero speaking about strength, discipline, and devotion with powerful visuals and social-first pacing.',
+  },
+  cute_fun_clip: {
+    title: 'Cute / Fun Clip',
+    description: 'A playful short-form setup for mascot, pet, and loop-friendly content.',
+    preferredTemplateKeys: ['music-video', 'asmr-video', 'custom'],
+    lane: 'creator_pro',
+    modelKey: 'kling3',
+    aspectRatio: '9:16',
+    resolution: '720p',
+    quality: 'standard',
+    durationSeconds: '5',
+    captionsEnabled: false,
+    topic: 'A playful mascot dance clip with shareable energy',
+    script: 'Create a cute, loop-friendly reel featuring a playful mascot dancing with smooth movement, family-safe appeal, and high share potential.',
+  },
+};
+
+const VIDEO_TEMPLATE_QUICK_APPLY_PRESETS: Record<string, VideoTemplateQuickApplyPreset> = {
+  character_explainer_reel: {
+    title: 'Explain Anything Like a Character',
+    script:
+      'Create a character-led explainer where the human heart explains what it does for the body in a simple, engaging, and visually memorable way.',
+    captionsEnabled: true,
+    narrationEnabled: true,
+    inputDefaults: {
+      speakerType: 'body_organ',
+      speakerName: 'The Human Heart',
+      topic: 'How the heart pumps blood through the body',
+      audience: 'General audience',
+      tone: 'Educational',
+      language: 'English',
+      platform: 'Instagram Reels',
+      duration: '12',
+      visualStyle: 'Premium Explainer',
+      voiceStyle: 'Warm educator',
+      textOverlay: 'Animated captions',
+      cta: 'Follow for more explainers',
+    },
+  },
+  client_ad_reel: {
+    title: 'High-Converting Ad Reel',
+    script:
+      'Create a premium short-form ad for a mango drink bottle with bright summer visuals, clean product framing, lifestyle energy, and conversion-focused pacing.',
+    captionsEnabled: true,
+    narrationEnabled: true,
+    inputDefaults: {
+      businessType: 'product_ad',
+      productOrService: 'Mango drink bottle',
+      targetAudience: 'Young urban buyers',
+      offer: 'Limited summer launch',
+      tone: 'Premium',
+      platform: 'Instagram Reels',
+      duration: '12',
+      brandColors: 'Mango yellow and deep green',
+      headline: 'Summer in every sip',
+      cta: 'Shop now',
+    },
+  },
+  story_slides_reel: {
+    title: 'Story / Top 5 / Before-After Reel',
+    script:
+      'Create a story-style reel about a beginner who had ideas but no camera, no editing skills, and no confidence, yet still started creating with AI. Make it emotional, inspiring, and social-first.',
+    captionsEnabled: true,
+    narrationEnabled: true,
+    inputDefaults: {
+      subtype: 'top_5',
+      topic: '5 habits of creators who stay consistent',
+      audience: 'Creators and founders',
+      tone: 'Educational',
+      platform: 'Instagram Reels',
+      duration: '8',
+      cta: 'Follow for more creator systems',
+    },
+  },
+  viral_dance_clip: {
+    title: 'Cute Viral Clip',
+    script:
+      'Create a cute, loop-friendly reel featuring a playful mascot dancing with smooth movement, family-safe appeal, and high share potential.',
+    captionsEnabled: false,
+    narrationEnabled: false,
+    inputDefaults: {
+      character: 'Playful panda mascot',
+      danceStyle: 'Bhangra-inspired playful groove',
+      sceneTheme: 'Colorful festival backdrop with bright lights',
+    },
+  },
+};
+
+const TEMPLATE_OPTIONAL_DETAIL_KEYS = new Set([
+  'audience',
+  'targetAudience',
+  'tone',
+  'platform',
+  'duration',
+  'cta',
+  'project',
+  'scriptOverride',
+  'offer',
+  'brandColors',
+  'brandName',
+  'headline',
+  'voiceStyle',
+  'visualStyle',
+  'textOverlay',
+  'danceStyle',
+  'sceneTheme',
+  'character',
+  'speakerType',
+  'speakerName',
+  'productOrService',
+  'businessType',
+]);
+
+function firstTemplateOptionValue(field: TemplateInputField): string {
+  return normalizeTemplateOptions(field)[0]?.value || '';
+}
+
+function resolveQuickApplyPreset(template: UnifiedTemplate): VideoTemplateQuickApplyPreset {
+  return (
+    VIDEO_TEMPLATE_QUICK_APPLY_PRESETS[template.id] || {
+      title: template.title || template.name,
+      script: template.script_hint || template.description || template.topic_hint || 'Create a strong social-first reel with a clear opening, clean pacing, and a memorable ending.',
+      captionsEnabled: true,
+      narrationEnabled: true,
+      inputDefaults: {},
+    }
+  );
+}
+
+function buildQuickApplyTemplateInputs(template: UnifiedTemplate): Record<string, string> {
+  const preset = resolveQuickApplyPreset(template);
+  const inputs = buildInitialTemplateInputs(template);
+  for (const field of template.inputs || []) {
+    const presetValue = preset.inputDefaults?.[field.key];
+    if (presetValue) {
+      inputs[field.key] = presetValue;
+      continue;
+    }
+    if (field.key === 'topic') {
+      inputs[field.key] = template.topic_hint || 'Create a strong creator-first reel concept';
+      continue;
+    }
+    if (field.key === 'language') {
+      inputs[field.key] = template.generation_defaults?.language || firstTemplateOptionValue(field) || 'English';
+      continue;
+    }
+    if (field.key === 'duration') {
+      inputs[field.key] = String(template.generation_defaults?.duration_seconds || firstTemplateOptionValue(field) || '8');
+      continue;
+    }
+    if ((field.type === 'select' || field.required) && (!inputs[field.key] || inputs[field.key].startsWith('[Insert'))) {
+      const firstValue = firstTemplateOptionValue(field);
+      if (firstValue) {
+        inputs[field.key] = firstValue;
+      }
+    }
+  }
+  return inputs;
+}
+
+function resolveCreatorIntent(template: TemplateOption | null): CreatorIntentKey {
+  const haystack = `${template?.key || ''} ${template?.label || ''} ${template?.description || ''} ${template?.helper || ''}`.toLowerCase();
+  if (haystack.includes('product') || haystack.includes('ad ') || haystack.includes('promo') || haystack.includes('startup') || haystack.includes('property')) {
+    return 'ad_reel';
+  }
+  if (haystack.includes('explainer') || haystack.includes('tech') || haystack.includes('education') || haystack.includes('organ')) {
+    return 'explainer_reel';
+  }
+  if (haystack.includes('character') || haystack.includes('persona') || haystack.includes('vlog')) {
+    return 'character_reel';
+  }
+  if (haystack.includes('myth') || haystack.includes('history') || haystack.includes('story') || haystack.includes('timeline') || haystack.includes('slides') || haystack.includes('storyboard')) {
+    return 'story_reel';
+  }
+  if (haystack.includes('dance') || haystack.includes('cute') || haystack.includes('fun') || haystack.includes('music') || haystack.includes('asmr')) {
+    return 'cute_fun_clip';
+  }
+  return 'viral_reel';
+}
+
+function matchesCreatorIntent(template: TemplateOption, intent: CreatorIntentKey) {
+  return resolveCreatorIntent(template) === intent;
+}
+
+function pickVideoQuickStartTemplate(
+  templates: TemplateOption[],
+  intent: CreatorIntentKey,
+  preset: VideoQuickStartPreset,
+) {
+  for (const key of preset.preferredTemplateKeys) {
+    const exact = templates.find((template) => template.key === key);
+    if (exact) return exact;
+  }
+  return (
+    templates.find((template) => template.key !== 'custom' && matchesCreatorIntent(template, intent)) ??
+    templates.find((template) => template.key !== 'custom') ??
+    templates[0] ??
+    null
+  );
+}
 
 function mergeVideoTemplateOptions(unifiedTemplates: UnifiedTemplate[]): TemplateOption[] {
   const localMap = new Map(TEMPLATE_OPTIONS.map((item) => [item.key, item]));
@@ -248,6 +570,8 @@ export function CreateVideoPage({
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const voicePreviewControlsRef = useRef<HTMLDivElement | null>(null);
+  const composeSectionRef = useRef<HTMLDivElement | null>(null);
+  const scriptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastTaggedScriptRef = useRef('');
 
   const initialTemplate = TEMPLATE_OPTIONS.find((item) => item.key === templateKey) ?? TEMPLATE_OPTIONS[0];
@@ -334,6 +658,9 @@ export function CreateVideoPage({
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [narrationEnabled, setNarrationEnabled] = useState(false);
   const [captionStyle, setCaptionStyle] = useState('Classic');
+  const [quickStartFeedback, setQuickStartFeedback] = useState<{ title: string; description: string } | null>(null);
+  const [templateApplyLoadingKey, setTemplateApplyLoadingKey] = useState<string | null>(null);
+  const [activeTemplateState, setActiveTemplateState] = useState<'ready' | 'customized' | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -370,12 +697,17 @@ export function CreateVideoPage({
     !templateFlowPreviewLoading &&
     Boolean(templateFlowPreview?.scriptPreview || templateFlowPreview?.videoPrompt || templateFlowPreview?.prompt);
   const completionToastRef = useRef<string | null>(null);
+  const guidedLaunchOpenedRef = useRef(false);
   const sharedModelMap = useMemo(() => getVideoModelMap(), []);
   const visibleTemplates = videoTemplates.filter((item) => {
     const query = templateSearch.trim().toLowerCase();
     if (!query) return true;
     return `${item.label} ${item.description}`.toLowerCase().includes(query);
   });
+  const selectedIntent = resolveCreatorIntent(template ?? null);
+  const visibleIntentOptions = CREATOR_INTENT_OPTIONS.filter((intent) =>
+    visibleTemplates.some((item) => matchesCreatorIntent(item, intent.key)),
+  );
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const laneModels = useMemo(
     () => models.filter((model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === videoLane),
@@ -385,6 +717,7 @@ export function CreateVideoPage({
   const selectedModel = visibleModels.find((model) => model.key === modelKey) ?? visibleModels.find((model) => model.enabled !== false) ?? visibleModels[0];
   const selectedModelDisabled = selectedModel?.enabled === false;
   const selectedLane = getVideoLaneDefinition(videoLane);
+  const recommendedEngineCopy = `${selectedLane.label} · ${selectedModel?.shortLabel ?? selectedModel?.label ?? 'Smart default'}`;
   const isDailyLane = videoLane === 'daily';
   const activeLanePromptPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].script;
   const activeLaneTopicPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].topic;
@@ -397,6 +730,10 @@ export function CreateVideoPage({
   );
   const voiceProvider = FREE_VOICE_KEYS.has(voice) ? 'free' : 'sarvam';
   const durationRule = VIDEO_DURATION_RULES[modelKey];
+  const normalizedDurationSeconds = useMemo(
+    () => normalizeDurationForModel(modelKey, Number(durationSeconds) || durationRule.defaultSeconds),
+    [durationRule.defaultSeconds, durationSeconds, modelKey],
+  );
   const estimateRequests = useMemo(
     () => [
       {
@@ -405,7 +742,7 @@ export function CreateVideoPage({
         payload: {
           model: modelKey,
           resolution,
-          durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
+          durationSeconds: normalizedDurationSeconds || durationRule.defaultSeconds,
           quality,
           captionsEnabled,
           narrationEnabled,
@@ -447,7 +784,7 @@ export function CreateVideoPage({
     [
       modelKey,
       resolution,
-      durationSeconds,
+      normalizedDurationSeconds,
       durationRule.defaultSeconds,
       quality,
       captionsEnabled,
@@ -488,7 +825,7 @@ export function CreateVideoPage({
     () => ({
       model: modelKey,
       resolution,
-      durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds,
+      durationSeconds: normalizedDurationSeconds || durationRule.defaultSeconds,
       quality,
       captionsEnabled,
       narrationEnabled,
@@ -500,7 +837,7 @@ export function CreateVideoPage({
     [
       modelKey,
       resolution,
-      durationSeconds,
+      normalizedDurationSeconds,
       durationRule.defaultSeconds,
       quality,
       captionsEnabled,
@@ -555,7 +892,7 @@ export function CreateVideoPage({
     const qualityMultiplier = Number((creditEngine.video.qualityMultiplier as Record<string, number>)[quality] ?? 1);
     const baseCredits = Number(creditEngine.video.baseCredits ?? 0);
     const baseDuration = Number(creditEngine.video.baseDuration ?? 15);
-    const duration = Math.max(1, Number(durationSeconds) || durationRule.defaultSeconds || 8);
+    const duration = Math.max(1, normalizedDurationSeconds || durationRule.defaultSeconds || 8);
     const baseRaw = baseCredits * modelMultiplier * resolutionMultiplier * (duration / Math.max(baseDuration, 1)) * qualityMultiplier;
     const base = Math.max(1, Math.ceil(baseRaw));
 
@@ -577,7 +914,7 @@ export function CreateVideoPage({
     captionsEnabled,
     creditEstimate?.estimatedCredits,
     durationRule.defaultSeconds,
-    durationSeconds,
+    normalizedDurationSeconds,
     modelKey,
     narrationEnabled,
     quality,
@@ -604,6 +941,7 @@ export function CreateVideoPage({
       modelKey,
       resolution,
       durationSeconds,
+      normalizedDurationSeconds,
       quality,
       captionsEnabled,
       narrationEnabled,
@@ -615,7 +953,7 @@ export function CreateVideoPage({
     [
       modelKey,
       resolution,
-      durationSeconds,
+      normalizedDurationSeconds,
       quality,
       captionsEnabled,
       narrationEnabled,
@@ -682,6 +1020,13 @@ export function CreateVideoPage({
   }, [availableDurations, durationSeconds, isDailyLane]);
 
   useEffect(() => {
+    if (modelKey !== 'kling3') return;
+    if (normalizedDurationSeconds === null) return;
+    if (Number(durationSeconds) === normalizedDurationSeconds) return;
+    setDurationSeconds(String(normalizedDurationSeconds));
+  }, [durationSeconds, modelKey, normalizedDurationSeconds]);
+
+  useEffect(() => {
     if (videoLane !== 'daily') return;
     const fallbackLane = VIDEO_LANES[0]?.key ?? 'creator_pro';
     if (fallbackLane !== videoLane) {
@@ -703,8 +1048,9 @@ export function CreateVideoPage({
       setModelKey(fallbackModel.key as VideoModelKey);
     }
   }, [laneModels.length, modelKey, models, sharedModelMap, videoLane]);
+  const supportsCustomDuration = modelKey !== 'kling3' && durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined;
   const durationError =
-    durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined
+    supportsCustomDuration
       ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)
         ? `Enter a duration between ${klingMinDuration}s and ${klingMaxDuration}s.`
         : null)
@@ -715,10 +1061,10 @@ export function CreateVideoPage({
     () =>
       evaluateScriptQuality({
         script,
-        durationSeconds: Number(durationSeconds) || durationRule.defaultSeconds || 8,
+        durationSeconds: normalizedDurationSeconds || durationRule.defaultSeconds || 8,
         structuredPreferred: !isDailyLane,
       }),
-    [durationRule.defaultSeconds, durationSeconds, isDailyLane, script],
+    [durationRule.defaultSeconds, isDailyLane, normalizedDurationSeconds, script],
   );
   const generationOverlayVisible = renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing';
   const overlayVisible = generationOverlayVisible || voiceTranslationLoading || initialLoading;
@@ -986,6 +1332,21 @@ export function CreateVideoPage({
   }, [activeTemplateFlow]);
 
   useEffect(() => {
+    if (guidedLaunchOpenedRef.current || templatesLoading) return;
+    if (!templateKey || initialScript?.trim() || sanitizedInitialTitle.trim()) return;
+    const guidedTemplate = unifiedVideoTemplates.find(
+      (item) => item.id === templateKey || (item.legacy_mappings || []).includes(templateKey),
+    );
+    if (!guidedTemplate) return;
+    guidedLaunchOpenedRef.current = true;
+    setTemplateApplyLoadingKey(guidedTemplate.id);
+    window.setTimeout(() => {
+      setTemplateApplyLoadingKey(null);
+      void quickApplyTemplate(guidedTemplate.id);
+    }, 0);
+  }, [initialScript, sanitizedInitialTitle, templateKey, templatesLoading, unifiedVideoTemplates]);
+
+  useEffect(() => {
     if (!templateFlowOpen || !activeTemplateFlow) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -1246,6 +1607,7 @@ export function CreateVideoPage({
               title: 'Your video is ready',
               message: 'Video generated successfully.',
               variant: 'success',
+              celebrate: true,
               actionLabel: 'View video',
               onAction: () => {
                 if (typeof window !== 'undefined') {
@@ -1393,9 +1755,25 @@ export function CreateVideoPage({
     setMusicPlaying(false);
   }, [selectedTrackId, musicMode]);
 
-  const applyTemplate = (templateId: string) => {
+  const focusComposeEditor = () => {
+    window.setTimeout(() => {
+      composeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scriptTextareaRef.current?.focus();
+    }, 80);
+  };
+
+  const applyTemplateSelection = (
+    templateId: string,
+    options?: {
+      openGuidedFlow?: boolean;
+      topicOverride?: string;
+      scriptOverride?: string;
+      titleOverride?: string;
+    },
+  ) => {
+    const openGuidedFlow = options?.openGuidedFlow ?? true;
     const unifiedTemplate = unifiedVideoTemplates.find((item) => item.id === templateId || (item.legacy_mappings || []).includes(templateId));
-    if (unifiedTemplate) {
+    if (unifiedTemplate && openGuidedFlow) {
       setActiveTemplateFlow(unifiedTemplate);
       setTemplateFlowOpen(true);
       setSubmitError(null);
@@ -1403,7 +1781,9 @@ export function CreateVideoPage({
       return;
     }
 
-    const next = videoTemplates.find((item) => item.key === templateId);
+    const next =
+      videoTemplates.find((item) => item.key === templateId) ??
+      (unifiedTemplate ? mapUnifiedTemplateToVideoOption(unifiedTemplate) : null);
     if (!next) return;
     setAppliedHeroTemplateId(null);
     setAppliedHeroTemplateInputs({});
@@ -1417,29 +1797,193 @@ export function CreateVideoPage({
       !script.trim() || script === previousTemplate?.scriptHint;
 
     setSelectedTemplate(next.key);
+    if (next.key === 'custom') {
+      setActiveTemplateState(null);
+    }
 
     if (next.key === 'custom') {
-      setTopic('');
-      setScript('');
-      setTitle('');
+      setTopic(options?.topicOverride ?? '');
+      setScript(options?.scriptOverride ?? '');
+      setTitle(options?.titleOverride ?? '');
     } else {
-      if (topicLooksTemplateDriven) {
+      if (options?.topicOverride !== undefined) {
+        setTopic(options.topicOverride);
+      } else if (topicLooksTemplateDriven) {
         setTopic(next.topicHint);
       }
-      if (scriptLooksTemplateDriven) {
+      if (options?.scriptOverride !== undefined) {
+        setScript(options.scriptOverride);
+      } else if (scriptLooksTemplateDriven) {
         setScript(next.scriptHint);
       }
-      if (!title.trim() || title === previousTemplate?.topicHint) {
+      if (options?.titleOverride !== undefined) {
+        setTitle(options.titleOverride);
+      } else if (!title.trim() || title === previousTemplate?.topicHint) {
         setTitle(next.topicHint);
       }
     }
 
     if (next.defaultModelKey) {
+      const recommendedLane = sharedModelMap[next.defaultModelKey]?.lane as VideoLaneKey | undefined;
+      if (recommendedLane) {
+        setVideoLane(recommendedLane);
+      }
       setModelKey(next.defaultModelKey as VideoModelKey);
     }
 
     setSubmitError(null);
     setScriptError(null);
+  };
+
+  const customizeTemplate = (templateId: string) => {
+    setTemplateApplyLoadingKey(null);
+    setQuickStartFeedback(null);
+    applyTemplateSelection(templateId, { openGuidedFlow: true });
+  };
+
+  const applyTemplatePresetState = (
+    heroTemplate: UnifiedTemplate,
+    nextTemplate: TemplateOption,
+    nextInputs: Record<string, string>,
+  ) => {
+    const preset = resolveQuickApplyPreset(heroTemplate);
+    const derivedTopic =
+      nextInputs.topic ||
+      nextInputs.productOrService ||
+      nextInputs.speakerName ||
+      nextInputs.character ||
+      heroTemplate.topic_hint ||
+      heroTemplate.title ||
+      heroTemplate.name;
+    const assembledScript = preset.script || heroTemplate.script_hint || heroTemplate.description || derivedTopic;
+    const nextLanguage = nextInputs.language || heroTemplate.generation_defaults?.language || language;
+    const nextVoice = heroTemplate.generation_defaults?.voice || voice;
+    const recommendedModelKey =
+      heroTemplate.generation_defaults?.model_key ||
+      heroTemplate.recommended_model?.internal_model_key ||
+      nextTemplate.defaultModelKey;
+
+    setSelectedTemplate(nextTemplate.key);
+    setAppliedHeroTemplateId(heroTemplate.id);
+    setAppliedHeroTemplateInputs(nextInputs);
+    setAppliedHeroTemplatePromptOverride(assembledScript);
+    setAppliedHeroTemplateModelOverride('');
+    setTopic(derivedTopic);
+    setTitle(derivedTopic);
+    setScript(assembledScript);
+    setLanguage(nextLanguage);
+    setVoice(nextVoice);
+    if (recommendedModelKey) {
+      const recommendedLane = sharedModelMap[recommendedModelKey]?.lane as VideoLaneKey | undefined;
+      if (recommendedLane) setVideoLane(recommendedLane);
+      setModelKey(recommendedModelKey as VideoModelKey);
+    }
+    if (
+      heroTemplate.generation_defaults?.aspect_ratio &&
+      ['9:16', '16:9', '1:1'].includes(heroTemplate.generation_defaults.aspect_ratio)
+    ) {
+      setAspectRatio(heroTemplate.generation_defaults.aspect_ratio as '9:16' | '16:9' | '1:1');
+    }
+    if (
+      heroTemplate.generation_defaults?.resolution &&
+      RESOLUTION_OPTIONS.some((item) => item.value === heroTemplate.generation_defaults?.resolution)
+    ) {
+      setResolution(heroTemplate.generation_defaults.resolution as '720p' | '1080p');
+    }
+    if (heroTemplate.generation_defaults?.quality && ['standard', 'high'].includes(heroTemplate.generation_defaults.quality)) {
+      setQuality(heroTemplate.generation_defaults.quality as 'standard' | 'high');
+    }
+    if (heroTemplate.generation_defaults?.duration_seconds) {
+      const normalizedDuration = normalizeDurationForModel(
+        recommendedModelKey || modelKey,
+        heroTemplate.generation_defaults.duration_seconds,
+      );
+      setDurationSeconds(String(normalizedDuration || heroTemplate.generation_defaults.duration_seconds));
+    }
+    setCaptionsEnabled(preset.captionsEnabled ?? true);
+    setNarrationEnabled(preset.narrationEnabled ?? true);
+    setSubmitError(null);
+    setScriptError(null);
+    setActiveTemplateState('ready');
+    setQuickStartFeedback({
+      title: 'Recommended settings already applied',
+      description: 'Start with a ready setup. You can refine it if needed before generating.',
+    });
+    focusComposeEditor();
+  };
+
+  const quickApplyTemplate = async (templateId: string) => {
+    setTemplateApplyLoadingKey(templateId);
+    const unifiedTemplate = unifiedVideoTemplates.find((item) => item.id === templateId || (item.legacy_mappings || []).includes(templateId));
+    const nextTemplate =
+      videoTemplates.find((item) => item.key === templateId) ??
+      (unifiedTemplate ? mapUnifiedTemplateToVideoOption(unifiedTemplate) : null);
+
+    if (!unifiedTemplate || !nextTemplate) {
+      applyTemplateSelection(templateId, { openGuidedFlow: false });
+      setActiveTemplateState(templateId === 'custom' ? null : 'ready');
+      setQuickStartFeedback({
+        title: 'Recommended settings already applied',
+        description: 'You can tweak the script, output settings, or advanced controls any time.',
+      });
+      focusComposeEditor();
+      setTemplateApplyLoadingKey(null);
+      return;
+    }
+
+    const nextInputs = buildQuickApplyTemplateInputs(unifiedTemplate);
+    applyTemplatePresetState(unifiedTemplate, nextTemplate, nextInputs);
+    setTemplateApplyLoadingKey(null);
+  };
+
+  const applyQuickStartPreset = (intent: CreatorIntentKey) => {
+    const preset = VIDEO_QUICK_START_PRESETS[intent];
+    const nextTemplate = pickVideoQuickStartTemplate(videoTemplates, intent, preset);
+    const preferredLaneModels = models.filter(
+      (model) => (sharedModelMap[model.key]?.lane ?? 'creator_pro') === preset.lane && model.enabled !== false,
+    );
+    const nextModel =
+      preferredLaneModels.find((model) => model.key === preset.modelKey) ??
+      preferredLaneModels[0] ??
+      models.find((model) => model.enabled !== false) ??
+      models[0];
+
+    if (nextModel) {
+      const nextLane = (sharedModelMap[nextModel.key]?.lane ?? preset.lane) as VideoLaneKey;
+      setVideoLane(nextLane);
+      setModelKey(nextModel.key as VideoModelKey);
+    } else {
+      setVideoLane(preset.lane);
+    }
+
+    setAspectRatio(preset.aspectRatio);
+    setResolution(preset.resolution);
+    setQuality(preset.quality);
+    setDurationMode('custom');
+    setDurationSeconds(preset.durationSeconds);
+    setCaptionsEnabled(preset.captionsEnabled);
+    setNarrationEnabled(false);
+    setSubmitError(null);
+    setScriptError(null);
+    setQuickStartFeedback({
+      title: 'Recommended setup applied',
+      description: 'Starter settings are loaded. You can tweak everything below before generating.',
+    });
+
+    if (nextTemplate) {
+      applyTemplateSelection(nextTemplate.key, {
+        openGuidedFlow: false,
+        topicOverride: preset.topic,
+        scriptOverride: preset.script,
+        titleOverride: preset.title,
+      });
+    } else {
+      setTopic(preset.topic);
+      setScript(preset.script);
+      setTitle(preset.title);
+    }
+
+    focusComposeEditor();
   };
 
   const openTemplateBrowser = () => {
@@ -1568,6 +2112,7 @@ export function CreateVideoPage({
     setAppliedHeroTemplateModelOverride(templateFlowModelOverride);
     setTemplateFlowOpen(false);
     setActiveTemplateFlow(null);
+    setActiveTemplateState('customized');
     show({
       title: 'Guided template applied',
       message: `${activeTemplateFlow.title || activeTemplateFlow.name} is now driving the script and defaults in this studio.`,
@@ -1579,7 +2124,7 @@ export function CreateVideoPage({
     const hasScriptInput = script.trim().length > 0;
     const effectiveTemplate = selectedTemplate === 'custom' ? 'General' : template.label;
     const effectiveTopic = topic.trim() || (selectedTemplate === 'custom' ? 'General creator video concept' : template.topicHint);
-    const durationForScript = Number(durationSeconds) || durationRule.defaultSeconds;
+    const durationForScript = normalizedDurationSeconds || durationRule.defaultSeconds;
     const scriptContext = {
       tone: template.description || selectedLane.description,
       lane: selectedLane.label,
@@ -1651,7 +2196,7 @@ export function CreateVideoPage({
     setScriptLoading(true);
     setScriptError(null);
     try {
-      const durationForScript = Number(durationSeconds) || durationRule.defaultSeconds;
+      const durationForScript = normalizedDurationSeconds || durationRule.defaultSeconds;
       const scriptContext = {
         tone: template.description || selectedLane.description,
         lane: selectedLane.label,
@@ -2016,7 +2561,7 @@ export function CreateVideoPage({
         resolution,
         quality,
         durationMode: 'custom',
-        durationSeconds: Number(durationSeconds),
+        durationSeconds: normalizedDurationSeconds || durationRule.defaultSeconds,
         captionsEnabled,
         narrationEnabled,
         captionStyle: captionStyle.toLowerCase(),
@@ -2112,8 +2657,8 @@ export function CreateVideoPage({
 
       <StudioPageHeader
         eyebrow="Video Studio"
-        title="Create videos in one compact studio"
-        description="Write, guide, and render from the same workspace. Daily reels, creator outputs, references, and final preview stay connected."
+        title="Create creator-ready reels from one guided studio"
+        description="Choose what you want to make, shape the script, and generate with creator-safe defaults."
         actions={
           <>
             <Badge variant="outline" className="px-3 py-2 text-xs">
@@ -2121,7 +2666,7 @@ export function CreateVideoPage({
               {creditsRefreshing ? ' · refreshing' : ''}
             </Badge>
             <Badge variant="outline" className="px-3 py-2 text-xs">
-              {getVideoLaneDefinition(videoLane).label}
+              {CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}
             </Badge>
           </>
         }
@@ -2174,6 +2719,7 @@ export function CreateVideoPage({
                   setAppliedHeroTemplateInputs({});
                   setAppliedHeroTemplatePromptOverride('');
                   setAppliedHeroTemplateModelOverride('');
+                  setActiveTemplateState(null);
                 }}
               >
                 Clear template
@@ -2184,16 +2730,17 @@ export function CreateVideoPage({
       ) : null}
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
-        <div className="min-w-0 order-2 xl:order-2 xl:col-start-1 xl:row-start-2">
+        <div ref={composeSectionRef} className="min-w-0 order-2 xl:order-2 xl:col-start-1 xl:row-start-2">
           <section className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
-                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Write and refine your video</h2>
+                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Write the idea and script for your reel</h2>
+                <p className="mt-1 text-sm text-muted">Keep it simple: define the idea, refine the script, then preview voice only if you need it.</p>
               </div>
               <div className="w-full text-left text-xs text-muted sm:w-auto sm:text-right">
-                <p>{selectedLane.label}</p>
-                <p>{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'}</p>
+                <p>{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}</p>
+                <p>{recommendedEngineCopy}</p>
               </div>
             </div>
 
@@ -2202,7 +2749,7 @@ export function CreateVideoPage({
                 <>
                   <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Prompt</label>
+                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Describe your video</label>
                       <Button
                         type="button"
                         variant="secondary"
@@ -2213,17 +2760,18 @@ export function CreateVideoPage({
                         {scriptLoading ? (
                           <>
                             <Spinner className="h-3.5 w-3.5" />
-                            Enhancing...
+                            Improving...
                           </>
                         ) : (
                           <>
                             <Sparkles className="h-3.5 w-3.5" />
-                            Enhance prompt
+                            Improve prompt
                           </>
                         )}
                       </Button>
                     </div>
                     <Textarea
+                      ref={scriptTextareaRef}
                       value={script}
                       onChange={(event) => setScript(event.target.value)}
                       placeholder={activeLanePromptPlaceholder}
@@ -2231,7 +2779,7 @@ export function CreateVideoPage({
                       className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
                     />
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                      <span>{script.trim().length > 0 ? 'Refine your current prompt for stronger motion and framing.' : 'Add a prompt first, then enhance it.'}</span>
+                      <span>{script.trim().length > 0 ? 'Improve your current prompt for stronger motion, pacing, and visual direction.' : 'Add your idea first, then improve it.'}</span>
                       {scriptEnhanceEstimate?.estimatedCredits ? (
                         <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
                       ) : null}
@@ -2263,6 +2811,7 @@ export function CreateVideoPage({
                     generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
                     enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
                     qualityReport={scriptQualityReport}
+                    scriptTextareaRef={scriptTextareaRef}
                   />
                 </div>
               )}
@@ -2270,13 +2819,14 @@ export function CreateVideoPage({
               <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice & captions</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice preview</p>
+                    <p className="mt-1 text-xs text-muted">Optional. Preview the narration style before you render the full video.</p>
                   </div>
                   <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
                     {narrationEnabled ? 'Voice on' : 'Voice off'}
                   </Badge>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-3">
                   <button
                     type="button"
                     onClick={() => setNarrationEnabled((current) => !current)}
@@ -2288,18 +2838,8 @@ export function CreateVideoPage({
                   >
                     Voice {narrationEnabled ? 'On' : 'Off'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCaptionsEnabled((current) => !current)}
-                    className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                      captionsEnabled
-                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                    }`}
-                  >
-                    Captions {captionsEnabled ? 'Auto' : 'Off'}
-                  </button>
                 </div>
+                <p className="mt-2 text-xs text-muted">Captions and caption style live in Output Settings so your final reel stays consistent.</p>
                 {narrationEnabled ? (
                   <>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2342,7 +2882,7 @@ export function CreateVideoPage({
                       rows={3}
                       maxLength={280}
                       className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
-                      placeholder="Welcome to RangManch AI. Let’s create something great for your audience."
+                      placeholder="Add a short sample line to hear how this voice sounds before rendering."
                     />
                   </label>
                   <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
@@ -2356,12 +2896,12 @@ export function CreateVideoPage({
                         {voicePreviewLoadingKey === voice ? (
                           <>
                             <Spinner className="h-4 w-4" />
-                            Previewing...
+                            Preparing preview...
                           </>
                         ) : (
                           <>
                             <Mic2 className="h-4 w-4" />
-                            Preview voice
+                            Preview narration
                           </>
                         )}
                       </Button>
@@ -2401,7 +2941,7 @@ export function CreateVideoPage({
                             className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
                           >
                             <Mic2 className="h-3.5 w-3.5" />
-                            Play preview
+                            Play preview again
                           </button>
                         ) : null}
                       </div>
@@ -2443,8 +2983,8 @@ export function CreateVideoPage({
                     </div>
                     {narrationEnabled ? (
                       <div className="flex items-center justify-between text-muted">
-                        <span>AI voice</span>
-                        <span>{narrationCredits} credits</span>
+                      <span>AI voice</span>
+                      <span>{narrationCredits} credits</span>
                       </div>
                     ) : null}
                     {captionsEnabled ? (
@@ -2482,10 +3022,10 @@ export function CreateVideoPage({
 
         <div className="min-w-0 order-3 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
           <section className="space-y-4 xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
-                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Review and publish</h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
+                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Review and create</h2>
               </div>
               <span className="text-xs font-medium text-muted">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}</span>
             </div>
@@ -2499,8 +3039,8 @@ export function CreateVideoPage({
                 <dd className="font-medium text-text">{narrationEnabled ? `${voice} • ${language}` : 'Off'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block">
-                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Mode</dt>
-                <dd className="font-medium text-text">{selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video'}</dd>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Workflow</dt>
+                <dd className="font-medium text-text">{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? (selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video')}</dd>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block">
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted">Estimate</dt>
@@ -2524,8 +3064,8 @@ export function CreateVideoPage({
                       ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
                       : creditEstimate
                       ? narrationEnabled
-                        ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated remaining balance ${creditEstimate.remainingCredits} credits`
-                        : `Estimated remaining balance ${creditEstimate.remainingCredits} credits`
+                        ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated balance after render ${creditEstimate.remainingCredits} credits`
+                        : `Estimated balance after render ${creditEstimate.remainingCredits} credits`
                       : isEstimating
                         ? 'Estimating credits for selected settings.'
                         : `${selectedLane.shortLabel} estimate uses the shared pricing engine. Final validation happens on submit.`
@@ -2575,46 +3115,87 @@ export function CreateVideoPage({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Setup</p>
-                  <h3 className="mt-1 text-lg font-semibold text-text">Choose template, model, and output first</h3>
+                  <h3 className="mt-1 text-lg font-semibold text-text">Start with the outcome you want to create</h3>
+                  <p className="mt-1 text-sm text-muted">Start simple with creator-ready defaults. Advanced controls stay available when you want more control.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
                     <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                    Browse templates
+                    Browse & customize
                   </Button>
                 </div>
               </div>
 
               <div className="mt-3">
                 <SectionCard
-                  title="Model"
-                  description="Lane and engine"
-                  icon={<Film className="h-5 w-5" />}
+                  title="Quick Start"
+                  description="Pick a reel format and we’ll prefill a creator-ready setup so you can start immediately."
+                  icon={<Wand2 className="h-5 w-5" />}
                   compact
                 >
-                  <div className="space-y-3">
-                    <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-                    <ModelDropdown
-                      models={visibleModels}
-                      selectedModel={modelKey}
-                      onChange={(value) => setModelKey(value as VideoModelKey)}
-                      title={`${selectedLane.label} models`}
-                      description="Choose a model."
-                    />
-                    <p className="text-xs text-muted">
-                      {selectedLane.label} · {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose model'} · {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} active
-                    </p>
-                    {laneHasOnlyGatedModels ? (
-                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-2 text-sm text-muted">
-                        Shown in studio, not enabled yet.
-                      </div>
-                    ) : null}
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {CREATOR_INTENT_OPTIONS.map((intent) => {
+                      const preset = VIDEO_QUICK_START_PRESETS[intent.key];
+                      const active = selectedIntent === intent.key && Boolean(quickStartFeedback);
+                      return (
+                        <button
+                          key={`quick-${intent.key}`}
+                          type="button"
+                          onClick={() => applyQuickStartPreset(intent.key)}
+                          className={`rounded-[16px] border px-3 py-3 text-left transition ${
+                            active
+                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-text">{preset.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">{preset.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {quickStartFeedback ? (
+                    <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
+                      <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
+                      <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
+                    </div>
+                  ) : null}
+                </SectionCard>
+
+                <SectionCard
+                  title="What do you want to create?"
+                  description="Pick the kind of reel you want. We’ll recommend the best workflow from there."
+                  icon={<Sparkles className="h-5 w-5" />}
+                  compact
+                >
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {visibleIntentOptions.map((intent) => {
+                      const active = selectedIntent === intent.key;
+                      return (
+                        <button
+                          key={intent.key}
+                          type="button"
+                          onClick={() => {
+                            const matched = visibleTemplates.find((item) => matchesCreatorIntent(item, intent.key));
+                            if (matched) void quickApplyTemplate(matched.key);
+                          }}
+                          className={`rounded-[16px] border px-3 py-3 text-left transition ${
+                            active
+                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-text">{intent.label}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">{intent.description}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </SectionCard>
 
                 <SectionCard
-                  title="Content Template"
-                  description="Pick the structure before writing"
+                  title="Template / workflow"
+                  description="Click once to load a ready setup. Use Customize when you want more control."
                   icon={<Film className="h-5 w-5" />}
                   compact
                 >
@@ -2622,13 +3203,16 @@ export function CreateVideoPage({
                     loading={templatesLoading}
                     templates={visibleTemplates}
                     selectedTemplate={selectedTemplate}
-                    onSelect={applyTemplate}
+                    activeTemplateState={activeTemplateState}
+                    onSelect={(value) => void quickApplyTemplate(value)}
+                    onCustomize={customizeTemplate}
+                    applyingTemplateKey={templateApplyLoadingKey}
                   />
                 </SectionCard>
 
                 <SectionCard
                   title="Project"
-                  description="Save output"
+                  description="Optional. Keep this reel and future versions grouped together."
                   icon={<GalleryVerticalEnd className="h-5 w-5" />}
                   compact
                   action={projectsLoading ? <Spinner /> : null}
@@ -2660,8 +3244,8 @@ export function CreateVideoPage({
                 </SectionCard>
 
                 <SectionCard
-                  title="Reference Images"
-                  description="Optional"
+                  title="Reference images"
+                  description="Optional, but useful for character, product, and brand-led content."
                   icon={<Film className="h-5 w-5" />}
                   compact
                   defaultOpen={false}
@@ -2705,8 +3289,8 @@ export function CreateVideoPage({
                 </SectionCard>
 */}
                 <SectionCard
-                  title="Output Settings"
-                  description="Format and quality"
+                  title="Output settings"
+                  description="Choose the format and quality for the platform you plan to publish on."
                   icon={<Settings2 className="h-5 w-5" />}
                   compact
                   defaultOpen={false}
@@ -2727,7 +3311,7 @@ export function CreateVideoPage({
                     durationSeconds={durationSeconds}
                     onDurationSecondsChange={setDurationSeconds}
                     availableDurations={availableDurations}
-                    supportsCustomDuration={durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined}
+                    supportsCustomDuration={supportsCustomDuration}
                     minDuration={klingMinDuration}
                     maxDuration={klingMaxDuration}
                     durationHelperText={hasReferenceImages && seededDuration
@@ -2740,20 +3324,50 @@ export function CreateVideoPage({
                     onCaptionStyleChange={setCaptionStyle}
                   />
                 </SectionCard>
+
+                <SectionCard
+                  title="Advanced engine controls"
+                  description="For experienced users who want to fine-tune the recommended rendering path."
+                  icon={<Film className="h-5 w-5" />}
+                  compact
+                  defaultOpen={false}
+                >
+                  <div className="space-y-3">
+                    <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.2)] px-3 py-2.5 text-xs text-muted">
+                      Recommended now: <span className="font-semibold text-text">{recommendedEngineCopy}</span>
+                    </div>
+                    <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                    <ModelDropdown
+                      models={visibleModels}
+                      selectedModel={modelKey}
+                      onChange={(value) => setModelKey(value as VideoModelKey)}
+                      title="Engine"
+                      description="Change only if you want to override the recommended engine."
+                    />
+                    <p className="text-xs text-muted">
+                      {selectedLane.label} · {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose engine'} · {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} active options
+                    </p>
+                    {laneHasOnlyGatedModels ? (
+                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-2 text-sm text-muted">
+                        Shown in studio, not enabled yet.
+                      </div>
+                    ) : null}
+                  </div>
+                </SectionCard>
               </div>
             </section>
         </div>
 
         <div className="min-w-0 xl:col-span-2">
           <SectionCard
-            title="Studio Feed"
-            description="Latest videos"
+            title="Recent videos"
+            description="Your latest renders in one place."
             icon={<Film className="h-5 w-5" />}
             compact
             defaultOpen={false}
           >
             {videos.length === 0 ? (
-              <p className="text-sm text-muted">No videos yet.</p>
+              <p className="text-sm text-muted">Your rendered videos will appear here once you create your first reel.</p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                 {videos.map((videoItem) => {
@@ -2826,10 +3440,10 @@ export function CreateVideoPage({
                   <img
                     src={activeTemplateFlow.preview_image_url || activeTemplateFlow.thumbnail_url}
                     alt={activeTemplateFlow.title || activeTemplateFlow.name}
-                    className="aspect-[5/4] w-full object-cover"
+                    className="aspect-[5/4] max-h-[220px] w-full object-cover sm:max-h-[280px] xl:max-h-none"
                   />
                 ) : (
-                  <div className="flex aspect-[5/4] items-center justify-center bg-[hsl(var(--color-bg)/0.72)] text-sm text-muted">
+                  <div className="flex aspect-[5/4] max-h-[220px] items-center justify-center bg-[hsl(var(--color-bg)/0.72)] text-sm text-muted sm:max-h-[280px] xl:max-h-none">
                     Template preview
                   </div>
                 )}
@@ -2851,7 +3465,7 @@ export function CreateVideoPage({
                 <h3 className="mt-3 text-2xl font-bold text-text">{activeTemplateFlow.title || activeTemplateFlow.name}</h3>
                 <p className="mt-2 text-sm text-muted">{activeTemplateFlow.description || activeTemplateFlow.short_description}</p>
                 <div className="mt-4 rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Recommended</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Recommended setup</p>
                   <p className="mt-2 text-sm font-semibold text-text">
                     {templateFlowPreview?.recommendedModel?.label || activeTemplateFlow.recommended_model?.label || 'Included'}
                   </p>
@@ -2866,8 +3480,8 @@ export function CreateVideoPage({
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-text">Template inputs</p>
-                    <p className="mt-1 text-sm text-muted">Answer a few questions and apply.</p>
+                    <p className="text-sm font-semibold text-text">Start with a ready setup</p>
+                    <p className="mt-1 text-sm text-muted">Recommended settings already applied. Adjust only what you need.</p>
                   </div>
                   {templateFlowEstimate ? (
                     <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
@@ -2876,72 +3490,102 @@ export function CreateVideoPage({
                   ) : null}
                 </div>
                 <div className="mt-4 space-y-3">
-                  {primarySubtypeField ? (
-                    <div className="space-y-2 rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] p-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Step 1</p>
-                        <p className="mt-1 text-sm font-semibold text-text">{primarySubtypeField.label}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {normalizeTemplateOptions(primarySubtypeField).map((option) => {
-                          const active = (templateFlowInputs[primarySubtypeField.key] || '') === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setTemplateFlowInputs((current) => ({ ...current, [primarySubtypeField.key]: option.value }))}
-                              className={`rounded-full px-3 py-2 text-xs font-semibold transition ${active
-                                  ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                                  : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
-                                }`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                  {remainingTemplateFlowFields.map((field) => {
-                    const options = normalizeTemplateOptions(field);
-                    const value = templateFlowInputs[field.key] || '';
-                    return (
-                      <div key={field.key} className="space-y-1.5">
-                        <label className="text-sm font-medium text-text">{field.label}</label>
-                        {field.type === 'select' ? (
-                          <Dropdown
-                            value={value}
-                            onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
-                          >
-                            {options.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </Dropdown>
-                        ) : field.type === 'textarea' ? (
-                          <Textarea
-                            value={value}
-                            onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
-                            placeholder={field.placeholder || ''}
-                          />
-                        ) : (
+                  {(activeTemplateFlow.inputs || [])
+                    .filter((field) => field.key === 'topic')
+                    .map((field) => {
+                      const value = templateFlowInputs[field.key] || '';
+                      return (
+                        <div key={field.key} className="space-y-1.5">
+                          <label className="text-sm font-medium text-text">{field.label}</label>
                           <Input
                             value={value}
                             onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
-                            placeholder={field.placeholder || ''}
+                            placeholder={field.placeholder || `Insert ${field.label.toLowerCase()} here`}
                           />
-                        )}
-                      </div>
-                    );
-                  })}
+                        </div>
+                      );
+                    })}
+                  {!((activeTemplateFlow.inputs || []).some((field) => field.key === 'topic')) ? (
+                    <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-2.5 text-sm text-muted">
+                      This template already has a ready starter setup. You can apply it as-is or expand the optional details below.
+                    </div>
+                  ) : null}
+                  <details className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] p-3">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-text">Optional details</summary>
+                    <p className="mt-1 text-xs text-muted">Audience, tone, platform, duration, CTA, project, and any extra context.</p>
+                    <div className="mt-3 space-y-3">
+                      {primarySubtypeField ? (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-text">{primarySubtypeField.label}</label>
+                          <div className="flex flex-wrap gap-2">
+                            {normalizeTemplateOptions(primarySubtypeField).map((option) => {
+                              const active = (templateFlowInputs[primarySubtypeField.key] || '') === option.value;
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => setTemplateFlowInputs((current) => ({ ...current, [primarySubtypeField.key]: option.value }))}
+                                  className={`rounded-full px-3 py-2 text-xs font-semibold transition ${active
+                                      ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                                      : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.42)] text-muted hover:text-text'
+                                    }`}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {remainingTemplateFlowFields
+                        .filter((field) => field.key !== 'topic')
+                        .filter((field) => TEMPLATE_OPTIONAL_DETAIL_KEYS.has(field.key) || !field.required)
+                        .map((field) => {
+                          const options = normalizeTemplateOptions(field);
+                          const value = templateFlowInputs[field.key] || '';
+                          return (
+                            <div key={field.key} className="space-y-1.5">
+                              <label className="text-sm font-medium text-text">{field.label}</label>
+                              {field.type === 'select' ? (
+                                <Dropdown
+                                  value={value}
+                                  onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                                >
+                                  {options.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </Dropdown>
+                              ) : field.type === 'textarea' ? (
+                                <Textarea
+                                  value={value}
+                                  onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                                  placeholder={field.placeholder || `Insert ${field.label.toLowerCase()} here`}
+                                />
+                              ) : (
+                                <Input
+                                  value={value}
+                                  onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
+                                  placeholder={field.placeholder || `Insert ${field.label.toLowerCase()} here`}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </details>
                 </div>
               </div>
 
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-text">Advanced settings</p>
+                  <p className="mt-1 text-sm text-muted">Engine override and prompt mode for creators who want extra control.</p>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-text">Model override</label>
+                    <label className="text-sm font-medium text-text">Advanced engine override</label>
                     <Input
                       value={templateFlowModelOverride}
                       onChange={(e) => setTemplateFlowModelOverride(e.target.value)}
@@ -2969,11 +3613,11 @@ export function CreateVideoPage({
                 </div>
 
                 <div className="mt-4 space-y-1.5">
-                  <label className="text-sm font-medium text-text">Prompt / script override</label>
+                  <label className="text-sm font-medium text-text">Script override</label>
                   <Textarea
                     value={templateFlowPromptOverride}
                     onChange={(e) => setTemplateFlowPromptOverride(e.target.value)}
-                    placeholder="Optional. Override the assembled prompt or script if you want more control."
+                    placeholder="Optional. Override the generated script if you want more control."
                     rows={5}
                   />
                 </div>
@@ -2983,13 +3627,13 @@ export function CreateVideoPage({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text">Preview</p>
-                    <p className="mt-1 text-sm text-muted">Review before applying.</p>
+                    <p className="mt-1 text-sm text-muted">Review the assembled result before applying it to the studio.</p>
                   </div>
                   {templateFlowPreviewLoading ? <Spinner /> : null}
                 </div>
                 {templateFlowMissingRequired.length > 0 ? (
                   <p className="mt-3 text-xs text-muted">
-                    Fill {templateFlowMissingRequired.map((field) => field.label).join(', ')} to generate the guided preview.
+                    Fill {templateFlowMissingRequired.map((field) => field.label).join(', ')} to build the guided preview.
                   </p>
                 ) : null}
                 <div className="mt-4 space-y-3">
@@ -3002,7 +3646,7 @@ export function CreateVideoPage({
                   <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Script preview</p>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-text">
-                      {templateFlowPreview?.scriptPreview || templateFlowPreview?.videoPrompt || templateFlowPreview?.prompt || activeTemplateFlow.script_hint || 'Preview will appear after you answer a few questions.'}
+                      {templateFlowPreview?.scriptPreview || templateFlowPreview?.videoPrompt || templateFlowPreview?.prompt || activeTemplateFlow.script_hint || 'Your script preview will appear after you answer a few key questions.'}
                     </p>
                   </div>
                 </div>

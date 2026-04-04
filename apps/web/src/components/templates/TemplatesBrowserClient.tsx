@@ -94,6 +94,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
   const router = useRouter();
   const { show } = useToast();
   const { wallet, refresh: refreshCredits } = useCredits();
+  const cacheKey = `rangmanch:template-browser:v1:${userId}`;
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,21 +116,48 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
   const [generatedResult, setGeneratedResult] = useState<TemplateGenerateResponse | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey) ?? window.localStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as { ts?: number; templates?: Template[] };
+      if (!Array.isArray(cached.templates) || cached.templates.length === 0) return;
+      if (!cached.ts || Date.now() - cached.ts > 5 * 60 * 1000) return;
+      setTemplates(cached.templates);
+      setLoading(false);
+    } catch {
+      // ignore cache read issues
+    }
+  }, [cacheKey]);
+
+  useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setLoading((current) => current && templates.length === 0);
     api.listUnifiedTemplates(userId).then((data) => {
       if (cancelled) return;
-      setTemplates(data.filter((item) => item.active !== false));
+      const nextTemplates = data.filter((item) => item.active !== false);
+      setTemplates(nextTemplates);
+      if (typeof window !== 'undefined') {
+        try {
+          const payload = JSON.stringify({ ts: Date.now(), templates: nextTemplates });
+          window.sessionStorage.setItem(cacheKey, payload);
+          window.localStorage.setItem(cacheKey, payload);
+        } catch {
+          // ignore cache write issues
+        }
+      }
       setError(null);
     }).catch((err) => {
       if (cancelled) return;
       setError(err instanceof Error ? err.message : 'Failed to load templates.');
-      setTemplates([]);
+      if (templates.length === 0) {
+        setTemplates([]);
+      }
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [cacheKey, templates.length, userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -296,7 +324,11 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-4">
               <div className="overflow-hidden rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.48)] sm:rounded-[28px]">
-                <img src={selectedTemplate.preview_image_url || selectedTemplate.thumbnail_url} alt={selectedTemplate.name} className="aspect-[4/5] w-full object-cover" />
+                <img
+                  src={selectedTemplate.preview_image_url || selectedTemplate.thumbnail_url}
+                  alt={selectedTemplate.name}
+                  className="h-auto max-h-[34vh] w-full object-cover object-top sm:max-h-[44vh] xl:max-h-[52vh]"
+                />
               </div>
               <div className="rounded-[20px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.44)] p-3.5 sm:rounded-[24px] sm:p-4">
                 <div className="flex flex-wrap gap-2">

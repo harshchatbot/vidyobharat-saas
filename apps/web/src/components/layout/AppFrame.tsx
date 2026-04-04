@@ -21,7 +21,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -29,6 +29,7 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/community')) return 'Community';
   if (pathname.startsWith('/images')) return 'Image Studio';
   if (pathname.startsWith('/templates')) return 'Template Browser';
   if (pathname.startsWith('/influencer')) return 'Influencer Studio';
@@ -47,6 +48,9 @@ function getRouteTransitionCopy(label: string) {
   const normalized = label.trim().toLowerCase();
   if (['dashboard', 'projects'].includes(normalized)) {
     return 'Loading workspace';
+  }
+  if (['community'].includes(normalized)) {
+    return 'Loading community';
   }
   if (['image studio', 'create video', 'template browser', 'influencer studio'].includes(normalized)) {
     return 'Preparing studio';
@@ -134,6 +138,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     if (!inApp) return;
     [
       '/dashboard',
+      '/community',
       '/images',
       '/create',
       '/templates',
@@ -244,6 +249,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     const navGroups = {
       home: [
         { href: '/dashboard', label: 'Dashboard', icon: Home },
+        { href: '/community', label: 'Community', icon: Sparkles },
       ],
       tools: [
         { href: '/images', label: 'Generate images', icon: ImageIcon },
@@ -461,7 +467,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         {displayName.slice(0, 1)}
                       </span>
                     )}
-                    <span className="hidden lg:inline">{displayName}</span>
+                    <span className="hidden min-w-0 lg:block">
+                      <span className="block max-w-[180px] truncate text-left text-sm font-medium text-text">
+                        {displayName}
+                      </span>
+                      <span className="block max-w-[180px] truncate text-left text-[11px] text-muted">
+                        {accountEmail ?? 'No email set'}
+                      </span>
+                    </span>
                     <ChevronDown className="hidden h-4 w-4 text-muted md:block" />
                   </button>
                   {accountMenuOpen ? (
@@ -475,7 +488,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                             {displayName.slice(0, 1)}
                           </span>
                         )}
-                        <p className="truncate text-sm font-semibold text-text">{displayName}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-text">{displayName}</p>
+                          <p className="truncate text-xs text-muted">{accountEmail ?? 'No email set'}</p>
+                        </div>
                       </div>
                       <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--color-border))] px-2 py-0.5 text-[10px] text-muted">
                         <Mail className="h-3 w-3 shrink-0" />
@@ -730,7 +746,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       <div className="min-h-screen bg-[hsl(var(--color-bg))]">
         <header className="sticky top-0 z-50 px-4 pt-3 sm:px-6 sm:pt-4">
           <div className="mx-auto max-w-[1500px]">
-            <TopNav userId={userId} accountLabel={accountLabel} />
+            <TopNav userId={userId} accountLabel={accountLabel} accountEmail={accountEmail} />
           </div>
         </header>
         <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">{children}</main>

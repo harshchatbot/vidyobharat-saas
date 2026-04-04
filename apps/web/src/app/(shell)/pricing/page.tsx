@@ -20,7 +20,7 @@ function formatMoney(currency: string, amount: number) {
   }).format(amount);
 }
 
-const featureCopy: Record<string, string[]> = {
+{/* const featureCopy: Record<string, string[]> = {
   starter: [
     'Good first paid step after the free tier',
     'Balanced for images, drafts, and a few premium clips',
@@ -40,6 +40,22 @@ const featureCopy: Record<string, string[]> = {
     'Maximum headroom for production-heavy work',
     'Best for studios and frequent premium generations',
     'Designed for sustained campaign output',
+  ],
+};
+*/}
+
+const featureCopy: Record<string, string[]> = {
+  starter: [
+
+  ],
+  creator: [
+
+  ],
+  growth: [
+
+  ],
+  pro: [
+
   ],
 };
 
@@ -174,7 +190,7 @@ export default function PricingPage() {
                   <p className="mt-3 text-xs text-muted">Plus a one-time 25-credit activation bonus after your first real workflow win.</p>
                 </div>
 
-                <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
+            {/*    <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
                   <li className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
                     <span>40 credits every month for real product testing</span>
@@ -192,6 +208,7 @@ export default function PricingPage() {
                     <span>Upgrade later for premium Sora, Veo, and higher-volume output</span>
                   </li>
                 </ul>
+            */}
 
                 <span className="mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-6 py-3 text-sm font-semibold text-[hsl(var(--color-text))] transition">
                   Start Free

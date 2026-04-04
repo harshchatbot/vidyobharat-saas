@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 import re
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import UploadFile
@@ -37,6 +38,9 @@ logger = logging.getLogger(__name__)
 
 
 class TemplateManagementService:
+    _seeded_until: datetime | None = None
+    _SEED_REFRESH_INTERVAL = timedelta(minutes=15)
+
     def __init__(self) -> None:
         self.settings = get_settings()
         self.repo = TemplateRepository()
@@ -44,7 +48,6 @@ class TemplateManagementService:
         self.storage = build_storage_provider(self.settings)
         self.assembler = TemplatePromptAssembler()
         self.project_service = ProjectService(None)
-        self._seeded = False
 
     def list_templates(
         self,
@@ -537,7 +540,9 @@ class TemplateManagementService:
         return str(value).strip()
 
     def _ensure_seeded(self) -> None:
-        if self._seeded:
+        now = datetime.now(UTC)
+        seeded_until = type(self)._seeded_until
+        if seeded_until and seeded_until > now:
             return
         seeds = self._seed_templates()
         try:
@@ -555,7 +560,7 @@ class TemplateManagementService:
                     self.repo.upsert(str(seed['id']), seed)
         except Exception:
             logger.exception('template_seed_failed')
-        self._seeded = True
+        type(self)._seeded_until = now + self._SEED_REFRESH_INTERVAL
 
     def _seed_templates(self) -> list[dict[str, Any]]:
         now = utcnow()

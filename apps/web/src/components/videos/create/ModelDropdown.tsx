@@ -17,6 +17,8 @@ export function ModelDropdown({
   models,
   selectedModel,
   onChange,
+  title = 'Engine',
+  description = 'Recommended engine',
 }: ModelDropdownProps) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -59,14 +61,14 @@ export function ModelDropdown({
       >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Model</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">{title}</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <p className="truncate text-sm font-semibold text-text">{selected?.shortLabel ?? selected?.label ?? 'Choose model'}</p>
               {selected?.resolutionLabels?.length ? (
                 <span className="text-[11px] text-muted">{selected.resolutionLabels.join(' / ')}</span>
               ) : null}
             </div>
-            {selected?.frontendHint ? <p className="mt-1 line-clamp-1 text-xs text-muted">{selected.frontendHint}</p> : null}
+            <p className="mt-1 line-clamp-1 text-xs text-muted">{selected?.frontendHint || description}</p>
           </div>
           <ChevronDown className={`h-5 w-5 shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`} />
         </div>
