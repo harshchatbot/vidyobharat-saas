@@ -121,12 +121,26 @@ def _story_scene_strategy() -> RecipeSceneStrategy:
 def _explainer_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
-            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook',), duration_seconds=6),
-            RenderSceneConfig(scene_id='scene_2_setup', beat_names=('setup',), duration_seconds=7),
-            RenderSceneConfig(scene_id='scene_3_expansion', beat_names=('expansion',), duration_seconds=7),
-            RenderSceneConfig(scene_id='scene_4_turn', beat_names=('turn',), duration_seconds=7),
-            RenderSceneConfig(scene_id='scene_5_insight', beat_names=('insight',), duration_seconds=7),
-            RenderSceneConfig(scene_id='scene_6_ending', beat_names=('ending',), duration_seconds=6),
+            RenderSceneConfig(
+                scene_id='scene_1_hook_setup',
+                beat_names=('hook', 'setup'),
+                duration_seconds=5,
+            ),
+            RenderSceneConfig(
+                scene_id='scene_2_immediate_effect',
+                beat_names=('immediate_effect', 'escalation'),
+                duration_seconds=5,
+            ),
+            RenderSceneConfig(
+                scene_id='scene_3_world_impact',
+                beat_names=('world_impact', 'human_impact'),
+                duration_seconds=5,
+            ),
+            RenderSceneConfig(
+                scene_id='scene_4_takeaway_ending',
+                beat_names=('takeaway', 'ending'),
+                duration_seconds=5,
+            ),
         )
     )
 
@@ -138,25 +152,25 @@ RECIPES: dict[str, RecipeConfig] = {
         duration_seconds=10,
         input=RecipeInputConfig(image=True),
         config=RecipeContentConfig(
-        style='playful_underwater_cartoon_pet',
-        tone='fun_lighthearted_recognisable',
-        music='playful',
-        structure=('intro', 'playful_motion', 'funny_action', 'ending'),
-        reference_prompt=(
-            'Use the uploaded pet image as the inspiration for the main animated character. '
-            'Create a cute, highly stylized cartoon version of the same pet while keeping it recognisably based on the uploaded animal. '
-            'Preserve the pet’s core identity cues such as fur colour family, ear shape, face feel, overall species, and friendly personality. '
-            'It is okay to exaggerate proportions, add cute costume styling, and make the subject dance or perform in a playful challenge scene. '
-            'Do not replace the pet with an unrelated mascot, different species, human-like hero, or random cartoon figure.'
+            style='playful_underwater_cartoon_pet',
+            tone='fun_lighthearted_recognisable',
+            music='playful',
+            structure=('intro', 'playful_motion', 'funny_action', 'ending'),
+            reference_prompt=(
+                'Use the uploaded pet image as the inspiration for the main animated character. '
+                'Create a cute, highly stylized cartoon version of the same pet while keeping it recognisably based on the uploaded animal. '
+                'Preserve the pet’s core identity cues such as fur colour family, ear shape, face feel, overall species, and friendly personality. '
+                'It is okay to exaggerate proportions, add cute costume styling, and make the subject dance or perform in a playful challenge scene. '
+                'Do not replace the pet with an unrelated mascot, different species, human-like hero, or random cartoon figure.'
+            ),
+            scene_guidance=(
+                'Create a fun, highly stylized cartoon pet performance with smooth motion and strong character consistency. '
+                'The animated character should feel clearly inspired by the uploaded pet across all scenes. '
+                'Use a smooth intro, playful middle action, and a clean natural outro. '
+                'Avoid abrupt cuts, identity drift, warped anatomy, or switching into an unrelated character.'
+            ),
+            seed_prompt='Create a 10 second playful underwater cartoon pet video using the provided pet image.',
         ),
-        scene_guidance=(
-            'Create a fun, highly stylized cartoon pet performance with smooth motion and strong character consistency. '
-            'The animated character should feel clearly inspired by the uploaded pet across all scenes. '
-            'Use a smooth intro, playful middle action, and a clean natural outro. '
-            'Avoid abrupt cuts, identity drift, warped anatomy, or switching into an unrelated character.'
-        ),
-        seed_prompt='Create a 10 second playful underwater cartoon pet video using the provided pet image.',
-    ),
         generation_defaults=RecipeGenerationDefaults(
             model_key='kling3',
             aspect_ratio='9:16',
@@ -222,23 +236,27 @@ RECIPES: dict[str, RecipeConfig] = {
     'time_echo_explainer': RecipeConfig(
         id='time_echo_explainer',
         type='video',
-        duration_seconds=40,
+        duration_seconds=20,
         input=RecipeInputConfig(image=False, text=True),
         config=RecipeContentConfig(
-            style='cinematic_explainer_story',
-            tone='thoughtful_narrated_engaging',
+            style='cinematic_social_explainer',
+            tone='clear_engaging_social_first',
             music='soft_documentary_underscore',
-            structure=('hook', 'setup', 'expansion', 'turn', 'insight', 'ending'),
+            structure=('hook', 'setup', 'immediate_effect', 'escalation', 'world_impact', 'human_impact', 'takeaway', 'ending'),
+            reference_prompt=(
+                'Turn the user topic into a meaningful short explainer reel for social media. '
+                'Focus on one clear cause-and-effect progression. '
+                'The visuals should help viewers understand the topic, not just admire cinematic atmosphere.'
+            ),
             scene_guidance=(
                 'Create a narrated explainer with clear scene-by-scene progression. '
-                'Each scene should visually support the voiceover, use smooth transitions, '
-                'maintain cinematic continuity, and end cleanly for stitching. '
-                'Avoid abrupt cuts, clutter, random unrelated visuals, or over-aggressive motion.'
+                'Each scene must support the explanation directly, use smooth transitions, and avoid repeating generic filler visuals. '
+                'Prioritize clarity, consequence, progression, and social-media retention.'
             ),
-            seed_prompt='Create a 40 second narrated Time Echo explainer video based on the provided topic.',
+            seed_prompt='Create a 20 second narrated Time Echo explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='kling_v3',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -252,7 +270,7 @@ RECIPES: dict[str, RecipeConfig] = {
         catalog=RecipeCatalogConfig(
             title='Time Echo Explainer',
             slug='time-echo-explainer',
-            description='Turn a topic into a cinematic 40-second narrated explainer reel with structured visual storytelling.',
+            description='Turn any topic into a social-ready narrated explainer reel with strong hook, consequences, and takeaway.',
             short_label='Explainer',
             preview_video_url=_sample_video('time-echo-explainer.mp4'),
             preview_image_url=_sample_video('earth.png'),
@@ -262,27 +280,27 @@ RECIPES: dict[str, RecipeConfig] = {
             order=21,
             tags=('all', 'trending', 'explainer', 'voiceover', 'education'),
             composer=RecipeComposerConfig(
-            recipe_label='Time Echo Explainer',
-            mode='video',
-            starter_copy='Add a topic or concept. The recipe builds a 40-second narrated explainer with scene flow and voiceover pacing.',
-            fragments=(
-                RecipeComposerFragment(type='text', value='Explain '),
-                RecipeComposerFragment(type='slot', slot_id='text'),
-                RecipeComposerFragment(type='text', value=' as a cinematic narrated reel.'),
-            ),
-            slots=(
-                RecipeComposerSlot(
-                    id='text',
-                    kind='text',
-                    label='Topic or concept',
-                    placeholder='Why time feels faster as we grow older',
-                    required=True,
+                recipe_label='Time Echo Explainer',
+                mode='video',
+                starter_copy='Add a topic or question. The recipe turns it into a short social explainer with hook, impact, and takeaway.',
+                fragments=(
+                    RecipeComposerFragment(type='text', value='Explain '),
+                    RecipeComposerFragment(type='slot', slot_id='text'),
+                    RecipeComposerFragment(type='text', value=' as a short social-ready narrated reel.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='text',
+                        kind='text',
+                        label='Topic or concept',
+                        placeholder='What if Earth stopped spinning for 5 seconds?',
+                        required=True,
+                    ),
                 ),
             ),
         ),
-        ),
         reference_strategy='none',
-        metadata={'starter_badge': 'Narrated', 'version': 1},
+        metadata={'starter_badge': 'Narrated', 'version': 2},
     ),
     'viral_dance_clip': RecipeConfig(
         id='viral_dance_clip',

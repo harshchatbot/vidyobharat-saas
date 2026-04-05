@@ -628,18 +628,72 @@ class VideoPipelineService:
         path = self._url_to_local_path(url)
         if path.exists():
             return path
+
         if url.startswith('http://') or url.startswith('https://'):
             tmp_root = Path('data/tmp/media_cache')
             tmp_root.mkdir(parents=True, exist_ok=True)
+
             suffix = Path(url.split('?', 1)[0]).suffix or '.bin'
-            temp_dir = Path(tempfile.mkdtemp(prefix='rangmanch-media-', dir=tmp_root))
-            target = temp_dir / f'asset{suffix}'
-            with httpx.Client(timeout=httpx.Timeout(60.0, connect=20.0), follow_redirects=True) as client:
-                response = client.get(url)
-                if response.status_code >= 400:
-                    return None
-                target.write_bytes(response.content)
-                return target
+            timeout = httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=60.0)
+
+            last_error: Exception | None = None
+
+            for attempt in range(3):
+                temp_dir = Path(tempfile.mkdtemp(prefix='rangmanch-media-', dir=tmp_root))
+                target = temp_dir / f'asset{suffix}'
+
+                try:
+                    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+                        with client.stream('GET', url) as response:
+                            if response.status_code >= 400:
+                                return None
+
+                            with target.open('wb') as file_handle:
+                                for chunk in response.iter_bytes(chunk_size=1024 * 1024):
+                                    if chunk:
+                                        file_handle.write(chunk)
+
+                    return target
+
+                except httpx.TimeoutException as exc:
+                    last_error = exc
+                    logger.warning(
+                        'media_download_timeout',
+                        extra={
+                            'url': url,
+                            'attempt': attempt + 1,
+                        },
+                    )
+                except httpx.HTTPError as exc:
+                    last_error = exc
+                    logger.warning(
+                        'media_download_http_error',
+                        extra={
+                            'url': url,
+                            'attempt': attempt + 1,
+                            'error': str(exc),
+                        },
+                    )
+                except Exception as exc:
+                    last_error = exc
+                    logger.warning(
+                        'media_download_unexpected_error',
+                        extra={
+                            'url': url,
+                            'attempt': attempt + 1,
+                            'error': str(exc),
+                        },
+                    )
+
+            logger.error(
+                'media_download_failed',
+                extra={
+                    'url': url,
+                    'error': str(last_error) if last_error else 'unknown',
+                },
+            )
+            return None
+
         return None
 
     def _url_to_local_path(self, url: str) -> Path:

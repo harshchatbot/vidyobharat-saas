@@ -11,7 +11,8 @@ def build_scene_prompt(
     reference: str | None,
     inputs: dict[str, Any] | None = None,
 ) -> str:
-    beat_list = ', '.join(scene.get('beat_names') or [])
+    beat_names = tuple(scene.get('beat_names') or ())
+    beat_list = ', '.join(beat_names)
     guidance = recipe.config.scene_guidance or (
         'Keep motion smooth, subject continuity strong, and transitions natural. '
         'The scene should begin gently and end cleanly without abrupt cuts, jerks, or sudden pose changes.'
@@ -20,7 +21,7 @@ def build_scene_prompt(
     text_input = str(normalized_inputs.get('text') or '').strip()
 
     prompt = (
-        'Create a short cinematic video scene.\n\n'
+        'Create a short cinematic vertical video scene for a social-media reel.\n\n'
         f'Style: {recipe.config.style}\n'
         f'Tone: {recipe.config.tone}\n'
         f'Scene beats: {beat_list}\n'
@@ -28,7 +29,10 @@ def build_scene_prompt(
     )
 
     if text_input:
-        prompt += f'User brief: {text_input}\n'
+        prompt += f'Current scene brief: {text_input}\n'
+
+    if recipe.config.reference_prompt:
+        prompt += f'Creative direction: {recipe.config.reference_prompt}\n'
 
     if reference:
         prompt += (
@@ -43,6 +47,17 @@ def build_scene_prompt(
         )
     else:
         prompt += '\n'
+
+    if recipe.id == 'time_echo_explainer':
+        prompt += (
+            'This is an EXPLAINER scene for a short social reel.\n'
+            'The visuals must communicate the current narration beat clearly and concretely.\n'
+            'Show cause and effect, visible consequences, and progression.\n'
+            'Avoid repeating the same generic planet, sky, or abstract cinematic shot unless the beat truly requires it.\n'
+            'Prefer specific, understandable visuals over vague beauty shots.\n'
+            'The scene should feel informative, scroll-stopping, and easy to follow even with captions on.\n'
+            'Use strong opening composition, one clear visual idea in the middle, and a clean natural outro for stitching.\n'
+        )
 
     prompt += (
         f'{guidance}\n'

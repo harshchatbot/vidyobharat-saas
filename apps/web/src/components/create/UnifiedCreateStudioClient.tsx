@@ -35,7 +35,7 @@ import { API_URL } from '@/lib/env';
 import type { RecipeCatalog } from '@/types/api';
 
 type ComposerMode = 'image' | 'video';
-type ResolvedMode = 'video';
+type ResolvedMode = 'image' | 'video';
 type QualityProfile = 'fast_social' | 'creator_quality' | 'creator_pro' | 'premium';
 type RecipeTab = 'all' | 'trending' | 'ads' | 'entertainment' | 'explainer' | 'story' | 'character' | 'real_estate';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
@@ -133,9 +133,10 @@ type ActiveRecipeSource =
   | { kind: 'recipe'; recipe: RecipeCard }
   | null;
 
-const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2 }> = [
-  { key: 'video', label: 'Video', icon: Video },
-];
+  const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2 }> = [
+    { key: 'image', label: 'Image', icon: Sparkles },
+    { key: 'video', label: 'Video', icon: Video },
+  ];
 
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
@@ -194,11 +195,10 @@ function aspectRatioToCss(value: string | null | undefined) {
   return `${width} / ${height}`;
 }
 
-function resolveComposerMode(_: ComposerMode, recipeType?: 'image' | 'video' | null): ResolvedMode {
-  if (recipeType === 'image') {
-    return 'video';
-  }
-  return 'video';
+function resolveComposerMode(mode: ComposerMode, recipeType?: 'image' | 'video' | null): ResolvedMode {
+  if (recipeType === 'image') return 'image';
+  if (recipeType === 'video') return 'video';
+  return mode;
 }
 
 function pickVideoTemplateKey(idea: string) {
@@ -371,7 +371,7 @@ function resolveRecipeComposer(recipe: RecipeCard): RecipeComposerState {
     recipeId: recipe.id,
     recipeLabel: composer.recipe_label || recipe.title,
     sourceKind: 'recipe',
-    mode: 'video',
+    mode: (recipe.recipe.type === 'image' ? 'image' : 'video'),
     fragments: composer.fragments.map((fragment) =>
       fragment.type === 'text'
         ? { type: 'text', value: fragment.value || '' }
@@ -754,7 +754,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
   const applyRecipeToComposer = (recipe: RecipeCard) => {
     const defaults = recipe.recipe.generation_defaults ?? {};
-    const nextMode: ComposerMode = 'video';
+    const nextMode: ComposerMode = (recipe.recipe.type === 'image' ? 'image' : 'video');
     const composerState = resolveRecipeComposer(recipe);
     setRecipeComposer(composerState);
     setRecipeSlotAssets({});
@@ -944,7 +944,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
         <div
           ref={composerRef}
-          className="relative overflow-visible rounded-[32px] border border-white/10 bg-[rgba(18,18,24,0.8)] px-4 py-3 backdrop-blur-[16px] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_rgba(0,0,0,0.5)] sm:px-6 sm:py-3.5"
+          className="relative z-30 overflow-visible rounded-[32px] border border-white/10 bg-[rgba(18,18,24,0.8)] px-4 py-3 backdrop-blur-[16px] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_rgba(0,0,0,0.5)] sm:px-6 sm:py-3.5"
         >
           <div className="pointer-events-none absolute inset-x-[24%] -bottom-10 h-24 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.14)_0%,rgba(139,92,246,0.16)_38%,rgba(236,72,153,0.14)_60%,transparent_80%)] blur-2xl" />
           <div className="absolute inset-x-10 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)]" />
@@ -1082,7 +1082,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <Plus className="h-4 w-4" />
                     </button>
                     {openMenu === 'assets' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-20 min-w-[250px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[250px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Assets</p>
                           <p className="mt-1 text-xs text-muted">Bring visuals or avatar context into the composer.</p>
@@ -1111,7 +1111,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'model' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-20 min-w-[260px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[260px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Model</p>
                           <p className="mt-1 text-xs text-muted">Choose the creation type first. You can fine-tune quality in More.</p>
@@ -1147,7 +1147,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'aspect' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-20 min-w-[220px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[220px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Format</p>
                           <p className="mt-1 text-xs text-muted">Pick the output frame that best fits your social placement.</p>
@@ -1177,7 +1177,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       More
                     </button>
                     {openMenu === 'more' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-20 min-w-[280px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[280px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">More</p>
                           <p className="mt-1 text-xs text-muted">Tune clip length, narration, and captions without leaving the composer.</p>
@@ -1373,7 +1373,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       </section>
 
       <section className="space-y-5 pt-0.5">
-        <div className="sticky top-[84px] z-20 -mx-2 rounded-[24px] border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.82)] px-2 py-3 backdrop-blur-xl sm:top-[92px] sm:-mx-3 sm:px-3 xl:top-6 xl:mx-0 xl:px-0 xl:py-0 xl:border-0 xl:bg-transparent xl:backdrop-blur-0">
+        <div className="sticky top-[84px] z-10 -mx-2 rounded-[24px] border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.82)] px-2 py-3 backdrop-blur-xl sm:top-[92px] sm:-mx-3 sm:px-3 xl:top-6 xl:mx-0 xl:px-0 xl:py-0 xl:border-0 xl:bg-transparent xl:backdrop-blur-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Recipes</p>

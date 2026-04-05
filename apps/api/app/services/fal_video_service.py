@@ -19,6 +19,7 @@ class FalVideoService:
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
         'kling': 420,
         'kling_turbo': 300,
+        'kling_v3': 480,
         'wan_2_5': 240,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
@@ -32,7 +33,17 @@ class FalVideoService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def generate(self, *, model_key: str, prompt: str, aspect_ratio: str, resolution: str, duration_seconds: int, image_url: str | None = None) -> tuple[str, dict[str, Any]]:
+    def generate(
+        self,
+        *,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration_seconds: int,
+        image_url: str | None = None,
+        multi_prompt: list[dict[str, Any]] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
         if not getattr(self.settings, 'fal_api_key', None):
             raise RuntimeError('FAL_API_KEY is not configured for fal video generation')
 
@@ -46,6 +57,9 @@ class FalVideoService:
         }
         if image_url:
             payload['image_url'] = image_url
+
+        if multi_prompt:
+            payload['multi_prompt'] = multi_prompt
 
         headers = {
             'Authorization': f'Key {self.settings.fal_api_key}',
@@ -301,6 +315,7 @@ class FalVideoService:
             'wan_2_5': 'fal-ai/wan/v2.6/text-to-video',
             'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
             'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
+            'kling_v3': 'fal-ai/kling-video/v3/standard/text-to-video',
         }
         return mapping.get(model_key, 'fal-ai/wan/v2.6/text-to-video')
 

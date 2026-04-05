@@ -23,6 +23,7 @@ class ClipGenerationRequest:
     caption_style: str | None = None
     audio_settings: dict[str, Any] = field(default_factory=lambda: {'sampleRateHz': 22050})
     metadata: dict[str, Any] = field(default_factory=dict)
+    multi_prompt: list[dict[str, Any]] = field(default_factory=list)
 
 
 class VideoGenerationService:
@@ -46,4 +47,8 @@ class VideoGenerationService:
             'audioSettings': request.audio_settings,
             'recipeMetadata': request.metadata,
         }
+
+        if request.multi_prompt:
+            payload['multiPrompt'] = request.multi_prompt
+
         return self.service.execute_model_with_router(payload)
