@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.shared_config import load_shared_json
+from app.recipes.recipe_registry import get_recipe, validate_recipe_inputs
 
 
 SUPPORTED_REEL_TEMPLATES = {
@@ -103,37 +104,43 @@ class VideoAudioSettings(BaseModel):
 
 
 class AIVideoCreateRequest(BaseModel):
-    template: str = Field(min_length=2, max_length=80)
+    template: str | None = Field(default=None, min_length=2, max_length=80)
     templateId: str | None = Field(default=None, max_length=120)
-    script: str = Field(min_length=1, max_length=6000)
+    script: str | None = Field(default=None, min_length=1, max_length=6000)
     tags: list[str] = Field(default_factory=list)
-    modelKey: str = Field(min_length=2, max_length=64)
+    modelKey: str | None = Field(default=None, min_length=2, max_length=64)
     modeId: str | None = Field(default=None, max_length=80)
     projectId: str | None = Field(default=None, max_length=64)
-    language: str = Field(min_length=2, max_length=40)
-    aspectRatio: str = Field(min_length=3, max_length=10)
-    resolution: str = Field(min_length=3, max_length=20)
+    language: str | None = Field(default=None, min_length=2, max_length=40)
+    aspectRatio: str | None = Field(default=None, min_length=3, max_length=10)
+    resolution: str | None = Field(default=None, min_length=3, max_length=20)
     quality: str = Field(default='standard', min_length=3, max_length=20)
-    durationMode: str = Field(min_length=4, max_length=10)
+    durationMode: str | None = Field(default=None, min_length=4, max_length=10)
     durationSeconds: int | None = Field(default=None, ge=3, le=300)
-    voice: str = Field(min_length=1, max_length=120)
+    voice: str | None = Field(default=None, min_length=1, max_length=120)
     imageUrls: list[str] = Field(default_factory=list)
     music: VideoMusicSettings = Field(default_factory=VideoMusicSettings)
     audioSettings: VideoAudioSettings = Field(default_factory=VideoAudioSettings)
     captionsEnabled: bool = True
     captionStyle: str = Field(default='classic', max_length=40)
     narrationEnabled: bool = True
+    recipeId: str | None = Field(default=None, max_length=120)
+    inputs: dict[str, str | list[str]] = Field(default_factory=dict)
 
     @field_validator('aspectRatio')
     @classmethod
-    def validate_aspect_ratio(cls, value: str) -> str:
+    def validate_aspect_ratio(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         if value not in {'9:16', '16:9', '1:1'}:
             raise ValueError('Unsupported aspectRatio')
         return value
 
     @field_validator('resolution')
     @classmethod
-    def validate_resolution(cls, value: str) -> str:
+    def validate_resolution(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         if value not in {'720p', '1080p', '1440p', '2160p'}:
             raise ValueError('Unsupported resolution')
         return value
@@ -147,17 +154,43 @@ class AIVideoCreateRequest(BaseModel):
 
     @field_validator('durationMode')
     @classmethod
-    def validate_duration_mode(cls, value: str) -> str:
+    def validate_duration_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         if value not in {'auto', 'custom'}:
             raise ValueError('Unsupported durationMode')
         return value
 
     @field_validator('modelKey')
     @classmethod
-    def validate_selected_model(cls, value: str) -> str:
+    def validate_selected_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         if value not in SUPPORTED_VIDEO_MODELS:
             raise ValueError('Unsupported modelKey')
         return value
+
+    @model_validator(mode='after')
+    def validate_request_mode(self) -> 'AIVideoCreateRequest':
+        if self.recipeId:
+            recipe = get_recipe(self.recipeId)
+            validate_recipe_inputs(recipe, self.inputs)
+            return self
+
+        required_fields = {
+            'template': self.template,
+            'script': self.script,
+            'modelKey': self.modelKey,
+            'language': self.language,
+            'aspectRatio': self.aspectRatio,
+            'resolution': self.resolution,
+            'durationMode': self.durationMode,
+            'voice': self.voice,
+        }
+        missing = [key for key, value in required_fields.items() if value in (None, '')]
+        if missing:
+            raise ValueError(f'Missing required fields for standard video create: {", ".join(missing)}')
+        return self
 
 
 class AIVideoCreateResponse(BaseModel):

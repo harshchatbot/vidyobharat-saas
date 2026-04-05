@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -50,6 +51,12 @@ import type { AssetTagFacet, GeneratedImage, ImageModel, ImageQuickTemplate, Ins
 type Props = {
   userId: string;
   initialProjectId?: string;
+  initialPrompt?: string;
+  initialImageMode?: ImageModeKey;
+  initialAspectRatio?: string;
+  initialResolution?: string;
+  initialAutoGenerate?: boolean;
+  embedded?: boolean;
 };
 
 type ImageTemplatePreset = {
@@ -549,7 +556,16 @@ function buildTagFacets(items: GeneratedImage[]): AssetTagFacet[] {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-export function ImageStudioClient({ userId, initialProjectId }: Props) {
+export function ImageStudioClient({
+  userId,
+  initialProjectId,
+  initialPrompt,
+  initialImageMode,
+  initialAspectRatio,
+  initialResolution,
+  initialAutoGenerate = false,
+  embedded = false,
+}: Props) {
   const cacheKey = `rangmanch:image-studio:v1:${userId}`;
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cacheWarm, setCacheWarm] = useState(false);
@@ -601,6 +617,8 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [resolution, setResolution] = useState('1536');
   const [quickStartFeedback, setQuickStartFeedback] = useState<{ title: string; description: string } | null>(null);
+  const didApplyInitialConfigRef = useRef(false);
+  const didAutoGenerateRef = useRef(false);
   const [wantsVariations, setWantsVariations] = useState(false);
   const [imageCount, setImageCount] = useState(2);
   const [searchQuery, setSearchQuery] = useState('');
@@ -612,6 +630,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
   const [generatedFetchLimit, setGeneratedFetchLimit] = useState(IMAGE_STUDIO_INITIAL_GENERATED_LIMIT);
   const [loadingMoreGenerated, setLoadingMoreGenerated] = useState(false);
   const [hasMoreGenerated, setHasMoreGenerated] = useState(false);
+  const prefersUnifiedComposer = !embedded && !(initialPrompt ?? '').trim();
   const { wallet, refreshing: creditsRefreshing, applyWallet, refresh: refreshCredits, openLowBalanceModal } = useCredits();
   const { show } = useToast();
   const requestedImageCount = wantsVariations ? imageCount : 1;
@@ -1085,7 +1104,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     }
   };
 
-  const submit = async () => {
+  const submit = async ({ requireConfirm = true }: { requireConfirm?: boolean } = {}) => {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
       setError('Prompt is required.');
@@ -1105,7 +1124,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
         return;
       }
     }
-    if (!window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
+    if (requireConfirm && !window.confirm('Generate this image now? Credits will be charged only if generation succeeds.')) {
       return;
     }
     const projectId = await ensureProjectForImageRun();
@@ -1458,6 +1477,32 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
     await submit();
   };
 
+  useEffect(() => {
+    if (didApplyInitialConfigRef.current) return;
+    const hasInitialConfig = Boolean(initialPrompt?.trim() || initialImageMode || initialAspectRatio || initialResolution);
+    if (!hasInitialConfig) return;
+    if (initialPrompt?.trim()) setPrompt(initialPrompt.trim());
+    if (initialImageMode) {
+      setImageMode(initialImageMode);
+      const resolvedModel =
+        resolveImageModeModel(models, initialImageMode) ??
+        resolveImageModeModel(fallbackModels, initialImageMode);
+      if (resolvedModel) setSelectedModel(resolvedModel);
+    }
+    if (initialAspectRatio) setAspectRatio(initialAspectRatio);
+    if (initialResolution) setResolution(initialResolution);
+    didApplyInitialConfigRef.current = true;
+  }, [initialAspectRatio, initialImageMode, initialPrompt, initialResolution, models]);
+
+  useEffect(() => {
+    if (!initialAutoGenerate || didAutoGenerateRef.current) return;
+    if (!didApplyInitialConfigRef.current) return;
+    if (loading || submitting) return;
+    if (!prompt.trim()) return;
+    didAutoGenerateRef.current = true;
+    void submit({ requireConfirm: false });
+  }, [initialAutoGenerate, loading, prompt, submitting]);
+
   return (
     <div className="space-y-0">
       <LoadingOverlay
@@ -1479,24 +1524,45 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
           description="This image workspace is attached to the active project. New outputs, template-driven runs, and prompt variations will stay grouped there."
         />
       ) : null}
-      <StudioPageHeader
-        eyebrow="Image Studio"
-        title="Create your reel visual"
-        description="Generate images for reels, ads, carousels, and character content from one creator-first workspace."
-        actions={
-          <>
-            <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
-              <GalleryVerticalEnd className="h-4 w-4" />
-              Browse templates
-            </Button>
-            <Badge variant="outline" className="px-3 py-2 text-xs">
-              {wallet?.currentCredits ?? 0} credits
-            </Badge>
-          </>
-        }
-      />
+      {!embedded ? (
+        <StudioPageHeader
+          eyebrow="Image Studio"
+          title="Image workspace"
+          description={prefersUnifiedComposer ? 'Start the idea in Create, then come here for refinement, references, and output controls.' : 'Refine the image idea, references, and output settings from one cleaner workspace.'}
+          actions={
+            <>
+              <Link href="/create">
+                <Button variant="secondary" type="button" className="h-10 gap-2 rounded-[12px] px-4 text-sm">
+                  <Sparkles className="h-4 w-4" />
+                  Open Create
+                </Button>
+              </Link>
+              <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 gap-2 rounded-[12px] px-4 text-sm">
+                <GalleryVerticalEnd className="h-4 w-4" />
+                Browse templates
+              </Button>
+              <Badge variant="outline" className="px-3 py-2 text-xs">
+                {wallet?.currentCredits ?? 0} credits
+              </Badge>
+            </>
+          }
+        />
+      ) : null}
 
       <div className="space-y-8">
+        {prefersUnifiedComposer ? (
+          <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text">Start in the unified composer</p>
+                <p className="mt-1 text-xs text-muted">Use `/create` to write the prompt. This page is now better suited for refining templates, references, and outputs after the idea is already set.</p>
+              </div>
+              <Link href="/create">
+                <Button type="button" className="w-full sm:w-auto">Go to Create</Button>
+              </Link>
+            </div>
+          </div>
+        ) : null}
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
           <div className="min-w-0 space-y-5">
             <div>
@@ -1508,7 +1574,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div>
                 <p className="text-sm font-semibold text-text">Quick start</p>
-                <p className="mt-1 text-xs text-muted">Pick a creator-ready starting point and we’ll prefill the prompt and recommended settings.</p>
+                <p className="mt-1 text-xs text-muted">Pick a creator-ready starting point and we’ll prefill the prompt and recommended settings. Optimized for social content, and you can refine this later.</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {Object.entries(IMAGE_QUICK_START_PRESETS).map(([key, preset]) => (
@@ -1527,6 +1593,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
                 <div className="rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
                   <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
                   <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
+                  <p className="mt-1 text-[11px] text-muted">Recommended settings already applied.</p>
                 </div>
               ) : null}
             </div>
@@ -1535,7 +1602,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">Template / use case</p>
-                  <p className="mt-1 text-xs text-muted">Start from a proven structure instead of a blank canvas.</p>
+                  <p className="mt-1 text-xs text-muted">Start from a proven structure instead of a blank canvas. Templates are ready-made formats. Just change the idea.</p>
                 </div>
                 <Button variant="secondary" type="button" onClick={() => setTemplatePickerOpen(true)} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
                   <GalleryVerticalEnd className="h-3.5 w-3.5" />
@@ -1730,22 +1797,32 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
             <div className="space-y-3 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-text">Describe your visual</p>
-                  <p className="mt-1 text-xs text-muted">{activeImageMode.label} is best when you want {activeImageMode.description.toLowerCase()}</p>
+                  <p className="text-sm font-semibold text-text">{prefersUnifiedComposer && !prompt.trim() ? 'Prompt source' : 'Describe your visual'}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {prefersUnifiedComposer && !prompt.trim()
+                      ? 'Prompt entry starts in the unified composer. When an idea is sent here, it will appear in this workspace for refinement.'
+                      : `${activeImageMode.label} is best when you want ${activeImageMode.description.toLowerCase()}`}
+                  </p>
                 </div>
-                <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing} className="w-full gap-2 px-3 py-1.5 text-xs sm:w-auto">
+                <Button variant="secondary" type="button" onClick={() => void enhancePrompt()} disabled={enhancing || (prefersUnifiedComposer && !prompt.trim())} className="w-full gap-2 px-3 py-1.5 text-xs sm:w-auto">
                   {enhancing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                   {enhancing ? 'Improving...' : 'Improve prompt'}
                 </Button>
               </div>
-              <Textarea
-                ref={promptTextareaRef}
-                rows={6}
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                maxLength={MAX_PROMPT_CHARS}
-                placeholder={activePromptPlaceholder}
-              />
+              {prefersUnifiedComposer && !prompt.trim() ? (
+                <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.34)] px-4 py-5 text-sm text-muted">
+                  Your image prompt will appear here after you start from the unified composer.
+                </div>
+              ) : (
+                <Textarea
+                  ref={promptTextareaRef}
+                  rows={6}
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  maxLength={MAX_PROMPT_CHARS}
+                  placeholder={activePromptPlaceholder}
+                />
+              )}
               <div className="flex flex-col gap-2 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>{prompt.length}/{MAX_PROMPT_CHARS}</span>
                 <div className="flex flex-wrap gap-2">
@@ -1967,7 +2044,7 @@ export function ImageStudioClient({ userId, initialProjectId }: Props) {
               />
             ) : (
               <div className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted sm:min-h-[240px]">
-                Start with a quick preset, template, or prompt to generate your visual. Your generated image will appear here.
+                Describe your visual or use a template to get started. Your generated image will appear here.
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, ChevronDown, ChevronRight, ChevronUp, Download, ImageIcon, Layers3, Lock, RefreshCw, Sparkles, UserRound, Wand2 } from 'lucide-react';
 
@@ -908,17 +909,47 @@ export function InfluencerStudioClient({ userId }: { userId: string }) {
           icon={<Sparkles className="h-5 w-5" />}
           compact
         >
-          <div className="grid gap-4">
+      <div className="grid gap-4">
+        <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-text">Start ideas in Create</p>
+              <p className="mt-1 text-xs text-muted">Use `/create` when you want to provide the initial prompt or concept. This workspace is best for persona setup, reference locking, and influencer-specific rendering controls.</p>
+            </div>
+            <Link href="/create">
+              <Button type="button" className="w-full sm:w-auto">Go to Create</Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.18)] px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-text">Workflow shift</p>
+              <p className="mt-1 text-xs text-muted">Prompt entry is now centered in the unified composer. This influencer studio stays focused on identity, scene, pose, and render control.</p>
+            </div>
+            <Badge variant="outline">Advanced workspace</Badge>
+          </div>
+        </div>
+
             <div className="grid gap-4 xl:grid-cols-[1fr_220px]">
               <div>
                 <label className="mb-2 block text-sm font-medium text-text">Intent</label>
-                <Textarea
-                  rows={5}
-                  value={contentIntent}
-                  onChange={(e) => setContentIntent(e.target.value)}
-                  placeholder="e.g. Create a LinkedIn post about why Indian founders should ship faster, with a motivating close and a confident CTA."
-                />
-                <p className="mt-2 text-xs text-muted">Describe the topic, angle, and goal. Persona memory shapes the voice.</p>
+                {contentIntent.trim() ? (
+                  <>
+                    <Textarea
+                      rows={5}
+                      value={contentIntent}
+                      onChange={(e) => setContentIntent(e.target.value)}
+                      placeholder="e.g. Create a LinkedIn post about why Indian founders should ship faster, with a motivating close and a confident CTA."
+                    />
+                    <p className="mt-2 text-xs text-muted">Describe the topic, angle, and goal. Persona memory shapes the voice.</p>
+                  </>
+                ) : (
+                  <div className="rounded-[14px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.4)] px-4 py-5 text-sm text-muted">
+                    Content ideas now start in the unified composer. If an influencer brief is passed in, you can refine it here before generating content.
+                  </div>
+                )}
               </div>
               <div className="space-y-3">
                 <div>

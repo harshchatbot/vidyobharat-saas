@@ -110,6 +110,9 @@ export function TemplateSelector({
 
   return (
     <div className="min-w-0">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted">Templates are ready-made formats. Just change the idea. Recommended settings already work well.</p>
+      </div>
       <div className="w-full overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] touch-pan-x">
         <div className="inline-flex min-w-max gap-3 snap-x snap-mandatory pr-1">
         {loading
@@ -217,7 +220,7 @@ export function TemplateSelector({
                     {activeStateLabel || template.badge || 'Best for'}
                   </div>
                   <div className="text-[11px] font-semibold text-[hsl(var(--color-accent))]">
-                    {applyingTemplateKey === template.key ? 'Applying…' : 'Quick apply'}
+                    {applyingTemplateKey === template.key ? 'Applying…' : 'Use recommended setup'}
                   </div>
                 </div>
                 <p className="line-clamp-2 text-xs text-muted">{template.topicHint}</p>

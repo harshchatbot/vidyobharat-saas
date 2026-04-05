@@ -61,7 +61,7 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
     title: 'Create with Tools',
     links: [
       { label: 'Generate images', href: '/images', icon: ImageIcon },
-      { label: 'Create video', href: '/create', icon: Video },
+      { label: 'Unified studio', href: '/create', icon: Video },
       { label: 'Template Browser', href: '/templates', icon: LayoutTemplate },
     ],
   },

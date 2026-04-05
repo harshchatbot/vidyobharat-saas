@@ -246,6 +246,10 @@ class AIVideoCreateService:
         captions_enabled: bool = True,
         narration_enabled: bool = True,
         caption_style: str | None = None,
+        recipe_id: str | None = None,
+        recipe_inputs: dict[str, Any] | None = None,
+        pipeline_mode: str | None = None,
+        pipeline_metadata: dict[str, Any] | None = None,
     ) -> Video:
         route = resolve_generation_route(medium='video', model_key=model_key)
         registry_model_key = self._registry_key_for(model_key)
@@ -304,6 +308,10 @@ class AIVideoCreateService:
             music_volume=int((audio_settings or {}).get('volume') or 20),
             duck_music=bool((audio_settings or {}).get('ducking', True)),
             audio_sample_rate_hz=sample_rate_hz,
+            recipe_id=recipe_id,
+            recipe_inputs=recipe_inputs or {},
+            pipeline_mode=pipeline_mode,
+            pipeline_metadata=pipeline_metadata or {},
         )
         if project_id:
             try:
@@ -1081,37 +1089,52 @@ def celery_process_ai_video(video_id: str) -> None:
             'ai_video_status_transition',
             extra={'render_id': video_id, 'from_status': 'queued', 'to_status': 'processing', 'progress': 20},
         )
-        payload = {
-            'videoId': video.id,
-            'imageUrl': video.source_image_url,
-            'script': video.script,
-            'language': video.language,
-            'modelKey': video.selected_model,
-            'aspectRatio': video.aspect_ratio,
-            'resolution': video.resolution,
-            'durationSeconds': video.duration_seconds or 8,
-            'voice': video.voice,
-            'captionsEnabled': bool(video.captions_enabled),
-            'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
-            'captionStyle': video.caption_style,
-            'audioSettings': {
-                'sampleRateHz': video.audio_sample_rate_hz or 22050,
-            },
-        }
-        logger.info(
-            'voice_requested',
-            extra={
-                'render_id': video.id,
-                'narration_enabled': bool(getattr(video, 'narration_enabled', True)),
-                'voice': video.voice,
+        raw_snapshot = repo.collection.document(video_id).get()
+        raw_data = raw_snapshot.to_dict() or {}
+        recipe_id = str(raw_data.get('recipe_id') or raw_data.get('recipeId') or '').strip() or None
+        if recipe_id:
+            from app.pipeline.pipeline_engine import run_recipe_pipeline
+
+            recipe_inputs = raw_data.get('recipe_inputs') or raw_data.get('recipeInputs') or {}
+            result = run_recipe_pipeline(
+                recipe_id,
+                recipe_inputs,
+                video_id=video.id,
+                user_id=video.user_id,
+                progress_callback=lambda progress: repo.update(video, status=VideoStatus.processing, progress=progress),
+            )
+        else:
+            payload = {
+                'videoId': video.id,
+                'imageUrl': video.source_image_url,
+                'script': video.script,
                 'language': video.language,
-                'audio_sample_rate_hz': video.audio_sample_rate_hz or 22050,
-                'script_length': len(video.script or ''),
-                'requested_model': video.selected_model,
-            },
-        )
-        repo.update(video, progress=55)
-        result = service.execute_model_with_router(payload)
+                'modelKey': video.selected_model,
+                'aspectRatio': video.aspect_ratio,
+                'resolution': video.resolution,
+                'durationSeconds': video.duration_seconds or 8,
+                'voice': video.voice,
+                'captionsEnabled': bool(video.captions_enabled),
+                'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
+                'captionStyle': video.caption_style,
+                'audioSettings': {
+                    'sampleRateHz': video.audio_sample_rate_hz or 22050,
+                },
+            }
+            logger.info(
+                'voice_requested',
+                extra={
+                    'render_id': video.id,
+                    'narration_enabled': bool(getattr(video, 'narration_enabled', True)),
+                    'voice': video.voice,
+                    'language': video.language,
+                    'audio_sample_rate_hz': video.audio_sample_rate_hz or 22050,
+                    'script_length': len(video.script or ''),
+                    'requested_model': video.selected_model,
+                },
+            )
+            repo.update(video, progress=55)
+            result = service.execute_model_with_router(payload)
         local_result_path = service.pipeline.ensure_local_media_path(result.video_url) or _resolve_local_generated_file(result.video_url)
         post_processed_path = local_result_path
         tts_metadata = {
@@ -1120,7 +1143,7 @@ def celery_process_ai_video(video_id: str) -> None:
             'tts_provider_message': (result.metadata or {}).get('tts_provider_message'),
             'tts_fallback_used': bool((result.metadata or {}).get('tts_fallback_used', False)),
         }
-        if local_result_path and local_result_path.exists():
+        if local_result_path and local_result_path.exists() and not recipe_id:
             if bool(getattr(video, 'narration_enabled', True)) and (video.script or '').strip():
                 voice_path, _, tts_diagnostics = service.pipeline.generate_narration_track(
                     render_id=video.id,
@@ -1171,12 +1194,15 @@ def celery_process_ai_video(video_id: str) -> None:
                     **service.pipeline.probe_media_streams(post_processed_path),
                 },
             )
+        requested_duration_seconds = video.duration_seconds or 8
+        if not recipe_id:
+            requested_duration_seconds = int(payload.get('durationSeconds') or requested_duration_seconds)
         final_duration_seconds = _probe_video_duration_seconds(result.video_url)
         logger.info(
             'ai_video_render_diagnostics',
             extra={
                 'render_id': video.id,
-                'requested_duration_seconds': int(payload.get('durationSeconds') or 0),
+                'requested_duration_seconds': requested_duration_seconds,
                 'final_video_duration_seconds': final_duration_seconds,
                 'provider': result.provider,
                 'requested_model': video.selected_model,
@@ -1245,6 +1271,8 @@ def celery_process_ai_video(video_id: str) -> None:
             else:
                 logger.info('video_auto_tag_repo_unavailable', extra={'render_id': video_id})
     except Exception as exc:
+        if 'recipe_id' in locals() and recipe_id:
+            logger.exception('recipe_pipeline_failed', extra={'render_id': video_id, 'recipe_id': recipe_id})
         logger.exception(
             'local_video_completion_failed',
             extra={'render_id': video_id, 'error': str(exc)[:255]},
@@ -1255,8 +1283,6 @@ def celery_process_ai_video(video_id: str) -> None:
             failure_status = _classify_video_failure_status(exc)
             repo.update(target, status=failure_status, progress=100, error_message=str(exc)[:255])
             try:
-                raw = repo.collection.document(video_id).get()
-                raw_data = raw.to_dict() or {}
                 charged_credits = int(raw_data.get('applied_credits') or 0)
                 estimate_payload = {
                     'modelKey': target.selected_model,

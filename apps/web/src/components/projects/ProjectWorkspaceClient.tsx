@@ -126,7 +126,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
         description="Group your brief, template direction, and generated outputs in one calmer project surface."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link href={`/create?projectId=${project.id}`}>
+            <Link href={`/create/video?projectId=${project.id}`}>
               <Button className="gap-2">
                 Continue in video
                 <Clapperboard className="h-4 w-4" />
@@ -239,7 +239,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link href={`/create?projectId=${project.id}`} className="rangmanch-poster-card rounded-[24px] p-4 transition hover:-translate-y-0.5">
+            <Link href={`/create/video?projectId=${project.id}`} className="rangmanch-poster-card rounded-[24px] p-4 transition hover:-translate-y-0.5">
               <p className="text-sm font-semibold text-text">Video workspace</p>
               <p className="mt-1 text-sm text-muted">Continue script-led video creation with this project attached.</p>
             </Link>

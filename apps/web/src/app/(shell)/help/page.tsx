@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation';
 
-import { UnifiedCreateStudioClient } from '@/components/create/UnifiedCreateStudioClient';
+import { HelpPageClient } from '@/components/help/HelpPageClient';
 import { getUserIdFromCookie } from '@/lib/session';
 
-export default async function CreatePage() {
+export default async function HelpPage() {
   const userId = await getUserIdFromCookie();
   if (!userId) {
     redirect('/login');
   }
 
-  return <UnifiedCreateStudioClient userId={userId} />;
+  return <HelpPageClient />;
 }

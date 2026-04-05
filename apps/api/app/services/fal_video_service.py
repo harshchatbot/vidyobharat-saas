@@ -14,12 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class FalVideoService:
-    _STATUS_POLL_INTERVAL_SECONDS = 3
-    _TERMINAL_STATUS_TIMEOUT_SECONDS = 90
+    _STATUS_POLL_INTERVAL_SECONDS = 4
+    _TERMINAL_STATUS_TIMEOUT_SECONDS = 180
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
-        'kling': 180,
+        'kling': 420,
+        'kling_turbo': 300,
+        'wan_2_5': 240,
     }
-    _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 120
+    _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _FOLLOW_UP_REQUEST_DEPTH_LIMIT = 3
     _STATUS_REQUEST_TIMEOUT = httpx.Timeout(25.0, connect=10.0)
     _RESPONSE_REQUEST_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
@@ -230,6 +232,7 @@ class FalVideoService:
                 'request_id': (last_payload or {}).get('request_id'),
                 'last_state': self._normalize_state(last_payload or {}),
                 'timeout_seconds': timeout_seconds,
+                'elapsed_seconds': round(time.time() - started, 2),
                 'payload_preview': str(last_payload)[:480],
             },
         )

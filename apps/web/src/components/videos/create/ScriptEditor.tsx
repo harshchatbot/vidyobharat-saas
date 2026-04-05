@@ -46,9 +46,11 @@ export function ScriptEditor({
   const generateLabel =
     typeof generateCredits === 'number'
       ? generateCredits > 0
-        ? `Generate script draft · ${generateCredits} credits`
-        : 'Generate script draft · Free'
-      : 'Generate script draft';
+        ? `${script.trim() ? 'Regenerate script draft' : 'Generate script draft'} · ${generateCredits} credits`
+        : `${script.trim() ? 'Regenerate script draft' : 'Generate script draft'} · Free`
+      : script.trim()
+        ? 'Regenerate script draft'
+        : 'Generate script draft';
   const enhanceLabel =
     typeof enhanceCredits === 'number'
       ? enhanceCredits > 0
@@ -80,6 +82,9 @@ export function ScriptEditor({
           </Button>
         </div>
       </div>
+      <p className="text-xs text-muted">
+        Generate creates a fresh replacement draft. Improve rewrites the current script to strengthen structure, pacing, cues, and CTA quality.
+      </p>
 
       <label className="block">
         <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Script / voiceover</span>

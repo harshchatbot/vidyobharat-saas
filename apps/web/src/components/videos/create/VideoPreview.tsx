@@ -150,7 +150,7 @@ export function VideoPreview({
             <Sparkles className="h-6 w-6" />
           </span>
           <p className="mt-3 text-base font-semibold text-text">Your reel preview will appear here</p>
-          <p className="mt-1 text-sm text-muted">Pick a quick start or write your own idea to generate your first reel.</p>
+          <p className="mt-1 text-sm text-muted">Start with a quick idea or use a template to generate your first reel.</p>
         </div>
       ) : null}
     </div>

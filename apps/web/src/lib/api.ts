@@ -12,6 +12,7 @@ import type {
   Project,
   ProjectAsset,
   ProjectDetail,
+  RecipeCatalog,
   GeneratedImage,
   ImageActionResponse,
   ImageModel,
@@ -405,6 +406,25 @@ export const api = {
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 60_000, () =>
       request<Template[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+    );
+  },
+  listRecipes(
+    userId: string,
+    params?: {
+      type?: 'image' | 'video';
+      active?: boolean;
+      featured?: boolean;
+    },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.type) query.set('type', params.type);
+    if (params?.active !== undefined) query.set('active', String(params.active));
+    if (params?.featured !== undefined) query.set('featured', String(params.featured));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const path = `/api/recipes${suffix}`;
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 60_000, () =>
+      request<RecipeCatalog[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
     );
   },
   getTemplate(templateId: string, userId: string) {

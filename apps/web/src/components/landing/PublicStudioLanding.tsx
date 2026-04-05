@@ -3,292 +3,535 @@ import Link from 'next/link';
 import {
   ArrowRight,
   Clapperboard,
-  ShieldCheck,
+  ImageIcon,
+  Layers3,
+  Mic2,
+  Play,
   Sparkles,
   Wand2,
 } from 'lucide-react';
 
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LandingVideo } from '@/components/landing/LandingVideo';
-import { BrandLogo } from '@/components/brand/BrandLogo';
-import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
-const whyRangManch = [
-  {
-    title: 'One studio for images, reels, and influencer content',
-    body: 'Create and organize everything from one workflow.',
-    icon: Sparkles,
-  },
-  {
-    title: 'Built for repeatable creative workflows',
-    body: 'Keep prompts, references, and outputs aligned.',
-    icon: Wand2,
-  },
-  {
-    title: 'Templates and guided lanes reduce prompt friction',
-    body: 'Start faster and reach a usable output sooner.',
-    icon: Clapperboard,
-  },
-];
-
-const creationUseCases = [
+const trustStrip = [
+  'Reels',
+  'Explainers',
+  'Product ads',
+  'Story videos',
   'AI influencer visuals',
-  'Short ad creatives',
-  'Social media images',
-  'Voice-led short videos',
+  'Short-form education',
 ];
 
-const trustPoints = [
-  'One workspace',
-  'Guided templates',
-  'Fast creator workflows',
-];
-
-function HeroMediaRibbon() {
-  const ribbonItems = [
-    { key: 'persona-1', kind: 'image' as const, src: '/videos/samples/creator-launch.png', height: 'h-32 sm:h-40 lg:h-52', tilt: '-rotate-[2deg]' },
-    { key: 'reel-1', kind: 'video' as const, src: '/videos/samples/hindi-festival-9x16.mp4', poster: '/videos/samples/creator-launch.png', height: 'h-36 sm:h-44 lg:h-58', tilt: 'rotate-[1.35deg]' },
-    { key: 'persona-2', kind: 'image' as const, src: '/videos/samples/divyanka-chauhan-ai-influencer.jpg', height: 'h-30 sm:h-38 lg:h-48', tilt: '-rotate-[1deg]' },
-    { key: 'reel-2', kind: 'video' as const, src: '/videos/samples/tamil-education-9x16.mp4', poster: '/videos/samples/earth.png', height: 'h-34 sm:h-42 lg:h-54', tilt: 'rotate-[0.9deg]' },
-    { key: 'persona-3', kind: 'image' as const, src: '/videos/samples/influncer-persona.png', height: 'h-38 sm:h-48 lg:h-64', tilt: '-rotate-[1.4deg]' },
-    { key: 'reel-3', kind: 'video' as const, src: '/videos/samples/advertisement.mp4', poster: '/videos/samples/cr-launch.png', height: 'h-36 sm:h-46 lg:h-60', tilt: 'rotate-[1.8deg]' },
-    { key: 'persona-4', kind: 'image' as const, src: '/videos/samples/an-ultra-realistic-cinematic-8k-portrait-of-battle-worn-sun-wukong-with-glowing-amber-eyes-intricate-facial-hair-scarred-fur-ornate-weathered-armor-with-gold-and-jade-holding-a-glowing-ruyi-jingu-bang-atop-a-foggy-mountain-at-dawn-illuminat.png', height: 'h-30 sm:h-38 lg:h-48', tilt: '-rotate-[0.8deg]' },
-    { key: 'reel-4', kind: 'video' as const, src: '/videos/samples/lip-sync.mp4', poster: '/videos/samples/divyanka-chauhan-ai-influencer.jpg', height: 'h-32 sm:h-40 lg:h-52', tilt: 'rotate-[1deg]' },
-  ];
-
-  return (
-    <div className="rangmanch-landing-ribbon mx-auto mt-8 flex max-w-[1160px] items-end justify-between gap-1.5 overflow-hidden px-1 pb-2 sm:mt-10 sm:justify-center sm:gap-3 sm:px-2 lg:mt-12 lg:gap-4">
-      {ribbonItems.map((item) => (
-        <div
-          key={item.key}
-          className={`relative ${item.height} ${item.tilt} aspect-[9/16] w-[11.5%] min-w-[2.35rem] shrink overflow-hidden rounded-[14px] border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-surface-glass)/0.22)] shadow-[var(--shadow-soft)] backdrop-blur-md sm:w-[5.8rem] sm:min-w-[5.8rem] sm:shrink-0 sm:rounded-[18px] lg:w-[7rem] lg:min-w-[7rem] lg:rounded-[22px]`}
-        >
-          {item.kind === 'video' ? (
-            <LandingVideo src={item.src} poster={item.poster} className="h-full w-full object-cover" />
-          ) : (
-            <Image src={item.src} alt="" aria-hidden fill sizes="(max-width: 1024px) 96px, 128px" className="object-cover" />
-          )}
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,hsl(var(--landing-hero-bg)/0.03),transparent_38%,hsl(var(--landing-hero-bg-deep)/0.24)_100%)]" />
-          <div className="absolute inset-x-[18%] bottom-0 h-8 rounded-full bg-[hsl(var(--color-accent)/0.22)] blur-2xl" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function HeroFlagBackdrop() {
-  const spokes = Array.from({ length: 12 });
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[72%] overflow-hidden">
-      <div className="rangmanch-hero-flag-glow absolute inset-x-[10%] top-[8%] h-40 rounded-full bg-[radial-gradient(circle,hsl(var(--color-accent)/0.18),transparent_68%)] blur-3xl sm:h-48" />
-      <div className="rangmanch-hero-flag-wave absolute inset-x-[-6%] top-[6%] h-[8.5rem] rounded-[42%] bg-[linear-gradient(180deg,hsl(var(--landing-flag-saffron)/0.22)_0%,hsl(var(--landing-flag-saffron)/0.08)_52%,transparent_100%)] blur-[2px] sm:h-[10rem] lg:h-[11rem]" />
-      <div className="rangmanch-hero-flag-wave absolute inset-x-[-8%] top-[16%] h-[9.25rem] rounded-[44%] bg-[linear-gradient(180deg,hsl(0_0%_100%/0.48)_0%,hsl(0_0%_100%/0.14)_58%,transparent_100%)] [animation-delay:-2.5s] sm:h-[10.5rem] lg:h-[11.5rem]" />
-      <div className="rangmanch-hero-flag-wave absolute inset-x-[-7%] top-[27%] h-[8.75rem] rounded-[44%] bg-[linear-gradient(180deg,hsl(var(--landing-flag-green)/0.18)_0%,hsl(var(--landing-flag-green)/0.06)_55%,transparent_100%)] [animation-delay:-4.5s] sm:h-[10rem] lg:h-[11rem]" />
-      <div className="rangmanch-hero-chakra absolute left-1/2 top-[21.5%] h-12 w-12 -translate-x-1/2 -translate-y-1/2 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
-        <div className="absolute inset-0 rounded-full border border-[hsl(214_85%_34%/0.4)]" />
-        <div className="absolute inset-[22%] rounded-full border border-[hsl(214_85%_34%/0.32)]" />
-        <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(214_85%_34%/0.55)]" />
-        {spokes.map((_, index) => (
-          <span
-            key={`chakra-spoke-${index}`}
-            className="absolute left-1/2 top-1/2 h-[42%] w-px origin-bottom bg-[linear-gradient(180deg,hsl(214_85%_34%/0.05),hsl(214_85%_34%/0.48))]"
-            style={{ transform: `translate(-50%, -100%) rotate(${index * 30}deg)` }}
+const storyBlocks = [
+  {
+    eyebrow: 'Recipe-powered creation',
+    title: 'Start from proven formats instead of guessing.',
+    body:
+      'Browse polished recipe outputs, spot strong hooks, and move straight into creation with a guided setup instead of starting from a blank screen.',
+    cta: { href: '/create', label: 'Explore recipes' },
+    media: (
+      <div className="grid gap-4 sm:grid-cols-[1.15fr_0.85fr]">
+        <div className="relative overflow-hidden rounded-[28px]">
+          <LandingVideo
+            src="/videos/samples/hindi-festival-9x16.mp4"
+            poster="/videos/samples/creator-launch.png"
+            className="h-full w-full object-cover"
           />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.34))]" />
+          <div className="absolute inset-x-4 bottom-4">
+            <p className="text-xl font-heading font-extrabold text-white">Trending reel</p>
+            <p className="mt-1 text-sm text-white/80">Festival storytelling • voice-led short-form</p>
+          </div>
+        </div>
+        <div className="grid gap-4">
+          <div className="relative overflow-hidden rounded-[24px]">
+            <Image src="/videos/samples/divyanka-chauhan-ai-influencer.jpg" alt="AI influencer example" fill sizes="(max-width: 1024px) 100vw, 30vw" className="object-cover" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.42))]" />
+            <div className="absolute inset-x-4 bottom-4 text-sm font-semibold text-white">Persona-led visual</div>
+          </div>
+          <div className="relative overflow-hidden rounded-[24px]">
+            <Image src="/videos/samples/creator-launch.png" alt="Creator launch visual" fill sizes="(max-width: 1024px) 100vw, 30vw" className="object-cover" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.42))]" />
+            <div className="absolute inset-x-4 bottom-4 text-sm font-semibold text-white">Ad-ready visual</div>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    eyebrow: 'Guided recipes',
+    title: 'Start from a proven format, not a blank interface.',
+    body:
+      'Recipes give you a clear starting point for explainers, product ads, offer promos, story reels, and character-led content. Change the idea, keep the momentum.',
+    cta: { href: '/templates', label: 'Browse recipes' },
+    media: (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          ['Talking Explainer', '/videos/samples/tamil-education-9x16.mp4', 'Character-led education'],
+          ['Product Ad', '/videos/samples/advertisement.mp4', 'Offer-ready short promo'],
+          ['Story Reel', '/videos/samples/english-startup-16x9.mp4', 'Narrative pacing'],
+          ['Influencer Visual', '/videos/samples/influncer-persona.png', 'Consistent persona setup'],
+        ].map(([title, src, meta]) => (
+          <div key={title} className="group relative overflow-hidden rounded-[24px] border border-white/8 bg-white/[0.03]">
+            {src.endsWith('.mp4') ? (
+              <LandingVideo src={src} className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+            ) : (
+              <div className="relative aspect-[4/5] w-full">
+                <Image src={src} alt={title} fill sizes="(max-width: 1024px) 50vw, 25vw" className="object-cover transition duration-300 group-hover:scale-[1.02]" />
+              </div>
+            )}
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_38%,rgba(0,0,0,0.78))]" />
+            <div className="absolute inset-x-4 bottom-4">
+              <p className="text-lg font-heading font-extrabold text-white">{title}</p>
+              <p className="mt-1 text-sm text-white/70">{meta}</p>
+            </div>
+          </div>
         ))}
       </div>
+    ),
+  },
+  {
+    eyebrow: 'One unified studio',
+    title: 'Create images and videos from the same idea.',
+    body:
+      'Move from a prompt to social-ready visuals, voice-led reels, captions, and polished exports without having to think like a model operator.',
+    cta: { href: '/create', label: 'Open the studio' },
+    media: (
+      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(36,32,42,0.88),rgba(19,17,24,0.96))] p-4 sm:p-5">
+        <div className="absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--color-accent)/0.6),transparent)]" />
+        <div className="rounded-[26px] border border-white/8 bg-[rgba(10,10,14,0.56)] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Create</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Image + Video</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Community → Remix → Create</span>
+          </div>
+          <div className="mt-4 rounded-[22px] border border-white/8 bg-black/20 p-4">
+            <p className="text-lg text-white/92 sm:text-xl">
+              Create a story-based reel about a struggling creator who finally finds a faster workflow.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-white/72">
+              <span className="rounded-full border border-white/10 px-3 py-1.5">Video</span>
+              <span className="rounded-full border border-white/10 px-3 py-1.5">9:16</span>
+              <span className="rounded-full border border-white/10 px-3 py-1.5">Voice on</span>
+              <span className="rounded-full border border-white/10 px-3 py-1.5">Captions on</span>
+              <span className="rounded-full border border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-1.5 text-[hsl(var(--color-accent))]">
+                Ready to generate
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    eyebrow: 'Built for social formats',
+    title: 'Optimized for actual publishing, not just raw generation.',
+    body:
+      'Short-form aspect ratios, voice preview, captions, repeatable prompts, and remix-friendly workflows make the output easier to publish and iterate on.',
+    cta: { href: '/pricing', label: 'See plans' },
+    media: (
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          {
+            title: '9:16 first',
+            body: 'Built around vertical publishing and short-form surfaces.',
+            icon: <Clapperboard className="h-5 w-5" />,
+          },
+          {
+            title: 'Voice + captions',
+            body: 'Narration and subtitle workflows for reel-ready output.',
+            icon: <Mic2 className="h-5 w-5" />,
+          },
+          {
+            title: 'Prompt to output',
+            body: 'Recipes and community inspiration reduce blank-page friction.',
+            icon: <Wand2 className="h-5 w-5" />,
+          },
+        ].map((item) => (
+          <div key={item.title} className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[hsl(var(--color-accent))]">
+              {item.icon}
+            </div>
+            <p className="mt-4 text-lg font-heading font-extrabold text-text">{item.title}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">{item.body}</p>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+];
+
+const showcaseWall = [
+  {
+    title: 'Product promo',
+    meta: 'Ads',
+    type: 'video' as const,
+    src: '/videos/samples/advertisement.mp4',
+    poster: '/videos/samples/cr-launch.png',
+  },
+  {
+    title: 'Creator persona',
+    meta: 'Influencer visual',
+    type: 'image' as const,
+    src: '/videos/samples/divyanka-chauhan-ai-influencer.jpg',
+  },
+  {
+    title: 'Festival storytelling',
+    meta: 'Reel',
+    type: 'video' as const,
+    src: '/videos/samples/hindi-festival-9x16.mp4',
+    poster: '/videos/samples/creator-launch.png',
+  },
+  {
+    title: 'Mythology hero',
+    meta: 'Character visual',
+    type: 'image' as const,
+    src: '/videos/samples/an-ultra-realistic-cinematic-8k-portrait-of-battle-worn-sun-wukong-with-glowing-amber-eyes-intricate-facial-hair-scarred-fur-ornate-weathered-armor-with-gold-and-jade-holding-a-glowing-ruyi-jingu-bang-atop-a-foggy-mountain-at-dawn-illuminat.png',
+  },
+  {
+    title: 'Startup explainer',
+    meta: 'Educational reel',
+    type: 'video' as const,
+    src: '/videos/samples/english-startup-16x9.mp4',
+    poster: '/videos/samples/earth.png',
+  },
+  {
+    title: 'Influencer launch',
+    meta: 'Social visual',
+    type: 'image' as const,
+    src: '/videos/samples/influncer-persona.png',
+  },
+];
+
+const recipeCards = [
+  {
+    title: 'Product Ad',
+    body: 'Premium short promo for launches, offers, and brand-safe product storytelling.',
+  },
+  {
+    title: 'Talking Explainer',
+    body: 'Teach a concept with a clear hook, voice-led narration, and simple structure.',
+  },
+  {
+    title: 'Offer Promo',
+    body: 'Fast promo format for discounts, launches, and conversion-focused short videos.',
+  },
+  {
+    title: 'Story Reel',
+    body: 'Narrative-led format for transformations, journeys, and emotional hooks.',
+  },
+  {
+    title: 'Before / After',
+    body: 'Show contrast, progression, and outcomes in a scroll-friendly sequence.',
+  },
+  {
+    title: 'Map / History Explainer',
+    body: 'Turn places, timelines, and historical moments into guided visual storytelling.',
+  },
+];
+
+const platformDepth = [
+  {
+    title: 'Prompt to image or video',
+    body: 'Start with one idea and route into creator-safe defaults for the right output.',
+    icon: <Sparkles className="h-5 w-5" />,
+  },
+  {
+    title: 'Remix from community',
+    body: 'Pull visual direction from real outputs instead of inventing everything from scratch.',
+    icon: <Layers3 className="h-5 w-5" />,
+  },
+  {
+    title: 'Voice and caption workflows',
+    body: 'Build reels that feel publish-ready with narration previews and subtitle support.',
+    icon: <Mic2 className="h-5 w-5" />,
+  },
+  {
+    title: 'Creator-ready exports',
+    body: 'Short-form-first formats and workflow defaults reduce setup fatigue before publishing.',
+    icon: <ImageIcon className="h-5 w-5" />,
+  },
+];
+
+function SectionIntro({
+  eyebrow,
+  title,
+  body,
+  cta,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  cta?: { href: string; label: string };
+}) {
+  return (
+    <div className="max-w-3xl space-y-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">{eyebrow}</p>
+      <h2 className="font-heading text-[2rem] font-extrabold tracking-tight text-text sm:text-[2.6rem] sm:leading-[1.02]">
+        {title}
+      </h2>
+      <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">{body}</p>
+      {cta ? (
+        <Link
+          href={cta.href}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-text transition hover:text-[hsl(var(--color-accent))]"
+        >
+          {cta.label}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      ) : null}
     </div>
   );
 }
 
 export function PublicStudioLanding() {
   return (
-    <div className="min-h-screen overflow-x-clip bg-[hsl(var(--color-bg))] text-[hsl(var(--color-text))]">
-      <div className="flex min-h-screen max-w-full overflow-x-clip">
-        <main className="min-w-0 max-w-full flex-1 overflow-x-clip">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-3 pb-8 pt-3 sm:px-4 sm:pb-9 sm:pt-4 lg:px-5 lg:pb-10 xl:px-6 2xl:px-8 2xl:pb-12">
-            <section id="hero" className="scroll-mt-24 pt-2 md:pt-3 2xl:pt-6">
-              <div className="rangmanch-floating-hero rangmanch-landing-grid-hero relative overflow-hidden rounded-[28px] px-4 py-4 sm:rounded-[32px] sm:px-5 sm:py-5 xl:rounded-[36px] xl:px-7 xl:py-6">
-                <HeroFlagBackdrop />
-                <div className="relative z-10">
-                  <header className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
-                    </div>
-                    <nav className="hidden items-center gap-8 text-sm font-medium text-[hsl(var(--color-text))] lg:flex">
-                      <Link href="/company">About</Link>
-                      <Link href="/use-cases">Workflows</Link>
-                      <Link href="/pricing">Pricing</Link>
-                      <Link href="/learning">Learning</Link>
-                    </nav>
-                    <div className="flex items-center gap-2">
-                      <div className="hidden sm:block">
-                        <ToggleTheme />
-                      </div>
-                      <Link
-                        href="/signup"
-                        className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]"
-                      >
-                        Start free
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </header>
-
-                  <div className="mx-auto flex min-h-[600px] max-w-[78rem] flex-col items-center justify-center pt-8 text-center sm:min-h-[660px] sm:pt-12 lg:min-h-[710px] lg:pt-14">
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-center justify-center gap-2">
-                        <span className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.58)] bg-[hsl(var(--color-surface-glass)/0.56)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))] backdrop-blur-md">
-                          India-first creator studio
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface-glass)/0.44)] px-3 py-1 text-[11px] font-medium text-muted backdrop-blur-md">
-                          11 language options • 30+ regional voices
-                        </span>
-                      </div>
-                      <h1 className="max-w-5xl font-heading text-[2.55rem] font-extrabold tracking-tight text-[hsl(var(--color-accent))] sm:text-[3.4rem] sm:leading-[1.02] md:text-[4.3rem] lg:text-[5.3rem] 2xl:text-[5.9rem]">
-                        Create with
-                        <br />
-                        RangManch AI
-                      </h1>
-                      <p className="mx-auto max-w-3xl text-sm leading-6 text-[hsl(var(--color-text))] sm:text-[15px] sm:leading-7 lg:text-[1rem]">
-                        Create images, reels, influencer visuals, and Indian voice-led content with regional narration in one studio.
-                      </p>
-                    </div>
-                    <HeroMediaRibbon />
-                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                      <Link
-                        href="/signup"
-                        className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]"
-                      >
-                        Start free
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                      <Link
-                        href="/pricing"
-                        className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-3 text-sm font-medium"
-                      >
-                        View pricing
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section id="why-rangmanch" className="scroll-mt-24 pt-7 lg:pt-8">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="max-w-3xl">
-                  <p className="rangmanch-section-eyebrow">Why RangManch AI</p>
-                  <h2 className="mt-1 text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">
-                    Built to make creation feel faster and cleaner.
-                  </h2>
-                  <p className="mt-2 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                    Focus on the idea, not the tool-hopping.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {trustPoints.map((point) => (
-                    <span
-                      key={point}
-                      className="rangmanch-landing-accent-chip inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-muted))] backdrop-blur-md"
-                    >
-                      {point}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 border-t border-[hsl(var(--color-border)/0.45)] pt-4 md:grid-cols-2 2xl:grid-cols-3">
-                {whyRangManch.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.title} className="h-full border-l border-[hsl(var(--color-border)/0.45)] pl-4 sm:pl-5">
-                      <div className="flex h-full flex-col gap-4">
-                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-accent)/0.08)]">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold text-[hsl(var(--color-text))]">{item.title}</p>
-                          <p className="mt-2 text-sm leading-6 text-[hsl(var(--color-muted))]">{item.body}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section id="what-you-can-create" className="scroll-mt-24 pt-7 lg:pt-8">
-              <div className="overflow-hidden border-y border-[hsl(var(--color-border)/0.45)] px-1 py-5 sm:px-0 sm:py-6 lg:py-7">
-                <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-                  <div className="max-w-2xl">
-                    <p className="rangmanch-section-eyebrow">What You Can Create</p>
-                    <h2 className="mt-1 text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">
-                      A few strong workflows, all in one place.
-                    </h2>
-                    <p className="mt-2 text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                      Use one studio for the most common creator and brand outputs.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {creationUseCases.map((item, index) => (
-                      <div
-                        key={item}
-                        className="border-l border-[hsl(var(--color-border)/0.45)] pl-4"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-accent)/0.18)] bg-[hsl(var(--color-accent)/0.08)] text-xs font-semibold text-[hsl(var(--color-text))]">
-                            {index + 1}
-                          </span>
-                          <p className="pt-1 text-sm font-medium leading-6 text-[hsl(var(--color-text))]">{item}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section id="pricing" className="scroll-mt-24 pt-7 sm:pt-8">
-              <div className="grid gap-5 border-t border-[hsl(var(--color-border)/0.45)] px-1 py-5 sm:px-0 sm:py-5 2xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="space-y-3">
-                  <p className="rangmanch-section-eyebrow">Plans</p>
-                  <h2 className="text-[2rem] font-extrabold tracking-tight sm:text-[2.4rem]">Start simple. Scale when needed.</h2>
-                  <p className="max-w-2xl text-sm leading-7 text-[hsl(var(--color-muted))] sm:text-base">
-                    Start free with 40 monthly credits, get a one-time activation bonus after your first real workflow win, and scale only when you need more volume.
-                  </p>
-                  <div className="flex flex-wrap gap-3 pt-2">
-                    <Link href="/pricing" className="rangmanch-landing-cta-primary inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold sm:w-auto">
-                      See plans
-                    </Link>
-                    <Link href="/signup" className="inline-flex w-full items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.52)] px-5 py-2.5 text-sm font-medium sm:w-auto">
-                      Start free
-                    </Link>
-                  </div>
-                </div>
-                <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                  {[
-                    ['Free', '40 credits / month', 'Enough to test real image, template, voice, and fast-draft workflows.'],
-                    ['Starter', '200 credits', 'For repeat creator work and your first premium runs.'],
-                    ['Creator', '650 credits', 'For active publishing and heavier weekly output.'],
-                  ].map(([name, credits, blurb]) => (
-                    <div
-                      key={name}
-                      className="border-l border-[hsl(var(--color-border)/0.45)] pl-4"
-                    >
-                      <p className="text-sm font-semibold">{name}</p>
-                      <p className="mt-4 text-2xl font-extrabold tracking-tight">{credits}</p>
-                      <p className="mt-3 text-sm leading-6 text-[hsl(var(--color-muted))]">{blurb}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <div className="pt-8">
-              <LandingFooter />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,hsl(var(--color-hero-glow)/0.08),transparent_26%),linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-bg))_38%,hsl(260_16%_6%)_100%)] text-text">
+      <div className="mx-auto w-full max-w-[1380px] px-4 pb-10 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 -mx-4 border-b border-white/6 bg-[hsl(var(--color-bg)/0.72)] px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="mx-auto flex h-16 max-w-[1380px] items-center justify-between gap-4">
+            <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
+            <nav className="hidden items-center gap-7 text-sm font-medium text-muted lg:flex">
+              <Link href="/create" className="transition hover:text-text">Create</Link>
+              <Link href="/create" className="transition hover:text-text">Recipes</Link>
+              <Link href="/pricing" className="transition hover:text-text">Pricing</Link>
+              <Link href="/learning" className="transition hover:text-text">Learn</Link>
+            </nav>
+            <div className="flex items-center gap-2">
+              <Link href="/login" className="hidden rounded-full px-4 py-2 text-sm font-medium text-muted transition hover:text-text sm:inline-flex">
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent)/0.22)]"
+              >
+                Start free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
+        </header>
+
+        <main className="space-y-20 pb-8 pt-8 sm:space-y-24 sm:pt-10">
+          <section className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
+            <div className="space-y-7">
+              <div className="inline-flex w-fit items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">
+                India-first short-form creation
+              </div>
+              <div className="space-y-5">
+                <h1 className="max-w-3xl font-heading text-[3rem] font-extrabold tracking-[-0.04em] text-text sm:text-[4.3rem] sm:leading-[0.95] lg:text-[5.6rem]">
+                  See what works.
+                  <br />
+                  Remix it.
+                  <br />
+                  Create instantly.
+                </h1>
+                <p className="max-w-2xl text-base leading-8 text-muted sm:text-lg">
+                  RangManch AI helps creators, marketers, educators, and brands turn ideas into reel-ready videos and visuals with community inspiration, guided recipes, and one cleaner creation flow.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3.5 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent)/0.22)]"
+                >
+                  Start free
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/create"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3.5 text-sm font-semibold text-text transition hover:border-white/18 hover:bg-white/[0.05]"
+                >
+                  Open studio
+                </Link>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="pointer-events-none absolute -inset-6 bg-[radial-gradient(circle_at_68%_20%,hsl(var(--color-accent)/0.22),transparent_28%),radial-gradient(circle_at_25%_80%,hsl(var(--color-hero-glow)/0.18),transparent_26%)] blur-2xl" />
+              <div className="relative grid gap-4 sm:grid-cols-[1.06fr_0.94fr]">
+                <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.03] shadow-[0_28px_90px_rgba(0,0,0,0.4)]">
+                  <LandingVideo
+                    src="/videos/samples/creator111.mp4"
+                    poster="/videos/samples/creator-launch.png"
+                    className="aspect-[4/5] w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_22%,rgba(0,0,0,0.72)_100%)]" />
+                  <div className="absolute inset-x-5 bottom-5">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 backdrop-blur">
+                      <Play className="h-3.5 w-3.5" />
+                      Creator workflow preview
+                    </div>
+                    <p className="mt-4 max-w-sm text-2xl font-heading font-extrabold text-white sm:text-[2rem]">
+                      From one idea to a reel-ready visual story.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03]">
+                    <Image src="/videos/samples/divyanka-chauhan-ai-influencer.jpg" alt="AI influencer sample" fill sizes="(max-width: 1024px) 100vw, 28vw" className="object-cover" />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_28%,rgba(0,0,0,0.76))]" />
+                    <div className="absolute inset-x-4 bottom-4">
+                      <p className="text-lg font-heading font-extrabold text-white">AI influencer visuals</p>
+                      <p className="mt-1 text-sm text-white/72">Persona-led content with visual consistency.</p>
+                    </div>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(29,25,35,0.96),rgba(17,15,21,0.98))] p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">
+                      One cleaner workflow
+                    </p>
+                    <div className="mt-4 rounded-[22px] border border-white/8 bg-black/20 p-4">
+                      <p className="text-base leading-7 text-white/92">
+                        Create a story reel about a struggling creator who finally finds a faster workflow.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/70">
+                        <span className="rounded-full border border-white/10 px-3 py-1.5">Recipe-guided</span>
+                        <span className="rounded-full border border-white/10 px-3 py-1.5">Community remix</span>
+                        <span className="rounded-full border border-white/10 px-3 py-1.5">Image + video</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="border-y border-white/6 py-5">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted sm:gap-4">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-accent))]">Made for short-form creation</span>
+              {trustStrip.map((item) => (
+                <span key={item} className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-16">
+            {storyBlocks.map((block, index) => (
+              <div
+                key={block.title}
+                className={`grid gap-8 lg:items-center ${index % 2 === 1 ? 'lg:grid-cols-[1.08fr_0.92fr]' : 'lg:grid-cols-[0.92fr_1.08fr]'}`}
+              >
+                <div className={index % 2 === 1 ? 'lg:order-2' : ''}>
+                  <SectionIntro eyebrow={block.eyebrow} title={block.title} body={block.body} cta={block.cta} />
+                </div>
+                <div className={index % 2 === 1 ? 'lg:order-1' : ''}>{block.media}</div>
+              </div>
+            ))}
+          </section>
+
+          <section className="space-y-8">
+            <SectionIntro
+              eyebrow="Showcase"
+              title="The kind of outputs people immediately picture themselves making."
+              body="Recipes deliver the result. This is the creative surface where users can instantly imagine ads, explainers, story reels, and character-led visuals."
+              cta={{ href: '/create', label: 'View recipes' }}
+            />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {showcaseWall.map((item, index) => (
+                <div
+                  key={item.title}
+                  className={`group relative overflow-hidden rounded-[28px] border border-white/8 bg-white/[0.03] ${index % 3 === 0 ? 'lg:row-span-2' : ''}`}
+                >
+                  {item.type === 'video' ? (
+                    <LandingVideo src={item.src} poster={item.poster} className={`w-full object-cover ${index % 3 === 0 ? 'aspect-[4/5] lg:aspect-[4/6]' : 'aspect-[4/5]'}`} />
+                  ) : (
+                    <div className={`relative w-full ${index % 3 === 0 ? 'aspect-[4/5] lg:aspect-[4/6]' : 'aspect-[4/5]'}`}>
+                      <Image src={item.src} alt={item.title} fill sizes="(max-width: 1024px) 100vw, 33vw" className="object-cover transition duration-300 group-hover:scale-[1.02]" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_30%,rgba(0,0,0,0.78))]" />
+                  <div className="absolute inset-x-4 bottom-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">{item.meta}</p>
+                    <p className="mt-2 text-2xl font-heading font-extrabold text-white">{item.title}</p>
+                    <button
+                      type="button"
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-2 text-sm font-semibold text-white/88 backdrop-blur"
+                    >
+                      Remix this
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-8">
+            <SectionIntro
+              eyebrow="Guided creation"
+              title="Start with a proven format."
+              body="Recipes are the execution engine behind faster creation. They are compact starting points for real creator and brand use cases, not old-style template clutter."
+              cta={{ href: '/templates', label: 'See all recipes' }}
+            />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {recipeCards.map((recipe) => (
+                <Link
+                  key={recipe.title}
+                  href="/signup"
+                  className="group rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(30,26,36,0.72),rgba(17,15,21,0.92))] p-5 transition hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.26)]"
+                >
+                  <p className="text-xl font-heading font-extrabold text-text">{recipe.title}</p>
+                  <p className="mt-3 text-sm leading-7 text-muted">{recipe.body}</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--color-accent))]">
+                    Use this recipe
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-8">
+            <SectionIntro
+              eyebrow="Platform depth"
+              title="Serious enough for repeat creation, simple enough to stay fast."
+              body="RangManch AI is built around creator workflows rather than model complexity. The product gives enough depth to support real publishing without forcing users into technical setup."
+            />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {platformDepth.map((item) => (
+                <div key={item.title} className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[hsl(var(--color-accent))]">
+                    {item.icon}
+                  </div>
+                  <p className="mt-4 text-lg font-heading font-extrabold text-text">{item.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(34,29,40,0.86),rgba(16,14,21,0.98))] px-6 py-10 text-center sm:px-10 sm:py-14">
+            <div className="mx-auto max-w-3xl space-y-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Start creating</p>
+              <h2 className="font-heading text-[2.2rem] font-extrabold tracking-tight text-text sm:text-[3.4rem] sm:leading-[1.02]">
+                What will you create first?
+              </h2>
+              <p className="text-sm leading-7 text-muted sm:text-base">
+                See what works, remix the direction, and create your first reel or visual in one cleaner flow.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3.5 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent)/0.22)]"
+                >
+                  Start free
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/create"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3.5 text-sm font-semibold text-text"
+                >
+                  Explore recipes
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <LandingFooter />
         </main>
       </div>
     </div>

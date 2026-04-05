@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { ChevronDown, FolderKanban, FolderPlus, Home, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
+import { ChevronDown, Compass, FolderKanban, FolderPlus, HelpCircle, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, MessageCircle, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { CreditChip } from '@/components/credits/CreditChip';
 import { CreditProvider } from '@/components/credits/CreditContext';
 import { TopNav } from '@/components/layout/TopNav';
+import { Button } from '@/components/ui/Button';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { API_URL } from '@/lib/env';
 
@@ -21,7 +22,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings'];
+const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -29,11 +30,11 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
-  if (pathname.startsWith('/community')) return 'Community';
   if (pathname.startsWith('/images')) return 'Image Studio';
   if (pathname.startsWith('/templates')) return 'Template Browser';
   if (pathname.startsWith('/influencer')) return 'Influencer Studio';
-  if (pathname.startsWith('/create')) return 'Create Video';
+  if (pathname.startsWith('/create/video')) return 'Create Video';
+  if (pathname.startsWith('/create')) return 'Create';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
   if (pathname.startsWith('/billing')) return 'Billing';
@@ -41,6 +42,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/credits/history')) return 'Credit History';
   if (pathname.startsWith('/profile')) return 'Profile';
   if (pathname.startsWith('/settings')) return 'Settings';
+  if (pathname.startsWith('/help')) return 'Help';
   return 'RangManch AI';
 }
 
@@ -49,10 +51,7 @@ function getRouteTransitionCopy(label: string) {
   if (['dashboard', 'projects'].includes(normalized)) {
     return 'Loading workspace';
   }
-  if (['community'].includes(normalized)) {
-    return 'Loading community';
-  }
-  if (['image studio', 'create video', 'template browser', 'influencer studio'].includes(normalized)) {
+  if (['image studio', 'create video', 'create', 'template browser', 'influencer studio'].includes(normalized)) {
     return 'Preparing studio';
   }
   if (['billing', 'pricing', 'settings', 'profile', 'credit history'].includes(normalized)) {
@@ -67,6 +66,7 @@ function isMoreRoute(pathname: string) {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/pricing') ||
     pathname.startsWith('/profile') ||
+    pathname.startsWith('/help') ||
     pathname.startsWith('/credits')
   );
 }
@@ -76,8 +76,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'home' | 'tools' | 'avatar' | 'more'>(null);
-  const [mobileGroupOpen, setMobileGroupOpen] = useState<null | 'tools' | 'avatar' | 'more'>(null);
+  const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'create' | 'billing' | 'more'>(null);
+  const [mobileGroupOpen, setMobileGroupOpen] = useState<null | 'create' | 'billing' | 'more'>(null);
   const [mobileNavTapLocked, setMobileNavTapLocked] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [projectsNavPending, setProjectsNavPending] = useState(false);
@@ -87,6 +87,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const inApp = Boolean(userId) && isAppRoute(pathname);
   const pageTitle = getPageTitle(pathname);
   const displayName = accountLabel ?? 'User';
+  const isCreateDashboard = pathname === '/create';
   const resolvedAvatar = accountAvatar
     ? (accountAvatar.startsWith('http://') || accountAvatar.startsWith('https://') ? accountAvatar : `${API_URL}${accountAvatar}`)
     : null;
@@ -138,7 +139,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     if (!inApp) return;
     [
       '/dashboard',
-      '/community',
       '/images',
       '/create',
       '/templates',
@@ -148,6 +148,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       '/settings',
       '/pricing',
       '/profile',
+      '/help',
     ].forEach((href) => router.prefetch(href));
   }, [inApp, router]);
 
@@ -188,45 +189,30 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     navigateWithinApp(href, label);
   };
 
-  const toggleMobileGroup = (group: 'tools' | 'avatar' | 'more') => {
+  const toggleMobileGroup = (group: 'create' | 'billing' | 'more') => {
     if (mobileNavTapLocked || isPending) return;
     setMobileGroupOpen((current) => (current === group ? null : group));
   };
 
   if (inApp) {
     const flyoutPreviews: Record<string, string> = {
-      '/dashboard': '/illustrations/earth.png',
-      '/images': '/illustrations/product-ads.png',
       '/create': '/illustrations/startup.png',
+      '/images': '/illustrations/product-ads.png',
       '/templates': '/illustrations/edtech.png',
       '/influencer': '/illustrations/ai-influencer.png',
       '/billing': '/illustrations/marketing.png',
+      '/pricing': '/illustrations/marketing.png',
       '/settings': '/illustrations/agency.png',
     };
     const navItems = [
       {
-        href: '/dashboard',
-        label: 'Home',
-        hint: 'Workspace home',
-        icon: Home,
-        glow: 'from-[hsl(var(--color-accent)/0.2)] to-transparent',
-        kind: 'link',
-      },
-      {
-        href: '/images',
-        label: 'Tools',
-        hint: pathname.startsWith('/create') ? 'Create video' : pathname.startsWith('/templates') ? 'Template browser' : 'Generate images',
+        href: '/create',
+        label: 'Create',
+        hint: 'Unified creation hub',
         icon: Sparkles,
-        glow: 'from-sky-500/15 to-transparent',
+        glow: 'from-[hsl(var(--color-accent)/0.2)] to-transparent',
         kind: 'group',
-      },
-      {
-        href: '/influencer',
-        label: 'Create Avatar',
-        hint: 'AI influencer',
-        icon: Wand2,
-        glow: 'from-rose-500/15 to-transparent',
-        kind: 'group',
+        groupKey: 'create',
       },
       {
         href: '/projects',
@@ -235,42 +221,50 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         icon: FolderKanban,
         glow: 'from-emerald-500/15 to-transparent',
         kind: 'link',
+        groupKey: 'projects',
       },
       {
-        href: '/pricing',
+        href: '/billing',
+        label: 'Billing',
+        hint: 'Credits and plans',
+        icon: Sparkles,
+        glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
+        kind: 'group',
+        groupKey: 'billing',
+      },
+      {
+        href: '/help',
         label: 'More',
-        hint: 'Billing & settings',
+        hint: 'Settings and help',
         icon: Settings,
         glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
         kind: 'group',
+        groupKey: 'more',
       },
     ] as const;
 
     const navGroups = {
-      home: [
-        { href: '/dashboard', label: 'Dashboard', icon: Home },
-        { href: '/community', label: 'Community', icon: Sparkles },
-      ],
-      tools: [
+      create: [
+        { href: '/create', label: 'Unified studio', icon: Video },
         { href: '/images', label: 'Generate images', icon: ImageIcon },
-        { href: '/create', label: 'Create video', icon: Video },
         { href: '/templates', label: 'Template browser', icon: LayoutTemplate },
-      ],
-      avatar: [
         { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
       ],
-      more: [
+      billing: [
         { href: '/billing', label: 'Billing', icon: Sparkles },
         { href: '/pricing', label: 'Pricing', icon: Sparkles },
+        { href: '/credits/history', label: 'Credit history', icon: FolderKanban },
+      ],
+      more: [
+        { href: '/help', label: 'Help', icon: HelpCircle },
         { href: '/settings', label: 'Settings', icon: Settings },
         { href: '/profile', label: 'Profile', icon: User },
-        { href: '/credits/history', label: 'Credit history', icon: FolderKanban },
       ],
     } as const;
 
     return (
       <CreditProvider userId={userId}>
-      <div className="grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] xl:grid-cols-[96px_1fr]">
+      <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${isCreateDashboard ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
         <div className={`pointer-events-none fixed inset-x-0 top-0 z-[110] transition-opacity duration-200 ${isPending ? 'opacity-100' : 'opacity-0'}`}>
           <div className="h-[2px] w-full overflow-hidden bg-[hsl(var(--color-border)/0.3)]">
             <div className="h-full w-1/3 animate-[rangmanch-route-slide_1.05s_ease-in-out_infinite] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0),hsl(var(--color-accent)),hsl(var(--color-accent)/0))]" />
@@ -286,85 +280,156 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             {routeTransitionLabel ? getRouteTransitionCopy(routeTransitionLabel) : 'Loading'}
           </div>
         </div>
-        <aside ref={desktopNavRef} className="rangmanch-app-rail relative z-[70] hidden overflow-visible px-2 py-4 xl:block">
+        <aside ref={desktopNavRef} className={`rangmanch-app-rail relative z-[70] hidden overflow-visible py-4 xl:block ${isCreateDashboard ? 'px-4' : 'px-2'}`}>
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-center">
-              <BrandLogo href="/dashboard" variant="mark" size="sm" priority="sidebar" />
-            </div>
-            <div className="mt-5 grid gap-2">
-              {navItems.map((item) => {
-                const groupKey = item.label === 'Tools'
-                  ? 'tools'
-                  : item.label === 'Create Avatar'
-                    ? 'avatar'
-                    : item.label === 'Projects'
-                      ? 'projects'
-                      : item.label === 'More'
-                        ? 'more'
-                        : 'home';
-                const active = item.label === 'Tools'
-                  ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
-                  : item.label === 'Create Avatar'
-                    ? pathname.startsWith('/influencer')
-                    : item.label === 'Projects'
-                      ? pathname.startsWith('/projects')
-                    : item.label === 'More'
-                      ? isMoreRoute(pathname)
-                      : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      if (groupKey === 'projects') {
-                        openProjectsWorkspace();
-                      } else if (groupKey === 'home') {
-                        navigateWithinApp('/dashboard', 'Dashboard');
-                      } else {
-                        setDesktopNavOpen((current) => (current === groupKey ? null : groupKey));
-                      }
-                    }}
-                    className={`group inline-flex flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] border px-2 py-2.5 text-center transition ${
-                      active || desktopNavOpen === groupKey
-                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
-                        : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'
-                    }`}
-                    aria-expanded={desktopNavOpen === groupKey}
-                    aria-label={item.label}
-                    title={item.label}
-                  >
-                    <span
-                      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
-                        active || desktopNavOpen === groupKey
-                          ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
-                          : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
-                      }`}
-                    >
-                      <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
-                      {groupKey === 'projects' && projectsNavPending ? (
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Icon className="h-3.5 w-3.5" />
-                      )}
-                    </span>
-                    <span className="block text-[11px] font-medium leading-none text-inherit">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {isCreateDashboard ? (
+              <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[30px] border border-[hsl(var(--color-border)/0.68)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
+                <div className="flex items-center">
+                  <BrandLogo href="/create" variant="full" size="md" priority="sidebar" />
+                </div>
+                <div className="mt-7 space-y-1.5">
+                  {[
+                    { href: '/create', label: 'Explore', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer'), onClick: () => navigateWithinApp('/create', 'Create') },
+                    { href: '/projects', label: 'Projects', icon: FolderKanban, active: pathname.startsWith('/projects'), onClick: openProjectsWorkspace },
+                    { href: '/billing', label: 'Billing', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits'), onClick: () => navigateWithinApp('/billing', 'Billing') },
+                    { href: '/help', label: 'More', icon: Settings, active: isMoreRoute(pathname), onClick: () => navigateWithinApp('/help', 'Help') },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={item.onClick}
+                        className={`flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition ${
+                          item.active
+                            ? 'border-[hsl(var(--color-accent)/0.4)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
+                            : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border)/0.85)] hover:bg-[hsl(var(--color-surface)/0.72)] hover:text-text'
+                        }`}
+                      >
+                        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${item.active ? 'border-[hsl(var(--color-accent)/0.28)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'}`}>
+                          {item.label === 'Projects' && projectsNavPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-inherit">{item.label}</span>
+                          <span className="block text-xs text-muted">
+                            {item.label === 'Explore'
+                              ? 'Recipe-led creation'
+                              : item.label === 'Projects'
+                                ? 'Organize renders'
+                                : item.label === 'Billing'
+                                  ? 'Credits and plans'
+                                    : 'Help and settings'}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div className="mt-auto flex items-center justify-center pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
-              Workspace
-            </div>
+                <div className="mt-auto space-y-3">
+                  <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-accent)/0.22),hsl(var(--color-surface)/0.9))] p-4 shadow-soft">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent-contrast)/0.78)]">Share to earn</p>
+                    <p className="mt-2 text-2xl font-heading font-extrabold tracking-tight text-text">Earn credits by sharing videos</p>
+                    <Button variant="secondary" className="mt-4 w-full rounded-full border-white/10 bg-white/10 text-white hover:bg-white/15">
+                      Earn now
+                    </Button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.82)] p-4 shadow-soft">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Credits</p>
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-2xl font-heading font-extrabold tracking-tight text-text">78</p>
+                        <p className="text-xs text-muted">credits left</p>
+                      </div>
+                      <Button className="rounded-full px-4 py-2 text-xs font-semibold">Upgrade</Button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.82)] px-3 py-3 text-left text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
+                  >
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] text-[hsl(var(--color-accent))]">
+                      <MessageCircle className="h-4 w-4" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold">Discord</span>
+                      <span className="block text-xs text-muted">Creator community</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-center">
+                  <BrandLogo href="/create" variant="mark" size="sm" priority="sidebar" />
+                </div>
+                <div className="mt-5 grid gap-2">
+                  {navItems.map((item) => {
+                    const groupKey = item.groupKey;
+                    const active =
+                      groupKey === 'create'
+                        ? pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer')
+                        : groupKey === 'projects'
+                          ? pathname.startsWith('/projects')
+                          : groupKey === 'billing'
+                            ? pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits')
+                            : isMoreRoute(pathname);
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => {
+                          if (groupKey === 'projects') {
+                            openProjectsWorkspace();
+                          } else {
+                            setDesktopNavOpen((current) => (current === groupKey ? null : (groupKey as 'create' | 'billing' | 'more')));
+                          }
+                        }}
+                        className={`group inline-flex flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] border px-2 py-2.5 text-center transition ${
+                          active || desktopNavOpen === groupKey
+                            ? 'border-[hsl(var(--color-accent)/0.45)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
+                            : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-bg)/0.72)] hover:text-text'
+                        }`}
+                        aria-expanded={desktopNavOpen === groupKey}
+                        aria-label={item.label}
+                        title={item.label}
+                      >
+                        <span
+                          className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border ${
+                            active || desktopNavOpen === groupKey
+                              ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
+                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
+                          }`}
+                        >
+                          <span className={`absolute inset-0 bg-gradient-to-br ${item.glow} opacity-100`} />
+                          {groupKey === 'projects' && projectsNavPending ? (
+                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Icon className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                        <span className="block text-[11px] font-medium leading-none text-inherit">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-auto flex items-center justify-center pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
+                  Workspace
+                </div>
+              </>
+            )}
           </div>
 
-          <div className={`pointer-events-none fixed left-[84px] top-4 z-[90] w-[196px] transition-all duration-200 ease-out ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+          <div className={`pointer-events-none fixed left-[84px] top-4 z-[90] w-[196px] transition-all duration-200 ease-out ${isCreateDashboard ? 'hidden' : ''} ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
             <div className="pointer-events-auto rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-2.5 shadow-soft backdrop-blur-xl">
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'tools' ? 'Tools' : desktopNavOpen === 'avatar' ? 'Create Avatar' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => (item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : item.label === 'More' ? 'more' : item.label === 'Projects' ? 'projects' : 'home') === desktopNavOpen)?.hint : ''}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted">{desktopNavOpen === 'create' ? 'Create' : desktopNavOpen === 'billing' ? 'Billing' : desktopNavOpen === 'more' ? 'More' : 'Workspace'}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-text">{desktopNavOpen ? navItems.find((item) => item.groupKey === desktopNavOpen)?.hint : ''}</p>
                 </div>
                 <button
                   type="button"
@@ -399,16 +464,18 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       <span className="min-w-0">
                         <span className="block truncate text-[12px] font-medium leading-tight">{groupItem.label}</span>
                         <span className="block truncate text-[10px] text-muted">
-                          {groupItem.href === '/images'
-                            ? 'Fast social visuals'
-                            : groupItem.href === '/create'
-                              ? 'Cinematic reels'
+                          {groupItem.href === '/create'
+                            ? 'Unified creation hub'
+                            : groupItem.href === '/images'
+                              ? 'Fast social visuals'
                               : groupItem.href === '/templates'
                                 ? 'Guided workflows'
                                 : groupItem.href === '/influencer'
                                   ? 'Consistent avatar creation'
                                   : groupItem.href === '/billing'
                                       ? 'Credits and plans'
+                                      : groupItem.href === '/help'
+                                        ? 'Quick answers'
                                       : 'Workspace settings'}
                         </span>
                       </span>
@@ -420,8 +487,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           </div>
         </aside>
         <div className="relative z-0 min-w-0">
-          <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8">
-            <div className="rangmanch-app-header mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
+          <header className={`sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8 ${isCreateDashboard ? 'pb-1' : ''}`}>
+            <div className={`rangmanch-app-header mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-5 ${isCreateDashboard ? 'max-w-[1680px]' : 'max-w-[1500px]'}`}>
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
@@ -432,9 +499,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>
                 <div className="xl:hidden">
-                  <BrandLogo href="/dashboard" variant="mark" size="sm" />
+                  <BrandLogo href="/create" variant="mark" size="sm" />
                 </div>
-                <span className="hidden truncate font-heading text-xl font-extrabold tracking-tight text-text md:inline-block xl:text-2xl">{pageTitle}</span>
+                <span className={`hidden truncate font-heading text-xl font-extrabold tracking-tight text-text md:inline-block xl:text-2xl ${isCreateDashboard ? 'xl:opacity-0' : ''}`}>{pageTitle}</span>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -547,7 +614,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="flex items-center justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => navigateFromMobileMenu('/dashboard', 'Dashboard')}
+                        onClick={() => navigateFromMobileMenu('/create', 'Create')}
                         className="inline-flex min-w-0 shrink-0 items-center"
                         aria-label="Go to dashboard"
                       >
@@ -580,15 +647,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
                   {navItems.map((item) => {
-                const active = item.label === 'Tools'
-              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates')
-              : item.label === 'Create Avatar'
-                ? pathname.startsWith('/influencer')
-                : item.label === 'Projects'
-                  ? pathname.startsWith('/projects')
-                : item.label === 'More'
-                  ? isMoreRoute(pathname)
-                  : pathname === item.href || pathname.startsWith(item.href.split('?')[0]);
+                const active = item.groupKey === 'create'
+              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer')
+              : item.groupKey === 'projects'
+                ? pathname.startsWith('/projects')
+                : item.groupKey === 'billing'
+                  ? pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits')
+                  : isMoreRoute(pathname);
                         const Icon = item.icon;
                         const baseClass = `inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
                           active
@@ -602,7 +667,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         }`;
 
                         if (item.kind === 'group') {
-                          const groupKey = item.label === 'Tools' ? 'tools' : item.label === 'Create Avatar' ? 'avatar' : 'more';
+                          const groupKey = item.groupKey as 'create' | 'billing' | 'more';
                           const expanded = mobileGroupOpen === groupKey;
                           return (
                             <div key={item.label} className="space-y-1.5">
@@ -658,16 +723,18 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                                         <span className="min-w-0 flex-1">
                                           <span className="block truncate text-[12px] font-medium leading-tight text-text">{groupItem.label}</span>
                                           <span className="block truncate text-[10px] text-muted">
-                                            {groupItem.href === '/images'
+                                            {groupItem.href === '/create'
+                                              ? 'Unified creation hub'
+                                              : groupItem.href === '/images'
                                               ? 'Fast social visuals'
-                                              : groupItem.href === '/create'
-                                                ? 'Cinematic reels'
-                                                : groupItem.href === '/templates'
-                                                  ? 'Guided workflows'
-                                                  : groupItem.href === '/influencer'
-                                                    ? 'Consistent avatar creation'
-                                                    : groupItem.href === '/billing'
+                                              : groupItem.href === '/templates'
+                                                ? 'Guided workflows'
+                                              : groupItem.href === '/influencer'
+                                                ? 'Consistent avatar creation'
+                                              : groupItem.href === '/billing'
                                                       ? 'Credits and plans'
+                                                      : groupItem.href === '/help'
+                                                        ? 'Quick answers'
                                                       : 'Workspace settings'}
                                           </span>
                                         </span>
@@ -680,7 +747,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                           );
                         }
 
-                        if (item.label === 'Projects') {
+                        if (item.groupKey === 'projects') {
                           return (
                             <button
                               key={item.label}
@@ -707,22 +774,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                           );
                         }
 
-                        return (
-                          <button
-                            key={item.label}
-                            type="button"
-                            onClick={() => navigateFromMobileMenu(item.href, item.label)}
-                            className={`w-full ${baseClass}`}
-                          >
-                            <span className={iconClass}>
-                              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-semibold text-text">{item.label}</span>
-                              <span className="block text-xs text-muted">{item.hint}</span>
-                            </span>
-                          </button>
-                        );
+                        return null;
                       })}
                     </nav>
                   </div>
@@ -730,7 +782,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className={`mx-auto max-w-[1500px] px-4 pb-8 pt-5 transition-[opacity,transform] duration-200 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
+          <main className={`mx-auto px-4 pb-8 pt-5 transition-[opacity,transform] duration-200 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ${isCreateDashboard ? 'max-w-[1680px]' : 'max-w-[1500px]'} ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
         </div>
       </div>
       </CreditProvider>

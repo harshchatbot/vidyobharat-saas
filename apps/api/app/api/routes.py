@@ -44,7 +44,7 @@ from app.schemas.asset import (
     InspirationPublishResponse,
 )
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
-from app.schemas.catalog import AvatarResponse, TemplateResponse
+from app.schemas.catalog import AvatarResponse, RecipeCatalogResponse, TemplateResponse
 from app.schemas.template_management import (
     TemplateGenerateRequest,
     TemplateGenerateResponse,
@@ -121,6 +121,7 @@ from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
+from app.recipes.recipe_registry import build_normalized_video_payload, get_recipe, list_recipes, recipe_pipeline_metadata, validate_recipe_inputs
 from app.services.tts import (
     PREVIEW_MAX_CHARS,
     PREVIEW_MAX_REQUESTS_PER_WINDOW,
@@ -139,6 +140,11 @@ settings = get_settings()
 
 
 def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, object]:
+    if payload.recipeId:
+        return {
+            'recipe_id': payload.recipeId,
+            'inputs': sorted(list((payload.inputs or {}).keys())),
+        }
     return {
         'template': payload.template,
         'template_id': payload.templateId,
@@ -263,6 +269,77 @@ def _build_structured_script_fallback(
         "Ending cue: Hold the final frame briefly or ease out naturally so the outro does not feel abrupt.\n"
         f"Language note: Keep narration natural in {language}. Approximate total spoken length: {lower_words}-{upper_words} words."
     )
+
+
+def _script_has_quality_baseline(script_text: str) -> bool:
+    normalized = script_text.lower()
+    has_structure = all(
+        marker in normalized
+        for marker in [
+            '[opening shot:',
+            '[scene 1:',
+            '[scene 2:',
+            '[scene 3:',
+            '[closing shot:',
+            'opening cue:',
+            'visual cue:',
+            'camera cue:',
+            'mood cue:',
+            'ending cue:',
+        ]
+    )
+    has_cta = any(
+        phrase in normalized
+        for phrase in [' follow', ' shop', ' book', ' download', ' subscribe', ' start', ' try', ' learn more', 'cta']
+    )
+    return has_structure and has_cta
+
+
+def _normalize_script_output(
+    *,
+    script_text: str,
+    topic: str,
+    template: str,
+    language: str,
+    tone: str | None,
+    duration_seconds: int | None,
+) -> str:
+    cleaned = script_text.strip()
+    if cleaned.startswith('```'):
+        cleaned = re.sub(r'^\s*```[a-zA-Z0-9_-]*\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```\s*$', '', cleaned).strip()
+
+    opening_matches = list(re.finditer(r'(?im)^\[opening shot:', cleaned))
+    if len(opening_matches) > 1:
+        logger.info('ai_script_duplicate_opening_trimmed', extra={'duplicate_count': len(opening_matches)})
+        cleaned = cleaned[:opening_matches[1].start()].strip()
+
+    blocks = [block.strip() for block in re.split(r'\n{2,}', cleaned) if block.strip()]
+    deduped_blocks: list[str] = []
+    seen_blocks: set[str] = set()
+    for block in blocks:
+        key = re.sub(r'\s+', ' ', block).strip().lower()
+        if key in seen_blocks:
+            continue
+        seen_blocks.add(key)
+        deduped_blocks.append(block)
+    cleaned = '\n\n'.join(deduped_blocks).strip()
+
+    if not _script_has_quality_baseline(cleaned):
+        logger.info(
+            'ai_script_normalized_to_structured_fallback',
+            extra={'template': template, 'language': language},
+        )
+        cleaned = _build_structured_script_fallback(
+            topic=topic,
+            template=template,
+            language=language,
+            source_script=cleaned,
+            tone=tone,
+            duration_seconds=duration_seconds,
+        )
+
+    return cleaned
 
 
 def _build_reel_prompt(payload: ReelScriptRequest) -> str:
@@ -944,6 +1021,14 @@ def generate_script_v2(
             tone=payload.tone,
             duration_seconds=payload.durationSeconds,
         )
+    script_text = _normalize_script_output(
+        script_text=script_text,
+        topic=payload.topic,
+        template=payload.template,
+        language=payload.language,
+        tone=payload.tone,
+        duration_seconds=payload.durationSeconds,
+    )
     try:
         tags = AssetTaggingService(None).tag_script(script_text)
     except Exception:
@@ -972,6 +1057,9 @@ def enhance_script_v2(
     context_block = '\n'.join(_script_context_lines(payload))
     prompt = (
         'Enhance the following user-provided script into a production-ready scene script while preserving intent.\n'
+        'Return only one final rewritten script.\n'
+        'Do not include the original script, notes, explanations, headings like "Enhanced version", or multiple alternatives.\n'
+        'Do not repeat any section twice.\n'
         'Return plain text using this exact pattern:\n'
         '[Opening shot: ...]\n'
         'Narrator (tone): "..."\n'
@@ -1046,6 +1134,14 @@ def enhance_script_v2(
             tone=payload.tone,
             duration_seconds=payload.durationSeconds,
         )
+    script_text = _normalize_script_output(
+        script_text=script_text,
+        topic=payload.template or 'General video',
+        template=payload.template or 'general',
+        language=payload.language,
+        tone=payload.tone,
+        duration_seconds=payload.durationSeconds,
+    )
     if provider_success and estimate.required_credits > 0:
         try:
             credit_service.deduct_credits(
@@ -1274,13 +1370,28 @@ def create_ai_video(
     request_id = get_request_id()
     payload_summary = _summarize_video_create_payload(payload)
     try:
+        recipe = None
+        normalized_payload = payload.model_dump()
+        normalized_recipe_inputs: dict[str, object] | None = None
+        pipeline_metadata: dict[str, object] | None = None
+        if payload.recipeId:
+            recipe = get_recipe(payload.recipeId)
+            normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
+            normalized_payload = build_normalized_video_payload(recipe, normalized_recipe_inputs)
+            pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
+
         logger.info(
             'ai_video_create_started',
             extra={'request_id': request_id, 'user_id': user_id, 'stage': 'estimate', 'payload_summary': payload_summary},
         )
         credit_service = CreditService()
         error_stage = 'estimate'
-        wallet_for_estimate, estimate = credit_service.estimate_for_user(user_id, 'video_create', payload.model_dump())
+        estimate_payload = {
+            **normalized_payload,
+            'recipeId': payload.recipeId,
+            'inputs': normalized_recipe_inputs or {},
+        }
+        wallet_for_estimate, estimate = credit_service.estimate_for_user(user_id, 'video_create', estimate_payload)
         logger.info(
             'ai_video_create_estimated',
             extra={
@@ -1307,11 +1418,11 @@ def create_ai_video(
                 user_id=user_id,
                 amount=estimate.required_credits,
                 feature_key='video_create',
-                metadata=payload.model_dump(),
+                metadata=estimate_payload,
                 source='premium',
                 idempotency_key=credit_service.make_idempotency_key(
                     'video_create',
-                    {'user_id': user_id, **payload.model_dump()},
+                    {'user_id': user_id, **estimate_payload},
                 ),
             )
             deduction_amount = estimate.required_credits
@@ -1322,11 +1433,11 @@ def create_ai_video(
                 user_id=user_id,
                 amount=0,
                 feature_key='video_create_free',
-                metadata=payload.model_dump(),
+                metadata=estimate_payload,
                 source='free',
                 idempotency_key=credit_service.make_idempotency_key(
                     'video_create_free',
-                    {'user_id': user_id, **payload.model_dump()},
+                    {'user_id': user_id, **estimate_payload},
                 ),
             )
             remaining_credits = deduction.wallet.current_credits
@@ -1334,29 +1445,37 @@ def create_ai_video(
         service = AIVideoCreateService(None, settings)
         video = service.create_video(
             user_id=user_id,
-            template=payload.template,
-            template_id=payload.templateId,
+            template=str(normalized_payload['template']),
+            template_id=payload.templateId if not recipe else recipe.id,
             project_id=payload.projectId,
             mode_id=payload.modeId,
-            language=payload.language,
-            image_urls=payload.imageUrls,
-            script=payload.script,
-            tags=payload.tags,
-            model_key=payload.modelKey,
-            aspect_ratio=payload.aspectRatio,
-            resolution=payload.resolution,
-            duration_mode=payload.durationMode,
-            duration_seconds=payload.durationSeconds,
-            voice=payload.voice,
-            music=payload.music.model_dump(),
-            audio_settings=payload.audioSettings.model_dump(),
-            captions_enabled=payload.captionsEnabled,
-            narration_enabled=payload.narrationEnabled,
-            caption_style=payload.captionStyle,
+            language=str(normalized_payload['language']),
+            image_urls=list(normalized_payload.get('imageUrls') or []),
+            script=str(normalized_payload['script']),
+            tags=list(normalized_payload.get('tags') or []),
+            model_key=str(normalized_payload['modelKey']),
+            aspect_ratio=str(normalized_payload['aspectRatio']),
+            resolution=str(normalized_payload['resolution']),
+            duration_mode=str(normalized_payload['durationMode']),
+            duration_seconds=int(normalized_payload['durationSeconds']) if normalized_payload.get('durationSeconds') is not None else None,
+            voice=str(normalized_payload['voice']),
+            music=(normalized_payload.get('music') or payload.music.model_dump()),
+            audio_settings=(normalized_payload.get('audioSettings') or payload.audioSettings.model_dump()),
+            captions_enabled=bool(normalized_payload.get('captionsEnabled')),
+            narration_enabled=bool(normalized_payload.get('narrationEnabled')),
+            caption_style=str(normalized_payload.get('captionStyle') or payload.captionStyle),
+            recipe_id=payload.recipeId,
+            recipe_inputs=normalized_recipe_inputs,
+            pipeline_mode='recipe' if payload.recipeId else None,
+            pipeline_metadata=pipeline_metadata,
         )
         # Persist charged credits on the video document so async failure refunds are exact.
         error_stage = 'persist_applied_credits'
-        service.repo.update(video, applied_credits=estimate.required_credits, request_quality=payload.quality)
+        service.repo.update(
+            video,
+            applied_credits=estimate.required_credits,
+            request_quality=str(normalized_payload.get('quality') or payload.quality),
+        )
         logger.info(
             'ai_video_created',
             extra={
@@ -1374,7 +1493,7 @@ def create_ai_video(
             status='queued',
             videoUrl=video.output_url,
             provider=video.provider_name,
-            modelKey=payload.modelKey,
+            modelKey=str(normalized_payload['modelKey']),
             appliedCredits=estimate.required_credits,
             remainingCredits=remaining_credits,
         )
@@ -1405,7 +1524,7 @@ def create_ai_video(
             CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
-                metadata={'refund_for': 'video_create_provider_error', 'model_key': payload.modelKey},
+                metadata={'refund_for': 'video_create_provider_error', 'model_key': normalized_payload.get('modelKey')},
             )
         logger.warning(
             'ai_video_create_provider_error',
@@ -1442,7 +1561,7 @@ def create_ai_video(
             CreditService().top_up_credits(
                 user_id=user_id,
                 credits=deduction_amount,
-                metadata={'refund_for': 'video_create_error', 'model_key': payload.modelKey},
+                metadata={'refund_for': 'video_create_error', 'model_key': normalized_payload.get('modelKey') if 'normalized_payload' in locals() else payload.modelKey},
             )
         logger.exception(
             'ai_video_create_failed',
@@ -2431,6 +2550,16 @@ def list_unified_templates(
         aspect_ratio=aspect_ratio,
         search=search,
     )
+
+
+@router.get('/api/recipes', response_model=list[RecipeCatalogResponse])
+def list_recipe_catalog(
+    type: str | None = 'video',
+    active: bool | None = True,
+    featured: bool | None = None,
+    _: str = Depends(get_user_id),
+):
+    return list_recipes(type=type, active=active, featured=featured)
 
 
 @router.get('/api/templates/{template_id}', response_model=UnifiedTemplateResponse)

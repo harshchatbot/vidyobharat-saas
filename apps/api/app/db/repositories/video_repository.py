@@ -294,4 +294,8 @@ class VideoRepository:
         setattr(model, 'mode_id', data.get('mode_id', data.get('modeId')))
         setattr(model, 'template_id', data.get('template_id', data.get('templateId')))
         setattr(model, 'narration_enabled', bool(data.get('narration_enabled', data.get('narrationEnabled', True))))
+        setattr(model, 'recipe_id', data.get('recipe_id', data.get('recipeId')))
+        setattr(model, 'recipe_inputs', data.get('recipe_inputs', data.get('recipeInputs')) or {})
+        setattr(model, 'pipeline_mode', data.get('pipeline_mode', data.get('pipelineMode')))
+        setattr(model, 'pipeline_metadata', data.get('pipeline_metadata', data.get('pipelineMetadata')) or {})
         return model

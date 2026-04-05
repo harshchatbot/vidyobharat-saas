@@ -375,8 +375,38 @@ const TEMPLATE_OPTIONAL_DETAIL_KEYS = new Set([
   'businessType',
 ]);
 
+const TEMPLATE_FIELD_HINTS: Record<string, string> = {
+  topic: 'What your video is about',
+  tone: 'How the video should feel (optional)',
+  audience: 'Who this is for (optional)',
+  targetAudience: 'Who this is for (optional)',
+  platform: 'Where you plan to publish (optional)',
+  duration: 'How long the reel should feel (optional)',
+  cta: 'What viewers should do next (optional)',
+  project: 'Save into a specific project (optional)',
+  scriptOverride: 'Replace the starter script only if you need more control',
+};
+
 function firstTemplateOptionValue(field: TemplateInputField): string {
   return normalizeTemplateOptions(field)[0]?.value || '';
+}
+
+function getTemplateFieldHint(field: TemplateInputField) {
+  return TEMPLATE_FIELD_HINTS[field.key] || null;
+}
+
+function ensureSmoothVideoScriptCues(scriptText: string) {
+  const trimmed = scriptText.trim();
+  if (!trimmed) return trimmed;
+
+  let next = trimmed;
+  if (!/opening cue:/i.test(next)) {
+    next = `${next}\n\nOpening cue: soft fade in, no abrupt start.`;
+  }
+  if (!/ending cue:/i.test(next)) {
+    next = `${next}\nEnding cue: hold final frame, fade out smoothly.`;
+  }
+  return next;
 }
 
 function resolveQuickApplyPreset(template: UnifiedTemplate): VideoTemplateQuickApplyPreset {
@@ -558,12 +588,28 @@ export function CreateVideoPage({
   initialScript,
   initialTitle,
   initialProjectId,
+  initialLane,
+  initialModelKey,
+  initialAspectRatio,
+  initialResolution,
+  initialDurationSeconds,
+  initialCaptionsEnabled,
+  initialNarrationEnabled,
+  embedded = false,
 }: {
   userId: string;
   templateKey?: string;
   initialScript?: string;
   initialTitle?: string;
   initialProjectId?: string;
+  initialLane?: VideoLaneKey;
+  initialModelKey?: string;
+  initialAspectRatio?: '9:16' | '16:9' | '1:1';
+  initialResolution?: '720p' | '1080p';
+  initialDurationSeconds?: string;
+  initialCaptionsEnabled?: boolean;
+  initialNarrationEnabled?: boolean;
+  embedded?: boolean;
 }) {
   const cacheKey = `rangmanch:video-studio:v2:${userId}`;
   const draftKey = `rangmanch-create-draft:${userId}`;
@@ -629,8 +675,8 @@ export function CreateVideoPage({
 
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [videoLane, setVideoLane] = useState<VideoLaneKey>('creator_pro');
-  const [modelKey, setModelKey] = useState<VideoModelKey>('kling3');
+  const [videoLane, setVideoLane] = useState<VideoLaneKey>(initialLane ?? 'creator_pro');
+  const [modelKey, setModelKey] = useState<VideoModelKey>(initialModelKey ?? 'kling3');
   const activeProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -650,13 +696,13 @@ export function CreateVideoPage({
   const [musicPreviewError, setMusicPreviewError] = useState<string | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
 
-  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [resolution, setResolution] = useState<'720p' | '1080p'>('720p');
+  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>(initialAspectRatio ?? '9:16');
+  const [resolution, setResolution] = useState<'720p' | '1080p'>(initialResolution ?? '720p');
   const [quality, setQuality] = useState<'standard' | 'high'>('standard');
   const [durationMode, setDurationMode] = useState<'auto' | 'custom'>('custom');
-  const [durationSeconds, setDurationSeconds] = useState('8');
-  const [captionsEnabled, setCaptionsEnabled] = useState(false);
-  const [narrationEnabled, setNarrationEnabled] = useState(false);
+  const [durationSeconds, setDurationSeconds] = useState(initialDurationSeconds ?? '8');
+  const [captionsEnabled, setCaptionsEnabled] = useState(initialCaptionsEnabled ?? false);
+  const [narrationEnabled, setNarrationEnabled] = useState(initialNarrationEnabled ?? false);
   const [captionStyle, setCaptionStyle] = useState('Classic');
   const [quickStartFeedback, setQuickStartFeedback] = useState<{ title: string; description: string } | null>(null);
   const [templateApplyLoadingKey, setTemplateApplyLoadingKey] = useState<string | null>(null);
@@ -699,6 +745,7 @@ export function CreateVideoPage({
   const completionToastRef = useRef<string | null>(null);
   const guidedLaunchOpenedRef = useRef(false);
   const sharedModelMap = useMemo(() => getVideoModelMap(), []);
+  const prefersUnifiedComposer = !embedded && !(initialScript ?? '').trim() && !(initialTitle ?? '').trim();
   const visibleTemplates = videoTemplates.filter((item) => {
     const query = templateSearch.trim().toLowerCase();
     if (!query) return true;
@@ -1401,6 +1448,19 @@ export function CreateVideoPage({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (
+      initialScript?.trim() ||
+      sanitizedInitialTitle.trim() ||
+      initialLane ||
+      initialModelKey ||
+      initialAspectRatio ||
+      initialResolution ||
+      initialDurationSeconds ||
+      typeof initialCaptionsEnabled === 'boolean' ||
+      typeof initialNarrationEnabled === 'boolean'
+    ) {
+      return;
+    }
     const raw = window.localStorage.getItem(draftKey);
     if (!raw) return;
     try {
@@ -1435,7 +1495,18 @@ export function CreateVideoPage({
     } catch {
       window.localStorage.removeItem(draftKey);
     }
-  }, [draftKey]);
+  }, [
+    draftKey,
+    initialAspectRatio,
+    initialCaptionsEnabled,
+    initialDurationSeconds,
+    initialLane,
+    initialModelKey,
+    initialNarrationEnabled,
+    initialResolution,
+    initialScript,
+    sanitizedInitialTitle,
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2121,7 +2192,6 @@ export function CreateVideoPage({
   };
 
   const generateScript = async () => {
-    const hasScriptInput = script.trim().length > 0;
     const effectiveTemplate = selectedTemplate === 'custom' ? 'General' : template.label;
     const effectiveTopic = topic.trim() || (selectedTemplate === 'custom' ? 'General creator video concept' : template.topicHint);
     const durationForScript = normalizedDurationSeconds || durationRule.defaultSeconds;
@@ -2144,7 +2214,7 @@ export function CreateVideoPage({
     setScriptError(null);
     try {
       if (selectedHeroTemplate && appliedHeroTemplateId) {
-        const preview = await previewAppliedHeroTemplate(hasScriptInput ? script.trim() : undefined);
+        const preview = await previewAppliedHeroTemplate(undefined);
         if (!preview) throw new Error('Template preview unavailable.');
         const nextScript = preview.scriptPreview || preview.videoPrompt || preview.prompt;
         if (!nextScript?.trim()) throw new Error('Template preview returned no script.');
@@ -2153,25 +2223,15 @@ export function CreateVideoPage({
         setTitle(preview.title || effectiveTopic);
         return;
       }
-      const result = hasScriptInput
-        ? await api.enhanceScriptV2(
-          {
-            script: script.trim(),
-            template: effectiveTemplate,
-            language,
-            ...scriptContext,
-          },
-          userId,
-        )
-        : await api.generateScriptV2(
-          {
-            template: effectiveTemplate,
-            topic: effectiveTopic,
-            language,
-            ...scriptContext,
-          },
-          userId,
-        );
+      const result = await api.generateScriptV2(
+        {
+          template: effectiveTemplate,
+          topic: effectiveTopic,
+          language,
+          ...scriptContext,
+        },
+        userId,
+      );
       setScript(result.script);
       setScriptTags(result.tags);
       if (topic.trim()) {
@@ -2179,6 +2239,13 @@ export function CreateVideoPage({
       } else if (!title.trim()) {
         setTitle(effectiveTopic);
       }
+      show({
+        title: script.trim() ? 'Fresh script generated' : 'Script draft ready',
+        message: script.trim()
+          ? 'We replaced the current draft with a new generated script. You can still edit it below.'
+          : 'A creator-ready script draft is loaded. You can refine it below.',
+        variant: 'success',
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate script.';
       setScriptError(message);
@@ -2225,6 +2292,11 @@ export function CreateVideoPage({
       setScript(result.script);
       setScriptTags(result.tags);
       if (topic.trim()) setTitle(topic.trim());
+      show({
+        title: 'Script improved',
+        message: 'We rewrote the current draft to improve structure, cues, pacing, and CTA strength.',
+        variant: 'success',
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to enhance script.';
       setScriptError(message);
@@ -2522,6 +2594,10 @@ export function CreateVideoPage({
     completionToastRef.current = null;
 
     try {
+      const preparedScript = ensureSmoothVideoScriptCues(script.trim());
+      if (preparedScript !== script.trim()) {
+        setScript(preparedScript);
+      }
       const freshWallet = await api.getCreditWallet(userId);
       applyWallet(freshWallet);
       if (freshWallet.currentCredits < displayVideoEstimateCredits) {
@@ -2536,7 +2612,7 @@ export function CreateVideoPage({
       const result = await api.createAIVideo({
         template: template.label,
         templateId: selectedHeroTemplate?.id || appliedHeroTemplateId || undefined,
-        script: script.trim(),
+        script: preparedScript,
         tags: scriptTags,
         modelKey,
         modeId: videoLane,
@@ -2655,27 +2731,49 @@ export function CreateVideoPage({
         progress={overlayProgress ?? undefined}
       />
 
-      <StudioPageHeader
-        eyebrow="Video Studio"
-        title="Create creator-ready reels from one guided studio"
-        description="Choose what you want to make, shape the script, and generate with creator-safe defaults."
-        actions={
-          <>
-            <Badge variant="outline" className="px-3 py-2 text-xs">
-              {creditWallet?.currentCredits ?? 0} credits
-              {creditsRefreshing ? ' · refreshing' : ''}
-            </Badge>
-            <Badge variant="outline" className="px-3 py-2 text-xs">
-              {CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}
-            </Badge>
-          </>
-        }
-      />
+      {!embedded ? (
+        <StudioPageHeader
+          eyebrow="Video Studio"
+          title="Video workspace"
+          description={prefersUnifiedComposer ? 'Start the idea in Create, then use this workspace for script refinement, voice preview, and output controls.' : 'Refine the script, voice, and output settings from one guided video workspace.'}
+          actions={
+            <>
+              <Link href="/create">
+                <Button variant="secondary" type="button" className="h-10 gap-2 rounded-[12px] px-4 text-sm">
+                  <Sparkles className="h-4 w-4" />
+                  Open Create
+                </Button>
+              </Link>
+              <Badge variant="outline" className="px-3 py-2 text-xs">
+                {creditWallet?.currentCredits ?? 0} credits
+                {creditsRefreshing ? ' · refreshing' : ''}
+              </Badge>
+              <Badge variant="outline" className="px-3 py-2 text-xs">
+                {CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}
+              </Badge>
+            </>
+          }
+        />
+      ) : null}
       {activeProject ? (
         <ActiveProjectBar
           project={activeProject}
           description="This video workflow is attached to the active project. New renders, prompt changes, and guided template runs will stay grouped there."
         />
+      ) : null}
+
+      {prefersUnifiedComposer ? (
+        <Card className="border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4 shadow-soft backdrop-blur-md">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-text">Start in the unified composer</p>
+              <p className="mt-1 text-xs text-muted">Use `/create` to provide the idea or prompt. This page now works best for refining scripts, voice, templates, and output settings after the concept is already set.</p>
+            </div>
+            <Link href="/create">
+              <Button type="button" className="w-full sm:w-auto">Go to Create</Button>
+            </Link>
+          </div>
+        </Card>
       ) : null}
 
       {selectedHeroTemplate && appliedHeroTemplateId ? (
@@ -2735,8 +2833,8 @@ export function CreateVideoPage({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
-                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">Write the idea and script for your reel</h2>
-                <p className="mt-1 text-sm text-muted">Keep it simple: define the idea, refine the script, then preview voice only if you need it.</p>
+                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">{prefersUnifiedComposer ? 'Script source' : 'Write the idea and script for your reel'}</h2>
+                <p className="mt-1 text-sm text-muted">{prefersUnifiedComposer ? 'The unified composer is now the main place to provide the idea. When a draft is sent here, this workspace is ready to refine it.' : 'Keep it simple: define the idea, refine the script, then preview voice only if you need it.'}</p>
               </div>
               <div className="w-full text-left text-xs text-muted sm:w-auto sm:text-right">
                 <p>{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}</p>
@@ -2745,7 +2843,11 @@ export function CreateVideoPage({
             </div>
 
             <div className="space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              {isDailyLane ? (
+              {prefersUnifiedComposer && !script.trim() && !topic.trim() ? (
+                <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.28)] p-5 text-sm text-muted">
+                  Your video idea and script will appear here after you start from the unified composer.
+                </div>
+              ) : isDailyLane ? (
                 <>
                   <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3116,7 +3218,7 @@ export function CreateVideoPage({
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Setup</p>
                   <h3 className="mt-1 text-lg font-semibold text-text">Start with the outcome you want to create</h3>
-                  <p className="mt-1 text-sm text-muted">Start simple with creator-ready defaults. Advanced controls stay available when you want more control.</p>
+                  <p className="mt-1 text-sm text-muted">Start simple with creator-ready defaults. Templates are ready-made formats. Just change the idea and refine later if you need more control.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
@@ -3158,6 +3260,7 @@ export function CreateVideoPage({
                     <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
                       <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
                       <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
+                      <p className="mt-1 text-[11px] text-muted">Recommended settings already applied. You can refine this later.</p>
                     </div>
                   ) : null}
                 </SectionCard>
@@ -3480,8 +3583,8 @@ export function CreateVideoPage({
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-text">Start with a ready setup</p>
-                    <p className="mt-1 text-sm text-muted">Recommended settings already applied. Adjust only what you need.</p>
+                    <p className="text-sm font-semibold text-text">Start with topic. Everything else is optional.</p>
+                    <p className="mt-1 text-sm text-muted">Templates are ready-made formats. Recommended settings already applied. You can refine this later.</p>
                   </div>
                   {templateFlowEstimate ? (
                     <span className="inline-flex rounded-full border border-[hsl(var(--color-border))] px-3 py-1 text-xs font-semibold text-text">
@@ -3497,6 +3600,7 @@ export function CreateVideoPage({
                       return (
                         <div key={field.key} className="space-y-1.5">
                           <label className="text-sm font-medium text-text">{field.label}</label>
+                          {getTemplateFieldHint(field) ? <p className="text-xs text-muted">{getTemplateFieldHint(field)}</p> : null}
                           <Input
                             value={value}
                             onChange={(e) => setTemplateFlowInputs((current) => ({ ...current, [field.key]: e.target.value }))}
@@ -3507,16 +3611,25 @@ export function CreateVideoPage({
                     })}
                   {!((activeTemplateFlow.inputs || []).some((field) => field.key === 'topic')) ? (
                     <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] px-3 py-2.5 text-sm text-muted">
-                      This template already has a ready starter setup. You can apply it as-is or expand the optional details below.
+                      This template already has a ready starter setup. You can use the recommended setup as-is or expand the optional details below.
+                    </div>
+                  ) : null}
+                  {canApplyStructuredTemplateFlow ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" onClick={applyStructuredTemplateFlow} className="rounded-full px-4 py-2 text-xs">
+                        Use recommended setup
+                      </Button>
+                      <span className="text-xs text-muted">Recommended settings already applied.</span>
                     </div>
                   ) : null}
                   <details className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] p-3">
                     <summary className="cursor-pointer list-none text-sm font-semibold text-text">Optional details</summary>
-                    <p className="mt-1 text-xs text-muted">Audience, tone, platform, duration, CTA, project, and any extra context.</p>
+                    <p className="mt-1 text-xs text-muted">Audience, tone, duration, CTA, project, and any extra context. Keep these blank unless they help.</p>
                     <div className="mt-3 space-y-3">
                       {primarySubtypeField ? (
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-text">{primarySubtypeField.label}</label>
+                          <label className="text-sm font-medium text-text">Format</label>
+                          <p className="text-xs text-muted">Choose the structure you want, like story, top 5, or before-after.</p>
                           <div className="flex flex-wrap gap-2">
                             {normalizeTemplateOptions(primarySubtypeField).map((option) => {
                               const active = (templateFlowInputs[primarySubtypeField.key] || '') === option.value;
@@ -3546,6 +3659,7 @@ export function CreateVideoPage({
                           return (
                             <div key={field.key} className="space-y-1.5">
                               <label className="text-sm font-medium text-text">{field.label}</label>
+                              {getTemplateFieldHint(field) ? <p className="text-xs text-muted">{getTemplateFieldHint(field)}</p> : null}
                               {field.type === 'select' ? (
                                 <Dropdown
                                   value={value}
@@ -3579,48 +3693,50 @@ export function CreateVideoPage({
               </div>
 
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
-                <div className="mb-4">
-                  <p className="text-sm font-semibold text-text">Advanced settings</p>
-                  <p className="mt-1 text-sm text-muted">Engine override and prompt mode for creators who want extra control.</p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-text">Advanced engine override</label>
-                    <Input
-                      value={templateFlowModelOverride}
-                      onChange={(e) => setTemplateFlowModelOverride(e.target.value)}
-                      placeholder={activeTemplateFlow.recommended_model?.internal_model_key || activeTemplateFlow.generation_defaults?.model_key || 'Leave blank to use recommended'}
+                <details className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.4)] p-3" open={false}>
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-text">Advanced settings</summary>
+                  <p className="mt-1 text-xs text-muted">Engine override and prompt mode for creators who want extra control.</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-text">Advanced engine override</label>
+                      <Input
+                        value={templateFlowModelOverride}
+                        onChange={(e) => setTemplateFlowModelOverride(e.target.value)}
+                        placeholder={activeTemplateFlow.recommended_model?.internal_model_key || activeTemplateFlow.generation_defaults?.model_key || 'Leave blank to use recommended'}
+                      />
+                    </div>
+                    <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Prompt mode</p>
+                      <p className="mt-2 text-sm font-semibold text-text">
+                        {templateFlowPreview?.recommendedModelMode || activeTemplateFlow.default_model_mode || 'Smart default'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-1.5">
+                    <label className="text-sm font-medium text-text">Project</label>
+                    <p className="text-xs text-muted">Optional. Save this workflow into a specific project.</p>
+                    <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                      <option value="">Auto-create a project when this template is applied</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.title}
+                        </option>
+                      ))}
+                    </Dropdown>
+                  </div>
+
+                  <div className="mt-4 space-y-1.5">
+                    <label className="text-sm font-medium text-text">Script override</label>
+                    <p className="text-xs text-muted">Optional. Use this only if you want to replace the starter script completely.</p>
+                    <Textarea
+                      value={templateFlowPromptOverride}
+                      onChange={(e) => setTemplateFlowPromptOverride(e.target.value)}
+                      placeholder="Optional. Override the generated script if you want more control."
+                      rows={5}
                     />
                   </div>
-                  <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Prompt mode</p>
-                    <p className="mt-2 text-sm font-semibold text-text">
-                      {templateFlowPreview?.recommendedModelMode || activeTemplateFlow.default_model_mode || 'Smart default'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-1.5">
-                  <label className="text-sm font-medium text-text">Project</label>
-                  <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
-                    <option value="">Auto-create a project when this template is applied</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}
-                      </option>
-                    ))}
-                  </Dropdown>
-                </div>
-
-                <div className="mt-4 space-y-1.5">
-                  <label className="text-sm font-medium text-text">Script override</label>
-                  <Textarea
-                    value={templateFlowPromptOverride}
-                    onChange={(e) => setTemplateFlowPromptOverride(e.target.value)}
-                    placeholder="Optional. Override the generated script if you want more control."
-                    rows={5}
-                  />
-                </div>
+                </details>
               </div>
 
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
@@ -3661,7 +3777,7 @@ export function CreateVideoPage({
                     Cancel
                   </Button>
                   <Button onClick={applyStructuredTemplateFlow} disabled={!canApplyStructuredTemplateFlow}>
-                    Apply to studio
+                    Use recommended setup
                   </Button>
                 </div>
               </div>

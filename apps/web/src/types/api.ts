@@ -121,6 +121,9 @@ export type TemplateGenerationDefaults = {
   language?: string | null;
   duration_seconds?: number | null;
   quality?: string | null;
+  captions_enabled?: boolean | null;
+  narration_enabled?: boolean | null;
+  caption_style?: string | null;
 };
 
 export type TemplateRecommendedModel = {
@@ -129,6 +132,55 @@ export type TemplateRecommendedModel = {
   description?: string | null;
   group?: string | null;
   internal_model_key?: string | null;
+};
+
+export type RecipeComposerFragment = {
+  type: 'text' | 'slot';
+  value?: string | null;
+  slot_id?: string | null;
+};
+
+export type RecipeComposerSlot = {
+  id: string;
+  kind: 'text' | 'upload' | 'avatar' | 'select' | 'reference-image' | string;
+  label: string;
+  placeholder: string;
+  required?: boolean;
+  options?: string[];
+  sample_label?: string | null;
+  sample_preview_url?: string | null;
+  submit_target?: 'image' | 'text' | string | null;
+};
+
+export type RecipeComposer = {
+  recipe_label: string;
+  mode: 'video' | 'image' | string;
+  fragments: RecipeComposerFragment[];
+  slots: RecipeComposerSlot[];
+  starter_copy?: string | null;
+};
+
+export type RecipeCatalog = {
+  id: string;
+  type: 'video' | 'image' | string;
+  title: string;
+  slug: string;
+  description: string;
+  short_label?: string | null;
+  preview_video_url?: string | null;
+  preview_image_url?: string | null;
+  active: boolean;
+  featured: boolean;
+  trending: boolean;
+  order: number;
+  tags: string[];
+  duration_seconds: number;
+  input: {
+    image?: boolean;
+    text?: boolean;
+  };
+  generation_defaults: TemplateGenerationDefaults;
+  composer: RecipeComposer;
 };
 
 export type TemplateGenerateRequest = {
@@ -439,7 +491,7 @@ export type UserSettingsUpdateRequest = {
   music_ducking_default: boolean;
 };
 
-export type VideoCreateRequest = {
+export type StandardVideoCreateRequest = {
   template: string;
   templateId?: string;
   script: string;
@@ -468,6 +520,13 @@ export type VideoCreateRequest = {
   captionStyle: string;
   narrationEnabled?: boolean;
 };
+
+export type RecipeVideoCreateRequest = {
+  recipeId: string;
+  inputs: Record<string, string | string[]>;
+};
+
+export type VideoCreateRequest = StandardVideoCreateRequest | RecipeVideoCreateRequest;
 
 export type VideoCreateResponse = {
   id: string;

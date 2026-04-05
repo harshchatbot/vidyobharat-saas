@@ -1,0 +1,26 @@
+import { redirect } from 'next/navigation';
+
+import { CreateVideoClient } from '@/components/videos/CreateVideoClient';
+import { getUserIdFromCookie } from '@/lib/session';
+
+export default async function CreateVideoPageRoute({
+  searchParams,
+}: {
+  searchParams: Promise<{ template?: string; script?: string; title?: string; projectId?: string }>;
+}) {
+  const userId = await getUserIdFromCookie();
+  if (!userId) {
+    redirect('/login');
+  }
+
+  const params = await searchParams;
+  return (
+    <CreateVideoClient
+      userId={userId}
+      templateKey={params.template}
+      initialScript={params.script}
+      initialTitle={params.title}
+      initialProjectId={params.projectId}
+    />
+  );
+}
