@@ -170,19 +170,21 @@ class AIVideoCreateService:
         self.pipeline = VideoPipelineService()
         self.tagging = AssetTaggingService(db)
         self.fal = FalVideoService()
+
         self.providers = {
             'sora2': self.generate_with_sora2,
             'sora2_pro': self.generate_with_sora2,
             'veo3': self.generate_with_veo3,
-            # Keep Kling 3 under fal routing so WAN fallbacks do not require separate KLING_API_KEY.
             'kling3': self.generate_with_fal,
-            'wan_2_5': self.generate_with_fal,
+            'kling_v3': self.generate_with_fal,
             'kling_turbo': self.generate_with_fal,
             'kling': self.generate_with_fal,
             'sora_2': self.generate_with_sora2,
             'veo_3_1': self.generate_with_veo3,
         }
+
         self.model_router = SmartModelRouter()
+
         # Keep fallbacks conservative. Do not route into disabled or unstable fal video models,
         # and do not silently escalate creator/daily requests into incompatible Sora paths.
         self.video_fallbacks: dict[str, list[str]] = {
@@ -190,7 +192,7 @@ class AIVideoCreateService:
             'sora2_pro': [],
             'veo3': [],
             'kling3': [],
-            'wan_2_5': [],
+            'kling_v3': [],
             'kling_turbo': [],
             'kling': [],
             'sora_2': [],
@@ -215,9 +217,9 @@ class AIVideoCreateService:
 
     def _registry_key_for(self, model_key: str) -> str:
         mapping = {
-            'wan_2_5': 'wan2.1_t2v_turbo',
             'kling_turbo': 'wan2.6_i2v_flash',
             'kling': 'kling3',
+            'kling_v3': 'kling3',
             'sora_2': 'sora2',
             'veo_3_1': 'veo3',
         }
@@ -601,9 +603,19 @@ class AIVideoCreateService:
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
         duration_seconds = int(params['durationSeconds'])
+
         if requested_model == 'kling' and duration_seconds not in {5, 10}:
             logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
             duration_seconds = 5
+
+        logger.info(
+            "fal_model_debug",
+            extra={
+                "requested_model": requested_model,
+                "payload_modelKey": params.get("modelKey"),
+            },
+        )    
+
         video_url, metadata = self.fal.generate(
             model_key=requested_model,
             prompt=params['script'],
@@ -611,7 +623,9 @@ class AIVideoCreateService:
             resolution=params['resolution'],
             duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
+            multi_prompt=params.get('multiPrompt'),
         )
+
         return ProviderResult(
             provider='fal.ai',
             model_key=requested_model,
@@ -622,26 +636,36 @@ class AIVideoCreateService:
     def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
         requested_model = str(payload.get('modelKey') or '')
         route = resolve_generation_route(medium='video', model_key=requested_model)
-        primary_key = route.canonical_model_key
+        primary_key = route.canonical_model_key or requested_model
+
+        # Normalize newly added runtime model aliases here so provider lookup is stable
+        if primary_key in {'kling3', 'kling_v3'} or requested_model in {'kling3', 'kling_v3'}:
+            primary_key = 'kling_v3'
+
         logger.info(
             'video_model_route_resolved',
             extra={
                 'requested_model': requested_model,
                 'canonical_model_key': route.canonical_model_key,
+                'normalized_primary_key': primary_key,
                 'provider_id': route.provider_id,
                 'provider_model_key': route.provider_model_key,
                 'fallback_model_key': route.fallback_model_key,
+                'available_providers': sorted(self.providers.keys()),
             },
         )
+
         if primary_key not in self.providers:
             raise ProviderError(f'Unsupported model: {requested_model}')
 
         fallback_models = self.video_fallbacks.get(primary_key, []) or self.video_fallbacks.get(requested_model, [])
+
         routed = self.model_router.resolve_and_execute(
             requested_model_id=primary_key,
             fallback_model_ids=fallback_models,
             execute=lambda model_id: self.providers[model_id]({**payload, 'modelKey': model_id}),
         )
+
         result = routed.value
         result.metadata = {
             **(result.metadata or {}),
@@ -654,6 +678,7 @@ class AIVideoCreateService:
             'canonical_model_key': route.canonical_model_key,
             'billing_model_key': route.billing_model_key,
         }
+
         if routed.fallback_used:
             logger.warning(
                 'video_generation_model_fallback_used',
@@ -664,6 +689,7 @@ class AIVideoCreateService:
                 'video_generation_model_executed',
                 extra={'requested_model': requested_model, 'resolved_model': routed.resolved_model_id, 'provider': result.provider},
             )
+
         return result
 
     def _render_local_proxy(
@@ -969,7 +995,7 @@ class AIVideoCreateService:
 
         if 'presets' in rules:
             allowed = sorted(int(item) for item in rules['presets'])
-            if model_key == 'kling3' and duration_seconds not in allowed:
+            if model_key in {'kling3', 'kling_v3'} and duration_seconds not in allowed:
                 logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
                 return 5
             if duration_seconds not in rules['presets']:

@@ -646,7 +646,14 @@ class CreditService:
         return total, breakdown
 
     def _normalize_video_model(self, value: str) -> str:
-        normalized = self.video_model_aliases.get(value.strip().lower())
+        key = value.strip().lower()
+
+        # Temporary runtime aliases for newly added backend model keys
+        # until shared credit-engine config is updated.
+        if key in {'kling_v3', 'kling3'}:
+            return 'kling'
+
+        normalized = self.video_model_aliases.get(key)
         if not normalized:
             raise ValueError('Unsupported video model for credit calculation')
         return normalized

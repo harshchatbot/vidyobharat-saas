@@ -20,7 +20,6 @@ class FalVideoService:
         'kling': 420,
         'kling_turbo': 300,
         'kling_v3': 480,
-        'wan_2_5': 240,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _FOLLOW_UP_REQUEST_DEPTH_LIMIT = 3
@@ -312,7 +311,6 @@ class FalVideoService:
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
             # Use canonical fal-ai WAN route to keep status/response URLs compatible.
-            'wan_2_5': 'fal-ai/wan/v2.6/text-to-video',
             'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
             'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
             'kling_v3': 'fal-ai/kling-video/v3/standard/text-to-video',
