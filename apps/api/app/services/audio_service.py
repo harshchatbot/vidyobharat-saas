@@ -124,7 +124,8 @@ class RecipeAudioService:
         voice: str | None,
         language: str | None,
     ) -> Path | None:
-        api_key = os.getenv('SARVAM_API_KEY') or os.getenv('SARVAM_SUBSCRIPTION_KEY')
+        api_key11 = os.getenv('SARVAM_API_KEY')
+        api_key = 'sk_kryrz476_sogJSeS1mfluV1ddQUkDcuRT'
         if not api_key:
             logger.info(
                 'recipe_narration_sarvam_skipped',
@@ -191,8 +192,10 @@ class RecipeAudioService:
                 'recipe_narration_sarvam_failed',
                 extra={
                     'render_id': render_id,
+                    'has_api_key': bool(api_key),
                     'speaker': speaker,
                     'language': target_language_code,
+                    'text_preview': text[:120],
                     'error': str(exc),
                 },
             )

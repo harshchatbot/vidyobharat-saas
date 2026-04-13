@@ -53,6 +53,7 @@ type Props = {
   initialProjectId?: string;
   initialPrompt?: string;
   initialImageMode?: ImageModeKey;
+  initialSelectedModelKey?: string;
   initialAspectRatio?: string;
   initialResolution?: string;
   initialAutoGenerate?: boolean;
@@ -561,6 +562,7 @@ export function ImageStudioClient({
   initialProjectId,
   initialPrompt,
   initialImageMode,
+  initialSelectedModelKey,
   initialAspectRatio,
   initialResolution,
   initialAutoGenerate = false,
@@ -606,7 +608,7 @@ export function ImageStudioClient({
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('budget_image_model');
+  const [selectedModel, setSelectedModel] = useState(initialSelectedModelKey ?? 'budget_image_model');
   const [imageMode, setImageMode] = useState<ImageModeKey>('fast_social');
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [prompt, setPrompt] = useState('');

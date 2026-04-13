@@ -225,19 +225,19 @@ const aiToolRows = [
   {
     title: 'Lip-Sync Video',
     description: 'Make any avatar or subject talk naturally.',
-    href: '/create/video',
+    href: '/create',
     icon: AudioLines,
   },
   {
     title: 'Motion-Sync Video',
     description: 'Drive shots with expressive movement energy.',
-    href: '/create/video',
+    href: '/create',
     icon: Film,
   },
   {
     title: 'Video Upscale',
     description: 'Improve clarity and output quality quickly.',
-    href: '/create/video',
+    href: '/create',
     icon: Sparkles,
   },
   {
@@ -602,7 +602,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
   const remixInStudio = async (item: DashboardInspirationItem) => {
     await copyPrompt(item.prompt);
     if (isVideoInspiration(item)) {
-      window.location.href = '/create/video';
+      window.location.href = '/create';
       return;
     }
     window.location.href = '/images';
@@ -766,7 +766,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link href="/create/video"><Button className="gap-2">New video <ArrowRight className="h-4 w-4" /></Button></Link>
+                <Link href="/create"><Button className="gap-2">New video <ArrowRight className="h-4 w-4" /></Button></Link>
                 <Link href="/images"><Button variant="secondary" className="gap-2">Create image <ImageIcon className="h-4 w-4" /></Button></Link>
                 <Link href="/influencer"><Button variant="secondary" className="gap-2">AI Influencer <Sparkles className="h-4 w-4" /></Button></Link>
               </div>
@@ -835,7 +835,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
       
 
           <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/create/video"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
+            <Link href="/create"><Button className="gap-2">Create video <ArrowRight className="h-4 w-4" /></Button></Link>
             <Link href="/images"><Button variant="secondary" className="gap-2">Generate image <ImageIcon className="h-4 w-4" /></Button></Link>
             <Link href="/influencer"><Button variant="secondary" className="gap-2">Influencer studio <Sparkles className="h-4 w-4" /></Button></Link>
           </div>
@@ -857,7 +857,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           {storyCards.map((item) => (
             <Link
               key={item.title}
-              href={`/create/video?template=${encodeURIComponent(item.templateKey)}`}
+              href="/create"
               className="group rounded-[20px] border border-[hsl(var(--color-border))] p-3.5 shadow-soft transition hover:-translate-y-0.5"
               style={{ background: item.gradient }}
             >
@@ -1059,7 +1059,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/images"><Button variant="secondary">Create image</Button></Link>
-            <Link href="/create/video"><Button>Create video</Button></Link>
+            <Link href="/create"><Button>Create video</Button></Link>
             <Link href={viewAllHref}>
               <Button variant="secondary">{viewAllLabel}</Button>
             </Link>
@@ -1141,7 +1141,7 @@ export function DashboardVideosClient({ userId, userName }: Props) {
             <p className="mt-1 text-sm text-muted">{emptyState.description}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Link href="/images"><Button variant="secondary">Create image</Button></Link>
-              <Link href="/create/video"><Button>Create video</Button></Link>
+              <Link href="/create"><Button>Create video</Button></Link>
             </div>
           </Card>
         ) : (

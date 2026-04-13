@@ -1,9 +1,20 @@
-import { PropsWithChildren } from 'react';
+'use client';
+
+import { PropsWithChildren, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boolean; onClose: () => void }>) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
   if (!open) return null;
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-text/40 backdrop-blur-sm" onClick={onClose}>
       <div className="flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-contain p-2 sm:p-4">
         <div
@@ -23,6 +34,7 @@ export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boo
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const mockUserId = 'playwright-user';
 const pricingPayload = {
@@ -24,7 +24,7 @@ const pricingPayload = {
   ],
 };
 
-async function seedBillingSession(page: Parameters<typeof test>[0]['page']) {
+async function seedBillingSession(page: Page) {
   await page.context().addCookies([
     {
       name: 'vidyo_user_id',

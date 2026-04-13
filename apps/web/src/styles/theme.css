@@ -1,14 +1,14 @@
 :root {
-  --color-bg: 330 45% 98%;
-  --color-bg-soft: 330 38% 95%;
+  --color-bg: 220 20% 98%;
+  --color-bg-soft: 220 18% 96%;
   --color-surface: 0 0% 100%;
-  --color-elevated: 330 28% 99%;
+  --color-elevated: 220 16% 99%;
   --color-surface-glass: 0 0% 100%;
   --color-surface-glass-strong: 0 0% 100%;
-  --color-text: 334 30% 16%;
-  --color-muted: 334 14% 43%;
-  --color-border: 330 24% 88%;
-  --color-border-soft: 330 22% 93%;
+  --color-text: 222 24% 14%;
+  --color-muted: 220 10% 42%;
+  --color-border: 220 16% 84%;
+  --color-border-soft: 220 18% 90%;
   --color-accent: 334 82% 63%;
   --color-accent-contrast: 0 0% 100%;
   --color-success: 145 63% 35%;
@@ -18,10 +18,10 @@
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
-  --radius-xl: 1.5rem;
+  --radius-xl: clamp(1.5rem, 2.2vw, 1.75rem);
   --landing-rail-width: 18.5rem;
 
-  --shadow-soft: 0 8px 24px hsl(var(--color-text) / 0.08);
+  --shadow-soft: 0 8px 32px hsl(var(--color-text) / 0.06);
   --shadow-hard: 0 16px 40px hsl(var(--color-text) / 0.14);
   --shadow-float: 0 20px 60px hsl(var(--color-text) / 0.08);
   --shadow-cinematic: 0 28px 80px hsl(220 35% 12% / 0.16);
@@ -53,7 +53,7 @@
   --color-danger: 355 68% 66%;
   --color-hero-glow: 0 0% 72%;
 
-  --shadow-soft: 0 12px 32px hsl(0 0% 0% / 0.24);
+  --shadow-soft: 0 8px 32px hsl(0 0% 0% / 0.24);
   --shadow-hard: 0 24px 72px hsl(0 0% 0% / 0.4);
   --shadow-float: 0 28px 80px hsl(0 0% 0% / 0.32);
   --shadow-cinematic: 0 36px 100px hsl(0 0% 0% / 0.5);

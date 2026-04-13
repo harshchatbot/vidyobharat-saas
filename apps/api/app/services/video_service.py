@@ -52,7 +52,7 @@ class VideoService:
         duration_mode: str = 'auto',
         duration_seconds: int | None = None,
         captions_enabled: bool = True,
-        audio_sample_rate_hz: int = 22050,
+        audio_sample_rate_hz: int = 48000,
         selected_model: str | None = None,
         reference_images: list[str] | None = None,
         music_mode: str = 'none',
@@ -132,15 +132,57 @@ class VideoService:
         logger.info('video_job_enqueued', extra={'render_id': video.id})
         return video
 
-    def retry_video(self, video_id: str, user_id: str) -> Video | None:
+    def retry_video(
+        self,
+        video_id: str,
+        user_id: str,
+        *,
+        voice_override: str | None = None,
+        language_override: str | None = None,
+        script_override: str | None = None,
+        audio_sample_rate_hz: int | None = None,
+    ) -> Video | None:
         video = self.get_video(video_id, user_id)
         if not video:
             return None
-        self.repo.update(video, status=VideoStatus.processing, progress=0, error_message=None)
-        self.sync.sync_video(video, auto_tags=[], user_tags=[])
+        update_payload: dict[str, object] = {
+            'status': VideoStatus.processing,
+            'progress': 0,
+            'error_message': None,
+            'output_url': None,
+            'thumbnail_url': None,
+            'tts_provider': None,
+            'tts_resolved_voice': None,
+            'tts_provider_message': None,
+            'tts_fallback_used': False,
+        }
+        pipeline_metadata = dict(getattr(video, 'pipeline_metadata', {}) or {})
+        events = list(pipeline_metadata.get('events') or [])
+        if voice_override:
+            update_payload['voice'] = voice_override
+        if language_override:
+            update_payload['language'] = language_override
+        if script_override is not None and script_override.strip():
+            update_payload['script'] = script_override.strip()
+        if audio_sample_rate_hz:
+            update_payload['audio_sample_rate_hz'] = audio_sample_rate_hz
+        if voice_override or language_override or script_override or audio_sample_rate_hz:
+            events.append(
+                {
+                    'id': f'event_{len(events) + 1}',
+                    'kind': 'rerender_requested',
+                    'title': 'Rerender requested',
+                    'detail': 'Voice, language, or narration script settings were updated for the next render pass.',
+                    'state': 'complete',
+                }
+            )
+            pipeline_metadata['events'] = events[-24:]
+            update_payload['pipeline_metadata'] = pipeline_metadata
+        updated_video = self.repo.update(video, **update_payload)
+        self.sync.sync_video(updated_video, auto_tags=[], user_tags=[])
         process_video.delay(video.id)
         logger.info('video_job_retried', extra={'render_id': video.id})
-        return video
+        return updated_video
 
 
 @celery_app.task(name='process_video')

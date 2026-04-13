@@ -278,6 +278,20 @@ export type Video = {
   like_count: number;
   auto_tags: string[];
   user_tags: string[];
+  recipe_id?: string | null;
+  recipe_inputs?: Record<string, string | string[]>;
+  pipeline_mode?: string | null;
+  pipeline_metadata?: {
+    events?: Array<{
+      id: string;
+      kind: string;
+      title: string;
+      detail: string;
+      state?: string;
+      created_at?: string;
+    }>;
+    [key: string]: unknown;
+  };
   created_at: string;
   updated_at: string;
 };
@@ -328,6 +342,13 @@ export type TTSPreviewResponse = {
   provider_message: string | null;
   applied_credits: number;
   remaining_credits: number | null;
+};
+
+export type VideoRetryRequest = {
+  voice?: string;
+  language?: string;
+  script?: string;
+  audio_sample_rate_hz?: number;
 };
 
 export type ReelScriptRequest = {

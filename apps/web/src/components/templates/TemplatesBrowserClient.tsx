@@ -435,7 +435,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
                         router.push('/images');
                         return;
                       }
-                      router.push('/create/video');
+                      router.push(`/videos/${generatedResult.assetId}`);
                     }}
                   >
                     Open result

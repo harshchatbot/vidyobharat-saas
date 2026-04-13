@@ -100,7 +100,7 @@ class VideoMusicSettings(BaseModel):
 class VideoAudioSettings(BaseModel):
     volume: int = Field(default=20, ge=0, le=100)
     ducking: bool = True
-    sampleRateHz: int = Field(default=22050, ge=8000, le=48000)
+    sampleRateHz: int = Field(default=48000, ge=8000, le=48000)
 
 
 class AIVideoCreateRequest(BaseModel):

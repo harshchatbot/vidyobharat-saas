@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BadgeIndianRupee, Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, Settings2, Sparkles, Wallet, Wand2 } from 'lucide-react';
+import { ArrowLeft, BadgeIndianRupee, CheckCircle2, Clapperboard, Download, Film, GalleryVerticalEnd, Mic2, PlayCircle, Settings2, Share2, Sparkles, Wallet, Wand2 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -409,6 +410,16 @@ function ensureSmoothVideoScriptCues(scriptText: string) {
   return next;
 }
 
+function deriveSceneStrip(scriptText: string, fallbackTitle: string) {
+  const parts = scriptText
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+  if (parts.length > 0) return parts;
+  return [fallbackTitle || 'Opening scene', 'Main moment', 'Closing frame'];
+}
+
 function resolveQuickApplyPreset(template: UnifiedTemplate): VideoTemplateQuickApplyPreset {
   return (
     VIDEO_TEMPLATE_QUICK_APPLY_PRESETS[template.id] || {
@@ -611,6 +622,7 @@ export function CreateVideoPage({
   initialNarrationEnabled?: boolean;
   embedded?: boolean;
 }) {
+  const router = useRouter();
   const cacheKey = `rangmanch:video-studio:v2:${userId}`;
   const draftKey = `rangmanch-create-draft:${userId}`;
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -906,6 +918,8 @@ export function CreateVideoPage({
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
   const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
+  const studioTitle = title.trim() || topic.trim() || selectedHeroTemplate?.title || template.label || 'Video studio';
+  const sceneStrip = useMemo(() => deriveSceneStrip(script, studioTitle), [script, studioTitle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2720,6 +2734,47 @@ export function CreateVideoPage({
     }
   };
 
+  const workflowSteps = useMemo(() => {
+    const progress = jobStatus?.progress ?? uiRenderProgress;
+    const isSuccess = renderSessionPhase === 'success' || jobStatus?.status === 'success';
+    const isFailed = renderSessionPhase === 'failed' || jobStatus?.status === 'failed' || jobStatus?.status === 'provider_failed' || jobStatus?.status === 'timed_out';
+    const referenceDone = selectedImageUrls.length === 0 ? true : progress >= 24 || isSuccess;
+    const scenePlanDone = script.trim().length > 0 && (progress >= 36 || isSuccess);
+    const sceneGenerationDone = progress >= 72 || isSuccess;
+    const finalizingDone = progress >= 92 || isSuccess;
+    return [
+      {
+        label: 'Script prepared',
+        detail: script.trim() ? `${Math.max(1, sceneStrip.length)} scene beats ready` : 'Waiting for script',
+        status: script.trim() ? 'done' : renderSessionPhase === 'idle' ? 'pending' : 'active',
+      },
+      {
+        label: 'Reference inputs',
+        detail: selectedImageUrls.length > 0 ? `${selectedImageUrls.length} image${selectedImageUrls.length === 1 ? '' : 's'} attached` : 'Using text-only guidance',
+        status: referenceDone ? 'done' : renderSessionPhase === 'idle' ? 'pending' : 'active',
+      },
+      {
+        label: 'Scene generation',
+        detail: isSuccess ? `${sceneStrip.length} scenes completed` : progress > 0 ? `Progress ${Math.max(1, Math.round(progress))}%` : 'Waiting to start',
+        status: isFailed ? 'failed' : sceneGenerationDone ? 'done' : renderSessionPhase === 'processing' || renderSessionPhase === 'queued' || renderSessionPhase === 'preparing' ? 'active' : 'pending',
+      },
+      {
+        label: 'Finalize render',
+        detail: narrationEnabled ? 'Voice and captions pass' : captionsEnabled ? 'Captions pass' : 'Final output pass',
+        status: isFailed ? 'failed' : finalizingDone ? 'done' : renderSessionPhase === 'processing' && progress >= 72 ? 'active' : 'pending',
+      },
+    ] as const;
+  }, [captionsEnabled, jobStatus?.progress, jobStatus?.status, narrationEnabled, renderSessionPhase, sceneStrip.length, script, selectedImageUrls.length, uiRenderProgress]);
+
+  const createdSummary = useMemo(() => {
+    if (!script.trim()) {
+      return 'Add a script or start from a recipe to let RangManch plan and generate the reel.';
+    }
+    const lead = topic.trim() || title.trim() || 'Your current concept';
+    const workflow = selectedImageUrls.length > 0 ? 'reference-led' : 'text-led';
+    return `${lead} is set up as a ${workflow} ${aspectRatio} reel using ${selectedModel?.label ?? 'the selected model'} at ${resolution}.`;
+  }, [aspectRatio, resolution, script, selectedImageUrls.length, selectedModel?.label, title, topic]);
+
   return (
     <div className="rangmanch-page-stack">
       <LoadingOverlay
@@ -2763,7 +2818,7 @@ export function CreateVideoPage({
       ) : null}
 
       {prefersUnifiedComposer ? (
-        <Card className="border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4 shadow-soft backdrop-blur-md">
+        <Card className="border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4 backdrop-blur-md">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-text">Start in the unified composer</p>
@@ -2777,7 +2832,7 @@ export function CreateVideoPage({
       ) : null}
 
       {selectedHeroTemplate && appliedHeroTemplateId ? (
-        <Card className="border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-elevated)/0.22)] px-4 py-3 shadow-soft backdrop-blur-md">
+        <Card className="border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-elevated)/0.22)] px-4 py-3 backdrop-blur-md">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Guided workflow active</p>
@@ -2827,66 +2882,204 @@ export function CreateVideoPage({
         </Card>
       ) : null}
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] xl:items-start">
-        <div ref={composeSectionRef} className="min-w-0 order-2 xl:order-2 xl:col-start-1 xl:row-start-2">
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Compose</p>
-                <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">{prefersUnifiedComposer ? 'Script source' : 'Write the idea and script for your reel'}</h2>
-                <p className="mt-1 text-sm text-muted">{prefersUnifiedComposer ? 'The unified composer is now the main place to provide the idea. When a draft is sent here, this workspace is ready to refine it.' : 'Keep it simple: define the idea, refine the script, then preview voice only if you need it.'}</p>
+      <div className="space-y-5">
+        {!embedded ? (
+          <div className="rangmanch-studio-panel rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-elevated)/0.82))] px-4 py-4 backdrop-blur-xl sm:px-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.history.length > 1) {
+                      router.back();
+                      return;
+                    }
+                    router.push('/create');
+                  }}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.68)] text-text transition hover:shadow-[0_0_0_1px_hsl(var(--color-hero-glow)/0.18)] hover:text-[hsl(var(--color-accent))]"
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="h-4.5 w-4.5" />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-muted">AI video studio</p>
+                  <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-text sm:text-[2rem]">{studioTitle}</h1>
+                  <p className="mt-1 text-sm text-muted">Focused creation workspace for script refinement, generation, and output review.</p>
+                </div>
               </div>
-              <div className="w-full text-left text-xs text-muted sm:w-auto sm:text-right">
-                <p>{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? 'Creator workflow'}</p>
-                <p>{recommendedEngineCopy}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="px-3 py-2 text-xs">
+                  {creditWallet?.currentCredits ?? 0} credits
+                  {creditsRefreshing ? ' · refreshing' : ''}
+                </Badge>
+                <Link href="/library">
+                  <Button variant="secondary" className="gap-2 rounded-full px-4">
+                    <Clapperboard className="h-4 w-4" />
+                    Library
+                  </Button>
+                </Link>
+                {job?.output_url ? (
+                  <Button variant="secondary" onClick={() => void downloadVideo(job)} className="gap-2 rounded-full px-4">
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
+                ) : null}
               </div>
             </div>
+          </div>
+        ) : null}
 
-            <div className="space-y-4 border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              {prefersUnifiedComposer && !script.trim() && !topic.trim() ? (
-                <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.28)] p-5 text-sm text-muted">
-                  Your video idea and script will appear here after you start from the unified composer.
+        <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)_320px] 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
+          <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
+            {activeProject ? (
+              <ActiveProjectBar
+                project={activeProject}
+                description="This workflow is attached to the active project. New renders and prompt changes stay grouped there."
+              />
+            ) : null}
+
+            {prefersUnifiedComposer ? (
+              <Card className="border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-4 backdrop-blur-md">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-text">Start in the unified composer</p>
+                  <p className="text-xs leading-6 text-muted">Use `/create` to provide the idea first. This studio is now optimized for video refinement, preview, and generation status.</p>
+                  <Link href="/create">
+                    <Button type="button" className="mt-1 rounded-full px-4">Go to Create</Button>
+                  </Link>
                 </div>
-              ) : isDailyLane ? (
-                <>
-                  <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Describe your video</label>
-                      <Button
+              </Card>
+            ) : null}
+
+            {selectedHeroTemplate && appliedHeroTemplateId ? (
+              <Card className="border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-elevated)/0.22)] px-4 py-4 backdrop-blur-md">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Guided workflow active</p>
+                    <p className="mt-1 text-sm font-semibold text-text">{selectedHeroTemplate.title || selectedHeroTemplate.name}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">This recipe assembled your script and defaults. You can still refine the script, model, and output settings here.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setActiveTemplateFlow(selectedHeroTemplate);
+                        setTemplateFlowInputs(appliedHeroTemplateInputs);
+                        setTemplateFlowPromptOverride(appliedHeroTemplatePromptOverride);
+                        setTemplateFlowModelOverride(appliedHeroTemplateModelOverride);
+                        setTemplateFlowOpen(true);
+                      }}
+                    >
+                      Edit recipe
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setAppliedHeroTemplateId(null);
+                        setAppliedHeroTemplateInputs({});
+                        setAppliedHeroTemplatePromptOverride('');
+                        setAppliedHeroTemplateModelOverride('');
+                        setActiveTemplateState(null);
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : null}
+
+            <SectionCard
+              title="Recipe / setup"
+              description="Keep the setup light. Start from a proven format or tune the engine only if needed."
+              icon={<Sparkles className="h-5 w-5" />}
+              compact
+            >
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Quick starts</p>
+                    <p className="mt-1 text-xs text-muted">Pick a creator-ready starting point and keep moving.</p>
+                  </div>
+                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="gap-2 rounded-[12px] px-3 text-sm">
+                    <GalleryVerticalEnd className="h-3.5 w-3.5" />
+                    Recipes
+                  </Button>
+                </div>
+                <div className="grid gap-2">
+                  {CREATOR_INTENT_OPTIONS.map((intent) => {
+                    const preset = VIDEO_QUICK_START_PRESETS[intent.key];
+                    const active = selectedIntent === intent.key && Boolean(quickStartFeedback);
+                    return (
+                      <button
+                        key={`quick-${intent.key}`}
                         type="button"
-                        variant="secondary"
-                        onClick={() => void enhanceScript()}
-                        disabled={scriptLoading || !script.trim()}
-                        className="min-h-9 rounded-[12px] px-3 py-2 text-xs"
+                        onClick={() => applyQuickStartPreset(intent.key)}
+                        className={`rounded-[16px] border px-3 py-3 text-left transition ${
+                          active
+                            ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
+                        }`}
                       >
-                        {scriptLoading ? (
-                          <>
-                            <Spinner className="h-3.5 w-3.5" />
-                            Improving...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-3.5 w-3.5" />
-                            Improve prompt
-                          </>
-                        )}
-                      </Button>
+                        <p className="text-sm font-semibold text-text">{preset.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">{preset.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {quickStartFeedback ? (
+                  <div className="rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
+                    <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
+                    <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
+                  </div>
+                ) : null}
+                <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.2)] px-3 py-2.5 text-xs text-muted">
+                  Recommended now: <span className="font-semibold text-text">{recommendedEngineCopy}</span>
+                </div>
+                <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
+                <ModelDropdown
+                  models={visibleModels}
+                  selectedModel={modelKey}
+                  onChange={(value) => setModelKey(value as VideoModelKey)}
+                  title="Engine"
+                  description="Change only if you want to override the recommended engine."
+                />
+              </div>
+            </SectionCard>
+
+            <div ref={composeSectionRef}>
+              <SectionCard
+                title="Script & inputs"
+                description="Keep the idea clear, add references if needed, and only preview voice when it helps."
+                icon={<Film className="h-5 w-5" />}
+                compact
+              >
+                <div className="space-y-4">
+                  {prefersUnifiedComposer && !script.trim() && !topic.trim() ? (
+                    <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.28)] p-5 text-sm text-muted">
+                      Your video idea and script will appear here after you start from the unified composer.
                     </div>
-                    <Textarea
-                      ref={scriptTextareaRef}
-                      value={script}
-                      onChange={(event) => setScript(event.target.value)}
-                      placeholder={activeLanePromptPlaceholder}
-                      rows={10}
-                      className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
-                    />
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                      <span>{script.trim().length > 0 ? 'Improve your current prompt for stronger motion, pacing, and visual direction.' : 'Add your idea first, then improve it.'}</span>
-                      {scriptEnhanceEstimate?.estimatedCredits ? (
-                        <span>{scriptEnhanceEstimate.estimatedCredits} credit{scriptEnhanceEstimate.estimatedCredits === 1 ? '' : 's'}</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-3">
+                  ) : isDailyLane ? (
+                    <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Describe your video</label>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void enhanceScript()}
+                          disabled={scriptLoading || !script.trim()}
+                          className="min-h-9 rounded-[12px] px-3 py-2 text-xs"
+                        >
+                          {scriptLoading ? <><Spinner className="h-3.5 w-3.5" />Improving...</> : <><Sparkles className="h-3.5 w-3.5" />Improve</>}
+                        </Button>
+                      </div>
+                      <Textarea
+                        ref={scriptTextareaRef}
+                        value={script}
+                        onChange={(event) => setScript(event.target.value)}
+                        placeholder={activeLanePromptPlaceholder}
+                        rows={9}
+                        className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
+                      />
                       <ScriptQualityPanel
                         report={scriptQualityReport}
                         onEnhance={() => void enhanceScript()}
@@ -2894,465 +3087,28 @@ export function CreateVideoPage({
                         enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
                       />
                     </div>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
-                  <ScriptEditor
-                    topic={topic}
-                    onTopicChange={setTopic}
-                    topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
-                    script={script}
-                    onScriptChange={setScript}
-                    scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
-                    onGenerate={() => void generateScript()}
-                    onEnhance={() => void enhanceScript()}
-                    loading={scriptLoading}
-                    error={scriptError}
-                    tags={scriptTags}
-                    generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
-                    enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
-                    qualityReport={scriptQualityReport}
-                    scriptTextareaRef={scriptTextareaRef}
-                  />
-                </div>
-              )}
-
-              <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice preview</p>
-                    <p className="mt-1 text-xs text-muted">Optional. Preview the narration style before you render the full video.</p>
-                  </div>
-                  <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
-                    {narrationEnabled ? 'Voice on' : 'Voice off'}
-                  </Badge>
-                </div>
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setNarrationEnabled((current) => !current)}
-                    className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
-                      narrationEnabled
-                        ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                        : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
-                    }`}
-                  >
-                    Voice {narrationEnabled ? 'On' : 'Off'}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-muted">Captions and caption style live in Output Settings so your final reel stays consistent.</p>
-                {narrationEnabled ? (
-                  <>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
-                      <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
-                        {languageOptions.map((option) => (
-                          <option key={`${option.label}-${option.code}`} value={option.label}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
-                      <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
-                        {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {formatVoiceOptionLabel(option)}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</span>
-                      <Dropdown value={String(audioSampleRateHz)} onChange={(event) => setAudioSampleRateHz(Number(event.target.value))}>
-                        {AUDIO_QUALITY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </label>
-                  </div>
-                  <label className="mt-3 block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview line</span>
-                    <Textarea
-                      value={voicePreviewText}
-                      onChange={(event) => setVoicePreviewText(event.target.value)}
-                      rows={3}
-                      maxLength={280}
-                      className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
-                      placeholder="Add a short sample line to hear how this voice sounds before rendering."
-                    />
-                  </label>
-                  <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void previewVoice()}
-                        disabled={!voicePreviewText.trim() || voiceTranslationLoading || Boolean(voicePreviewLoadingKey)}
-                      >
-                        {voicePreviewLoadingKey === voice ? (
-                          <>
-                            <Spinner className="h-4 w-4" />
-                            Preparing preview...
-                          </>
-                        ) : (
-                          <>
-                            <Mic2 className="h-4 w-4" />
-                            Preview narration
-                          </>
-                        )}
-                      </Button>
-                      {voiceCreditMap ? (
-                        <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
-                          {(() => {
-                            const voiceCost = voiceCreditMap[voice];
-                            if (typeof voiceCost !== 'number' || voiceCost < 0) return 'Estimating';
-                            if (voiceCost === 0) return 'Free preview';
-                            return `+${voiceCost} credits`;
-                          })()}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {voicePreviewUrl ? (
-                      <div className="space-y-2">
-                        <audio
-                          ref={voicePreviewAudioRef}
-                          src={voicePreviewUrl}
-                          controls
-                          preload="auto"
-                          className="w-full"
-                          onEnded={() => setVoicePreviewing(false)}
-                          onPause={() => setVoicePreviewing(false)}
-                          onPlay={() => setVoicePreviewing(true)}
-                          onError={() => {
-                            const message = 'Preview audio could not be loaded. Please try another voice or retry.';
-                            setVoicePreviewError(message);
-                            setVoicePreviewing(false);
-                            show(message);
-                          }}
-                        />
-                        {!voicePreviewing ? (
-                          <button
-                            type="button"
-                            onClick={() => void playExistingVoicePreview()}
-                            className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
-                          >
-                            <Mic2 className="h-3.5 w-3.5" />
-                            Play preview again
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <audio
-                        ref={voicePreviewAudioRef}
-                        onEnded={() => setVoicePreviewing(false)}
-                        onPause={() => setVoicePreviewing(false)}
+                  ) : (
+                    <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
+                      <ScriptEditor
+                        topic={topic}
+                        onTopicChange={setTopic}
+                        topicPlaceholder={template.topicHint || activeLaneTopicPlaceholder}
+                        script={script}
+                        onScriptChange={setScript}
+                        scriptPlaceholder={template.scriptHint || activeLanePromptPlaceholder}
+                        onGenerate={() => void generateScript()}
+                        onEnhance={() => void enhanceScript()}
+                        loading={scriptLoading}
+                        error={scriptError}
+                        tags={scriptTags}
+                        generateCredits={scriptGenerateEstimate?.estimatedCredits ?? null}
+                        enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
+                        qualityReport={scriptQualityReport}
+                        scriptTextareaRef={scriptTextareaRef}
                       />
-                    )}
-                    {voicePreviewProvider || voicePreviewLimit || voicePreviewMessage || voicePreviewError ? (
-                      <div className="space-y-1 text-xs leading-5 text-muted">
-                        {voicePreviewProvider ? (
-                          <p>
-                            Provider: <span className="font-medium text-text">{voicePreviewProvider}</span>
-                            {voicePreviewResolvedVoice ? (
-                              <>
-                                {' '}· Resolved voice: <span className="font-medium text-text">{voicePreviewResolvedVoice}</span>
-                              </>
-                            ) : null}
-                            {' '}· {voicePreviewCached ? 'served from cache' : 'new synthesis'}
-                          </p>
-                        ) : null}
-                        {voicePreviewLimit ? <p>{voicePreviewLimit}</p> : null}
-                        {voicePreviewMessage ? <p className="text-[hsl(var(--color-warning))]">{voicePreviewMessage}</p> : null}
-                        {voicePreviewError ? <p className="text-[hsl(var(--color-danger))]">{voicePreviewError}</p> : null}
-                      </div>
-                    ) : null}
-                  </div>
-                </>
-                ) : null}
-
-                <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.38)] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Estimate</p>
-                  <div className="mt-2 space-y-1.5 text-sm">
-                    <div className="flex items-center justify-between text-text">
-                      <span>Base generation</span>
-                      <span>{baseGenerationCredits} credits</span>
                     </div>
-                    {narrationEnabled ? (
-                      <div className="flex items-center justify-between text-muted">
-                      <span>AI voice</span>
-                      <span>{narrationCredits} credits</span>
-                      </div>
-                    ) : null}
-                    {captionsEnabled ? (
-                      <div className="flex items-center justify-between text-muted">
-                        <span>Captions</span>
-                        <span>{captionCredits} credits</span>
-                      </div>
-                    ) : null}
-                    {selectedImageUrls.length > 0 ? (
-                      <div className="flex items-center justify-between text-muted">
-                        <span>Reference guidance</span>
-                        <span>{referenceCredits} credits</span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center justify-between text-muted">
-                      <span>Auto tag</span>
-                      <span>{autoTagCredits} credits</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between border-t border-[hsl(var(--color-border)/0.7)] pt-2 font-semibold text-text">
-                      <span>Total</span>
-                      <span>{displayVideoEstimateCredits} credits</span>
-                    </div>
-                  </div>
-                </div>
-                {estimateError ? (
-                  <p className="mt-2 text-xs text-amber-600">
-                    Estimate sync is delayed. Showing fallback pricing.
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </section>
+                  )}
 
-        </div>
-
-        <div className="min-w-0 order-3 space-y-3 xl:order-none xl:sticky xl:top-24 xl:row-span-2 xl:col-start-2">
-          <section className="space-y-4 xl:border-l xl:border-[hsl(var(--color-border)/0.45)] xl:pl-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Generate</p>
-                <h2 className="mt-1 text-base font-semibold text-text sm:text-lg">Review and create</h2>
-              </div>
-              <span className="text-xs font-medium text-muted">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}</span>
-            </div>
-            <dl className="grid gap-x-4 gap-y-2 border-y border-[hsl(var(--color-border)/0.45)] py-3 text-sm sm:grid-cols-2">
-              <div className="flex items-center justify-between gap-3 sm:block">
-                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Format</dt>
-                <dd className="font-medium text-text">{aspectRatio} • {selectedResolutionDimensions || resolution}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3 sm:block">
-                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Voice</dt>
-                <dd className="font-medium text-text">{narrationEnabled ? `${voice} • ${language}` : 'Off'}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3 sm:block">
-                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Workflow</dt>
-                <dd className="font-medium text-text">{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? (selectedImageUrls.length > 0 ? 'Image to Video' : 'Text to Video')}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3 sm:block">
-                <dt className="text-xs uppercase tracking-[0.14em] text-muted">Estimate</dt>
-                <dd className="font-medium text-text">₹{estimatedInr ?? 0} · {displayVideoEstimateCredits} credits</dd>
-              </div>
-            </dl>
-
-            <GenerateButton
-              onClick={() => void submit()}
-              loading={renderSessionPhase === 'preparing'}
-              estimatedCredits={displayVideoEstimateCredits}
-              estimatedTime={estimatedTime}
-              currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
-              disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
-              insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
-              onOpenLowBalance={() => openLowBalanceModal(displayVideoEstimateCredits)}
-              helperText={
-                laneHasOnlyGatedModels
-                  ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`
-                    : selectedModelDisabled
-                      ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
-                      : creditEstimate
-                      ? narrationEnabled
-                        ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated balance after render ${creditEstimate.remainingCredits} credits`
-                        : `Estimated balance after render ${creditEstimate.remainingCredits} credits`
-                      : isEstimating
-                        ? 'Estimating credits for selected settings.'
-                        : `${selectedLane.shortLabel} estimate uses the shared pricing engine. Final validation happens on submit.`
-              }
-            />
-            {selectedModelDisabled ? (
-              <p className="text-xs text-muted">Feature-gated for now. Enable backend routing before allowing generation.</p>
-            ) : null}
-            {estimateError ? (
-              <p className="text-xs text-amber-600">Could not estimate credits right now. Final validation happens during generation.</p>
-            ) : null}
-            {!estimateError && isUsingFallback ? (
-              <p className="text-xs text-muted">Using estimated credits based on current settings.</p>
-            ) : null}
-            {!estimateError && estimateContextMessage ? (
-              <p className="text-xs text-muted">{estimateContextMessage}</p>
-            ) : null}
-
-            {submitError ? (
-              <div className="rounded-[18px] border border-[hsl(var(--color-danger))] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
-                  {submitError.toLowerCase().includes('insufficient credits') ? (
-                    <Link href="/billing" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
-                      Top up credits
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            <VideoPreview
-              job={job}
-              loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
-              error={
-                submitError ??
-                (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
-                  ? jobStatus.errorMessage ?? 'Generation failed.'
-                  : null)
-              }
-              onRetry={retry}
-            />
-          </section>
-        </div>
-
-        <div className="min-w-0 order-1 xl:order-1 xl:col-start-1 xl:row-start-1">
-            <section className="border-t border-[hsl(var(--color-border)/0.55)] pt-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Setup</p>
-                  <h3 className="mt-1 text-lg font-semibold text-text">Start with the outcome you want to create</h3>
-                  <p className="mt-1 text-sm text-muted">Start simple with creator-ready defaults. Templates are ready-made formats. Just change the idea and refine later if you need more control.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" type="button" onClick={openTemplateBrowser} className="h-10 w-full gap-2 rounded-[12px] px-4 text-sm sm:w-auto">
-                    <GalleryVerticalEnd className="h-3.5 w-3.5" />
-                    Browse & customize
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <SectionCard
-                  title="Quick Start"
-                  description="Pick a reel format and we’ll prefill a creator-ready setup so you can start immediately."
-                  icon={<Wand2 className="h-5 w-5" />}
-                  compact
-                >
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {CREATOR_INTENT_OPTIONS.map((intent) => {
-                      const preset = VIDEO_QUICK_START_PRESETS[intent.key];
-                      const active = selectedIntent === intent.key && Boolean(quickStartFeedback);
-                      return (
-                        <button
-                          key={`quick-${intent.key}`}
-                          type="button"
-                          onClick={() => applyQuickStartPreset(intent.key)}
-                          className={`rounded-[16px] border px-3 py-3 text-left transition ${
-                            active
-                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
-                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
-                          }`}
-                        >
-                          <p className="text-sm font-semibold text-text">{preset.title}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">{preset.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {quickStartFeedback ? (
-                    <div className="mt-3 rounded-[16px] border border-[hsl(var(--color-accent)/0.4)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2.5">
-                      <p className="text-sm font-semibold text-text">{quickStartFeedback.title}</p>
-                      <p className="mt-1 text-xs text-muted">{quickStartFeedback.description}</p>
-                      <p className="mt-1 text-[11px] text-muted">Recommended settings already applied. You can refine this later.</p>
-                    </div>
-                  ) : null}
-                </SectionCard>
-
-                <SectionCard
-                  title="What do you want to create?"
-                  description="Pick the kind of reel you want. We’ll recommend the best workflow from there."
-                  icon={<Sparkles className="h-5 w-5" />}
-                  compact
-                >
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {visibleIntentOptions.map((intent) => {
-                      const active = selectedIntent === intent.key;
-                      return (
-                        <button
-                          key={intent.key}
-                          type="button"
-                          onClick={() => {
-                            const matched = visibleTemplates.find((item) => matchesCreatorIntent(item, intent.key));
-                            if (matched) void quickApplyTemplate(matched.key);
-                          }}
-                          className={`rounded-[16px] border px-3 py-3 text-left transition ${
-                            active
-                              ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.1)] text-text'
-                              : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.24)] text-muted hover:text-text'
-                          }`}
-                        >
-                          <p className="text-sm font-semibold text-text">{intent.label}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">{intent.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  title="Template / workflow"
-                  description="Click once to load a ready setup. Use Customize when you want more control."
-                  icon={<Film className="h-5 w-5" />}
-                  compact
-                >
-                  <TemplateSelector
-                    loading={templatesLoading}
-                    templates={visibleTemplates}
-                    selectedTemplate={selectedTemplate}
-                    activeTemplateState={activeTemplateState}
-                    onSelect={(value) => void quickApplyTemplate(value)}
-                    onCustomize={customizeTemplate}
-                    applyingTemplateKey={templateApplyLoadingKey}
-                  />
-                </SectionCard>
-
-                <SectionCard
-                  title="Project"
-                  description="Optional. Keep this reel and future versions grouped together."
-                  icon={<GalleryVerticalEnd className="h-5 w-5" />}
-                  compact
-                  action={projectsLoading ? <Spinner /> : null}
-                  defaultOpen={false}
-                >
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-text">Save into project</label>
-                      <Dropdown value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
-                        <option value="">Auto-create when needed</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.title}
-                          </option>
-                        ))}
-                      </Dropdown>
-                    </div>
-                    <div className="flex sm:pt-[30px]">
-                      <Button
-                        variant="secondary"
-                        onClick={() => void createProjectFromCurrentDraft()}
-                        disabled={projectCreating}
-                        className="w-full sm:w-auto"
-                      >
-                        {projectCreating ? 'Creating...' : 'New project'}
-                      </Button>
-                    </div>
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  title="Reference images"
-                  description="Optional, but useful for character, product, and brand-led content."
-                  icon={<Film className="h-5 w-5" />}
-                  compact
-                  defaultOpen={false}
-                >
                   <ReferenceImagePicker
                     generatedImages={generatedImages}
                     selectedImageUrls={selectedImageUrls}
@@ -3363,170 +3119,345 @@ export function CreateVideoPage({
                     onMove={moveImage}
                     onRemove={(url) => setSelectedImageUrls((current) => current.filter((item) => item !== url))}
                   />
-                </SectionCard>
-{/*
-                <SectionCard
-                  title="Background Audio"
-                  description="Music (optional)"
-                  icon={<Mic2 className="h-5 w-5" />}
-                  defaultOpen={false}
-                >
-                  <MusicSelector
-                    mode={musicMode}
-                    onModeChange={setMusicMode}
-                    tracks={tracks}
-                    tracksLoading={tracksLoading}
-                    selectedTrackId={selectedTrackId}
-                    onTrackChange={setSelectedTrackId}
-                    uploadUrl={uploadedMusicUrl}
-                    onUploadUrlChange={setUploadedMusicUrl}
-                    onTogglePreview={() => void toggleMusicPreview()}
-                    isPlaying={musicPlaying}
-                    volume={musicVolume}
-                    onVolumeChange={setMusicVolume}
-                    ducking={ducking}
-                    onDuckingChange={setDucking}
-                    error={musicPreviewError}
-                  />
-                  {selectedTrack?.preview_url ? <audio ref={previewAudioRef} src={selectedTrack.preview_url.startsWith('http') ? selectedTrack.preview_url : `${API_URL}${selectedTrack.preview_url}`} onEnded={() => setMusicPlaying(false)} /> : null}
-                </SectionCard>
-*/}
-                <SectionCard
-                  title="Output settings"
-                  description="Choose the format and quality for the platform you plan to publish on."
-                  icon={<Settings2 className="h-5 w-5" />}
-                  compact
-                  defaultOpen={false}
-                >
-                  <OutputSettings
-                    modelLabel={selectedModel.label}
-                    aspectRatio={aspectRatio}
-                    availableAspectRatios={availableAspectRatios}
-                    selectedAspectDescription={selectedAspectDescription}
-                    onAspectRatioChange={setAspectRatio}
-                    resolution={resolution}
-                    onResolutionChange={setResolution}
-                    availableResolutions={availableResolutions}
-                    resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
-                    selectedResolutionDimensions={selectedResolutionDimensions}
-                    quality={quality}
-                    onQualityChange={setQuality}
-                    durationSeconds={durationSeconds}
-                    onDurationSecondsChange={setDurationSeconds}
-                    availableDurations={availableDurations}
-                    supportsCustomDuration={supportsCustomDuration}
-                    minDuration={klingMinDuration}
-                    maxDuration={klingMaxDuration}
-                    durationHelperText={hasReferenceImages && seededDuration
-                      ? 'Image-seeded clips are currently fixed to 8 seconds for this model.'
-                      : durationRule.helperText}
-                    durationError={durationError}
-                    captionsEnabled={captionsEnabled}
-                    onCaptionsEnabledChange={setCaptionsEnabled}
-                    captionStyle={captionStyle}
-                    onCaptionStyleChange={setCaptionStyle}
-                  />
-                </SectionCard>
 
-                <SectionCard
-                  title="Advanced engine controls"
-                  description="For experienced users who want to fine-tune the recommended rendering path."
-                  icon={<Film className="h-5 w-5" />}
-                  compact
-                  defaultOpen={false}
-                >
-                  <div className="space-y-3">
-                    <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.2)] px-3 py-2.5 text-xs text-muted">
-                      Recommended now: <span className="font-semibold text-text">{recommendedEngineCopy}</span>
+                  <details className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4" open={narrationEnabled}>
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-text">Voice preview</summary>
+                    <p className="mt-1 text-xs text-muted">Optional. Preview narration only when you need it.</p>
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setNarrationEnabled((current) => !current)}
+                        className={`rounded-[14px] border px-3 py-2 text-left text-xs font-medium transition ${
+                          narrationEnabled
+                            ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.14)] text-text'
+                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.6)] text-muted'
+                        }`}
+                      >
+                        Voice {narrationEnabled ? 'On' : 'Off'}
+                      </button>
                     </div>
-                    <VideoLaneSelector lane={videoLane} onChange={handleVideoLaneChange} />
-                    <ModelDropdown
-                      models={visibleModels}
-                      selectedModel={modelKey}
-                      onChange={(value) => setModelKey(value as VideoModelKey)}
-                      title="Engine"
-                      description="Change only if you want to override the recommended engine."
+                    {narrationEnabled ? (
+                      <>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Language</span>
+                            <Dropdown value={language} onChange={(event) => void handleLanguageChange(event.target.value)} disabled={voiceTranslationLoading}>
+                              {languageOptions.map((option) => (
+                                <option key={`${option.label}-${option.code}`} value={option.label}>{option.label}</option>
+                              ))}
+                            </Dropdown>
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Voice</span>
+                            <Dropdown value={voice} onChange={(event) => handleVoiceChange(event.target.value)}>
+                              {(filteredVoiceOptions.length > 0 ? filteredVoiceOptions : voiceOptions).map((option) => (
+                                <option key={option.key} value={option.key}>{formatVoiceOptionLabel(option)}</option>
+                              ))}
+                            </Dropdown>
+                          </label>
+                        </div>
+                        <label className="mt-3 block">
+                          <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Preview line</span>
+                          <Textarea
+                            value={voicePreviewText}
+                            onChange={(event) => setVoicePreviewText(event.target.value)}
+                            rows={3}
+                            maxLength={280}
+                            className="min-h-[108px] bg-[hsl(var(--color-surface)/0.22)]"
+                            placeholder="Add a short line to hear the narration style."
+                          />
+                        </label>
+                        <div ref={voicePreviewControlsRef} className="mt-3 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => void previewVoice()}
+                              disabled={!voicePreviewText.trim() || voiceTranslationLoading || Boolean(voicePreviewLoadingKey)}
+                            >
+                              {voicePreviewLoadingKey === voice ? <><Spinner className="h-4 w-4" />Preparing preview...</> : <><Mic2 className="h-4 w-4" />Preview narration</>}
+                            </Button>
+                            {voiceCreditMap ? (
+                              <Badge variant="outline" className="px-2.5 py-1 text-[11px]">
+                                {(() => {
+                                  const voiceCost = voiceCreditMap[voice];
+                                  if (typeof voiceCost !== 'number' || voiceCost < 0) return 'Estimating';
+                                  if (voiceCost === 0) return 'Free preview';
+                                  return `+${voiceCost} credits`;
+                                })()}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          {voicePreviewUrl ? (
+                            <div className="space-y-2">
+                              <audio
+                                ref={voicePreviewAudioRef}
+                                src={voicePreviewUrl}
+                                controls
+                                preload="auto"
+                                className="w-full"
+                                onEnded={() => setVoicePreviewing(false)}
+                                onPause={() => setVoicePreviewing(false)}
+                                onPlay={() => setVoicePreviewing(true)}
+                              />
+                              {!voicePreviewing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void playExistingVoicePreview()}
+                                  className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.8)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent))] hover:text-[hsl(var(--color-accent))]"
+                                >
+                                  <Mic2 className="h-3.5 w-3.5" />
+                                  Play preview again
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <audio ref={voicePreviewAudioRef} onEnded={() => setVoicePreviewing(false)} onPause={() => setVoicePreviewing(false)} />
+                          )}
+                          {voicePreviewMessage || voicePreviewError ? (
+                            <div className="space-y-1 text-xs leading-5 text-muted">
+                              {voicePreviewMessage ? <p className="text-[hsl(var(--color-warning))]">{voicePreviewMessage}</p> : null}
+                              {voicePreviewError ? <p className="text-[hsl(var(--color-danger))]">{voicePreviewError}</p> : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : null}
+                  </details>
+
+                  <SectionCard
+                    title="Output settings"
+                    description="Choose the format and quality for the platform you plan to publish on."
+                    icon={<Settings2 className="h-5 w-5" />}
+                    compact
+                    defaultOpen={false}
+                  >
+                    <OutputSettings
+                      modelLabel={selectedModel.label}
+                      aspectRatio={aspectRatio}
+                      availableAspectRatios={availableAspectRatios}
+                      selectedAspectDescription={selectedAspectDescription}
+                      onAspectRatioChange={setAspectRatio}
+                      resolution={resolution}
+                      onResolutionChange={setResolution}
+                      availableResolutions={availableResolutions}
+                      resolutionDisplayOptions={RESOLUTION_DISPLAY_OPTIONS}
+                      selectedResolutionDimensions={selectedResolutionDimensions}
+                      quality={quality}
+                      onQualityChange={setQuality}
+                      durationSeconds={durationSeconds}
+                      onDurationSecondsChange={setDurationSeconds}
+                      availableDurations={availableDurations}
+                      supportsCustomDuration={supportsCustomDuration}
+                      minDuration={klingMinDuration}
+                      maxDuration={klingMaxDuration}
+                      durationHelperText={hasReferenceImages && seededDuration ? 'Image-seeded clips are currently fixed to 8 seconds for this model.' : durationRule.helperText}
+                      durationError={durationError}
+                      captionsEnabled={captionsEnabled}
+                      onCaptionsEnabledChange={setCaptionsEnabled}
+                      captionStyle={captionStyle}
+                      onCaptionStyleChange={setCaptionStyle}
                     />
-                    <p className="text-xs text-muted">
-                      {selectedLane.label} · {selectedModel?.shortLabel ?? selectedModel?.label ?? 'Choose engine'} · {visibleModels.filter((item) => item.enabled !== false).length}/{visibleModels.length} active options
-                    </p>
-                    {laneHasOnlyGatedModels ? (
-                      <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-2 text-sm text-muted">
-                        Shown in studio, not enabled yet.
+                  </SectionCard>
+                </div>
+              </SectionCard>
+            </div>
+          </aside>
+
+          <section className="min-w-0 space-y-4">
+            <Card className="overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.84),hsl(var(--color-bg)/0.92))] px-4 py-4 backdrop-blur-xl sm:px-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-accent))]">Preview</p>
+                  <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text sm:text-2xl">Portrait-first studio preview</h2>
+                  <p className="mt-1 text-sm text-muted">Keep the focus on the reel. This studio stays AI-first, with just enough control around the output.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="px-3 py-2 text-xs">{aspectRatio}</Badge>
+                  <Badge variant="outline" className="px-3 py-2 text-xs">{selectedResolutionDimensions || resolution}</Badge>
+                  <Badge variant="outline" className="px-3 py-2 text-xs">{selectedModel?.shortLabel ?? selectedModel?.label ?? 'Model'}</Badge>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[28px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[radial-gradient(circle_at_bottom,hsl(var(--color-accent)/0.16),transparent_38%),hsl(var(--color-bg)/0.88)] p-4">
+                <VideoPreview
+                  job={job}
+                  loading={renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing'}
+                  error={
+                    submitError ??
+                    (jobStatus?.status === 'failed' || jobStatus?.status === 'timed_out' || jobStatus?.status === 'provider_failed'
+                      ? jobStatus.errorMessage ?? 'Generation failed.'
+                      : null)
+                  }
+                  onRetry={retry}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[18px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.5)] px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Workflow</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{CREATOR_INTENT_OPTIONS.find((item) => item.key === selectedIntent)?.label ?? (selectedImageUrls.length > 0 ? 'Image to video' : 'Text to video')}</p>
+                </div>
+                <div className="rounded-[18px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.5)] px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Estimated time</p>
+                  <p className="mt-1 text-sm font-semibold text-text">{estimatedTime}</p>
+                </div>
+                <div className="rounded-[18px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.5)] px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Credits</p>
+                  <p className="mt-1 text-sm font-semibold text-text">₹{estimatedInr ?? 0} · {displayVideoEstimateCredits}</p>
+                </div>
+              </div>
+            </Card>
+          </section>
+
+          <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
+            <Card className="rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.88),hsl(var(--color-elevated)/0.82))] px-4 py-4 backdrop-blur-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">AI workflow</p>
+                  <h3 className="mt-1 text-lg font-semibold text-text">Generation status</h3>
+                  <p className="mt-1 text-sm text-muted">A focused view of what the studio is doing right now.</p>
+                </div>
+                <Badge variant="outline" className="px-2.5 py-1 text-[11px]">{renderSessionPhase}</Badge>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {workflowSteps.map((step) => (
+                  <div
+                    key={step.label}
+                    className={`rounded-[18px] border px-3.5 py-3 ${
+                      step.status === 'done'
+                        ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)]'
+                        : step.status === 'active'
+                          ? 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-surface)/0.34)]'
+                          : step.status === 'failed'
+                            ? 'border-[hsl(var(--color-danger)/0.45)] bg-[hsl(var(--color-danger)/0.08)]'
+                            : 'border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.45)]'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ${
+                        step.status === 'done'
+                          ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
+                          : step.status === 'active'
+                            ? 'bg-[hsl(var(--color-surface))] text-[hsl(var(--color-accent))]'
+                            : step.status === 'failed'
+                              ? 'bg-[hsl(var(--color-danger))] text-white'
+                              : 'bg-[hsl(var(--color-surface))] text-muted'
+                      }`}>
+                        {step.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-text">{step.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">{step.detail}</p>
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 rounded-[18px] border border-[hsl(var(--color-border)/0.58)] bg-[hsl(var(--color-bg)/0.45)] px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted">What was created</p>
+                <p className="mt-2 text-sm leading-6 text-text">{createdSummary}</p>
+              </div>
+
+              <div className="mt-4">
+                <GenerateButton
+                  onClick={() => void submit()}
+                  loading={renderSessionPhase === 'preparing'}
+                  estimatedCredits={displayVideoEstimateCredits}
+                  estimatedTime={estimatedTime}
+                  currentBalance={creditEstimate?.currentCredits ?? creditWallet?.currentCredits ?? null}
+                  disabled={Boolean(durationError) || selectedModelDisabled || laneHasOnlyGatedModels}
+                  insufficientCredits={Boolean(creditEstimate && !creditEstimate.sufficient)}
+                  onOpenLowBalance={() => openLowBalanceModal(displayVideoEstimateCredits)}
+                  helperText={
+                    laneHasOnlyGatedModels
+                      ? `${selectedLane.label} is visible for planning, but none of its models are enabled for generation yet.`
+                      : selectedModelDisabled
+                        ? `${selectedModel?.shortLabel ?? selectedModel?.label ?? 'This model'} is visible in the studio but backend routing is not enabled yet.`
+                        : creditEstimate
+                          ? narrationEnabled
+                            ? `Audio quality: ${AUDIO_QUALITY_OPTIONS.find((item) => item.value === audioSampleRateHz)?.label ?? '22 kHz'} · estimated balance after render ${creditEstimate.remainingCredits} credits`
+                            : `Estimated balance after render ${creditEstimate.remainingCredits} credits`
+                          : isEstimating
+                            ? 'Estimating credits for selected settings.'
+                            : `${selectedLane.shortLabel} estimate uses the shared pricing engine. Final validation happens on submit.`
+                  }
+                />
+              </div>
+
+              {submitError ? (
+                <div className="mt-4 rounded-[18px] border border-[hsl(var(--color-danger))] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-[hsl(var(--color-danger))]">{submitError}</p>
+                    {submitError.toLowerCase().includes('insufficient credits') ? (
+                      <Link href="/billing" className="text-sm font-semibold text-[hsl(var(--color-accent))]">
+                        Top up credits
+                      </Link>
                     ) : null}
                   </div>
-                </SectionCard>
+                </div>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/library">
+                  <Button variant="secondary" className="gap-2 rounded-full px-4">
+                    <Clapperboard className="h-4 w-4" />
+                    Open library
+                  </Button>
+                </Link>
+                {job?.output_url ? (
+                  <Button variant="secondary" onClick={() => void downloadVideo(job)} className="gap-2 rounded-full px-4">
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+                ) : null}
               </div>
-            </section>
+            </Card>
+          </aside>
         </div>
 
-        <div className="min-w-0 xl:col-span-2">
-          <SectionCard
-            title="Recent videos"
-            description="Your latest renders in one place."
-            icon={<Film className="h-5 w-5" />}
-            compact
-            defaultOpen={false}
-          >
-            {videos.length === 0 ? (
-              <p className="text-sm text-muted">Your rendered videos will appear here once you create your first reel.</p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                {videos.map((videoItem) => {
-                  const videoUrl = toAssetUrl(videoItem.output_url);
-                  const thumbUrl = toAssetUrl(videoItem.thumbnail_url) ?? toAssetUrl(videoItem.source_image_url);
-                  return (
-                    <div key={videoItem.id} className="overflow-hidden rounded-[14px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.3)]">
-                      {videoUrl ? (
-                        <video src={videoUrl} poster={thumbUrl ?? undefined} className="h-40 w-full bg-black object-cover" />
-                      ) : thumbUrl ? (
-                        <img src={thumbUrl} alt={videoItem.title ?? 'Video thumbnail'} className="h-40 w-full object-cover" />
-                      ) : (
-                        <div className="flex h-40 items-center justify-center bg-[hsl(var(--color-elevated))] text-sm text-muted">Processing preview</div>
-                      )}
-                      <div className="space-y-2 p-3">
-                        <div>
-                          <p className="line-clamp-1 text-sm font-semibold text-text">{videoItem.title ?? 'Untitled video'}</p>
-                          <p className="mt-0.5 text-[11px] text-muted">{videoItem.provider_name ?? videoItem.selected_model ?? 'Video job'} • {videoItem.resolution}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className="text-[11px] font-medium text-muted">{videoItem.status}</span>
-                          <span className="text-[11px] font-medium text-muted">{videoItem.aspect_ratio}</span>
-                          {videoItem.duration_seconds ? <span className="text-[11px] font-medium text-muted">{videoItem.duration_seconds}s</span> : null}
-                          {videoItem.is_public_inspiration ? <span className="text-[11px] font-medium text-muted">Inspiration</span> : null}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Link href={`/videos/${videoItem.id}`} className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2 text-sm font-semibold text-text">
-                            Open
-                          </Link>
-                          {videoUrl ? (
-                            <button type="button" onClick={() => void downloadVideo(videoItem)} className="inline-flex items-center gap-2 rounded-[12px] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]">
-                              <Download className="h-4 w-4" />
-                              Download
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => void togglePublishVideo(videoItem)}
-                            disabled={publishingVideoId === videoItem.id}
-                            className="inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2 text-sm font-semibold text-text disabled:opacity-60"
-                          >
-                            {publishingVideoId === videoItem.id
-                              ? 'Updating...'
-                              : videoItem.is_public_inspiration
-                                ? 'Unpublish'
-                                : 'Publish'}
-                          </button>
-                        </div>
-                      </div>
+        <Card className="overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.84),hsl(var(--color-bg)/0.92))] px-4 py-4 backdrop-blur-xl sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Timeline</p>
+              <h3 className="mt-1 text-lg font-semibold text-text">Scene strip</h3>
+              <p className="mt-1 text-sm text-muted">A lightweight visual structure for the reel, without turning this into a full manual editor.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{sceneStrip.length} scenes</Badge>
+              <Badge variant="outline">{normalizedDurationSeconds || durationRule.defaultSeconds || 8}s</Badge>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {sceneStrip.map((scene, index) => (
+              <div
+                key={`${scene}-${index}`}
+                className="rounded-[22px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-bg)/0.52)] p-3"
+              >
+                <div className="relative overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-black">
+                  {selectedImageUrls[index] || selectedImageUrls[0] ? (
+                    <img
+                      src={selectedImageUrls[index] || selectedImageUrls[0]}
+                      alt={`Scene ${index + 1}`}
+                      className="aspect-[9/16] w-full object-cover opacity-90"
+                    />
+                  ) : (
+                    <div className="flex aspect-[9/16] items-center justify-center bg-[radial-gradient(circle_at_center,hsl(var(--color-accent)/0.16),transparent_46%),hsl(var(--color-surface)/0.75)] text-muted">
+                      <Film className="h-7 w-7" />
                     </div>
-                  );
-                })}
+                  )}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                  <span className="absolute left-3 top-3 inline-flex rounded-full border border-white/12 bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/85">
+                    Scene {index + 1}
+                  </span>
+                </div>
+                <p className="mt-3 line-clamp-3 text-sm leading-6 text-text">{scene}</p>
               </div>
-            )}
-          </SectionCard>
-        </div>
+            ))}
+          </div>
+        </Card>
       </div>
       <Modal
         open={templateFlowOpen}

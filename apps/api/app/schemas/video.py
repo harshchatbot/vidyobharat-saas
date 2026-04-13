@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +48,10 @@ class VideoResponse(BaseModel):
     like_count: int = 0
     auto_tags: list[str] = Field(default_factory=list)
     user_tags: list[str] = Field(default_factory=list)
+    recipe_id: str | None = None
+    recipe_inputs: dict[str, Any] = Field(default_factory=dict)
+    pipeline_mode: str | None = None
+    pipeline_metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -59,6 +64,13 @@ class VideoCreateResponse(BaseModel):
 class VideoRetryResponse(BaseModel):
     id: str
     status: str
+
+
+class VideoRetryRequest(BaseModel):
+    voice: str | None = None
+    language: str | None = None
+    script: str | None = None
+    audio_sample_rate_hz: int | None = Field(default=None, ge=8000, le=48000)
 
 
 class MusicTrackResponse(BaseModel):

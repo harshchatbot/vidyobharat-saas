@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from openai import OpenAI
+
 from app.core.config import get_settings
+from app.db.firestore_utils import utcnow
+from app.db.repositories.video_repository import VideoRepository
 from app.pipeline.prompt_builder import build_scene_prompt
 from app.pipeline.scene_planner import plan_scenes
-from app.recipes.recipe_registry import get_recipe, validate_recipe_inputs
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.audio_service import RecipeAudioService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
@@ -26,6 +32,51 @@ class RecipePipelineResult:
     metadata: dict[str, Any]
 
 
+@dataclass
+class ExplainerNarrationPlan:
+    narration_script: str
+    scene_beats: list[str]
+    overlay_text: list[str]
+    source_type: str
+    used_dedicated_script: bool = True
+
+
+def _append_pipeline_event(
+    *,
+    video_id: str,
+    kind: str,
+    title: str,
+    detail: str,
+    state: str = "complete",
+) -> None:
+    repo = VideoRepository(None)
+    snapshot = repo.collection.document(video_id).get()
+    data = snapshot.to_dict() or {}
+    metadata = dict(data.get("pipeline_metadata") or data.get("pipelineMetadata") or {})
+    events = list(metadata.get("events") or [])
+    events.append(
+        {
+            "id": f"event_{len(events) + 1}",
+            "kind": kind,
+            "title": title,
+            "detail": detail,
+            "state": state,
+            "created_at": utcnow().isoformat(),
+        }
+    )
+    metadata["events"] = events[-32:]
+    repo.collection.document(video_id).set({"pipeline_metadata": metadata, "updated_at": utcnow()}, merge=True)
+
+
+def _merge_pipeline_metadata(*, video_id: str, **fields: Any) -> None:
+    repo = VideoRepository(None)
+    snapshot = repo.collection.document(video_id).get()
+    data = snapshot.to_dict() or {}
+    metadata = dict(data.get("pipeline_metadata") or data.get("pipelineMetadata") or {})
+    metadata.update(fields)
+    repo.collection.document(video_id).set({"pipeline_metadata": metadata, "updated_at": utcnow()}, merge=True)
+
+
 def _normalize_topic(topic: str) -> str:
     cleaned = ' '.join(str(topic or '').strip().split())
     if not cleaned:
@@ -35,25 +86,187 @@ def _normalize_topic(topic: str) -> str:
 
 def _build_explainer_beats(topic: str) -> list[str]:
     topic = _normalize_topic(topic)
-
     return [
         (
-            f'Open with a scroll-stopping hook about "{topic}". '
-            f'Introduce the topic clearly and make the viewer curious about what happens next.'
+            f'Hook shot about "{topic}". Open with a scroll-stopping introduction and immediate curiosity.'
         ),
         (
-            f'Explain the immediate consequence of "{topic}" in a concrete, visual, easy-to-understand way. '
-            f'Show the first major cause-and-effect shift.'
+            f'Immediate consequence of "{topic}". Show the first major cause-and-effect shift clearly and concretely.'
         ),
         (
-            f'Show the larger world-level or human-level impact of "{topic}". '
-            f'Make the consequences feel real, serious, and understandable.'
+            f'Wider world-level or human-level impact of "{topic}". Make the consequences feel serious, real, and understandable.'
         ),
         (
-            f'End with the key takeaway about "{topic}". '
-            f'Close the explainer with a memorable conclusion that feels insightful and complete.'
+            f'Final takeaway about "{topic}". End with a memorable conclusion that feels insightful and complete.'
         ),
     ]
+
+
+def _normalize_text_lines(value: Any, *, target_count: int) -> list[str]:
+    items = [str(item or "").strip() for item in (value or []) if str(item or "").strip()]
+    if not items:
+        return []
+    if len(items) >= target_count:
+        return items[:target_count]
+    padded = list(items)
+    while len(padded) < target_count:
+        padded.append(padded[-1])
+    return padded
+
+
+def _build_explainer_overlay_text(topic: str, scene_beats: list[str]) -> list[str]:
+    normalized_topic = _normalize_topic(topic)
+    defaults = [
+        f"What if {normalized_topic}?",
+        "Immediate impact",
+        "Wider consequences",
+        "Why it matters",
+    ]
+    source = scene_beats or defaults
+    return [str(item).replace('"', '').strip()[:72] for item in source[:4]]
+
+
+def _split_narration_into_scene_context(narration_script: str, *, scene_count: int) -> list[str]:
+    normalized_script = " ".join(str(narration_script or "").split())
+    if not normalized_script:
+        return []
+
+    sentences = [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", normalized_script) if segment.strip()]
+    if not sentences:
+        return [normalized_script] * scene_count
+
+    if len(sentences) >= scene_count:
+        chunk_size = max(1, len(sentences) // scene_count)
+        chunks: list[str] = []
+        index = 0
+        for scene_index in range(scene_count):
+            remaining_scenes = scene_count - scene_index
+            remaining_sentences = len(sentences) - index
+            take = max(1, remaining_sentences // remaining_scenes)
+            chunk = " ".join(sentences[index:index + take]).strip()
+            if chunk:
+                chunks.append(chunk)
+            index += take
+        return _normalize_text_lines(chunks, target_count=scene_count)
+
+    return _normalize_text_lines(sentences, target_count=scene_count)
+
+
+def _fallback_explainer_narration(topic: str, *, scene_count: int) -> ExplainerNarrationPlan:
+    normalized_topic = _normalize_topic(topic)
+    if scene_count >= 6:
+        narration_script = (
+            f"Let's understand {normalized_topic} in a simple way. "
+            'First, focus on the main job it does and why it matters every second. '
+            'Then look at how its different parts work together, almost like a team passing messages. '
+            'A relatable example helps show how those signals guide memory, movement, and decisions. '
+            f'That is why {normalized_topic} affects so much more than most people realize.'
+        )
+    else:
+        narration_script = (
+            f'What would happen if {normalized_topic}? Even a few seconds could trigger much bigger consequences than most people expect. '
+            'The first shock would appear almost instantly, then the effects would spread through people, systems, and the wider world. '
+            f"That is why {normalized_topic} would matter far beyond the first moment."
+        )
+    scene_beats = _normalize_text_lines(_build_explainer_beats(normalized_topic), target_count=scene_count)
+    overlay_text = _build_explainer_overlay_text(normalized_topic, scene_beats)
+    return ExplainerNarrationPlan(
+        narration_script=narration_script,
+        scene_beats=scene_beats,
+        overlay_text=overlay_text,
+        source_type="fallback_template",
+    )
+
+
+def build_explainer_narration_script(topic: str, *, scene_count: int, duration_seconds: int) -> ExplainerNarrationPlan:
+    settings = get_settings()
+    normalized_topic = _normalize_topic(topic)
+    if settings.openai_api_key:
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                temperature=0.45,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You write short social explainer narration. "
+                            "Return valid JSON only with keys: narration_script, scene_beats, overlay_text. "
+                            "narration_script must be one smooth spoken explainer script for the requested duration. "
+                            "scene_beats must be concise visual guidance, not spoken narration. "
+                            "overlay_text must be short on-screen emphasis phrases, not full spoken lines."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Topic: {normalized_topic}\n"
+                            f"Target duration: {duration_seconds} seconds\n"
+                            f"Scene count: {scene_count}\n"
+                            "Requirements:\n"
+                            "- Make the narration simple, spoken, natural, and educational.\n"
+                            "- Avoid hook labels, bullet formatting, cue labels, or planning text.\n"
+                            "- Do not write 'Opening shot', 'Scene 1', or anything UI-like.\n"
+                            "- Keep scene beats visual and explanatory.\n"
+                            "- Keep overlay_text short enough for on-screen emphasis.\n"
+                        ),
+                    },
+                ],
+            )
+            parsed = json.loads((response.choices[0].message.content or "{}").strip() or "{}")
+            narration_script = str(parsed.get("narration_script") or "").strip()
+            scene_beats = _normalize_text_lines(parsed.get("scene_beats"), target_count=scene_count)
+            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 4))
+            if narration_script and scene_beats:
+                return ExplainerNarrationPlan(
+                    narration_script=narration_script,
+                    scene_beats=scene_beats,
+                    overlay_text=overlay_text or _build_explainer_overlay_text(normalized_topic, scene_beats),
+                    source_type="openai_explainer_script",
+                )
+        except Exception:
+            logger.exception("explainer_narration_generation_failed", extra={"topic": normalized_topic})
+
+    return _fallback_explainer_narration(normalized_topic, scene_count=scene_count)
+
+
+def _build_kling_v3_multi_prompt(
+    *,
+    recipe,
+    scenes: list[dict[str, Any]],
+    reference: str | None,
+    normalized_inputs: dict[str, Any],
+    scene_beats: list[str],
+    scene_narration_context: list[str],
+) -> list[dict[str, Any]]:
+    multi_prompt: list[dict[str, Any]] = []
+    topic = str(normalized_inputs.get("text") or "").strip()
+
+    for index, scene in enumerate(scenes):
+        scene_inputs = dict(normalized_inputs)
+        if recipe.id == "time_echo_explainer":
+            beat = scene_beats[index] if index < len(scene_beats) else ""
+            narration_context = scene_narration_context[index] if index < len(scene_narration_context) else ""
+            scene_inputs['text'] = (
+                f'Topic: {_normalize_topic(topic)}. '
+                f'Visual objective: {beat}. '
+                f'Narration context: {narration_context}'
+            ).strip()
+        elif index < len(scene_beats):
+            scene_inputs['text'] = scene_beats[index]
+
+        scene_prompt = build_scene_prompt(recipe, scene, reference, scene_inputs)
+
+        multi_prompt.append(
+            {
+                "prompt": scene_prompt,
+                "duration": str(int(scene.get("duration_seconds") or 5)),
+            }
+        )
+
+    return multi_prompt
 
 
 def run_recipe_pipeline(
@@ -62,11 +275,19 @@ def run_recipe_pipeline(
     *,
     video_id: str,
     user_id: str,
+    voice_override: str | None = None,
+    language_override: str | None = None,
     progress_callback: Callable[[int], None] | None = None,
 ) -> RecipePipelineResult:
     recipe = get_recipe(recipe_id)
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     logger.info("recipe_pipeline_started", extra={"video_id": video_id, "recipe_id": recipe.id})
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="pipeline_started",
+        title="Recipe loaded",
+        detail=f"{recipe.catalog.title} is preparing the scene plan and execution steps.",
+    )
 
     pipeline = VideoPipelineService()
     reference = _prepare_reference_asset(
@@ -83,13 +304,59 @@ def run_recipe_pipeline(
         "recipe_reference_prepared",
         extra={"video_id": video_id, "recipe_id": recipe.id, "reference_asset": str(reference)},
     )
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="reference_ready",
+        title="Inputs prepared",
+        detail="Reference assets and recipe context are ready for generation.",
+    )
 
     scenes = plan_scenes(recipe)
 
     scene_beats: list[str] = []
-    if recipe.id == "time_echo_explainer":
+    narration_script: str | None = None
+    overlay_text: list[str] = []
+    scene_narration_context: list[str] = []
+    if recipe.id in EXPLAINER_RECIPE_IDS:
         topic = str(normalized_inputs.get("text") or "").strip()
-        scene_beats = _build_explainer_beats(topic)
+        narration_plan = build_explainer_narration_script(
+            topic,
+            scene_count=len(scenes),
+            duration_seconds=recipe.duration_seconds,
+        )
+        narration_script = narration_plan.narration_script
+        scene_beats = narration_plan.scene_beats
+        overlay_text = narration_plan.overlay_text
+        scene_narration_context = _split_narration_into_scene_context(narration_script, scene_count=len(scenes))
+        overlay_differs = " ".join(overlay_text).strip() != narration_script.strip()
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            narration_script=narration_script,
+            overlay_text=overlay_text,
+            narration_source_type=narration_plan.source_type,
+            narration_text_length=len(narration_script),
+            narration_uses_dedicated_script=narration_plan.used_dedicated_script,
+            overlay_differs_from_narration=overlay_differs,
+            scene_beats=scene_beats,
+            scene_narration_context=scene_narration_context,
+        )
+        logger.info(
+            "explainer_narration_resolved",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "narration_source_type": narration_plan.source_type,
+                "narration_text_length": len(narration_script),
+                "dedicated_script_generation": narration_plan.used_dedicated_script,
+                "overlay_differs_from_narration": overlay_differs,
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="narration_script_ready",
+            title="Narration script drafted",
+            detail="A dedicated explainer narration script was prepared for voiceover.",
+        )
 
     if progress_callback:
         progress_callback(30)
@@ -98,8 +365,158 @@ def run_recipe_pipeline(
         "recipe_scenes_planned",
         extra={"video_id": video_id, "recipe_id": recipe.id, "scene_count": len(scenes)},
     )
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="scenes_planned",
+        title="Scene plan assembled",
+        detail=f"The explainer was split into {len(scenes)} scene blocks for render orchestration.",
+    )
 
     generation = VideoGenerationService(get_settings())
+
+    # Real multi-shot path for Time Echo Explainer on Kling v3
+    if recipe.id in EXPLAINER_RECIPE_IDS and recipe.generation_defaults.model_key == "kling_v3":
+        if progress_callback:
+            progress_callback(40)
+
+        multi_prompt = _build_kling_v3_multi_prompt(
+            recipe=recipe,
+            scenes=scenes,
+            reference=reference,
+            normalized_inputs=normalized_inputs,
+            scene_beats=scene_beats,
+            scene_narration_context=scene_narration_context,
+        )
+
+        topic = str(normalized_inputs.get("text") or "").strip()
+        master_prompt = (
+            f'Create a short social-first explainer reel about "{_normalize_topic(topic)}". '
+            'Use all shots as one coherent vertical reel with strong continuity, clear cause-and-effect storytelling, '
+            'smooth transitions, readable composition, and a memorable final takeaway.'
+        )
+
+        logger.info(
+            "recipe_multishot_generation_started",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "model_key": recipe.generation_defaults.model_key,
+                "shot_count": len(multi_prompt),
+                "duration_seconds": recipe.duration_seconds,
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="render_started",
+            title="Generating explainer shots",
+            detail="The pipeline is rendering the multi-shot explainer sequence.",
+        )
+
+        clip_result = generation.generate_video_clip(
+            ClipGenerationRequest(
+                video_id=video_id,
+                prompt=master_prompt,
+                model_key=recipe.generation_defaults.model_key,
+                aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                resolution=recipe.generation_defaults.resolution,
+                duration_seconds=15,
+                reference_image_url=reference,
+                voice=recipe.generation_defaults.voice,
+                language=recipe.generation_defaults.language,
+                captions_enabled=recipe.generation_defaults.captions_enabled,
+                narration_enabled=False,
+                caption_style=recipe.generation_defaults.caption_style,
+                metadata={
+                    "recipe_id": recipe.id,
+                    "scene_count": len(scenes),
+                    "scene_beats": [scene.get("beat_names") for scene in scenes],
+                    "narration_script": narration_script,
+                    "overlay_text": overlay_text,
+                    "multishot": True,
+                },
+                multi_prompt=multi_prompt,
+            )
+        )
+
+        if progress_callback:
+            progress_callback(82)
+
+        logger.info(
+            "recipe_multishot_generation_completed",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "model_key": recipe.generation_defaults.model_key,
+                "clip_url": clip_result.video_url,
+            },
+        )
+
+        rendered_path = pipeline.ensure_local_media_path(clip_result.video_url)
+        if not rendered_path:
+            raise RuntimeError("Could not materialize multi-shot output locally for final audio assembly.")
+
+        if progress_callback:
+            progress_callback(88)
+
+        audio_service = RecipeAudioService()
+        narration_text = narration_script or None
+
+        final_path = audio_service.add_audio(
+            video_path=rendered_path,
+            recipe_music=recipe.config.music,
+            render_id=video_id,
+            narration_text=narration_text,
+            voice=voice_override or recipe.generation_defaults.voice,
+            language=language_override or recipe.generation_defaults.language,
+        )
+
+        if progress_callback:
+            progress_callback(92)
+
+        logger.info(
+            "recipe_audio_added",
+            extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(final_path)},
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="audio_added",
+            title="Narration and music mixed",
+            detail="The render now includes the selected narration voice and explainer underscore.",
+        )
+
+        logger.info(
+            "recipe_pipeline_completed",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                **pipeline.probe_media_streams(final_path),
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="pipeline_completed",
+            title="Final render ready",
+            detail="The explainer video has been stitched, voiced, and finalized.",
+        )
+
+        return RecipePipelineResult(
+            provider="recipe_pipeline",
+            model_key=recipe.generation_defaults.model_key,
+            video_url=f"/static/renders/{Path(final_path).name}",
+            metadata={
+                "recipe_id": recipe.id,
+                "reference_asset": str(reference),
+                "scene_count": len(scenes),
+                "output_path": str(final_path),
+                "narration_script": narration_script,
+                "overlay_text": overlay_text,
+                "requested_model": recipe.generation_defaults.model_key,
+                "resolved_model": recipe.generation_defaults.model_key,
+                "multishot": True,
+            },
+        )
+
+    # Default old path for all other recipes
     clip_urls: list[str] = []
     total_scenes = max(len(scenes), 1)
 
@@ -118,10 +535,22 @@ def run_recipe_pipeline(
                 "model_key": recipe.generation_defaults.model_key,
             },
         )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="scene_started",
+            title=f'Generating {scene["scene_id"]}',
+            detail=f'Rendering scene {index + 1} of {total_scenes}.',
+        )
 
         scene_inputs = dict(normalized_inputs)
-        if recipe.id == "time_echo_explainer" and index < len(scene_beats):
-            scene_inputs["text"] = scene_beats[index]
+        if recipe.id in EXPLAINER_RECIPE_IDS and index < len(scene_beats):
+            topic = str(normalized_inputs.get("text") or "").strip()
+            narration_context = scene_narration_context[index] if index < len(scene_narration_context) else ""
+            scene_inputs["text"] = (
+                f'Topic: {_normalize_topic(topic)}. '
+                f'Visual objective: {scene_beats[index]}. '
+                f'Narration context: {narration_context}'
+            ).strip()
 
         prompt = build_scene_prompt(recipe, scene, reference, scene_inputs)
 
@@ -134,8 +563,8 @@ def run_recipe_pipeline(
                 resolution=recipe.generation_defaults.resolution,
                 duration_seconds=int(scene["duration_seconds"]),
                 reference_image_url=reference,
-                voice=recipe.generation_defaults.voice,
-                language=recipe.generation_defaults.language,
+                voice=voice_override or recipe.generation_defaults.voice,
+                language=language_override or recipe.generation_defaults.language,
                 captions_enabled=recipe.generation_defaults.captions_enabled,
                 narration_enabled=False,
                 caption_style=recipe.generation_defaults.caption_style,
@@ -184,19 +613,23 @@ def run_recipe_pipeline(
         "recipe_video_stitched",
         extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(stitched_path)},
     )
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="timeline_assembled",
+        title="Timeline assembled",
+        detail="All generated clips were stitched into a single timeline.",
+    )
 
     audio_service = RecipeAudioService()
-    narration_text = None
-    if recipe.id == "time_echo_explainer":
-        narration_text = " ".join(scene_beats)
+    narration_text = narration_script if recipe.id in EXPLAINER_RECIPE_IDS else None
 
     final_path = audio_service.add_audio(
         video_path=stitched_path,
         recipe_music=recipe.config.music,
         render_id=video_id,
         narration_text=narration_text,
-        voice=recipe.generation_defaults.voice,
-        language=recipe.generation_defaults.language,
+        voice=voice_override or recipe.generation_defaults.voice,
+        language=language_override or recipe.generation_defaults.language,
     )
 
     if progress_callback:
@@ -206,6 +639,12 @@ def run_recipe_pipeline(
         "recipe_audio_added",
         extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(final_path)},
     )
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="audio_added",
+        title="Narration and music mixed",
+        detail="Voiceover and BGM were added to the explainer timeline.",
+    )
 
     logger.info(
         "recipe_pipeline_completed",
@@ -214,6 +653,12 @@ def run_recipe_pipeline(
             "recipe_id": recipe.id,
             **pipeline.probe_media_streams(final_path),
         },
+    )
+    _append_pipeline_event(
+        video_id=video_id,
+        kind="pipeline_completed",
+        title="Final render ready",
+        detail="The explainer render completed successfully.",
     )
 
     return RecipePipelineResult(
@@ -225,6 +670,8 @@ def run_recipe_pipeline(
             "reference_asset": str(reference),
             "scene_count": len(scenes),
             "output_path": str(final_path),
+            "narration_script": narration_script,
+            "overlay_text": overlay_text,
             "requested_model": recipe.generation_defaults.model_key,
             "resolved_model": recipe.generation_defaults.model_key,
         },

@@ -49,6 +49,7 @@ import type {
   TTSCatalogResponse,
   TTSPreviewRequest,
   TTSPreviewResponse,
+  VideoRetryRequest,
   UserProfile,
   UserProfileUpdateRequest,
   UserSettings,
@@ -578,11 +579,11 @@ export const api = {
       method: 'DELETE',
     }, { userId, cache: 'no-store' });
   },
-  listVideos(userId: string, limit?: number) {
+  listVideos(userId: string, limit?: number, timeoutMs = 35_000) {
     const path = limit ? `/videos?limit=${limit}` : '/videos';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 6_000, () =>
-      request<Video[]>(path, {}, { userId, cache: 'no-store' }),
+      request<Video[]>(path, {}, { userId, cache: 'no-store', timeoutMs }),
     );
   },
   listMusicTracks() {
@@ -617,10 +618,10 @@ export const api = {
       return result;
     });
   },
-  retryVideo(videoId: string, userId: string) {
+  retryVideo(videoId: string, userId: string, payload: VideoRetryRequest = {}) {
     return request<{ id: string; status: string }>(`/videos/${videoId}/retry`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
   },
   generateReelScript(payload: ReelScriptRequest, userId: string) {

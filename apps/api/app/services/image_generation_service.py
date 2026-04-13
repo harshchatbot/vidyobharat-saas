@@ -38,10 +38,10 @@ class ImageModelEntry:
     key: str
     label: str
     description: str
-    frontend_hint: str
     provider: str
     badge: str
     logo_label: str
+    frontend_hint: str = ''
     alias_hint: str | None = None
     provider_id: str | None = None
     canonical_model_key: str | None = None
@@ -55,7 +55,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='gemini_flash_image',
         label='Gemini 3.1 Flash Image',
         description='Affordable, fast, and high-volume image generation for social posts, thumbnails, and everyday creative testing.',
-        frontend_hint='Formerly surfaced as Nano Banana. Use this for fast, budget-safe image generation.',
         provider='Google',
         badge='Affordable',
         logo_label='G',
@@ -69,7 +68,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='gemini_pro_image',
         label='Gemini 3 Pro Image',
         description='Premium Gemini path for sharper composition control and more professional asset creation.',
-        frontend_hint='Use this when you want a higher-end Gemini result for polished campaign assets.',
         provider='Google',
         badge='Premium',
         logo_label='G',
@@ -82,7 +80,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='openai_image',
         label='OpenAI Image',
         description='Reliable general-purpose premium image generation with dependable prompt-following and practical production quality.',
-        frontend_hint='Use this for consistent premium outputs when you want the most proven general-purpose path.',
         provider='OpenAI',
         badge='Premium',
         logo_label='O',
@@ -95,7 +92,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='recraft_studio',
         label='Recraft Studio',
         description='Design-first image generation for branded visuals, ad layouts, and polished creative assets.',
-        frontend_hint='Mapped to Recraft V4 for design-heavy outputs, ads, and branding surfaces.',
         provider='Recraft',
         badge='Design',
         logo_label='R',
@@ -108,7 +104,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='recraft_studio_pro',
         label='Recraft Studio Pro',
         description='Higher-end Recraft path for premium branded asset generation.',
-        frontend_hint='Reserved for future premium Recraft V4 Pro exposure.',
         provider='Recraft',
         badge='Premium',
         logo_label='R',
@@ -122,7 +117,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='budget_image_model',
         label='Fast Social',
         description='Primary Together AI route for affordable, fast social-first image generation.',
-        frontend_hint='Recommended for quick social posts and high-volume affordable image generation.',
         provider='Together AI',
         badge='Economy',
         logo_label='T',
@@ -136,7 +130,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='gpt_image_1_5',
         label='GPT Image 1.5',
         description='Primary creator-quality route for polished ad creatives, thumbnails, and realistic outputs.',
-        frontend_hint='Recommended when you want realistic premium image quality with strong prompt fidelity.',
         provider='OpenAI',
         badge='Creator quality',
         logo_label='O',
@@ -150,7 +143,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='recraft',
         label='Recraft',
         description='Design and carousel oriented route for graphics, editorial layouts, and clean branding output.',
-        frontend_hint='Recommended for carousels, infographics, and design-first assets.',
         provider='Recraft',
         badge='Design',
         logo_label='R',
@@ -164,7 +156,6 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelEntry] = {
         key='nano_banana',
         label='Nano Banana',
         description='Legacy alias for Gemini 3.1 Flash Image.',
-        frontend_hint='Legacy alias',
         provider='Google',
         badge='Legacy',
         logo_label='G',

@@ -55,17 +55,21 @@ class VideoRepository:
                 except Exception:
                     continue
 
-            group_query = self.firestore.collection_group('videos').where('userId', '==', user_id).limit(bounded_limit)
-            for row in group_query.stream():
-                data = row.to_dict() or {}
-                data.setdefault('id', data.get('id') or row.id)
-                if data.get('deleted_at') or data.get('deletedAt'):
-                    continue
-                try:
-                    model = self._to_model(data)
-                    by_id[model.id] = model
-                except Exception:
-                    continue
+            # Fast path: all current AI video jobs are written to the root `videos`
+            # collection. Only fall back to the legacy collection-group scan if the
+            # root query returns nothing, which keeps `/videos` responsive.
+            if not by_id:
+                group_query = self.firestore.collection_group('videos').where('userId', '==', user_id).limit(bounded_limit)
+                for row in group_query.stream():
+                    data = row.to_dict() or {}
+                    data.setdefault('id', data.get('id') or row.id)
+                    if data.get('deleted_at') or data.get('deletedAt'):
+                        continue
+                    try:
+                        model = self._to_model(data)
+                        by_id[model.id] = model
+                    except Exception:
+                        continue
             items = list(by_id.values())
         except Exception:
             for data in self._stream_video_docs():

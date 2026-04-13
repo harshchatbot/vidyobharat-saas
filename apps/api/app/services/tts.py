@@ -41,7 +41,7 @@ class VoiceoverResult:
 LANGUAGE_OPTIONS: tuple[LanguageOption, ...] = (
     LanguageOption('en-IN', 'English', 'English'),
     LanguageOption('hi-IN', 'Hindi', 'हिन्दी'),
-    LanguageOption('hi-IN', 'Hinglish', 'Hinglish'),
+    LanguageOption('hi-IN-x-hinglish', 'Hinglish', 'Hinglish'),
     LanguageOption('bn-IN', 'Bengali', 'বাংলা'),
     LanguageOption('gu-IN', 'Gujarati', 'ગુજરાતી'),
     LanguageOption('kn-IN', 'Kannada', 'ಕನ್ನಡ'),
@@ -178,11 +178,22 @@ def list_tts_voices() -> list[VoiceOption]:
 
 def resolve_language_code(language: str | None) -> str:
     value = (language or '').strip().lower()
+    aliases = {
+        'hi-in-x-hinglish': 'hi-IN',
+        'hinglish': 'hi-IN',
+    }
+    if value in aliases:
+        return aliases[value]
     by_label = {item.label.lower(): item.code for item in LANGUAGE_OPTIONS}
     if value in by_label:
-        return by_label[value]
+        resolved = by_label[value]
+        if resolved == 'hi-IN-x-hinglish':
+            return 'hi-IN'
+        return resolved
     for item in LANGUAGE_OPTIONS:
         if item.code.lower() == value:
+            if item.code == 'hi-IN-x-hinglish':
+                return 'hi-IN'
             return item.code
     return 'en-IN'
 

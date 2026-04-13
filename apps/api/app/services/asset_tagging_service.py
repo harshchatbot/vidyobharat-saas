@@ -36,6 +36,15 @@ class AssetTaggingService:
         user_tags = [row.tag for row in rows if row.source == 'user']
         return auto_tags, user_tags
 
+    def list_tags_for_assets(self, asset_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], tuple[list[str], list[str]]]:
+        grouped = self.repo.list_for_assets(asset_pairs)
+        output: dict[tuple[str, str], tuple[list[str], list[str]]] = {}
+        for key, rows in grouped.items():
+            auto_tags = [row.tag for row in rows if row.source == 'auto']
+            user_tags = [row.tag for row in rows if row.source == 'user']
+            output[key] = (auto_tags, user_tags)
+        return output
+
     def replace_user_tags(self, asset_id: str, asset_type: str, tags: list[str]) -> tuple[list[str], list[str]]:
         rows = self.repo.replace_user_tags(asset_id=asset_id, asset_type=asset_type, tags=tags)
         auto_tags = [row.tag for row in rows if row.source == 'auto']

@@ -8,7 +8,7 @@ import { ChevronDown, Compass, FolderKanban, FolderPlus, HelpCircle, Image as Im
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { CreditChip } from '@/components/credits/CreditChip';
-import { CreditProvider } from '@/components/credits/CreditContext';
+import { CreditProvider, useCredits } from '@/components/credits/CreditContext';
 import { TopNav } from '@/components/layout/TopNav';
 import { Button } from '@/components/ui/Button';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
@@ -22,7 +22,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help'];
+const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -30,10 +30,12 @@ function isAppRoute(pathname: string) {
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/library')) return 'Library';
+  if (pathname.startsWith('/images/library')) return 'Images';
   if (pathname.startsWith('/images')) return 'Image Studio';
+  if (pathname === '/videos') return 'Library';
   if (pathname.startsWith('/templates')) return 'Template Browser';
   if (pathname.startsWith('/influencer')) return 'Influencer Studio';
-  if (pathname.startsWith('/create/video')) return 'Create Video';
   if (pathname.startsWith('/create')) return 'Create';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
@@ -51,7 +53,7 @@ function getRouteTransitionCopy(label: string) {
   if (['dashboard', 'projects'].includes(normalized)) {
     return 'Loading workspace';
   }
-  if (['image studio', 'create video', 'create', 'template browser', 'influencer studio'].includes(normalized)) {
+  if (['image studio', 'create', 'template browser', 'influencer studio'].includes(normalized)) {
     return 'Preparing studio';
   }
   if (['billing', 'pricing', 'settings', 'profile', 'credit history'].includes(normalized)) {
@@ -85,9 +87,10 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavRef = useRef<HTMLDivElement | null>(null);
   const inApp = Boolean(userId) && isAppRoute(pathname);
+  const immersiveStudioRoute = pathname.startsWith('/videos/');
   const pageTitle = getPageTitle(pathname);
   const displayName = accountLabel ?? 'User';
-  const isCreateDashboard = pathname === '/create';
+  const useExpandedAppShell = inApp;
   const resolvedAvatar = accountAvatar
     ? (accountAvatar.startsWith('http://') || accountAvatar.startsWith('https://') ? accountAvatar : `${API_URL}${accountAvatar}`)
     : null;
@@ -140,6 +143,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     [
       '/dashboard',
       '/images',
+      '/videos',
+      '/library',
       '/create',
       '/templates',
       '/influencer',
@@ -246,6 +251,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     const navGroups = {
       create: [
         { href: '/create', label: 'Unified studio', icon: Video },
+        { href: '/videos', label: 'Video library', icon: Video },
         { href: '/images', label: 'Generate images', icon: ImageIcon },
         { href: '/templates', label: 'Template browser', icon: LayoutTemplate },
         { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
@@ -264,14 +270,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={userId}>
-      <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${isCreateDashboard ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
+      <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${immersiveStudioRoute ? '' : useExpandedAppShell ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
         <div className={`pointer-events-none fixed inset-x-0 top-0 z-[110] transition-opacity duration-200 ${isPending ? 'opacity-100' : 'opacity-0'}`}>
           <div className="h-[2px] w-full overflow-hidden bg-[hsl(var(--color-border)/0.3)]">
             <div className="h-full w-1/3 animate-[rangmanch-route-slide_1.05s_ease-in-out_infinite] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0),hsl(var(--color-accent)),hsl(var(--color-accent)/0))]" />
           </div>
         </div>
         <div className={`pointer-events-none fixed right-3 top-[84px] z-[95] transition-all duration-200 sm:right-6 sm:top-[92px] xl:right-8 ${isPending && routeTransitionLabel ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.96),hsl(var(--color-elevated)/0.94))] px-3.5 py-2 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.96),hsl(var(--color-elevated)/0.94))] px-3.5 py-2 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
             <span className="relative inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
               <span className="absolute h-4 w-4 rounded-full border border-[hsl(var(--color-accent)/0.24)]" />
               <span className="absolute h-4 w-4 rounded-full border border-transparent border-t-[hsl(var(--color-accent))] border-r-[hsl(var(--color-accent)/0.5)] rangmanch-loader-ring" />
@@ -280,10 +286,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             {routeTransitionLabel ? getRouteTransitionCopy(routeTransitionLabel) : 'Loading'}
           </div>
         </div>
-        <aside ref={desktopNavRef} className={`rangmanch-app-rail relative z-[70] hidden overflow-visible py-4 xl:block ${isCreateDashboard ? 'px-4' : 'px-2'}`}>
+        {!immersiveStudioRoute ? (
+        <aside ref={desktopNavRef} className={`rangmanch-app-rail relative z-[70] hidden overflow-visible py-4 xl:block ${useExpandedAppShell ? 'px-4' : 'px-2'}`}>
           <div className="flex h-full flex-col">
-            {isCreateDashboard ? (
-              <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[30px] border border-[hsl(var(--color-border)/0.68)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
+            {useExpandedAppShell ? (
+              <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
                 <div className="flex items-center">
                   <BrandLogo href="/create" variant="full" size="md" priority="sidebar" />
                 </div>
@@ -291,6 +298,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   {[
                     { href: '/create', label: 'Explore', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer'), onClick: () => navigateWithinApp('/create', 'Create') },
                     { href: '/projects', label: 'Projects', icon: FolderKanban, active: pathname.startsWith('/projects'), onClick: openProjectsWorkspace },
+                    { href: '/videos', label: 'Videos', icon: Video, active: pathname.startsWith('/videos'), onClick: () => navigateWithinApp('/videos', 'Videos') },
                     { href: '/billing', label: 'Billing', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits'), onClick: () => navigateWithinApp('/billing', 'Billing') },
                     { href: '/help', label: 'More', icon: Settings, active: isMoreRoute(pathname), onClick: () => navigateWithinApp('/help', 'Help') },
                   ].map((item) => {
@@ -302,11 +310,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         onClick={item.onClick}
                         className={`flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition ${
                           item.active
-                            ? 'border-[hsl(var(--color-accent)/0.4)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text shadow-soft'
-                            : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border)/0.85)] hover:bg-[hsl(var(--color-surface)/0.72)] hover:text-text'
+                            ? 'border-[hsl(var(--color-accent)/0.18)] bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.14),hsl(var(--color-accent)/0.05))] text-text shadow-soft'
+                            : 'border-transparent bg-transparent text-muted hover:border-[hsl(var(--color-border-soft)/0.3)] hover:bg-[hsl(var(--color-surface)/0.72)] hover:text-text'
                         }`}
                       >
-                        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${item.active ? 'border-[hsl(var(--color-accent)/0.28)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'}`}>
+                        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${item.active ? 'border-[hsl(var(--color-accent)/0.14)] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]' : 'border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface))] text-text'}`}>
                           {item.label === 'Projects' && projectsNavPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
                         </span>
                         <span className="min-w-0 flex-1">
@@ -316,6 +324,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                               ? 'Recipe-led creation'
                               : item.label === 'Projects'
                                 ? 'Organize renders'
+                                : item.label === 'Videos'
+                                  ? 'Revisit outputs'
                                 : item.label === 'Billing'
                                   ? 'Credits and plans'
                                     : 'Help and settings'}
@@ -327,7 +337,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 </div>
 
                 <div className="mt-auto space-y-3">
-                  <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-accent)/0.22),hsl(var(--color-surface)/0.9))] p-4 shadow-soft">
+                  <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-accent)/0.18),hsl(var(--color-surface)/0.9))] p-4 shadow-soft">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent-contrast)/0.78)]">Share to earn</p>
                     <p className="mt-2 text-2xl font-heading font-extrabold tracking-tight text-text">Earn credits by sharing videos</p>
                     <Button variant="secondary" className="mt-4 w-full rounded-full border-white/10 bg-white/10 text-white hover:bg-white/15">
@@ -335,22 +345,13 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     </Button>
                   </div>
 
-                  <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.82)] p-4 shadow-soft">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Credits</p>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                      <div>
-                        <p className="text-2xl font-heading font-extrabold tracking-tight text-text">78</p>
-                        <p className="text-xs text-muted">credits left</p>
-                      </div>
-                      <Button className="rounded-full px-4 py-2 text-xs font-semibold">Upgrade</Button>
-                    </div>
-                  </div>
+                  <SidebarCreditsCard />
 
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.82)] px-3 py-3 text-left text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
+                    className="flex w-full items-center gap-3 rounded-[18px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.82)] px-3 py-3 text-left text-text transition hover:shadow-[var(--shadow-soft)]"
                   >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.7)] text-[hsl(var(--color-accent))]">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.7)] text-[hsl(var(--color-accent))]">
                       <MessageCircle className="h-4 w-4" />
                     </span>
                     <span>
@@ -424,7 +425,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             )}
           </div>
 
-          <div className={`pointer-events-none fixed left-[84px] top-4 z-[90] w-[196px] transition-all duration-200 ease-out ${isCreateDashboard ? 'hidden' : ''} ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
+          <div className={`pointer-events-none fixed left-[84px] top-4 z-[90] w-[196px] transition-all duration-200 ease-out ${useExpandedAppShell ? 'hidden' : ''} ${desktopNavOpen ? 'translate-x-0 scale-100 opacity-100' : '-translate-x-2 scale-[0.985] opacity-0'}`}>
             <div className="pointer-events-auto rounded-[16px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.96)] p-2.5 shadow-soft backdrop-blur-xl">
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <div>
@@ -486,9 +487,11 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             </div>
           </div>
         </aside>
+        ) : null}
         <div className="relative z-0 min-w-0">
-          <header className={`sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8 ${isCreateDashboard ? 'pb-1' : ''}`}>
-            <div className={`rangmanch-app-header mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-5 ${isCreateDashboard ? 'max-w-[1680px]' : 'max-w-[1500px]'}`}>
+          {!immersiveStudioRoute ? (
+          <header className={`sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 xl:px-8 ${useExpandedAppShell ? 'pb-1' : ''}`}>
+            <div className={`rangmanch-app-header mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-5 ${useExpandedAppShell ? 'max-w-[1680px]' : 'max-w-[1500px]'}`}>
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
@@ -501,7 +504,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="xl:hidden">
                   <BrandLogo href="/create" variant="mark" size="sm" />
                 </div>
-                <span className={`hidden truncate font-heading text-xl font-extrabold tracking-tight text-text md:inline-block xl:text-2xl ${isCreateDashboard ? 'xl:opacity-0' : ''}`}>{pageTitle}</span>
+                <span className={`hidden truncate font-heading text-xl font-extrabold tracking-tight text-text md:inline-block xl:text-2xl ${useExpandedAppShell ? 'xl:opacity-0' : ''}`}>{pageTitle}</span>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -600,7 +603,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           </header>
-          {mobileNavOpen ? (
+          ) : null}
+          {!immersiveStudioRoute && mobileNavOpen ? (
             <div className="fixed inset-x-0 bottom-0 top-[76px] z-40 xl:hidden">
               <button
                 type="button"
@@ -782,7 +786,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className={`mx-auto px-4 pb-8 pt-5 transition-[opacity,transform] duration-200 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ${isCreateDashboard ? 'max-w-[1680px]' : 'max-w-[1500px]'} ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
+          <main className={`mx-auto px-4 pb-8 ${immersiveStudioRoute ? 'pt-4 sm:px-5 sm:pb-8 sm:pt-5 xl:max-w-[1880px] xl:px-6' : 'pt-5 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ' + (useExpandedAppShell ? 'max-w-[1680px]' : 'max-w-[1500px]')} transition-[opacity,transform] duration-200 ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
         </div>
       </div>
       </CreditProvider>
@@ -804,5 +808,24 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
         <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </CreditProvider>
+  );
+}
+
+function SidebarCreditsCard() {
+  const { wallet, loading } = useCredits();
+
+  return (
+    <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.82)] p-4 shadow-soft">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Credits</p>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-2xl font-heading font-extrabold tracking-tight text-text">
+            {loading ? '...' : wallet?.currentCredits ?? 0}
+          </p>
+          <p className="text-xs text-muted">{loading ? 'Loading…' : 'credits left'}</p>
+        </div>
+        <Button className="rounded-full px-4 py-2 text-xs font-semibold">Upgrade</Button>
+      </div>
+    </div>
   );
 }

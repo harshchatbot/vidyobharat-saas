@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import {
   Box,
-  Clock3,
   Check,
   ChevronDown,
   LayoutTemplate,
@@ -22,26 +21,27 @@ import {
   X,
 } from 'lucide-react';
 
-import { CreateVideoClient } from '@/components/videos/CreateVideoClient';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
+import { buildVideoModelsForApiFallback, getVideoModelMap } from '@/config/videoModels';
 import creditEngine from '@/config/creditEngine';
 import { TEMPLATE_OPTIONS } from '@/components/videos/create/constants';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { RecipeCatalog } from '@/types/api';
+import type { AIVideoModel, GeneratedImage, ImageModel, InspirationImage, RecipeCatalog, VideoCreateRequest } from '@/types/api';
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
 type QualityProfile = 'fast_social' | 'creator_quality' | 'creator_pro' | 'premium';
-type RecipeTab = 'all' | 'trending' | 'ads' | 'entertainment' | 'explainer' | 'story' | 'character' | 'real_estate';
+type RecipeTab = 'all' | 'trending' | 'ads' | 'entertainment' | 'explainer' | 'story' | 'character' | 'real_estate' | 'inspiration_photos';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
 type RecentEntryKind = 'recipe' | 'draft';
 type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image';
 type RecipeSourceKind = 'recipe';
+type VideoIntent = 'explainer' | 'cinematic' | 'quick_reel' | 'generic';
 
 type RecipeComposerFragment =
   | { type: 'text'; value: string }
@@ -77,7 +77,7 @@ type VideoLaunchState = {
   templateKey: string;
   script: string;
   initialLane: 'creator_pro' | 'premium';
-  initialModelKey: 'kling3' | 'veo3';
+  initialModelKey: string;
   initialAspectRatio: '9:16' | '16:9' | '1:1';
   initialResolution: '720p' | '1080p';
   initialDurationSeconds: '5' | '10';
@@ -99,6 +99,19 @@ type RecipeCard = {
   badge: string | null;
   helper: string | null;
   recipe: RecipeCatalog;
+};
+
+type InspirationPhotoCard = {
+  id: string;
+  title: string;
+  prompt: string;
+  aspectRatio: string;
+  previewUrl: string;
+  creatorName: string;
+  modelKey: string;
+  createdAt: string;
+  badge: string | null;
+  raw: InspirationImage;
 };
 
 type RecentEntry = {
@@ -145,6 +158,51 @@ const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: stri
   { key: 'premium', label: 'Premium', helper: 'Higher-end visual output for important hero content' },
 ];
 
+const VIDEO_MODEL_FALLBACK = buildVideoModelsForApiFallback();
+const VIDEO_MODEL_MAP = getVideoModelMap();
+const IMAGE_MODEL_FALLBACK: ImageModel[] = [
+  {
+    key: 'budget_image_model',
+    label: 'Fast Social Images',
+    description: 'Budget-friendly image generation for quick social content and rapid iteration.',
+    frontend_hint: 'Primary fast lane for fast drafts and social-first visuals.',
+    provider: 'Together',
+    badge: 'Affordable',
+    logo_label: 'T',
+    canonical_model_key: 'budget_image_model',
+  },
+  {
+    key: 'gpt_image_1_5',
+    label: 'GPT Image 1.5',
+    description: 'Premium realistic image generation with stronger prompt fidelity.',
+    frontend_hint: 'Best for polished brand visuals, ads, and premium realism.',
+    provider: 'OpenAI',
+    badge: 'Premium',
+    logo_label: 'O',
+    canonical_model_key: 'gpt_image_1_5',
+  },
+  {
+    key: 'recraft',
+    label: 'Recraft',
+    description: 'Design-focused image generation for posters, carousels, and structured graphics.',
+    frontend_hint: 'Best for graphic-style outputs and brand layouts.',
+    provider: 'Recraft',
+    badge: 'Design',
+    logo_label: 'R',
+    canonical_model_key: 'recraft',
+  },
+  {
+    key: 'gemini_flash_image',
+    label: 'Gemini 3.1 Flash Image',
+    description: 'Fast, affordable image generation for high-volume creative work.',
+    frontend_hint: 'Best for quick image concepts and social testing.',
+    provider: 'Google',
+    badge: 'Fast',
+    logo_label: 'G',
+    canonical_model_key: 'gemini_flash_image',
+  },
+];
+
 const ASPECT_OPTIONS: Array<'9:16' | '16:9' | '1:1'> = ['9:16', '16:9', '1:1'];
 const RECENT_STORAGE_KEY = 'rangmanch:create-hub:recent:v1';
 const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTemplate }> = [
@@ -156,6 +214,7 @@ const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTe
   { key: 'story', label: 'Story' },
   { key: 'character', label: 'Character' },
   { key: 'real_estate', label: 'Real Estate' },
+  { key: 'inspiration_photos', label: 'Inspiration photos' },
 ];
 
 const GENERIC_VIDEO_RECIPE: Omit<RecipeComposerConfig, 'recipeId' | 'recipeLabel'> = {
@@ -210,11 +269,162 @@ function pickVideoTemplateKey(idea: string) {
   return 'storyboard';
 }
 
+function detectVideoIntent(prompt: string): VideoIntent {
+  const value = prompt.toLowerCase().trim();
+  if (
+    /\b(explain|what if|tell me about|how does|why does|educational|narrated reel|fact reel|science of|history of)\b/.test(value)
+  ) {
+    return 'explainer';
+  }
+  if (/\b(cinematic|trailer|teaser|moody|luxury|hero film|film look|dramatic)\b/.test(value)) {
+    return 'cinematic';
+  }
+  if (/\b(quick reel|fast reel|3 quick scenes|snappy|montage|social-ready|hook)\b/.test(value)) {
+    return 'quick_reel';
+  }
+  return 'generic';
+}
+
+function shouldAutoUseExplainerRecipe(
+  intent: VideoIntent,
+  mode: ResolvedMode,
+  activeRecipeSource: ActiveRecipeSource,
+) {
+  if (mode !== 'video') return false;
+  if (activeRecipeSource?.kind === 'recipe') return false;
+  return intent === 'explainer';
+}
+
+function pickExplainerRecipeId(prompt: string) {
+  const value = prompt.toLowerCase().trim();
+  if (
+    /\b(like i am|like i’m|like im|for a 12 year old|for kids|simply explain|in simple terms|step by step|deep dive|detailed|visually)\b/.test(value)
+  ) {
+    return 'deep_dive_explainer';
+  }
+  if (value.split(/\s+/).filter(Boolean).length >= 8) {
+    return 'deep_dive_explainer';
+  }
+  return 'time_echo_explainer';
+}
+
+function buildVideoCreatePayload(input: {
+  type: 'recipe';
+  recipeId: string;
+  prompt: string;
+} | {
+  type: 'freeform';
+  templateLabel: string;
+  script: string;
+  modelKey: string;
+  lane: 'creator_pro' | 'premium';
+  aspectRatio: '9:16' | '16:9' | '1:1';
+  resolution: '720p' | '1080p';
+  quality: 'standard' | 'high';
+  durationSeconds: number;
+  captionsEnabled: boolean;
+  narrationEnabled: boolean;
+  imageUrl?: string | null;
+}): VideoCreateRequest {
+  if (input.type === 'recipe') {
+    return {
+      recipeId: input.recipeId,
+      inputs: {
+        text: input.prompt,
+      },
+    };
+  }
+
+  return {
+    template: input.templateLabel,
+    script: input.script,
+    tags: [],
+    modelKey: input.modelKey,
+    modeId: input.lane,
+    language: 'English',
+    voice: 'Shubh',
+    imageUrls: input.imageUrl ? [input.imageUrl] : [],
+    music: {
+      type: 'none',
+      url: null,
+    },
+    audioSettings: {
+      volume: 0.18,
+      ducking: true,
+      sampleRateHz: 48000,
+    },
+    aspectRatio: input.aspectRatio,
+    resolution: input.resolution,
+    quality: input.quality,
+    durationMode: 'custom',
+    durationSeconds: input.durationSeconds,
+    captionsEnabled: input.captionsEnabled,
+    captionStyle: 'classic',
+    narrationEnabled: input.narrationEnabled,
+  };
+}
+
+function pickImageMode(idea: string, profile: QualityProfile): 'fast_social' | 'premium_realism' {
+  if (profile === 'creator_quality' || profile === 'premium') return 'premium_realism';
+  const value = idea.toLowerCase();
+  if (/\b(premium|luxury|cinematic|high-end|hero|polished)\b/.test(value)) return 'premium_realism';
+  return 'fast_social';
+}
+
 function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: 'kling3' | 'veo3'; resolution: '720p' | '1080p' } {
   if (profile === 'premium') {
     return { lane: 'premium', modelKey: 'veo3', resolution: '1080p' };
   }
   return { lane: 'creator_pro', modelKey: 'kling3', resolution: '720p' };
+}
+
+function getVideoModelLane(modelKey: string): 'creator_pro' | 'premium' {
+  const lane = VIDEO_MODEL_MAP[modelKey]?.lane;
+  return lane === 'premium' ? 'premium' : 'creator_pro';
+}
+
+function getVideoResolutionForModel(modelKey: string, profile: QualityProfile): '720p' | '1080p' {
+  const labels = VIDEO_MODEL_MAP[modelKey]?.resolutionLabels ?? ['720p'];
+  if (profile === 'premium' && labels.includes('1080p')) return '1080p';
+  if (labels.includes('720p')) return '720p';
+  if (labels.includes('1080p')) return '1080p';
+  return '720p';
+}
+
+function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' {
+  const presets = VIDEO_MODEL_MAP[modelKey]?.durationPresets ?? [];
+  if (presets.includes(10)) return '10';
+  return '5';
+}
+
+function profileForVideoModel(modelKey: string): QualityProfile {
+  return getVideoModelLane(modelKey) === 'premium' ? 'premium' : 'creator_pro';
+}
+
+function profileForImageModel(modelKey: string): QualityProfile {
+  if (['budget_image_model', 'gemini_flash_image'].includes(modelKey)) return 'fast_social';
+  return 'creator_quality';
+}
+
+function shortVideoModelLabel(model: AIVideoModel) {
+  return model.shortLabel ?? model.label;
+}
+
+function creditPerSecondLabel(modelKey: string, resolutionLabel: string, quality: 'standard' | 'high') {
+  const aliasKey = (creditEngine.videoModelAliases?.[modelKey as keyof typeof creditEngine.videoModelAliases] ?? 'kling') as keyof typeof creditEngine.video.modelMultiplier;
+  const modelMultiplier = creditEngine.video.modelMultiplier?.[aliasKey] ?? 1;
+  const resolutionKey = (resolutionLabel === '4K' ? '2160p' : resolutionLabel === '2K' ? '1440p' : resolutionLabel.toLowerCase()) as keyof typeof creditEngine.video.resolutionMultiplier;
+  const resolutionMultiplier = creditEngine.video.resolutionMultiplier?.[resolutionKey] ?? 1;
+  const qualityMultiplier = creditEngine.video.qualityMultiplier?.[quality] ?? 1;
+  const value = creditEngine.video.baseCredits * modelMultiplier * resolutionMultiplier * qualityMultiplier / creditEngine.video.baseDuration;
+  return value.toFixed(value >= 10 ? 2 : 2);
+}
+
+function imageCreditsLabel(modelKey: string, resolution: '1024' | '1536') {
+  const normalizedKey = normalizeImageModelKey(modelKey);
+  const exact = creditEngine.image.modelPricing?.[normalizedKey as keyof typeof creditEngine.image.modelPricing]?.[resolution];
+  if (typeof exact === 'number') return `${exact}`;
+  return resolution === '1536' ? '8' : '5';
 }
 
 function mapRecipeTab(recipe: RecipeCatalog): RecipeTab {
@@ -319,6 +529,21 @@ function mapCatalogRecipeToCard(recipe: RecipeCatalog): RecipeCard | null {
     badge: buildRecipeBadge(recipe, tab) ?? 'AI video',
     helper: null,
     recipe,
+  };
+}
+
+function mapInspirationToCard(item: InspirationImage): InspirationPhotoCard {
+  return {
+    id: item.id,
+    title: item.title,
+    prompt: item.prompt,
+    aspectRatio: item.aspect_ratio || '9:16',
+    previewUrl: toAbsoluteUrl(item.image_url) || item.image_url,
+    creatorName: item.creator_name,
+    modelKey: item.model_key,
+    createdAt: item.created_at,
+    badge: 'Published',
+    raw: item,
   };
 }
 
@@ -558,6 +783,59 @@ function ComposerPoster({
   );
 }
 
+function ModelCapabilityBadge({ label }: { label: string }) {
+  return (
+    <span className="rounded-full bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/78">
+      {label}
+    </span>
+  );
+}
+
+function ModelRow({
+  title,
+  badges,
+  active,
+  disabled,
+  onClick,
+  onHover,
+}: {
+  title: string;
+  badges: string[];
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  onHover: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      onMouseEnter={onHover}
+      className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${
+        active
+          ? 'border-white/14 bg-white/[0.08]'
+          : 'border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+      } ${disabled ? 'opacity-60' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[14px] font-semibold text-white">{title}</p>
+            {disabled ? <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/65">Soon</span> : null}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {badges.map((badge) => (
+              <ModelCapabilityBadge key={badge} label={badge} />
+            ))}
+          </div>
+        </div>
+        <ChevronDown className="-rotate-90 h-4 w-4 shrink-0 text-white/48" />
+      </div>
+    </button>
+  );
+}
+
 export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const router = useRouter();
   const [idea, setIdea] = useState('');
@@ -568,23 +846,34 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [videoLaunch, setVideoLaunch] = useState<VideoLaunchState | null>(null);
+  const [, setVideoLaunch] = useState<VideoLaunchState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<RecipeCatalog[]>([]);
+  const [inspirationPhotos, setInspirationPhotos] = useState<InspirationImage[]>([]);
+  const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
+  const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling3');
+  const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
+  const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
+  const [loadingInspirationPhotos, setLoadingInspirationPhotos] = useState(true);
   const [recipeTab, setRecipeTab] = useState<RecipeTab>('all');
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeCard | null>(null);
+  const [selectedInspirationPhoto, setSelectedInspirationPhoto] = useState<InspirationPhotoCard | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [activeRecipeLabel, setActiveRecipeLabel] = useState<string | null>(null);
   const [uploadedAssetName, setUploadedAssetName] = useState<string | null>(null);
+  const [uploadedComposerAsset, setUploadedComposerAsset] = useState<SlotAssetState | null>(null);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
   const [recipeComposer, setRecipeComposer] = useState<RecipeComposerState | null>(null);
   const [recipeSlotAssets, setRecipeSlotAssets] = useState<Record<string, SlotAssetState>>({});
   const [pendingUploadTarget, setPendingUploadTarget] = useState<'composer-asset' | string | null>(null);
   const [assetPicker, setAssetPicker] = useState<AssetPickerState | null>(null);
   const [activeRecipeSource, setActiveRecipeSource] = useState<ActiveRecipeSource>(null);
+  const [latestGeneratedImage, setLatestGeneratedImage] = useState<GeneratedImage | null>(null);
+  const [imageResultOpen, setImageResultOpen] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
-  const studioRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { show } = useToast();
@@ -597,12 +886,41 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     [mode],
   );
 
+  const displayedModelKey = mode === 'video' ? selectedVideoModelKey : selectedImageModelKey;
+  const displayedVideoModel = useMemo(
+    () => videoModels.find((model) => model.key === selectedVideoModelKey) ?? VIDEO_MODEL_FALLBACK.find((model) => model.key === selectedVideoModelKey) ?? videoModels[0] ?? VIDEO_MODEL_FALLBACK[0],
+    [selectedVideoModelKey, videoModels],
+  );
+  const displayedImageModel = useMemo(
+    () => imageModels.find((model) => model.key === selectedImageModelKey) ?? IMAGE_MODEL_FALLBACK.find((model) => model.key === selectedImageModelKey) ?? imageModels[0] ?? IMAGE_MODEL_FALLBACK[0],
+    [imageModels, selectedImageModelKey],
+  );
+  const modelMenuList = mode === 'video' ? videoModels : imageModels;
+  const activeModelPanelKey = modelPanelKey ?? displayedModelKey;
+  const activeVideoModelDetail = useMemo(
+    () => videoModels.find((model) => model.key === activeModelPanelKey) ?? VIDEO_MODEL_FALLBACK.find((model) => model.key === activeModelPanelKey) ?? displayedVideoModel,
+    [activeModelPanelKey, displayedVideoModel, videoModels],
+  );
+  const activeImageModelDetail = useMemo(
+    () => imageModels.find((model) => model.key === activeModelPanelKey) ?? IMAGE_MODEL_FALLBACK.find((model) => model.key === activeModelPanelKey) ?? displayedImageModel,
+    [activeModelPanelKey, displayedImageModel, imageModels],
+  );
+
   const recipeCards = useMemo(() => sortRecipes(recipes.map(mapCatalogRecipeToCard).filter(Boolean) as RecipeCard[]), [recipes]);
 
   const filteredRecipes = useMemo(() => {
     return recipeCards.filter((item) => recipeMatchesTab(item, recipeTab)).slice(0, 12);
   }, [recipeCards, recipeTab]);
+  const inspirationPhotoCards = useMemo(
+    () => inspirationPhotos.map(mapInspirationToCard).slice(0, 12),
+    [inspirationPhotos],
+  );
   const firstEmptySlotId = useMemo(() => firstEmptyRecipeTextSlot(recipeComposer), [recipeComposer]);
+  const composerIntent = useMemo(() => detectVideoIntent(idea), [idea]);
+  const willAutoRouteToExplainer = useMemo(
+    () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
+    [activeRecipeSource, composerIntent, mode],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -630,15 +948,37 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   useEffect(() => {
     let cancelled = false;
     setLoadingRecipes(true);
+    setModelsLoading(true);
     void Promise.allSettled([
       api.listRecipes(userId, { type: 'video', active: true }),
-    ]).then(([recipeResult]) => {
+      api.listAIVideoModels(userId),
+      api.listImageModels(userId),
+      api.listPublicImageInspiration({ limit: 12 }),
+    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult]) => {
       if (cancelled) return;
 
       if (recipeResult.status === 'fulfilled') {
         setRecipes(recipeResult.value);
       }
+      if (videoModelResult.status === 'fulfilled' && videoModelResult.value.length > 0) {
+        const enabledFirst = [...videoModelResult.value].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
+        setVideoModels(enabledFirst);
+        if (!enabledFirst.some((model) => model.key === selectedVideoModelKey)) {
+          setSelectedVideoModelKey(enabledFirst[0]?.key ?? 'kling3');
+        }
+      }
+      if (imageModelResult.status === 'fulfilled' && imageModelResult.value.length > 0) {
+        setImageModels(imageModelResult.value);
+        if (!imageModelResult.value.some((model) => model.key === selectedImageModelKey)) {
+          setSelectedImageModelKey(imageModelResult.value[0]?.key ?? 'gpt_image_1_5');
+        }
+      }
+      if (inspirationResult.status === 'fulfilled') {
+        setInspirationPhotos(inspirationResult.value.filter((item) => Boolean(item.image_url)));
+      }
       setLoadingRecipes(false);
+      setModelsLoading(false);
+      setLoadingInspirationPhotos(false);
     });
 
     return () => {
@@ -647,22 +987,27 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   }, [userId]);
 
   useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
+    const onPointerDown = (event: MouseEvent | PointerEvent | TouchEvent) => {
       if (!composerRef.current?.contains(event.target as Node)) {
-        setOpenMenu(null);
-        setAssetPicker(null);
+        closeMenus();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMenus();
       }
     };
     document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, []);
-
-  useEffect(() => {
-    if (!videoLaunch) return;
-    window.setTimeout(() => {
-      studioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
-  }, [videoLaunch]);
 
   const closeMenus = () => {
     setOpenMenu(null);
@@ -689,6 +1034,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setRecipeSlotAssets({});
     setActiveRecipeSource(null);
     setAssetPicker(null);
+    setVideoLaunch(null);
     setMode(entry.mode);
     setAspectRatio(entry.aspectRatio);
     setQualityProfile(entry.qualityProfile);
@@ -701,7 +1047,12 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
   const handleModeChange = (nextMode: ComposerMode) => {
     setMode(nextMode);
-    setQualityProfile(nextMode === 'image' ? 'creator_quality' : 'creator_pro');
+    const nextProfile = nextMode === 'image' ? profileForImageModel(selectedImageModelKey) : profileForVideoModel(selectedVideoModelKey);
+    setQualityProfile(nextProfile);
+    setModelPanelKey(nextMode === 'image' ? selectedImageModelKey : selectedVideoModelKey);
+    if (nextMode === 'image') {
+      setVideoLaunch(null);
+    }
   };
 
   const exitRecipeComposer = () => {
@@ -711,6 +1062,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setActiveRecipeSource(null);
     setAssetPicker(null);
     setPendingUploadTarget(null);
+    setVideoLaunch(null);
   };
 
   const updateRecipeSlotValue = (slotId: string, value: string) => {
@@ -760,6 +1112,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setRecipeSlotAssets({});
     setIdea(assembleRecipePrompt(composerState));
     setMode(nextMode);
+    setModelPanelKey(nextMode === 'image' ? selectedImageModelKey : selectedVideoModelKey);
+    setVideoLaunch(null);
     setAspectRatio((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16');
     setDurationPreference(String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5');
     setCaptionsEnabled(Boolean(defaults.captions_enabled ?? true));
@@ -784,6 +1138,36 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     show({
       title: 'Recipe loaded',
       message: 'Recommended settings already applied. You can refine this later.',
+      variant: 'success',
+    });
+  };
+
+  const applyInspirationPhotoToComposer = (item: InspirationPhotoCard) => {
+    setRecipeComposer(null);
+    setRecipeSlotAssets({});
+    setActiveRecipeSource(null);
+    setActiveRecipeLabel(item.title);
+    setIdea(item.prompt);
+    setMode('image');
+    setModelPanelKey(selectedImageModelKey);
+    setVideoLaunch(null);
+    setSelectedInspirationPhoto(null);
+    setQualityProfile(profileForImageModel(selectedImageModelKey));
+    closeMenus();
+    pushRecentEntry({
+      id: `draft:image:${Date.now()}`,
+      kind: 'draft',
+      title: item.title,
+      prompt: item.prompt,
+      mode: 'image',
+      aspectRatio: '9:16',
+      qualityProfile: profileForImageModel(selectedImageModelKey),
+      createdAt: Date.now(),
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    show({
+      title: 'Style loaded',
+      message: 'This inspiration prompt is now in the composer. You can generate immediately or refine it first.',
       variant: 'success',
     });
   };
@@ -861,7 +1245,60 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         return;
       }
 
-      const profile = normalizeVideoProfile(qualityProfile);
+      if (nextMode === 'image') {
+        const resolution: '1024' | '1536' = qualityProfile === 'fast_social' ? '1024' : '1536';
+        setVideoLaunch(null);
+        const createdImage = await api.generateImage(
+          {
+            model_key: selectedImageModelKey,
+            prompt: trimmedIdea,
+            aspect_ratio: aspectRatio,
+            resolution,
+            image_count: 1,
+            reference_urls: uploadedComposerAsset?.assetUrl ? [uploadedComposerAsset.assetUrl] : [],
+            reference_mode: uploadedComposerAsset?.assetUrl ? 'inspiration' : undefined,
+            mode_id: pickImageMode(trimmedIdea, qualityProfile),
+          },
+          userId,
+        );
+        setLatestGeneratedImage(createdImage);
+        setImageResultOpen(true);
+        show({
+          title: 'Image created',
+          message: 'Your image is ready in the popup. If you close it, you can reopen it from the composer.',
+          variant: 'success',
+        });
+        return;
+      }
+
+      const detectedIntent = detectVideoIntent(trimmedIdea);
+      if (shouldAutoUseExplainerRecipe(detectedIntent, nextMode, activeRecipeSource)) {
+        const explainerRecipeId = pickExplainerRecipeId(trimmedIdea);
+        const videoResult = await api.createAIVideo(
+          buildVideoCreatePayload({
+            type: 'recipe',
+            recipeId: explainerRecipeId,
+            prompt: trimmedIdea,
+          }),
+          userId,
+        );
+        show({
+          title: 'Explainer started',
+          message:
+            explainerRecipeId === 'deep_dive_explainer'
+              ? 'We routed this into the longer explainer pipeline and opened the live workspace.'
+              : 'We routed this into the explainer pipeline and opened the live workspace.',
+          variant: 'success',
+        });
+        router.push(`/videos/${videoResult.id}`);
+        return;
+      }
+
+      const profile = {
+        lane: getVideoModelLane(selectedVideoModelKey),
+        modelKey: selectedVideoModelKey,
+        resolution: getVideoResolutionForModel(selectedVideoModelKey, qualityProfile),
+      };
       const durationSeconds = durationPreference === '10' ? 10 : 5;
       const templateKey = pickVideoTemplateKey(trimmedIdea);
       const templateLabel = TEMPLATE_OPTIONS.find((item) => item.key === templateKey)?.label || 'Story / Scene Reel';
@@ -872,8 +1309,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           language: 'English',
           tone: 'Creator-first, emotionally engaging, social-ready',
           lane: profile.lane === 'premium' ? 'Premium' : 'Creator Pro',
-          modelKey: profile.modelKey,
-          modelLabel: profile.modelKey === 'veo3' ? 'Veo 3.1' : 'Kling 3.0',
+          modelKey: selectedVideoModelKey,
+          modelLabel: displayedVideoModel?.label ?? selectedVideoModelKey,
           aspectRatio: aspectRatio,
           resolution: profile.resolution,
           quality: profile.lane === 'premium' ? 'high' : 'standard',
@@ -884,23 +1321,30 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         userId,
       );
 
-      setVideoLaunch({
-        idea: trimmedIdea,
-        templateKey,
-        script: scriptResult.script,
-        initialLane: profile.lane,
-        initialModelKey: profile.modelKey,
-        initialAspectRatio: aspectRatio,
-        initialResolution: profile.resolution,
-        initialDurationSeconds: String(durationSeconds) as '5' | '10',
-        initialCaptionsEnabled: captionsEnabled,
-        initialNarrationEnabled: voiceEnabled,
-      });
+      const videoResult = await api.createAIVideo(
+        buildVideoCreatePayload({
+          type: 'freeform',
+          templateLabel,
+          script: scriptResult.script,
+          modelKey: selectedVideoModelKey,
+          lane: profile.lane,
+          aspectRatio,
+          resolution: profile.resolution,
+          quality: profile.lane === 'premium' ? 'high' : 'standard',
+          durationSeconds,
+          captionsEnabled,
+          narrationEnabled: voiceEnabled,
+          imageUrl: uploadedComposerAsset?.assetUrl,
+        }),
+        userId,
+      );
       show({
-        title: 'Video studio ready',
-        message: 'Script, creator-safe defaults, and the recommended setup are ready below. You can refine everything if needed.',
+        title: 'Video started',
+        message: 'Your video job is live. We are opening the workspace now.',
         variant: 'success',
       });
+      router.push(`/videos/${videoResult.id}`);
+      return;
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : 'Could not prepare the unified creation flow.';
       setError(message);
@@ -912,11 +1356,15 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   };
 
   const currentProfileLabel = QUALITY_PROFILES.find((item) => item.key === qualityProfile)?.label ?? 'Creator Pro';
+  const currentModelLabel = mode === 'video' ? shortVideoModelLabel(displayedVideoModel) : displayedImageModel?.label ?? 'Image';
+  const currentModelHint = mode === 'video' ? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
+  const selectedVideoResolution = getVideoResolutionForModel(selectedVideoModelKey, qualityProfile);
+  const selectedImageResolution: '1024' | '1536' = qualityProfile === 'fast_social' ? '1024' : '1536';
 
   return (
     <div className="space-y-6">
       <section className="space-y-4">
-        <div className="overflow-hidden rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0.92),hsl(var(--color-accent)/0.72))] px-4 py-2.5 shadow-soft">
+        {/*<div className="overflow-hidden rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0.92),hsl(var(--color-accent)/0.72))] px-4 py-2.5 shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-[hsl(var(--color-accent-contrast))]">
               <span className="rounded-full border border-white/15 bg-black/10 px-2.5 py-1 text-xs font-semibold">Unlock your Pro membership for just $6</span>
@@ -933,7 +1381,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               Claim Offer
             </Button>
           </div>
-        </div>
+        </div>  */}
 
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">Create</p>
@@ -1044,32 +1492,29 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               />
             )}
 
-            <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingUploadTarget('composer-asset');
-                    fileInputRef.current?.click();
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/82 transition hover:text-white hover:bg-white/[0.08]"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload image
-                </button>
-                <Link href="/influencer" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/82 transition hover:text-white hover:bg-white/[0.08]">
-                  <UserRound className="h-3.5 w-3.5" />
-                  Add avatar
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void launchUnifiedFlow()}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/88 transition hover:text-white hover:bg-white/[0.08]"
-                >
-                  {loading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  AI generate
-                </button>
+            {mode === 'video' && idea.trim() && !recipeComposer ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {willAutoRouteToExplainer ? (
+                  <>
+                    <Badge variant="outline">
+                      {pickExplainerRecipeId(idea) === 'deep_dive_explainer' ? 'Detected as: Long explainer' : 'Detected as: Explainer'}
+                    </Badge>
+                    <p className="text-xs text-muted">
+                      {pickExplainerRecipeId(idea) === 'deep_dive_explainer'
+                        ? 'We’ll route this into the longer explainer pipeline automatically for more scenes, longer narration, and a more visual explanation.'
+                        : 'We’ll route this into the explainer pipeline automatically for scene planning, narration, and a longer default duration.'}
+                    </p>
+                  </>
+                ) : composerIntent !== 'generic' ? (
+                  <>
+                    <Badge variant="outline">
+                      {composerIntent === 'cinematic' ? 'Detected as: Cinematic' : 'Detected as: Quick reel'}
+                    </Badge>
+                    <p className="text-xs text-muted">This stays on the standard freeform video path unless you choose a recipe.</p>
+                  </>
+                ) : null}
               </div>
+            ) : null}
 
               <div className="flex flex-col gap-3 border-t border-white/8 pt-2.5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -1107,16 +1552,15 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
                     >
                       <Box className="h-4 w-4 text-white/60" />
-                      {mode === 'video' ? 'Video' : 'Image'}
+                      {currentModelLabel}
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'model' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[260px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
-                        <div className="px-3 pb-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Model</p>
-                          <p className="mt-1 text-xs text-muted">Choose the creation type first. You can fine-tune quality in More.</p>
+                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 w-[min(92vw,760px)] rounded-[24px] border border-white/10 bg-[rgba(27,25,34,0.96)] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-[22px]">
+                        <div className="px-2 pb-2">
+                          <p className="text-[12px] font-semibold text-white/92">Model</p>
                         </div>
-                        <div className="flex rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.74)] p-1">
+                        <div className="flex rounded-[14px] border border-white/8 bg-black/35 p-1">
                           {MODE_OPTIONS.map((option) => {
                             const Icon = option.icon;
                             const active = mode === option.key;
@@ -1125,13 +1569,141 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                 key={option.key}
                                 type="button"
                                 onClick={() => handleModeChange(option.key)}
-                                className={`flex-1 rounded-[10px] px-3 py-2 text-sm font-semibold transition ${active ? 'bg-[hsl(var(--color-accent)/0.16)] text-text' : 'text-muted'}`}
+                                className={`flex-1 rounded-[12px] px-3 py-2.5 text-sm font-semibold transition ${active ? 'bg-white/[0.12] text-white' : 'text-white/48 hover:text-white/80'}`}
                               >
                                 <span className="inline-flex items-center gap-2"><Icon className="h-3.5 w-3.5" /> {option.label}</span>
                               </button>
                             );
                           })}
                         </div>
+                        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_250px]">
+                          <div className="space-y-1.5">
+                            {mode === 'video'
+                              ? videoModels.map((model) => (
+                                  <ModelRow
+                                    key={model.key}
+                                    title={shortVideoModelLabel(model)}
+                                    badges={[
+                                      ...(model.resolutionLabels ?? []),
+                                      ...(model.key === 'sora2' || model.key === 'veo3' ? ['With Audio'] : []),
+                                      ...(model.key === 'kling3' ? ['Start End Frame'] : []),
+                                    ]}
+                                    active={selectedVideoModelKey === model.key}
+                                    disabled={model.enabled === false}
+                                    onClick={() => {
+                                      setSelectedVideoModelKey(model.key);
+                                      setModelPanelKey(model.key);
+                                      setQualityProfile(profileForVideoModel(model.key));
+                                      setDurationPreference(getDefaultVideoDurationForModel(model.key));
+                                      closeMenus();
+                                    }}
+                                    onHover={() => setModelPanelKey(model.key)}
+                                  />
+                                ))
+                              : imageModels.map((model) => (
+                                  <ModelRow
+                                    key={model.key}
+                                    title={model.label}
+                                    badges={[
+                                      qualityProfile === 'fast_social' ? '1K' : '1.5K',
+                                      ...(model.badge ? [model.badge] : []),
+                                    ]}
+                                    active={selectedImageModelKey === model.key}
+                                    onClick={() => {
+                                      setSelectedImageModelKey(model.key);
+                                      setModelPanelKey(model.key);
+                                      setQualityProfile(profileForImageModel(model.key));
+                                      closeMenus();
+                                    }}
+                                    onHover={() => setModelPanelKey(model.key)}
+                                  />
+                                ))}
+                          </div>
+                          <div className="rounded-[20px] border border-white/8 bg-black/25 p-3">
+                            {mode === 'video' && activeVideoModelDetail ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-lg font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
+                                  <p className="mt-1 text-xs text-white/52">{activeVideoModelDetail.qualityBadge ?? activeVideoModelDetail.description}</p>
+                                </div>
+                                <div className="space-y-2">
+                                  {(activeVideoModelDetail.resolutionLabels ?? ['720p']).map((label) => (
+                                    <button
+                                      key={`${activeVideoModelDetail.key}-${label}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedVideoModelKey(activeVideoModelDetail.key);
+                                        setModelPanelKey(activeVideoModelDetail.key);
+                                        setQualityProfile(label === '1080p' ? 'premium' : profileForVideoModel(activeVideoModelDetail.key));
+                                        setDurationPreference(getDefaultVideoDurationForModel(activeVideoModelDetail.key));
+                                        closeMenus();
+                                      }}
+                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${
+                                        selectedVideoModelKey === activeVideoModelDetail.key && selectedVideoResolution === (label === '1080p' ? '1080p' : '720p')
+                                          ? 'border border-white/12 bg-white/[0.09]'
+                                          : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+                                      }`}
+                                    >
+                                      <div>
+                                        <p className="text-sm font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
+                                        <div className="mt-1 flex flex-wrap gap-1.5">
+                                          <ModelCapabilityBadge label={label} />
+                                          {(activeVideoModelDetail.key === 'sora2' || activeVideoModelDetail.key === 'veo3') ? <ModelCapabilityBadge label="With Audio" /> : null}
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-semibold text-white/92">~{creditPerSecondLabel(activeVideoModelDetail.key, label, activeVideoModelDetail.tier === 'premium' ? 'high' : 'standard')} credits</p>
+                                        <p className="text-[11px] text-white/42">/sec</p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {mode === 'image' && activeImageModelDetail ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-lg font-semibold text-white">{activeImageModelDetail.label}</p>
+                                  <p className="mt-1 text-xs text-white/52">{activeImageModelDetail.badge ?? activeImageModelDetail.provider ?? 'Image model'}</p>
+                                </div>
+                                <div className="space-y-2">
+                                  {(['1024', '1536'] as const).map((resolution) => (
+                                    <button
+                                      key={`${activeImageModelDetail.key}-${resolution}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedImageModelKey(activeImageModelDetail.key);
+                                        setModelPanelKey(activeImageModelDetail.key);
+                                        setQualityProfile(resolution === '1024' ? 'fast_social' : 'creator_quality');
+                                        closeMenus();
+                                      }}
+                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${
+                                        selectedImageModelKey === activeImageModelDetail.key && selectedImageResolution === resolution
+                                          ? 'border border-white/12 bg-white/[0.09]'
+                                          : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+                                      }`}
+                                    >
+                                      <div>
+                                        <p className="text-sm font-semibold text-white">{activeImageModelDetail.label}</p>
+                                        <div className="mt-1 flex flex-wrap gap-1.5">
+                                          <ModelCapabilityBadge label={resolution === '1024' ? '1K' : '1.5K'} />
+                                          {activeImageModelDetail.badge ? <ModelCapabilityBadge label={activeImageModelDetail.badge} /> : null}
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-semibold text-white/92">~{imageCreditsLabel(activeImageModelDetail.key, resolution)} credits</p>
+                                        <p className="text-[11px] text-white/42">/image</p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        {modelsLoading ? (
+                          <p className="mt-3 px-2 text-xs text-white/46">Refreshing model catalog…</p>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -1247,10 +1819,44 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           </div>
 
           <div className="pt-0.5 text-[12px] text-muted">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-transparent px-2.5 py-1 text-white/58">
-              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              {activeRecipeLabel ? 'Start with a recipe. Refine it in the composer.' : `${currentProfileLabel} defaults are ready. You can refine this later.`}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-transparent px-2.5 py-1 text-white/58">
+                <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                {activeRecipeLabel ? 'Start with a recipe. Refine it in the composer.' : `${currentModelLabel} · ${currentModelHint || currentProfileLabel}. You can refine this later.`}
+              </span>
+              {latestGeneratedImage ? (
+                <button
+                  type="button"
+                  onClick={() => setImageResultOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                  Open last image
+                </button>
+              ) : null}
+              {uploadedComposerAsset?.previewUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setUploadedComposerAsset(null)}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  <img src={uploadedComposerAsset.previewUrl} alt={uploadedComposerAsset.label} className="h-4 w-4 rounded-full object-cover" />
+                  Remove reference
+                </button>
+              ) : null}
+              <Link
+                href="/library"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Open library
+              </Link>
+              <Link
+                href="/projects"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Open projects
+              </Link>
+            </div>
           </div>
 
           {assetPicker ? (
@@ -1356,8 +1962,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                   variant: 'success',
                 });
               } else {
+                const uploaded = await api.uploadFileDirect({ file, kind: 'reference' }, userId);
                 setUploadedAssetName(file.name);
+                setUploadedComposerAsset({
+                  label: file.name,
+                  previewUrl: uploaded.public_url,
+                  assetUrl: uploaded.public_url,
+                  source: 'upload',
+                });
                 setAssetPicker(null);
+                show({
+                  title: 'Reference image attached',
+                  message: 'We will use this as the reference for your next image generation from the composer.',
+                  variant: 'success',
+                });
               }
             } catch (uploadError) {
               const message = uploadError instanceof Error ? uploadError.message : 'Could not upload that image.';
@@ -1395,7 +2013,33 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {loadingRecipes ? (
+        {recipeTab === 'inspiration_photos' ? (
+          loadingInspirationPhotos ? (
+            <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={`inspiration-skeleton-${index}`}
+                  className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${
+                    index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
+                  }`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
+              {inspirationPhotoCards.map((item) => (
+                <ComposerPoster
+                  key={item.id}
+                  title={item.title}
+                  previewUrl={item.previewUrl}
+                  onClick={() => setSelectedInspirationPhoto(item)}
+                  badge={item.badge}
+                  ctaLabel="Use this style"
+                />
+              ))}
+            </div>
+          )
+        ) : loadingRecipes ? (
           <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
@@ -1423,77 +2067,46 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         )}
       </section>
 
-      {recentEntries.length > 0 ? (
-        <section className="space-y-3 pt-1">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Recent</p>
-              <h2 className="font-heading text-xl font-extrabold tracking-tight text-text">Pick up where you left off</h2>
+      <Modal open={imageResultOpen && Boolean(latestGeneratedImage)} onClose={() => setImageResultOpen(false)}>
+        {latestGeneratedImage ? (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
+            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
+              <img
+                src={latestGeneratedImage.image_url}
+                alt={latestGeneratedImage.prompt}
+                className="w-full object-contain bg-black"
+                style={{ aspectRatio: aspectRatioToCss(latestGeneratedImage.aspect_ratio) }}
+              />
             </div>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {recentEntries.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => rehydrateRecentEntry(entry)}
-                className="min-w-[220px] rounded-[22px] border border-[hsl(var(--color-border)/0.68)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.82),hsl(var(--color-elevated)/0.82))] px-4 py-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.35)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{entry.title}</p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{entry.prompt}</p>
-                  </div>
-                  <span className="rounded-full border border-[hsl(var(--color-border))] px-2 py-1 text-[10px] font-semibold text-muted">
-                    {recentBadgeLabel(entry.kind)}
-                  </span>
+            <div className="flex h-full flex-col rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.82)] p-5">
+              <div className="space-y-4">
+                <Badge variant="outline">AI image</Badge>
+                <div>
+                  <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">Image ready</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted">{latestGeneratedImage.prompt}</p>
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-[11px] text-muted">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  <span>{entry.mode === 'video' ? 'Video' : 'Image'}</span>
-                  <span>•</span>
-                  <span>{entry.aspectRatio}</span>
-                  <span>•</span>
-                  <span>{QUALITY_PROFILES.find((item) => item.key === entry.qualityProfile)?.label ?? 'Creator Pro'}</span>
+                <div className="flex flex-wrap gap-2 text-xs text-muted">
+                  <Badge variant="outline">{latestGeneratedImage.model_key}</Badge>
+                  <Badge variant="outline">{latestGeneratedImage.aspect_ratio}</Badge>
+                  <Badge variant="outline">{latestGeneratedImage.resolution}</Badge>
                 </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {videoLaunch ? (
-        <section ref={studioRef} className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[hsl(var(--color-border)/0.68)] bg-[hsl(var(--color-surface)/0.22)] px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-text">Video studio ready</p>
-              <p className="mt-1 text-xs text-muted">
-                Recommended settings, starter script, and creator-safe defaults are already loaded. You can refine everything below.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/create/video"><Button variant="secondary" className="rounded-full px-4 py-2 text-xs">Open Video Studio</Button></Link>
+              </div>
+              <div className="mt-auto flex flex-wrap gap-2 pt-6">
+                <a href={latestGeneratedImage.image_url} target="_blank" rel="noreferrer" className="flex-1">
+                  <Button type="button" className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                    Open full image
+                  </Button>
+                </a>
+                <Link href="/library" className="flex-1">
+                  <Button type="button" variant="secondary" className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                    Open library
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
-
-          {videoLaunch ? (
-            <CreateVideoClient
-              userId={userId}
-              templateKey={videoLaunch.templateKey}
-              initialScript={videoLaunch.script}
-              initialTitle={videoLaunch.idea}
-              initialLane={videoLaunch.initialLane}
-              initialModelKey={videoLaunch.initialModelKey}
-              initialAspectRatio={videoLaunch.initialAspectRatio}
-              initialResolution={videoLaunch.initialResolution}
-              initialDurationSeconds={videoLaunch.initialDurationSeconds}
-              initialCaptionsEnabled={videoLaunch.initialCaptionsEnabled}
-              initialNarrationEnabled={videoLaunch.initialNarrationEnabled}
-              embedded
-            />
-          ) : null}
-        </section>
-      ) : null}
+        ) : null}
+      </Modal>
 
       <Modal open={Boolean(selectedRecipe)} onClose={() => setSelectedRecipe(null)}>
         {selectedRecipe ? (
@@ -1528,6 +2141,39 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               <div className="mt-auto pt-6">
                 <Button type="button" onClick={() => applyRecipeToComposer(selectedRecipe)} className="w-full rounded-[16px] py-3 text-sm font-semibold">
                   {recipeModalCopy(selectedRecipe)}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(selectedInspirationPhoto)} onClose={() => setSelectedInspirationPhoto(null)}>
+        {selectedInspirationPhoto ? (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
+            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
+              <img
+                src={selectedInspirationPhoto.previewUrl}
+                alt={selectedInspirationPhoto.title}
+                className="w-full object-cover"
+                style={{ aspectRatio: aspectRatioToCss(selectedInspirationPhoto.aspectRatio) }}
+              />
+            </div>
+            <div className="flex h-full flex-col rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.82)] p-5">
+              <div className="space-y-4">
+                {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
+                <div>
+                  <h3 className="font-heading text-3xl font-extrabold tracking-tight text-text">{selectedInspirationPhoto.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted">{selectedInspirationPhoto.prompt}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-muted">
+                  <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
+                  <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
+                </div>
+              </div>
+              <div className="mt-auto pt-6">
+                <Button type="button" onClick={() => applyInspirationPhotoToComposer(selectedInspirationPhoto)} className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                  Use this style
                 </Button>
               </div>
             </div>

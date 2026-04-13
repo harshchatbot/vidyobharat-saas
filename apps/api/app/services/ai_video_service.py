@@ -179,6 +179,7 @@ class AIVideoCreateService:
             'kling_v3': self.generate_with_fal,
             'kling_turbo': self.generate_with_fal,
             'kling': self.generate_with_fal,
+            'wan_2_5': self.generate_with_fal,
             'sora_2': self.generate_with_sora2,
             'veo_3_1': self.generate_with_veo3,
         }
@@ -195,6 +196,7 @@ class AIVideoCreateService:
             'kling_v3': [],
             'kling_turbo': [],
             'kling': [],
+            'wan_2_5': [],
             'sora_2': [],
             'veo_3_1': [],
         }
@@ -217,7 +219,7 @@ class AIVideoCreateService:
 
     def _registry_key_for(self, model_key: str) -> str:
         mapping = {
-            'kling_turbo': 'wan2.6_i2v_flash',
+            'kling_turbo': 'kling_turbo',
             'kling': 'kling3',
             'kling_v3': 'kling3',
             'sora_2': 'sora2',
@@ -273,7 +275,7 @@ class AIVideoCreateService:
             duration_seconds=duration_seconds,
             image_urls=image_urls,
         )
-        sample_rate_hz = int((audio_settings or {}).get('sampleRateHz') or 22050)
+        sample_rate_hz = int((audio_settings or {}).get('sampleRateHz') or 48000)
         if sample_rate_hz not in {8000, 22050, 48000}:
             raise ProviderError('sampleRateHz must be one of 8000, 22050, or 48000')
         seed_image_url = image_urls[0] if image_urls else None
@@ -600,6 +602,7 @@ class AIVideoCreateService:
             metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
         )
 
+
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
         duration_seconds = int(params['durationSeconds'])
@@ -613,8 +616,9 @@ class AIVideoCreateService:
             extra={
                 "requested_model": requested_model,
                 "payload_modelKey": params.get("modelKey"),
+                "has_multi_prompt": bool(params.get("multiPrompt")),
             },
-        )    
+        )
 
         video_url, metadata = self.fal.generate(
             model_key=requested_model,
@@ -624,6 +628,8 @@ class AIVideoCreateService:
             duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
             multi_prompt=params.get('multiPrompt'),
+            shot_type='customize' if requested_model == 'kling_v3' else None,
+            generate_audio=False if requested_model == 'kling_v3' else None,
         )
 
         return ProviderResult(
@@ -632,6 +638,7 @@ class AIVideoCreateService:
             video_url=video_url,
             metadata={'mode': 'fal-primary', **metadata},
         )
+
 
     def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
         requested_model = str(payload.get('modelKey') or '')
@@ -1127,6 +1134,8 @@ def celery_process_ai_video(video_id: str) -> None:
                 recipe_inputs,
                 video_id=video.id,
                 user_id=video.user_id,
+                voice_override=video.voice,
+                language_override=video.language,
                 progress_callback=lambda progress: repo.update(video, status=VideoStatus.processing, progress=progress),
             )
         else:

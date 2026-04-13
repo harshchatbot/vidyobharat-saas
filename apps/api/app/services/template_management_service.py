@@ -355,7 +355,7 @@ class TemplateManagementService:
             'captionsEnabled': True,
             'voice': voice,
             'imageUrls': [],
-            'audioSettings': {'sampleRateHz': 22050},
+            'audioSettings': {'sampleRateHz': 48000},
         }
         estimate = self.credit_service.estimate('video_create', request_payload)
         deduction_amount = 0
@@ -394,7 +394,7 @@ class TemplateManagementService:
                 duration_seconds=duration_seconds,
                 voice=voice,
                 music={'type': 'none', 'url': None},
-                audio_settings={'sampleRateHz': 22050, 'volume': 20, 'ducking': True},
+                audio_settings={'sampleRateHz': 48000, 'volume': 20, 'ducking': True},
                 captions_enabled=True,
                 caption_style='Classic',
             )

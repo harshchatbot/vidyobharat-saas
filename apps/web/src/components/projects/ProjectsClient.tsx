@@ -266,7 +266,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => router.push(`/create/video?projectId=${project.id}`)}
+                        onClick={() => router.push('/create')}
                         className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text"
                       >
                         Continue

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.recipes.recipe_registry import RecipeConfig
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, RecipeConfig
 
 
 def build_scene_prompt(
@@ -48,7 +48,7 @@ def build_scene_prompt(
     else:
         prompt += '\n'
 
-    if recipe.id == 'time_echo_explainer':
+    if recipe.id in EXPLAINER_RECIPE_IDS:
         prompt += (
             'This is an EXPLAINER scene for a short social reel.\n'
             'The visuals must communicate the current narration beat clearly and concretely.\n'

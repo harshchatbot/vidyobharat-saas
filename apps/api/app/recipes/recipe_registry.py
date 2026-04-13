@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import re
 from typing import Any
 
 
@@ -118,32 +119,40 @@ def _story_scene_strategy() -> RecipeSceneStrategy:
     )
 
 
+
 def _explainer_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
             RenderSceneConfig(
-                scene_id='scene_1_hook_setup',
+                scene_id='scene_1_hook',
                 beat_names=('hook', 'setup'),
-                duration_seconds=5,
+                duration_seconds=4,
             ),
             RenderSceneConfig(
-                scene_id='scene_2_immediate_effect',
-                beat_names=('immediate_effect', 'escalation'),
-                duration_seconds=5,
+                scene_id='scene_2_consequence',
+                beat_names=('immediate_effect', 'world_impact'),
+                duration_seconds=4,
             ),
             RenderSceneConfig(
-                scene_id='scene_3_world_impact',
-                beat_names=('world_impact', 'human_impact'),
-                duration_seconds=5,
-            ),
-            RenderSceneConfig(
-                scene_id='scene_4_takeaway_ending',
+                scene_id='scene_3_takeaway',
                 beat_names=('takeaway', 'ending'),
-                duration_seconds=5,
+                duration_seconds=4,
             ),
         )
     )
 
+
+def _long_explainer_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook', 'setup'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_2_core_idea', beat_names=('core_idea', 'explanation'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_3_mechanism', beat_names=('mechanism', 'how_it_works'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_4_example', beat_names=('example', 'real_world_context'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_5_consequence', beat_names=('impact', 'why_it_matters'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_6_takeaway', beat_names=('takeaway', 'ending'), duration_seconds=5),
+        )
+    )
 
 RECIPES: dict[str, RecipeConfig] = {
     'spongebob_challenge': RecipeConfig(
@@ -236,7 +245,7 @@ RECIPES: dict[str, RecipeConfig] = {
     'time_echo_explainer': RecipeConfig(
         id='time_echo_explainer',
         type='video',
-        duration_seconds=20,
+        duration_seconds=12,
         input=RecipeInputConfig(image=False, text=True),
         config=RecipeContentConfig(
             style='cinematic_social_explainer',
@@ -253,10 +262,10 @@ RECIPES: dict[str, RecipeConfig] = {
                 'Each scene must support the explanation directly, use smooth transitions, and avoid repeating generic filler visuals. '
                 'Prioritize clarity, consequence, progression, and social-media retention.'
             ),
-            seed_prompt='Create a 20 second narrated Time Echo explainer reel based on the provided topic.',
+            seed_prompt='Create a 12 second narrated Time Echo explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling_v3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -301,6 +310,74 @@ RECIPES: dict[str, RecipeConfig] = {
         ),
         reference_strategy='none',
         metadata={'starter_badge': 'Narrated', 'version': 2},
+    ),
+    'deep_dive_explainer': RecipeConfig(
+        id='deep_dive_explainer',
+        type='video',
+        duration_seconds=30,
+        input=RecipeInputConfig(image=False, text=True),
+        config=RecipeContentConfig(
+            style='cinematic_social_explainer',
+            tone='clear_patient_visual_teaching',
+            music='soft_documentary_underscore',
+            structure=('hook', 'core_idea', 'mechanism', 'example', 'impact', 'takeaway', 'ending'),
+            reference_prompt=(
+                'Turn the topic into a longer visual explainer for short-form platforms. '
+                'Make each scene teach one clear part of the idea, with concrete visual metaphors and understandable progression.'
+            ),
+            scene_guidance=(
+                'Create a longer narrated explainer with visual teaching clarity. '
+                'Each scene should introduce a clear concept, then connect it to the next scene naturally. '
+                'Avoid abstract filler, unrelated gadgets, or generic cinematic inserts that do not help explain the topic.'
+            ),
+            seed_prompt='Create a 30 second narrated explainer reel based on the provided topic.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='sora2',
+            aspect_ratio='9:16',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=True,
+            narration_enabled=True,
+            voice='Shubh',
+            language='English',
+            caption_style='classic',
+        ),
+        scene_strategy=_long_explainer_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='Deep Dive Explainer',
+            slug='deep-dive-explainer',
+            description='Explain bigger topics with more scenes, longer narration, and clearer visual teaching.',
+            short_label='Deep dive',
+            preview_video_url=_sample_video('time-echo-explainer.mp4'),
+            preview_image_url=_sample_video('earth.png'),
+            active=True,
+            featured=True,
+            trending=False,
+            order=22,
+            tags=('all', 'explainer', 'education', 'voiceover', 'deep_dive'),
+            composer=RecipeComposerConfig(
+                recipe_label='Deep Dive Explainer',
+                mode='video',
+                starter_copy='Use this for topics that need more time, more scenes, and a clearer step-by-step explanation.',
+                fragments=(
+                    RecipeComposerFragment(type='text', value='Explain '),
+                    RecipeComposerFragment(type='slot', slot_id='text'),
+                    RecipeComposerFragment(type='text', value=' as a longer visual explainer video.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='text',
+                        kind='text',
+                        label='Topic or concept',
+                        placeholder='Explain the human brain like I am 12 years old',
+                        required=True,
+                    ),
+                ),
+            ),
+        ),
+        reference_strategy='none',
+        metadata={'starter_badge': 'Longer explainers', 'version': 1},
     ),
     'viral_dance_clip': RecipeConfig(
         id='viral_dance_clip',
@@ -529,6 +606,109 @@ RECIPES: dict[str, RecipeConfig] = {
     ),
 }
 
+EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
+
+EXPLAINER_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r'\bexplain\b', re.IGNORECASE),
+    re.compile(r'\bwhat if\b', re.IGNORECASE),
+    re.compile(r'\btell me about\b', re.IGNORECASE),
+    re.compile(r'\bhow does\b', re.IGNORECASE),
+    re.compile(r'\bwhy does\b', re.IGNORECASE),
+    re.compile(r'\beducational\b', re.IGNORECASE),
+    re.compile(r'\bnarrated reel\b', re.IGNORECASE),
+    re.compile(r'\bfact reel\b', re.IGNORECASE),
+    re.compile(r'\bscience of\b', re.IGNORECASE),
+    re.compile(r'\bhistory of\b', re.IGNORECASE),
+)
+STRUCTURED_SCRIPT_MARKERS: tuple[str, ...] = (
+    'opening shot',
+    'closing shot',
+    'scene 1',
+    'scene 2',
+    'narrator:',
+    'visual cue:',
+    'camera cue:',
+    'mood cue:',
+)
+
+
+def detect_video_intent_from_payload(payload_or_normalized: dict[str, Any] | None) -> str:
+    payload = dict(payload_or_normalized or {})
+    haystack = ' '.join(
+        str(payload.get(key) or '')
+        for key in ('template', 'templateId', 'script', 'topic', 'topicHint', 'prompt', 'title')
+    ).strip()
+    if any(pattern.search(haystack) for pattern in EXPLAINER_INTENT_PATTERNS):
+        return 'explainer'
+    return 'generic'
+
+
+def _looks_like_structured_script(value: str) -> bool:
+    normalized = str(value or '').lower()
+    return any(marker in normalized for marker in STRUCTURED_SCRIPT_MARKERS)
+
+
+def maybe_should_use_explainer_recipe(payload_or_normalized: dict[str, Any] | None) -> bool:
+    payload = dict(payload_or_normalized or {})
+    if payload.get('recipeId') or payload.get('recipe_id'):
+        return False
+    if detect_video_intent_from_payload(payload) != 'explainer':
+        return False
+
+    script = str(payload.get('script') or '').strip()
+    if not script:
+        return False
+
+    # Safe to reroute only when we still have a prompt-like request instead of a fully expanded scene script.
+    return not _looks_like_structured_script(script)
+
+
+def normalize_explainer_video_request(payload_or_normalized: dict[str, Any] | None) -> dict[str, Any]:
+    payload = dict(payload_or_normalized or {})
+    normalized = dict(payload)
+    normalized['voice'] = 'Shubh'
+    normalized['captionsEnabled'] = True
+    normalized['narrationEnabled'] = True
+    normalized['durationMode'] = 'custom'
+    normalized['durationSeconds'] = max(12, int(normalized.get('durationSeconds') or 0))
+    return normalized
+
+
+def pick_explainer_recipe_id(prompt_text: str) -> str:
+    normalized = str(prompt_text or '').strip().lower()
+    long_explainer_markers = (
+        'like i am',
+        'like i’m',
+        'like im',
+        'for a 12 year old',
+        'for kids',
+        'simply explain',
+        'in simple terms',
+        'step by step',
+        'deep dive',
+        'detailed',
+        'detail',
+        'visually',
+    )
+    if any(marker in normalized for marker in long_explainer_markers):
+        return 'deep_dive_explainer'
+    if len(normalized.split()) >= 8:
+        return 'deep_dive_explainer'
+    return 'time_echo_explainer'
+
+
+def build_explainer_recipe_request(prompt_text: str) -> tuple[RecipeConfig, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    recipe = get_recipe(pick_explainer_recipe_id(prompt_text))
+    normalized_inputs = validate_recipe_inputs(recipe, {'text': str(prompt_text or '').strip()})
+    normalized_payload = build_normalized_video_payload(recipe, normalized_inputs)
+    normalized_payload['voice'] = 'Shubh'
+    normalized_payload['captionsEnabled'] = True
+    normalized_payload['narrationEnabled'] = True
+    normalized_payload['durationSeconds'] = recipe.duration_seconds
+    normalized_payload['durationMode'] = 'custom'
+    pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_inputs)
+    return recipe, normalized_inputs, normalized_payload, pipeline_metadata
+
 
 def get_recipe(recipe_id: str) -> RecipeConfig:
     recipe = RECIPES.get(str(recipe_id or '').strip())
@@ -628,7 +808,7 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
         'audioSettings': {
             'volume': 20,
             'ducking': True,
-            'sampleRateHz': 22050,
+            'sampleRateHz': 48000,
         },
         'captionsEnabled': defaults.captions_enabled,
         'captionStyle': defaults.caption_style,

@@ -101,7 +101,7 @@ from app.schemas.project import (
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
 from app.schemas.user import UserAvatarUploadResponse, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
-from app.schemas.video import InspirationVideoResponse, MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryResponse
+from app.schemas.video import InspirationVideoResponse, MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryRequest, VideoRetryResponse
 from app.schemas.tts import TTSCatalogResponse, TTSLanguageOptionResponse, TTSPreviewRequest, TTSPreviewResponse, TTSVoiceOptionResponse
 from app.services.avatar_service import AvatarService
 from app.services.auth_service import AuthService
@@ -121,7 +121,17 @@ from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
-from app.recipes.recipe_registry import build_normalized_video_payload, get_recipe, list_recipes, recipe_pipeline_metadata, validate_recipe_inputs
+from app.recipes.recipe_registry import (
+    build_explainer_recipe_request,
+    build_normalized_video_payload,
+    detect_video_intent_from_payload,
+    get_recipe,
+    list_recipes,
+    maybe_should_use_explainer_recipe,
+    normalize_explainer_video_request,
+    recipe_pipeline_metadata,
+    validate_recipe_inputs,
+)
 from app.services.tts import (
     PREVIEW_MAX_CHARS,
     PREVIEW_MAX_REQUESTS_PER_WINDOW,
@@ -397,7 +407,7 @@ def _extract_json_payload(value: str) -> dict:
     return data
 
 
-def _to_video_response(video, db: Session) -> VideoResponse:
+def _to_video_response(video, db: Session, preloaded_tags: dict[tuple[str, str], tuple[list[str], list[str]]] | None = None) -> VideoResponse:
     image_urls: list[str] = []
     reference_images: list[str] = []
     if isinstance(video.image_urls, list):
@@ -414,8 +424,11 @@ def _to_video_response(video, db: Session) -> VideoResponse:
             reference_images = json.loads(video.reference_images or '[]')
         except (json.JSONDecodeError, TypeError):
             reference_images = []
-    asset_tagging = AssetTaggingService(db)
-    auto_tags, user_tags = asset_tagging.list_tags(video.id, 'video')
+    if preloaded_tags is not None:
+        auto_tags, user_tags = preloaded_tags.get(('video', video.id), ([], []))
+    else:
+        asset_tagging = AssetTaggingService(db)
+        auto_tags, user_tags = asset_tagging.list_tags(video.id, 'video')
     return VideoResponse(
         id=video.id,
         user_id=video.user_id,
@@ -460,6 +473,10 @@ def _to_video_response(video, db: Session) -> VideoResponse:
         like_count=int(getattr(video, 'like_count', 0) or 0),
         auto_tags=auto_tags,
         user_tags=user_tags,
+        recipe_id=getattr(video, 'recipe_id', None),
+        recipe_inputs=getattr(video, 'recipe_inputs', {}) or {},
+        pipeline_mode=getattr(video, 'pipeline_mode', None),
+        pipeline_metadata=getattr(video, 'pipeline_metadata', {}) or {},
         created_at=video.created_at,
         updated_at=video.updated_at,
     )
@@ -1379,6 +1396,29 @@ def create_ai_video(
             normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
             normalized_payload = build_normalized_video_payload(recipe, normalized_recipe_inputs)
             pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
+        elif maybe_should_use_explainer_recipe(normalized_payload):
+            recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_explainer_recipe_request(
+                str(payload.script or '').strip()
+            )
+            logger.info(
+                'ai_video_create_auto_rerouted_to_recipe',
+                extra={
+                    'request_id': request_id,
+                    'user_id': user_id,
+                    'recipe_id': recipe.id,
+                    'intent': detect_video_intent_from_payload(normalized_payload),
+                },
+            )
+        elif detect_video_intent_from_payload(normalized_payload) == 'explainer':
+            normalized_payload = normalize_explainer_video_request(normalized_payload)
+            logger.info(
+                'ai_video_create_explainer_normalized',
+                extra={
+                    'request_id': request_id,
+                    'user_id': user_id,
+                    'duration_seconds': normalized_payload.get('durationSeconds'),
+                },
+            )
 
         logger.info(
             'ai_video_create_started',
@@ -1388,7 +1428,7 @@ def create_ai_video(
         error_stage = 'estimate'
         estimate_payload = {
             **normalized_payload,
-            'recipeId': payload.recipeId,
+            'recipeId': recipe.id if recipe else payload.recipeId,
             'inputs': normalized_recipe_inputs or {},
         }
         wallet_for_estimate, estimate = credit_service.estimate_for_user(user_id, 'video_create', estimate_payload)
@@ -1464,9 +1504,9 @@ def create_ai_video(
             captions_enabled=bool(normalized_payload.get('captionsEnabled')),
             narration_enabled=bool(normalized_payload.get('narrationEnabled')),
             caption_style=str(normalized_payload.get('captionStyle') or payload.captionStyle),
-            recipe_id=payload.recipeId,
+            recipe_id=recipe.id if recipe else payload.recipeId,
             recipe_inputs=normalized_recipe_inputs,
-            pipeline_mode='recipe' if payload.recipeId else None,
+            pipeline_mode='recipe' if recipe or payload.recipeId else None,
             pipeline_metadata=pipeline_metadata,
         )
         # Persist charged credits on the video document so async failure refunds are exact.
@@ -2928,13 +2968,15 @@ def delete_upload(
 
 @router.get('/videos', response_model=list[VideoResponse])
 def list_videos(
-    limit: int | None = None,
+    limit: int | None = 50,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(None)
     videos = service.list_videos(user_id, limit=limit)
-    return [_to_video_response(video, db) for video in videos]
+    asset_tagging = AssetTaggingService(db)
+    tag_map = asset_tagging.list_tags_for_assets([('video', video.id) for video in videos])
+    return [_to_video_response(video, db, preloaded_tags=tag_map) for video in videos]
 
 
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])
@@ -3105,7 +3147,7 @@ async def create_video(
     duration_mode: str = Form(default='auto'),
     duration_seconds: int | None = Form(default=None),
     captions_enabled: bool = Form(default=True),
-    audio_sample_rate_hz: int = Form(default=22050),
+    audio_sample_rate_hz: int = Form(default=48000),
     selected_model: str | None = Form(default=None),
     reference_images: list[str] = Form(default=[]),
     music_mode: str = Form(default='none'),
@@ -3161,11 +3203,19 @@ def get_video(
 @router.post('/videos/{video_id}/retry', response_model=VideoRetryResponse)
 def retry_video(
     video_id: str,
+    payload: VideoRetryRequest | None = None,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(db)
-    video = service.retry_video(video_id, user_id)
+    video = service.retry_video(
+        video_id,
+        user_id,
+        voice_override=payload.voice if payload else None,
+        language_override=payload.language if payload else None,
+        script_override=payload.script if payload else None,
+        audio_sample_rate_hz=payload.audio_sample_rate_hz if payload else None,
+    )
     if not video:
         raise HTTPException(status_code=404, detail='Video not found')
     return VideoRetryResponse(id=video.id, status=video.status.value if hasattr(video.status, 'value') else str(video.status))
