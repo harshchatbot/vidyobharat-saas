@@ -21,6 +21,7 @@ from app.core.shared_config import load_shared_json
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.providers.storage import build_storage_provider
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService
 from app.services.fal_video_service import FalVideoService
@@ -269,12 +270,15 @@ class AIVideoCreateService:
 
         self._validate_output_settings(model_key=registry_model_key, aspect_ratio=aspect_ratio, resolution=resolution)
 
-        normalized_duration = self._normalize_duration(
-            model_key=registry_model_key,
-            duration_mode=duration_mode,
-            duration_seconds=duration_seconds,
-            image_urls=image_urls,
-        )
+        if recipe_id in EXPLAINER_RECIPE_IDS and duration_seconds:
+            normalized_duration = int(duration_seconds)
+        else:
+            normalized_duration = self._normalize_duration(
+                model_key=registry_model_key,
+                duration_mode=duration_mode,
+                duration_seconds=duration_seconds,
+                image_urls=image_urls,
+            )
         sample_rate_hz = int((audio_settings or {}).get('sampleRateHz') or 48000)
         if sample_rate_hz not in {8000, 22050, 48000}:
             raise ProviderError('sampleRateHz must be one of 8000, 22050, or 48000')
@@ -642,6 +646,7 @@ class AIVideoCreateService:
 
     def execute_model_with_router(self, payload: dict[str, Any]) -> ProviderResult:
         requested_model = str(payload.get('modelKey') or '')
+        recipe_metadata = payload.get('recipeMetadata') if isinstance(payload.get('recipeMetadata'), dict) else {}
         route = resolve_generation_route(medium='video', model_key=requested_model)
         primary_key = route.canonical_model_key or requested_model
 
@@ -665,7 +670,10 @@ class AIVideoCreateService:
         if primary_key not in self.providers:
             raise ProviderError(f'Unsupported model: {requested_model}')
 
-        fallback_models = self.video_fallbacks.get(primary_key, []) or self.video_fallbacks.get(requested_model, [])
+        disable_fallbacks = bool(recipe_metadata.get('disableModelFallbacks'))
+        fallback_models = [] if disable_fallbacks else (
+            self.video_fallbacks.get(primary_key, []) or self.video_fallbacks.get(requested_model, [])
+        )
 
         routed = self.model_router.resolve_and_execute(
             requested_model_id=primary_key,
@@ -1319,21 +1327,9 @@ def celery_process_ai_video(video_id: str) -> None:
             repo.update(target, status=failure_status, progress=100, error_message=str(exc)[:255])
             try:
                 charged_credits = int(raw_data.get('applied_credits') or 0)
-                estimate_payload = {
-                    'modelKey': target.selected_model,
-                    'resolution': target.resolution,
-                    'durationSeconds': target.duration_seconds or 8,
-                    'quality': str(raw_data.get('request_quality') or ('high' if (target.resolution or '').lower() == '1080p' else 'standard')),
-                    'captionsEnabled': bool(target.captions_enabled),
-                    'voice': target.voice,
-                    'imageUrls': json.loads(target.image_urls or '[]'),
-                    'audioSettings': {'sampleRateHz': target.audio_sample_rate_hz or 22050},
-                }
-                credit_service = CreditService(None)
-                if charged_credits <= 0:
-                    estimate = credit_service.estimate('video_create', estimate_payload)
-                    charged_credits = estimate.required_credits
-                if charged_credits > 0:
+                already_refunded = bool(raw_data.get('failed_refunded', False))
+                if charged_credits > 0 and not already_refunded:
+                    credit_service = CreditService(None)
                     credit_service.top_up_credits(
                         user_id=target.user_id,
                         credits=charged_credits,
@@ -1347,9 +1343,20 @@ def celery_process_ai_video(video_id: str) -> None:
                             {'video_id': target.id},
                         ),
                     )
+                    repo.update(target, failed_refunded=True)
                     logger.info(
                         'ai_video_job_refunded',
                         extra={'render_id': video_id, 'user_id': target.user_id, 'credits': charged_credits},
+                    )
+                elif charged_credits <= 0:
+                    logger.info(
+                        'ai_video_job_refund_skipped_no_charge',
+                        extra={'render_id': video_id, 'user_id': target.user_id},
+                    )
+                else:
+                    logger.info(
+                        'ai_video_job_refund_skipped_already_refunded',
+                        extra={'render_id': video_id, 'user_id': target.user_id},
                     )
             except Exception:
                 logger.exception('ai_video_refund_failed', extra={'render_id': video_id})

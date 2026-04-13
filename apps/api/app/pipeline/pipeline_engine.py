@@ -269,6 +269,42 @@ def _build_kling_v3_multi_prompt(
     return multi_prompt
 
 
+def _join_nonempty_text(parts: list[str]) -> str:
+    values = [str(part or "").strip() for part in parts if str(part or "").strip()]
+    return " ".join(values).strip()
+
+
+def _build_long_explainer_sora_fallback_plan(
+    *,
+    scene_beats: list[str],
+    scene_narration_context: list[str],
+) -> tuple[list[dict[str, Any]], list[str], list[str], int]:
+    grouped = (
+        ("scene_1_hook_core", ("hook", "core_idea"), (0, 1)),
+        ("scene_2_mechanism_example", ("mechanism", "example"), (2, 3)),
+        ("scene_3_impact", ("impact",), (4,)),
+        ("scene_4_takeaway", ("takeaway", "ending"), (5,)),
+    )
+    scenes: list[dict[str, Any]] = []
+    merged_beats: list[str] = []
+    merged_contexts: list[str] = []
+
+    for scene_id, beat_names, indexes in grouped:
+        scenes.append(
+            {
+                "scene_id": scene_id,
+                "beat_names": list(beat_names),
+                "duration_seconds": 8,
+            }
+        )
+        merged_beats.append(_join_nonempty_text([scene_beats[index] for index in indexes if index < len(scene_beats)]))
+        merged_contexts.append(
+            _join_nonempty_text([scene_narration_context[index] for index in indexes if index < len(scene_narration_context)])
+        )
+
+    return scenes, merged_beats, merged_contexts, sum(int(scene["duration_seconds"]) for scene in scenes)
+
+
 def run_recipe_pipeline(
     recipe_id: str,
     inputs: dict[str, Any],
@@ -374,7 +410,7 @@ def run_recipe_pipeline(
 
     generation = VideoGenerationService(get_settings())
 
-    # Real multi-shot path for Time Echo Explainer on Kling v3
+    # Real multi-shot path for explainer recipes on Kling v3
     if recipe.id in EXPLAINER_RECIPE_IDS and recipe.generation_defaults.model_key == "kling_v3":
         if progress_callback:
             progress_callback(40)
@@ -390,7 +426,7 @@ def run_recipe_pipeline(
 
         topic = str(normalized_inputs.get("text") or "").strip()
         master_prompt = (
-            f'Create a short social-first explainer reel about "{_normalize_topic(topic)}". '
+            f'Create a {"long-form" if recipe.id == "deep_dive_explainer" else "short"} social-first explainer reel about "{_normalize_topic(topic)}". '
             'Use all shots as one coherent vertical reel with strong continuity, clear cause-and-effect storytelling, '
             'smooth transitions, readable composition, and a memorable final takeaway.'
         )
@@ -412,46 +448,160 @@ def run_recipe_pipeline(
             detail="The pipeline is rendering the multi-shot explainer sequence.",
         )
 
-        clip_result = generation.generate_video_clip(
-            ClipGenerationRequest(
+        rendered_path: Path | None = None
+        resolved_model_key = recipe.generation_defaults.model_key
+        effective_duration_seconds = recipe.duration_seconds
+        fallback_model_used: str | None = None
+        effective_scene_count = len(scenes)
+
+        try:
+            clip_result = generation.generate_video_clip(
+                ClipGenerationRequest(
+                    video_id=video_id,
+                    prompt=master_prompt,
+                    model_key=recipe.generation_defaults.model_key,
+                    aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                    resolution=recipe.generation_defaults.resolution,
+                    duration_seconds=recipe.duration_seconds,
+                    reference_image_url=reference,
+                    voice=recipe.generation_defaults.voice,
+                    language=recipe.generation_defaults.language,
+                    captions_enabled=recipe.generation_defaults.captions_enabled,
+                    narration_enabled=False,
+                    caption_style=recipe.generation_defaults.caption_style,
+                    metadata={
+                        "recipe_id": recipe.id,
+                        "scene_count": len(scenes),
+                        "scene_beats": [scene.get("beat_names") for scene in scenes],
+                        "narration_script": narration_script,
+                        "overlay_text": overlay_text,
+                        "multishot": True,
+                        "render_mode": "multi_shot",
+                        "recipe_label": recipe.catalog.title,
+                        "recipe_duration_seconds": recipe.duration_seconds,
+                        "disableModelFallbacks": recipe.id == "deep_dive_explainer",
+                    },
+                    multi_prompt=multi_prompt,
+                )
+            )
+
+            if progress_callback:
+                progress_callback(82)
+
+            logger.info(
+                "recipe_multishot_generation_completed",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "model_key": recipe.generation_defaults.model_key,
+                    "clip_url": clip_result.video_url,
+                },
+            )
+
+            rendered_path = pipeline.ensure_local_media_path(clip_result.video_url)
+            if not rendered_path:
+                raise RuntimeError("Could not materialize multi-shot output locally for final audio assembly.")
+        except Exception as exc:
+            if recipe.id != "deep_dive_explainer":
+                raise
+
+            logger.warning(
+                "recipe_multishot_primary_failed",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "requested_model": recipe.generation_defaults.model_key,
+                    "error": str(exc),
+                },
+            )
+            _append_pipeline_event(
                 video_id=video_id,
-                prompt=master_prompt,
-                model_key=recipe.generation_defaults.model_key,
+                kind="provider_fallback",
+                title="Switching to Sora fallback",
+                detail="Kling output was unavailable, so the pipeline is rebuilding the long explainer with Sora-safe 8 second scenes.",
+            )
+
+            sora_scenes, sora_scene_beats, sora_scene_context, effective_duration_seconds = _build_long_explainer_sora_fallback_plan(
+                scene_beats=scene_beats,
+                scene_narration_context=scene_narration_context,
+            )
+            clip_urls: list[str] = []
+            total_fallback_scenes = max(len(sora_scenes), 1)
+            resolved_model_key = "sora2"
+            fallback_model_used = "sora2"
+            effective_scene_count = len(sora_scenes)
+
+            for index, scene in enumerate(sora_scenes):
+                scene_progress = 40 + int((index / total_fallback_scenes) * 38)
+                if progress_callback:
+                    progress_callback(scene_progress)
+
+                scene_inputs = dict(normalized_inputs)
+                topic = str(normalized_inputs.get("text") or "").strip()
+                beat = sora_scene_beats[index] if index < len(sora_scene_beats) else ""
+                narration_context = sora_scene_context[index] if index < len(sora_scene_context) else ""
+                scene_inputs["text"] = (
+                    f'Topic: {_normalize_topic(topic)}. '
+                    f'Visual objective: {beat}. '
+                    f'Narration context: {narration_context}'
+                ).strip()
+
+                prompt = build_scene_prompt(recipe, scene, reference, scene_inputs)
+                clip_result = generation.generate_video_clip(
+                    ClipGenerationRequest(
+                        video_id=f'{video_id}-{scene["scene_id"]}',
+                        prompt=prompt,
+                        model_key="sora2",
+                        aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                        resolution=recipe.generation_defaults.resolution,
+                        duration_seconds=int(scene["duration_seconds"]),
+                        reference_image_url=reference,
+                        voice=recipe.generation_defaults.voice,
+                        language=recipe.generation_defaults.language,
+                        captions_enabled=recipe.generation_defaults.captions_enabled,
+                        narration_enabled=False,
+                        caption_style=recipe.generation_defaults.caption_style,
+                        metadata={
+                            "recipe_id": recipe.id,
+                            "scene_id": scene["scene_id"],
+                            "scene_index": index,
+                            "scene_beats": scene.get("beat_names"),
+                            "render_mode": "multi_shot",
+                            "recipe_label": recipe.catalog.title,
+                            "recipe_duration_seconds": recipe.duration_seconds,
+                            "effective_duration_seconds": effective_duration_seconds,
+                            "fallback_model_used": "sora2",
+                            "fallback_from_model": recipe.generation_defaults.model_key,
+                        },
+                    )
+                )
+                clip_urls.append(clip_result.video_url)
+
+            stitcher = VideoStitcher()
+            rendered_path = stitcher.stitch_video(
+                clips=clip_urls,
+                render_id=video_id,
                 aspect_ratio=recipe.generation_defaults.aspect_ratio,
                 resolution=recipe.generation_defaults.resolution,
-                duration_seconds=15,
-                reference_image_url=reference,
-                voice=recipe.generation_defaults.voice,
-                language=recipe.generation_defaults.language,
-                captions_enabled=recipe.generation_defaults.captions_enabled,
-                narration_enabled=False,
-                caption_style=recipe.generation_defaults.caption_style,
-                metadata={
-                    "recipe_id": recipe.id,
-                    "scene_count": len(scenes),
-                    "scene_beats": [scene.get("beat_names") for scene in scenes],
-                    "narration_script": narration_script,
-                    "overlay_text": overlay_text,
-                    "multishot": True,
-                },
-                multi_prompt=multi_prompt,
             )
-        )
 
-        if progress_callback:
-            progress_callback(82)
+            logger.info(
+                "recipe_multishot_fallback_completed",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "resolved_model": resolved_model_key,
+                    "effective_duration_seconds": effective_duration_seconds,
+                    "clip_count": len(clip_urls),
+                },
+            )
+            _append_pipeline_event(
+                video_id=video_id,
+                kind="timeline_assembled",
+                title="Sora fallback timeline assembled",
+                detail="Sora-safe long scenes were generated and stitched into one explainer timeline.",
+            )
 
-        logger.info(
-            "recipe_multishot_generation_completed",
-            extra={
-                "video_id": video_id,
-                "recipe_id": recipe.id,
-                "model_key": recipe.generation_defaults.model_key,
-                "clip_url": clip_result.video_url,
-            },
-        )
-
-        rendered_path = pipeline.ensure_local_media_path(clip_result.video_url)
         if not rendered_path:
             raise RuntimeError("Could not materialize multi-shot output locally for final audio assembly.")
 
@@ -489,8 +639,22 @@ def run_recipe_pipeline(
             extra={
                 "video_id": video_id,
                 "recipe_id": recipe.id,
+                "resolved_model": resolved_model_key,
+                "fallback_model_used": fallback_model_used,
+                "effective_duration_seconds": effective_duration_seconds,
                 **pipeline.probe_media_streams(final_path),
             },
+        )
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            render_mode="multi_shot",
+            recipe_label=recipe.catalog.title,
+            recipe_duration_seconds=recipe.duration_seconds,
+            effective_duration_seconds=effective_duration_seconds,
+            scene_count=effective_scene_count,
+            resolved_model=resolved_model_key,
+            fallback_model_used=fallback_model_used,
+            fallback_used=bool(fallback_model_used),
         )
         _append_pipeline_event(
             video_id=video_id,
@@ -506,13 +670,19 @@ def run_recipe_pipeline(
             metadata={
                 "recipe_id": recipe.id,
                 "reference_asset": str(reference),
-                "scene_count": len(scenes),
+                "scene_count": effective_scene_count,
                 "output_path": str(final_path),
                 "narration_script": narration_script,
                 "overlay_text": overlay_text,
                 "requested_model": recipe.generation_defaults.model_key,
-                "resolved_model": recipe.generation_defaults.model_key,
+                "resolved_model": resolved_model_key,
                 "multishot": True,
+                "render_mode": "multi_shot",
+                "recipe_label": recipe.catalog.title,
+                "recipe_duration_seconds": recipe.duration_seconds,
+                "effective_duration_seconds": effective_duration_seconds,
+                "fallback_model_used": fallback_model_used,
+                "fallback_used": bool(fallback_model_used),
             },
         )
 
@@ -660,6 +830,17 @@ def run_recipe_pipeline(
         title="Final render ready",
         detail="The explainer render completed successfully.",
     )
+    _merge_pipeline_metadata(
+        video_id=video_id,
+        render_mode="multi_shot",
+        recipe_label=recipe.catalog.title,
+        recipe_duration_seconds=recipe.duration_seconds,
+        effective_duration_seconds=sum(int(scene["duration_seconds"]) for scene in scenes),
+        scene_count=len(scenes),
+        resolved_model=recipe.generation_defaults.model_key,
+        fallback_model_used=None,
+        fallback_used=False,
+    )
 
     return RecipePipelineResult(
         provider="recipe_pipeline",
@@ -674,6 +855,13 @@ def run_recipe_pipeline(
             "overlay_text": overlay_text,
             "requested_model": recipe.generation_defaults.model_key,
             "resolved_model": recipe.generation_defaults.model_key,
+            "multishot": True,
+            "render_mode": "multi_shot",
+            "recipe_label": recipe.catalog.title,
+            "recipe_duration_seconds": recipe.duration_seconds,
+            "effective_duration_seconds": sum(int(scene["duration_seconds"]) for scene in scenes),
+            "fallback_model_used": None,
+            "fallback_used": False,
         },
     )
 

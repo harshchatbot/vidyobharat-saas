@@ -104,7 +104,7 @@ function getStageTodos(video: Video) {
     video.music_mode !== 'none'
       ? `Prepare ${video.music_mode === 'library' ? 'selected' : video.music_mode} music for the final mix`
       : 'Skip music layer for this render';
-      const timelineLabel = `Assemble timeline at ${video.aspect_ratio} · ${video.resolution}`;
+  const timelineLabel = `Assemble timeline at ${video.aspect_ratio} · ${video.resolution}`;
 
   const status = video.status;
   if (status === 'completed') {
@@ -128,10 +128,25 @@ function getStageTodos(video: Video) {
   ];
 }
 
-function timelineTickLabels(durationSeconds: number | null) {
-  const total = Math.max(4, Math.round(durationSeconds ?? 10));
-  const quarter = Math.max(1, Math.round(total / 4));
-  return [0, quarter, quarter * 2, quarter * 3, total].map((value) => formatClock(value));
+function buildTimelineTicks(durationSeconds: number | null) {
+  const total = Math.max(1, Math.round(durationSeconds ?? 0));
+  const step = Math.max(1, Math.ceil(total / 4));
+  const values: number[] = [];
+
+  for (let second = 0; second < total; second += step) {
+    values.push(second);
+  }
+
+  if (values[values.length - 1] !== total) {
+    values.push(total);
+  }
+
+  const uniqueValues = Array.from(new Set(values)).sort((left, right) => left - right);
+  return uniqueValues.map((value) => ({
+    seconds: value,
+    label: formatClock(value),
+    percent: total > 0 ? (value / total) * 100 : 0,
+  }));
 }
 
 function SoftPill({ children }: { children: React.ReactNode }) {
@@ -312,6 +327,31 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     }
     return 'Render script';
   }, [narrationSourceType]);
+  const recipeLabel = useMemo(() => {
+    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
+    const catalog = (pipelineMetadata.catalog ?? null) as { title?: string } | null;
+    const value = pipelineMetadata.recipe_label ?? catalog?.title;
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }, [video?.pipeline_metadata]);
+  const recipeDurationSeconds = useMemo(() => {
+    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
+    const value =
+      pipelineMetadata.effective_duration_seconds ??
+      pipelineMetadata.recipe_duration_seconds ??
+      pipelineMetadata.duration_seconds;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [video?.pipeline_metadata]);
+  const recipeRenderMode = useMemo(() => {
+    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
+    const value = pipelineMetadata.render_mode;
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }, [video?.pipeline_metadata]);
+  const fallbackModelUsed = useMemo(() => {
+    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
+    const value = pipelineMetadata.fallback_model_used;
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }, [video?.pipeline_metadata]);
   const selectedLanguageLabel = useMemo(
     () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
     [languageOptions, selectedLanguage],
@@ -464,21 +504,24 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const stage = video ? getStage(video.progress, video.status) : null;
   const isGenerationActive = video?.status === 'draft' || video?.status === 'processing';
   const todoItems = useMemo(() => (video ? getStageTodos(video) : []), [video]);
-  const ticks = timelineTickLabels(video?.duration_seconds ?? 10);
-  const timelineDuration = playbackDuration || video?.duration_seconds || 0;
+  const timelineDuration = useMemo(
+    () => Math.max(0, playbackDuration || video?.duration_seconds || 0),
+    [playbackDuration, video?.duration_seconds],
+  );
+  const ticks = useMemo(() => buildTimelineTicks(timelineDuration), [timelineDuration]);
   const playheadPercent = useMemo(() => {
     if (!timelineDuration || !Number.isFinite(timelineDuration)) return 0;
     return Math.max(0, Math.min(100, (playbackTime / timelineDuration) * 100));
   }, [playbackTime, timelineDuration]);
   const playheadStyle = useMemo(
     () => ({
-      left: `calc(0.75rem + (100% - 1.5rem) * ${playheadPercent / 100})`,
+      left: `${playheadPercent}%`,
     }),
     [playheadPercent],
   );
   const playedMaskStyle = useMemo(
     () => ({
-      width: `calc((100% - 1.5rem) * ${playheadPercent / 100})`,
+      width: `${playheadPercent}%`,
     }),
     [playheadPercent],
   );
@@ -899,7 +942,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold tracking-tight text-text sm:text-lg">
-              {currentVideo.title || 'Untitled Video'}
+                {currentVideo.title || 'Untitled Video'}
               </h1>
               <p className="mt-0.5 text-xs text-muted">Studio workspace</p>
             </div>
@@ -940,13 +983,13 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
       <div className="flex flex-1 flex-col gap-2 px-4 pb-4 pt-3">
         <div
-          className={`grid items-start gap-3 ${compactLeftPanes
+          className={`grid items-stretch gap-3 ${compactLeftPanes
             ? 'xl:grid-cols-[220px_220px_minmax(420px,1fr)_360px]'
             : 'xl:grid-cols-[260px_260px_minmax(440px,1fr)_360px]'
             }`}
         >
           <section>
-            <div className="flex min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
+            <div className="flex h-full min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
               <div className="flex items-center justify-between px-5 py-5">
                 <p className="text-[15px] font-semibold text-text">Assets</p>
                 <button
@@ -1153,8 +1196,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
           </section>
 
-          <section className="self-start">
-            <div className="flex min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
+          <section className="h-full">
+            <div className="flex h-full min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-muted">Audio script</p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1190,7 +1233,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
           </section>
 
-          <section className="self-start flex min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
+          <section className="flex h-full min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)]">
             <div className="flex flex-1 flex-col">
               <div className="overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,hsl(var(--color-bg-soft)),hsl(var(--color-surface)))]">
                 {video.status === 'completed' && outputUrl ? (
@@ -1252,7 +1295,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                     {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
                   </button>
                   <span className="text-xs font-medium text-muted">
-                  {formatClock(playbackTime)} / {formatClock(playbackDuration || currentVideo.duration_seconds || 0)}
+                    {formatClock(playbackTime)} / {formatClock(playbackDuration || currentVideo.duration_seconds || 0)}
                   </span>
                 </div>
 
@@ -1276,8 +1319,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
           </section>
 
-          <aside>
-            <div className="flex min-h-[520px] flex-col rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
+          <aside className="self-start">
+            <div className="flex min-h-[520px] max-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
               <div className="flex items-center justify-between px-1 pb-1">
                 <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-2.5 py-1 text-xs font-medium text-text">
                   {referenceImages[0] || displayPosterUrl ? (
@@ -1290,7 +1333,16 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                 <SoftPill>{video.progress}%</SoftPill>
               </div>
 
-              <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 2xl:pr-2">
+              {recipeLabel ? (
+                <div className="mt-3 flex flex-wrap gap-2 px-1">
+                  <SoftPill>{recipeLabel}</SoftPill>
+                  {recipeDurationSeconds ? <SoftPill>{formatLongDuration(recipeDurationSeconds)}</SoftPill> : null}
+                  {recipeRenderMode === 'multi_shot' ? <SoftPill>multi-shot</SoftPill> : null}
+                  {fallbackModelUsed ? <SoftPill>{`fallback: ${fallbackModelUsed.toUpperCase()}`}</SoftPill> : null}
+                </div>
+              ) : null}
+
+              <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 2xl:pr-2">
                 {referenceImages[0] ? (
                   <div className="ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-2.5">
                     <img src={referenceImages[0]} alt="Reference" className="aspect-[4/3] w-full rounded-[14px] object-cover" />
@@ -1422,7 +1474,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                 ) : null}
               </div>
 
-              <div className="sticky bottom-0 mt-4 bg-[hsl(var(--color-surface))] px-1 py-4">
+              <div className="mt-4 border-t border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface))] px-1 pt-4 pb-1">
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1489,7 +1541,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
               <p className="mt-1 text-xs text-muted">Scrub through video and audio layers</p>
             </div>
             <p className="text-xs text-muted">
-            {formatClock(playbackTime)} / {formatClock(playbackDuration || currentVideo.duration_seconds || 0)}
+              {formatClock(playbackTime)} / {formatClock(playbackDuration || currentVideo.duration_seconds || 0)}
             </p>
           </div>
 
@@ -1520,46 +1572,53 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
 
             <div className="relative overflow-hidden rounded-[16px] bg-[hsl(var(--color-surface))] ring-1 ring-[hsl(var(--color-border-soft)/0.14)]">
-              <div
-                data-timeline-surface="true"
-                className="relative border-b border-[hsl(var(--color-border-soft)/0.12)] px-12 py-3"
-                onClick={seekTimeline}
-                onPointerDown={beginTimelineScrub}
-                role="presentation"
-              >
-                <div className="grid grid-cols-5 text-[11px] text-muted">
+              <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-3 border-b border-[hsl(var(--color-border-soft)/0.12)] px-3 py-3">
+                <div />
+                <div
+                  data-timeline-surface="true"
+                  className="relative h-8 cursor-pointer"
+                  onClick={seekTimeline}
+                  onPointerDown={beginTimelineScrub}
+                  role="presentation"
+                >
                   {ticks.map((tick, index) => (
-                    <div key={`${tick}-${index}`} className="relative">
-                      <span>{tick}</span>
+                    <div
+                      key={`${tick.seconds}-${index}`}
+                      className={`absolute top-0 text-[11px] text-muted ${
+                        index === 0 ? 'translate-x-0' : index === ticks.length - 1 ? '-translate-x-full' : '-translate-x-1/2'
+                      }`}
+                      style={{ left: `${tick.percent}%` }}
+                    >
+                      <span>{tick.label}</span>
                       <span className="absolute left-0 top-5 h-2 w-px bg-[hsl(var(--color-border-soft)/0.45)]" />
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="relative px-3 pb-3 pt-2">
-                <div
-                  className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-[hsl(var(--color-accent))]"
-                  style={playheadStyle}
-                >
-                  <span className="absolute -top-1 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-[hsl(var(--color-accent))] shadow-[0_0_0_4px_hsl(var(--color-accent)/0.14)]" />
+              <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-3 px-3 pb-3 pt-2">
+                <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                  Video
                 </div>
 
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="w-12 shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-                    Video
+                <div className="relative">
+                  <div
+                    className="pointer-events-none absolute inset-y-0 z-20 w-px bg-[hsl(var(--color-accent))]"
+                    style={playheadStyle}
+                  >
+                    <span className="absolute -top-1 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-[hsl(var(--color-accent))] shadow-[0_0_0_4px_hsl(var(--color-accent)/0.14)]" />
                   </div>
 
                   <div
                     data-timeline-surface="true"
-                    className="relative min-w-0 flex-1 cursor-pointer"
+                    className="relative min-w-0 cursor-pointer"
                     onClick={seekTimeline}
                     onPointerDown={beginTimelineScrub}
                     role="presentation"
                   >
                     <div className="relative flex overflow-hidden rounded-[12px] bg-[hsl(var(--color-bg))] p-1">
                       <div
-                        className="pointer-events-none absolute inset-y-1 left-1 z-0 rounded-[10px] bg-[hsl(var(--color-accent)/0.08)]"
+                        className="pointer-events-none absolute inset-y-1 left-0 z-0 rounded-[10px] bg-[hsl(var(--color-accent)/0.08)]"
                         style={playedMaskStyle}
                       />
                       {(timelineFrames.length > 0
@@ -1581,59 +1640,57 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   </div>
                 </div>
 
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="w-12 shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-                    Audio
-                  </div>
+                <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                  Audio
+                </div>
 
-                  <div
-                    data-timeline-surface="true"
-                    className="relative min-w-0 flex-1 cursor-pointer"
-                    onClick={seekTimeline}
-                    onPointerDown={beginTimelineScrub}
-                    role="presentation"
-                  >
-                    <div className="relative rounded-[10px] bg-[hsl(var(--color-bg))] px-3 py-3">
-                      <div
-                        className="pointer-events-none absolute inset-y-2 left-2 rounded-[8px] bg-[hsl(var(--color-accent)/0.06)]"
-                        style={playedMaskStyle}
-                      />
-                      <div className="mb-2 text-sm font-medium text-text">Final video audio</div>
-                      <div className="relative z-10 flex h-10 items-center gap-[3px] overflow-hidden">
-                        {(audioWaveformBars.length > 0
-                          ? audioWaveformBars
-                          : Array.from({ length: 72 }, (_, index) => 0.25 + ((index % 8) * 0.08))
-                        ).map((value, index) => (
-                          <span
-                            key={`audio-wave-${index}`}
-                            className="block w-[3px] rounded-full bg-[hsl(var(--color-accent)/0.78)]"
-                            style={{
-                              height: `${8 + value * 18}px`,
-                              opacity: Math.min(0.95, 0.28 + value),
-                            }}
-                          />
-                        ))}
-                      </div>
+                <div
+                  data-timeline-surface="true"
+                  className="relative min-w-0 cursor-pointer"
+                  onClick={seekTimeline}
+                  onPointerDown={beginTimelineScrub}
+                  role="presentation"
+                >
+                  <div className="relative rounded-[10px] bg-[hsl(var(--color-bg))] px-3 py-3">
+                    <div
+                      className="pointer-events-none absolute inset-y-2 left-0 rounded-[8px] bg-[hsl(var(--color-accent)/0.06)]"
+                      style={playedMaskStyle}
+                    />
+                    <div className="mb-2 text-sm font-medium text-text">Final video audio</div>
+                    <div className="relative z-10 flex h-10 items-center gap-[3px] overflow-hidden">
+                      {(audioWaveformBars.length > 0
+                        ? audioWaveformBars
+                        : Array.from({ length: 72 }, (_, index) => 0.25 + ((index % 8) * 0.08))
+                      ).map((value, index) => (
+                        <span
+                          key={`audio-wave-${index}`}
+                          className="block w-[3px] rounded-full bg-[hsl(var(--color-accent)/0.78)]"
+                          style={{
+                            height: `${8 + value * 18}px`,
+                            opacity: Math.min(0.95, 0.28 + value),
+                          }}
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>
 
                 {currentVideo.music_mode !== 'none' ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                  <>
+                    <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
                       BGM
                     </div>
 
                     <div
                       data-timeline-surface="true"
-                      className="relative min-w-0 flex-1 cursor-pointer"
+                      className="relative min-w-0 cursor-pointer"
                       onClick={seekTimeline}
                       onPointerDown={beginTimelineScrub}
                       role="presentation"
                     >
                       <div className="relative rounded-[10px] bg-[hsl(var(--color-bg))] px-3 py-3">
                         <div
-                          className="pointer-events-none absolute inset-y-2 left-2 rounded-[8px] bg-[hsl(var(--color-accent)/0.05)]"
+                          className="pointer-events-none absolute inset-y-2 left-0 rounded-[8px] bg-[hsl(var(--color-accent)/0.05)]"
                           style={playedMaskStyle}
                         />
                         <div className="mb-2 text-sm font-medium text-text">
@@ -1656,7 +1713,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </>
                 ) : null}
               </div>
             </div>

@@ -145,12 +145,10 @@ def _explainer_scene_strategy() -> RecipeSceneStrategy:
 def _long_explainer_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
-            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook', 'setup'), duration_seconds=5),
-            RenderSceneConfig(scene_id='scene_2_core_idea', beat_names=('core_idea', 'explanation'), duration_seconds=5),
-            RenderSceneConfig(scene_id='scene_3_mechanism', beat_names=('mechanism', 'how_it_works'), duration_seconds=5),
-            RenderSceneConfig(scene_id='scene_4_example', beat_names=('example', 'real_world_context'), duration_seconds=5),
-            RenderSceneConfig(scene_id='scene_5_consequence', beat_names=('impact', 'why_it_matters'), duration_seconds=5),
-            RenderSceneConfig(scene_id='scene_6_takeaway', beat_names=('takeaway', 'ending'), duration_seconds=5),
+            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook', 'core_idea'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_2_mechanism', beat_names=('mechanism', 'how_it_works'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_3_example', beat_names=('example', 'impact'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_4_takeaway', beat_names=('takeaway', 'ending'), duration_seconds=8),
         )
     )
 
@@ -265,7 +263,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a 12 second narrated Time Echo explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='sora2',
+            model_key='kling_v3',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -314,7 +312,7 @@ RECIPES: dict[str, RecipeConfig] = {
     'deep_dive_explainer': RecipeConfig(
         id='deep_dive_explainer',
         type='video',
-        duration_seconds=30,
+        duration_seconds=32,
         input=RecipeInputConfig(image=False, text=True),
         config=RecipeContentConfig(
             style='cinematic_social_explainer',
@@ -330,7 +328,7 @@ RECIPES: dict[str, RecipeConfig] = {
                 'Each scene should introduce a clear concept, then connect it to the next scene naturally. '
                 'Avoid abstract filler, unrelated gadgets, or generic cinematic inserts that do not help explain the topic.'
             ),
-            seed_prompt='Create a 30 second narrated explainer reel based on the provided topic.',
+            seed_prompt='Create a 32 second narrated explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
             model_key='sora2',
@@ -347,7 +345,7 @@ RECIPES: dict[str, RecipeConfig] = {
         catalog=RecipeCatalogConfig(
             title='Deep Dive Explainer',
             slug='deep-dive-explainer',
-            description='Explain bigger topics with more scenes, longer narration, and clearer visual teaching.',
+            description='Explain bigger topics with a longer Sora-based visual narrative, more scenes, and clearer teaching.',
             short_label='Deep dive',
             preview_video_url=_sample_video('time-echo-explainer.mp4'),
             preview_image_url=_sample_video('earth.png'),
@@ -779,6 +777,7 @@ def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) 
 def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     defaults = recipe.generation_defaults
+    resolved_model_key = defaults.model_key
     image_urls: list[str] = []
     if recipe.input.image and normalized_inputs.get('image'):
         image_urls.append(str(normalized_inputs['image']))
@@ -790,7 +789,7 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
         'templateId': recipe.id,
         'script': script,
         'tags': [recipe.id, *list(recipe.catalog.tags)],
-        'modelKey': defaults.model_key,
+        'modelKey': resolved_model_key,
         'modeId': None,
         'projectId': None,
         'language': defaults.language,
