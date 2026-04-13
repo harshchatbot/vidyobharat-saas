@@ -327,31 +327,6 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     }
     return 'Render script';
   }, [narrationSourceType]);
-  const recipeLabel = useMemo(() => {
-    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
-    const catalog = (pipelineMetadata.catalog ?? null) as { title?: string } | null;
-    const value = pipelineMetadata.recipe_label ?? catalog?.title;
-    return typeof value === 'string' && value.trim() ? value.trim() : null;
-  }, [video?.pipeline_metadata]);
-  const recipeDurationSeconds = useMemo(() => {
-    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
-    const value =
-      pipelineMetadata.effective_duration_seconds ??
-      pipelineMetadata.recipe_duration_seconds ??
-      pipelineMetadata.duration_seconds;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }, [video?.pipeline_metadata]);
-  const recipeRenderMode = useMemo(() => {
-    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
-    const value = pipelineMetadata.render_mode;
-    return typeof value === 'string' && value.trim() ? value.trim() : null;
-  }, [video?.pipeline_metadata]);
-  const fallbackModelUsed = useMemo(() => {
-    const pipelineMetadata = (video?.pipeline_metadata ?? {}) as Record<string, unknown>;
-    const value = pipelineMetadata.fallback_model_used;
-    return typeof value === 'string' && value.trim() ? value.trim() : null;
-  }, [video?.pipeline_metadata]);
   const selectedLanguageLabel = useMemo(
     () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
     [languageOptions, selectedLanguage],
@@ -1319,8 +1294,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
           </section>
 
-          <aside className="self-start">
-            <div className="flex min-h-[520px] max-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
+          <aside className="h-full min-h-0">
+            <div className="flex h-full min-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
               <div className="flex items-center justify-between px-1 pb-1">
                 <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-2.5 py-1 text-xs font-medium text-text">
                   {referenceImages[0] || displayPosterUrl ? (
@@ -1332,15 +1307,6 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                 </div>
                 <SoftPill>{video.progress}%</SoftPill>
               </div>
-
-              {recipeLabel ? (
-                <div className="mt-3 flex flex-wrap gap-2 px-1">
-                  <SoftPill>{recipeLabel}</SoftPill>
-                  {recipeDurationSeconds ? <SoftPill>{formatLongDuration(recipeDurationSeconds)}</SoftPill> : null}
-                  {recipeRenderMode === 'multi_shot' ? <SoftPill>multi-shot</SoftPill> : null}
-                  {fallbackModelUsed ? <SoftPill>{`fallback: ${fallbackModelUsed.toUpperCase()}`}</SoftPill> : null}
-                </div>
-              ) : null}
 
               <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 2xl:pr-2">
                 {referenceImages[0] ? (
@@ -1584,9 +1550,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   {ticks.map((tick, index) => (
                     <div
                       key={`${tick.seconds}-${index}`}
-                      className={`absolute top-0 text-[11px] text-muted ${
-                        index === 0 ? 'translate-x-0' : index === ticks.length - 1 ? '-translate-x-full' : '-translate-x-1/2'
-                      }`}
+                      className={`absolute top-0 text-[11px] text-muted ${index === 0 ? 'translate-x-0' : index === ticks.length - 1 ? '-translate-x-full' : '-translate-x-1/2'
+                        }`}
                       style={{ left: `${tick.percent}%` }}
                     >
                       <span>{tick.label}</span>
