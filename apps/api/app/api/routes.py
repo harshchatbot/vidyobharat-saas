@@ -1402,6 +1402,12 @@ def create_ai_video(
             normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
             normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
             pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
+            if payload.personaId:
+                pipeline_metadata['persona_id'] = str(payload.personaId).strip()
+            if payload.talkingModePreference:
+                pipeline_metadata['talking_mode_preference'] = str(payload.talkingModePreference).strip()
+            if payload.useAvatarForTalkingScenes is not None:
+                pipeline_metadata['use_avatar_for_talking_scenes'] = bool(payload.useAvatarForTalkingScenes)
         elif maybe_should_use_explainer_recipe(normalized_payload):
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_explainer_recipe_request(
                 str(payload.script or '').strip()

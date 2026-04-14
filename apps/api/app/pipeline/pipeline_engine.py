@@ -25,7 +25,9 @@ from app.pipeline.scene_planner import (
     plan_scenes,
 )
 from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
+from app.services.avatar_service import AvatarService
 from app.services.audio_service import RecipeAudioService
+from app.services.influencer_service import InfluencerService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
 from app.services.video_pipeline import VideoPipelineService
@@ -85,6 +87,64 @@ def _merge_pipeline_metadata(*, video_id: str, **fields: Any) -> None:
     metadata = dict(data.get("pipeline_metadata") or data.get("pipelineMetadata") or {})
     metadata.update(fields)
     repo.collection.document(video_id).set({"pipeline_metadata": metadata, "updated_at": utcnow()}, merge=True)
+
+
+def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
+    repo = VideoRepository(None)
+    snapshot = repo.collection.document(video_id).get()
+    data = snapshot.to_dict() or {}
+    return dict(data.get("pipeline_metadata") or data.get("pipelineMetadata") or {})
+
+
+def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override: str | None, language_override: str | None) -> dict[str, Any] | None:
+    normalized_id = str(persona_id or "").strip()
+    if not normalized_id:
+        return None
+
+    if normalized_id.startswith("av-"):
+        avatar = AvatarService().get_avatar(normalized_id)
+        if not avatar:
+            return None
+        default_voice = voice_override or ("Priya" if "female" not in avatar.style.lower() else "Priya")
+        return {
+            "persona_id": avatar.id,
+            "persona_source": "preset_avatar",
+            "name": avatar.name,
+            "image_url": avatar.thumbnail_url,
+            "thumbnail_url": avatar.thumbnail_url,
+            "default_voice_id": default_voice,
+            "language_preference": language_override or (avatar.language_tags[0] if avatar.language_tags else "en-IN"),
+            "default_behavior_prompt": (
+                f"friendly Indian creator named {avatar.name} speaking naturally to camera, "
+                "subtle head movement, natural blinking, calm confident expression, minimal movement"
+            ),
+            "default_camera_style": "selfie_medium_close",
+        }
+
+    try:
+        persona = InfluencerService(None).get_persona(normalized_id, user_id)
+    except Exception:
+        return None
+
+    inferred_voice = voice_override or ("Priya" if str(persona.gender_identity or "").lower().startswith("f") else "Shubh")
+    behavior_parts = [
+        f"{persona.name} speaking naturally to camera",
+        f"tone: {persona.tone}" if persona.tone else "",
+        "subtle head movement",
+        "natural blinking",
+        "minimal movement",
+    ]
+    return {
+        "persona_id": persona.id,
+        "persona_source": "saved_persona",
+        "name": persona.name,
+        "image_url": persona.reference_image_url,
+        "thumbnail_url": persona.reference_image_url,
+        "default_voice_id": inferred_voice,
+        "language_preference": language_override or "en-IN",
+        "default_behavior_prompt": persona.system_prompt_template or ", ".join(part for part in behavior_parts if part),
+        "default_camera_style": "selfie_medium_close",
+    }
 
 
 def _normalize_topic(topic: str) -> str:
@@ -572,6 +632,13 @@ def run_recipe_pipeline(
 ) -> RecipePipelineResult:
     recipe = get_recipe(recipe_id)
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
+    initial_pipeline_metadata = _get_pipeline_metadata(video_id)
+    selected_persona = _resolve_ugc_persona(
+        persona_id=initial_pipeline_metadata.get("persona_id"),
+        user_id=user_id,
+        voice_override=voice_override,
+        language_override=language_override,
+    )
     logger.info("recipe_pipeline_started", extra={"video_id": video_id, "recipe_id": recipe.id})
     _append_pipeline_event(
         video_id=video_id,
@@ -749,6 +816,11 @@ def run_recipe_pipeline(
             ugc_style=ugc_ad_style or "creator_casual",
             client_brief=ugc_client_brief,
         )
+        if recipe.id == "ugc_ad":
+            use_avatar_for_talking_scenes = bool(initial_pipeline_metadata.get("use_avatar_for_talking_scenes", False))
+            for scene in scenes:
+                if scene.get("persona_required") and (not use_avatar_for_talking_scenes or not selected_persona):
+                    scene["qa_flags"] = list(dict.fromkeys([*(scene.get("qa_flags") or []), "missing_persona_on_lip_sync_scene"]))
         overlay_differs = " ".join(overlay_text).strip() != narration_script.strip()
         _merge_pipeline_metadata(
             video_id=video_id,
@@ -768,6 +840,9 @@ def run_recipe_pipeline(
             ugc_hook_plan=ugc_hook_plan,
             ugc_business_context=ugc_business_context,
             ugc_client_brief=ugc_client_brief.__dict__ if ugc_client_brief else {},
+            selected_persona=selected_persona or {},
+            selected_persona_id=(selected_persona or {}).get("persona_id"),
+            use_avatar_for_talking_scenes=bool(initial_pipeline_metadata.get("use_avatar_for_talking_scenes", False)),
             ugc_scene_plan=[
                 {
                     "scene_id": scene.get("scene_id"),
@@ -799,6 +874,10 @@ def run_recipe_pipeline(
                     "offer": scene.get("offer"),
                     "cta": scene.get("cta"),
                     "ad_goal": scene.get("ad_goal"),
+                    "talking_mode": scene.get("talking_mode"),
+                    "render_lane": scene.get("render_lane"),
+                    "persona_required": scene.get("persona_required"),
+                    "use_locked_persona": scene.get("use_locked_persona"),
                 }
                 for scene in scenes
             ],
@@ -835,6 +914,8 @@ def run_recipe_pipeline(
                         "shot_archetype": scene.get("shot_archetype"),
                         "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
                         "qa_flags": scene.get("qa_flags"),
+                        "talking_mode": scene.get("talking_mode"),
+                        "render_lane": scene.get("render_lane"),
                     }
                     for scene in scenes
                 ],
@@ -1253,6 +1334,9 @@ def run_recipe_pipeline(
                     "offer": scene.get("offer"),
                     "cta": scene.get("cta"),
                     "hook_plan": scene.get("hook_plan"),
+                    "talking_mode": scene.get("talking_mode"),
+                    "render_lane": scene.get("render_lane"),
+                    "persona_required": scene.get("persona_required"),
                     "avoid_guidance": scene.get("sora_negative_guidance"),
                     "compiled_prompt": prompt,
                 }
@@ -1268,12 +1352,27 @@ def run_recipe_pipeline(
                     "ugc_ad_subtopic": scene.get("ugc_ad_subtopic"),
                     "shot_archetype": scene.get("shot_archetype"),
                     "qa_flags": scene.get("qa_flags"),
+                    "talking_mode": scene.get("talking_mode"),
+                    "render_lane": scene.get("render_lane"),
                     "camera_framing": scene.get("camera_framing"),
                     "motion_intent": scene.get("motion_intent"),
                     "transition_intent": scene.get("transition_intent"),
                     "ending_hold_instruction": scene.get("ending_hold_instruction"),
                 },
             )
+
+        talking_audio_url: str | None = None
+        if scene.get("render_lane") == "talking_avatar":
+            talking_script = str(scene.get("local_narration_context") or scene.get("beat_summary") or "").strip()
+            if talking_script:
+                voice_path, _, _ = pipeline.generate_narration_track(
+                    render_id=f'{video_id}-{scene["scene_id"]}-talking',
+                    script=talking_script,
+                    language_name=language_override or recipe.generation_defaults.language,
+                    voice_name=(selected_persona or {}).get("default_voice_id") or voice_override or recipe.generation_defaults.voice,
+                    audio_sample_rate_hz=22050,
+                )
+                talking_audio_url = str(voice_path) if voice_path else None
 
         clip_result = generation.generate_video_clip(
             ClipGenerationRequest(
@@ -1289,11 +1388,21 @@ def run_recipe_pipeline(
                 captions_enabled=recipe.generation_defaults.captions_enabled,
                 narration_enabled=False,
                 caption_style=recipe.generation_defaults.caption_style,
+                render_lane=str(scene.get("render_lane") or "cinematic_broll"),
+                persona_id=(selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
+                persona_image_url=(selected_persona or {}).get("image_url") if scene.get("use_locked_persona") else None,
+                talking_audio_url=talking_audio_url,
+                talking_behavior_prompt=(selected_persona or {}).get("default_behavior_prompt") if scene.get("use_locked_persona") else None,
+                talking_script=str(scene.get("local_narration_context") or scene.get("beat_summary") or "").strip() or None,
                 metadata={
                     "recipe_id": recipe.id,
                     "scene_id": scene["scene_id"],
                     "scene_index": index,
                     "scene_beats": scene.get("beat_names"),
+                    "talking_mode": scene.get("talking_mode"),
+                    "render_lane": scene.get("render_lane"),
+                    "persona_required": scene.get("persona_required"),
+                    "selected_persona_id": (selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
                 },
             )
         )

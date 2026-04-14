@@ -569,6 +569,9 @@ export type RecipeVideoCreateRequest = {
   voice?: string;
   captionsEnabled?: boolean;
   narrationEnabled?: boolean;
+  personaId?: string;
+  talkingModePreference?: string;
+  useAvatarForTalkingScenes?: boolean;
 };
 
 export type VideoCreateRequest = StandardVideoCreateRequest | RecipeVideoCreateRequest;

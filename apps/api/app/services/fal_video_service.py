@@ -32,6 +32,22 @@ class FalVideoService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
+    def generate_infinite_talk(
+        self,
+        *,
+        persona_image_url: str,
+        audio_url: str,
+        prompt: str,
+        duration_hint_seconds: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        if not getattr(self.settings, 'fal_api_key', None):
+            raise RuntimeError('FAL_API_KEY is not configured for InfiniteTalk generation')
+
+        raise RuntimeError(
+            'fal InfiniteTalk provider routing is scaffolded but not fully wired to a live endpoint yet. '
+            'The pipeline should fall back to the local talking-avatar proxy path.'
+        )
 
     def generate(
         self,

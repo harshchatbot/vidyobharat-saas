@@ -62,3 +62,9 @@ class AvatarService:
             ]
 
         return result
+
+    def get_avatar(self, avatar_id: str) -> AvatarResponse | None:
+        normalized_id = str(avatar_id or "").strip()
+        if not normalized_id:
+            return None
+        return next((item for item in self._avatars if item.id == normalized_id), None)

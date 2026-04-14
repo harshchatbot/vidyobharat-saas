@@ -151,6 +151,9 @@ def build_sora_ugc_ad_prompt(
     sora_negative_guidance = str(scene.get('sora_negative_guidance') or '').strip()
     ugc_style = str(scene.get('ugc_style') or '').strip()
     cta_style = str(scene.get('cta_style') or '').strip()
+    talking_mode = str(scene.get('talking_mode') or 'none').strip()
+    render_lane = str(scene.get('render_lane') or '').strip()
+    persona_required = bool(scene.get('persona_required'))
     avoid_motifs = [str(item).strip() for item in (scene.get('avoid_motifs') or []) if str(item).strip()]
 
     prompt = (
@@ -180,6 +183,8 @@ def build_sora_ugc_ad_prompt(
         f'Transition to next scene: {transition_to_next}\n'
         f'CTA closure behavior: {cta_style or "native_creator_close"}\n'
         f'Ending behavior: {ending_hold_instruction}\n'
+        f'Talking mode: {talking_mode}\n'
+        f'Render lane: {render_lane}\n'
     )
 
     if client_brief_mode:
@@ -216,6 +221,19 @@ def build_sora_ugc_ad_prompt(
         'Avoid poster-like title cards, fake UI text, and stock-footage polish.\n'
     )
 
+    if talking_mode == 'lip_sync_required':
+        prompt += (
+            'This scene is a short talking beat.\n'
+            'Use one spokesperson only, framed for direct-to-camera speech with natural eye contact, calm face movement, subtle blinking, and stable mouth readability.\n'
+            'Keep the spoken line short enough for a 3 to 5 second talking scene.\n'
+            'Do not turn this into cinematic B-roll.\n'
+        )
+    elif talking_mode == 'voiceover_safe':
+        prompt += (
+            'This scene should stay voiceover-safe.\n'
+            'Do not depend on direct lips-visible dialogue to make the scene work.\n'
+        )
+
     if client_brief_mode:
         prompt += (
             'Use the client brief to make the ad feel like it belongs to a real business, not a generic category ad.\n'
@@ -236,6 +254,8 @@ def build_sora_ugc_ad_prompt(
             f'Reference asset: {reference}\n'
             'Use it only for subject grounding and continuity where relevant.\n'
         )
+    if persona_required:
+        prompt += 'A locked creator persona is expected for this scene when available.\n'
 
     prompt += (
         'Camera should feel intentional but natural, not like a glossy TV commercial.\n'

@@ -126,6 +126,9 @@ class AIVideoCreateRequest(BaseModel):
     narrationEnabled: bool = True
     recipeId: str | None = Field(default=None, max_length=120)
     inputs: dict[str, str | list[str]] = Field(default_factory=dict)
+    personaId: str | None = Field(default=None, max_length=120)
+    talkingModePreference: str | None = Field(default=None, max_length=40)
+    useAvatarForTalkingScenes: bool | None = None
 
     @field_validator('aspectRatio')
     @classmethod

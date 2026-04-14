@@ -422,6 +422,9 @@ def build_ugc_ad_scene_plan(
     planned: list[dict[str, Any]] = []
     previous_scene_type = ""
     previous_focus = ""
+    lip_sync_scene_count = 0
+    has_service_intro_scene = False
+    has_proof_scene = False
 
     for index, scene in enumerate(base_scenes):
         stage_name, stage_label, scene_type, stage_goal = stage_blueprint[index]
@@ -453,6 +456,20 @@ def build_ugc_ad_scene_plan(
             avoid_motifs.append(f"repeating the exact same {previous_scene_type} setup as the previous ad scene")
         if previous_focus:
             avoid_motifs.append(f"reusing the exact same {previous_focus} sales angle as the previous scene")
+
+        talking_mode = _ugc_talking_mode_for_stage(
+            stage_name=stage_name,
+            family=family,
+            cta=resolved_brief.cta,
+        )
+        render_lane = _ugc_render_lane_for_talking_mode(talking_mode)
+        persona_required = talking_mode == "lip_sync_required"
+        if persona_required:
+            lip_sync_scene_count += 1
+        if stage_name == "product_intro":
+            has_service_intro_scene = True
+        if stage_name == "proof":
+            has_proof_scene = True
 
         planned_scene = {
             **scene,
@@ -492,6 +509,11 @@ def build_ugc_ad_scene_plan(
             "brief_service_context": business_context.get("service_context"),
             "avoid_motifs": list(dict.fromkeys([item for item in avoid_motifs if str(item).strip()])),
             "shot_scale": _ugc_shot_scale_for_stage(stage_name=stage_name, family=family),
+            "talking_mode": talking_mode,
+            "render_lane": render_lane,
+            "persona_required": persona_required,
+            "use_locked_persona": persona_required,
+            "talking_duration_hint_seconds": min(5, max(3, int(scene.get("duration_seconds") or 4))),
             **prompt_context,
         }
         planned_scene["anti_repetition_note"] = (
@@ -504,11 +526,58 @@ def build_ugc_ad_scene_plan(
             client_brief=resolved_brief,
             client_brief_mode=client_brief_mode,
         )
+        if family == "local_service_ugc_ad" and stage_name == "product_intro":
+            planned_scene["must_include_environment_context"] = True
+            planned_scene["environment_priority"] = "storefront_or_service_space"
+
+        if family == "local_service_ugc_ad" and stage_name == "proof":
+            planned_scene["must_show_service_action"] = True
         planned.append(planned_scene)
         previous_scene_type = scene_type
         previous_focus = topic_focus
 
+    if family == "local_service_ugc_ad":
+        for planned_scene in planned:
+            qa_flags = list(planned_scene.get("qa_flags") or [])
+            if lip_sync_scene_count > 2:
+                qa_flags.append("too_many_lip_sync_required_scenes")
+                qa_flags.append("excessive_talking_head_risk")
+            if not has_proof_scene:
+                qa_flags.append("no_proof_scene")
+            if not has_service_intro_scene:
+                qa_flags.append("no_service_intro_scene")
+            planned_scene["qa_flags"] = list(dict.fromkeys(qa_flags))
+
     return planned
+
+
+def _ugc_talking_mode_for_stage(*, stage_name: str, family: str, cta: str | None = None) -> str:
+    if family != "local_service_ugc_ad":
+        return "none"
+    if stage_name == "hook":
+        return "lip_sync_required"
+    if stage_name == "problem":
+        return "voiceover_safe"
+    if stage_name == "product_intro":
+        return "none"
+    if stage_name == "proof":
+        return "none"
+    if stage_name == "benefit":
+        return "voiceover_safe"
+    if stage_name == "cta":
+        normalized_cta = str(cta or "").lower()
+        if any(token in normalized_cta for token in ("book", "call", "dm", "message", "visit", "slot", "appointment")):
+            return "lip_sync_required"
+        return "voiceover_safe"
+    return "none"
+
+
+def _ugc_render_lane_for_talking_mode(talking_mode: str) -> str:
+    if talking_mode == "lip_sync_required":
+        return "talking_avatar"
+    if talking_mode == "voiceover_safe":
+        return "broll_safe"
+    return "cinematic_broll"
 
 
 def _ugc_scene_grammar_for_family(family: str) -> tuple[tuple[str, str, str, str], ...]:
