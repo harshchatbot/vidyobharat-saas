@@ -408,6 +408,15 @@ def build_ugc_ad_scene_plan(
     client_brief_mode = is_client_brief_mode(resolved_brief)
     business_context = build_ugc_business_context(resolved_brief)
     hook_plan = build_ugc_hook_plan(brief=resolved_brief, family=family) if client_brief_mode else ""
+
+    single_creator_mode = family in {"local_service_ugc_ad", "testimonial_ugc_ad"} or subtopic in {
+        "salon", "spa", "clinic", "dentist", "skincare", "skin care", "serum", "beauty", "acne", "pimple"
+    }
+    creator_anchor = (
+        "same spokesperson across hook, recommendation, and CTA scenes"
+        if single_creator_mode
+        else "multiple faces allowed only if clearly montage/testimonial style"
+    )
     stage_blueprint = _ugc_scene_grammar_for_family(family)
     base_scenes = plan_scenes(recipe)
     planned: list[dict[str, Any]] = []
@@ -463,6 +472,8 @@ def build_ugc_ad_scene_plan(
             "ugc_mode": ugc_mode,
             "ugc_style": ugc_style,
             "client_brief_mode": client_brief_mode,
+            "single_creator_mode": single_creator_mode,
+            "creator_anchor": creator_anchor,
             "hook_plan": hook_plan,
             "business_name": resolved_brief.business_name,
             "business_category": resolved_brief.business_category,
@@ -480,6 +491,7 @@ def build_ugc_ad_scene_plan(
             "brief_location_context": business_context.get("location_context"),
             "brief_service_context": business_context.get("service_context"),
             "avoid_motifs": list(dict.fromkeys([item for item in avoid_motifs if str(item).strip()])),
+            "shot_scale": _ugc_shot_scale_for_stage(stage_name=stage_name, family=family),
             **prompt_context,
         }
         planned_scene["anti_repetition_note"] = (
@@ -643,7 +655,14 @@ def build_ugc_ad_prompt_context(
                 business_context=business_context,
             )
         ),
-        "camera_framing": str(stage_override.get("camera_framing") or _ugc_camera_framing_for_stage(stage_name=stage_name, scene_type=scene_type)),
+        "camera_framing": str(
+            stage_override.get("camera_framing")
+            or _ugc_lipsync_safe_framing(
+                stage_name=stage_name,
+                family=family,
+                client_brief_mode=client_brief_mode,
+            )
+        ),
         "motion_intent": str(stage_override.get("motion_intent") or _ugc_motion_intent_for_stage(stage_name=stage_name)),
         "ending_hold_instruction": str(stage_override.get("ending_hold_instruction") or _ugc_ending_hold_instruction_for_stage(stage_name=stage_name, index=index, total_scenes=total_scenes)),
         "shot_archetype": str(stage_override.get("shot_archetype") or f"{family}:{stage_name}"),
@@ -653,6 +672,7 @@ def build_ugc_ad_prompt_context(
         "sora_negative_guidance": _ugc_negative_guidance(stage_name=stage_name, family=family),
         "continuity_guidance": _ugc_continuity_guidance(stage_name=stage_name, index=index, total_scenes=total_scenes, topic_focus=topic_focus),
         "cta_style": str(stage_override.get("cta_style") or "native_creator_close"),
+        "shot_scale": _ugc_shot_scale_for_stage(stage_name=stage_name, family=family),
     }
 
 
@@ -807,7 +827,7 @@ def _ugc_shot_pack(*, family: str, subtopic: str) -> dict[str, dict[str, str]]:
                 "subtopic_visual_anchor": "the local service, business front, or provider introduced clearly and quickly",
                 "subject_description": "the local service provider, storefront, treatment room, work setup, or team shown clearly as the solution",
                 "environment_description": "an Indian neighborhood business environment with recognizable local trust cues",
-                "camera_framing": "medium shot or medium-wide reveal with the service context readable immediately",
+                "camera_framing": "medium-wide or wide reveal showing storefront, clinic, team, or service environment clearly, not face-only framing",
                 "motion_intent": "smooth reveal into stable service visibility",
                 "extra_avoid_guidance": "avoid abstract branding shots with no actual business or provider context",
             },
@@ -816,7 +836,7 @@ def _ugc_shot_pack(*, family: str, subtopic: str) -> dict[str, dict[str, str]]:
                 "subtopic_visual_anchor": "the service happening in real time or the outcome being shown clearly",
                 "subject_description": "a believable treatment, repair, consultation, meal prep, workout, or service delivery moment that proves the business claim",
                 "environment_description": "the real service environment with authentic local detail and no overproduction",
-                "camera_framing": "close-up or medium proof framing that clearly shows the service action or result",
+                "camera_framing": "detail shot, observational medium shot, or service-action framing that shows treatment, consultation, booking, or provider proof clearly",
                 "motion_intent": "action-led motion with one readable service-proof beat",
                 "extra_avoid_guidance": "avoid fake testimonial montage with no visible business proof",
             },
@@ -833,7 +853,7 @@ def _ugc_shot_pack(*, family: str, subtopic: str) -> dict[str, dict[str, str]]:
                 "subtopic_visual_anchor": "a local-booking or visit-now CTA that still feels creator-native and trustworthy",
                 "subject_description": "the creator or customer wrapping up with the service context visible and a clear next step like visit, book, or call",
                 "environment_description": "the same Indian local-business environment with stable trust-building continuity",
-                "camera_framing": "stable medium close-up or medium shot with visible business context",
+                "camera_framing": "stable medium shot or 3/4 creator framing with clinic or service context still visible, avoid extreme face close-up",
                 "motion_intent": "minimal motion and calm local-business resolution",
                 "ending_hold_instruction": "last second visually stable, service context still visible, no abrupt CTA cut",
                 "cta_style": "local_service_booking_close",
@@ -975,6 +995,41 @@ def _ugc_avoid_motifs_for_stage(*, stage_name: str, family: str) -> list[str]:
     return [*stage_specific.get(stage_name, []), *family_specific.get(family, [])]
 
 
+
+def _ugc_lipsync_safe_framing(
+    *,
+    stage_name: str,
+    family: str,
+    client_brief_mode: bool,
+) -> str:
+    if stage_name == "hook":
+        return "medium shot or 3/4 angle creator framing with visible environment context, avoid tight lips-visible talking close-up"
+    if stage_name == "problem":
+        return "medium shot, over-shoulder, or observational creator framing, avoid direct mouth-dominant close-up"
+    if stage_name == "product_intro":
+        return "medium or medium-wide framing with product or service context clearly visible, not face-only framing"
+    if stage_name == "proof":
+        return "detail shot, service-action shot, hands shot, booking shot, or observational medium shot with clear proof"
+    if stage_name == "benefit":
+        return "medium or medium-wide payoff shot with environment context and human result"
+    if stage_name == "cta":
+        return "stable medium shot or 3/4 creator framing with clinic, product, or service context, avoid tight face-only close-up"
+    return "medium shot with natural environment context and no tight lips-visible talking framing"
+
+
+
+def _ugc_shot_scale_for_stage(*, stage_name: str, family: str) -> str:
+    mapping = {
+        "hook": "medium",
+        "problem": "medium",
+        "product_intro": "wide" if family == "local_service_ugc_ad" else "medium",
+        "proof": "detail",
+        "benefit": "medium_wide",
+        "cta": "medium",
+    }
+    return mapping.get(stage_name, "medium")
+
+
 def _ugc_camera_framing_for_stage(*, stage_name: str, scene_type: str) -> str:
     mappings = {
         "hook": "selfie-style medium close-up or product-in-hand close-up with fast readability",
@@ -1095,6 +1150,7 @@ def _build_ugc_scene_plan_qa_flags(
     subject_description = str(scene.get("subject_description") or "").lower()
     camera_framing = str(scene.get("camera_framing") or "").lower()
     motion_intent = str(scene.get("motion_intent") or "").lower()
+    shot_scale = str(scene.get("shot_scale") or "").strip().lower()
 
     if stage_name == "hook" and "hook" not in str(scene.get("visual_objective") or "").lower():
         flags.append("weak_hook_risk")
@@ -1124,6 +1180,15 @@ def _build_ugc_scene_plan_qa_flags(
         flags.append("native_authenticity_risk")
     if not scene.get("indian_context_note"):
         flags.append("missing_indian_context_bias")
+    if "tight lips-visible" in camera_framing:
+        flags.append("lip_sync_authenticity_risk")
+
+    if stage_name in {"hook", "problem", "cta"} and shot_scale == "medium" and "close-up" in camera_framing:
+        flags.append("talking_head_overuse_risk")
+
+    if previous_scene_type and scene_type == previous_scene_type and shot_scale in {"medium", "medium_close", "close"}:
+        flags.append("face_framing_repetition_risk")   
+
     if client_brief_mode:
         if not client_brief.business_name:
             flags.append("missing_business_name")
