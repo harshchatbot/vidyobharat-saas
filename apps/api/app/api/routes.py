@@ -1488,6 +1488,17 @@ def create_ai_video(
             )
             remaining_credits = deduction.wallet.current_credits
         error_stage = 'create_video_record'
+
+        provider_safe_duration_seconds = (
+            int(normalized_payload['durationSeconds'])
+            if normalized_payload.get('durationSeconds') is not None
+            else None
+        )
+        provider_safe_model_key = str(normalized_payload['modelKey'])
+
+        if recipe and recipe.id == 'ugc_ad' and recipe.scene_strategy.render_scenes:
+            provider_safe_duration_seconds = int(recipe.scene_strategy.render_scenes[0].duration_seconds)
+
         service = AIVideoCreateService(None, settings)
         video = service.create_video(
             user_id=user_id,
@@ -1499,11 +1510,11 @@ def create_ai_video(
             image_urls=list(normalized_payload.get('imageUrls') or []),
             script=str(normalized_payload['script']),
             tags=list(normalized_payload.get('tags') or []),
-            model_key=str(normalized_payload['modelKey']),
+            model_key=provider_safe_model_key,
             aspect_ratio=str(normalized_payload['aspectRatio']),
             resolution=str(normalized_payload['resolution']),
             duration_mode=str(normalized_payload['durationMode']),
-            duration_seconds=int(normalized_payload['durationSeconds']) if normalized_payload.get('durationSeconds') is not None else None,
+            duration_seconds=provider_safe_duration_seconds,
             voice=str(normalized_payload['voice']),
             music=(normalized_payload.get('music') or payload.music.model_dump()),
             audio_settings=(normalized_payload.get('audioSettings') or payload.audioSettings.model_dump()),
