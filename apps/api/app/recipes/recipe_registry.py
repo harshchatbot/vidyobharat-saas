@@ -145,10 +145,12 @@ def _explainer_scene_strategy() -> RecipeSceneStrategy:
 def _long_explainer_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
-            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook', 'core_idea'), duration_seconds=8),
-            RenderSceneConfig(scene_id='scene_2_mechanism', beat_names=('mechanism', 'how_it_works'), duration_seconds=8),
-            RenderSceneConfig(scene_id='scene_3_example', beat_names=('example', 'impact'), duration_seconds=8),
-            RenderSceneConfig(scene_id='scene_4_takeaway', beat_names=('takeaway', 'ending'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook',), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_2_concept_intro', beat_names=('core_idea', 'setup'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_3_mechanism', beat_names=('mechanism', 'how_it_works'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_4_example', beat_names=('example', 'real_world_context'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_5_implication', beat_names=('impact', 'why_it_matters'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_6_takeaway', beat_names=('takeaway', 'ending'), duration_seconds=8),
         )
     )
 
@@ -312,13 +314,13 @@ RECIPES: dict[str, RecipeConfig] = {
     'deep_dive_explainer': RecipeConfig(
         id='deep_dive_explainer',
         type='video',
-        duration_seconds=32,
+        duration_seconds=36,
         input=RecipeInputConfig(image=False, text=True),
         config=RecipeContentConfig(
             style='cinematic_social_explainer',
             tone='clear_patient_visual_teaching',
             music='soft_documentary_underscore',
-            structure=('hook', 'core_idea', 'mechanism', 'example', 'impact', 'takeaway', 'ending'),
+            structure=('hook', 'concept_intro', 'mechanism', 'example', 'implication', 'takeaway', 'ending'),
             reference_prompt=(
                 'Turn the topic into a longer visual explainer for short-form platforms. '
                 'Make each scene teach one clear part of the idea, with concrete visual metaphors and understandable progression.'
@@ -328,7 +330,7 @@ RECIPES: dict[str, RecipeConfig] = {
                 'Each scene should introduce a clear concept, then connect it to the next scene naturally. '
                 'Avoid abstract filler, unrelated gadgets, or generic cinematic inserts that do not help explain the topic.'
             ),
-            seed_prompt='Create a 32 second narrated explainer reel based on the provided topic.',
+            seed_prompt='Create a 36 second narrated explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
             model_key='sora2',
@@ -375,7 +377,17 @@ RECIPES: dict[str, RecipeConfig] = {
             ),
         ),
         reference_strategy='none',
-        metadata={'starter_badge': 'Longer explainers', 'version': 1},
+        metadata={
+            'starter_badge': 'Longer explainers',
+            'version': 2,
+            'default_explainer_style': 'educational',
+            'supported_explainer_styles': (
+                'educational',
+                'cinematic_educational',
+                'simple_for_kids',
+                'science_documentary',
+            ),
+        },
     ),
     'viral_dance_clip': RecipeConfig(
         id='viral_dance_clip',

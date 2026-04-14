@@ -1395,6 +1395,12 @@ def create_ai_video(
             recipe = get_recipe(payload.recipeId)
             normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
             normalized_payload = build_normalized_video_payload(recipe, normalized_recipe_inputs)
+            if payload.language:
+                normalized_payload['language'] = str(payload.language).strip()
+            if payload.voice:
+                normalized_payload['voice'] = str(payload.voice).strip()
+            normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
+            normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
             pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
         elif maybe_should_use_explainer_recipe(normalized_payload):
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_explainer_recipe_request(

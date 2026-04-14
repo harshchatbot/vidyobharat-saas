@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.db.firestore_utils import utcnow
 from app.db.repositories.video_repository import VideoRepository
 from app.pipeline.prompt_builder import build_scene_prompt
-from app.pipeline.scene_planner import plan_scenes
+from app.pipeline.scene_planner import build_deep_explainer_scene_plan, plan_scenes
 from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.audio_service import RecipeAudioService
 from app.services.image_generation_service import ImageGenerationService
@@ -84,8 +84,17 @@ def _normalize_topic(topic: str) -> str:
     return cleaned
 
 
-def _build_explainer_beats(topic: str) -> list[str]:
+def _build_explainer_beats(topic: str, *, scene_count: int) -> list[str]:
     topic = _normalize_topic(topic)
+    if scene_count >= 6:
+        return [
+            f'Hook viewers with a relatable curiosity moment about "{topic}".',
+            f'Introduce what "{topic}" is with a simple overview that orients the viewer.',
+            f'Show the mechanism behind "{topic}" in a concrete step-by-step way.',
+            f'Use a real-life example to make "{topic}" easy to picture.',
+            f'Show the implication of "{topic}" and why it matters in the real world.',
+            f'Close with a clear takeaway that makes "{topic}" feel memorable and understandable.',
+        ]
     return [
         (
             f'Hook shot about "{topic}". Open with a scroll-stopping introduction and immediate curiosity.'
@@ -102,6 +111,19 @@ def _build_explainer_beats(topic: str) -> list[str]:
     ]
 
 
+def _resolve_deep_explainer_style(recipe, inputs: dict[str, Any]) -> str:
+    default_style = str(recipe.metadata.get("default_explainer_style") or "educational").strip()
+    supported_styles = {
+        str(item).strip()
+        for item in (recipe.metadata.get("supported_explainer_styles") or ())
+        if str(item).strip()
+    }
+    requested_style = str(inputs.get("explainerStyle") or "").strip()
+    if requested_style and requested_style in supported_styles:
+        return requested_style
+    return default_style
+
+
 def _normalize_text_lines(value: Any, *, target_count: int) -> list[str]:
     items = [str(item or "").strip() for item in (value or []) if str(item or "").strip()]
     if not items:
@@ -114,16 +136,27 @@ def _normalize_text_lines(value: Any, *, target_count: int) -> list[str]:
     return padded
 
 
-def _build_explainer_overlay_text(topic: str, scene_beats: list[str]) -> list[str]:
+def _build_explainer_overlay_text(topic: str, scene_beats: list[str], *, scene_count: int) -> list[str]:
     normalized_topic = _normalize_topic(topic)
-    defaults = [
-        f"What if {normalized_topic}?",
-        "Immediate impact",
-        "Wider consequences",
-        "Why it matters",
-    ]
+    defaults = (
+        [
+            f"{normalized_topic}",
+            "What it is",
+            "How it works",
+            "Real example",
+            "Why it matters",
+            "Key takeaway",
+        ]
+        if scene_count >= 6
+        else [
+            f"What if {normalized_topic}?",
+            "What it is",
+            "How it works",
+            "Why it matters",
+        ]
+    )
     source = scene_beats or defaults
-    return [str(item).replace('"', '').strip()[:72] for item in source[:4]]
+    return [str(item).replace('"', '').strip()[:72] for item in source[: max(1, min(scene_count, 6))]]
 
 
 def _split_narration_into_scene_context(narration_script: str, *, scene_count: int) -> list[str]:
@@ -168,8 +201,8 @@ def _fallback_explainer_narration(topic: str, *, scene_count: int) -> ExplainerN
             'The first shock would appear almost instantly, then the effects would spread through people, systems, and the wider world. '
             f"That is why {normalized_topic} would matter far beyond the first moment."
         )
-    scene_beats = _normalize_text_lines(_build_explainer_beats(normalized_topic), target_count=scene_count)
-    overlay_text = _build_explainer_overlay_text(normalized_topic, scene_beats)
+    scene_beats = _normalize_text_lines(_build_explainer_beats(normalized_topic, scene_count=scene_count), target_count=scene_count)
+    overlay_text = _build_explainer_overlay_text(normalized_topic, scene_beats, scene_count=scene_count)
     return ExplainerNarrationPlan(
         narration_script=narration_script,
         scene_beats=scene_beats,
@@ -178,7 +211,14 @@ def _fallback_explainer_narration(topic: str, *, scene_count: int) -> ExplainerN
     )
 
 
-def build_explainer_narration_script(topic: str, *, scene_count: int, duration_seconds: int) -> ExplainerNarrationPlan:
+def build_explainer_narration_script(
+    topic: str,
+    *,
+    scene_count: int,
+    duration_seconds: int,
+    recipe_id: str,
+    explainer_style: str,
+) -> ExplainerNarrationPlan:
     settings = get_settings()
     normalized_topic = _normalize_topic(topic)
     if settings.openai_api_key:
@@ -205,12 +245,16 @@ def build_explainer_narration_script(topic: str, *, scene_count: int, duration_s
                             f"Topic: {normalized_topic}\n"
                             f"Target duration: {duration_seconds} seconds\n"
                             f"Scene count: {scene_count}\n"
+                            f"Recipe id: {recipe_id}\n"
+                            f"Explainer style: {explainer_style}\n"
                             "Requirements:\n"
                             "- Make the narration simple, spoken, natural, and educational.\n"
                             "- Avoid hook labels, bullet formatting, cue labels, or planning text.\n"
                             "- Do not write 'Opening shot', 'Scene 1', or anything UI-like.\n"
                             "- Keep scene beats visual and explanatory.\n"
                             "- Keep overlay_text short enough for on-screen emphasis.\n"
+                            "- If this is a deep explainer, structure the explanation as: hook, concept introduction, mechanism, concrete example, implication, closing takeaway.\n"
+                            "- Each scene beat should have a distinct educational role and visual objective.\n"
                         ),
                     },
                 ],
@@ -218,12 +262,12 @@ def build_explainer_narration_script(topic: str, *, scene_count: int, duration_s
             parsed = json.loads((response.choices[0].message.content or "{}").strip() or "{}")
             narration_script = str(parsed.get("narration_script") or "").strip()
             scene_beats = _normalize_text_lines(parsed.get("scene_beats"), target_count=scene_count)
-            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 4))
+            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 6))
             if narration_script and scene_beats:
                 return ExplainerNarrationPlan(
                     narration_script=narration_script,
                     scene_beats=scene_beats,
-                    overlay_text=overlay_text or _build_explainer_overlay_text(normalized_topic, scene_beats),
+                    overlay_text=overlay_text or _build_explainer_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
                     source_type="openai_explainer_script",
                 )
         except Exception:
@@ -353,17 +397,30 @@ def run_recipe_pipeline(
     narration_script: str | None = None
     overlay_text: list[str] = []
     scene_narration_context: list[str] = []
+    deep_explainer_style: str | None = None
     if recipe.id in EXPLAINER_RECIPE_IDS:
         topic = str(normalized_inputs.get("text") or "").strip()
+        if recipe.id == "deep_dive_explainer":
+            deep_explainer_style = _resolve_deep_explainer_style(recipe, normalized_inputs)
         narration_plan = build_explainer_narration_script(
             topic,
             scene_count=len(scenes),
             duration_seconds=recipe.duration_seconds,
+            recipe_id=recipe.id,
+            explainer_style=deep_explainer_style or "educational",
         )
         narration_script = narration_plan.narration_script
         scene_beats = narration_plan.scene_beats
         overlay_text = narration_plan.overlay_text
         scene_narration_context = _split_narration_into_scene_context(narration_script, scene_count=len(scenes))
+        if recipe.id == "deep_dive_explainer":
+            scenes = build_deep_explainer_scene_plan(
+                recipe=recipe,
+                topic=topic,
+                scene_beats=scene_beats,
+                scene_narration_context=scene_narration_context,
+                explainer_style=deep_explainer_style or "educational",
+            )
         overlay_differs = " ".join(overlay_text).strip() != narration_script.strip()
         _merge_pipeline_metadata(
             video_id=video_id,
@@ -375,6 +432,37 @@ def run_recipe_pipeline(
             overlay_differs_from_narration=overlay_differs,
             scene_beats=scene_beats,
             scene_narration_context=scene_narration_context,
+            deep_explainer_style=deep_explainer_style,
+            deep_explainer_family=(scenes[0].get("explainer_family") if recipe.id == "deep_dive_explainer" and scenes else None),
+            deep_explainer_subtopic=(scenes[0].get("explainer_subtopic") if recipe.id == "deep_dive_explainer" and scenes else None),
+            deep_explainer_educational_mode=(scenes[0].get("educational_mode") if recipe.id == "deep_dive_explainer" and scenes else None),
+            deep_scene_plan=(
+                [
+                    {
+                        "scene_id": scene.get("scene_id"),
+                        "stage_name": scene.get("stage_name"),
+                        "stage_label": scene.get("stage_label"),
+                        "explainer_family": scene.get("explainer_family"),
+                        "explainer_subtopic": scene.get("explainer_subtopic"),
+                        "educational_mode": scene.get("educational_mode"),
+                        "shot_archetype": scene.get("shot_archetype"),
+                        "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                        "qa_flags": scene.get("qa_flags"),
+                        "scene_type": scene.get("scene_type"),
+                        "topic_focus": scene.get("topic_focus"),
+                        "visual_objective": scene.get("visual_objective"),
+                        "camera_framing": scene.get("camera_framing"),
+                        "motion_intent": scene.get("motion_intent"),
+                        "transition_intent": scene.get("transition_intent"),
+                        "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                        "sora_negative_guidance": scene.get("sora_negative_guidance"),
+                        "anti_repetition_note": scene.get("anti_repetition_note"),
+                    }
+                    for scene in scenes
+                ]
+                if recipe.id == "deep_dive_explainer"
+                else None
+            ),
         )
         logger.info(
             "explainer_narration_resolved",
@@ -385,8 +473,33 @@ def run_recipe_pipeline(
                 "narration_text_length": len(narration_script),
                 "dedicated_script_generation": narration_plan.used_dedicated_script,
                 "overlay_differs_from_narration": overlay_differs,
+                "deep_explainer_style": deep_explainer_style,
+                "deep_explainer_family": scenes[0].get("explainer_family") if recipe.id == "deep_dive_explainer" and scenes else None,
             },
         )
+        if recipe.id == "deep_dive_explainer":
+            logger.info(
+                "deep_explainer_scene_plan_built",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "scene_count": len(scenes),
+                    "scene_plan": [
+                        {
+                            "scene_id": scene.get("scene_id"),
+                            "stage_name": scene.get("stage_name"),
+                            "explainer_family": scene.get("explainer_family"),
+                            "scene_type": scene.get("scene_type"),
+                            "topic_focus": scene.get("topic_focus"),
+                            "visual_objective": scene.get("visual_objective"),
+                            "shot_archetype": scene.get("shot_archetype"),
+                            "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                            "qa_flags": scene.get("qa_flags"),
+                        }
+                        for scene in scenes
+                    ],
+                },
+            )
         _append_pipeline_event(
             video_id=video_id,
             kind="narration_script_ready",
@@ -689,6 +802,7 @@ def run_recipe_pipeline(
     # Default old path for all other recipes
     clip_urls: list[str] = []
     total_scenes = max(len(scenes), 1)
+    compiled_scene_prompts: list[dict[str, Any]] = []
 
     for index, scene in enumerate(scenes):
         scene_progress = 35 + int((index / total_scenes) * 35)
@@ -723,6 +837,43 @@ def run_recipe_pipeline(
             ).strip()
 
         prompt = build_scene_prompt(recipe, scene, reference, scene_inputs)
+        if recipe.id == "deep_dive_explainer":
+            compiled_scene_prompts.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "explainer_family": scene.get("explainer_family"),
+                    "explainer_subtopic": scene.get("explainer_subtopic"),
+                    "educational_mode": scene.get("educational_mode"),
+                    "shot_archetype": scene.get("shot_archetype"),
+                    "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                    "qa_flags": scene.get("qa_flags"),
+                    "visual_objective": scene.get("visual_objective"),
+                    "camera_framing": scene.get("camera_framing"),
+                    "motion_intent": scene.get("motion_intent"),
+                    "transition_intent": scene.get("transition_intent"),
+                    "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                    "avoid_guidance": scene.get("sora_negative_guidance"),
+                    "compiled_prompt": prompt,
+                }
+            )
+            logger.info(
+                "deep_explainer_sora_prompt_compiled",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "explainer_family": scene.get("explainer_family"),
+                    "explainer_subtopic": scene.get("explainer_subtopic"),
+                    "shot_archetype": scene.get("shot_archetype"),
+                    "qa_flags": scene.get("qa_flags"),
+                    "camera_framing": scene.get("camera_framing"),
+                    "motion_intent": scene.get("motion_intent"),
+                    "transition_intent": scene.get("transition_intent"),
+                    "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                },
+            )
 
         clip_result = generation.generate_video_clip(
             ClipGenerationRequest(
@@ -830,6 +981,11 @@ def run_recipe_pipeline(
         title="Final render ready",
         detail="The explainer render completed successfully.",
     )
+    if recipe.id == "deep_dive_explainer":
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            compiled_sora_scene_prompts=compiled_scene_prompts,
+        )
     _merge_pipeline_metadata(
         video_id=video_id,
         render_mode="multi_shot",

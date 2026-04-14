@@ -475,6 +475,28 @@ export function VideoDetailClient({ userId, videoId }: Props) {
       }),
     [pipelineEvents],
   );
+  const deepScenePlan = useMemo(
+    () => video?.pipeline_metadata?.deep_scene_plan ?? [],
+    [video?.pipeline_metadata],
+  );
+  const plannerQaEntries = useMemo(
+    () =>
+      deepScenePlan
+        .map((scene) => {
+          const flags = Array.isArray(scene?.qa_flags)
+            ? scene.qa_flags.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0)
+            : [];
+          if (flags.length === 0) return null;
+          return {
+            sceneId: typeof scene?.scene_id === 'string' ? scene.scene_id : 'scene',
+            stageLabel: typeof scene?.stage_label === 'string' ? scene.stage_label : 'Scene',
+            shotArchetype: typeof scene?.shot_archetype === 'string' ? scene.shot_archetype : null,
+            flags,
+          };
+        })
+        .filter((entry): entry is { sceneId: string; stageLabel: string; shotArchetype: string | null; flags: string[] } => Boolean(entry)),
+    [deepScenePlan],
+  );
 
   const stage = video ? getStage(video.progress, video.status) : null;
   const isGenerationActive = video?.status === 'draft' || video?.status === 'processing';
@@ -1294,8 +1316,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </div>
           </section>
 
-          <aside className="h-full min-h-0">
-            <div className="flex h-full min-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
+          <aside className="min-h-0 self-start">
+            <div className="flex h-[520px] min-h-[520px] max-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
               <div className="flex items-center justify-between px-1 pb-1">
                 <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-2.5 py-1 text-xs font-medium text-text">
                   {referenceImages[0] || displayPosterUrl ? (
@@ -1308,7 +1330,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                 <SoftPill>{video.progress}%</SoftPill>
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 2xl:pr-2">
+              <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 2xl:pr-2">
                 {referenceImages[0] ? (
                   <div className="ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-2.5">
                     <img src={referenceImages[0]} alt="Reference" className="aspect-[4/3] w-full rounded-[14px] object-cover" />
@@ -1405,6 +1427,41 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                     ))}
                   </div>
                 </div>
+
+                {plannerQaEntries.length > 0 ? (
+                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
+                        <Wand2 className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                        Planner watchouts
+                      </div>
+                      <SoftPill>{plannerQaEntries.length}</SoftPill>
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {plannerQaEntries.slice(0, 4).map((entry) => (
+                        <div key={entry.sceneId} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted">{entry.stageLabel}</p>
+                            {entry.shotArchetype ? <SoftPill>{entry.shotArchetype}</SoftPill> : null}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {entry.flags.map((flag) => (
+                              <span
+                                key={flag}
+                                className="inline-flex items-center rounded-full bg-[hsl(var(--color-warning)/0.12)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--color-warning))]"
+                              >
+                                {flag.replace(/_/g, ' ')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-muted">
+                      These are lightweight planner warnings so we can catch repetition or weak scene grounding before expanding the recipe system further.
+                    </p>
+                  </div>
+                ) : null}
 
                 {assistantMessages.map((message, index) => (
                   <div

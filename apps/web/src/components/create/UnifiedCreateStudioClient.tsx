@@ -31,7 +31,16 @@ import creditEngine from '@/config/creditEngine';
 import { TEMPLATE_OPTIONS } from '@/components/videos/create/constants';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { AIVideoModel, GeneratedImage, ImageModel, InspirationImage, RecipeCatalog, VideoCreateRequest } from '@/types/api';
+import type {
+  AIVideoModel,
+  GeneratedImage,
+  ImageModel,
+  InspirationImage,
+  RecipeCatalog,
+  TTSLanguageOption,
+  TTSVoiceOption,
+  VideoCreateRequest,
+} from '@/types/api';
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
@@ -312,6 +321,10 @@ function buildVideoCreatePayload(input: {
   type: 'recipe';
   recipeId: string;
   prompt: string;
+  language: string;
+  voice: string;
+  captionsEnabled: boolean;
+  narrationEnabled: boolean;
 } | {
   type: 'freeform';
   templateLabel: string;
@@ -324,6 +337,8 @@ function buildVideoCreatePayload(input: {
   durationSeconds: number;
   captionsEnabled: boolean;
   narrationEnabled: boolean;
+  language: string;
+  voice: string;
   imageUrl?: string | null;
 }): VideoCreateRequest {
   if (input.type === 'recipe') {
@@ -332,6 +347,10 @@ function buildVideoCreatePayload(input: {
       inputs: {
         text: input.prompt,
       },
+      language: input.language,
+      voice: input.voice,
+      captionsEnabled: input.captionsEnabled,
+      narrationEnabled: input.narrationEnabled,
     };
   }
 
@@ -341,8 +360,8 @@ function buildVideoCreatePayload(input: {
     tags: [],
     modelKey: input.modelKey,
     modeId: input.lane,
-    language: 'English',
-    voice: 'Shubh',
+    language: input.language,
+    voice: input.voice,
     imageUrls: input.imageUrl ? [input.imageUrl] : [],
     music: {
       type: 'none',
@@ -873,6 +892,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [activeRecipeSource, setActiveRecipeSource] = useState<ActiveRecipeSource>(null);
   const [latestGeneratedImage, setLatestGeneratedImage] = useState<GeneratedImage | null>(null);
   const [imageResultOpen, setImageResultOpen] = useState(false);
+  const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>([]);
+  const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState('Shubh');
+  const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -954,7 +977,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       api.listAIVideoModels(userId),
       api.listImageModels(userId),
       api.listPublicImageInspiration({ limit: 12 }),
-    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult]) => {
+      api.getTtsCatalog(userId),
+    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult, ttsResult]) => {
       if (cancelled) return;
 
       if (recipeResult.status === 'fulfilled') {
@@ -975,6 +999,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       }
       if (inspirationResult.status === 'fulfilled') {
         setInspirationPhotos(inspirationResult.value.filter((item) => Boolean(item.image_url)));
+      }
+      if (ttsResult.status === 'fulfilled') {
+        setVoiceOptions(ttsResult.value.voices);
+        setLanguageOptions(ttsResult.value.languages);
+        const preferredVoice = ttsResult.value.voices.find((voice) => voice.key === 'Shubh') ?? ttsResult.value.voices[0];
+        const preferredLanguage = ttsResult.value.languages.find((language) => language.code === 'en-IN') ?? ttsResult.value.languages[0];
+        if (preferredVoice) {
+          setSelectedVoice(preferredVoice.key);
+        }
+        if (preferredLanguage) {
+          setSelectedLanguage(preferredLanguage.code);
+        }
       }
       setLoadingRecipes(false);
       setModelsLoading(false);
@@ -1233,6 +1269,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           {
             recipeId: recipe.id,
             inputs,
+            language: selectedLanguage,
+            voice: selectedVoice,
+            captionsEnabled,
+            narrationEnabled: voiceEnabled,
           },
           userId,
         );
@@ -1279,6 +1319,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             type: 'recipe',
             recipeId: explainerRecipeId,
             prompt: trimmedIdea,
+            language: selectedLanguage,
+            voice: selectedVoice,
+            captionsEnabled,
+            narrationEnabled: voiceEnabled,
           }),
           userId,
         );
@@ -1334,6 +1378,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           durationSeconds,
           captionsEnabled,
           narrationEnabled: voiceEnabled,
+          language: selectedLanguage,
+          voice: selectedVoice,
           imageUrl: uploadedComposerAsset?.assetUrl,
         }),
         userId,
@@ -1789,6 +1835,38 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <span>Voice</span>
                             <span className="text-xs text-muted">{voiceEnabled ? 'On' : 'Off'}</span>
                           </button>
+                          {voiceEnabled && languageOptions.length > 0 ? (
+                            <label className="mt-2 block px-2">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Language</span>
+                              <select
+                                value={selectedLanguage}
+                                onChange={(event) => setSelectedLanguage(event.target.value)}
+                                className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
+                              >
+                                {languageOptions.map((option) => (
+                                  <option key={`${option.code}-${option.label}`} value={option.code}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+                          {voiceEnabled && voiceOptions.length > 0 ? (
+                            <label className="mt-3 block px-2">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Voice</span>
+                              <select
+                                value={selectedVoice}
+                                onChange={(event) => setSelectedVoice(event.target.value)}
+                                className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
+                              >
+                                {voiceOptions.map((option) => (
+                                  <option key={option.key} value={option.key}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
                           <button type="button" onClick={() => setCaptionsEnabled((current) => !current)} className="flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
                             <span>Captions</span>
                             <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>

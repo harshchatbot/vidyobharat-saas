@@ -290,6 +290,26 @@ export type Video = {
       state?: string;
       created_at?: string;
     }>;
+    deep_scene_plan?: Array<{
+      scene_id?: string;
+      stage_name?: string;
+      stage_label?: string;
+      explainer_family?: string;
+      explainer_subtopic?: string;
+      educational_mode?: string;
+      shot_archetype?: string;
+      subtopic_visual_anchor?: string;
+      qa_flags?: string[];
+      scene_type?: string;
+      topic_focus?: string;
+      visual_objective?: string;
+      camera_framing?: string;
+      motion_intent?: string;
+      transition_intent?: string;
+      ending_hold_instruction?: string;
+      sora_negative_guidance?: string;
+      anti_repetition_note?: string;
+    }>;
     [key: string]: unknown;
   };
   created_at: string;
@@ -545,6 +565,10 @@ export type StandardVideoCreateRequest = {
 export type RecipeVideoCreateRequest = {
   recipeId: string;
   inputs: Record<string, string | string[]>;
+  language?: string;
+  voice?: string;
+  captionsEnabled?: boolean;
+  narrationEnabled?: boolean;
 };
 
 export type VideoCreateRequest = StandardVideoCreateRequest | RecipeVideoCreateRequest;
