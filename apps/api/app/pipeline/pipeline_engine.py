@@ -13,8 +13,18 @@ from app.core.config import get_settings
 from app.db.firestore_utils import utcnow
 from app.db.repositories.video_repository import VideoRepository
 from app.pipeline.prompt_builder import build_scene_prompt
-from app.pipeline.scene_planner import build_deep_explainer_scene_plan, plan_scenes
-from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, get_recipe, validate_recipe_inputs
+from app.pipeline.scene_planner import (
+    UgcAdClientBrief,
+    build_deep_explainer_scene_plan,
+    build_ugc_ad_scene_plan,
+    build_ugc_business_context,
+    build_ugc_hook_plan,
+    detect_ugc_ad_family,
+    is_client_brief_mode,
+    normalize_ugc_client_brief,
+    plan_scenes,
+)
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.audio_service import RecipeAudioService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
@@ -124,6 +134,19 @@ def _resolve_deep_explainer_style(recipe, inputs: dict[str, Any]) -> str:
     return default_style
 
 
+def _resolve_ugc_ad_style(recipe, inputs: dict[str, Any]) -> str:
+    default_style = str(recipe.metadata.get("default_ugc_style") or "creator_casual").strip()
+    supported_styles = {
+        str(item).strip()
+        for item in (recipe.metadata.get("supported_ugc_styles") or ())
+        if str(item).strip()
+    }
+    requested_style = str(inputs.get("ugcStyle") or inputs.get("adStyle") or "").strip()
+    if requested_style and requested_style in supported_styles:
+        return requested_style
+    return default_style
+
+
 def _normalize_text_lines(value: Any, *, target_count: int) -> list[str]:
     items = [str(item or "").strip() for item in (value or []) if str(item or "").strip()]
     if not items:
@@ -211,6 +234,115 @@ def _fallback_explainer_narration(topic: str, *, scene_count: int) -> ExplainerN
     )
 
 
+def _build_ugc_ad_beats(topic: str, *, scene_count: int, family: str) -> list[str]:
+    topic = _normalize_topic(topic)
+    family_map = {
+        "testimonial_ugc_ad": [
+            f"Open with a personal hook about {topic}.",
+            f"Set up the creator's before situation around {topic}.",
+            f"Introduce {topic} as what changed things.",
+            f"Show a believable use moment or proof for {topic}.",
+            f"Land the benefit or payoff from {topic}.",
+            f"Close with a direct but natural recommendation for {topic}.",
+        ],
+        "demo_ugc_ad": [
+            f"Hook with fast product visibility for {topic}.",
+            f"Clarify the need or use case for {topic}.",
+            f"Introduce {topic} clearly on screen.",
+            f"Demonstrate how {topic} works in one readable action.",
+            f"Show the result after using {topic}.",
+            f"Close with a clear creator-style CTA for {topic}.",
+        ],
+        "offer_hook_ugc_ad": [
+            f"Lead with the strongest offer or hook for {topic}.",
+            f"Clarify why viewers should care about {topic} right now.",
+            f"Show the product or service behind {topic} quickly.",
+            f"Use proof or demo to support the {topic} claim.",
+            f"Show the main benefit from {topic}.",
+            f"Close with an urgency-aware CTA for {topic}.",
+        ],
+    }
+    default = [
+        f"Hook viewers with a relatable pain point or desire around {topic}.",
+        f"Show the problem or frustration that makes {topic} relevant.",
+        f"Introduce {topic} as the solution before attention drops.",
+        f"Show a believable demo or proof moment for {topic}.",
+        f"Land the user benefit or visible result from {topic}.",
+        f"Close with a simple native-feeling CTA for {topic}.",
+    ]
+    return _normalize_text_lines(family_map.get(family, default), target_count=scene_count)
+
+
+def _build_ugc_overlay_text(topic: str, scene_beats: list[str], *, scene_count: int) -> list[str]:
+    normalized_topic = _normalize_topic(topic)
+    defaults = [
+        f"{normalized_topic}",
+        "The problem",
+        "Meet the product",
+        "How it works",
+        "Why it helps",
+        "Try it now",
+    ]
+    source = scene_beats or defaults
+    return [str(item).replace('"', '').strip()[:56] for item in source[: max(1, min(scene_count, 6))]]
+
+
+def _fallback_ugc_ad_narration(topic: str, *, scene_count: int, family: str) -> ExplainerNarrationPlan:
+    normalized_topic = _normalize_topic(topic)
+    family_opening = {
+        "testimonial_ugc_ad": f"I did not expect {normalized_topic} to make this much difference, but it honestly changed the routine for me.",
+        "demo_ugc_ad": f"If you are wondering how {normalized_topic} actually works, here is the easiest way to understand it.",
+        "offer_hook_ugc_ad": f"If you were already thinking about {normalized_topic}, this is the part you need to see first.",
+    }.get(family, f"If you are dealing with {normalized_topic}, this is the kind of product people wish they found sooner.")
+    narration_script = (
+        f"{family_opening} "
+        f"The problem is usually the same: people want something fast, clear, and reliable without extra hassle. "
+        f"This is where {normalized_topic} comes in, because it is designed to solve that specific need in a way that feels simple to use. "
+        "Once you see it in action, the benefit becomes obvious and the result feels practical, not exaggerated. "
+        "So if that sounds useful to you, this is the kind of thing worth trying now."
+    )
+    scene_beats = _build_ugc_ad_beats(normalized_topic, scene_count=scene_count, family=family)
+    overlay_text = _build_ugc_overlay_text(normalized_topic, scene_beats, scene_count=scene_count)
+    return ExplainerNarrationPlan(
+        narration_script=narration_script,
+        scene_beats=scene_beats,
+        overlay_text=overlay_text,
+        source_type="fallback_ugc_ad_template",
+    )
+
+
+def _fallback_client_brief_ugc_ad_narration(
+    topic: str,
+    *,
+    scene_count: int,
+    family: str,
+    client_brief: UgcAdClientBrief,
+) -> ExplainerNarrationPlan:
+    normalized_topic = _normalize_topic(topic)
+    business = client_brief.business_name or client_brief.business_category or client_brief.main_service_or_product or normalized_topic
+    location = ", ".join(part for part in (client_brief.locality, client_brief.city) if part)
+    audience = client_brief.target_audience or "people nearby"
+    pain_point = client_brief.main_pain_point or "the common pain point people keep delaying"
+    promise = client_brief.key_promise or "a simpler, more reliable experience"
+    trust = client_brief.trust_factor or "a more trustworthy option"
+    cta = client_brief.cta or "book your slot"
+    locality_note = f" around {location}" if location else ""
+    narration_script = (
+        f"If you are {audience}{locality_note} and still dealing with {pain_point}, {business} is built around {promise}. "
+        f"What makes it stand out is {trust}, so it does not feel like just another generic option. "
+        f"You can actually see how {client_brief.main_service_or_product or client_brief.business_category or normalized_topic} fits real daily life, and why the result feels practical. "
+        f"So if that sounds relevant to you, {cta}."
+    )
+    scene_beats = _build_ugc_ad_beats(normalized_topic, scene_count=scene_count, family=family)
+    overlay_text = _build_ugc_overlay_text(normalized_topic, scene_beats, scene_count=scene_count)
+    return ExplainerNarrationPlan(
+        narration_script=narration_script,
+        scene_beats=scene_beats,
+        overlay_text=overlay_text,
+        source_type="fallback_client_brief_ugc_ad_template",
+    )
+
+
 def build_explainer_narration_script(
     topic: str,
     *,
@@ -274,6 +406,85 @@ def build_explainer_narration_script(
             logger.exception("explainer_narration_generation_failed", extra={"topic": normalized_topic})
 
     return _fallback_explainer_narration(normalized_topic, scene_count=scene_count)
+
+
+def build_ugc_ad_narration_script(
+    topic: str,
+    *,
+    scene_count: int,
+    duration_seconds: int,
+    ugc_style: str,
+    family: str,
+    client_brief: UgcAdClientBrief | None = None,
+    client_brief_mode: bool = False,
+) -> ExplainerNarrationPlan:
+    settings = get_settings()
+    normalized_topic = _normalize_topic(topic)
+    brief = client_brief or UgcAdClientBrief()
+    business_context = build_ugc_business_context(brief)
+    if settings.openai_api_key:
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                temperature=0.65,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You write high-converting creator-style UGC ad scripts for short-form vertical video. "
+                            "Return valid JSON only with keys: narration_script, scene_beats, overlay_text. "
+                            "narration_script must sound conversational, benefit-led, and creator-native, not corporate. "
+                            "scene_beats must be short visual planning lines, not spoken copy. "
+                            "overlay_text must be short on-screen emphasis phrases, not full narration."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Product or service brief: {normalized_topic}\n"
+                            f"Target duration: {duration_seconds} seconds\n"
+                            f"Scene count: {scene_count}\n"
+                            f"UGC family: {family}\n"
+                            f"UGC style: {ugc_style}\n"
+                            f"Client brief mode: {'on' if client_brief_mode else 'off'}\n"
+                            f"Business identity: {business_context.get('business_identity')}\n"
+                            f"Location context: {business_context.get('location_context')}\n"
+                            f"Audience context: {business_context.get('audience_context')}\n"
+                            f"Promise context: {business_context.get('promise_context')}\n"
+                            f"Trust context: {business_context.get('trust_context')}\n"
+                            f"Offer context: {business_context.get('offer_context')}\n"
+                            f"CTA context: {business_context.get('cta_context')}\n"
+                            "Requirements:\n"
+                            "- Write like a modern creator or performance ad copywriter, not a TV commercial.\n"
+                            "- Use short hook energy, conversational phrasing, product clarity, believable proof, benefit-led language, and a natural CTA.\n"
+                            "- Avoid stiff corporate wording, abstract brand storytelling, or generic marketing filler.\n"
+                            "- Keep the structure native to short-form ads: hook, problem or desire, product intro, proof/demo/testimonial, benefit/result, CTA.\n"
+                            "- Make scene beats useful for visual planning.\n"
+                            "- Keep overlay_text short and mobile-friendly.\n"
+                            "- If client brief mode is on, make the copy clearly about that real business, audience, locality, promise, trust factor, and CTA without sounding like a directory listing.\n"
+                        ),
+                    },
+                ],
+            )
+            parsed = json.loads((response.choices[0].message.content or "{}").strip() or "{}")
+            narration_script = str(parsed.get("narration_script") or "").strip()
+            scene_beats = _normalize_text_lines(parsed.get("scene_beats"), target_count=scene_count)
+            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 6))
+            if narration_script and scene_beats:
+                return ExplainerNarrationPlan(
+                    narration_script=narration_script,
+                    scene_beats=scene_beats,
+                    overlay_text=overlay_text or _build_ugc_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
+                    source_type="openai_ugc_ad_script",
+                )
+        except Exception:
+            logger.exception("ugc_ad_script_generation_failed", extra={"topic": normalized_topic, "family": family})
+
+    if client_brief_mode:
+        return _fallback_client_brief_ugc_ad_narration(normalized_topic, scene_count=scene_count, family=family, client_brief=brief)
+    return _fallback_ugc_ad_narration(normalized_topic, scene_count=scene_count, family=family)
 
 
 def _build_kling_v3_multi_prompt(
@@ -398,6 +609,9 @@ def run_recipe_pipeline(
     overlay_text: list[str] = []
     scene_narration_context: list[str] = []
     deep_explainer_style: str | None = None
+    ugc_ad_style: str | None = None
+    ugc_client_brief: UgcAdClientBrief | None = None
+    ugc_client_brief_mode = False
     if recipe.id in EXPLAINER_RECIPE_IDS:
         topic = str(normalized_inputs.get("text") or "").strip()
         if recipe.id == "deep_dive_explainer":
@@ -506,6 +720,132 @@ def run_recipe_pipeline(
             title="Narration script drafted",
             detail="A dedicated explainer narration script was prepared for voiceover.",
         )
+    elif recipe.id in UGC_AD_RECIPE_IDS:
+        topic = str(normalized_inputs.get("text") or "").strip()
+        ugc_ad_style = _resolve_ugc_ad_style(recipe, normalized_inputs)
+        ugc_client_brief = normalize_ugc_client_brief(topic=topic)
+        ugc_client_brief_mode = is_client_brief_mode(ugc_client_brief)
+        ugc_business_context = build_ugc_business_context(ugc_client_brief)
+        ugc_hook_plan = build_ugc_hook_plan(brief=ugc_client_brief, family=detect_ugc_ad_family(topic=topic, ugc_style=ugc_ad_style or "creator_casual").family) if ugc_client_brief_mode else ""
+        ugc_family_detection = detect_ugc_ad_family(topic=topic, ugc_style=ugc_ad_style or "creator_casual")
+        narration_plan = build_ugc_ad_narration_script(
+            topic,
+            scene_count=len(scenes),
+            duration_seconds=recipe.duration_seconds,
+            ugc_style=ugc_ad_style or "creator_casual",
+            family=ugc_family_detection.family,
+            client_brief=ugc_client_brief,
+            client_brief_mode=ugc_client_brief_mode,
+        )
+        narration_script = narration_plan.narration_script
+        scene_beats = narration_plan.scene_beats
+        overlay_text = narration_plan.overlay_text
+        scene_narration_context = _split_narration_into_scene_context(narration_script, scene_count=len(scenes))
+        scenes = build_ugc_ad_scene_plan(
+            recipe=recipe,
+            topic=topic,
+            scene_beats=scene_beats,
+            scene_narration_context=scene_narration_context,
+            ugc_style=ugc_ad_style or "creator_casual",
+            client_brief=ugc_client_brief,
+        )
+        overlay_differs = " ".join(overlay_text).strip() != narration_script.strip()
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            narration_script=narration_script,
+            overlay_text=overlay_text,
+            narration_source_type=narration_plan.source_type,
+            narration_text_length=len(narration_script),
+            narration_uses_dedicated_script=narration_plan.used_dedicated_script,
+            overlay_differs_from_narration=overlay_differs,
+            scene_beats=scene_beats,
+            scene_narration_context=scene_narration_context,
+            ugc_ad_style=ugc_ad_style,
+            ugc_client_brief_mode=ugc_client_brief_mode,
+            ugc_ad_family=(scenes[0].get("ugc_ad_family") if scenes else None),
+            ugc_ad_subtopic=(scenes[0].get("ugc_ad_subtopic") if scenes else None),
+            ugc_ad_mode=(scenes[0].get("ugc_mode") if scenes else None),
+            ugc_hook_plan=ugc_hook_plan,
+            ugc_business_context=ugc_business_context,
+            ugc_client_brief=ugc_client_brief.__dict__ if ugc_client_brief else {},
+            ugc_scene_plan=[
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "stage_label": scene.get("stage_label"),
+                    "ugc_ad_family": scene.get("ugc_ad_family"),
+                    "ugc_ad_subtopic": scene.get("ugc_ad_subtopic"),
+                    "ugc_mode": scene.get("ugc_mode"),
+                    "shot_archetype": scene.get("shot_archetype"),
+                    "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                    "qa_flags": scene.get("qa_flags"),
+                    "scene_type": scene.get("scene_type"),
+                    "topic_focus": scene.get("topic_focus"),
+                    "visual_objective": scene.get("visual_objective"),
+                    "camera_framing": scene.get("camera_framing"),
+                    "motion_intent": scene.get("motion_intent"),
+                    "transition_intent": scene.get("transition_intent"),
+                    "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                    "sora_negative_guidance": scene.get("sora_negative_guidance"),
+                    "anti_repetition_note": scene.get("anti_repetition_note"),
+                    "client_brief_mode": scene.get("client_brief_mode"),
+                    "business_name": scene.get("business_name"),
+                    "business_category": scene.get("business_category"),
+                    "city": scene.get("city"),
+                    "locality": scene.get("locality"),
+                    "target_audience": scene.get("target_audience"),
+                    "key_promise": scene.get("key_promise"),
+                    "trust_factor": scene.get("trust_factor"),
+                    "offer": scene.get("offer"),
+                    "cta": scene.get("cta"),
+                    "ad_goal": scene.get("ad_goal"),
+                }
+                for scene in scenes
+            ],
+        )
+        logger.info(
+            "ugc_ad_script_resolved",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "narration_source_type": narration_plan.source_type,
+                "narration_text_length": len(narration_script),
+                "dedicated_script_generation": narration_plan.used_dedicated_script,
+                "overlay_differs_from_narration": overlay_differs,
+                "ugc_ad_style": ugc_ad_style,
+                "ugc_ad_family": scenes[0].get("ugc_ad_family") if scenes else None,
+                "ugc_client_brief_mode": ugc_client_brief_mode,
+                "ugc_business_name": ugc_client_brief.business_name if ugc_client_brief else None,
+            },
+        )
+        logger.info(
+            "ugc_ad_scene_plan_built",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "scene_count": len(scenes),
+                "scene_plan": [
+                    {
+                        "scene_id": scene.get("scene_id"),
+                        "stage_name": scene.get("stage_name"),
+                        "ugc_ad_family": scene.get("ugc_ad_family"),
+                        "scene_type": scene.get("scene_type"),
+                        "topic_focus": scene.get("topic_focus"),
+                        "visual_objective": scene.get("visual_objective"),
+                        "shot_archetype": scene.get("shot_archetype"),
+                        "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                        "qa_flags": scene.get("qa_flags"),
+                    }
+                    for scene in scenes
+                ],
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="narration_script_ready",
+            title="Ad script drafted",
+            detail="A dedicated creator-style UGC ad script was prepared for voiceover.",
+        )
 
     if progress_callback:
         progress_callback(30)
@@ -518,7 +858,11 @@ def run_recipe_pipeline(
         video_id=video_id,
         kind="scenes_planned",
         title="Scene plan assembled",
-        detail=f"The explainer was split into {len(scenes)} scene blocks for render orchestration.",
+        detail=(
+            f"The UGC ad was split into {len(scenes)} scene blocks for render orchestration."
+            if recipe.id in UGC_AD_RECIPE_IDS
+            else f"The explainer was split into {len(scenes)} scene blocks for render orchestration."
+        ),
     )
 
     generation = VideoGenerationService(get_settings())
@@ -835,6 +1179,14 @@ def run_recipe_pipeline(
                 f'Visual objective: {scene_beats[index]}. '
                 f'Narration context: {narration_context}'
             ).strip()
+        elif recipe.id in UGC_AD_RECIPE_IDS and index < len(scene_beats):
+            topic = str(normalized_inputs.get("text") or "").strip()
+            narration_context = scene_narration_context[index] if index < len(scene_narration_context) else ""
+            scene_inputs["text"] = (
+                f'Product or service brief: {_normalize_topic(topic)}. '
+                f'Ad objective: {scene_beats[index]}. '
+                f'Narration context: {narration_context}'
+            ).strip()
 
         prompt = build_scene_prompt(recipe, scene, reference, scene_inputs)
         if recipe.id == "deep_dive_explainer":
@@ -866,6 +1218,54 @@ def run_recipe_pipeline(
                     "stage_name": scene.get("stage_name"),
                     "explainer_family": scene.get("explainer_family"),
                     "explainer_subtopic": scene.get("explainer_subtopic"),
+                    "shot_archetype": scene.get("shot_archetype"),
+                    "qa_flags": scene.get("qa_flags"),
+                    "camera_framing": scene.get("camera_framing"),
+                    "motion_intent": scene.get("motion_intent"),
+                    "transition_intent": scene.get("transition_intent"),
+                    "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                },
+            )
+        elif recipe.id in UGC_AD_RECIPE_IDS:
+            compiled_scene_prompts.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "ugc_ad_family": scene.get("ugc_ad_family"),
+                    "ugc_ad_subtopic": scene.get("ugc_ad_subtopic"),
+                    "ugc_mode": scene.get("ugc_mode"),
+                    "shot_archetype": scene.get("shot_archetype"),
+                    "subtopic_visual_anchor": scene.get("subtopic_visual_anchor"),
+                    "qa_flags": scene.get("qa_flags"),
+                    "visual_objective": scene.get("visual_objective"),
+                    "camera_framing": scene.get("camera_framing"),
+                    "motion_intent": scene.get("motion_intent"),
+                    "transition_intent": scene.get("transition_intent"),
+                    "ending_hold_instruction": scene.get("ending_hold_instruction"),
+                    "client_brief_mode": scene.get("client_brief_mode"),
+                    "business_name": scene.get("business_name"),
+                    "business_category": scene.get("business_category"),
+                    "city": scene.get("city"),
+                    "locality": scene.get("locality"),
+                    "target_audience": scene.get("target_audience"),
+                    "key_promise": scene.get("key_promise"),
+                    "trust_factor": scene.get("trust_factor"),
+                    "offer": scene.get("offer"),
+                    "cta": scene.get("cta"),
+                    "hook_plan": scene.get("hook_plan"),
+                    "avoid_guidance": scene.get("sora_negative_guidance"),
+                    "compiled_prompt": prompt,
+                }
+            )
+            logger.info(
+                "ugc_ad_sora_prompt_compiled",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "ugc_ad_family": scene.get("ugc_ad_family"),
+                    "ugc_ad_subtopic": scene.get("ugc_ad_subtopic"),
                     "shot_archetype": scene.get("shot_archetype"),
                     "qa_flags": scene.get("qa_flags"),
                     "camera_framing": scene.get("camera_framing"),
@@ -938,11 +1338,15 @@ def run_recipe_pipeline(
         video_id=video_id,
         kind="timeline_assembled",
         title="Timeline assembled",
-        detail="All generated clips were stitched into a single timeline.",
+        detail=(
+            "All generated ad scenes were stitched into a single mobile-first timeline."
+            if recipe.id in UGC_AD_RECIPE_IDS
+            else "All generated clips were stitched into a single timeline."
+        ),
     )
 
     audio_service = RecipeAudioService()
-    narration_text = narration_script if recipe.id in EXPLAINER_RECIPE_IDS else None
+    narration_text = narration_script if recipe.id in EXPLAINER_RECIPE_IDS or recipe.id in UGC_AD_RECIPE_IDS else None
 
     final_path = audio_service.add_audio(
         video_path=stitched_path,
@@ -964,7 +1368,11 @@ def run_recipe_pipeline(
         video_id=video_id,
         kind="audio_added",
         title="Narration and music mixed",
-        detail="Voiceover and BGM were added to the explainer timeline.",
+        detail=(
+            "Voiceover and BGM were added to the UGC ad timeline."
+            if recipe.id in UGC_AD_RECIPE_IDS
+            else "Voiceover and BGM were added to the explainer timeline."
+        ),
     )
 
     logger.info(
@@ -979,9 +1387,18 @@ def run_recipe_pipeline(
         video_id=video_id,
         kind="pipeline_completed",
         title="Final render ready",
-        detail="The explainer render completed successfully.",
+        detail=(
+            "The UGC ad render completed successfully."
+            if recipe.id in UGC_AD_RECIPE_IDS
+            else "The explainer render completed successfully."
+        ),
     )
     if recipe.id == "deep_dive_explainer":
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            compiled_sora_scene_prompts=compiled_scene_prompts,
+        )
+    elif recipe.id in UGC_AD_RECIPE_IDS:
         _merge_pipeline_metadata(
             video_id=video_id,
             compiled_sora_scene_prompts=compiled_scene_prompts,

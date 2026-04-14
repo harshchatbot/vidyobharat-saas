@@ -14,6 +14,38 @@ class ExplainerFamilyDetection:
     educational_mode: str
 
 
+@dataclass(frozen=True)
+class UgcAdFamilyDetection:
+    family: str
+    subtopic: str
+    ugc_mode: str
+
+
+@dataclass(frozen=True)
+class UgcAdClientBrief:
+    business_name: str = ""
+    business_category: str = ""
+    city: str = ""
+    locality: str = ""
+    address_hint: str = ""
+    area_landmark: str = ""
+    target_audience: str = ""
+    main_service_or_product: str = ""
+    main_pain_point: str = ""
+    key_promise: str = ""
+    trust_factor: str = ""
+    offer: str = ""
+    cta: str = ""
+    tone: str = ""
+    ad_goal: str = ""
+    brand_colors: str = ""
+    website_or_booking_target: str = ""
+    phone_or_contact_cta: str = ""
+    price_point: str = ""
+    creator_gender_preference: str = ""
+    language_preference: str = ""
+
+
 def plan_scenes(recipe: RecipeConfig) -> list[dict[str, Any]]:
     return [
         {
@@ -114,6 +146,180 @@ def detect_explainer_family(*, topic: str, explainer_style: str = "educational")
     )
 
 
+def detect_ugc_ad_family(*, topic: str, ugc_style: str = "creator_casual") -> UgcAdFamilyDetection:
+    normalized_topic = " ".join(str(topic or "").lower().split())
+    family_keywords: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("before_after_ugc_ad", ("before after", "before-and-after", "transformation", "results in", "used to")),
+        ("testimonial_ugc_ad", ("testimonial", "review", "i tried", "i was skeptical", "my experience", "personally")),
+        ("demo_ugc_ad", ("demo", "show how", "use it", "works like this", "how to use", "watch this")),
+        ("offer_hook_ugc_ad", ("limited time", "discount", "sale", "offer", "free trial", "book now", "sign up today")),
+        ("founder_story_ugc_ad", ("founder", "we built", "our story", "why we started", "behind this brand")),
+        ("local_service_ugc_ad", ("clinic", "salon", "spa", "restaurant", "cafe", "gym", "repair", "plumber", "electrician", "dentist")),
+        ("app_software_ugc_ad", ("app", "software", "saas", "dashboard", "website", "tool", "platform")),
+        ("how_to_use_ugc_ad", ("how to use", "step by step", "use this for", "apply this", "set it up")),
+        ("listicle_benefit_ugc_ad", ("3 reasons", "5 reasons", "benefits", "why this is", "top reasons")),
+        ("problem_solution_ugc_ad", ("struggling", "problem", "pain point", "fix", "solution", "tired of", "finally found")),
+    )
+
+    family = "problem_solution_ugc_ad"
+    subtopic = normalized_topic or "product or service"
+    for candidate_family, keywords in family_keywords:
+        match = next((keyword for keyword in keywords if keyword in normalized_topic), None)
+        if match:
+            family = candidate_family
+            subtopic = match
+            break
+
+    category_keywords: tuple[str, ...] = (
+        "skincare",
+        "skin care",
+        "serum",
+        "sunscreen",
+        "face wash",
+        "cleanser",
+        "moisturizer",
+        "acne",
+        "pimple",
+        "beauty",
+        "makeup",
+        "lipstick",
+        "foundation",
+        "shampoo",
+        "hair oil",
+        "hair serum",
+        "salon",
+        "spa",
+        "clinic",
+        "dentist",
+        "gym",
+        "restaurant",
+        "cafe",
+        "repair",
+        "plumber",
+        "electrician",
+    )
+    category_match = next((keyword for keyword in category_keywords if keyword in normalized_topic), None)
+    if category_match:
+        subtopic = category_match
+
+    if ugc_style in {"testimonial", "documentary_social", "premium_ugc", "offer_heavy_performance_ad"}:
+        ugc_mode = ugc_style
+    else:
+        ugc_mode = "creator_casual"
+
+    return UgcAdFamilyDetection(family=family, subtopic=subtopic, ugc_mode=ugc_mode)
+
+
+def normalize_ugc_client_brief(*, topic: str, explicit: dict[str, Any] | None = None) -> UgcAdClientBrief:
+    raw_text = " ".join(str(topic or "").split())
+    normalized = raw_text.lower()
+    explicit = dict(explicit or {})
+
+    business_category = str(explicit.get("business_category") or _infer_business_category(normalized)).strip()
+    business_name = str(explicit.get("business_name") or _extract_business_name(raw_text, business_category)).strip()
+    locality, city = _extract_location(raw_text)
+    locality = str(explicit.get("locality") or locality).strip()
+    city = str(explicit.get("city") or city).strip()
+    target_audience = str(explicit.get("target_audience") or _extract_target_audience(raw_text)).strip()
+    key_promise = str(explicit.get("key_promise") or _extract_after_marker(raw_text, ("focused on", "known for", "offering", "with"))).strip()
+    main_pain_point = str(explicit.get("main_pain_point") or _extract_after_marker(raw_text, ("because", "worried about", "struggling with", "dealing with"))).strip()
+    trust_factor = str(explicit.get("trust_factor") or _extract_after_marker(raw_text, ("trusted for", "backed by", "with ", "led by"))).strip()
+    offer = str(explicit.get("offer") or _extract_offer(raw_text)).strip()
+    cta = str(explicit.get("cta") or _extract_cta(raw_text, business_category)).strip()
+    language_preference = str(explicit.get("language_preference") or _extract_language_preference(normalized)).strip()
+    creator_gender_preference = str(explicit.get("creator_gender_preference") or _extract_creator_preference(normalized)).strip()
+    main_service_or_product = str(
+        explicit.get("main_service_or_product")
+        or _extract_service_or_product(raw_text, business_category, business_name)
+    ).strip()
+    ad_goal = str(explicit.get("ad_goal") or _infer_ad_goal(cta=cta, business_category=business_category)).strip()
+    tone = str(explicit.get("tone") or _infer_brief_tone(business_category, ad_goal)).strip()
+    address_hint = str(explicit.get("address_hint") or "").strip()
+    area_landmark = str(explicit.get("area_landmark") or "").strip()
+    brand_colors = str(explicit.get("brand_colors") or "").strip()
+    website_or_booking_target = str(explicit.get("website_or_booking_target") or "").strip()
+    phone_or_contact_cta = str(explicit.get("phone_or_contact_cta") or "").strip()
+    price_point = str(explicit.get("price_point") or "").strip()
+
+    return UgcAdClientBrief(
+        business_name=business_name,
+        business_category=business_category,
+        city=city,
+        locality=locality,
+        address_hint=address_hint,
+        area_landmark=area_landmark,
+        target_audience=target_audience,
+        main_service_or_product=main_service_or_product,
+        main_pain_point=main_pain_point,
+        key_promise=key_promise,
+        trust_factor=trust_factor,
+        offer=offer,
+        cta=cta,
+        tone=tone,
+        ad_goal=ad_goal,
+        brand_colors=brand_colors,
+        website_or_booking_target=website_or_booking_target,
+        phone_or_contact_cta=phone_or_contact_cta,
+        price_point=price_point,
+        creator_gender_preference=creator_gender_preference,
+        language_preference=language_preference,
+    )
+
+
+def is_client_brief_mode(brief: UgcAdClientBrief) -> bool:
+    signal_count = sum(
+        1
+        for value in (
+            brief.business_name,
+            brief.business_category,
+            brief.city,
+            brief.locality,
+            brief.target_audience,
+            brief.key_promise,
+            brief.cta,
+            brief.offer,
+            brief.trust_factor,
+        )
+        if str(value or "").strip()
+    )
+    return signal_count >= 4
+
+
+def build_ugc_business_context(brief: UgcAdClientBrief) -> dict[str, str]:
+    location = ", ".join(part for part in (brief.locality, brief.city) if part)
+    business_identity = " ".join(part for part in (brief.business_name, brief.business_category) if part).strip()
+    return {
+        "business_identity": business_identity or brief.business_category or brief.main_service_or_product or "the business",
+        "location_context": location,
+        "audience_context": brief.target_audience,
+        "promise_context": brief.key_promise,
+        "trust_context": brief.trust_factor,
+        "offer_context": brief.offer,
+        "cta_context": brief.cta,
+        "service_context": brief.main_service_or_product or brief.business_category or "the product or service",
+        "local_business_context": " ".join(part for part in (business_identity, location) if part).strip(),
+    }
+
+
+def build_ugc_hook_plan(*, brief: UgcAdClientBrief, family: str) -> str:
+    location = ", ".join(part for part in (brief.locality, brief.city) if part)
+    audience = brief.target_audience or "people like you"
+    business = brief.business_name or brief.business_category or brief.main_service_or_product or "this brand"
+    pain_point = brief.main_pain_point or "the usual frustration people keep putting off"
+    promise = brief.key_promise or "a simpler and more trustworthy option"
+    trust = brief.trust_factor or "something that feels credible from the start"
+
+    if family == "local_service_ugc_ad":
+        if location:
+            return f"If you are around {location} and still dealing with {pain_point}, {business} is pitching {promise} with {trust}."
+        return f"If you are still dealing with {pain_point}, {business} is pitching {promise} with {trust}."
+    if family == "testimonial_ugc_ad":
+        return f"I did not expect {business} to help with {pain_point}, but {promise} is why it stood out for {audience}."
+    if family == "offer_hook_ugc_ad" and brief.offer:
+        return f"{brief.offer} sounds great, but the real reason {audience} will care is {promise} from {business}."
+    return f"If you are {audience} and tired of {pain_point}, {business} is leaning into {promise} with {trust}."
+
+
 def build_deep_explainer_scene_plan(
     *,
     recipe: RecipeConfig,
@@ -182,6 +388,958 @@ def build_deep_explainer_scene_plan(
         )
 
     return apply_scene_diversity_rules(planned)
+
+
+def build_ugc_ad_scene_plan(
+    *,
+    recipe: RecipeConfig,
+    topic: str,
+    scene_beats: list[str],
+    scene_narration_context: list[str],
+    ugc_style: str,
+    client_brief: UgcAdClientBrief | None = None,
+) -> list[dict[str, Any]]:
+    normalized_topic = " ".join(str(topic or "").split()) or "the product or service"
+    family_detection = detect_ugc_ad_family(topic=normalized_topic, ugc_style=ugc_style)
+    family = family_detection.family
+    subtopic = family_detection.subtopic
+    ugc_mode = family_detection.ugc_mode
+    resolved_brief = client_brief or normalize_ugc_client_brief(topic=normalized_topic)
+    client_brief_mode = is_client_brief_mode(resolved_brief)
+    business_context = build_ugc_business_context(resolved_brief)
+    hook_plan = build_ugc_hook_plan(brief=resolved_brief, family=family) if client_brief_mode else ""
+    stage_blueprint = _ugc_scene_grammar_for_family(family)
+    base_scenes = plan_scenes(recipe)
+    planned: list[dict[str, Any]] = []
+    previous_scene_type = ""
+    previous_focus = ""
+
+    for index, scene in enumerate(base_scenes):
+        stage_name, stage_label, scene_type, stage_goal = stage_blueprint[index]
+        topic_focus = _ugc_topic_focus_for_stage(
+            family=family,
+            stage_name=stage_name,
+            topic=normalized_topic,
+            client_brief=resolved_brief,
+            client_brief_mode=client_brief_mode,
+        )
+        local_narration = scene_narration_context[index] if index < len(scene_narration_context) else ""
+        previous_stage = stage_blueprint[index - 1][1] if index > 0 else ""
+        next_stage = stage_blueprint[index + 1][1] if index < len(stage_blueprint) - 1 else ""
+        prompt_context = build_ugc_ad_prompt_context(
+            stage_name=stage_name,
+            topic=normalized_topic,
+            topic_focus=topic_focus,
+            scene_type=scene_type,
+            family=family,
+            subtopic=subtopic,
+            index=index,
+            total_scenes=len(base_scenes),
+            client_brief=resolved_brief,
+            client_brief_mode=client_brief_mode,
+            business_context=business_context,
+        )
+        avoid_motifs = _ugc_avoid_motifs_for_stage(stage_name=stage_name, family=family)
+        if previous_scene_type:
+            avoid_motifs.append(f"repeating the exact same {previous_scene_type} setup as the previous ad scene")
+        if previous_focus:
+            avoid_motifs.append(f"reusing the exact same {previous_focus} sales angle as the previous scene")
+
+        planned_scene = {
+            **scene,
+            "stage_name": stage_name,
+            "stage_label": stage_label,
+            "scene_type": scene_type,
+            "stage_goal": stage_goal,
+            "topic_focus": topic_focus,
+            "visual_objective": _ugc_visual_objective_for_stage(stage_name=stage_name, topic=normalized_topic, topic_focus=topic_focus),
+            "local_narration_context": local_narration,
+            "transition_intent": _ugc_transition_intent_for_family(family=family, stage_name=stage_name, previous_stage=previous_stage, next_stage=next_stage),
+            "transition_from_previous": _ugc_transition_from_previous(family=family, previous_stage=previous_stage, stage_label=stage_label),
+            "transition_to_next": _ugc_transition_to_next(family=family, next_stage=next_stage),
+            "beat_summary": scene_beats[index] if index < len(scene_beats) else "",
+            "ugc_ad_family": family,
+            "ugc_ad_subtopic": subtopic,
+            "ugc_mode": ugc_mode,
+            "ugc_style": ugc_style,
+            "client_brief_mode": client_brief_mode,
+            "hook_plan": hook_plan,
+            "business_name": resolved_brief.business_name,
+            "business_category": resolved_brief.business_category,
+            "city": resolved_brief.city,
+            "locality": resolved_brief.locality,
+            "target_audience": resolved_brief.target_audience,
+            "main_service_or_product": resolved_brief.main_service_or_product,
+            "main_pain_point": resolved_brief.main_pain_point,
+            "key_promise": resolved_brief.key_promise,
+            "trust_factor": resolved_brief.trust_factor,
+            "offer": resolved_brief.offer,
+            "cta": resolved_brief.cta,
+            "tone": resolved_brief.tone,
+            "ad_goal": resolved_brief.ad_goal,
+            "brief_location_context": business_context.get("location_context"),
+            "brief_service_context": business_context.get("service_context"),
+            "avoid_motifs": list(dict.fromkeys([item for item in avoid_motifs if str(item).strip()])),
+            **prompt_context,
+        }
+        planned_scene["anti_repetition_note"] = (
+            f"Shift the ad treatment away from the previous {previous_scene_type or 'scene'} and keep the product story moving forward."
+        )
+        planned_scene["qa_flags"] = _build_ugc_scene_plan_qa_flags(
+            scene=planned_scene,
+            previous_scene_type=previous_scene_type,
+            previous_focus=previous_focus,
+            client_brief=resolved_brief,
+            client_brief_mode=client_brief_mode,
+        )
+        planned.append(planned_scene)
+        previous_scene_type = scene_type
+        previous_focus = topic_focus
+
+    return planned
+
+
+def _ugc_scene_grammar_for_family(family: str) -> tuple[tuple[str, str, str, str], ...]:
+    grammars = {
+        "local_service_ugc_ad": (
+            ("hook", "Hook", "local creator opener", "start with a relatable local need or trust hook"),
+            ("problem", "Local Need", "daily-life problem setup", "show the real-world issue or desire the local service solves"),
+            ("product_intro", "Service Intro", "service reveal", "introduce the service, business, or location clearly"),
+            ("proof", "Trust Or Demo", "trust-building proof", "show believable service proof, treatment, or result in action"),
+            ("benefit", "Result", "local payoff shot", "show the practical outcome or convenience after using the service"),
+            ("cta", "CTA", "local business close", "close with a clear local-booking CTA"),
+        ),
+        "testimonial_ugc_ad": (
+            ("hook", "Hook", "selfie testimonial opener", "start with a personal payoff or surprising result"),
+            ("problem", "Personal Context", "creator context", "show the before state or friction point quickly"),
+            ("product_intro", "What Changed", "product reveal", "introduce the product or service as the turning point"),
+            ("proof", "Use Moment", "proof or demo", "show believable usage or proof"),
+            ("benefit", "Benefit", "result shot", "land the emotional or practical benefit"),
+            ("cta", "CTA", "creator close", "close with a simple native-feeling CTA"),
+        ),
+        "demo_ugc_ad": (
+            ("hook", "Hook", "product-in-hand opener", "show the product quickly with immediate curiosity"),
+            ("problem", "Need State", "desire setup", "clarify what problem or need this solves"),
+            ("product_intro", "Product Intro", "quick reveal", "anchor the product clearly in the frame"),
+            ("proof", "How It Works", "demo close-up", "show the main use moment step by step"),
+            ("benefit", "Result", "payoff shot", "show what users get after using it"),
+            ("cta", "CTA", "creator close", "end with a direct creator-style CTA"),
+        ),
+        "offer_hook_ugc_ad": (
+            ("hook", "Offer Hook", "offer-first opener", "lead with the strongest offer or scroll-stopping claim"),
+            ("problem", "Need", "fast pain point", "show why the offer matters right now"),
+            ("product_intro", "Product Intro", "quick reveal", "introduce the product fast so the ad feels concrete"),
+            ("proof", "Proof", "proof or demo", "show credibility through demo or social proof"),
+            ("benefit", "Result", "benefit shot", "show the benefit that makes the offer feel worth acting on"),
+            ("cta", "CTA", "offer close", "land a clear urgency-aware CTA"),
+        ),
+    }
+    return grammars.get(
+        family,
+        (
+            ("hook", "Hook", "creator opener", "start with a quick native hook"),
+            ("problem", "Problem", "pain point setup", "show the friction or desire clearly"),
+            ("product_intro", "Product Intro", "product reveal", "introduce the product or service before the ad drifts"),
+            ("proof", "Proof", "demo or social proof", "show believable proof, demo, or use moment"),
+            ("benefit", "Benefit", "result shot", "show the benefit or result in a human way"),
+            ("cta", "CTA", "creator close", "end with a calm but clear CTA"),
+        ),
+    )
+
+
+def _ugc_topic_focus_for_stage(
+    *,
+    family: str,
+    stage_name: str,
+    topic: str,
+    client_brief: UgcAdClientBrief | None = None,
+    client_brief_mode: bool = False,
+) -> str:
+    brief = client_brief or UgcAdClientBrief()
+    stage_focus = {
+        "hook": f"the fastest scroll-stopping angle for {topic}",
+        "problem": f"the main pain point, desire, or context around {topic}",
+        "product_intro": f"the core product or service promise in {topic}",
+        "proof": f"the most believable demo, use moment, or proof for {topic}",
+        "benefit": f"the clearest result or user benefit from {topic}",
+        "cta": f"the easiest next step viewers should take for {topic}",
+    }
+    family_hint = {
+        "problem_solution_ugc_ad": "with a clear before-to-after problem-solution angle",
+        "testimonial_ugc_ad": "through personal creator-style experience",
+        "demo_ugc_ad": "through product use clarity",
+        "offer_hook_ugc_ad": "through offer-led urgency and product visibility",
+    }.get(family, "through native short-form ad clarity")
+    if client_brief_mode:
+        business = brief.business_name or brief.business_category or brief.main_service_or_product or topic
+        audience = brief.target_audience or "the target audience"
+        location = ", ".join(part for part in (brief.locality, brief.city) if part)
+        promise = brief.key_promise or "the main business promise"
+        cta = brief.cta or "the next action"
+        localized = f" for {business}"
+        if stage_name == "hook":
+            return f"the most relevant scroll-stopping local hook{localized} for {audience}, centered on {promise}" + (f" in {location}" if location else "")
+        if stage_name == "problem":
+            return f"the pain point or desire that matters most to {audience}" + (f" around {location}" if location else "") + f", especially {brief.main_pain_point or promise}"
+        if stage_name == "product_intro":
+            return f"the clearest introduction of {business} and its promise of {promise}"
+        if stage_name == "proof":
+            return f"the most believable proof, trust signal, or demo for {business}" + (f", using {brief.trust_factor}" if brief.trust_factor else "")
+        if stage_name == "benefit":
+            return f"the practical result {audience} should expect from {business} because of {promise}"
+        if stage_name == "cta":
+            return f"the clearest next step for {audience}: {cta}"
+    return f'{stage_focus.get(stage_name, f"the key selling point for {topic}")} {family_hint}.'
+
+
+def _ugc_visual_objective_for_stage(*, stage_name: str, topic: str, topic_focus: str) -> str:
+    objectives = {
+        "hook": f"Stop the scroll in the first second and make {topic} feel immediately relevant.",
+        "problem": f"Clarify the problem, desire, or frustration that makes {topic} worth watching.",
+        "product_intro": f"Introduce {topic} early with strong product or service visibility.",
+        "proof": f"Show believable proof or demo so viewers trust the main claim about {topic}.",
+        "benefit": f"Visualize the payoff and result from {topic} in a simple human way.",
+        "cta": f"Close with a clear call to action and a calm visually resolved end for {topic}.",
+    }
+    return f"{objectives.get(stage_name, f'Show one strong conversion-oriented beat for {topic}.')} Focus on {topic_focus}"
+
+
+def build_ugc_ad_prompt_context(
+    *,
+    stage_name: str,
+    topic: str,
+    topic_focus: str,
+    scene_type: str,
+    family: str,
+    subtopic: str,
+    index: int,
+    total_scenes: int,
+    client_brief: UgcAdClientBrief | None = None,
+    client_brief_mode: bool = False,
+    business_context: dict[str, str] | None = None,
+) -> dict[str, str]:
+    brief = client_brief or UgcAdClientBrief()
+    business_context = dict(business_context or {})
+    shot_pack = _ugc_shot_pack(family=family, subtopic=subtopic)
+    stage_override = shot_pack.get(stage_name, {})
+    return {
+        "subject_description": str(
+            stage_override.get("subject_description")
+            or _ugc_subject_description_for_stage(
+                stage_name=stage_name,
+                topic=topic,
+                family=family,
+                client_brief=brief,
+                client_brief_mode=client_brief_mode,
+            )
+        ),
+        "environment_description": str(
+            stage_override.get("environment_description")
+            or _ugc_environment_description_for_stage(
+                stage_name=stage_name,
+                family=family,
+                client_brief=brief,
+                client_brief_mode=client_brief_mode,
+                business_context=business_context,
+            )
+        ),
+        "camera_framing": str(stage_override.get("camera_framing") or _ugc_camera_framing_for_stage(stage_name=stage_name, scene_type=scene_type)),
+        "motion_intent": str(stage_override.get("motion_intent") or _ugc_motion_intent_for_stage(stage_name=stage_name)),
+        "ending_hold_instruction": str(stage_override.get("ending_hold_instruction") or _ugc_ending_hold_instruction_for_stage(stage_name=stage_name, index=index, total_scenes=total_scenes)),
+        "shot_archetype": str(stage_override.get("shot_archetype") or f"{family}:{stage_name}"),
+        "subtopic_visual_anchor": str(stage_override.get("subtopic_visual_anchor") or topic_focus),
+        "extra_avoid_guidance": str(stage_override.get("extra_avoid_guidance") or "").strip(),
+        "indian_context_note": _ugc_indian_context_note_for_stage(family=family, stage_name=stage_name, scene_type=scene_type, subtopic=subtopic),
+        "sora_negative_guidance": _ugc_negative_guidance(stage_name=stage_name, family=family),
+        "continuity_guidance": _ugc_continuity_guidance(stage_name=stage_name, index=index, total_scenes=total_scenes, topic_focus=topic_focus),
+        "cta_style": str(stage_override.get("cta_style") or "native_creator_close"),
+    }
+
+
+def _ugc_subject_description_for_stage(
+    *,
+    stage_name: str,
+    topic: str,
+    family: str,
+    client_brief: UgcAdClientBrief,
+    client_brief_mode: bool,
+) -> str:
+    if not client_brief_mode:
+        return f"a creator-style subject making {topic} feel clear and believable"
+    business = client_brief.business_name or client_brief.business_category or client_brief.main_service_or_product or topic
+    audience = client_brief.target_audience or "the target audience"
+    promise = client_brief.key_promise or "the core promise"
+    if stage_name == "hook":
+        return f"a creator or customer framing why {business} matters to {audience}, with the hook anchored in {client_brief.main_pain_point or promise}"
+    if stage_name == "product_intro":
+        return f"{business} introduced clearly as the solution, with the service or product visible and tied to {promise}"
+    if stage_name == "proof":
+        return f"a believable proof moment for {business}, showing {client_brief.main_service_or_product or client_brief.business_category or 'the offer'} in action"
+    if stage_name == "benefit":
+        return f"the audience visibly benefiting from {business} because of {promise}"
+    if stage_name == "cta":
+        return f"a creator or customer closing naturally around {business} with a clear next step to {client_brief.cta or 'act now'}"
+    return f"a creator-style subject grounding {business} in real life for {audience}"
+
+
+def _ugc_environment_description_for_stage(
+    *,
+    stage_name: str,
+    family: str,
+    client_brief: UgcAdClientBrief,
+    client_brief_mode: bool,
+    business_context: dict[str, str],
+) -> str:
+    if not client_brief_mode:
+        return "a grounded mobile-first environment with clean product visibility"
+    location_context = business_context.get("location_context") or "the relevant local area"
+    category = client_brief.business_category or "the business category"
+    if family == "local_service_ugc_ad":
+        return (
+            f"a believable Indian local-business environment for {category}, grounded in {location_context}, with real storefront, interior, neighborhood, or provider cues"
+        )
+    if category in {"dental clinic", "local clinic"}:
+        return f"an Indian clinic environment in or around {location_context}, with reception, consultation, or treatment-room realism and no hospital-drama styling"
+    if category in {"salon / beauty studio"}:
+        return f"an Indian salon or beauty-studio environment around {location_context}, with believable mirrors, chairs, tools, and creator-trial context"
+    if category in {"gym / fitness studio"}:
+        return f"an Indian gym or fitness-studio environment around {location_context}, with real workout or trainer-led cues and no luxury promo look"
+    if category in {"restaurant / cafe"}:
+        return f"an Indian neighborhood cafe or restaurant context around {location_context}, with walk-in, table, counter, or food-service realism"
+    if category in {"coaching / education center"}:
+        return f"an Indian classroom, coaching center, desk, or student environment around {location_context}, with believable study context"
+    return f"a grounded Indian environment connected to {business_context.get('local_business_context') or category}, with believable daily-life realism"
+
+
+def _ugc_shot_pack(*, family: str, subtopic: str) -> dict[str, dict[str, str]]:
+    normalized_subtopic = str(subtopic or "").lower().strip()
+
+    if normalized_subtopic in {
+        "skincare",
+        "skin care",
+        "serum",
+        "sunscreen",
+        "face wash",
+        "cleanser",
+        "moisturizer",
+        "acne",
+        "pimple",
+        "beauty",
+        "makeup",
+        "lipstick",
+        "foundation",
+        "shampoo",
+        "hair oil",
+        "hair serum",
+    }:
+        return {
+            "hook": {
+                "shot_archetype": "beauty_skincare_hook",
+                "subtopic_visual_anchor": "a creator reacting to a visible beauty, skin, or hair concern in a native mirror or selfie moment",
+                "subject_description": "a creator in a believable bathroom, vanity, or bedroom setup showing a real beauty or skincare frustration or desire",
+                "environment_description": "an Indian bathroom, vanity, bedroom mirror area, or natural dressing-table setup with lived-in realism",
+                "camera_framing": "selfie-style medium close-up or mirror-shot close-up with strong face readability",
+                "motion_intent": "light handheld realism and quick emotional clarity in the first second",
+                "extra_avoid_guidance": "avoid luxury beauty-commercial slow motion or sterile studio makeup-table styling",
+            },
+            "product_intro": {
+                "shot_archetype": "beauty_skincare_product_intro",
+                "subtopic_visual_anchor": "the product clearly visible in-hand with packaging, texture, or applicator readable",
+                "subject_description": "the creator revealing the skincare, beauty, or hair product clearly in hand with immediate use context",
+                "environment_description": "the same bathroom, vanity, or bedroom setting with natural creator realism",
+                "camera_framing": "close-up or medium close-up with product and hand readability",
+                "motion_intent": "smooth reveal into stable product visibility",
+                "extra_avoid_guidance": "avoid making the product look like a floating glossy packshot disconnected from the creator",
+            },
+            "proof": {
+                "shot_archetype": "beauty_skincare_demo",
+                "subtopic_visual_anchor": "a real application, texture, blend, or use moment that shows how the product works",
+                "subject_description": "the creator applying, using, or demonstrating the product in a believable way with visible texture or routine context",
+                "environment_description": "a natural personal-care environment with clean but non-commercial realism",
+                "camera_framing": "close-up application framing with hands, face, hair, or product action clearly readable",
+                "motion_intent": "controlled step-by-step application motion with one clear proof beat",
+                "extra_avoid_guidance": "avoid impossible instant transformation or over-retouched skin and hair",
+            },
+            "benefit": {
+                "shot_archetype": "beauty_skincare_result",
+                "subtopic_visual_anchor": "the visible post-use payoff in confidence, texture, finish, or routine simplicity",
+                "subject_description": "the creator showing the result naturally, such as cleaner skin, smoother routine, fresher look, or more confidence",
+                "environment_description": "the same grounded personal space for continuity and trust",
+                "camera_framing": "medium close-up result shot with face or hair clearly readable",
+                "motion_intent": "small payoff motion followed by a soft settle",
+            },
+            "cta": {
+                "shot_archetype": "beauty_skincare_cta",
+                "subtopic_visual_anchor": "a calm creator recommendation close with product still visible",
+                "subject_description": "the same creator wrapping up naturally with the product visible and a clear recommendation or try-it close",
+                "environment_description": "the same believable personal-care setting for continuity",
+                "camera_framing": "stable medium close-up or selfie framing with product in frame",
+                "motion_intent": "minimal motion and calm final resolution",
+                "ending_hold_instruction": "last second visually stable, face and product both readable, no abrupt glamour cut",
+                "cta_style": "beauty_creator_recommendation_close",
+            },
+        }
+
+    if family == "local_service_ugc_ad" or normalized_subtopic in {
+        "salon",
+        "spa",
+        "clinic",
+        "dentist",
+        "gym",
+        "restaurant",
+        "cafe",
+        "repair",
+        "plumber",
+        "electrician",
+    }:
+        return {
+            "hook": {
+                "shot_archetype": "local_service_hook",
+                "subtopic_visual_anchor": "a relatable local problem or result spoken by a creator or customer in a real neighborhood context",
+                "subject_description": "a creator or customer in a believable local setting highlighting the everyday problem or need this service solves",
+                "environment_description": "an Indian apartment, Indian street, neighborhood storefront, Indian salon, clinic, cafe, gym, or service location with real local context",
+                "camera_framing": "selfie-style medium close-up or observational medium shot with clear local context",
+                "motion_intent": "light handheld realism with immediate daily-life relevance",
+                "extra_avoid_guidance": "avoid generic luxury showroom or foreign stock-business lobbies",
+            },
+            "product_intro": {
+                "shot_archetype": "local_service_intro",
+                "subtopic_visual_anchor": "the local service, business front, or provider introduced clearly and quickly",
+                "subject_description": "the local service provider, storefront, treatment room, work setup, or team shown clearly as the solution",
+                "environment_description": "an Indian neighborhood business environment with recognizable local trust cues",
+                "camera_framing": "medium shot or medium-wide reveal with the service context readable immediately",
+                "motion_intent": "smooth reveal into stable service visibility",
+                "extra_avoid_guidance": "avoid abstract branding shots with no actual business or provider context",
+            },
+            "proof": {
+                "shot_archetype": "local_service_proof",
+                "subtopic_visual_anchor": "the service happening in real time or the outcome being shown clearly",
+                "subject_description": "a believable treatment, repair, consultation, meal prep, workout, or service delivery moment that proves the business claim",
+                "environment_description": "the real service environment with authentic local detail and no overproduction",
+                "camera_framing": "close-up or medium proof framing that clearly shows the service action or result",
+                "motion_intent": "action-led motion with one readable service-proof beat",
+                "extra_avoid_guidance": "avoid fake testimonial montage with no visible business proof",
+            },
+            "benefit": {
+                "shot_archetype": "local_service_result",
+                "subtopic_visual_anchor": "the local convenience, confidence, comfort, or outcome after using the service",
+                "subject_description": "the customer or creator experiencing the practical benefit after the service, with the local setting still believable",
+                "environment_description": "the same neighborhood business or daily-life environment for continuity and trust",
+                "camera_framing": "medium shot with clear human payoff and readable setting",
+                "motion_intent": "natural payoff motion followed by a soft settle",
+            },
+            "cta": {
+                "shot_archetype": "local_service_cta",
+                "subtopic_visual_anchor": "a local-booking or visit-now CTA that still feels creator-native and trustworthy",
+                "subject_description": "the creator or customer wrapping up with the service context visible and a clear next step like visit, book, or call",
+                "environment_description": "the same Indian local-business environment with stable trust-building continuity",
+                "camera_framing": "stable medium close-up or medium shot with visible business context",
+                "motion_intent": "minimal motion and calm local-business resolution",
+                "ending_hold_instruction": "last second visually stable, service context still visible, no abrupt CTA cut",
+                "cta_style": "local_service_booking_close",
+            },
+        }
+
+    if family == "testimonial_ugc_ad":
+        return {
+            "hook": {
+                "shot_archetype": "testimonial_hook_selfie",
+                "subtopic_visual_anchor": "a creator talking directly to camera with an immediate personal result or reaction",
+                "subject_description": "a believable creator-like person speaking directly to camera, feeling relieved, impressed, or excited",
+                "environment_description": "a real bedroom, bathroom, desk, vanity, kitchen, or casual home setting with no polished studio look",
+                "camera_framing": "selfie-style medium close-up with handheld realism and clean face readability",
+                "motion_intent": "light natural handheld motion with a confident first-second hook",
+                "extra_avoid_guidance": "avoid polished presenter-commercial delivery",
+            },
+            "proof": {
+                "shot_archetype": "testimonial_proof_use_moment",
+                "subtopic_visual_anchor": "a believable use moment or proof detail that supports the personal claim",
+                "subject_description": "the creator using the product or showing a believable proof moment tied to their experience",
+                "environment_description": "a grounded daily-life environment with strong product visibility and no stock-footage drift",
+                "camera_framing": "close-up or medium close-up with product and face both readable when possible",
+                "motion_intent": "controlled natural motion with visible proof rather than generic beauty movement",
+            },
+            "cta": {
+                "shot_archetype": "testimonial_cta_close",
+                "subtopic_visual_anchor": "a calm direct-to-camera creator close with product still visible",
+                "subject_description": "the same creator wrapping up with a natural recommendation and a simple next step",
+                "environment_description": "the same believable environment for continuity and trust",
+                "camera_framing": "selfie or medium close-up with stable final hold",
+                "motion_intent": "minimal movement and clear final resolution",
+                "ending_hold_instruction": "last second visually stable, product still visible, no abrupt CTA cut",
+                "cta_style": "personal_recommendation_close",
+            },
+        }
+    if family == "demo_ugc_ad":
+        return {
+            "hook": {
+                "shot_archetype": "demo_fast_product_hook",
+                "subtopic_visual_anchor": "the product shown clearly in-hand or in-use within the first second",
+                "subject_description": "a creator revealing the product quickly with an immediate use-case cue",
+                "environment_description": "a real mobile-first environment like a bedroom, bathroom, desk, kitchen, or car interior",
+                "camera_framing": "close-up or medium close-up with product dominating the frame early",
+                "motion_intent": "snappy but controlled reveal motion with no chaotic shake",
+            },
+            "proof": {
+                "shot_archetype": "demo_how_it_works",
+                "subtopic_visual_anchor": "a close-up practical demo showing exactly how the product works",
+                "subject_description": "hands, product, and one clear action demonstrating the core product use moment",
+                "environment_description": "a real use-case environment where the product naturally belongs",
+                "camera_framing": "close-up demo framing with readable hands and product details",
+                "motion_intent": "clear directional action showing one step at a time",
+            },
+            "benefit": {
+                "shot_archetype": "demo_result_payoff",
+                "subtopic_visual_anchor": "the visible result after using the product",
+                "subject_description": "the user experiencing the payoff or improved outcome after the demo",
+                "environment_description": "the same use-case environment, now showing the result clearly",
+                "camera_framing": "medium shot or close-up result reveal with clean composition",
+                "motion_intent": "small payoff motion, then a soft settle",
+            },
+        }
+    if family == "offer_hook_ugc_ad":
+        return {
+            "hook": {
+                "shot_archetype": "offer_hook_creator_open",
+                "subtopic_visual_anchor": "a creator-style offer hook that still shows the product early",
+                "subject_description": "a creator speaking directly to camera with offer urgency and immediate product context",
+                "environment_description": "a believable creator environment, not a polished showroom",
+                "camera_framing": "selfie or medium close-up with product entering frame quickly",
+                "motion_intent": "light handheld realism and quick but readable opening energy",
+                "extra_avoid_guidance": "avoid product appearing only after the offer line is over",
+            },
+            "cta": {
+                "shot_archetype": "offer_hook_cta_endcard",
+                "subtopic_visual_anchor": "a strong but native-feeling CTA close with clear next step",
+                "subject_description": "the creator landing the final offer with product visible and a calm direct ask",
+                "environment_description": "the same grounded environment for continuity and trust",
+                "camera_framing": "stable medium close-up with product and face clearly readable",
+                "motion_intent": "calm end hold with minimal motion",
+                "ending_hold_instruction": "last second visually stable with the product visible and no abrupt urgency cut",
+                "cta_style": "offer_driven_close",
+            },
+        }
+    return {
+        "hook": {
+            "shot_archetype": "problem_solution_hook",
+            "subtopic_visual_anchor": "a relatable scroll-stopping frustration or desire with fast product relevance",
+            "subject_description": "a creator-like person reacting to a real pain point or desire that the product solves",
+            "environment_description": "a grounded home, desk, bathroom, kitchen, shop, or day-to-day setting",
+            "camera_framing": "selfie or medium close-up with immediate facial readability",
+            "motion_intent": "light handheld realism and a quick clear pattern interrupt",
+        },
+        "product_intro": {
+            "shot_archetype": "problem_solution_product_intro",
+            "subtopic_visual_anchor": "the product or service entering clearly before the ad loses momentum",
+            "subject_description": "the product or service revealed clearly in the creator's hands or environment",
+            "environment_description": "the actual use environment where the product makes sense",
+            "camera_framing": "close-up or medium close-up with strong product visibility",
+            "motion_intent": "smooth reveal into a stable product read",
+        },
+        "proof": {
+            "shot_archetype": "problem_solution_demo_proof",
+            "subtopic_visual_anchor": "a visible use moment or proof detail that supports the core claim",
+            "subject_description": "one believable demo or use moment showing why the product solves the problem",
+            "environment_description": "a real-world setting that supports the claim naturally",
+            "camera_framing": "close-up demo framing or over-the-shoulder use shot",
+            "motion_intent": "clear action-driven motion with visible before-to-after logic",
+        },
+        "cta": {
+            "shot_archetype": "problem_solution_cta_close",
+            "subtopic_visual_anchor": "a creator-style CTA close that still feels native and product-led",
+            "subject_description": "the creator wrapping the ad with the product visible and a clear recommendation",
+            "environment_description": "the same grounded environment to preserve authenticity",
+            "camera_framing": "medium close-up with stable final hold",
+            "motion_intent": "minimal motion and a calm resolution",
+            "ending_hold_instruction": "last second visually stable, product visible, no abrupt CTA cut",
+            "cta_style": "native_creator_close",
+        },
+    }
+
+
+def _ugc_avoid_motifs_for_stage(*, stage_name: str, family: str) -> list[str]:
+    stage_specific = {
+        "hook": ["slow cinematic beauty-shot openings", "product hidden for too long", "text-heavy title card scenes"],
+        "problem": ["generic vague lifestyle filler", "pain point with no clear relevance to the product"],
+        "product_intro": ["introducing the product too late", "weak product visibility", "floating unreadable text in frame"],
+        "proof": ["proof with no visible product use", "fake-looking stock-footage demo", "overly polished commercial macro beauty shots"],
+        "benefit": ["benefit scene disconnected from the product claim", "random luxury montage drift"],
+        "cta": ["abrupt CTA cut", "hard commercial end card look", "final frame without product visibility"],
+    }
+    family_specific = {
+        "problem_solution_ugc_ad": ["pain point that feels scripted instead of native", "product reveal delayed until the very end"],
+        "testimonial_ugc_ad": ["multiple inconsistent creators across scenes", "corporate spokesperson energy"],
+        "demo_ugc_ad": ["demo scenes with no clear action", "aesthetic-only product spins"],
+        "offer_hook_ugc_ad": ["offer-only scenes with no product context", "fake urgency graphics inside the generated shot"],
+    }
+    return [*stage_specific.get(stage_name, []), *family_specific.get(family, [])]
+
+
+def _ugc_camera_framing_for_stage(*, stage_name: str, scene_type: str) -> str:
+    mappings = {
+        "hook": "selfie-style medium close-up or product-in-hand close-up with fast readability",
+        "problem": "medium shot or selfie framing that keeps the creator emotion clear",
+        "product_intro": "close-up or medium close-up with strong product visibility",
+        "proof": "close-up demo framing or over-the-shoulder use shot with clear action",
+        "benefit": "medium shot showing the result with face, product, or outcome readable",
+        "cta": "stable medium close-up with product visible and a clean end hold",
+    }
+    return mappings.get(stage_name, f"{scene_type} framed for vertical creator-style clarity")
+
+
+def _ugc_motion_intent_for_stage(*, stage_name: str) -> str:
+    return {
+        "hook": "light handheld realism or a quick controlled reveal that feels native to short-form creators",
+        "problem": "natural human motion that keeps the pain point readable without melodrama",
+        "product_intro": "smooth reveal into stable product readability",
+        "proof": "clear action-led motion showing one demo step or proof beat at a time",
+        "benefit": "natural payoff motion followed by a soft settle",
+        "cta": "minimal motion and a stable finish that leaves room for the CTA to land",
+    }.get(stage_name, "controlled creator-style motion with mobile-first readability")
+
+
+def _ugc_ending_hold_instruction_for_stage(*, stage_name: str, index: int, total_scenes: int) -> str:
+    if stage_name == "cta" or index == total_scenes - 1:
+        return "last 1.5 seconds visually stable, product or service context still visible, no abrupt CTA cut"
+    return "end the shot cleanly with enough stability for the next scene to stitch naturally"
+
+
+def _ugc_continuity_guidance(*, stage_name: str, index: int, total_scenes: int, topic_focus: str) -> str:
+    if index == 0:
+        return f"Open quickly but naturally, making {topic_focus} feel like the first beat of one continuous creator ad."
+    if index == total_scenes - 1:
+        return f"Resolve the ad cleanly around {topic_focus} so the final CTA feels intentional and not abruptly cut."
+    return f"Continue the same creator, product logic, and native short-form rhythm while moving into {topic_focus}."
+
+
+def _ugc_transition_intent_for_family(*, family: str, stage_name: str, previous_stage: str, next_stage: str) -> str:
+    if stage_name == "hook":
+        return f"Move quickly from curiosity into a clear {next_stage or 'problem'} beat without losing product relevance."
+    if stage_name == "proof":
+        return f"Turn visible proof into a believable benefit so the ad feels trustworthy, not over-produced."
+    if stage_name == "cta":
+        return "Resolve into a calm native-feeling CTA ending with stable product visibility."
+    return f"Carry the same creator-style realism from {previous_stage or 'the opening'} into {next_stage or 'the close'}."
+
+
+def _ugc_transition_from_previous(*, family: str, previous_stage: str, stage_label: str) -> str:
+    if not previous_stage:
+        return "Ease in naturally like a creator continuing one thought on camera."
+    return f"Continue naturally from {previous_stage} into {stage_label} with the same creator, setting, and product logic."
+
+
+def _ugc_transition_to_next(*, family: str, next_stage: str) -> str:
+    if not next_stage:
+        return "Settle cleanly and hold long enough for the ad close to feel intentional."
+    return f"Finish with enough stability to hand off naturally into {next_stage}."
+
+
+def _ugc_negative_guidance(*, stage_name: str, family: str) -> str:
+    family_specific = {
+        "local_service_ugc_ad": "avoid corporate showroom polish; avoid empty reception-lobby drift; avoid hiding the actual provider, place, or treatment context",
+    }.get(family, "")
+    guidance = (
+        "avoid polished TV-commercial look; avoid generic foreign stock-footage feel; avoid unreadable in-frame text; "
+        "avoid fake title-card scenes; avoid irrelevant beauty-shot drift; avoid weak product visibility; "
+        "avoid over-cinematic spectacle if it weakens authenticity; avoid abrupt ending motion before cut"
+    )
+    return f"{guidance}; {family_specific}".strip("; ")
+
+
+def _ugc_indian_context_note_for_stage(*, family: str, stage_name: str, scene_type: str, subtopic: str) -> str:
+    normalized_subtopic = str(subtopic or "").lower().strip()
+    if normalized_subtopic in {
+        "skincare",
+        "skin care",
+        "serum",
+        "sunscreen",
+        "face wash",
+        "cleanser",
+        "moisturizer",
+        "acne",
+        "pimple",
+        "beauty",
+        "makeup",
+        "lipstick",
+        "foundation",
+        "shampoo",
+        "hair oil",
+        "hair serum",
+    }:
+        return (
+            "Prefer Indian creators, Indian bathrooms, Indian bedroom vanity setups, Indian apartments, and Indian beauty-routine context "
+            "instead of generic Western influencer or luxury studio beauty settings."
+        )
+    if stage_name in {"hook", "problem", "proof", "benefit", "cta"}:
+        return (
+            "When people or daily-life context appears, prefer Indian creators, Indian homes, Indian apartments, Indian kitchens, "
+            "Indian bedrooms, Indian bathrooms, Indian cafes, Indian clinics, Indian shops, Indian neighborhoods, and Indian city settings "
+            "when that fits the product or service naturally."
+        )
+    if family in {"local_service_ugc_ad", "problem_solution_ugc_ad"}:
+        return "If a local business or daily-life environment is shown, ground it in familiar Indian street, apartment, shop, or clinic context."
+    return ""
+
+def _build_ugc_scene_plan_qa_flags(
+    *,
+    scene: dict[str, Any],
+    previous_scene_type: str,
+    previous_focus: str,
+    client_brief: UgcAdClientBrief,
+    client_brief_mode: bool,
+) -> list[str]:
+    flags: list[str] = []
+    stage_name = str(scene.get("stage_name") or "").strip()
+    scene_type = str(scene.get("scene_type") or "").strip()
+    topic_focus = str(scene.get("topic_focus") or "").strip()
+    subject_description = str(scene.get("subject_description") or "").lower()
+    camera_framing = str(scene.get("camera_framing") or "").lower()
+    motion_intent = str(scene.get("motion_intent") or "").lower()
+
+    if stage_name == "hook" and "hook" not in str(scene.get("visual_objective") or "").lower():
+        flags.append("weak_hook_risk")
+    if stage_name in {"product_intro", "proof"} and "product" not in subject_description and "service" not in subject_description:
+        flags.append("missing_product_visibility_risk")
+    if stage_name == "proof" and not any(token in subject_description for token in ("demo", "use", "proof", "showing", "using", "product")):
+        flags.append("weak_demo_risk")
+    if stage_name == "cta" and "cta" not in str(scene.get("stage_goal") or "").lower() and "call to action" not in str(scene.get("visual_objective") or "").lower():
+        flags.append("cta_clarity_risk")
+    if "studio" in subject_description or "commercial" in subject_description:
+        flags.append("native_authenticity_risk")
+    if any(token in subject_description for token in ("luxury showroom", "sterile studio", "glossy beauty table")):
+        flags.append("native_authenticity_risk")
+    if "generic" in subject_description:
+        flags.append("generic_creator_risk")
+    if previous_scene_type and scene_type == previous_scene_type:
+        flags.append("repeated_scene_type_risk")
+    if previous_focus and topic_focus == previous_focus:
+        flags.append("repeated_topic_focus_risk")
+    if stage_name != "hook" and "product" not in subject_description and "service" not in subject_description and "creator" not in subject_description:
+        flags.append("late_product_intro_risk")
+    if stage_name == "cta" and "stable" not in str(scene.get("ending_hold_instruction") or "").lower():
+        flags.append("cta_clarity_risk")
+    if "handheld" not in camera_framing and "selfie" not in camera_framing and stage_name in {"hook", "problem"}:
+        flags.append("native_authenticity_risk")
+    if "chaotic" in motion_intent:
+        flags.append("native_authenticity_risk")
+    if not scene.get("indian_context_note"):
+        flags.append("missing_indian_context_bias")
+    if client_brief_mode:
+        if not client_brief.business_name:
+            flags.append("missing_business_name")
+        if not (client_brief.locality or client_brief.city):
+            flags.append("missing_locality_context")
+        if not client_brief.target_audience:
+            flags.append("missing_target_audience")
+        if not client_brief.key_promise:
+            flags.append("missing_key_promise")
+        if not client_brief.cta or client_brief.cta.lower() in {"learn more", "check now", "try now"}:
+            flags.append("generic_cta_risk")
+        if not client_brief.trust_factor and scene.get("ugc_ad_family") == "local_service_ugc_ad":
+            flags.append("weak_local_trust_risk")
+        if not client_brief.offer and "offer" in str(scene.get("ugc_ad_family") or ""):
+            flags.append("weak_offer_specificity_risk")
+        detail_count = sum(
+            1
+            for value in (
+                client_brief.business_name,
+                client_brief.business_category,
+                client_brief.city,
+                client_brief.locality,
+                client_brief.target_audience,
+                client_brief.main_service_or_product,
+                client_brief.main_pain_point,
+                client_brief.key_promise,
+                client_brief.trust_factor,
+                client_brief.offer,
+                client_brief.cta,
+            )
+            if str(value or "").strip()
+        )
+        if detail_count >= 9 and len(" ".join(str(value) for value in client_brief.__dict__.values())) > 420:
+            flags.append("overstuffed_brief_risk")
+    return list(dict.fromkeys(flags))
+
+
+def _infer_business_category(normalized_topic: str) -> str:
+    category_keywords: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("dental clinic", ("dental clinic", "dentist", "teeth cleaning", "root canal", "dental")),
+        ("salon / beauty studio", ("salon", "beauty studio", "bridal makeup", "makeup artist", "beauty clinic")),
+        ("skincare product", ("skincare", "serum", "sunscreen", "face wash", "cleanser", "moisturizer", "acne")),
+        ("gym / fitness studio", ("gym", "fitness studio", "trainer", "weight loss", "workout")),
+        ("restaurant / cafe", ("restaurant", "cafe", "coffee shop", "eatery", "food outlet")),
+        ("local repair service", ("repair", "plumber", "electrician", "ac service", "appliance repair")),
+        ("local clinic", ("clinic", "physio", "doctor consultation", "medical clinic")),
+        ("coaching / education center", ("coaching", "tuition", "education center", "ielts", "study center")),
+        ("app/software service", ("app", "software", "saas", "dashboard", "crm", "platform")),
+        ("e-commerce product", ("shop", "e-commerce", "d2c", "buy online", "product brand")),
+    )
+    for category, keywords in category_keywords:
+        if any(keyword in normalized_topic for keyword in keywords):
+            return category
+    return ""
+
+
+def _extract_business_name(raw_text: str, business_category: str) -> str:
+    patterns = (
+        r'for\s+([^,]+?)\s+in\s+[A-Z]',
+        r'for\s+([^,]+?),\s*focused on',
+        r'for\s+([^,]+?),\s*serving',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, raw_text, re.IGNORECASE)
+        if match:
+            candidate = " ".join(match.group(1).split()).strip(" .")
+            if candidate and len(candidate.split()) <= 8:
+                return candidate
+    if business_category and business_category in raw_text.lower():
+        match = re.search(rf'([A-Z][A-Za-z.&\'\-\s]+{re.escape(business_category.split()[0])}[A-Za-z.&\'\-\s]*)', raw_text)
+        if match:
+            return " ".join(match.group(1).split()).strip(" .")
+    return ""
+
+
+def _extract_location(raw_text: str) -> tuple[str, str]:
+    match = re.search(r'\bin\s+([A-Z][A-Za-z.\'\-\s]+?)(?:,\s*([A-Z][A-Za-z.\'\-\s]+))?(?:,| focused| for | serving|$)', raw_text)
+    if not match:
+        return "", ""
+    first = " ".join((match.group(1) or "").split()).strip(" .")
+    second = " ".join((match.group(2) or "").split()).strip(" .")
+    if second:
+        return first, second
+    common_localities = ("nagar", "road", "marg", "phase", "sector", "colony", "extension", "market")
+    if any(token in first.lower() for token in common_localities):
+        return first, ""
+    return "", first
+
+
+def _extract_target_audience(raw_text: str) -> str:
+    patterns = (
+        r'for\s+([^.,]+?)(?:\s+focused on|\s+with|\s+who|\s+in\b|$)',
+        r'for nearby\s+([^.,]+)',
+        r'for\s+([^.,]+?\sprofessionals)',
+        r'for\s+([^.,]+?\sfamilies)',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, raw_text, re.IGNORECASE)
+        if match:
+            value = " ".join(match.group(1).split()).strip(" .")
+            if value and len(value.split()) <= 8:
+                return value
+    return ""
+
+
+def _extract_after_marker(raw_text: str, markers: tuple[str, ...]) -> str:
+    lowered = raw_text.lower()
+    for marker in markers:
+        index = lowered.find(marker)
+        if index >= 0:
+            value = raw_text[index + len(marker):].split(",")[0].split(".")[0].strip(" :-")
+            if value and len(value.split()) <= 12:
+                return value
+    return ""
+
+
+def _extract_offer(raw_text: str) -> str:
+    offer_markers = (
+        "free consultation",
+        "limited discount",
+        "discount",
+        "trial offer",
+        "free trial",
+        "book now offer",
+        "special offer",
+        "limited-time offer",
+    )
+    lowered = raw_text.lower()
+    match = next((marker for marker in offer_markers if marker in lowered), "")
+    return match
+
+
+def _extract_cta(raw_text: str, business_category: str) -> str:
+    lowered = raw_text.lower()
+    cta_markers = (
+        "book appointment",
+        "book your slot",
+        "book now",
+        "call today",
+        "dm now",
+        "shop now",
+        "visit clinic",
+        "visit today",
+        "start free trial",
+        "sign up now",
+    )
+    match = next((marker for marker in cta_markers if marker in lowered), "")
+    if match:
+        return match
+    if business_category in {"dental clinic", "local clinic", "salon / beauty studio", "gym / fitness studio"}:
+        return "book your slot"
+    if business_category == "restaurant / cafe":
+        return "visit today"
+    if business_category == "app/software service":
+        return "start free trial"
+    if business_category == "e-commerce product":
+        return "shop now"
+    return ""
+
+
+def _extract_service_or_product(raw_text: str, business_category: str, business_name: str) -> str:
+    if business_name:
+        cleaned = raw_text.replace(business_name, "").strip(" ,-")
+    else:
+        cleaned = raw_text
+    if business_category and business_category in cleaned.lower():
+        return business_category
+    marker = re.search(r'for\s+(.+?)(?:\s+in\s+[A-Z]| focused on| serving|$)', cleaned, re.IGNORECASE)
+    if marker:
+        value = " ".join(marker.group(1).split()).strip(" .")
+        if value and len(value.split()) <= 10:
+            return value
+    return business_category
+
+
+def _infer_ad_goal(*, cta: str, business_category: str) -> str:
+    lowered_cta = str(cta or "").lower()
+    if any(token in lowered_cta for token in ("book", "call", "visit")):
+        return "lead_generation"
+    if any(token in lowered_cta for token in ("shop", "buy")):
+        return "purchase"
+    if any(token in lowered_cta for token in ("trial", "sign up")):
+        return "signup"
+    if business_category in {"restaurant / cafe", "dental clinic", "local clinic", "salon / beauty studio", "gym / fitness studio"}:
+        return "lead_generation"
+    return "conversion"
+
+
+def _infer_brief_tone(business_category: str, ad_goal: str) -> str:
+    if business_category in {"dental clinic", "local clinic"}:
+        return "warm_trustworthy_reassuring"
+    if business_category in {"salon / beauty studio", "skincare product"}:
+        return "creator_confident_friendly"
+    if business_category in {"app/software service"}:
+        return "clear_smart_problem_solving"
+    if ad_goal == "lead_generation":
+        return "trust_first_local_conversion"
+    return "creator_casual_conversion"
+
+
+def _extract_language_preference(normalized_topic: str) -> str:
+    if "hindi" in normalized_topic:
+        return "Hindi"
+    if "hinglish" in normalized_topic:
+        return "Hinglish"
+    if "punjabi" in normalized_topic:
+        return "Punjabi"
+    return ""
+
+
+def _extract_creator_preference(normalized_topic: str) -> str:
+    if "female creator" in normalized_topic or "woman creator" in normalized_topic:
+        return "female"
+    if "male creator" in normalized_topic or "man creator" in normalized_topic:
+        return "male"
+    return ""
 
 
 def _scene_grammar_for_family(family: str) -> tuple[tuple[str, str, str, str], ...]:

@@ -154,6 +154,19 @@ def _long_explainer_scene_strategy() -> RecipeSceneStrategy:
         )
     )
 
+
+def _ugc_ad_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(scene_id='scene_1_hook', beat_names=('hook', 'pattern_interrupt'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_2_problem', beat_names=('problem', 'desire'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_3_intro', beat_names=('product_intro', 'positioning'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_4_proof', beat_names=('demo', 'proof'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_5_benefit', beat_names=('benefit', 'result'), duration_seconds=4),
+            RenderSceneConfig(scene_id='scene_6_cta', beat_names=('cta', 'ending'), duration_seconds=4),
+        )
+    )
+
 RECIPES: dict[str, RecipeConfig] = {
     'spongebob_challenge': RecipeConfig(
         id='spongebob_challenge',
@@ -389,6 +402,96 @@ RECIPES: dict[str, RecipeConfig] = {
             ),
         },
     ),
+    'ugc_ad': RecipeConfig(
+        id='ugc_ad',
+        type='video',
+        duration_seconds=24,
+        input=RecipeInputConfig(image=False, text=True),
+        config=RecipeContentConfig(
+            style='creator_native_ugc_ad',
+            tone='conversational_mobile_first_conversion_oriented',
+            music='light_modern_creator_bed',
+            structure=('hook', 'problem', 'product_intro', 'proof', 'benefit', 'cta', 'ending'),
+            reference_prompt=(
+                'Turn the user prompt into a native-feeling vertical UGC ad. '
+                'Prioritize quick clarity, visible product/service value, creator-style realism, and a strong close.'
+            ),
+            scene_guidance=(
+                'Create a vertical mobile-first UGC ad with clear hook, fast product visibility, believable proof, and a calm CTA close. '
+                'Avoid polished TV-commercial framing, fake stock-footage drift, or product reveal happening too late.'
+            ),
+            seed_prompt='Create a 24 second vertical UGC product ad based on the provided product or service brief.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='sora2',
+            aspect_ratio='9:16',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=True,
+            narration_enabled=True,
+            voice='Shubh',
+            language='English',
+            caption_style='classic',
+        ),
+        scene_strategy=_ugc_ad_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='UGC Ad',
+            slug='ugc-ad',
+            description='Generate a mobile-first creator-style product or service ad with hook, proof, benefits, and CTA.',
+            short_label='UGC ad',
+            preview_video_url=_sample_video('time-echo-explainer.mp4'),
+            preview_image_url=_sample_video('creator-launch.png'),
+            active=True,
+            featured=True,
+            trending=True,
+            order=23,
+            tags=('all', 'ads', 'ugc', 'performance', 'creator', 'vertical'),
+            composer=RecipeComposerConfig(
+                recipe_label='UGC Ad',
+                mode='video',
+                starter_copy='Describe the product, service, audience, and main promise. The recipe will turn it into a creator-style ad.',
+                fragments=(
+                    RecipeComposerFragment(type='text', value='Create a UGC ad for '),
+                    RecipeComposerFragment(type='slot', slot_id='text'),
+                    RecipeComposerFragment(type='text', value=' optimized for short-form mobile placements.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='text',
+                        kind='text',
+                        label='Product or service brief',
+                        placeholder='a protein-rich instant breakfast for busy college students',
+                        required=True,
+                    ),
+                ),
+            ),
+        ),
+        reference_strategy='none',
+        metadata={
+            'starter_badge': 'Agency-ready',
+            'version': 1,
+            'default_ugc_style': 'creator_casual',
+            'supported_ugc_styles': (
+                'creator_casual',
+                'premium_ugc',
+                'testimonial',
+                'documentary_social',
+                'offer_heavy_performance_ad',
+            ),
+            'supported_client_brief_categories': (
+                'dental clinic',
+                'salon / beauty studio',
+                'skincare product',
+                'gym / fitness studio',
+                'restaurant / cafe',
+                'local repair service',
+                'local clinic',
+                'coaching / education center',
+                'app/software service',
+                'e-commerce product',
+            ),
+        },
+    ),
     'viral_dance_clip': RecipeConfig(
         id='viral_dance_clip',
         type='video',
@@ -617,6 +720,7 @@ RECIPES: dict[str, RecipeConfig] = {
 }
 
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
+UGC_AD_RECIPE_IDS = frozenset({'ugc_ad'})
 
 EXPLAINER_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r'\bexplain\b', re.IGNORECASE),

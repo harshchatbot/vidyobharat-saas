@@ -368,7 +368,7 @@ function buildVideoCreatePayload(input: {
       url: null,
     },
     audioSettings: {
-      volume: 0.18,
+      volume: 20,
       ducking: true,
       sampleRateHz: 48000,
     },
@@ -504,6 +504,11 @@ function buildRecipeBadge(recipe: RecipeCatalog, tab: RecipeTab): string | null 
 function normalizeImageModelKey(modelKey?: string | null) {
   if (!modelKey) return 'gemini_flash_image';
   return creditEngine.imageModelAliases?.[modelKey as keyof typeof creditEngine.imageModelAliases] ?? modelKey;
+}
+
+function buildComposerVoicePreviewText(prompt: string) {
+  const normalized = prompt.replace(/\s+/g, ' ').trim();
+  return normalized.slice(0, 240);
 }
 
 function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
@@ -896,6 +901,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState('Shubh');
   const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
+  const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
+  const [voicePreviewing, setVoicePreviewing] = useState(false);
+  const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -937,6 +945,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const inspirationPhotoCards = useMemo(
     () => inspirationPhotos.map(mapInspirationToCard).slice(0, 12),
     [inspirationPhotos],
+  );
+  const composerVoicePreviewText = useMemo(
+    () => buildComposerVoicePreviewText(recipeComposer ? assembleRecipePrompt(recipeComposer) : idea),
+    [idea, recipeComposer],
+  );
+  const selectedLanguageLabel = useMemo(
+    () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
+    [languageOptions, selectedLanguage],
   );
   const firstEmptySlotId = useMemo(() => firstEmptyRecipeTextSlot(recipeComposer), [recipeComposer]);
   const composerIntent = useMemo(() => detectVideoIntent(idea), [idea]);
@@ -1045,9 +1061,50 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    setVoicePreviewUrl(null);
+    setVoicePreviewMessage(null);
+  }, [selectedLanguage, selectedVoice, composerVoicePreviewText]);
+
   const closeMenus = () => {
     setOpenMenu(null);
     setAssetPicker(null);
+  };
+
+  const previewComposerVoice = async () => {
+    if (!voiceEnabled || !selectedVoice || !composerVoicePreviewText) return;
+    setVoicePreviewing(true);
+    setVoicePreviewMessage(null);
+    try {
+      let previewText = composerVoicePreviewText;
+      if (selectedLanguage !== 'en-IN') {
+        const translation = await api.translateScriptText(
+          {
+            text: composerVoicePreviewText,
+            target_language: selectedLanguageLabel,
+          },
+          userId,
+        );
+        previewText = buildComposerVoicePreviewText(translation.text || composerVoicePreviewText);
+      }
+      const response = await api.previewTts(
+        {
+          voice: selectedVoice,
+          language: selectedLanguage,
+          sample_rate_hz: 22050,
+          text: previewText,
+        },
+        userId,
+      );
+      setVoicePreviewUrl(toAbsoluteUrl(response.preview_url));
+      setVoicePreviewMessage(
+        `${response.provider}${response.resolved_voice ? ` · ${response.resolved_voice}` : ''}${response.cached ? ' · cached' : ''}`,
+      );
+    } catch (nextError) {
+      setVoicePreviewMessage(nextError instanceof Error ? nextError.message : 'Unable to preview this voice right now.');
+    } finally {
+      setVoicePreviewing(false);
+    }
   };
 
   const pushRecentEntry = (entry: RecentEntry) => {
@@ -1866,6 +1923,26 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                 ))}
                               </select>
                             </label>
+                          ) : null}
+                          {voiceEnabled ? (
+                            <div className="mt-3 px-2">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="h-9 w-full rounded-[12px]"
+                                onClick={() => void previewComposerVoice()}
+                                disabled={voicePreviewing || !selectedVoice || !composerVoicePreviewText}
+                              >
+                                {voicePreviewing ? 'Previewing…' : 'Preview voice'}
+                              </Button>
+                              <p className="mt-2 text-xs leading-5 text-muted">
+                                {composerVoicePreviewText
+                                  ? 'Preview reads a short cleaned version of your current prompt with the selected Sarvam voice.'
+                                  : 'Add a prompt to preview this voice.'}
+                              </p>
+                              {voicePreviewMessage ? <p className="mt-2 text-xs text-muted">{voicePreviewMessage}</p> : null}
+                              {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
+                            </div>
                           ) : null}
                           <button type="button" onClick={() => setCaptionsEnabled((current) => !current)} className="flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
                             <span>Captions</span>

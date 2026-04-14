@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, RecipeConfig
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, RecipeConfig, UGC_AD_RECIPE_IDS
 
 
 def build_sora_deep_explainer_prompt(
@@ -105,6 +105,146 @@ def build_sora_deep_explainer_prompt(
     return prompt
 
 
+def build_sora_ugc_ad_prompt(
+    recipe: RecipeConfig,
+    scene: dict[str, Any],
+    reference: str | None,
+    inputs: dict[str, Any] | None = None,
+) -> str:
+    normalized_inputs = dict(inputs or {})
+    text_input = str(normalized_inputs.get('text') or '').strip()
+    stage_label = str(scene.get('stage_label') or '').strip()
+    topic_focus = str(scene.get('topic_focus') or '').strip()
+    visual_objective = str(scene.get('visual_objective') or '').strip()
+    scene_type = str(scene.get('scene_type') or '').strip()
+    ugc_ad_family = str(scene.get('ugc_ad_family') or '').strip()
+    ugc_ad_subtopic = str(scene.get('ugc_ad_subtopic') or '').strip()
+    ugc_mode = str(scene.get('ugc_mode') or '').strip()
+    client_brief_mode = bool(scene.get('client_brief_mode'))
+    business_name = str(scene.get('business_name') or '').strip()
+    business_category = str(scene.get('business_category') or '').strip()
+    city = str(scene.get('city') or '').strip()
+    locality = str(scene.get('locality') or '').strip()
+    target_audience = str(scene.get('target_audience') or '').strip()
+    main_service_or_product = str(scene.get('main_service_or_product') or '').strip()
+    main_pain_point = str(scene.get('main_pain_point') or '').strip()
+    key_promise = str(scene.get('key_promise') or '').strip()
+    trust_factor = str(scene.get('trust_factor') or '').strip()
+    offer = str(scene.get('offer') or '').strip()
+    cta = str(scene.get('cta') or '').strip()
+    ad_goal = str(scene.get('ad_goal') or '').strip()
+    hook_plan = str(scene.get('hook_plan') or '').strip()
+    shot_archetype = str(scene.get('shot_archetype') or '').strip()
+    subtopic_visual_anchor = str(scene.get('subtopic_visual_anchor') or '').strip()
+    extra_avoid_guidance = str(scene.get('extra_avoid_guidance') or '').strip()
+    indian_context_note = str(scene.get('indian_context_note') or '').strip()
+    subject_description = str(scene.get('subject_description') or '').strip()
+    environment_description = str(scene.get('environment_description') or '').strip()
+    camera_framing = str(scene.get('camera_framing') or '').strip()
+    motion_intent = str(scene.get('motion_intent') or '').strip()
+    local_narration_context = str(scene.get('local_narration_context') or '').strip()
+    transition_intent = str(scene.get('transition_intent') or '').strip()
+    transition_from_previous = str(scene.get('transition_from_previous') or '').strip()
+    transition_to_next = str(scene.get('transition_to_next') or '').strip()
+    ending_hold_instruction = str(scene.get('ending_hold_instruction') or '').strip()
+    continuity_guidance = str(scene.get('continuity_guidance') or '').strip()
+    sora_negative_guidance = str(scene.get('sora_negative_guidance') or '').strip()
+    ugc_style = str(scene.get('ugc_style') or '').strip()
+    cta_style = str(scene.get('cta_style') or '').strip()
+    avoid_motifs = [str(item).strip() for item in (scene.get('avoid_motifs') or []) if str(item).strip()]
+
+    prompt = (
+        'Create a native-feeling vertical UGC ad scene for Sora 2.\n\n'
+        f'Recipe: {recipe.catalog.title}\n'
+        f'Stage: {stage_label}\n'
+        f'Duration: {int(scene.get("duration_seconds") or 0)} seconds\n'
+        f'UGC style: {ugc_style or recipe.metadata.get("default_ugc_style") or "creator_casual"}\n'
+        f'UGC family: {ugc_ad_family}\n'
+        f'UGC subtopic: {ugc_ad_subtopic}\n'
+        f'UGC mode: {ugc_mode}\n'
+        f'Client brief mode: {"on" if client_brief_mode else "off"}\n'
+        f'Shot archetype: {shot_archetype}\n'
+        f'Subtopic visual anchor: {subtopic_visual_anchor}\n'
+        f'Product or service brief: {text_input}\n'
+        f'Topic focus: {topic_focus}\n'
+        f'Visual objective: {visual_objective}\n'
+        f'Scene type: {scene_type}\n'
+        f'Subject: {subject_description}\n'
+        f'Environment: {environment_description}\n'
+        f'Camera framing: {camera_framing}\n'
+        f'Motion/action: {motion_intent}\n'
+        f'Local narration meaning: {local_narration_context}\n'
+        f'Continuity: {continuity_guidance}\n'
+        f'Transition intent: {transition_intent}\n'
+        f'Transition from previous scene: {transition_from_previous}\n'
+        f'Transition to next scene: {transition_to_next}\n'
+        f'CTA closure behavior: {cta_style or "native_creator_close"}\n'
+        f'Ending behavior: {ending_hold_instruction}\n'
+    )
+
+    if client_brief_mode:
+        prompt += (
+            f'Business name: {business_name}\n'
+            f'Business category: {business_category}\n'
+            f'City: {city}\n'
+            f'Locality: {locality}\n'
+            f'Target audience: {target_audience}\n'
+            f'Main service or product: {main_service_or_product}\n'
+            f'Main pain point: {main_pain_point}\n'
+            f'Key promise: {key_promise}\n'
+            f'Trust factor: {trust_factor}\n'
+            f'Offer: {offer}\n'
+            f'CTA: {cta}\n'
+            f'Ad goal: {ad_goal}\n'
+            f'Hook plan: {hook_plan}\n'
+        )
+
+    if indian_context_note:
+        prompt += f'Indian audience grounding: {indian_context_note}\n'
+
+    if recipe.config.reference_prompt:
+        prompt += f'Creative direction: {recipe.config.reference_prompt}\n'
+
+    prompt += (
+        'Prioritize native short-form ad realism over polished commercial spectacle.\n'
+        'Make the scene feel creator-like, mobile-first, and believable for Meta Reels or TikTok style placements.\n'
+        'Show the product or service early enough that viewers understand what is being sold.\n'
+        'Keep product visibility, human authenticity, and one clear visual selling point in every scene.\n'
+        'Use grounded creator camera language: selfie, handheld realism, product-in-hand, close-up demos, and quick result shots when appropriate.\n'
+        'Do not depend on readable text inside the generated scene.\n'
+        'Readable copy will be handled by overlays, captions, and narration outside the generated shot.\n'
+        'Avoid poster-like title cards, fake UI text, and stock-footage polish.\n'
+    )
+
+    if client_brief_mode:
+        prompt += (
+            'Use the client brief to make the ad feel like it belongs to a real business, not a generic category ad.\n'
+            'Ground the hook, proof, and CTA in the business identity, audience, locality, promise, and booking or purchase intent.\n'
+            'Use locality as believable context, not as repetitive directory text.\n'
+            'Keep the business name visible through subject logic or context, but do not force readable text inside the scene.\n'
+        )
+
+    if avoid_motifs:
+        prompt += f'Avoid motifs: {", ".join(avoid_motifs)}.\n'
+    if extra_avoid_guidance:
+        prompt += f'Additional shot-pack avoid guidance: {extra_avoid_guidance}.\n'
+    if sora_negative_guidance:
+        prompt += f'Negative guidance: {sora_negative_guidance}.\n'
+
+    if reference:
+        prompt += (
+            f'Reference asset: {reference}\n'
+            'Use it only for subject grounding and continuity where relevant.\n'
+        )
+
+    prompt += (
+        'Camera should feel intentional but natural, not like a glossy TV commercial.\n'
+        'Motion should feel readable and creator-native, with no abrupt CTA cut or late scene confusion.\n'
+        'The final moment should resolve cleanly with stable product or service context.\n'
+    )
+    return prompt
+
+
 def build_scene_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
@@ -113,6 +253,8 @@ def build_scene_prompt(
 ) -> str:
     if recipe.id == 'deep_dive_explainer' and recipe.generation_defaults.model_key == 'sora2':
         return build_sora_deep_explainer_prompt(recipe, scene, reference, inputs)
+    if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key == 'sora2':
+        return build_sora_ugc_ad_prompt(recipe, scene, reference, inputs)
 
     beat_names = tuple(scene.get('beat_names') or ())
     beat_list = ', '.join(beat_names)
@@ -203,6 +345,12 @@ def build_scene_prompt(
             'Treat this as a structured educational storyboard scene, not a generic cinematic science montage.\n'
             'Make the concept teachable in one step at a time.\n'
             'Favor concrete explanation, visual progression, and distinct scene identity over spectacle.\n'
+        )
+    if recipe.id in UGC_AD_RECIPE_IDS:
+        prompt += (
+            'Treat this as a native vertical UGC ad scene, not a glossy TV commercial.\n'
+            'Make the product or service feel clear, believable, creator-like, and fast to understand.\n'
+            'Favor authenticity, product visibility, proof, and short-form performance clarity over over-produced spectacle.\n'
         )
 
     prompt += (
