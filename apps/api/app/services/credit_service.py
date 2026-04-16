@@ -185,7 +185,15 @@ class CreditService:
             estimate.required_credits += consistency_cost
             estimate.premium = True
             return estimate
+        if action == 'avatar_preview_generate':
+            return self._estimate_avatar_preview(payload)
         return CreditEstimate(required_credits=0, breakdown=[], premium=False)
+
+
+    def _estimate_avatar_preview(self, payload: dict[str, Any]) -> CreditEstimate:
+        items: list[CreditCostItem] = [self._item('avatar_preview_generate')]
+        return self._sum(items)
+
 
     # Central dynamic billing functions. These are the single source of truth for
     # estimate and deduction paths for video/image/voice compute pricing.

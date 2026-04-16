@@ -44,6 +44,8 @@ import type {
   VideoCreateRequest,
 } from '@/types/api';
 
+import CreateCustomAvatarModal from '@/components/avatars/CreateCustomAvatarModal';
+
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
 type QualityProfile = 'fast_social' | 'creator_quality' | 'creator_pro' | 'premium';
@@ -165,10 +167,10 @@ type ActiveRecipeSource =
   | { kind: 'recipe'; recipe: RecipeCard }
   | null;
 
-  const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2 }> = [
-    { key: 'image', label: 'Image', icon: Sparkles },
-    { key: 'video', label: 'Video', icon: Video },
-  ];
+const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2 }> = [
+  { key: 'image', label: 'Image', icon: Sparkles },
+  { key: 'video', label: 'Video', icon: Video },
+];
 
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
@@ -742,11 +744,10 @@ function InlineUploadSlot({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
-        value
-          ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] text-text'
-          : 'border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.62)] text-muted hover:border-[hsl(var(--color-accent)/0.35)] hover:text-text'
-      } dark:bg-white/[0.06] dark:text-white`}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${value
+        ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] text-text'
+        : 'border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.62)] text-muted hover:border-[hsl(var(--color-accent)/0.35)] hover:text-text'
+        } dark:bg-white/[0.06] dark:text-white`}
     >
       {previewUrl ? (
         <img src={previewUrl} alt={value || slot.label} className="h-6 w-6 rounded-full object-cover" />
@@ -850,11 +851,10 @@ function ModelRow({
       disabled={disabled}
       onClick={onClick}
       onMouseEnter={onHover}
-      className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${
-        active
-          ? 'border-white/14 bg-white/[0.08]'
-          : 'border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
-      } ${disabled ? 'opacity-60' : ''}`}
+      className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${active
+        ? 'border-white/14 bg-white/[0.08]'
+        : 'border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+        } ${disabled ? 'opacity-60' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -876,6 +876,7 @@ function ModelRow({
 
 export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const router = useRouter();
+  const [showCreateCustomAvatarModal, setShowCreateCustomAvatarModal] = useState(false);
   const [idea, setIdea] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('creator_pro');
@@ -913,14 +914,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [imageResultOpen, setImageResultOpen] = useState(false);
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>([]);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>([]);
-  const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
-  const [savedPersonas, setSavedPersonas] = useState<InfluencerPersona[]>([]);
+  //const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
+  //const [savedPersonas, setSavedPersonas] = useState<InfluencerPersona[]>([]);
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState('Shubh');
   const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
   const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState<{
+    personaId: string;
+    name: string;
+    imageUrl?: string;
+    source?: "preset" | "saved";
+  } | null>(null);
+
+  const [presetAvatars, setPresetAvatars] = useState<any[]>([]);
+  const [savedPersonas, setSavedPersonas] = useState<any[]>([]);
+  const [isAvatarLoading, setIsAvatarLoading] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1214,12 +1226,12 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setRecipeComposer((current) =>
       current
         ? {
-            ...current,
-            values: {
-              ...current.values,
-              [slotId]: value,
-            },
-          }
+          ...current,
+          values: {
+            ...current.values,
+            [slotId]: value,
+          },
+        }
         : current,
     );
   };
@@ -1521,24 +1533,127 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   return (
     <div className="space-y-6">
       <section className="space-y-4">
-        {/*<div className="overflow-hidden rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0.92),hsl(var(--color-accent)/0.72))] px-4 py-2.5 shadow-soft">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-[hsl(var(--color-accent-contrast))]">
-              <span className="rounded-full border border-white/15 bg-black/10 px-2.5 py-1 text-xs font-semibold">Unlock your Pro membership for just $6</span>
-              <span className="flex items-center gap-2">
-                {['11', '58', '00'].map((part, index) => (
-                  <span key={`${part}-${index}`} className="inline-flex items-center gap-2">
-                    <span className="rounded-full bg-white/14 px-2.5 py-1 text-xs font-semibold text-white">{part}</span>
-                    {index < 2 ? <span className="text-white/70">:</span> : null}
-                  </span>
-                ))}
-              </span>
+        {isAvatarPickerOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-[hsl(var(--color-bg)/0.92)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">Choose AI Avatar</h3>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsAvatarPickerOpen(false);
+                      setShowCreateCustomAvatarModal(true);
+                    }}
+                    className="rounded-lg border px-3 py-1.5 text-sm"
+                  >
+                    Create Your Own Avatar
+                  </button>
+
+                  <button onClick={() => setIsAvatarPickerOpen(false)}>✕</button>
+                </div>
+              </div>
+
+              <div className="mb-3 text-xs text-gray-500">
+                savedPersonas: {savedPersonas.length} | presetAvatars: {presetAvatars.length}
+              </div>
+
+              {isAvatarLoading ? (
+                <div className="py-6 text-sm text-gray-500">Loading avatars...</div>
+              ) : (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-white/45">
+                      Preset Avatars
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {presetAvatars.map((p: any) => (
+                        <button
+                          key={p.persona_id || p.id}
+                          onClick={() => {
+                            const personaId = p.persona_id || p.id;
+
+                            setSelectedAvatar({
+                              personaId,
+                              name: p.name,
+                              imageUrl: p.image_url || p.thumbnail_url || p.reference_image_url,
+                              source: 'preset',
+                            });
+
+                            setSelectedAvatarId(personaId);
+                            setIsAvatarPickerOpen(false);
+                          }}
+                          className="rounded-lg border p-2 text-left"
+                        >
+                          {(p.image_url || p.thumbnail_url) && (
+                            <img
+                              src={p.image_url || p.thumbnail_url}
+                              alt={p.name}
+                              className="mb-2 h-24 w-full rounded-lg object-cover"
+                            />
+                          )}
+                          <div className="text-sm font-medium">{p.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="mb-2 text-sm font-medium">My Saved Personas</h4>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {savedPersonas.map((p: any) => {
+                        const imageSrc =
+                          p.reference_image_url ||
+                          p.image_url ||
+                          p.thumbnail_url ||
+                          p.imageUrl ||
+                          p.avatar_url ||
+                          p.photo_url ||
+                          p.image ||
+                          null;
+
+                        return (
+                          <button
+                            key={p.id || p.persona_id}
+                            onClick={() => {
+                              const personaId = p.id || p.persona_id;
+
+                              setSelectedAvatar({
+                                personaId,
+                                name: p.name,
+                                imageUrl: imageSrc || undefined,
+                                source: 'saved',
+                              });
+
+                              setSelectedAvatarId(personaId);
+                              setIsAvatarPickerOpen(false);
+                            }}
+                            className="rounded-lg border p-2 text-left"
+                          >
+                            {imageSrc && (
+                              <img
+                                src={imageSrc}
+                                alt={p.name}
+                                className="mb-2 h-24 w-full rounded-lg object-cover"
+                              />
+                            )}
+                            <div className="text-sm font-medium">{p.name}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {presetAvatars.length === 0 && savedPersonas.length === 0 && (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-gray-500">
+                      No avatars found yet.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <Button className="rounded-full border-0 bg-white/95 px-4 py-2 text-xs font-semibold text-[hsl(var(--color-accent))] hover:bg-white">
-              Claim Offer
-            </Button>
           </div>
-        </div>  */}
+        )}
 
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">Create</p>
@@ -1547,89 +1662,100 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
         <section className="mx-auto max-w-[1040px] space-y-2">
 
-        <div
-          ref={composerRef}
-          className="relative z-30 overflow-visible rounded-[32px] border border-white/10 bg-[rgba(18,18,24,0.8)] px-4 py-3 backdrop-blur-[16px] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_rgba(0,0,0,0.5)] sm:px-6 sm:py-3.5"
-        >
-          <div className="pointer-events-none absolute inset-x-[24%] -bottom-10 h-24 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.14)_0%,rgba(139,92,246,0.16)_38%,rgba(236,72,153,0.14)_60%,transparent_80%)] blur-2xl" />
-          <div className="absolute inset-x-10 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)]" />
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {activeRecipeLabel ? (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.68)] px-3 py-1.5 text-[11px] font-semibold text-text shadow-soft dark:border-white/14 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]">
-                    <LayoutTemplate className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                    <span>Recipe: {activeRecipeLabel}</span>
-                  </div>
-                ) : null}
-                {isUgcAdRecipe && selectedAvatarOption ? (
-                  <button
-                    type="button"
-                    onClick={() => setOpenMenu((current) => (current === 'avatar' ? null : 'avatar'))}
-                    className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)] dark:border-white/12 dark:bg-white/5"
-                  >
-                    {selectedAvatarOption.thumbnailUrl ? (
-                      <img src={selectedAvatarOption.thumbnailUrl} alt={selectedAvatarOption.name} className="h-5 w-5 rounded-full object-cover" />
-                    ) : (
-                      <UserRound className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                    )}
-                    <span>AI Avatar: {selectedAvatarOption.name}</span>
-                  </button>
-                ) : null}
-                {uploadedAssetName ? (
-                  <Badge variant="outline" className="rounded-full border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] text-text dark:border-white/12 dark:bg-white/5">
-                    Asset: {uploadedAssetName}
-                  </Badge>
-                ) : null}
-                {recipeComposer ? (
-                  <button
-                    type="button"
-                    onClick={exitRecipeComposer}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-muted transition hover:text-text dark:border-white/12 dark:bg-white/5"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    Exit recipe
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {recipeComposer ? (
-              <div className="space-y-3 rounded-[20px] bg-transparent px-0.5 py-1">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">
-                  <span className="rounded-full border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-surface)/0.56)] px-3 py-1 dark:border-white/10 dark:bg-white/[0.04]">
-                    {recipeComposer.recipeLabel}
-                  </span>
+          <div
+            ref={composerRef}
+            className="relative z-30 overflow-visible rounded-[32px] border border-white/10 bg-[rgba(18,18,24,0.8)] px-4 py-3 backdrop-blur-[16px] shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_rgba(0,0,0,0.5)] sm:px-6 sm:py-3.5"
+          >
+            <div className="pointer-events-none absolute inset-x-[24%] -bottom-10 h-24 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.14)_0%,rgba(139,92,246,0.16)_38%,rgba(236,72,153,0.14)_60%,transparent_80%)] blur-2xl" />
+            <div className="absolute inset-x-10 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)]" />
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeRecipeLabel ? (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.68)] px-3 py-1.5 text-[11px] font-semibold text-text shadow-soft dark:border-white/14 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]">
+                      <LayoutTemplate className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                      <span>Recipe: {activeRecipeLabel}</span>
+                    </div>
+                  ) : null}
+                  {isUgcAdRecipe && selectedAvatarOption ? (
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenu((current) => (current === 'avatar' ? null : 'avatar'))}
+                      className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)] dark:border-white/12 dark:bg-white/5"
+                    >
+                      {selectedAvatarOption.thumbnailUrl ? (
+                        <img src={selectedAvatarOption.thumbnailUrl} alt={selectedAvatarOption.name} className="h-5 w-5 rounded-full object-cover" />
+                      ) : (
+                        <UserRound className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                      )}
+                      <span>AI Avatar: {selectedAvatarOption.name}</span>
+                    </button>
+                  ) : null}
+                  {uploadedAssetName ? (
+                    <Badge variant="outline" className="rounded-full border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] text-text dark:border-white/12 dark:bg-white/5">
+                      Asset: {uploadedAssetName}
+                    </Badge>
+                  ) : null}
+                  {recipeComposer ? (
+                    <button
+                      type="button"
+                      onClick={exitRecipeComposer}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-muted transition hover:text-text dark:border-white/12 dark:bg-white/5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Exit recipe
+                    </button>
+                  ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-3 text-lg leading-8 text-text sm:text-[1.18rem]">
-                  {recipeComposer.fragments.map((fragment, index) => {
-                    if (fragment.type === 'text') {
-                      return (
-                        <span key={`fragment-${index}`} className="text-text/88 dark:text-white/88">
-                          {fragment.value}
-                        </span>
-                      );
-                    }
+              </div>
 
-                    const slot = recipeComposer.slots.find((item) => item.id === fragment.slotId);
-                    if (!slot) return null;
-                    const value = recipeComposer.values[slot.id] || '';
+              {recipeComposer ? (
+                <div className="space-y-3 rounded-[20px] bg-transparent px-0.5 py-1">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--color-accent))]">
+                    <span className="rounded-full border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-surface)/0.56)] px-3 py-1 dark:border-white/10 dark:bg-white/[0.04]">
+                      {recipeComposer.recipeLabel}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-3 text-lg leading-8 text-text sm:text-[1.18rem]">
+                    {recipeComposer.fragments.map((fragment, index) => {
+                      if (fragment.type === 'text') {
+                        return (
+                          <span key={`fragment-${index}`} className="text-text/88 dark:text-white/88">
+                            {fragment.value}
+                          </span>
+                        );
+                      }
 
-                    if (slot.kind === 'upload' || slot.kind === 'reference-image') {
-                      return (
-                        <InlineUploadSlot
-                          key={slot.id}
-                          slot={slot}
-                          value={value}
-                          previewUrl={recipeSlotAssets[slot.id]?.previewUrl}
-                          onClick={(event) => openSlotAssetPicker(slot, event)}
-                        />
-                      );
-                    }
+                      const slot = recipeComposer.slots.find((item) => item.id === fragment.slotId);
+                      if (!slot) return null;
+                      const value = recipeComposer.values[slot.id] || '';
 
-                    if (slot.kind === 'select') {
+                      if (slot.kind === 'upload' || slot.kind === 'reference-image') {
+                        return (
+                          <InlineUploadSlot
+                            key={slot.id}
+                            slot={slot}
+                            value={value}
+                            previewUrl={recipeSlotAssets[slot.id]?.previewUrl}
+                            onClick={(event) => openSlotAssetPicker(slot, event)}
+                          />
+                        );
+                      }
+
+                      if (slot.kind === 'select') {
+                        return (
+                          <InlineSelectSlot
+                            key={slot.id}
+                            slot={slot}
+                            value={value}
+                            autoFocus={firstEmptySlotId === slot.id}
+                            onChange={(nextValue) => updateRecipeSlotValue(slot.id, nextValue)}
+                          />
+                        );
+                      }
+
                       return (
-                        <InlineSelectSlot
+                        <InlineTextSlot
                           key={slot.id}
                           slot={slot}
                           value={value}
@@ -1637,55 +1763,44 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           onChange={(nextValue) => updateRecipeSlotValue(slot.id, nextValue)}
                         />
                       );
-                    }
-
-                    return (
-                      <InlineTextSlot
-                        key={slot.id}
-                        slot={slot}
-                        value={value}
-                        autoFocus={firstEmptySlotId === slot.id}
-                        onChange={(nextValue) => updateRecipeSlotValue(slot.id, nextValue)}
-                      />
-                    );
-                  })}
+                    })}
+                  </div>
+                  <p className="text-xs text-muted">Start with the empty slots. Generate stays ready on the right, and you can still refine settings below.</p>
                 </div>
-                <p className="text-xs text-muted">Start with the empty slots. Generate stays ready on the right, and you can still refine settings below.</p>
-              </div>
-            ) : (
-              <Textarea
-                ref={textareaRef}
-                rows={4}
-                value={idea}
-                onChange={(event) => setIdea(event.target.value)}
-                placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
-                className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-text shadow-none ring-0 outline-none placeholder:text-[#52525b] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 sm:min-h-[104px] sm:text-lg"
-              />
-            )}
+              ) : (
+                <Textarea
+                  ref={textareaRef}
+                  rows={4}
+                  value={idea}
+                  onChange={(event) => setIdea(event.target.value)}
+                  placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
+                  className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-text shadow-none ring-0 outline-none placeholder:text-[#52525b] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 sm:min-h-[104px] sm:text-lg"
+                />
+              )}
 
-            {mode === 'video' && idea.trim() && !recipeComposer ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {willAutoRouteToExplainer ? (
-                  <>
-                    <Badge variant="outline">
-                      {pickExplainerRecipeId(idea) === 'deep_dive_explainer' ? 'Detected as: Long explainer' : 'Detected as: Explainer'}
-                    </Badge>
-                    <p className="text-xs text-muted">
-                      {pickExplainerRecipeId(idea) === 'deep_dive_explainer'
-                        ? 'We’ll route this into the longer explainer pipeline automatically for more scenes, longer narration, and a more visual explanation.'
-                        : 'We’ll route this into the explainer pipeline automatically for scene planning, narration, and a longer default duration.'}
-                    </p>
-                  </>
-                ) : composerIntent !== 'generic' ? (
-                  <>
-                    <Badge variant="outline">
-                      {composerIntent === 'cinematic' ? 'Detected as: Cinematic' : 'Detected as: Quick reel'}
-                    </Badge>
-                    <p className="text-xs text-muted">This stays on the standard freeform video path unless you choose a recipe.</p>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
+              {mode === 'video' && idea.trim() && !recipeComposer ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {willAutoRouteToExplainer ? (
+                    <>
+                      <Badge variant="outline">
+                        {pickExplainerRecipeId(idea) === 'deep_dive_explainer' ? 'Detected as: Long explainer' : 'Detected as: Explainer'}
+                      </Badge>
+                      <p className="text-xs text-muted">
+                        {pickExplainerRecipeId(idea) === 'deep_dive_explainer'
+                          ? 'We’ll route this into the longer explainer pipeline automatically for more scenes, longer narration, and a more visual explanation.'
+                          : 'We’ll route this into the explainer pipeline automatically for scene planning, narration, and a longer default duration.'}
+                      </p>
+                    </>
+                  ) : composerIntent !== 'generic' ? (
+                    <>
+                      <Badge variant="outline">
+                        {composerIntent === 'cinematic' ? 'Detected as: Cinematic' : 'Detected as: Quick reel'}
+                      </Badge>
+                      <p className="text-xs text-muted">This stays on the standard freeform video path unless you choose a recipe.</p>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-3 border-t border-white/8 pt-2.5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -1706,9 +1821,16 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         <button type="button" onClick={() => { setPendingUploadTarget('composer-asset'); fileInputRef.current?.click(); closeMenus(); }} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
                           <Upload className="h-4 w-4" /> Upload image
                         </button>
-                        <Link href="/influencer" onClick={closeMenus} className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
-                          <UserRound className="h-4 w-4" /> Add avatar
-                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMenus?.();
+                            setIsAvatarPickerOpen(true);
+                          }}
+                          className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]"
+                        >
+                          <UserRound className="h-4 w-4" /> AI Avatar
+                        </button>
                         <button type="button" onClick={() => { void launchUnifiedFlow(); }} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
                           <Sparkles className="h-4 w-4" /> AI generate
                         </button>
@@ -1751,44 +1873,44 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           <div className="space-y-1.5">
                             {mode === 'video'
                               ? videoModels.map((model) => (
-                                  <ModelRow
-                                    key={model.key}
-                                    title={shortVideoModelLabel(model)}
-                                    badges={[
-                                      ...(model.resolutionLabels ?? []),
-                                      ...(model.key === 'sora2' || model.key === 'veo3' ? ['With Audio'] : []),
-                                      ...(model.key === 'kling3' ? ['Start End Frame'] : []),
-                                    ]}
-                                    active={selectedVideoModelKey === model.key}
-                                    disabled={model.enabled === false}
-                                    onClick={() => {
-                                      setSelectedVideoModelKey(model.key);
-                                      setModelPanelKey(model.key);
-                                      setQualityProfile(profileForVideoModel(model.key));
-                                      setDurationPreference(getDefaultVideoDurationForModel(model.key));
-                                      closeMenus();
-                                    }}
-                                    onHover={() => setModelPanelKey(model.key)}
-                                  />
-                                ))
+                                <ModelRow
+                                  key={model.key}
+                                  title={shortVideoModelLabel(model)}
+                                  badges={[
+                                    ...(model.resolutionLabels ?? []),
+                                    ...(model.key === 'sora2' || model.key === 'veo3' ? ['With Audio'] : []),
+                                    ...(model.key === 'kling3' ? ['Start End Frame'] : []),
+                                  ]}
+                                  active={selectedVideoModelKey === model.key}
+                                  disabled={model.enabled === false}
+                                  onClick={() => {
+                                    setSelectedVideoModelKey(model.key);
+                                    setModelPanelKey(model.key);
+                                    setQualityProfile(profileForVideoModel(model.key));
+                                    setDurationPreference(getDefaultVideoDurationForModel(model.key));
+                                    closeMenus();
+                                  }}
+                                  onHover={() => setModelPanelKey(model.key)}
+                                />
+                              ))
                               : imageModels.map((model) => (
-                                  <ModelRow
-                                    key={model.key}
-                                    title={model.label}
-                                    badges={[
-                                      qualityProfile === 'fast_social' ? '1K' : '1.5K',
-                                      ...(model.badge ? [model.badge] : []),
-                                    ]}
-                                    active={selectedImageModelKey === model.key}
-                                    onClick={() => {
-                                      setSelectedImageModelKey(model.key);
-                                      setModelPanelKey(model.key);
-                                      setQualityProfile(profileForImageModel(model.key));
-                                      closeMenus();
-                                    }}
-                                    onHover={() => setModelPanelKey(model.key)}
-                                  />
-                                ))}
+                                <ModelRow
+                                  key={model.key}
+                                  title={model.label}
+                                  badges={[
+                                    qualityProfile === 'fast_social' ? '1K' : '1.5K',
+                                    ...(model.badge ? [model.badge] : []),
+                                  ]}
+                                  active={selectedImageModelKey === model.key}
+                                  onClick={() => {
+                                    setSelectedImageModelKey(model.key);
+                                    setModelPanelKey(model.key);
+                                    setQualityProfile(profileForImageModel(model.key));
+                                    closeMenus();
+                                  }}
+                                  onHover={() => setModelPanelKey(model.key)}
+                                />
+                              ))}
                           </div>
                           <div className="rounded-[20px] border border-white/8 bg-black/25 p-3">
                             {mode === 'video' && activeVideoModelDetail ? (
@@ -1809,11 +1931,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                         setDurationPreference(getDefaultVideoDurationForModel(activeVideoModelDetail.key));
                                         closeMenus();
                                       }}
-                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${
-                                        selectedVideoModelKey === activeVideoModelDetail.key && selectedVideoResolution === (label === '1080p' ? '1080p' : '720p')
-                                          ? 'border border-white/12 bg-white/[0.09]'
-                                          : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
-                                      }`}
+                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${selectedVideoModelKey === activeVideoModelDetail.key && selectedVideoResolution === (label === '1080p' ? '1080p' : '720p')
+                                        ? 'border border-white/12 bg-white/[0.09]'
+                                        : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+                                        }`}
                                     >
                                       <div>
                                         <p className="text-sm font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
@@ -1848,11 +1969,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                         setQualityProfile(resolution === '1024' ? 'fast_social' : 'creator_quality');
                                         closeMenus();
                                       }}
-                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${
-                                        selectedImageModelKey === activeImageModelDetail.key && selectedImageResolution === resolution
-                                          ? 'border border-white/12 bg-white/[0.09]'
-                                          : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
-                                      }`}
+                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${selectedImageModelKey === activeImageModelDetail.key && selectedImageResolution === resolution
+                                        ? 'border border-white/12 bg-white/[0.09]'
+                                        : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+                                        }`}
                                     >
                                       <div>
                                         <p className="text-sm font-semibold text-white">{activeImageModelDetail.label}</p>
@@ -2104,189 +2224,189 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     </span>
                   )}
                 </Button>
-            </div>
-          </div>
-
-          <div className="pt-0.5 text-[12px] text-muted">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-transparent px-2.5 py-1 text-white/58">
-                <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                {activeRecipeLabel ? 'Start with a recipe. Refine it in the composer.' : `${currentModelLabel} · ${currentModelHint || currentProfileLabel}. You can refine this later.`}
-              </span>
-              {latestGeneratedImage ? (
-                <button
-                  type="button"
-                  onClick={() => setImageResultOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                  Open last image
-                </button>
-              ) : null}
-              {uploadedComposerAsset?.previewUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setUploadedComposerAsset(null)}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <img src={uploadedComposerAsset.previewUrl} alt={uploadedComposerAsset.label} className="h-4 w-4 rounded-full object-cover" />
-                  Remove reference
-                </button>
-              ) : null}
-              <Link
-                href="/library"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                Open library
-              </Link>
-              <Link
-                href="/projects"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                Open projects
-              </Link>
-            </div>
-          </div>
-
-          {assetPicker ? (
-            <div
-              className="absolute z-30 w-[min(92vw,560px)] rounded-[24px] border border-[hsl(var(--color-border)/0.78)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.98),hsl(var(--color-elevated)/0.98))] p-3 shadow-hard backdrop-blur-xl"
-              style={{ left: assetPicker.left, top: assetPicker.top }}
-            >
-              <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-bg)/0.55)] p-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingUploadTarget(assetPicker.slotId);
-                      fileInputRef.current?.click();
-                    }}
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text transition hover:bg-[hsl(var(--color-bg)/0.7)]"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload
-                  </button>
-                  <Link
-                    href="/influencer"
-                    onClick={() => setAssetPicker(null)}
-                    className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text transition hover:bg-[hsl(var(--color-bg)/0.7)]"
-                  >
-                    <UserRound className="h-4 w-4" />
-                    Virtual avatar
-                  </Link>
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-muted opacity-70"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    AI generate soon
-                  </button>
-                </div>
-
-                <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-bg)/0.5)] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">{assetPicker.slotLabel}</p>
-                  {assetPicker.samplePreviewUrl ? (
-                    <div className="mt-3 overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-black/30">
-                      <img src={assetPicker.samplePreviewUrl} alt={assetPicker.sampleLabel || assetPicker.slotLabel} className="h-[220px] w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="mt-3 flex h-[220px] items-center justify-center rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.4)] text-sm text-muted">
-                      No preview yet
-                    </div>
-                  )}
-                  <Button
-                    type="button"
-                    className="mt-3 w-full rounded-[16px] py-3 text-sm font-semibold"
-                    disabled={!assetPicker.samplePreviewUrl}
-                    onClick={() => {
-                      if (!assetPicker.samplePreviewUrl) return;
-                      applySlotAsset(assetPicker.slotId, {
-                        label: assetPicker.sampleLabel || assetPicker.slotLabel,
-                        previewUrl: assetPicker.samplePreviewUrl,
-                        assetUrl: assetPicker.samplePreviewUrl,
-                        source: 'sample',
-                      });
-                    }}
-                  >
-                    Use this image
-                  </Button>
-                </div>
               </div>
             </div>
-          ) : null}
 
-          {error ? (
-            <div className="rounded-[18px] border border-[hsl(var(--color-danger)/0.5)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
-              {error}
+            <div className="pt-0.5 text-[12px] text-muted">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-transparent px-2.5 py-1 text-white/58">
+                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                  {activeRecipeLabel ? 'Start with a recipe. Refine it in the composer.' : `${currentModelLabel} · ${currentModelHint || currentProfileLabel}. You can refine this later.`}
+                </span>
+                {latestGeneratedImage ? (
+                  <button
+                    type="button"
+                    onClick={() => setImageResultOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                    Open last image
+                  </button>
+                ) : null}
+                {uploadedComposerAsset?.previewUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setUploadedComposerAsset(null)}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <img src={uploadedComposerAsset.previewUrl} alt={uploadedComposerAsset.label} className="h-4 w-4 rounded-full object-cover" />
+                    Remove reference
+                  </button>
+                ) : null}
+                <Link
+                  href="/library"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  Open library
+                </Link>
+                <Link
+                  href="/projects"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  Open projects
+                </Link>
+              </div>
             </div>
-          ) : null}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={async (event) => {
-            const input = event.currentTarget;
-            const file = input.files?.[0];
-            if (!file) return;
-          
-            const uploadTarget = pendingUploadTarget;
-          
-            try {
-              if (uploadTarget && uploadTarget !== 'composer-asset') {
-                const uploaded = await api.uploadFileDirect({ file, kind: 'recipe_input' }, userId);
-          
-                applySlotAsset(uploadTarget, {
-                  label: file.name,
-                  previewUrl: uploaded.public_url,
-                  assetUrl: uploaded.public_url,
-                  source: 'upload',
-                });
-          
-                show({
-                  title: 'Image attached',
-                  message: 'Your recipe input is ready to use.',
-                  variant: 'success',
-                });
-              } else {
-                const uploaded = await api.uploadFileDirect({ file, kind: 'reference' }, userId);
-                setUploadedAssetName(file.name);
-                setUploadedComposerAsset({
-                  label: file.name,
-                  previewUrl: uploaded.public_url,
-                  assetUrl: uploaded.public_url,
-                  source: 'upload',
-                });
-                setAssetPicker(null);
-                show({
-                  title: 'Reference image attached',
-                  message: 'We will use this as the reference for your next image generation from the composer.',
-                  variant: 'success',
-                });
+
+            {assetPicker ? (
+              <div
+                className="absolute z-30 w-[min(92vw,560px)] rounded-[24px] border border-[hsl(var(--color-border)/0.78)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.98),hsl(var(--color-elevated)/0.98))] p-3 shadow-hard backdrop-blur-xl"
+                style={{ left: assetPicker.left, top: assetPicker.top }}
+              >
+                <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-bg)/0.55)] p-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingUploadTarget(assetPicker.slotId);
+                        fileInputRef.current?.click();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text transition hover:bg-[hsl(var(--color-bg)/0.7)]"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload
+                    </button>
+                    <Link
+                      href="/influencer"
+                      onClick={() => setAssetPicker(null)}
+                      className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text transition hover:bg-[hsl(var(--color-bg)/0.7)]"
+                    >
+                      <UserRound className="h-4 w-4" />
+                      Virtual avatar
+                    </Link>
+                    <button
+                      type="button"
+                      disabled
+                      className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-muted opacity-70"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI generate soon
+                    </button>
+                  </div>
+
+                  <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-bg)/0.5)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">{assetPicker.slotLabel}</p>
+                    {assetPicker.samplePreviewUrl ? (
+                      <div className="mt-3 overflow-hidden rounded-[18px] border border-[hsl(var(--color-border)/0.72)] bg-black/30">
+                        <img src={assetPicker.samplePreviewUrl} alt={assetPicker.sampleLabel || assetPicker.slotLabel} className="h-[220px] w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="mt-3 flex h-[220px] items-center justify-center rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.4)] text-sm text-muted">
+                        No preview yet
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      className="mt-3 w-full rounded-[16px] py-3 text-sm font-semibold"
+                      disabled={!assetPicker.samplePreviewUrl}
+                      onClick={() => {
+                        if (!assetPicker.samplePreviewUrl) return;
+                        applySlotAsset(assetPicker.slotId, {
+                          label: assetPicker.sampleLabel || assetPicker.slotLabel,
+                          previewUrl: assetPicker.samplePreviewUrl,
+                          assetUrl: assetPicker.samplePreviewUrl,
+                          source: 'sample',
+                        });
+                      }}
+                    >
+                      Use this image
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="rounded-[18px] border border-[hsl(var(--color-danger)/0.5)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
+                {error}
+              </div>
+            ) : null}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (event) => {
+              const input = event.currentTarget;
+              const file = input.files?.[0];
+              if (!file) return;
+
+              const uploadTarget = pendingUploadTarget;
+
+              try {
+                if (uploadTarget && uploadTarget !== 'composer-asset') {
+                  const uploaded = await api.uploadFileDirect({ file, kind: 'recipe_input' }, userId);
+
+                  applySlotAsset(uploadTarget, {
+                    label: file.name,
+                    previewUrl: uploaded.public_url,
+                    assetUrl: uploaded.public_url,
+                    source: 'upload',
+                  });
+
+                  show({
+                    title: 'Image attached',
+                    message: 'Your recipe input is ready to use.',
+                    variant: 'success',
+                  });
+                } else {
+                  const uploaded = await api.uploadFileDirect({ file, kind: 'reference' }, userId);
+                  setUploadedAssetName(file.name);
+                  setUploadedComposerAsset({
+                    label: file.name,
+                    previewUrl: uploaded.public_url,
+                    assetUrl: uploaded.public_url,
+                    source: 'upload',
+                  });
+                  setAssetPicker(null);
+                  show({
+                    title: 'Reference image attached',
+                    message: 'We will use this as the reference for your next image generation from the composer.',
+                    variant: 'success',
+                  });
+                }
+              } catch (uploadError) {
+                const message = uploadError instanceof Error ? uploadError.message : 'Could not upload that image.';
+                setError(message);
+                show({ title: 'Upload failed', message, variant: 'error' });
+              } finally {
+                setPendingUploadTarget(null);
+                input.value = '';
               }
-            } catch (uploadError) {
-              const message = uploadError instanceof Error ? uploadError.message : 'Could not upload that image.';
-              setError(message);
-              show({ title: 'Upload failed', message, variant: 'error' });
-            } finally {
-              setPendingUploadTarget(null);
-              input.value = '';
-            }
-          }}
-        />
+            }}
+          />
         </section>
       </section>
 
       <section className="space-y-5 pt-0.5">
         <div className="sticky top-[84px] z-10 -mx-2 rounded-[24px] border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-bg)/0.82)] px-2 py-3 backdrop-blur-xl sm:top-[92px] sm:-mx-3 sm:px-3 xl:top-6 xl:mx-0 xl:px-0 xl:py-0 xl:border-0 xl:bg-transparent xl:backdrop-blur-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Recipes</p>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Recipes</h2>
-            <p className="mt-1 max-w-2xl text-sm text-muted">Start with proven video formats. Pick a recipe and create instantly.</p>
-          </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Recipes</p>
+              <h2 className="font-heading text-2xl font-extrabold tracking-tight text-text">Recipes</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted">Start with proven video formats. Pick a recipe and create instantly.</p>
+            </div>
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {RECIPE_TABS.map((tab) => (
@@ -2308,9 +2428,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               {Array.from({ length: 8 }).map((_, index) => (
                 <div
                   key={`inspiration-skeleton-${index}`}
-                  className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${
-                    index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
-                  }`}
+                  className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
+                    }`}
                 />
               ))}
             </div>
@@ -2333,9 +2452,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={`recipe-skeleton-${index}`}
-                className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${
-                  index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
-                }`}
+                className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
+                  }`}
               />
             ))}
           </div>
@@ -2469,6 +2587,55 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           </div>
         ) : null}
       </Modal>
+
+      <CreateCustomAvatarModal
+        open={showCreateCustomAvatarModal}
+        onClose={() => setShowCreateCustomAvatarModal(false)}
+        userId={userId}
+        uploadImage={async (file) => {
+          const uploaded = await api.uploadFileDirect(
+            { file, kind: 'avatar_source' },
+            userId,
+          );
+
+          return {
+            publicUrl: uploaded.public_url,
+          };
+        }}
+        onAvatarCreated={(avatar) => {
+          setSelectedAvatar({
+            personaId: avatar.avatarId,
+            name: avatar.name,
+            imageUrl: avatar.imageUrl,
+            source: 'saved',
+          });
+
+          setSelectedAvatarId(avatar.avatarId);
+
+          setSavedPersonas((current) => [
+            {
+              id: avatar.avatarId,
+              name: avatar.name,
+              reference_image_url: avatar.imageUrl,
+              niche: 'Custom avatar',
+            },
+            ...current,
+          ]);
+
+          show({
+            title: 'Avatar created',
+            message: `${avatar.name} is now available in your saved personas.`,
+            variant: 'success',
+          });
+        }}
+        onPreviewCompleted={(preview) => {
+          show({
+            title: 'Preview ready',
+            message: 'Your talking avatar preview has been generated successfully.',
+            variant: 'success',
+          });
+        }}
+      />
     </div>
   );
 }

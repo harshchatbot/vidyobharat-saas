@@ -7,9 +7,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from openai import OpenAI
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, HttpUrl, ValidationError
 from sqlalchemy.orm import Session
 
+from app.workers.avatar_tasks import process_avatar_preview_job
+from firebase_admin import firestore
 from app.api.deps import get_user_id, require_admin_user
 from app.core.config import get_settings
 from app.core.request_context import get_request_id
@@ -143,11 +145,55 @@ from app.services.tts import (
     list_tts_languages,
     list_tts_voices,
 )
+from app.services.avatar_preview_service import AvatarPreviewService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+
+class CreateCustomAvatarRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    reference_image_url: HttpUrl
+    preferred_voice: str | None = 'shubh'
+
+
+class CreateCustomAvatarResponse(BaseModel):
+    avatar_id: str
+    user_id: str
+    name: str
+    reference_image_url: str
+    preferred_voice: str
+    status: str
+
+
+class GenerateCustomAvatarPreviewRequest(BaseModel):
+    script: str = Field(..., min_length=1, max_length=500)
+    voice: str | None = 'shubh'
+    language: str | None = 'en-IN'
+
+
+class GenerateCustomAvatarPreviewResponse(BaseModel):
+    job_id: str
+    avatar_id: str
+    status: str
+
+
+class CustomAvatarPreviewStatusResponse(BaseModel):
+    job_id: str
+    avatar_id: str
+    user_id: str
+    status: str
+    script: str | None = None
+    voice: str | None = None
+    language: str | None = None
+    audio_url: str | None = None
+    video_url: str | None = None
+    provider: str | None = None
+    error_message: str | None = None
+
+def get_avatar_preview_service() -> AvatarPreviewService:
+    return AvatarPreviewService()
 
 def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, object]:
     if payload.recipeId:
@@ -2579,6 +2625,289 @@ def list_avatars(
 ):
     service = AvatarService()
     return service.list_avatars(search=search, scope=scope, language=language)
+
+
+@router.post('/api/avatars/custom', response_model=CreateCustomAvatarResponse, status_code=status.HTTP_201_CREATED)
+def create_custom_avatar(
+    payload: CreateCustomAvatarRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        avatar_ref = firestore.client().collection('avatars').document()
+        now = firestore.SERVER_TIMESTAMP
+
+        doc = {
+            'avatar_id': avatar_ref.id,
+            'user_id': user_id,
+            'name': payload.name.strip(),
+            'reference_image_url': str(payload.reference_image_url),
+            'preferred_voice': (payload.preferred_voice or 'shubh').strip().lower() or 'shubh',
+            'status': 'ready_for_preview',
+            'created_at': now,
+            'updated_at': now,
+        }
+
+        avatar_ref.set(doc)
+
+        return CreateCustomAvatarResponse(
+            avatar_id=doc['avatar_id'],
+            user_id=doc['user_id'],
+            name=doc['name'],
+            reference_image_url=doc['reference_image_url'],
+            preferred_voice=doc['preferred_voice'],
+            status=doc['status'],
+        )
+
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_create_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to create custom avatar') from exc
+
+
+
+@router.post('/api/avatars/custom', response_model=CreateCustomAvatarResponse, status_code=status.HTTP_201_CREATED)
+def create_custom_avatar(
+    payload: CreateCustomAvatarRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        avatar_ref = firestore.client().collection('avatars').document()
+        now = firestore.SERVER_TIMESTAMP
+
+        doc = {
+            'avatar_id': avatar_ref.id,
+            'user_id': user_id,
+            'name': payload.name.strip(),
+            'reference_image_url': str(payload.reference_image_url),
+            'preferred_voice': (payload.preferred_voice or 'shubh').strip().lower() or 'shubh',
+            'status': 'ready_for_preview',
+            'created_at': now,
+            'updated_at': now,
+        }
+
+        avatar_ref.set(doc)
+
+        return CreateCustomAvatarResponse(
+            avatar_id=doc['avatar_id'],
+            user_id=doc['user_id'],
+            name=doc['name'],
+            reference_image_url=doc['reference_image_url'],
+            preferred_voice=doc['preferred_voice'],
+            status=doc['status'],
+        )
+
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_create_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to create custom avatar') from exc
+
+
+@router.post('/api/avatars/custom/{avatar_id}/preview', response_model=GenerateCustomAvatarPreviewResponse)
+def generate_custom_avatar_preview(
+    avatar_id: str,
+    payload: GenerateCustomAvatarPreviewRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        avatar_snap = firestore.client().collection('avatars').document(avatar_id).get()
+        if not avatar_snap.exists:
+            raise HTTPException(status_code=404, detail='Avatar not found')
+
+        avatar = avatar_snap.to_dict()
+        if avatar.get('user_id') != user_id:
+            raise HTTPException(status_code=403, detail='You do not have access to this avatar')
+
+        avatar_preview_service = get_avatar_preview_service()
+
+
+        credit_service = CreditService()
+        estimate = credit_service.estimate(
+            'avatar_preview_generate',
+            {
+                'avatar_id': avatar_id,
+                'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                'language': payload.language or 'en-IN',
+            },
+        )
+
+        credit_service.deduct_credits(
+            user_id=user_id,
+            amount=estimate.required_credits,
+            feature_key='avatar_preview_generate',
+            metadata={
+                'avatar_id': avatar_id,
+                'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                'language': payload.language or 'en-IN',
+            },
+            source='premium',
+            idempotency_key=credit_service.make_idempotency_key(
+                'avatar_preview_generate',
+                {
+                    'user_id': user_id,
+                    'avatar_id': avatar_id,
+                    'script': payload.script,
+                    'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                    'language': payload.language or 'en-IN',
+                },
+            ),
+        )
+
+
+        job = avatar_preview_service.create_preview_job(
+            avatar_id=avatar_id,
+            user_id=user_id,
+            script=payload.script,
+            voice=payload.voice or avatar.get('preferred_voice') or 'shubh',
+            language=payload.language or 'en-IN',
+        )
+
+        process_avatar_preview_job.delay(job['job_id'])
+
+        return GenerateCustomAvatarPreviewResponse(
+            job_id=job['job_id'],
+            avatar_id=avatar_id,
+            status='queued',
+        )
+
+    except HTTPException:
+        raise
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={'error': 'INSUFFICIENT_CREDITS', 'message': 'You do not have enough credits'},
+        ) from exc
+    except CreditCapExceededError as exc:
+        raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_preview_generate_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'avatar_id': avatar_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to generate avatar preview') from exc
+
+
+@router.get('/api/avatars/custom/{avatar_id}/preview/{job_id}', response_model=CustomAvatarPreviewStatusResponse)
+def get_custom_avatar_preview_status(
+    avatar_id: str,
+    job_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        avatar_snap = firestore.client().collection('avatars').document(avatar_id).get()
+        if not avatar_snap.exists:
+            raise HTTPException(status_code=404, detail='Avatar not found')
+
+        avatar = avatar_snap.to_dict()
+        if avatar.get('user_id') != user_id:
+            raise HTTPException(status_code=403, detail='You do not have access to this avatar')
+
+        avatar_preview_service = get_avatar_preview_service()
+        job = avatar_preview_service.get_preview_job(job_id=job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail='Preview job not found')
+
+        if job.get('avatar_id') != avatar_id:
+            raise HTTPException(status_code=404, detail='Preview job does not belong to this avatar')
+
+        return CustomAvatarPreviewStatusResponse(
+            job_id=job['job_id'],
+            avatar_id=job['avatar_id'],
+            user_id=job['user_id'],
+            status=job['status'],
+            script=job.get('script'),
+            voice=job.get('voice'),
+            language=job.get('language'),
+            audio_url=job.get('audio_url'),
+            video_url=job.get('video_url'),
+            provider=job.get('provider'),
+            error_message=job.get('error_message'),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_preview_status_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'avatar_id': avatar_id,
+                'job_id': job_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to fetch avatar preview status') from exc
+
+
+
+@router.get('/api/avatars/custom/{avatar_id}/preview/{job_id}', response_model=CustomAvatarPreviewStatusResponse)
+def get_custom_avatar_preview_status(
+    avatar_id: str,
+    job_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        avatar_snap = firestore.client().collection('avatars').document(avatar_id).get()
+        if not avatar_snap.exists:
+            raise HTTPException(status_code=404, detail='Avatar not found')
+
+        avatar = avatar_snap.to_dict()
+        if avatar.get('user_id') != user_id:
+            raise HTTPException(status_code=403, detail='You do not have access to this avatar')
+
+        avatar_preview_service = get_avatar_preview_service()
+        job = avatar_preview_service.get_preview_job(job_id=job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail='Preview job not found')
+
+        if job.get('avatar_id') != avatar_id:
+            raise HTTPException(status_code=404, detail='Preview job does not belong to this avatar')
+
+        return CustomAvatarPreviewStatusResponse(
+            job_id=job['job_id'],
+            avatar_id=job['avatar_id'],
+            user_id=job['user_id'],
+            status=job['status'],
+            script=job.get('script'),
+            voice=job.get('voice'),
+            language=job.get('language'),
+            audio_url=job.get('audio_url'),
+            video_url=job.get('video_url'),
+            provider=job.get('provider'),
+            error_message=job.get('error_message'),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_preview_status_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'avatar_id': avatar_id,
+                'job_id': job_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to fetch avatar preview status') from exc
 
 
 @router.get('/templates', response_model=list[TemplateResponse])

@@ -73,6 +73,47 @@ export type InspirationListOptions = {
   sort?: 'curated' | 'newest' | 'liked';
 };
 
+export type CreateCustomAvatarRequest = {
+  name: string;
+  reference_image_url: string;
+  preferred_voice?: string;
+};
+
+export type CreateCustomAvatarResponse = {
+  avatar_id: string;
+  user_id: string;
+  name: string;
+  reference_image_url: string;
+  preferred_voice: string;
+  status: string;
+};
+
+export type GenerateCustomAvatarPreviewRequest = {
+  script: string;
+  voice?: string;
+  language?: string;
+};
+
+export type GenerateCustomAvatarPreviewResponse = {
+  job_id: string;
+  avatar_id: string;
+  status: string;
+};
+
+export type CustomAvatarPreviewStatusResponse = {
+  job_id: string;
+  avatar_id: string;
+  user_id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed' | string;
+  script?: string | null;
+  voice?: string | null;
+  language?: string | null;
+  audio_url?: string | null;
+  video_url?: string | null;
+  provider?: string | null;
+  error_message?: string | null;
+};
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 type CacheEntry<T> = {
@@ -980,5 +1021,32 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store' });
+  },
+  createCustomAvatar(payload: CreateCustomAvatarRequest, userId: string) {
+    return request<CreateCustomAvatarResponse>('/api/avatars/custom', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store', timeoutMs: 30_000  });
+  },
+  
+  generateCustomAvatarPreview(
+    avatarId: string,
+    payload: GenerateCustomAvatarPreviewRequest,
+    userId: string,
+  ) {
+    return request<GenerateCustomAvatarPreviewResponse>(`/api/avatars/custom/${avatarId}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store', timeoutMs: 60_000  });
+  },
+  
+  getCustomAvatarPreviewStatus(
+    avatarId: string,
+    jobId: string,
+    userId: string,
+  ) {
+    return request<CustomAvatarPreviewStatusResponse>(`/api/avatars/custom/${avatarId}/preview/${jobId}`, {
+      method: 'GET',
+    }, { userId, cache: 'no-store', timeoutMs: 30_000 });
   },
 };

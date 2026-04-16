@@ -97,9 +97,6 @@ class RecipeAudioService:
         voice: str | None,
         language: str | None,
     ) -> Path | None:
-        """
-        Try Sarvam TTS first. Fall back to macOS 'say' only for local/dev safety.
-        """
         sarvam_path = self._generate_narration_track_sarvam(
             text=text,
             render_id=render_id,
@@ -187,7 +184,7 @@ class RecipeAudioService:
             'target_language_code': target_language_code,
             'model': SARVAM_DEFAULT_MODEL,
             'speaker': speaker,
-            'pace': 1.0,
+            'pace': 0.9,
             'speech_sample_rate': 24000,
             'output_audio_codec': 'wav',
             'temperature': 0.4,
@@ -220,9 +217,6 @@ class RecipeAudioService:
         voice: str | None,
         language: str | None,
     ) -> Path | None:
-        """
-        Local/dev fallback only. This is NOT Sarvam.
-        """
         output_path = Path('data/renders') / f'{render_id}-narration.aiff'
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -13,7 +13,9 @@
     "script_enhance": 1,
     "auto_caption": 1,
     "auto_tag": 1,
-    "audio_quality_48khz_modifier": 1
+    "audio_quality_48khz_modifier": 1,
+    "avatar_preview_generate": 120,
+    "avatar_preview_retry": 120
   },
   "video": {
     "baseDuration": 15,

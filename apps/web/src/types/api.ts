@@ -901,3 +901,44 @@ export type InfluencerPoseOption = {
   label: string;
   description: string;
 };
+
+export type CreateCustomAvatarRequest = {
+  name: string;
+  reference_image_url: string;
+  preferred_voice?: string;
+};
+
+export type CreateCustomAvatarResponse = {
+  avatar_id: string;
+  user_id: string;
+  name: string;
+  reference_image_url: string;
+  preferred_voice: string;
+  status: string;
+};
+
+export type GenerateCustomAvatarPreviewRequest = {
+  script: string;
+  voice?: string;
+  language?: string;
+};
+
+export type GenerateCustomAvatarPreviewResponse = {
+  job_id: string;
+  avatar_id: string;
+  status: string;
+};
+
+export type CustomAvatarPreviewStatusResponse = {
+  job_id: string;
+  avatar_id: string;
+  user_id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed' | string;
+  script?: string | null;
+  voice?: string | null;
+  language?: string | null;
+  audio_url?: string | null;
+  video_url?: string | null;
+  provider?: string | null;
+  error_message?: string | null;
+};
