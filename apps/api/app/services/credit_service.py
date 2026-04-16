@@ -81,7 +81,7 @@ class CreditTopUpOrderResult:
 
 class CreditService:
     FREE_PLAN_MONTHLY_CREDITS = 40
-    ACTIVATION_BONUS_CREDITS = 25
+    ACTIVATION_BONUS_CREDITS = 120
     ACTIVATION_BONUS_PROGRAM = 'activation_bonus_v1'
     DEFAULT_RECURRING_PLAN = 'free'
     VOICE_PROVIDER_ALIASES = {

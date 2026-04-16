@@ -16,11 +16,11 @@ export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boo
   if (!mounted) return null;
   return createPortal(
     <div className="fixed inset-0 z-50 bg-text/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-contain p-2 sm:p-4">
-        <div
-          className="relative mt-1 w-full max-w-5xl overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:mt-4 sm:rounded-[32px]"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div className="flex h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-2 sm:p-4">
+          <div
+            className="relative w-full max-w-[1100px] max-h-[88dvh] overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:rounded-[32px]"
+            onClick={(e) => e.stopPropagation()}
+          >
           <button
             type="button"
             onClick={onClose}
@@ -29,7 +29,7 @@ export function Modal({ open, onClose, children }: PropsWithChildren<{ open: boo
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="max-h-[calc(100dvh-0.5rem)] overflow-y-auto p-3 pt-14 sm:max-h-[calc(100dvh-2rem)] sm:p-6 sm:pt-16">
+          <div className="max-h-[88dvh] overflow-y-auto p-3 pt-14 sm:p-6 sm:pt-16">
             {children}
           </div>
         </div>

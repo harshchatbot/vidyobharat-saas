@@ -100,6 +100,7 @@ class EstimateCreditsRequest(BaseModel):
             'influencer_content_generate',
             'influencer_reference_lock',
             'influencer_image_generate',
+            'avatar_preview_generate',
         }
         if value not in allowed:
             raise ValueError('Unsupported action')
@@ -114,9 +115,15 @@ class EstimateCreditsRequest(BaseModel):
             self.payload = ImageEstimatePayload.model_validate(payload).model_dump()
         elif self.action == 'tts_preview':
             self.payload = VoiceEstimatePayload.model_validate(payload).model_dump()
+        elif self.action == 'avatar_preview_generate':
+            self.payload = AvatarPreviewEstimatePayload.model_validate(payload).model_dump()
         return self
 
-
+class AvatarPreviewEstimatePayload(BaseModel):
+    voice: str = Field(min_length=1, max_length=80)
+    language: str = Field(min_length=2, max_length=20)
+    avatar_id: str | None = None
+    
 class EstimateCreditsResponse(BaseModel):
     estimatedCredits: int
     breakdown: list[EstimateBreakdownItem] = Field(default_factory=list)
@@ -193,3 +200,9 @@ class VoiceEstimatePayload(BaseModel):
         if value not in {8000, 22050, 48000}:
             raise ValueError('Unsupported sample rate')
         return value
+
+
+class AvatarPreviewEstimatePayload(BaseModel):
+    voice: str = Field(min_length=1, max_length=80)
+    language: str = Field(min_length=2, max_length=20)
+    avatar_id: str | None = None

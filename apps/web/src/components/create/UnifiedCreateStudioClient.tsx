@@ -550,11 +550,24 @@ function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
 }
 
 function mapCatalogRecipeToCard(recipe: RecipeCatalog): RecipeCard | null {
-  if (recipe.type !== 'video' || !recipe.preview_video_url) return null;
-  const previewUrl = toAbsoluteUrl(recipe.preview_image_url || recipe.preview_video_url);
+  const ugcOverrideVideo =
+    recipe.id === 'ugc_ad'
+      ? '/videos/samples/ugc_ad_preview.mp4'
+      : recipe.preview_video_url;
+
+  const ugcOverridePoster =
+    recipe.id === 'ugc_ad'
+      ? '/videos/samples/ugc_ad_preview.mp4'
+      : (recipe.preview_image_url || ugcOverrideVideo);
+
+  if (recipe.type !== 'video' || !ugcOverrideVideo) return null;
+
+  const previewUrl = toAbsoluteUrl(ugcOverridePoster);
   if (!previewUrl) return null;
-  const previewVideoUrl = toAbsoluteUrl(recipe.preview_video_url);
+
+  const previewVideoUrl = toAbsoluteUrl(ugcOverrideVideo);
   const tab = mapRecipeTab(recipe);
+
   return {
     id: recipe.id,
     title: recipe.title,
@@ -2476,7 +2489,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
       <Modal open={imageResultOpen && Boolean(latestGeneratedImage)} onClose={() => setImageResultOpen(false)}>
         {latestGeneratedImage ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
               <img
                 src={latestGeneratedImage.image_url}
@@ -2517,7 +2530,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
       <Modal open={Boolean(selectedRecipe)} onClose={() => setSelectedRecipe(null)}>
         {selectedRecipe ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_360px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
               {selectedRecipe.previewVideoUrl ? (
                 <video
@@ -2557,7 +2570,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
       <Modal open={Boolean(selectedInspirationPhoto)} onClose={() => setSelectedInspirationPhoto(null)}>
         {selectedInspirationPhoto ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
               <img
                 src={selectedInspirationPhoto.previewUrl}

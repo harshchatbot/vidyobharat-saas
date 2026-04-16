@@ -41,7 +41,7 @@ test.describe('Public smoke', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: /simple credits for india-first creators and teams/i })).toBeVisible();
     await expect(page.getByText(/40 credits \/ month/i)).toBeVisible();
-    await expect(page.getByText(/25-credit activation bonus/i).first()).toBeVisible();
+    await expect(page.getByText(/120-credit activation bonus/i).first()).toBeVisible();
   });
 
   test('login page renders the auth form', async ({ page }) => {

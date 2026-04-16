@@ -187,7 +187,7 @@ export default function PricingPage() {
                       <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
                     ))}
                   </div>
-                  <p className="mt-3 text-xs text-muted">Plus a one-time 25-credit activation bonus after your first real workflow win.</p>
+                  <p className="mt-3 text-xs text-muted">Plus a one-time 120-credit activation bonus after your first real workflow win.</p>
                 </div>
 
             {/*    <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
