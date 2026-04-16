@@ -188,7 +188,8 @@ class AvatarPreviewService:
         audio_url: str,
         prompt: str,
     ) -> str:
-        fal_key = "26c9cb85-e2ab-4c44-8ad7-c597d62eb7f6:93dd0cb8a07e0564d8a7bf7c579346df".strip()
+        #fal_key = "26c9cb85-e2ab-4c44-8ad7-c597d62eb7f6:93dd0cb8a07e0564d8a7bf7c579346df".strip()
+        fal_key = (os.getenv("FAL_KEY") or os.getenv("FAL_API_KEY") or "").strip()
         os.environ["FAL_KEY"] = fal_key
         if not fal_key:
             raise RuntimeError('FAL_KEY is missing')

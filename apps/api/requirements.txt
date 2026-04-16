@@ -14,3 +14,4 @@ openai==1.58.1
 sarvamai==0.1.13
 supabase==2.9.1
 firebase-admin==6.6.0
+fal-client
