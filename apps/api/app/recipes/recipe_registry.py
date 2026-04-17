@@ -362,7 +362,7 @@ RECIPES: dict[str, RecipeConfig] = {
             slug='deep-dive-explainer',
             description='Explain bigger topics with a longer Sora-based visual narrative, more scenes, and clearer teaching.',
             short_label='Deep dive',
-            preview_video_url=_sample_video('time-echo-explainer.mp4'),
+            preview_video_url=_sample_video('explain-gravity-simply.mp4'),
             preview_image_url=_sample_video('earth.png'),
             active=True,
             featured=True,
@@ -719,6 +719,7 @@ RECIPES: dict[str, RecipeConfig] = {
     ),
 }
 
+SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad'})
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
 UGC_AD_RECIPE_IDS = frozenset({'ugc_ad'})
 
@@ -789,26 +790,7 @@ def normalize_explainer_video_request(payload_or_normalized: dict[str, Any] | No
 
 
 def pick_explainer_recipe_id(prompt_text: str) -> str:
-    normalized = str(prompt_text or '').strip().lower()
-    long_explainer_markers = (
-        'like i am',
-        'like i’m',
-        'like im',
-        'for a 12 year old',
-        'for kids',
-        'simply explain',
-        'in simple terms',
-        'step by step',
-        'deep dive',
-        'detailed',
-        'detail',
-        'visually',
-    )
-    if any(marker in normalized for marker in long_explainer_markers):
-        return 'deep_dive_explainer'
-    if len(normalized.split()) >= 8:
-        return 'deep_dive_explainer'
-    return 'time_echo_explainer'
+    return 'deep_dive_explainer'
 
 
 def build_explainer_recipe_request(prompt_text: str) -> tuple[RecipeConfig, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -840,6 +822,8 @@ def list_recipes(
     normalized_type = (type or '').strip().lower() or None
     items: list[dict[str, Any]] = []
     for recipe in RECIPES.values():
+        if recipe.id not in SURFACE_RECIPE_IDS:
+            continue
         if normalized_type and recipe.type != normalized_type:
             continue
         if active is not None and recipe.catalog.active != active:

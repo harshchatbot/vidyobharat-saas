@@ -26,6 +26,91 @@ async function seedVideoStudioSession(page: Page) {
 }
 
 async function mockVideoStudioApis(page: Page) {
+  await page.route('**/api/recipes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'deep_dive_explainer',
+          type: 'video',
+          title: 'Deep Dive Explainer',
+          slug: 'deep-dive-explainer',
+          description: 'Explain bigger topics with a longer visual narrative.',
+          short_label: 'Deep dive',
+          preview_video_url: 'https://videos.example.com/deep-dive.mp4',
+          preview_image_url: 'https://images.example.com/deep-dive.jpg',
+          active: true,
+          featured: true,
+          trending: false,
+          order: 1,
+          tags: ['explainer', 'education'],
+          duration_seconds: 36,
+          input: { text: true },
+          generation_defaults: {
+            model_key: 'sora2',
+            aspect_ratio: '9:16',
+            resolution: '720p',
+            language: 'en-IN',
+            voice: 'Shubh',
+            duration_seconds: 36,
+            quality: 'premium',
+          },
+          composer: {
+            recipe_label: 'Deep Dive Explainer',
+            mode: 'video',
+            fragments: [
+              { type: 'text', value: 'Explain ' },
+              { type: 'slot', slot_id: 'topic' },
+              { type: 'text', value: ' in a visual deep-dive format.' },
+            ],
+            slots: [
+              { id: 'topic', kind: 'text', label: 'Topic', placeholder: 'how black holes work' },
+            ],
+          },
+        },
+        {
+          id: 'ugc_ad',
+          type: 'video',
+          title: 'UGC Ad',
+          slug: 'ugc-ad',
+          description: 'Creator-style ad videos for products and local services.',
+          short_label: 'UGC ad',
+          preview_video_url: 'https://videos.example.com/ugc-ad.mp4',
+          preview_image_url: 'https://images.example.com/ugc-ad.jpg',
+          active: true,
+          featured: true,
+          trending: false,
+          order: 2,
+          tags: ['ads', 'ugc'],
+          duration_seconds: 24,
+          input: { text: true },
+          generation_defaults: {
+            model_key: 'kling3',
+            aspect_ratio: '9:16',
+            resolution: '720p',
+            language: 'en-IN',
+            voice: 'Shubh',
+            duration_seconds: 24,
+            quality: 'creator_pro',
+          },
+          composer: {
+            recipe_label: 'UGC Ad',
+            mode: 'video',
+            fragments: [
+              { type: 'text', value: 'Create a local-service UGC ad for ' },
+              { type: 'slot', slot_id: 'business' },
+              { type: 'text', value: '.' },
+            ],
+            slots: [
+              { id: 'business', kind: 'text', label: 'Business', placeholder: 'a dental clinic in Jaipur' },
+            ],
+          },
+        },
+      ]),
+    });
+  });
+
   await page.route('**/api/credits/wallet**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -334,33 +419,29 @@ test.describe('Video studio smoke', () => {
 
     await page.goto('/create', { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByRole('heading', { level: 1, name: /create videos in one compact studio/i })).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: /write and refine your video/i })).toBeVisible();
-    await expect(page.getByText(/^voice & captions$/i)).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: /review and publish/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /generate video/i })).toBeVisible();
-    await expect(page.getByText(/^setup$/i)).toBeVisible();
-    await expect(page.getByText(/^model$/i).first()).toBeVisible();
-    await expect(page.getByText(/^content template$/i)).toBeVisible();
-    await expect(page.getByText(/^project$/i)).toBeVisible();
-    await expect(page.getByText(/^reference images$/i)).toBeVisible();
-    await expect(page.getByText(/^output settings$/i)).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: /studio feed/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /choose a recipe\. create instantly\./i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /generate/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: /^recipes$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^all$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^ads$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^explainer$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^inspiration photos$/i })).toBeVisible();
   });
 
-  test('create page shows the mocked latest video in studio feed', async ({ page }) => {
+  test('create page keeps only the simplified recipe tabs visible', async ({ page }) => {
     await seedVideoStudioSession(page);
     await mockVideoStudioApis(page);
 
     await page.goto('/create', { waitUntil: 'domcontentloaded' });
 
-    await page
-      .locator('summary')
-      .filter({ has: page.getByRole('heading', { level: 2, name: /studio feed/i }) })
-      .click();
-
-    await expect(page.getByText(/skincare launch reel/i)).toBeVisible();
-    await expect(page.getByRole('link', { name: /^open$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /download/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^all$/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^ads$/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^explainer$/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^inspiration photos$/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /trending/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /entertainment/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /story/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /character/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /real estate/i })).toHaveCount(0);
   });
 });

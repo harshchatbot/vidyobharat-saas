@@ -7,6 +7,7 @@ import { Clapperboard, Languages, Mic2, Search, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
@@ -85,6 +86,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sortBy, setSortBy] = useState<SortKey>('recent');
+  const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
 
   const filteredProjects = useMemo(() => {
     const next = projects
@@ -124,8 +126,21 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
     }
   };
 
+  const openProject = (projectId: string) => {
+    setOpeningProjectId(projectId);
+    router.push(`/projects/${projectId}`);
+  };
+
   return (
     <div className="rangmanch-page-stack">
+      <LoadingOverlay
+        open={Boolean(openingProjectId)}
+        title="Opening project"
+        description="Loading your brief, outputs, and workspace context."
+        stepLabel="Preparing folder view"
+        accentLabel="Projects"
+      />
+
       <StudioPageHeader
         eyebrow="Projects"
         title="Your project library"
@@ -259,7 +274,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                     <div className="flex flex-col items-stretch gap-2 sm:w-[148px]">
                       <button
                         type="button"
-                        onClick={() => router.push(`/projects/${project.id}`)}
+                        onClick={() => openProject(project.id)}
                         className="rounded-[12px] bg-[hsl(var(--color-accent))] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-accent-contrast))]"
                       >
                         Open
