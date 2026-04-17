@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Coins, Wallet } from 'lucide-react';
+import { AlertTriangle, Coins, RefreshCw, Wallet } from 'lucide-react';
 
+import { Button } from '@/components/ui/Button';
 import { useCredits } from '@/components/credits/CreditContext';
 
 type Props = {
@@ -13,7 +14,7 @@ type Props = {
 
 export function CreditChip({ onNavigate }: Props) {
   const pathname = usePathname();
-  const { wallet, loading, refreshing } = useCredits();
+  const { wallet, loading, refreshing, refresh } = useCredits();
   const low = (wallet?.currentCredits ?? 0) < 10;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +100,16 @@ export function CreditChip({ onNavigate }: Props) {
           <p className="mt-3 text-sm text-muted">No wallet data available.</p>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void refresh()}
+            disabled={loading || refreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Link
             href="/billing"
             onClick={onNavigate ? (event) => {

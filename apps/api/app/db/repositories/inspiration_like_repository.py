@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.db.firestore_utils import utcnow
 from app.providers.firebase import get_firestore_client
-
+from google.cloud.firestore_v1 import FieldFilter
 
 class InspirationLikeRepository:
     def __init__(self) -> None:
@@ -22,7 +22,12 @@ class InspirationLikeRepository:
             return set()
         liked: set[str] = set()
         try:
-            rows = self.collection.where('user_id', '==', user_id).where('asset_type', '==', asset_type).stream()
+            rows = (
+                self.collection
+                .where(filter=FieldFilter('user_id', '==', user_id))
+                .where(filter=FieldFilter('asset_type', '==', asset_type))
+                .stream()
+            )
         except Exception:
             rows = self.collection.stream()
         for row in rows:

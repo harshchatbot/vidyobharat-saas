@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.firestore_utils import coerce_datetime, coerce_enum, model_from_fields, utcnow
 from app.models.entities import ImageGeneration, ImageGenerationStatus
 from app.providers.firebase import get_firestore_client
-
+from google.cloud.firestore_v1 import FieldFilter
 
 class ImageGenerationRepository:
     def __init__(self, db: Session) -> None:
@@ -52,7 +52,12 @@ class ImageGenerationRepository:
                 except Exception:
                     continue
 
-            group_query = self.firestore.collection_group('images').where('userId', '==', user_id).limit(bounded_limit)
+            group_query = (
+                self.firestore
+                .collection_group('images')
+                .where(filter=FieldFilter('userId', '==', user_id))
+                .limit(bounded_limit)
+            )
             for row in group_query.stream():
                 data = row.to_dict() or {}
                 data.setdefault('id', data.get('id') or row.id)
@@ -118,8 +123,8 @@ class ImageGenerationRepository:
 
             group_query = (
                 self.firestore.collection_group('images')
-                .where('isPublicInspiration', '==', True)
-                .where('moderationStatus', '==', 'approved')
+                .where(filter=FieldFilter('isPublicInspiration', '==', True))
+                .where(filter=FieldFilter('moderationStatus', '==', 'approved'))
                 .limit(bounded_limit)
             )
             for row in group_query.stream():

@@ -142,11 +142,6 @@ export function CreditProvider({
     } else {
       void refreshInternal(false, false);
     }
-    if (!userId) return;
-    const interval = window.setInterval(() => {
-      void refreshInternal(true, false);
-    }, 45000);
-    return () => window.clearInterval(interval);
   }, [userId]);
 
   const value = useMemo<CreditContextValue>(

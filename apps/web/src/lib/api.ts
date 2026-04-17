@@ -114,7 +114,7 @@ export type CustomAvatarPreviewStatusResponse = {
   error_message?: string | null;
 };
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 40_000;
 
 type CacheEntry<T> = {
   expiresAt: number;

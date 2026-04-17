@@ -324,7 +324,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                               ? 'Recipe-led creation'
                               : item.label === 'Projects'
                                 ? 'Organize renders'
-                                : item.label === 'Videos'
+                                : item.label === 'Library'
                                   ? 'Revisit outputs'
                                 : item.label === 'Billing'
                                   ? 'Credits and plans'

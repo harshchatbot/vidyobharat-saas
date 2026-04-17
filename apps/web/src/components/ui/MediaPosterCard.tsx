@@ -43,6 +43,8 @@ export function MediaPosterCard({
           alt={title}
           className={`w-full object-cover transition duration-300 group-hover:scale-[1.025] ${imageClassName}`}
           style={{ aspectRatio }}
+          loading="lazy"
+          decoding="async"
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[hsl(var(--color-bg)/0.18)] via-transparent to-transparent opacity-90" />
         {actions ? (

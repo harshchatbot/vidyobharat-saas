@@ -124,7 +124,6 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
           <div>
             <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-muted">Library</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text sm:text-[2rem]">Your generation library</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted">Revisit every generated video and image in one place. Open finals quickly and jump back into creation without hunting through old workspaces.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/create">

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import {
@@ -23,6 +23,7 @@ import {
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
@@ -856,6 +857,7 @@ function ModelRow({
 
 export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [showCreateCustomAvatarModal, setShowCreateCustomAvatarModal] = useState(false);
   const [idea, setIdea] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
@@ -906,6 +908,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     imageUrl?: string;
     source?: "preset" | "saved";
   } | null>(null);
+  const [navigationOverlayLabel, setNavigationOverlayLabel] = useState<string | null>(null);
 
   const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
   const [savedPersonas, setSavedPersonas] = useState<SavedAvatarPersona[]>([]);
@@ -956,6 +959,17 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => buildComposerVoicePreviewText(recipeComposer ? assembleRecipePrompt(recipeComposer) : idea),
     [idea, recipeComposer],
   );
+
+  useEffect(() => {
+    setNavigationOverlayLabel(null);
+  }, [pathname]);
+
+  const navigateWithComposerLoader = (event: ReactMouseEvent<HTMLElement>, href: string, label: string) => {
+    event.preventDefault();
+    setNavigationOverlayLabel(label);
+    window.dispatchEvent(new CustomEvent('rangmanch:navigation-start'));
+    router.push(href);
+  };
   const selectedLanguageLabel = useMemo(
     () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
     [languageOptions, selectedLanguage],
@@ -1488,6 +1502,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
+      <LoadingOverlay
+        open={Boolean(navigationOverlayLabel)}
+        title={`Opening ${navigationOverlayLabel ?? 'workspace'}`}
+        description="Preparing the next workspace for you."
+        stepLabel="Navigating"
+        accentLabel="Create"
+      />
+
       <section className="space-y-4">
         {isAvatarPickerOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
@@ -1730,7 +1752,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                   value={idea}
                   onChange={(event) => setIdea(event.target.value)}
                   placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
-                  className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-text shadow-none ring-0 outline-none placeholder:text-[#52525b] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 sm:min-h-[104px] sm:text-lg"
+                  className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-[hsl(var(--color-text))] shadow-none ring-0 outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/35 sm:min-h-[104px] sm:text-lg"
                 />
               )}
 
@@ -1782,9 +1804,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]"
                         >
                           <UserRound className="h-4 w-4" /> AI Avatar
-                        </button>
-                        <button type="button" onClick={() => { void launchUnifiedFlow(); }} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
-                          <Sparkles className="h-4 w-4" /> AI generate
                         </button>
                       </div>
                     ) : null}
@@ -2153,12 +2172,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                 ) : null}
                 <Link
                   href="/library"
+                  onClick={(event) => navigateWithComposerLoader(event, '/library', 'library')}
                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
                 >
                   Open library
                 </Link>
                 <Link
                   href="/projects"
+                  onClick={(event) => navigateWithComposerLoader(event, '/projects', 'projects')}
                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
                 >
                   Open projects
@@ -2402,8 +2423,16 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     Open full image
                   </Button>
                 </a>
-                <Link href="/library" className="flex-1">
-                  <Button type="button" variant="secondary" className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                <Link
+                  href="/library"
+                  className="flex-1"
+                  onClick={(event) => navigateWithComposerLoader(event, '/library', 'library')}
+                >
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full rounded-[16px] py-3 text-sm font-semibold"
+                  >
                     Open library
                   </Button>
                 </Link>
