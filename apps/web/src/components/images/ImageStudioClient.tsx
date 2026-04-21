@@ -15,7 +15,6 @@ import {
   ImageIcon,
   Images,
   Info,
-  Lightbulb,
   Heart,
   LoaderCircle,
   Search,
@@ -34,6 +33,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
@@ -2408,246 +2408,237 @@ export function ImageStudioClient({
         </div>
       </Modal>
       {selectedInspiration ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedInspiration(null)}>
-          <div className="mx-auto flex h-full max-w-7xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <div className="grid max-h-[94vh] w-full overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:grid-cols-[minmax(0,1.48fr)_272px]">
-              <div className="flex min-h-[320px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:p-3">
-                <img src={selectedInspiration.image_url} alt={selectedInspiration.title} className="max-h-[84vh] w-full object-contain" />
-              </div>
-              <div className="flex max-h-[92vh] flex-col overflow-y-auto p-3.5 sm:p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedInspiration.title}</h3>
-                    <p className="mt-1 text-xs text-muted">Created {formatCreatedAt(selectedInspiration.created_at)}</p>
-                  </div>
-                  <button type="button" onClick={() => setSelectedInspiration(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="mt-4.5">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-text">Prompt</p>
-                    <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspiration.prompt)} className="gap-2 px-3 py-1.5 text-xs">
-                      <Copy className="h-3.5 w-3.5" />
-                      {copiedPrompt ? 'Copied' : 'Copy'}
-                    </Button>
+        <ImageDetailModal
+          open={Boolean(selectedInspiration)}
+          onClose={() => setSelectedInspiration(null)}
+          imageUrl={toAbsoluteUrl(selectedInspiration.image_url)}
+          imageAlt={selectedInspiration.title}
+          title={selectedInspiration.title}
+          subtitle={`Created ${formatCreatedAt(selectedInspiration.created_at)}`}
+          prompt={selectedInspiration.prompt}
+          imageAspectRatio={selectedInspiration.aspect_ratio}
+          badges={
+            <>
+              <Badge>{selectedInspirationModel?.label ?? selectedInspiration.model_key}</Badge>
+              <Badge>{selectedInspiration.aspect_ratio}</Badge>
+              <Badge>{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</Badge>
+              <Badge>Inspiration reference</Badge>
+            </>
+          }
+          promptActions={
+            <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedInspiration.prompt)} className="gap-2 px-3 py-1.5 text-xs">
+              <Copy className="h-3.5 w-3.5" />
+              {copiedPrompt ? 'Copied' : 'Copy'}
+            </Button>
+          }
+          details={
+            <div className="space-y-4">
+              <div>
+                <p className="mb-3 text-sm font-semibold text-text">Information</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspirationModel?.label ?? selectedInspiration.model_key}</p>
                   </div>
                   <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                    <p className="text-[12px] leading-5 text-muted">{selectedInspiration.prompt}</p>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">
+                      {selectedInspiration.reference_urls.length > 0 ? `${selectedInspiration.reference_urls.length}` : '-'}
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspiration.aspect_ratio}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</p>
                   </div>
                 </div>
-                <div className="mt-4.5">
-                  <p className="mb-3 text-sm font-semibold text-text">Information</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspirationModel?.label ?? selectedInspiration.model_key}</p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">
-                        {selectedInspiration.reference_urls.length > 0 ? `${selectedInspiration.reference_urls.length}` : '-'}
-                      </p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedInspiration.aspect_ratio}</p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedInspiration.resolution)?.label ?? selectedInspiration.resolution}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4.5">
-                  <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedInspiration.tags.map((tag) => (
-                      <Badge key={`insp-tag-${tag}`}>{tag}</Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => void toggleLikeInspiration(selectedInspiration)}
-                    className="h-8 gap-2 px-2.5 text-[11px]"
-                    disabled={likingId === selectedInspiration.id}
-                  >
-                    <Heart className={`h-4 w-4 ${selectedInspiration.liked_by_user ? 'fill-current' : ''}`} />
-                    {selectedInspiration.like_count}
-                  </Button>
-                  <a
-                    href={toAbsoluteUrl(selectedInspiration.image_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] px-2.5 py-2 text-[11px] font-semibold text-text"
-                  >
-                    <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                    Open full image
-                  </a>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent)/0.12)] px-2.5 py-1 text-[11px] font-semibold text-text">
-                    <Lightbulb className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                    Inspiration reference
-                  </div>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-text">Auto tags</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedInspiration.tags.map((tag) => (
+                    <Badge key={`insp-tag-${tag}`}>{tag}</Badge>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void toggleLikeInspiration(selectedInspiration)}
+                className="h-9 gap-2 px-3 text-xs"
+                disabled={likingId === selectedInspiration.id}
+              >
+                <Heart className={`h-4 w-4 ${selectedInspiration.liked_by_user ? 'fill-current' : ''}`} />
+                {selectedInspiration.like_count}
+              </Button>
+              <a
+                href={toAbsoluteUrl(selectedInspiration.image_url)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+              >
+                <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Open full image
+              </a>
+            </>
+          }
+        />
       ) : null}
 
       {selectedGenerated ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-[hsl(var(--color-text)/0.62)] p-3 backdrop-blur-sm sm:p-4" onClick={() => setSelectedGenerated(null)}>
-          <div className="flex min-h-full items-start justify-center py-2 sm:items-center sm:py-4" onClick={(event) => event.stopPropagation()}>
-            <div className="grid w-full max-w-7xl overflow-hidden rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] shadow-hard xl:max-h-[94vh] xl:grid-cols-[minmax(0,1.48fr)_272px]">
-              <div className="flex min-h-[260px] items-center justify-center bg-[hsl(var(--color-bg))] p-2 sm:min-h-[320px] sm:p-3">
-                <img src={toAbsoluteUrl(selectedGenerated.image_url)} alt={selectedGenerated.prompt} className="max-h-[50vh] w-full object-contain xl:max-h-[84vh]" />
+        <ImageDetailModal
+          open={Boolean(selectedGenerated)}
+          onClose={() => setSelectedGenerated(null)}
+          imageUrl={toAbsoluteUrl(selectedGenerated.image_url)}
+          imageAlt={selectedGenerated.prompt}
+          title={selectedGeneratedModel?.label ?? selectedGenerated.model_key}
+          subtitle={`Created ${formatCreatedAt(selectedGenerated.created_at)}`}
+          prompt={selectedGenerated.prompt}
+          imageAspectRatio={selectedGenerated.aspect_ratio}
+          badges={
+            <>
+              <Badge>{selectedGenerated.status}</Badge>
+              <Badge>{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</Badge>
+              <Badge>{selectedGenerated.aspect_ratio}</Badge>
+              <Badge>{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</Badge>
+              {selectedGenerated.is_public_inspiration ? <Badge>{selectedGenerated.moderation_status}</Badge> : null}
+            </>
+          }
+          promptActions={
+            <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedGenerated.prompt)} className="gap-2 px-3 py-1.5 text-xs">
+              <Copy className="h-3.5 w-3.5" />
+              {copiedPrompt ? 'Copied' : 'Copy'}
+            </Button>
+          }
+          details={
+            <div className="space-y-4">
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                  <p className="mb-2 text-xs font-semibold text-text">Auto tags</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGenerated.auto_tags.length > 0 ? selectedGenerated.auto_tags.map((tag) => <Badge key={`auto-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No auto tags yet</span>}
+                  </div>
+                </div>
+                <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                  <p className="mb-2 text-xs font-semibold text-text">User tags</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGenerated.user_tags.length > 0 ? selectedGenerated.user_tags.map((tag) => <Badge key={`user-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No user tags yet</span>}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={manualTagInput}
+                      onChange={(event) => setManualTagInput(event.target.value)}
+                      placeholder="comma separated tags"
+                      className="min-w-0 flex-1 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
+                    />
+                    <Button variant="secondary" type="button" onClick={() => void saveManualTags()}>
+                      Save
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col overflow-visible p-3.5 sm:p-4 xl:max-h-[92vh] xl:overflow-y-auto">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-heading text-lg font-extrabold tracking-tight text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</h3>
-                    <p className="mt-1 text-xs text-muted">Created {formatCreatedAt(selectedGenerated.created_at)}</p>
-                  </div>
-                  <button type="button" onClick={() => setSelectedGenerated(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] text-text">
-                    <X className="h-4 w-4" />
-                  </button>
+              <div>
+                <p className="mb-3 text-sm font-semibold text-text">Magic Tools</p>
+                <div className="grid gap-3">
+                  <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'remove_background')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:remove_background`}>
+                    <Eraser className="h-4 w-4" />
+                    {actionLoading === `${selectedGenerated.id}:remove_background` ? 'Removing background...' : 'Background Remover'}
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'upscale')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:upscale`}>
+                    <Zap className="h-4 w-4" />
+                    {actionLoading === `${selectedGenerated.id}:upscale` ? 'Upscaling...' : 'Smart Upscaler'}
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={() => void retryLastGeneration(selectedGenerated)} className="justify-start gap-2" disabled={submitting}>
+                    {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                    {retrying ? 'Retrying...' : 'Retry this generation'}
+                  </Button>
                 </div>
-                <div className="mt-4.5">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-text">Prompt</p>
-                    <Button variant="secondary" type="button" onClick={() => void copyPrompt(selectedGenerated.prompt)} className="gap-2 px-3 py-1.5 text-xs">
-                      <Copy className="h-3.5 w-3.5" />
-                      {copiedPrompt ? 'Copied' : 'Copy'}
-                    </Button>
+                <p className="mt-2 text-xs text-muted">Need multiple options? Use the Variations control before generating to request 2-4 images and see the credit estimate upfront.</p>
+              </div>
+              <div>
+                <p className="mb-3 text-sm font-semibold text-text">Information</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</p>
                   </div>
                   <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                    <p className="text-[12px] leading-5 text-muted">{selectedGenerated.prompt}</p>
-                  </div>
-                </div>
-                <div className="mt-4.5 grid gap-2.5 sm:grid-cols-2">
-                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                    <p className="mb-2 text-xs font-semibold text-text">Auto tags</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedGenerated.auto_tags.length > 0 ? selectedGenerated.auto_tags.map((tag) => <Badge key={`auto-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No auto tags yet</span>}
-                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">
+                      {selectedGenerated.reference_urls.length > 0 ? `${selectedGenerated.reference_urls.length}` : '-'}
+                    </p>
                   </div>
                   <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                    <p className="mb-2 text-xs font-semibold text-text">User tags</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedGenerated.user_tags.length > 0 ? selectedGenerated.user_tags.map((tag) => <Badge key={`user-${tag}`}>{tag}</Badge>) : <span className="text-xs text-muted">No user tags yet</span>}
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        value={manualTagInput}
-                        onChange={(event) => setManualTagInput(event.target.value)}
-                        placeholder="comma separated tags"
-                        className="min-w-0 flex-1 rounded-[14px] border border-[hsl(var(--color-border)/0.7)] bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-muted"
-                      />
-                      <Button variant="secondary" type="button" onClick={() => void saveManualTags()}>
-                        Save
-                      </Button>
-                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{selectedGenerated.aspect_ratio}</p>
                   </div>
-                </div>
-                <div className="mt-4.5">
-                  <p className="mb-3 text-sm font-semibold text-text">Magic Tools</p>
-                  <div className="grid gap-3">
-                    <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'remove_background')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:remove_background`}>
-                      <Eraser className="h-4 w-4" />
-                      {actionLoading === `${selectedGenerated.id}:remove_background` ? 'Removing background...' : 'Background Remover'}
-                    </Button>
-                    <Button variant="secondary" type="button" onClick={() => void runImageAction(selectedGenerated.id, 'upscale')} className="justify-start gap-2" disabled={actionLoading === `${selectedGenerated.id}:upscale`}>
-                      <Zap className="h-4 w-4" />
-                      {actionLoading === `${selectedGenerated.id}:upscale` ? 'Upscaling...' : 'Smart Upscaler'}
-                    </Button>
-                    <Button variant="secondary" type="button" onClick={() => void retryLastGeneration(selectedGenerated)} className="justify-start gap-2" disabled={submitting}>
-                      {retrying ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                      {retrying ? 'Retrying...' : 'Retry this generation'}
-                    </Button>
+                  <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                    <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</p>
                   </div>
-                  <p className="mt-2 text-xs text-muted">Need multiple options? Use the Variations control before generating to request 2-4 images and see the credit estimate upfront.</p>
-                </div>
-                <div className="mt-4.5">
-                  <p className="mb-3 text-sm font-semibold text-text">Information</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedGeneratedModel?.label ?? selectedGenerated.model_key}</p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">References</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">
-                        {selectedGenerated.reference_urls.length > 0 ? `${selectedGenerated.reference_urls.length}` : '-'}
-                      </p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{selectedGenerated.aspect_ratio}</p>
-                    </div>
-                    <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
-                      <p className="mt-1 text-[11px] font-semibold text-text">{resolutionOptions.find((option) => option.value === selectedGenerated.resolution)?.label ?? selectedGenerated.resolution}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => void togglePublish(selectedGenerated)}
-                    className="h-9 gap-2 px-3 text-xs"
-                    disabled={publishingId === selectedGenerated.id}
-                  >
-                    {publishingId === selectedGenerated.id
-                      ? 'Updating...'
-                      : selectedGenerated.is_public_inspiration
-                        ? 'Unpublish'
-                        : 'Publish to inspiration'}
-                  </Button>
-                  <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="h-9 gap-2 px-3 text-xs">
-                    <Download className="h-4 w-4" />
-                    Download image
-                  </Button>
-                  {selectedGenerated.project_id ? (
-                    <a href={`/projects/${selectedGenerated.project_id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-xs font-semibold text-text">
-                      <GalleryVerticalEnd className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                      Open in project
-                    </a>
-                  ) : null}
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => setProjectAssignmentTarget(selectedGenerated)}
-                    className="gap-2"
-                    disabled={assigningProjectId === selectedGenerated.id}
-                  >
-                    <GalleryVerticalEnd className="h-4 w-4" />
-                    {selectedGenerated.project_id ? 'Move to project' : 'Add to project'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => void deleteGeneratedImage(selectedGenerated)}
-                    className="gap-2"
-                    disabled={deletingImageId === selectedGenerated.id}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {deletingImageId === selectedGenerated.id ? 'Deleting...' : 'Delete image'}
-                  </Button>
-                  <a href={toAbsoluteUrl(selectedGenerated.image_url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
-                    <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                    Open full image
-                  </a>
-                  <Badge>{selectedGenerated.status}</Badge>
-                  {selectedGenerated.is_public_inspiration ? <Badge>{selectedGenerated.moderation_status}</Badge> : null}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void togglePublish(selectedGenerated)}
+                className="h-9 gap-2 px-3 text-xs"
+                disabled={publishingId === selectedGenerated.id}
+              >
+                {publishingId === selectedGenerated.id
+                  ? 'Updating...'
+                  : selectedGenerated.is_public_inspiration
+                    ? 'Unpublish'
+                    : 'Publish to inspiration'}
+              </Button>
+              <Button variant="secondary" type="button" onClick={() => void downloadImage(selectedGenerated.image_url, selectedGenerated.prompt)} className="h-9 gap-2 px-3 text-xs">
+                <Download className="h-4 w-4" />
+                Download image
+              </Button>
+              {selectedGenerated.project_id ? (
+                <a href={`/projects/${selectedGenerated.project_id}`} className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-xs font-semibold text-text">
+                  <GalleryVerticalEnd className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                  Open in project
+                </a>
+              ) : null}
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => setProjectAssignmentTarget(selectedGenerated)}
+                className="gap-2"
+                disabled={assigningProjectId === selectedGenerated.id}
+              >
+                <GalleryVerticalEnd className="h-4 w-4" />
+                {selectedGenerated.project_id ? 'Move to project' : 'Add to project'}
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void deleteGeneratedImage(selectedGenerated)}
+                className="gap-2"
+                disabled={deletingImageId === selectedGenerated.id}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deletingImageId === selectedGenerated.id ? 'Deleting...' : 'Delete image'}
+              </Button>
+              <a href={toAbsoluteUrl(selectedGenerated.image_url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text">
+                <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Open full image
+              </a>
+            </>
+          }
+        />
       ) : null}
       </div>
       </div>

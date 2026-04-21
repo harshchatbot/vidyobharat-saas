@@ -10,6 +10,16 @@ class AvatarResponse(BaseModel):
     style: str
     language_tags: list[str] = Field(default_factory=list)
     thumbnail_url: str
+    tags: list[str] = Field(default_factory=list)
+    category: str | None = None
+    reference_images: list[str] = Field(default_factory=list)
+    primary_image: str | None = None
+    preview_video_url: str | None = None
+    prompt_template: str | None = None
+    negative_prompt: str | None = None
+    recommended_voice: str | None = None
+    status: str | None = None
+    description: str | None = None
 
 
 class TemplateResponse(BaseModel):

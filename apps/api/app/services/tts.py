@@ -291,12 +291,52 @@ def _resample_audio_file(path: Path, sample_rate_hz: int) -> Path:
     return path
 
 
+def _normalize_speech_rate(speech_rate: float | None) -> float:
+    try:
+        value = float(speech_rate or 1.0)
+    except (TypeError, ValueError):
+        return 1.0
+    return max(0.7, min(value, 1.35))
+
+
+def _apply_tempo_filter(path: Path, speech_rate: float) -> Path:
+    normalized_rate = _normalize_speech_rate(speech_rate)
+    if abs(normalized_rate - 1.0) < 0.01:
+        return path
+
+    suffix = str(normalized_rate).replace('.', '_')
+    target = path.with_name(f'{path.stem}_tempo_{suffix}{path.suffix}')
+    if target.exists() and target.stat().st_size > 0:
+        return target
+
+    try:
+        subprocess.run(
+            [
+                'ffmpeg',
+                '-y',
+                '-i',
+                str(path),
+                '-filter:a',
+                f'atempo={normalized_rate:.3f}',
+                str(target),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if target.exists() and target.stat().st_size > 0:
+            return target
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('tts_tempo_adjust_failed', extra={'path': str(path), 'speech_rate': normalized_rate, 'error': str(exc)})
+    return path
+
+
 def generate_voiceover_detailed(
     script: str,
     voice: str,
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    speech_rate: float = 1.0,
     allow_premium: bool = True,
 ) -> VoiceoverResult:
     text = script.strip()
@@ -307,9 +347,12 @@ def generate_voiceover_detailed(
     language_code = resolve_language_code(language)
     voice_option = resolve_voice_option(voice)
     normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
+    normalized_speech_rate = _normalize_speech_rate(speech_rate)
 
     settings = get_settings()
-    key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    key = hashlib.sha256(
+        f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')
+    ).hexdigest()
     sarvam_path = cache_dir / f'{key}.wav'
 
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
@@ -325,6 +368,7 @@ def generate_voiceover_detailed(
                 speaker=voice_option.provider_voice,
             )
             if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
+                sarvam_path = _apply_tempo_filter(sarvam_path, normalized_speech_rate)
                 logger.info('sarvam_tts_generated', extra={'voice': resolved_speaker, 'language': language_code})
                 return VoiceoverResult(sarvam_path, resolved_speaker, 'Sarvam AI', False, None)
         except Exception as exc:  # noqa: BLE001
@@ -332,7 +376,7 @@ def generate_voiceover_detailed(
             logger.warning('sarvam_tts_failed', extra={'voice': voice_option.provider_voice, 'language': language_code, 'error': str(exc)})
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')).hexdigest()
     output_path = cache_dir / f'{fallback_key}.mp3'
     if output_path.exists() and output_path.stat().st_size > 0:
         message = f'Sarvam TTS failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
@@ -360,6 +404,7 @@ def generate_voiceover_detailed(
             raise RuntimeError(f'Sarvam TTS failed: {sarvam_error}')
         raise RuntimeError('TTS output file was not generated')
 
+    output_path = _apply_tempo_filter(output_path, normalized_speech_rate)
     output_path = _resample_audio_file(output_path, normalized_sample_rate)
     message = f'Sarvam TTS failed, fallback voice was used: {sarvam_error}' if sarvam_error is not None else None
     return VoiceoverResult(output_path, edge_voice, 'Fallback TTS', False, message)
@@ -371,6 +416,7 @@ def generate_voiceover(
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    speech_rate: float = 1.0,
     allow_premium: bool = True,
 ) -> tuple[Path, str]:
     result = generate_voiceover_detailed(
@@ -379,6 +425,7 @@ def generate_voiceover(
         cache_dir=cache_dir,
         language=language,
         sample_rate_hz=sample_rate_hz,
+        speech_rate=speech_rate,
         allow_premium=allow_premium,
     )
     return result.path, result.resolved_voice
@@ -400,6 +447,7 @@ def get_cached_voiceover(
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    speech_rate: float = 1.0,
 ) -> tuple[Path, str] | None:
     text = script.strip()
     if not text:
@@ -410,14 +458,17 @@ def get_cached_voiceover(
     voice_option = resolve_voice_option(voice)
     settings = get_settings()
     normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
+    normalized_speech_rate = _normalize_speech_rate(speech_rate)
 
-    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    sarvam_key = hashlib.sha256(
+        f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')
+    ).hexdigest()
     sarvam_path = cache_dir / f'{sarvam_key}.wav'
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
         return sarvam_path, voice_option.provider_voice
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
     if fallback_path.exists() and fallback_path.stat().st_size > 0:
         return fallback_path, edge_voice
@@ -431,6 +482,7 @@ def get_cached_voiceover_detailed(
     cache_dir: Path,
     language: str | None = None,
     sample_rate_hz: int = 22050,
+    speech_rate: float = 1.0,
 ) -> VoiceoverResult | None:
     text = script.strip()
     if not text:
@@ -441,14 +493,17 @@ def get_cached_voiceover_detailed(
     voice_option = resolve_voice_option(voice)
     settings = get_settings()
     normalized_sample_rate = _normalize_sample_rate(sample_rate_hz)
+    normalized_speech_rate = _normalize_speech_rate(speech_rate)
 
-    sarvam_key = hashlib.sha256(f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    sarvam_key = hashlib.sha256(
+        f'{settings.sarvam_model}:{voice_option.provider_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')
+    ).hexdigest()
     sarvam_path = cache_dir / f'{sarvam_key}.wav'
     if sarvam_path.exists() and sarvam_path.stat().st_size > 0:
         return VoiceoverResult(sarvam_path, voice_option.provider_voice, 'Sarvam AI', True, None)
 
     edge_voice = resolve_edge_voice(voice)
-    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{text}'.encode('utf-8')).hexdigest()
+    fallback_key = hashlib.sha256(f'{edge_voice}:{language_code}:{normalized_sample_rate}:{normalized_speech_rate}:{text}'.encode('utf-8')).hexdigest()
     fallback_path = cache_dir / f'{fallback_key}.mp3'
     if settings.sarvam_api_key:
         # If Sarvam is configured, do not keep serving an older fallback cache.

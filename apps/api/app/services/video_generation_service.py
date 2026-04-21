@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.config import Settings
 from app.services.ai_video_service import AIVideoCreateService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,7 @@ class ClipGenerationRequest:
     persona_id: str | None = None
     persona_image_url: str | None = None
     talking_audio_url: str | None = None
+    talking_audio_duration_seconds: float | None = None
     talking_behavior_prompt: str | None = None
     talking_script: str | None = None
 
@@ -63,11 +67,17 @@ class VideoGenerationService:
         return self.service.execute_model_with_router(payload)
 
     def generate_talking_avatar_clip(self, request: ClipGenerationRequest):
+        require_talking_avatar = bool((request.metadata or {}).get('require_talking_avatar'))
         fallback_metadata = {
             'render_lane': request.render_lane,
             'persona_id': request.persona_id,
             'talking_audio_url': request.talking_audio_url,
+            'talking_audio_duration_seconds': request.talking_audio_duration_seconds,
         }
+        if request.persona_id and not request.persona_image_url:
+            raise RuntimeError(f'Selected avatar "{request.persona_id}" could not be resolved to a usable image for talking scenes')
+        if request.persona_id and not request.talking_audio_url:
+            raise RuntimeError(f'Talking scene narration audio is missing for avatar "{request.persona_id}"')
         if request.persona_image_url and request.talking_audio_url:
             try:
                 video_url, metadata = self.service.fal.generate_infinite_talk(
@@ -75,6 +85,8 @@ class VideoGenerationService:
                     audio_url=request.talking_audio_url,
                     prompt=request.prompt,
                     duration_hint_seconds=request.duration_seconds,
+                    audio_duration_seconds=request.talking_audio_duration_seconds,
+                    resolution=request.resolution,
                     metadata={
                         **request.metadata,
                         'persona_id': request.persona_id,
@@ -90,8 +102,25 @@ class VideoGenerationService:
                     metadata={**fallback_metadata, **metadata},
                 )
             except Exception as exc:
+                logger.exception(
+                    'ugc_talking_avatar_provider_failed',
+                    extra={
+                        'persona_id': request.persona_id,
+                        'audio_url': request.talking_audio_url,
+                        'audio_duration_seconds': request.talking_audio_duration_seconds,
+                        'error': str(exc),
+                    },
+                )
                 fallback_metadata['talking_avatar_fallback_reason'] = str(exc)
+                if require_talking_avatar:
+                    raise RuntimeError(
+                        f'InfiniteTalk failed for selected avatar "{request.persona_id}": {exc}'
+                    ) from exc
 
+        if require_talking_avatar and request.persona_id:
+            raise RuntimeError(
+                f'Selected avatar "{request.persona_id}" could not be rendered via InfiniteTalk for this talking scene'
+            )
         output_path, _, tts_diagnostics = self.service._render_local_proxy(
             render_id_prefix='ugc-talking-avatar',
             script=request.talking_script or request.prompt,

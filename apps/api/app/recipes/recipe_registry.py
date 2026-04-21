@@ -167,6 +167,26 @@ def _ugc_ad_scene_strategy() -> RecipeSceneStrategy:
         )
     )
 
+
+def _ltx_cinematic_montage_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(scene_id='scene_1_establish', beat_names=('establish', 'subject_intro'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_2_hero_detail_main_proof', beat_names=('detail_texture', 'motion_variation'), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_3_closing_payoff', beat_names=('closing_payoff',), duration_seconds=10),
+        )
+    )
+
+
+def _ltx_freeform_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(scene_id='scene_1_opening', beat_names=('opening',), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_2_main', beat_names=('main',), duration_seconds=8),
+            RenderSceneConfig(scene_id='scene_3_closing', beat_names=('closing',), duration_seconds=8),
+        )
+    )
+
 RECIPES: dict[str, RecipeConfig] = {
     'spongebob_challenge': RecipeConfig(
         id='spongebob_challenge',
@@ -492,6 +512,114 @@ RECIPES: dict[str, RecipeConfig] = {
             ),
         },
     ),
+    'ltx_cinematic_montage_v1': RecipeConfig(
+        id='ltx_cinematic_montage_v1',
+        type='video',
+        duration_seconds=26,
+        input=RecipeInputConfig(image=False, text=False),
+        config=RecipeContentConfig(
+            style='cinematic_realistic_stitched_montage',
+            tone='calm_reflective_continuity_first',
+            music=None,
+            structure=('establish', 'hero_detail_main_proof', 'closing_payoff'),
+            reference_prompt=(
+                'Build one continuous-feeling cinematic moment across three separately rendered scenes. '
+                'Keep the same woman, same wardrobe, same rainy modern cafe, and same late-afternoon lighting throughout.'
+            ),
+            scene_guidance=(
+                'Maintain high continuity across all stitched scenes. '
+                'Keep motion subtle, action complexity low, and the final frame of each shot stitch-safe. '
+                'Do not introduce lip sync, crowd choreography, or abrupt pose changes.'
+            ),
+            seed_prompt='Create an internal three-scene LTX cinematic montage benchmark in a rainy modern cafe.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='ltx',
+            aspect_ratio='16:9',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Shubh',
+            language='English',
+            caption_style='classic',
+        ),
+        scene_strategy=_ltx_cinematic_montage_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='LTX Cinematic Montage Benchmark',
+            slug='ltx-cinematic-montage-v1',
+            description='Internal stitched-scene benchmark for self-hosted LTX continuity testing.',
+            short_label='Internal',
+            preview_video_url=_sample_video('hindi-festival-9x16.mp4'),
+            preview_image_url=_sample_video('creator-launch.png'),
+            active=False,
+            featured=False,
+            trending=False,
+            order=999,
+            tags=('internal', 'benchmark', 'ltx', 'scene_stitch'),
+            composer=None,
+        ),
+        reference_strategy='none',
+        metadata={
+            'internal_only': True,
+            'benchmark_family': 'ltx_cinematic_montage',
+            'benchmark_version': 1,
+            'render_mode': 'scene_stitch',
+        },
+    ),
+    'ltx_storyboard_v1': RecipeConfig(
+        id='ltx_storyboard_v1',
+        type='video',
+        duration_seconds=24,
+        input=RecipeInputConfig(image=False, text=True),
+        config=RecipeContentConfig(
+            style='ltx_storyboard_scene_stitch',
+            tone='continuity_first_cinematic_productized',
+            music=None,
+            structure=('opening', 'main', 'closing'),
+            reference_prompt=(
+                'Build one continuous-feeling 3-scene stitched LTX video from the user prompt. '
+                'Preserve subject, environment, wardrobe, emotional tone, and visual continuity across all scenes.'
+            ),
+            scene_guidance=(
+                'Use only three scenes, keep motion smooth and controlled, avoid abrupt cuts or action spikes, '
+                'and end each scene in a stitch-safe way.'
+            ),
+            seed_prompt='Create a stitched 3-scene LTX video from the provided prompt.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='ltx',
+            aspect_ratio='9:16',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Shubh',
+            language='English',
+            caption_style='classic',
+        ),
+        scene_strategy=_ltx_freeform_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='LTX Storyboard',
+            slug='ltx-storyboard-v1',
+            description='Internal 3-scene stitched LTX flow for composer-driven videos.',
+            short_label='Internal',
+            preview_video_url=_sample_video('english-startup-16x9.mp4'),
+            preview_image_url=_sample_video('creator-launch.png'),
+            active=False,
+            featured=False,
+            trending=False,
+            order=1000,
+            tags=('internal', 'ltx', 'scene_stitch', 'storyboard'),
+            composer=None,
+        ),
+        reference_strategy='none',
+        metadata={
+            'internal_only': True,
+            'ltx_mode': 'freeform_storyboard',
+            'render_mode': 'scene_stitch',
+        },
+    ),
     'viral_dance_clip': RecipeConfig(
         id='viral_dance_clip',
         type='video',
@@ -722,6 +850,10 @@ RECIPES: dict[str, RecipeConfig] = {
 SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad'})
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
 UGC_AD_RECIPE_IDS = frozenset({'ugc_ad'})
+LTX_BENCHMARK_RECIPE_IDS = frozenset({'ltx_cinematic_montage_v1'})
+LTX_FREEFORM_RECIPE_IDS = frozenset({'ltx_storyboard_v1'})
+LTX_RECIPE_IDS = frozenset({*LTX_BENCHMARK_RECIPE_IDS, *LTX_FREEFORM_RECIPE_IDS})
+STITCHED_VIDEO_RECIPE_IDS = frozenset({*EXPLAINER_RECIPE_IDS, *UGC_AD_RECIPE_IDS, *LTX_RECIPE_IDS})
 
 EXPLAINER_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r'\bexplain\b', re.IGNORECASE),
@@ -800,6 +932,23 @@ def build_explainer_recipe_request(prompt_text: str) -> tuple[RecipeConfig, dict
     normalized_payload['voice'] = 'Shubh'
     normalized_payload['captionsEnabled'] = True
     normalized_payload['narrationEnabled'] = True
+    normalized_payload['durationSeconds'] = recipe.duration_seconds
+    normalized_payload['durationMode'] = 'custom'
+    pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_inputs)
+    return recipe, normalized_inputs, normalized_payload, pipeline_metadata
+
+
+def should_use_ltx_storyboard_recipe(payload_or_normalized: dict[str, Any] | None) -> bool:
+    payload = dict(payload_or_normalized or {})
+    if payload.get('recipeId') or payload.get('recipe_id'):
+        return False
+    return str(payload.get('modelKey') or payload.get('model_key') or '').strip() == 'ltx'
+
+
+def build_ltx_recipe_request(prompt_text: str) -> tuple[RecipeConfig, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    recipe = get_recipe('ltx_storyboard_v1')
+    normalized_inputs = validate_recipe_inputs(recipe, {'text': str(prompt_text or '').strip()})
+    normalized_payload = build_normalized_video_payload(recipe, normalized_inputs)
     normalized_payload['durationSeconds'] = recipe.duration_seconds
     normalized_payload['durationMode'] = 'custom'
     pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_inputs)

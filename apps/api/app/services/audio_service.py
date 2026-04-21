@@ -35,6 +35,9 @@ class RecipeAudioService:
         narration_text: str | None = None,
         voice: str | None = None,
         language: str | None = None,
+        audio_fade_in_seconds: float = 0.0,
+        audio_fade_out_seconds: float = 0.0,
+        music_mix_gain: float = 0.08,
     ) -> Path:
         narration_path: Path | None = None
         music_path: Path | None = None
@@ -71,6 +74,9 @@ class RecipeAudioService:
                 narration_path=narration_path,
                 music_path=music_path,
                 render_id=render_id,
+                audio_fade_in_seconds=audio_fade_in_seconds,
+                audio_fade_out_seconds=audio_fade_out_seconds,
+                music_mix_gain=music_mix_gain,
             )
 
         if narration_path:
@@ -78,6 +84,8 @@ class RecipeAudioService:
                 video_path=video_path,
                 narration_path=narration_path,
                 render_id=render_id,
+                audio_fade_in_seconds=audio_fade_in_seconds,
+                audio_fade_out_seconds=audio_fade_out_seconds,
             )
 
         if music_path:
@@ -85,6 +93,8 @@ class RecipeAudioService:
                 video_path=video_path,
                 music_path=music_path,
                 render_id=render_id,
+                audio_fade_in_seconds=audio_fade_in_seconds,
+                audio_fade_out_seconds=audio_fade_out_seconds,
             )
 
         return video_path
@@ -123,6 +133,7 @@ class RecipeAudioService:
         render_id: str,
         voice: str | None,
         language: str | None,
+        speech_rate: float = 1.0,
     ) -> Path | None:
         api_key11 = os.getenv('SARVAM_API_KEY')
         api_key = 'sk_kryrz476_sogJSeS1mfluV1ddQUkDcuRT'
@@ -145,6 +156,7 @@ class RecipeAudioService:
                 api_key=api_key,
                 speaker=speaker,
                 target_language_code=target_language_code,
+                pace=speech_rate,
             )
             output_path.write_bytes(audio_bytes)
 
@@ -181,13 +193,14 @@ class RecipeAudioService:
         api_key: str,
         speaker: str,
         target_language_code: str,
+        pace: float = 1.0,
     ) -> bytes:
         payload = {
             'text': text,
             'target_language_code': target_language_code,
             'model': SARVAM_DEFAULT_MODEL,
             'speaker': speaker,
-            'pace': 1.0,
+            'pace': max(0.7, min(float(pace or 1.0), 1.35)),
             'speech_sample_rate': 24000,
             'output_audio_codec': 'wav',
             'temperature': 0.4,
@@ -282,9 +295,29 @@ class RecipeAudioService:
             return 'hi-IN'
         return SARVAM_DEFAULT_LANGUAGE
 
-    def _mux_narration_only(self, *, video_path: Path, narration_path: Path, render_id: str) -> Path:
+    def _mux_narration_only(
+        self,
+        *,
+        video_path: Path,
+        narration_path: Path,
+        render_id: str,
+        audio_fade_in_seconds: float,
+        audio_fade_out_seconds: float,
+    ) -> Path:
         output_path = Path('data/renders') / f'{render_id}-narration.mp4'
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        filter_chain = self._audio_smoothing_filter_chain(
+            fade_in_seconds=audio_fade_in_seconds,
+            fade_out_seconds=audio_fade_out_seconds,
+        )
+
+        if filter_chain:
+            filter_complex = f'[1:a]{filter_chain}[aout]'
+            audio_map = '[aout]'
+            filter_args = ['-filter_complex', filter_complex]
+        else:
+            audio_map = '1:a'
+            filter_args = []
 
         self.pipeline._run(
             [
@@ -294,10 +327,11 @@ class RecipeAudioService:
                 str(video_path),
                 '-i',
                 str(narration_path),
+                *filter_args,
                 '-map',
                 '0:v',
                 '-map',
-                '1:a',
+                audio_map,
                 '-c:v',
                 'copy',
                 '-c:a',
@@ -310,9 +344,25 @@ class RecipeAudioService:
         )
         return output_path
 
-    def _mux_music_only(self, *, video_path: Path, music_path: Path, render_id: str) -> Path:
+    def _mux_music_only(
+        self,
+        *,
+        video_path: Path,
+        music_path: Path,
+        render_id: str,
+        audio_fade_in_seconds: float,
+        audio_fade_out_seconds: float,
+    ) -> Path:
         output_path = Path('data/renders') / f'{render_id}-music.mp4'
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        filter_chain = self._audio_smoothing_filter_chain(
+            fade_in_seconds=audio_fade_in_seconds,
+            fade_out_seconds=audio_fade_out_seconds,
+        )
+        if filter_chain:
+            filter_complex = f'[1:a]atrim=0,asetpts=N/SR/TB,volume=0.28,{filter_chain}[aout]'
+        else:
+            filter_complex = '[1:a]atrim=0,asetpts=N/SR/TB,volume=0.28[aout]'
 
         self.pipeline._run(
             [
@@ -325,7 +375,7 @@ class RecipeAudioService:
                 '-i',
                 str(music_path),
                 '-filter_complex',
-                '[1:a]atrim=0,asetpts=N/SR/TB,volume=0.28[aout]',
+                filter_complex,
                 '-map',
                 '0:v',
                 '-map',
@@ -349,9 +399,28 @@ class RecipeAudioService:
         narration_path: Path,
         music_path: Path,
         render_id: str,
+        audio_fade_in_seconds: float,
+        audio_fade_out_seconds: float,
+        music_mix_gain: float,
     ) -> Path:
         output_path = Path('data/renders') / f'{render_id}-final-audio.mp4'
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        clamped_gain = max(0.0, min(1.0, float(music_mix_gain)))
+        smoothing_chain = self._audio_smoothing_filter_chain(
+            fade_in_seconds=audio_fade_in_seconds,
+            fade_out_seconds=audio_fade_out_seconds,
+        )
+        if smoothing_chain:
+            filter_complex = (
+                f'[2:a]atrim=0,asetpts=N/SR/TB,volume={clamped_gain:.2f}[bg];'
+                f'[1:a][bg]amix=inputs=2:duration=first:dropout_transition=2[mix];'
+                f'[mix]{smoothing_chain}[aout]'
+            )
+        else:
+            filter_complex = (
+                f'[2:a]atrim=0,asetpts=N/SR/TB,volume={clamped_gain:.2f}[bg];'
+                '[1:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]'
+            )
 
         self.pipeline._run(
             [
@@ -366,8 +435,7 @@ class RecipeAudioService:
                 '-i',
                 str(music_path),
                 '-filter_complex',
-                '[2:a]atrim=0,asetpts=N/SR/TB,volume=0.08[bg];'
-                '[1:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]',
+                filter_complex,
                 '-map',
                 '0:v',
                 '-map',
@@ -383,3 +451,21 @@ class RecipeAudioService:
             ]
         )
         return output_path
+
+    def _audio_smoothing_filter_chain(self, *, fade_in_seconds: float, fade_out_seconds: float) -> str:
+        chain: list[str] = []
+        try:
+            fade_in = max(0.0, float(fade_in_seconds))
+        except (TypeError, ValueError):
+            fade_in = 0.0
+        try:
+            fade_out = max(0.0, float(fade_out_seconds))
+        except (TypeError, ValueError):
+            fade_out = 0.0
+
+        if fade_in > 0:
+            chain.append(f'afade=t=in:st=0:d={fade_in:.3f}')
+        if fade_out > 0:
+            # End fade without pre-probing track duration.
+            chain.append(f'areverse,afade=t=in:st=0:d={fade_out:.3f},areverse')
+        return ",".join(chain)

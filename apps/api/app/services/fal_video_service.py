@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -15,11 +17,12 @@ logger = logging.getLogger(__name__)
 
 class FalVideoService:
     _STATUS_POLL_INTERVAL_SECONDS = 4
-    _TERMINAL_STATUS_TIMEOUT_SECONDS = 180
+    _TERMINAL_STATUS_TIMEOUT_SECONDS = 600
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
         'kling': 420,
         'kling_turbo': 300,
         'kling_v3': 480,
+        'fal_infinite_talk': 1200,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _FOLLOW_UP_REQUEST_DEPTH_LIMIT = 8
@@ -31,6 +34,11 @@ class FalVideoService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self._effective_fal_api_key = (
+            str(getattr(self.settings, 'fal_api_key', '') or '').strip()
+            or str(os.getenv('FAL_KEY') or '').strip()
+            or str(os.getenv('FAL_API_KEY') or '').strip()
+        )
 
     def generate_infinite_talk(
         self,
@@ -39,15 +47,138 @@ class FalVideoService:
         audio_url: str,
         prompt: str,
         duration_hint_seconds: int,
+        audio_duration_seconds: float | None = None,
+        resolution: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        if not getattr(self.settings, 'fal_api_key', None):
+        if not self._effective_fal_api_key:
             raise RuntimeError('FAL_API_KEY is not configured for InfiniteTalk generation')
-
-        raise RuntimeError(
-            'fal InfiniteTalk provider routing is scaffolded but not fully wired to a live endpoint yet. '
-            'The pipeline should fall back to the local talking-avatar proxy path.'
+        endpoint = 'fal-ai/infinitalk'
+        submit_url = f'{self.settings.fal_api_base.rstrip("/")}/{endpoint}'
+        resolved_resolution = self._normalize_infinitetalk_resolution(
+            requested_resolution=resolution,
+            metadata=metadata or {},
         )
+        chosen_num_frames = self._choose_infinitetalk_num_frames(
+            audio_duration_seconds=audio_duration_seconds,
+            duration_hint_seconds=duration_hint_seconds,
+        )
+        acceleration = self._normalize_infinitetalk_acceleration((metadata or {}).get('acceleration'))
+        seed = (metadata or {}).get('seed')
+        payload: dict[str, Any] = {
+            'image_url': persona_image_url,
+            'audio_url': audio_url,
+            'prompt': prompt,
+            'num_frames': chosen_num_frames,
+            'resolution': resolved_resolution,
+            'acceleration': acceleration,
+        }
+        if isinstance(seed, int):
+            payload['seed'] = seed
+
+        headers = {
+            'Authorization': f'Key {self._effective_fal_api_key}',
+            'Content-Type': 'application/json',
+        }
+        with httpx.Client(timeout=httpx.Timeout(90.0, connect=20.0), follow_redirects=True) as client:
+            logger.info(
+                'fal_infinite_talk_submit_started',
+                extra={
+                    'endpoint': endpoint,
+                    'persona_id': (metadata or {}).get('persona_id'),
+                    'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                    'duration_hint_seconds': duration_hint_seconds,
+                    'num_frames': chosen_num_frames,
+                    'resolution': resolved_resolution,
+                    'acceleration': acceleration,
+                },
+            )
+            submit = client.post(submit_url, headers=headers, json=payload)
+            if submit.status_code >= 400:
+                raise RuntimeError(f'fal InfiniteTalk submit failed ({submit.status_code}): {submit.text[:480]}')
+
+            data = submit.json()
+            request_id = str(data.get('request_id') or '').strip() or None
+            status_url = data.get('status_url')
+            if not status_url and request_id:
+                status_url = f'{submit_url}/requests/{request_id}/status'
+            if not status_url:
+                direct_video_url = self._extract_video_url(data)
+                if direct_video_url:
+                    return direct_video_url, {
+                        'raw': data,
+                        'mode': 'immediate',
+                        'request_id': request_id,
+                        'num_frames': chosen_num_frames,
+                        'resolution': resolved_resolution,
+                        'acceleration': acceleration,
+                        'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                        'infinite_talk_used': True,
+                    }
+                raise RuntimeError('fal InfiniteTalk response did not include a polling url or output video')
+
+            normalized_status_url = self._normalize_candidate_url(str(status_url).strip())
+            terminal_payload = self._poll_status_until_terminal(
+                client=client,
+                headers=headers,
+                status_url=normalized_status_url,
+                requested_model_key='fal_infinite_talk',
+                resolved_endpoint=endpoint,
+            )
+            direct_video_url = self._extract_video_url(terminal_payload)
+            if direct_video_url:
+                return direct_video_url, {
+                    'raw': terminal_payload,
+                    'mode': 'async',
+                    'request_id': terminal_payload.get('request_id') or request_id,
+                    'num_frames': chosen_num_frames,
+                    'resolution': resolved_resolution,
+                    'acceleration': acceleration,
+                    'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                    'infinite_talk_used': True,
+                }
+
+            state = self._normalize_state(terminal_payload)
+            if state in self._FAILURE_STATES:
+                raise RuntimeError(f'fal InfiniteTalk generation failed: {terminal_payload}')
+            if state not in self._SUCCESS_STATES:
+                raise RuntimeError(f'fal InfiniteTalk timed out while waiting for completion: {terminal_payload}')
+
+            result_payload = self._fetch_infinitetalk_result_payload(
+                client=client,
+                headers=headers,
+                submit_url=submit_url,
+                request_id=terminal_payload.get('request_id') or request_id,
+                submit_payload=data,
+                terminal_payload=terminal_payload,
+            )
+            video_url = self._extract_video_url(result_payload)
+            if not video_url:
+                raise RuntimeError(f'fal InfiniteTalk completed without output video url: {result_payload}')
+
+            resolved_request_id = result_payload.get('request_id') or terminal_payload.get('request_id') or request_id
+            logger.info(
+                'fal_infinite_talk_completed',
+                extra={
+                    'request_id': resolved_request_id,
+                    'persona_id': (metadata or {}).get('persona_id'),
+                    'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                    'num_frames': chosen_num_frames,
+                    'resolution': resolved_resolution,
+                    'acceleration': acceleration,
+                    'video_url': video_url,
+                },
+            )
+            return video_url, {
+                'raw': result_payload,
+                'mode': 'async',
+                'request_id': resolved_request_id,
+                'num_frames': chosen_num_frames,
+                'resolution': resolved_resolution,
+                'acceleration': acceleration,
+                'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                'infinite_talk_used': True,
+            }
 
     def generate(
         self,
@@ -62,7 +193,7 @@ class FalVideoService:
         shot_type: str | None = None,
         generate_audio: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        if not getattr(self.settings, 'fal_api_key', None):
+        if not self._effective_fal_api_key:
             raise RuntimeError('FAL_API_KEY is not configured for fal video generation')
 
         resolved_endpoint = self._endpoint_for(model_key)
@@ -85,7 +216,7 @@ class FalVideoService:
             payload['generate_audio'] = bool(generate_audio) if generate_audio is not None else False
 
         headers = {
-            'Authorization': f'Key {self.settings.fal_api_key}',
+            'Authorization': f'Key {self._effective_fal_api_key}',
             'Content-Type': 'application/json',
         }
 
@@ -297,6 +428,78 @@ class FalVideoService:
     def _terminal_timeout_for_model(self, requested_model_key: str) -> int:
         normalized = str(requested_model_key or '').strip().lower()
         return int(self._MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS.get(normalized, self._TERMINAL_STATUS_TIMEOUT_SECONDS))
+
+    def _fetch_infinitetalk_result_payload(
+        self,
+        *,
+        client: httpx.Client,
+        headers: dict[str, str],
+        submit_url: str,
+        request_id: str | None,
+        submit_payload: dict[str, Any],
+        terminal_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        candidates: list[tuple[str, str]] = []
+        if request_id:
+            request_base = f'{submit_url}/requests/{request_id}'
+            candidates.extend(
+                [
+                    ('GET', request_base),
+                    ('POST', f'{request_base}/response'),
+                    ('GET', f'{request_base}/response'),
+                ]
+            )
+
+        for payload in (terminal_payload, submit_payload):
+            response_url = payload.get('response_url')
+            if isinstance(response_url, str) and response_url.strip():
+                normalized = self._normalize_candidate_url(response_url.strip())
+                candidates.append(('POST', normalized))
+                candidates.append(('GET', normalized))
+
+        seen: set[tuple[str, str]] = set()
+        for method, candidate in candidates:
+            key = (method, candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            response = self._request_with_timeout(
+                client=client,
+                method=method,
+                url=candidate,
+                headers=headers,
+                timeout=self._RESPONSE_REQUEST_TIMEOUT,
+                failure_label='fal InfiniteTalk response fetch',
+                json={} if method == 'POST' else None,
+            )
+            if response is None or response.status_code >= 400:
+                continue
+            payload = response.json()
+            if payload:
+                return payload
+        return terminal_payload
+
+    def _normalize_infinitetalk_resolution(self, *, requested_resolution: str | None, metadata: dict[str, Any]) -> str:
+        explicit = str(metadata.get('infinitetalk_resolution') or requested_resolution or '').strip().lower()
+        if explicit == '720p':
+            return '720p'
+        return '480p'
+
+    def _normalize_infinitetalk_acceleration(self, value: Any) -> str:
+        normalized = str(value or 'regular').strip().lower()
+        if normalized in {'regular', 'none', 'disabled'}:
+            return 'regular'
+        if normalized in {'high', 'turbo', 'fast'}:
+            return 'high'
+        return 'regular'
+
+    def _choose_infinitetalk_num_frames(self, *, audio_duration_seconds: float | None, duration_hint_seconds: int) -> int:
+        effective_seconds = float(audio_duration_seconds or 0.0)
+        if effective_seconds <= 0.0:
+            effective_seconds = float(max(duration_hint_seconds, 1))
+        # Conservative 24fps mapping keeps lip-sync timing close to the actual scene narration.
+        derived_frames = int(math.ceil(effective_seconds * 24.0))
+        return max(48, min(derived_frames, 240))
 
 
     def _fetch_completed_response_payload(

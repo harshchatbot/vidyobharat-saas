@@ -39,10 +39,10 @@ export function Modal({
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-text/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="flex h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-2 sm:p-4">
+    <div className="fixed inset-0 z-[160] bg-text/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-2 sm:p-4 lg:p-6">
         <div
-          className="relative w-full max-w-[min(92vw,1100px)] max-h-[88dvh] overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:rounded-[32px]"
+          className="relative w-full max-w-[min(96vw,1180px)] max-h-[92dvh] overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:rounded-[32px]"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -54,7 +54,7 @@ export function Modal({
             <X className="h-4 w-4" />
           </button>
 
-          <div className="max-h-[88dvh] overflow-y-auto p-3 pt-14 sm:p-6 sm:pt-16">
+          <div className="max-h-[92dvh] overflow-y-auto p-3 pt-14 sm:p-6 sm:pt-16">
             {children}
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 
 type Props = {
     open: boolean;
@@ -16,6 +17,7 @@ type Props = {
         name: string;
         imageUrl: string;
         preferredVoice: string;
+        preferredLanguage: string;
     }) => void;
     onPreviewCompleted?: (preview: {
         avatarId: string;
@@ -46,6 +48,60 @@ function resolveBackendAssetUrl(url: string) {
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${url}`;
 }
+
+function buildAvatarLoaderState(status: PropsWithStatus['status']) {
+    switch (status) {
+        case 'uploading':
+            return {
+                open: true,
+                title: 'Uploading avatar photo',
+                description: 'We are uploading your reference image so your avatar can be created cleanly.',
+                stepLabel: 'Uploading source',
+                accentLabel: 'AI Avatar',
+                progress: 18,
+            };
+        case 'creating':
+            return {
+                open: true,
+                title: 'Creating your avatar',
+                description: 'We are saving your avatar profile and preparing it for preview generation.',
+                stepLabel: 'Saving avatar',
+                accentLabel: 'AI Avatar',
+                progress: 38,
+            };
+        case 'queued':
+            return {
+                open: true,
+                title: 'Generating talking preview',
+                description: 'Your avatar preview is queued. We will start lip sync generation as soon as the provider picks it up.',
+                stepLabel: 'Queued for generation',
+                accentLabel: 'AI Avatar',
+                progress: 56,
+            };
+        case 'processing':
+            return {
+                open: true,
+                title: 'Generating talking preview',
+                description: 'Your avatar is now being rendered with speech and lip sync. This step can take a few minutes.',
+                stepLabel: 'Rendering preview',
+                accentLabel: 'AI Avatar',
+                progress: 74,
+            };
+        default:
+            return {
+                open: false,
+                title: '',
+                description: '',
+                stepLabel: undefined,
+                accentLabel: undefined,
+                progress: undefined,
+            };
+    }
+}
+
+type PropsWithStatus = {
+    status: 'idle' | 'uploading' | 'creating' | 'created' | 'queued' | 'processing' | 'completed' | 'failed';
+};
 
 export default function CreateCustomAvatarModal({
     open,
@@ -84,6 +140,8 @@ export default function CreateCustomAvatarModal({
 
     const [translatingScript, setTranslatingScript] = useState(false);
     const [translationMessage, setTranslationMessage] = useState('');
+
+    const loaderState = useMemo(() => buildAvatarLoaderState(status), [status]);
 
     const originalScriptRef = useRef(DEFAULT_SCRIPT);
     const autoTranslateTimeoutRef = useRef<number | null>(null);
@@ -428,6 +486,7 @@ export default function CreateCustomAvatarModal({
                 name: avatar.name,
                 imageUrl: avatar.reference_image_url,
                 preferredVoice: avatar.preferred_voice,
+                preferredLanguage: language,
             });
         } catch (err) {
             setStatus('failed');
@@ -568,9 +627,18 @@ export default function CreateCustomAvatarModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm">
-            <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center p-4">
-                <div className="w-full rounded-3xl border border-white/10 bg-[#0f0f10] p-6 shadow-2xl">
+        <>
+            <LoadingOverlay
+                open={loaderState.open}
+                title={loaderState.title}
+                description={loaderState.description}
+                stepLabel={loaderState.stepLabel}
+                accentLabel={loaderState.accentLabel}
+                progress={loaderState.progress}
+            />
+            <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm">
+                <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center p-4">
+                    <div className="w-full rounded-3xl border border-white/10 bg-[#0f0f10] p-6 shadow-2xl">
                     <div className="mb-5 flex items-start justify-between gap-4">
                         <div>
                             <h2 className="text-xl font-semibold text-white">Create Your Own Avatar</h2>
@@ -780,8 +848,9 @@ export default function CreateCustomAvatarModal({
                             ) : null}
                         </div>
                     )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }

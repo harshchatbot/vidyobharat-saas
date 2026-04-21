@@ -102,4 +102,6 @@ class GenerationCostService:
             return 'sora2'
         if resolved == 'veo_3_1':
             return 'veo3'
+        if resolved == 'ltx':
+            return 'ltx_benchmark'
         return resolved or model_key

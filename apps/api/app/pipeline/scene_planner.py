@@ -46,6 +46,12 @@ class UgcAdClientBrief:
     language_preference: str = ""
 
 
+@dataclass(frozen=True)
+class LtxStoryDetection:
+    mode: str
+    subtopic: str
+
+
 def plan_scenes(recipe: RecipeConfig) -> list[dict[str, Any]]:
     return [
         {
@@ -56,6 +62,280 @@ def plan_scenes(recipe: RecipeConfig) -> list[dict[str, Any]]:
         }
         for index, scene in enumerate(recipe.scene_strategy.render_scenes)
     ]
+
+
+def build_ltx_cinematic_montage_scene_plan(*, recipe: RecipeConfig) -> list[dict[str, Any]]:
+    continuity_anchor = (
+        "same woman, same cream sweater, same dark jeans, same rainy cafe, same late afternoon lighting"
+    )
+    scene_blueprint: tuple[dict[str, str | int], ...] = (
+        {
+            "stage_name": "establish",
+            "stage_label": "Establish",
+            "scene_type": "environment_establishing",
+            "scene_role": "establish",
+            "topic_focus": "rainy cafe atmosphere, same subject continuity, and quiet emotional introduction",
+            "visual_objective": "Establish the same woman in the same rainy cafe, then move closer enough to introduce her emotional presence without breaking continuity.",
+            "subject_description": "the same woman in a cream sweater and dark jeans, first readable in a medium-wide composition and then subtly more intimate near the same rain-speckled window",
+            "environment_description": "a warm modern cafe in the late afternoon with a large rain-speckled window, subtle reflections, polished wood, calm intimate atmosphere, and continuity-safe lighting",
+            "camera_framing": "begin in a medium-wide composition and settle into a medium portrait while keeping the woman and rain-speckled window clearly visible",
+            "motion_intent": "slow subtle push inward with calm controlled motion as the woman looks outside and slightly acknowledges the camera",
+            "transition_intent": "open gently, establish the same person and place, and hand off into a tighter continuity-safe scene",
+            "ending_hold_instruction": "resolve softly into a stable medium portrait beat for clean stitching",
+            "camera_motion_type": "slow_push_in",
+        },
+        {
+            "stage_name": "hero_detail_main_proof",
+            "stage_label": "Hero / Detail / Main Proof",
+            "scene_type": "hero_detail_proof",
+            "scene_role": "hero_detail_main_proof",
+            "topic_focus": "same subject hero continuity, tactile detail texture, and subtle motion variation in the same cafe world",
+            "visual_objective": "Blend a stronger hero portrait with tactile cafe detail and one elegant side-angle motion beat while preserving the same woman, wardrobe, lighting, and emotional tone.",
+            "subject_description": "the same woman beside the same rain-speckled window, same wardrobe and hair, with detail emphasis on sweater sleeve texture, hand near a ceramic coffee cup, notebook, and elegant profile continuity",
+            "environment_description": "the same rainy modern cafe corner and tabletop environment with warm late-afternoon light, glass reflections, polished wood, and controlled depth",
+            "camera_framing": "begin in a medium portrait, shift into a close detail emphasis, and finish in an elegant side-angle three-quarter portrait",
+            "motion_intent": "smooth slow dolly inward, gentle sideways glide, and restrained lateral movement with no abrupt pose change or complex object interaction",
+            "transition_intent": "move from emotional portrait into tactile proof and subtle angle variation without changing identity or environment family",
+            "ending_hold_instruction": "end on a stable hero-detail portrait beat with no cup lifting, no stirring, and no abrupt motion",
+            "camera_motion_type": "hybrid_dolly_glide",
+        },
+        {
+            "stage_name": "closing_payoff",
+            "stage_label": "Closing Payoff",
+            "scene_type": "closing_portrait",
+            "scene_role": "closing_payoff",
+            "topic_focus": "final calm portrait resolution in the same cafe",
+            "visual_objective": "End on a calm final portrait that resolves cleanly and stays visually stable for export and stitching.",
+            "subject_description": "the same woman by the same rain-speckled window, same wardrobe, same calm reflective tone",
+            "environment_description": "the same warm modern cafe with stable late-afternoon rainy ambience and continuity-safe composition",
+            "camera_framing": "stable medium shot with calm final portrait composition",
+            "motion_intent": "almost imperceptible gentle pull-back with visually stable ending and no new action introduced",
+            "transition_intent": "resolve the montage without introducing any new idea or abrupt motion",
+            "ending_hold_instruction": "final seconds visually stable for stitch and export, no abrupt motion, no pose change, clean resolve",
+            "camera_motion_type": "gentle_pull_back",
+        },
+    )
+    planned: list[dict[str, Any]] = []
+    for index, base_scene in enumerate(plan_scenes(recipe)):
+        blueprint = scene_blueprint[index]
+        planned.append(
+            {
+                **base_scene,
+                **blueprint,
+                "generator_model_family": "ltx",
+                "render_mode": "scene_stitch",
+                "continuity_priority": "high",
+                "persona_lock_required": True,
+                "same_subject_required": True,
+                "same_wardrobe_required": True,
+                "same_environment_family": True,
+                "continuity_anchor": continuity_anchor,
+                "max_action_complexity": "low",
+                "emotion_style": "calm_reflective",
+                "visual_style": "cinematic_realistic",
+                "location_family": "rainy_modern_cafe",
+                "stitch_safe_ending": True,
+                "local_narration_context": "",
+                "transition_from_previous": "preserve the same subject, wardrobe, environment, and mood from the previous shot" if index > 0 else "open gently with the established rainy cafe continuity anchor",
+                "transition_to_next": "hand off smoothly to the next stitched scene with the same subject and environment continuity" if index < len(scene_blueprint) - 1 else "resolve cleanly for the final stitched export",
+                "negative_guidance": (
+                    "no speaking; no lip sync; no abrupt fast motion; no complex hand-object interaction; "
+                    "no crowded choreography; no extreme pose changes; maintain same person and wardrobe; "
+                    "maintain same cafe environment; keep motion smooth and controlled"
+                ),
+                "qa_flags": [],
+            }
+        )
+    return planned
+
+
+def detect_ltx_story_mode(*, topic: str) -> LtxStoryDetection:
+    normalized_topic = " ".join(str(topic or "").lower().split())
+    if not normalized_topic:
+        return LtxStoryDetection(mode="cinematic", subtopic="cinematic")
+
+    ugc_detection = detect_ugc_ad_family(topic=normalized_topic)
+    if (
+        ugc_detection.family != "problem_solution_ugc_ad"
+        or any(token in normalized_topic for token in ("ad", "ugc", "product", "service", "offer", "cta", "shop now", "book now"))
+    ):
+        return LtxStoryDetection(mode="ugc_ad", subtopic=ugc_detection.subtopic)
+
+    if any(pattern in normalized_topic for pattern in ("explain", "what if", "how does", "how do", "why does", "why do", "history of", "science of")):
+        return LtxStoryDetection(mode="explainer", subtopic=detect_explainer_family(topic=normalized_topic).subtopic)
+
+    return LtxStoryDetection(mode="cinematic", subtopic=normalized_topic[:80] or "cinematic")
+
+
+def build_ltx_freeform_scene_plan(*, recipe: RecipeConfig, topic: str) -> list[dict[str, Any]]:
+    detection = detect_ltx_story_mode(topic=topic)
+    continuity_anchor = (
+        f"same core subject, same wardrobe family, same environment family, same lighting mood, same narrative world for {topic.strip() or 'the prompt'}"
+    )
+    if detection.mode == "explainer":
+        scene_blueprint: tuple[dict[str, str], ...] = (
+            {
+                "stage_name": "hook_intro",
+                "stage_label": "Hook + Intro",
+                "scene_role": "hook_intro",
+                "scene_type": "concept_hook",
+                "topic_focus": f"Introduce {topic.strip() or 'the topic'} clearly and immediately",
+                "visual_objective": "Open with one strong visual hook and introduce the core concept in the same continuity-safe world.",
+                "camera_framing": "readable medium-wide or medium framing with one clear focal subject",
+                "motion_intent": "smooth controlled opening motion with immediate concept readability",
+                "transition_intent": "move from hook into explanation without changing the visual world",
+                "ending_hold_instruction": "end on a stable explanatory beat for a clean stitch",
+                "camera_motion_type": "guided_push_in",
+            },
+            {
+                "stage_name": "mechanism_example",
+                "stage_label": "Mechanism + Example",
+                "scene_role": "mechanism_example",
+                "scene_type": "mechanism_demo",
+                "topic_focus": f"Show how {topic.strip() or 'the topic'} works with one concrete example",
+                "visual_objective": "Blend mechanism and example into one dense but readable mid-scene without overloading motion.",
+                "camera_framing": "medium to close explanatory framing with one concrete visual example",
+                "motion_intent": "steady explanatory motion that reveals cause and effect clearly",
+                "transition_intent": "expand understanding without introducing a new visual identity",
+                "ending_hold_instruction": "finish on a stable explanatory payoff beat",
+                "camera_motion_type": "explanatory_glide",
+            },
+            {
+                "stage_name": "implication_closing",
+                "stage_label": "Implication + Closing",
+                "scene_role": "implication_closing",
+                "scene_type": "closing_takeaway",
+                "topic_focus": f"Land the implication and closing takeaway for {topic.strip() or 'the topic'}",
+                "visual_objective": "Resolve the idea with one final visual implication and a stable closing beat.",
+                "camera_framing": "stable medium closing composition with clear takeaway energy",
+                "motion_intent": "minimal closing motion with calm resolution",
+                "transition_intent": "resolve the explanation cleanly without introducing a new concept at the end",
+                "ending_hold_instruction": "final second visually stable, clean resolve for export",
+                "camera_motion_type": "gentle_pull_back",
+            },
+        )
+    elif detection.mode == "ugc_ad":
+        scene_blueprint = (
+            {
+                "stage_name": "hook_problem",
+                "stage_label": "Hook + Problem",
+                "scene_role": "hook_problem",
+                "scene_type": "ad_hook",
+                "topic_focus": f"Open with the problem and immediate relevance for {topic.strip() or 'the offer'}",
+                "visual_objective": "Make the problem and hook instantly readable in one native-feeling opening scene.",
+                "camera_framing": "mobile-first medium framing with fast clarity and authentic realism",
+                "motion_intent": "controlled creator-style motion with a stable first beat",
+                "transition_intent": "move from hook into product proof without losing relevance",
+                "ending_hold_instruction": "end on a stable problem-to-solution handoff beat",
+                "camera_motion_type": "creator_push_in",
+            },
+            {
+                "stage_name": "product_proof",
+                "stage_label": "Product + Proof",
+                "scene_role": "product_proof",
+                "scene_type": "product_demo",
+                "topic_focus": f"Show the product or service and one strong proof beat for {topic.strip() or 'the ad'}",
+                "visual_objective": "Combine intro and proof into one dense but readable service or product scene.",
+                "camera_framing": "medium or close proof framing with product or service context clearly visible",
+                "motion_intent": "calm action-led proof motion with one clear demonstration beat",
+                "transition_intent": "turn the proof into a believable benefit without changing the visual world",
+                "ending_hold_instruction": "finish with proof still visually readable for clean stitching",
+                "camera_motion_type": "demo_glide",
+            },
+            {
+                "stage_name": "benefit_cta",
+                "stage_label": "Benefit + CTA",
+                "scene_role": "benefit_cta",
+                "scene_type": "closing_cta",
+                "topic_focus": f"Land the benefit and CTA for {topic.strip() or 'the ad'}",
+                "visual_objective": "Resolve with benefit clarity and a calm CTA ending, without introducing a new idea in the last beat.",
+                "camera_framing": "stable medium closing composition with readable service or booking context",
+                "motion_intent": "minimal closing motion and stable CTA hold",
+                "transition_intent": "resolve the ad around one clear benefit and CTA",
+                "ending_hold_instruction": "last second visually stable, CTA context still visible, no abrupt ending",
+                "camera_motion_type": "cta_hold",
+            },
+        )
+    else:
+        scene_blueprint = (
+            {
+                "stage_name": "establish",
+                "stage_label": "Establish",
+                "scene_role": "establish",
+                "scene_type": "environment_establishing",
+                "topic_focus": f"Establish the cinematic world for {topic.strip() or 'the prompt'}",
+                "visual_objective": "Open with one strong atmospheric establishing beat that sets subject, environment, and tone.",
+                "camera_framing": "medium-wide to medium cinematic composition with clear visual anchor",
+                "motion_intent": "slow controlled opening motion with strong continuity",
+                "transition_intent": "move from atmosphere into a denser hero scene without breaking continuity",
+                "ending_hold_instruction": "resolve into a stable handoff beat",
+                "camera_motion_type": "slow_push_in",
+            },
+            {
+                "stage_name": "hero_detail_main_proof",
+                "stage_label": "Hero / Detail / Main Proof",
+                "scene_role": "hero_detail_main_proof",
+                "scene_type": "hero_detail_proof",
+                "topic_focus": f"Carry the main visual proof and detail richness for {topic.strip() or 'the prompt'}",
+                "visual_objective": "Condense the strongest hero and detail storytelling into one rich middle scene.",
+                "camera_framing": "medium to close cinematic framing with one primary hero angle and tactile details",
+                "motion_intent": "smooth, controlled motion with detail richness and no action spikes",
+                "transition_intent": "move from hero proof into final emotional payoff without changing the world",
+                "ending_hold_instruction": "finish on a stable hero-detail beat for a clean final handoff",
+                "camera_motion_type": "hybrid_dolly_glide",
+            },
+            {
+                "stage_name": "closing_payoff",
+                "stage_label": "Closing Payoff",
+                "scene_role": "closing_payoff",
+                "scene_type": "closing_portrait",
+                "topic_focus": f"Resolve the cinematic payoff for {topic.strip() or 'the prompt'}",
+                "visual_objective": "Land the final payoff with a stable closing composition and calm visual resolve.",
+                "camera_framing": "stable medium closing composition",
+                "motion_intent": "almost imperceptible gentle pull-back with no new action introduced",
+                "transition_intent": "resolve without introducing a new visual idea",
+                "ending_hold_instruction": "final second visually stable, clean resolve for export",
+                "camera_motion_type": "gentle_pull_back",
+            },
+        )
+
+    planned: list[dict[str, Any]] = []
+    base_scenes = plan_scenes(recipe)
+    for index, base_scene in enumerate(base_scenes):
+        blueprint = scene_blueprint[index]
+        planned.append(
+            {
+                **base_scene,
+                **blueprint,
+                "generator_model_family": "ltx",
+                "render_mode": "scene_stitch",
+                "continuity_priority": "high",
+                "persona_lock_required": True,
+                "same_subject_required": True,
+                "same_wardrobe_required": True,
+                "same_environment_family": True,
+                "continuity_anchor": continuity_anchor,
+                "max_action_complexity": "low",
+                "emotion_style": "controlled_coherent",
+                "visual_style": "cinematic_realistic",
+                "location_family": "prompt_driven_continuity_world",
+                "stitch_safe_ending": True,
+                "story_mode": detection.mode,
+                "story_subtopic": detection.subtopic,
+                "source_prompt": topic.strip(),
+                "subject_description": f"the same core subject and visual identity from the prompt: {topic.strip() or 'the prompt'}",
+                "environment_description": "the same environment family, same lighting family, and same visual world across all three scenes",
+                "local_narration_context": "",
+                "transition_from_previous": "preserve the same subject, environment family, wardrobe family, and emotional tone from the previous scene" if index > 0 else "open clearly with one stable continuity anchor",
+                "transition_to_next": "hand off smoothly to the next stitched scene without changing the visual world" if index < len(scene_blueprint) - 1 else "resolve cleanly for the final stitched export",
+                "negative_guidance": (
+                    "no speaking; no lip sync; no abrupt fast motion; no crowded choreography; no extreme pose changes; "
+                    "maintain same subject, wardrobe family, and environment family; keep motion smooth and controlled"
+                ),
+                "qa_flags": [],
+            }
+        )
+    return planned
 
 
 def derive_visual_objective_for_stage(*, stage_name: str, topic: str, topic_focus: str) -> str:
@@ -154,7 +434,7 @@ def detect_ugc_ad_family(*, topic: str, ugc_style: str = "creator_casual") -> Ug
         ("demo_ugc_ad", ("demo", "show how", "use it", "works like this", "how to use", "watch this")),
         ("offer_hook_ugc_ad", ("limited time", "discount", "sale", "offer", "free trial", "book now", "sign up today")),
         ("founder_story_ugc_ad", ("founder", "we built", "our story", "why we started", "behind this brand")),
-        ("local_service_ugc_ad", ("clinic", "salon", "spa", "restaurant", "cafe", "gym", "repair", "plumber", "electrician", "dentist")),
+        ("local_service_ugc_ad", ("clinic", "salon", "spa", "restaurant", "cafe", "gym", "repair", "plumber", "electrician", "dentist", "school", "daycare", "play school", "playschool", "preschool", "kindergarten", "tuition", "coaching")),
         ("app_software_ugc_ad", ("app", "software", "saas", "dashboard", "website", "tool", "platform")),
         ("how_to_use_ugc_ad", ("how to use", "step by step", "use this for", "apply this", "set it up")),
         ("listicle_benefit_ugc_ad", ("3 reasons", "5 reasons", "benefits", "why this is", "top reasons")),
@@ -197,6 +477,14 @@ def detect_ugc_ad_family(*, topic: str, ugc_style: str = "creator_casual") -> Ug
         "repair",
         "plumber",
         "electrician",
+        "school",
+        "daycare",
+        "play school",
+        "playschool",
+        "preschool",
+        "kindergarten",
+        "tuition",
+        "coaching",
     )
     category_match = next((keyword for keyword in category_keywords if keyword in normalized_topic), None)
     if category_match:
@@ -299,6 +587,161 @@ def build_ugc_business_context(brief: UgcAdClientBrief) -> dict[str, str]:
         "service_context": brief.main_service_or_product or brief.business_category or "the product or service",
         "local_business_context": " ".join(part for part in (business_identity, location) if part).strip(),
     }
+
+
+def _ugc_is_school_like_local_service(*, family: str, subtopic: str, client_brief: UgcAdClientBrief) -> bool:
+    if family != "local_service_ugc_ad":
+        return False
+    school_tokens = (
+        "school",
+        "daycare",
+        "play school",
+        "playschool",
+        "preschool",
+        "kindergarten",
+        "coaching",
+        "education center",
+        "tuition",
+    )
+    subtopic_text = " ".join(
+        part for part in (
+            str(subtopic or "").lower().strip(),
+            str(client_brief.business_category or "").lower().strip(),
+            str(client_brief.main_service_or_product or "").lower().strip(),
+            str(client_brief.business_name or "").lower().strip(),
+        )
+        if part
+    )
+    return any(token in subtopic_text for token in school_tokens)
+
+
+def _ugc_continuity_metadata_for_stage(
+    *,
+    stage_name: str,
+    family: str,
+    subtopic: str,
+    client_brief: UgcAdClientBrief,
+) -> dict[str, Any]:
+    is_school_context = _ugc_is_school_like_local_service(
+        family=family,
+        subtopic=subtopic,
+        client_brief=client_brief,
+    )
+    if family != "local_service_ugc_ad":
+        return {
+            "continuity_subject_role": "creator",
+            "continuity_subject_label": "same spokesperson",
+            "continuity_anchor": "same spokesperson and same product logic",
+            "must_preserve_subject_identity": stage_name in {"hook", "cta"},
+            "must_avoid_new_spokesperson": stage_name in {"proof", "benefit", "cta"},
+            "school_testimonial_mode": False,
+        }
+
+    if is_school_context:
+        return {
+            "continuity_subject_role": "parent_spokesperson",
+            "continuity_subject_label": client_brief.creator_gender_preference or "same parent spokesperson",
+            "continuity_anchor": "same parent spokesperson, same child/family context, same school trust story",
+            "must_preserve_subject_identity": stage_name in {"hook", "problem", "benefit", "cta"},
+            "must_avoid_new_spokesperson": stage_name in {"problem", "product_intro", "proof", "benefit", "cta"},
+            "school_testimonial_mode": True,
+        }
+
+    return {
+        "continuity_subject_role": "customer_spokesperson",
+        "continuity_subject_label": "same local customer or creator spokesperson",
+        "continuity_anchor": "same local customer trust story and same service context",
+        "must_preserve_subject_identity": stage_name in {"hook", "benefit", "cta"},
+        "must_avoid_new_spokesperson": stage_name in {"product_intro", "proof", "benefit", "cta"},
+        "school_testimonial_mode": False,
+    }
+
+
+def _apply_local_service_continuity_overrides(
+    *,
+    prompt_context: dict[str, str],
+    stage_name: str,
+    family: str,
+    subtopic: str,
+    client_brief: UgcAdClientBrief,
+) -> dict[str, str]:
+    adjusted = dict(prompt_context)
+    is_school_context = _ugc_is_school_like_local_service(
+        family=family,
+        subtopic=subtopic,
+        client_brief=client_brief,
+    )
+    if family != "local_service_ugc_ad":
+        return adjusted
+
+    negative_bits = [str(adjusted.get("sora_negative_guidance") or "").strip()]
+    continuity_bits = [str(adjusted.get("continuity_guidance") or "").strip()]
+
+    if is_school_context:
+        if stage_name == "product_intro":
+            adjusted["subject_description"] = (
+                "the same school environment and trust context, shown through campus, classroom, staff, and parent-child arrival cues instead of a new solo parent face"
+            )
+            adjusted["environment_description"] = (
+                "the same Indian school or preschool environment with recognisable entry gate, reception, classroom, or activity area continuity"
+            )
+            adjusted["camera_framing"] = (
+                "medium-wide or wide school-environment framing that keeps the setting readable and avoids introducing a new spokesperson close-up"
+            )
+        elif stage_name == "proof":
+            adjusted["subject_description"] = (
+                "the same child or family context experiencing believable classroom engagement, teacher interaction, school activity, or parent-child proof without switching to a new solo mother face"
+            )
+            adjusted["environment_description"] = (
+                "the same Indian school, preschool, or classroom environment with authentic activity, learning materials, and family-safe continuity"
+            )
+            adjusted["camera_framing"] = (
+                "observational medium or wide proof framing focused on classroom activity, parent-child interaction, or school trust moments, not a new direct-to-camera creator shot"
+            )
+            adjusted["motion_intent"] = (
+                "calm observational motion with one clear school-proof beat and stable family continuity"
+            )
+        elif stage_name == "benefit":
+            adjusted["subject_description"] = (
+                "the same parent and child context showing confidence, comfort, learning progress, or emotional reassurance without introducing a fresh spokesperson identity"
+            )
+            adjusted["environment_description"] = (
+                "the same school-adjacent or home-to-school family environment with stable parent-child continuity"
+            )
+            adjusted["camera_framing"] = (
+                "medium parent-child or child-result framing with readable emotional payoff and no isolated new-face creator close-up"
+            )
+        elif stage_name == "cta":
+            adjusted["subject_description"] = (
+                "a continuity-safe school CTA using the same family context, school environment, phone or visit-now cue, and trust signal without generating a new talking mother"
+            )
+            adjusted["environment_description"] = (
+                "the same school or parent-facing environment with clear booking or visit context and stable closing composition"
+            )
+            adjusted["camera_framing"] = (
+                "stable medium or environmental CTA framing with school context or booking cue visible, avoiding a fresh solo face reveal"
+            )
+            adjusted["motion_intent"] = "minimal motion with a calm school-trust close"
+            adjusted["ending_hold_instruction"] = (
+                "last second visually stable, school context or booking cue still visible, no new parent face reveal, no abrupt CTA cut"
+            )
+            adjusted["cta_style"] = "school_parent_voiceover_safe_close"
+
+        continuity_bits.append(
+            "Keep one parent spokesperson and one child/family context across the ad; non-talking scenes should reinforce the same family trust story rather than introducing a new mother."
+        )
+        negative_bits.append(
+            "avoid introducing a second parent spokesperson; avoid changing the mother's facial identity across scenes; avoid standalone creator close-ups in proof scenes when the ad is testimonial-led"
+        )
+    elif stage_name == "cta":
+        continuity_bits.append(
+            "Do not reveal a fresh spokesperson in the CTA; close using the same local trust context, service environment, or customer story."
+        )
+        negative_bits.append("avoid introducing a second local-service spokesperson in the CTA")
+
+    adjusted["continuity_guidance"] = " ".join(bit for bit in continuity_bits if bit).strip()
+    adjusted["sora_negative_guidance"] = "; ".join(bit for bit in negative_bits if bit).strip("; ")
+    return adjusted
 
 
 def build_ugc_hook_plan(*, brief: UgcAdClientBrief, family: str) -> str:
@@ -451,6 +894,13 @@ def build_ugc_ad_scene_plan(
             client_brief_mode=client_brief_mode,
             business_context=business_context,
         )
+        prompt_context = _apply_local_service_continuity_overrides(
+            prompt_context=prompt_context,
+            stage_name=stage_name,
+            family=family,
+            subtopic=subtopic,
+            client_brief=resolved_brief,
+        )
         avoid_motifs = _ugc_avoid_motifs_for_stage(stage_name=stage_name, family=family)
         if previous_scene_type:
             avoid_motifs.append(f"repeating the exact same {previous_scene_type} setup as the previous ad scene")
@@ -491,6 +941,12 @@ def build_ugc_ad_scene_plan(
             "client_brief_mode": client_brief_mode,
             "single_creator_mode": single_creator_mode,
             "creator_anchor": creator_anchor,
+            **_ugc_continuity_metadata_for_stage(
+                stage_name=stage_name,
+                family=family,
+                subtopic=subtopic,
+                client_brief=resolved_brief,
+            ),
             "hook_plan": hook_plan,
             "business_name": resolved_brief.business_name,
             "business_category": resolved_brief.business_category,
@@ -537,9 +993,23 @@ def build_ugc_ad_scene_plan(
         previous_focus = topic_focus
 
     if family == "local_service_ugc_ad":
+        extra_talking_scene_seen = False
+        for planned_scene in planned:
+            if str(planned_scene.get("render_lane") or "") != "talking_avatar":
+                continue
+            if not extra_talking_scene_seen:
+                extra_talking_scene_seen = True
+                continue
+            planned_scene["talking_mode"] = "voiceover_safe"
+            planned_scene["render_lane"] = "broll_safe"
+            planned_scene["persona_required"] = False
+            planned_scene["use_locked_persona"] = False
+            planned_scene["qa_flags"] = list(
+                dict.fromkeys([*(planned_scene.get("qa_flags") or []), "too_many_talking_avatar_scenes"])
+            )
         for planned_scene in planned:
             qa_flags = list(planned_scene.get("qa_flags") or [])
-            if lip_sync_scene_count > 2:
+            if lip_sync_scene_count > 1:
                 qa_flags.append("too_many_lip_sync_required_scenes")
                 qa_flags.append("excessive_talking_head_risk")
             if not has_proof_scene:
@@ -565,9 +1035,6 @@ def _ugc_talking_mode_for_stage(*, stage_name: str, family: str, cta: str | None
     if stage_name == "benefit":
         return "voiceover_safe"
     if stage_name == "cta":
-        normalized_cta = str(cta or "").lower()
-        if any(token in normalized_cta for token in ("book", "call", "dm", "message", "visit", "slot", "appointment")):
-            return "lip_sync_required"
         return "voiceover_safe"
     return "none"
 
@@ -1113,18 +1580,18 @@ def _ugc_camera_framing_for_stage(*, stage_name: str, scene_type: str) -> str:
 
 def _ugc_motion_intent_for_stage(*, stage_name: str) -> str:
     return {
-        "hook": "light handheld realism or a quick controlled reveal that feels native to short-form creators",
+        "hook": "light handheld realism or a quick but controlled reveal with a stable first beat that feels native to short-form creators",
         "problem": "natural human motion that keeps the pain point readable without melodrama",
         "product_intro": "smooth reveal into stable product readability",
         "proof": "clear action-led motion showing one demo step or proof beat at a time",
         "benefit": "natural payoff motion followed by a soft settle",
-        "cta": "minimal motion and a stable finish that leaves room for the CTA to land",
+        "cta": "minimal motion and a stable finish with no new visual idea in the final second so the CTA lands cleanly",
     }.get(stage_name, "controlled creator-style motion with mobile-first readability")
 
 
 def _ugc_ending_hold_instruction_for_stage(*, stage_name: str, index: int, total_scenes: int) -> str:
     if stage_name == "cta" or index == total_scenes - 1:
-        return "last 1.5 seconds visually stable, product or service context still visible, no abrupt CTA cut"
+        return "last 1.5 seconds visually stable, product or service context still visible, no new visual idea in the final second, no abrupt CTA cut"
     return "end the shot cleanly with enough stability for the next scene to stitch naturally"
 
 
@@ -1132,13 +1599,13 @@ def _ugc_continuity_guidance(*, stage_name: str, index: int, total_scenes: int, 
     if index == 0:
         return f"Open quickly but naturally, making {topic_focus} feel like the first beat of one continuous creator ad."
     if index == total_scenes - 1:
-        return f"Resolve the ad cleanly around {topic_focus} so the final CTA feels intentional and not abruptly cut."
+        return f"Resolve the ad cleanly around {topic_focus} so the final CTA feels intentional, continuity-safe, and does not introduce a new spokesperson."
     return f"Continue the same creator, product logic, and native short-form rhythm while moving into {topic_focus}."
 
 
 def _ugc_transition_intent_for_family(*, family: str, stage_name: str, previous_stage: str, next_stage: str) -> str:
     if stage_name == "hook":
-        return f"Move quickly from curiosity into a clear {next_stage or 'problem'} beat without losing product relevance."
+        return f"Start with a stable first beat, then move quickly from curiosity into a clear {next_stage or 'problem'} beat without losing product relevance."
     if stage_name == "proof":
         return f"Turn visible proof into a believable benefit so the ad feels trustworthy, not over-produced."
     if stage_name == "cta":
@@ -1160,7 +1627,7 @@ def _ugc_transition_to_next(*, family: str, next_stage: str) -> str:
 
 def _ugc_negative_guidance(*, stage_name: str, family: str) -> str:
     family_specific = {
-        "local_service_ugc_ad": "avoid corporate showroom polish; avoid empty reception-lobby drift; avoid hiding the actual provider, place, or treatment context",
+        "local_service_ugc_ad": "avoid corporate showroom polish; avoid empty reception-lobby drift; avoid hiding the actual provider, place, or treatment context; avoid introducing a second parent or customer spokesperson; avoid changing the spokesperson's face between hook, proof, and CTA",
     }.get(family, "")
     guidance = (
         "avoid polished TV-commercial look; avoid generic foreign stock-footage feel; avoid unreadable in-frame text; "
@@ -1220,9 +1687,21 @@ def _build_ugc_scene_plan_qa_flags(
     camera_framing = str(scene.get("camera_framing") or "").lower()
     motion_intent = str(scene.get("motion_intent") or "").lower()
     shot_scale = str(scene.get("shot_scale") or "").strip().lower()
+    must_preserve_subject_identity = bool(scene.get("must_preserve_subject_identity"))
+    must_avoid_new_spokesperson = bool(scene.get("must_avoid_new_spokesperson"))
+    continuity_anchor = str(scene.get("continuity_anchor") or "").lower()
+    school_testimonial_mode = bool(scene.get("school_testimonial_mode"))
 
     if stage_name == "hook" and "hook" not in str(scene.get("visual_objective") or "").lower():
         flags.append("weak_hook_risk")
+    if stage_name == "hook":
+        abrupt_open = "abrupt" in motion_intent or (
+            "quick" in motion_intent
+            and "controlled" not in motion_intent
+            and "stable" not in motion_intent
+        )
+        if abrupt_open:
+            flags.append("intro_abrupt_motion_risk")
     if stage_name in {"product_intro", "proof"} and "product" not in subject_description and "service" not in subject_description:
         flags.append("missing_product_visibility_risk")
     if stage_name == "proof" and not any(token in subject_description for token in ("demo", "use", "proof", "showing", "using", "product")):
@@ -1243,6 +1722,10 @@ def _build_ugc_scene_plan_qa_flags(
         flags.append("late_product_intro_risk")
     if stage_name == "cta" and "stable" not in str(scene.get("ending_hold_instruction") or "").lower():
         flags.append("cta_clarity_risk")
+    if stage_name == "cta":
+        ending_hold = str(scene.get("ending_hold_instruction") or "").lower()
+        if "stable" not in ending_hold or "no new visual idea" not in ending_hold:
+            flags.append("outro_resolution_risk")
     if "handheld" not in camera_framing and "selfie" not in camera_framing and stage_name in {"hook", "problem"}:
         flags.append("native_authenticity_risk")
     if "chaotic" in motion_intent:
@@ -1257,6 +1740,14 @@ def _build_ugc_scene_plan_qa_flags(
 
     if previous_scene_type and scene_type == previous_scene_type and shot_scale in {"medium", "medium_close", "close"}:
         flags.append("face_framing_repetition_risk")   
+    if must_preserve_subject_identity and "same" not in continuity_anchor:
+        flags.append("parent_identity_drift_risk")
+    if must_avoid_new_spokesperson and stage_name in {"proof", "benefit", "cta"} and "same" not in continuity_anchor:
+        flags.append("multiple_spokesperson_risk")
+    if must_avoid_new_spokesperson and stage_name == "cta":
+        flags.append("cta_new_face_risk")
+    if school_testimonial_mode:
+        flags.append("school_testimonial_continuity_risk")
 
     if client_brief_mode:
         if not client_brief.business_name:

@@ -108,6 +108,33 @@
       "durationHelperText": "Kling 3.0 currently supports 5s and 10s clips."
     },
     {
+      "key": "ltx",
+      "lane": "internal",
+      "label": "LTX Benchmark",
+      "fullLabel": "Self-hosted LTX Benchmark",
+      "description": "Internal benchmark route for stitched cinematic montage testing via self-hosted LTX.",
+      "frontendHint": "Internal scene-stitch benchmark model.",
+      "apiAdapter": "generate_with_ltx_self_hosted",
+      "tier": "internal",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Benchmark",
+      "speedBadge": "Sequential scenes",
+      "creditBadge": "Internal",
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["16:9", "9:16"],
+      "sizes": {
+        "16:9": { "720p": "1280x720" },
+        "9:16": { "720p": "720x1280" }
+      },
+      "durationPresets": [5, 6],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Internal LTX benchmark scene route for 5s to 6s stitched scenes."
+    },
+    {
       "key": "wan2.1_t2v_turbo",
       "lane": "daily",
       "label": "WAN 2.1 Turbo",

@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from openai import OpenAI
-
 from app.core.config import get_settings
 from app.db.firestore_utils import utcnow
 from app.db.repositories.video_repository import VideoRepository
 from app.pipeline.prompt_builder import build_scene_prompt
+from app.providers.storage import build_storage_provider
 from app.pipeline.scene_planner import (
     UgcAdClientBrief,
+    build_ltx_freeform_scene_plan,
+    build_ltx_cinematic_montage_scene_plan,
     build_deep_explainer_scene_plan,
     build_ugc_ad_scene_plan,
     build_ugc_business_context,
@@ -24,11 +26,13 @@ from app.pipeline.scene_planner import (
     normalize_ugc_client_brief,
     plan_scenes,
 )
-from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, LTX_BENCHMARK_RECIPE_IDS, LTX_FREEFORM_RECIPE_IDS, LTX_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.avatar_service import AvatarService
 from app.services.audio_service import RecipeAudioService
 from app.services.influencer_service import InfluencerService
 from app.services.image_generation_service import ImageGenerationService
+from app.services.llm.base import ScriptPlan
+from app.services.llm.qwen_service import QwenService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
 from app.services.video_pipeline import VideoPipelineService
 from app.services.video_stitcher import VideoStitcher
@@ -101,8 +105,33 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
     if not normalized_id:
         return None
 
+    avatar_service = AvatarService()
+    actor = avatar_service.get_actor_record(normalized_id, user_id=user_id)
+    if actor:
+        default_voice = voice_override or actor.recommended_voice or ("Priya" if "female" in actor.style.lower() else "Shubh")
+        reference_image = actor.primary_image or (actor.reference_images[0] if actor.reference_images else actor.thumbnail_url)
+        return {
+            "persona_id": actor.id,
+            "persona_source": "preset_avatar" if actor.source == "preset" else "actor_library",
+            "name": actor.name,
+            "image_url": reference_image,
+            "thumbnail_url": actor.thumbnail_url,
+            "style_label": actor.style,
+            "niche": actor.category,
+            "default_voice_id": default_voice,
+            "language_preference": language_override or (actor.language_tags[0] if actor.language_tags else "en-IN"),
+            "default_behavior_prompt": actor.prompt_template or (
+                f"friendly Indian creator named {actor.name} speaking naturally to camera, "
+                "subtle head movement, natural blinking, calm confident expression, minimal movement"
+            ),
+            "negative_prompt": actor.negative_prompt,
+            "reference_images": actor.reference_images,
+            "default_camera_style": "selfie_medium_close",
+            "preview_video_url": actor.preview_video_url,
+        }
+
     if normalized_id.startswith("av-"):
-        avatar = AvatarService().get_avatar(normalized_id)
+        avatar = avatar_service.get_avatar(normalized_id, user_id=user_id)
         if not avatar:
             return None
         default_voice = voice_override or ("Priya" if "female" not in avatar.style.lower() else "Priya")
@@ -112,6 +141,8 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "name": avatar.name,
             "image_url": avatar.thumbnail_url,
             "thumbnail_url": avatar.thumbnail_url,
+            "style_label": avatar.style,
+            "niche": None,
             "default_voice_id": default_voice,
             "language_preference": language_override or (avatar.language_tags[0] if avatar.language_tags else "en-IN"),
             "default_behavior_prompt": (
@@ -119,32 +150,102 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
                 "subtle head movement, natural blinking, calm confident expression, minimal movement"
             ),
             "default_camera_style": "selfie_medium_close",
+            "preview_video_url": None,
         }
 
     try:
         persona = InfluencerService(None).get_persona(normalized_id, user_id)
+    except LookupError:
+        persona = None
     except Exception:
+        logger.exception("ugc_persona_saved_persona_resolution_failed", extra={"persona_id": normalized_id, "user_id": user_id})
+        persona = None
+
+    if persona:
+        inferred_voice = voice_override or ("Priya" if str(persona.gender_identity or "").lower().startswith("f") else "Shubh")
+        behavior_parts = [
+            f"{persona.name} speaking naturally to camera",
+            f"tone: {persona.tone}" if persona.tone else "",
+            "subtle head movement",
+            "natural blinking",
+            "minimal movement",
+        ]
+        return {
+            "persona_id": persona.id,
+            "persona_source": "saved_persona",
+            "name": persona.name,
+            "image_url": persona.reference_image_url,
+            "thumbnail_url": persona.reference_image_url,
+            "style_label": persona.tone,
+            "niche": persona.niche,
+            "default_voice_id": inferred_voice,
+            "language_preference": language_override or "en-IN",
+            "default_behavior_prompt": persona.system_prompt_template or ", ".join(part for part in behavior_parts if part),
+            "default_camera_style": "selfie_medium_close",
+            "preview_video_url": None,
+        }
+
+    custom_avatar = avatar_service.get_custom_avatar(normalized_id, user_id)
+    if not custom_avatar:
         return None
 
-    inferred_voice = voice_override or ("Priya" if str(persona.gender_identity or "").lower().startswith("f") else "Shubh")
-    behavior_parts = [
-        f"{persona.name} speaking naturally to camera",
-        f"tone: {persona.tone}" if persona.tone else "",
-        "subtle head movement",
-        "natural blinking",
-        "minimal movement",
-    ]
+    inferred_voice = voice_override or custom_avatar.preferred_voice or "Shubh"
+    language_preference = language_override or custom_avatar.language_preference or "en-IN"
+    label_bits = [bit for bit in [custom_avatar.niche, custom_avatar.style_label] if bit]
+    descriptor = ", ".join(label_bits) if label_bits else "custom creator avatar"
     return {
-        "persona_id": persona.id,
-        "persona_source": "saved_persona",
-        "name": persona.name,
-        "image_url": persona.reference_image_url,
-        "thumbnail_url": persona.reference_image_url,
+        "persona_id": custom_avatar.id,
+        "persona_source": "custom_avatar",
+        "name": custom_avatar.name,
+        "image_url": custom_avatar.reference_image_url,
+        "thumbnail_url": custom_avatar.preview_image_url or custom_avatar.reference_image_url,
+        "style_label": custom_avatar.style_label,
+        "niche": custom_avatar.niche,
         "default_voice_id": inferred_voice,
-        "language_preference": language_override or "en-IN",
-        "default_behavior_prompt": persona.system_prompt_template or ", ".join(part for part in behavior_parts if part),
+        "language_preference": language_preference,
+        "default_behavior_prompt": (
+            f"{custom_avatar.name} as a {descriptor}, speaking directly to camera, "
+            "friendly Indian creator energy, subtle head movement, natural blinking, calm confident expression, minimal movement"
+        ),
         "default_camera_style": "selfie_medium_close",
+        "preview_video_url": custom_avatar.preview_video_url,
     }
+
+
+def _upload_talking_scene_audio(
+    *,
+    user_id: str,
+    video_id: str,
+    scene_id: str,
+    voice_path: Path,
+) -> str:
+    storage = build_storage_provider(get_settings())
+    content_type = mimetypes.guess_type(voice_path.name)[0] or "audio/wav"
+    signed = storage.upload_bytes(
+        voice_path.name,
+        voice_path.read_bytes(),
+        content_type=content_type,
+        kind=f"users/{user_id}/generated/audio/{video_id}/{scene_id}",
+    )
+    return signed.public_url
+
+
+def _build_ugc_talking_avatar_prompt(*, scene: dict[str, Any], selected_persona: dict[str, Any] | None) -> str:
+    persona_name = str((selected_persona or {}).get("name") or "the selected spokesperson").strip()
+    business_name = str(scene.get("business_name") or "").strip()
+    business_category = str(scene.get("business_category") or "").strip()
+    stage_name = str(scene.get("stage_name") or "talking scene").replace("_", " ").strip()
+    topic_focus = str(scene.get("topic_focus") or "").strip()
+    cta = str(scene.get("cta") or "").strip()
+
+    context_bits = [bit for bit in [business_name, business_category, topic_focus] if bit]
+    context_phrase = ", ".join(context_bits) if context_bits else "local-service UGC ad context"
+    closing_phrase = f" with a clean CTA close around {cta}" if cta and stage_name == "cta" else ""
+    return (
+        f"{persona_name} speaking directly to camera for a {context_phrase}. "
+        f"Creator-style vertical talking-head shot for the {stage_name} beat{closing_phrase}. "
+        "Natural lip sync, stable identity, subtle head movement, natural blinking, calm confident expression, minimal body movement, clean ending hold."
+    )
 
 
 def _normalize_topic(topic: str) -> str:
@@ -411,59 +512,51 @@ def build_explainer_narration_script(
     recipe_id: str,
     explainer_style: str,
 ) -> ExplainerNarrationPlan:
-    settings = get_settings()
     normalized_topic = _normalize_topic(topic)
-    if settings.openai_api_key:
-        try:
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                temperature=0.45,
-                response_format={"type": "json_object"},
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You write short social explainer narration. "
-                            "Return valid JSON only with keys: narration_script, scene_beats, overlay_text. "
-                            "narration_script must be one smooth spoken explainer script for the requested duration. "
-                            "scene_beats must be concise visual guidance, not spoken narration. "
-                            "overlay_text must be short on-screen emphasis phrases, not full spoken lines."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Topic: {normalized_topic}\n"
-                            f"Target duration: {duration_seconds} seconds\n"
-                            f"Scene count: {scene_count}\n"
-                            f"Recipe id: {recipe_id}\n"
-                            f"Explainer style: {explainer_style}\n"
-                            "Requirements:\n"
-                            "- Make the narration simple, spoken, natural, and educational.\n"
-                            "- Avoid hook labels, bullet formatting, cue labels, or planning text.\n"
-                            "- Do not write 'Opening shot', 'Scene 1', or anything UI-like.\n"
-                            "- Keep scene beats visual and explanatory.\n"
-                            "- Keep overlay_text short enough for on-screen emphasis.\n"
-                            "- If this is a deep explainer, structure the explanation as: hook, concept introduction, mechanism, concrete example, implication, closing takeaway.\n"
-                            "- Each scene beat should have a distinct educational role and visual objective.\n"
-                        ),
-                    },
-                ],
+    try:
+        qwen = QwenService(get_settings())
+        result = qwen.complete_structured(
+            task_type="explainer_narration",
+            schema_model=ScriptPlan,
+            system_prompt=(
+                "You write short social explainer narration. "
+                "Return structured output only. "
+                "narration_script must be one smooth spoken explainer script for the requested duration. "
+                "scene_items must be concise visual guidance, not spoken narration. "
+                "overlay_text must be short on-screen emphasis phrases, not full spoken lines."
+            ),
+            user_prompt=(
+                f"Topic: {normalized_topic}\n"
+                f"Target duration: {duration_seconds} seconds\n"
+                f"Scene count: {scene_count}\n"
+                f"Recipe id: {recipe_id}\n"
+                f"Explainer style: {explainer_style}\n"
+                "Requirements:\n"
+                "- Make the narration simple, spoken, natural, and educational.\n"
+                "- Avoid hook labels, bullet formatting, cue labels, or planning text.\n"
+                "- Do not write 'Opening shot', 'Scene 1', or anything UI-like.\n"
+                "- Keep scene items visual and explanatory.\n"
+                "- Keep overlay_text short enough for on-screen emphasis.\n"
+                "- If this is a deep explainer, structure the explanation as: hook, concept introduction, mechanism, concrete example, implication, closing takeaway.\n"
+                "- Each scene item should have a distinct educational role and visual objective.\n"
+            ),
+            temperature=0.45,
+        )
+        narration_script = str(result.narration_script or "").strip()
+        scene_beats = _normalize_text_lines(
+            [item.visual_goal or item.title or item.narration or "" for item in result.scene_items],
+            target_count=scene_count,
+        )
+        overlay_text = _normalize_text_lines(result.overlay_text, target_count=min(scene_count, 6))
+        if narration_script and scene_beats:
+            return ExplainerNarrationPlan(
+                narration_script=narration_script,
+                scene_beats=scene_beats,
+                overlay_text=overlay_text or _build_explainer_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
+                source_type=f"{qwen.provider_name()}_explainer_script",
             )
-            parsed = json.loads((response.choices[0].message.content or "{}").strip() or "{}")
-            narration_script = str(parsed.get("narration_script") or "").strip()
-            scene_beats = _normalize_text_lines(parsed.get("scene_beats"), target_count=scene_count)
-            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 6))
-            if narration_script and scene_beats:
-                return ExplainerNarrationPlan(
-                    narration_script=narration_script,
-                    scene_beats=scene_beats,
-                    overlay_text=overlay_text or _build_explainer_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
-                    source_type="openai_explainer_script",
-                )
-        except Exception:
-            logger.exception("explainer_narration_generation_failed", extra={"topic": normalized_topic})
+    except Exception:
+        logger.exception("explainer_narration_generation_failed", extra={"topic": normalized_topic})
 
     return _fallback_explainer_narration(normalized_topic, scene_count=scene_count)
 
@@ -478,69 +571,61 @@ def build_ugc_ad_narration_script(
     client_brief: UgcAdClientBrief | None = None,
     client_brief_mode: bool = False,
 ) -> ExplainerNarrationPlan:
-    settings = get_settings()
     normalized_topic = _normalize_topic(topic)
     brief = client_brief or UgcAdClientBrief()
     business_context = build_ugc_business_context(brief)
-    if settings.openai_api_key:
-        try:
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                temperature=0.65,
-                response_format={"type": "json_object"},
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You write high-converting creator-style UGC ad scripts for short-form vertical video. "
-                            "Return valid JSON only with keys: narration_script, scene_beats, overlay_text. "
-                            "narration_script must sound conversational, benefit-led, and creator-native, not corporate. "
-                            "scene_beats must be short visual planning lines, not spoken copy. "
-                            "overlay_text must be short on-screen emphasis phrases, not full narration."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Product or service brief: {normalized_topic}\n"
-                            f"Target duration: {duration_seconds} seconds\n"
-                            f"Scene count: {scene_count}\n"
-                            f"UGC family: {family}\n"
-                            f"UGC style: {ugc_style}\n"
-                            f"Client brief mode: {'on' if client_brief_mode else 'off'}\n"
-                            f"Business identity: {business_context.get('business_identity')}\n"
-                            f"Location context: {business_context.get('location_context')}\n"
-                            f"Audience context: {business_context.get('audience_context')}\n"
-                            f"Promise context: {business_context.get('promise_context')}\n"
-                            f"Trust context: {business_context.get('trust_context')}\n"
-                            f"Offer context: {business_context.get('offer_context')}\n"
-                            f"CTA context: {business_context.get('cta_context')}\n"
-                            "Requirements:\n"
-                            "- Write like a modern creator or performance ad copywriter, not a TV commercial.\n"
-                            "- Use short hook energy, conversational phrasing, product clarity, believable proof, benefit-led language, and a natural CTA.\n"
-                            "- Avoid stiff corporate wording, abstract brand storytelling, or generic marketing filler.\n"
-                            "- Keep the structure native to short-form ads: hook, problem or desire, product intro, proof/demo/testimonial, benefit/result, CTA.\n"
-                            "- Make scene beats useful for visual planning.\n"
-                            "- Keep overlay_text short and mobile-friendly.\n"
-                            "- If client brief mode is on, make the copy clearly about that real business, audience, locality, promise, trust factor, and CTA without sounding like a directory listing.\n"
-                        ),
-                    },
-                ],
+    try:
+        qwen = QwenService(get_settings())
+        result = qwen.complete_structured(
+            task_type="ugc_narration",
+            schema_model=ScriptPlan,
+            system_prompt=(
+                "You write high-converting creator-style UGC ad scripts for short-form vertical video. "
+                "Return structured output only. "
+                "narration_script must sound conversational, benefit-led, and creator-native, not corporate. "
+                "scene_items must be short visual planning lines, not spoken copy. "
+                "overlay_text must be short on-screen emphasis phrases, not full narration."
+            ),
+            user_prompt=(
+                f"Product or service brief: {normalized_topic}\n"
+                f"Target duration: {duration_seconds} seconds\n"
+                f"Scene count: {scene_count}\n"
+                f"UGC family: {family}\n"
+                f"UGC style: {ugc_style}\n"
+                f"Client brief mode: {'on' if client_brief_mode else 'off'}\n"
+                f"Business identity: {business_context.get('business_identity')}\n"
+                f"Location context: {business_context.get('location_context')}\n"
+                f"Audience context: {business_context.get('audience_context')}\n"
+                f"Promise context: {business_context.get('promise_context')}\n"
+                f"Trust context: {business_context.get('trust_context')}\n"
+                f"Offer context: {business_context.get('offer_context')}\n"
+                f"CTA context: {business_context.get('cta_context')}\n"
+                "Requirements:\n"
+                "- Write like a modern creator or performance ad copywriter, not a TV commercial.\n"
+                "- Use short hook energy, conversational phrasing, product clarity, believable proof, benefit-led language, and a natural CTA.\n"
+                "- Avoid stiff corporate wording, abstract brand storytelling, or generic marketing filler.\n"
+                "- Keep the structure native to short-form ads: hook, problem or desire, product intro, proof/demo/testimonial, benefit/result, CTA.\n"
+                "- Make scene items useful for visual planning.\n"
+                "- Keep overlay_text short and mobile-friendly.\n"
+                "- If client brief mode is on, make the copy clearly about that real business, audience, locality, promise, trust factor, and CTA without sounding like a directory listing.\n"
+            ),
+            temperature=0.65,
+        )
+        narration_script = str(result.narration_script or "").strip()
+        scene_beats = _normalize_text_lines(
+            [item.visual_goal or item.title or item.narration or "" for item in result.scene_items],
+            target_count=scene_count,
+        )
+        overlay_text = _normalize_text_lines(result.overlay_text, target_count=min(scene_count, 6))
+        if narration_script and scene_beats:
+            return ExplainerNarrationPlan(
+                narration_script=narration_script,
+                scene_beats=scene_beats,
+                overlay_text=overlay_text or _build_ugc_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
+                source_type=f"{qwen.provider_name()}_ugc_ad_script",
             )
-            parsed = json.loads((response.choices[0].message.content or "{}").strip() or "{}")
-            narration_script = str(parsed.get("narration_script") or "").strip()
-            scene_beats = _normalize_text_lines(parsed.get("scene_beats"), target_count=scene_count)
-            overlay_text = _normalize_text_lines(parsed.get("overlay_text"), target_count=min(scene_count, 6))
-            if narration_script and scene_beats:
-                return ExplainerNarrationPlan(
-                    narration_script=narration_script,
-                    scene_beats=scene_beats,
-                    overlay_text=overlay_text or _build_ugc_overlay_text(normalized_topic, scene_beats, scene_count=scene_count),
-                    source_type="openai_ugc_ad_script",
-                )
-        except Exception:
-            logger.exception("ugc_ad_script_generation_failed", extra={"topic": normalized_topic, "family": family})
+    except Exception:
+        logger.exception("ugc_ad_script_generation_failed", extra={"topic": normalized_topic, "family": family})
 
     if client_brief_mode:
         return _fallback_client_brief_ugc_ad_narration(normalized_topic, scene_count=scene_count, family=family, client_brief=brief)
@@ -628,16 +713,42 @@ def run_recipe_pipeline(
     user_id: str,
     voice_override: str | None = None,
     language_override: str | None = None,
+    aspect_ratio_override: str | None = None,
+    captions_override: bool | None = None,
+    narration_override: bool | None = None,
     progress_callback: Callable[[int], None] | None = None,
 ) -> RecipePipelineResult:
     recipe = get_recipe(recipe_id)
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     initial_pipeline_metadata = _get_pipeline_metadata(video_id)
+    effective_voice = voice_override or recipe.generation_defaults.voice
+    effective_language = language_override or recipe.generation_defaults.language
+    effective_aspect_ratio = aspect_ratio_override or recipe.generation_defaults.aspect_ratio
+    effective_captions_enabled = recipe.generation_defaults.captions_enabled if captions_override is None else bool(captions_override)
+    effective_narration_enabled = recipe.generation_defaults.narration_enabled if narration_override is None else bool(narration_override)
+    requested_voice = effective_voice
+    requested_language = effective_language
+    requested_persona_id = str(initial_pipeline_metadata.get("persona_id") or "").strip() or None
+    use_avatar_for_talking_scenes = bool(
+        initial_pipeline_metadata.get("use_avatar_for_talking_scenes", bool(requested_persona_id))
+    )
     selected_persona = _resolve_ugc_persona(
-        persona_id=initial_pipeline_metadata.get("persona_id"),
+        persona_id=requested_persona_id,
         user_id=user_id,
-        voice_override=voice_override,
-        language_override=language_override,
+        voice_override=effective_voice,
+        language_override=effective_language,
+    )
+    logger.info(
+        "ugc_persona_resolution_result",
+        extra={
+            "video_id": video_id,
+            "recipe_id": recipe.id,
+            "requested_persona_id": requested_persona_id,
+            "use_avatar_for_talking_scenes": use_avatar_for_talking_scenes,
+            "resolved_persona_id": (selected_persona or {}).get("persona_id"),
+            "resolved_persona_source": (selected_persona or {}).get("persona_source"),
+            "resolved_persona_name": (selected_persona or {}).get("name"),
+        },
     )
     logger.info("recipe_pipeline_started", extra={"video_id": video_id, "recipe_id": recipe.id})
     _append_pipeline_event(
@@ -670,6 +781,13 @@ def run_recipe_pipeline(
     )
 
     scenes = plan_scenes(recipe)
+    avatar_synced_voice: str | None = None
+    avatar_synced_language: str | None = None
+    if recipe.id in UGC_AD_RECIPE_IDS and selected_persona and use_avatar_for_talking_scenes:
+        avatar_synced_voice = str((selected_persona or {}).get("default_voice_id") or "").strip() or None
+        avatar_synced_language = str((selected_persona or {}).get("language_preference") or "").strip() or None
+        effective_voice = avatar_synced_voice or effective_voice
+        effective_language = avatar_synced_language or effective_language
 
     scene_beats: list[str] = []
     narration_script: str | None = None
@@ -679,6 +797,7 @@ def run_recipe_pipeline(
     ugc_ad_style: str | None = None
     ugc_client_brief: UgcAdClientBrief | None = None
     ugc_client_brief_mode = False
+    ltx_scene_plan_debug: list[dict[str, Any]] = []
     if recipe.id in EXPLAINER_RECIPE_IDS:
         topic = str(normalized_inputs.get("text") or "").strip()
         if recipe.id == "deep_dive_explainer":
@@ -817,10 +936,28 @@ def run_recipe_pipeline(
             client_brief=ugc_client_brief,
         )
         if recipe.id == "ugc_ad":
-            use_avatar_for_talking_scenes = bool(initial_pipeline_metadata.get("use_avatar_for_talking_scenes", False))
             for scene in scenes:
                 if scene.get("persona_required") and (not use_avatar_for_talking_scenes or not selected_persona):
                     scene["qa_flags"] = list(dict.fromkeys([*(scene.get("qa_flags") or []), "missing_persona_on_lip_sync_scene"]))
+            requires_locked_persona = any(bool(scene.get("persona_required")) for scene in scenes)
+            if requested_persona_id and use_avatar_for_talking_scenes and requires_locked_persona:
+                if not selected_persona:
+                    _merge_pipeline_metadata(
+                        video_id=video_id,
+                        selected_persona_resolution_status="failed",
+                        selected_persona_error="Selected AI avatar could not be resolved for talking UGC scenes.",
+                        requested_persona_id=requested_persona_id,
+                    )
+                    raise RuntimeError("Selected AI avatar could not be resolved for talking UGC scenes.")
+                if not str(selected_persona.get("image_url") or "").strip():
+                    _merge_pipeline_metadata(
+                        video_id=video_id,
+                        selected_persona_resolution_status="failed",
+                        selected_persona_error="Selected AI avatar is missing a usable reference image.",
+                        requested_persona_id=requested_persona_id,
+                        selected_persona=selected_persona,
+                    )
+                    raise RuntimeError("Selected AI avatar is missing a usable reference image for talking UGC scenes.")
         overlay_differs = " ".join(overlay_text).strip() != narration_script.strip()
         _merge_pipeline_metadata(
             video_id=video_id,
@@ -842,7 +979,15 @@ def run_recipe_pipeline(
             ugc_client_brief=ugc_client_brief.__dict__ if ugc_client_brief else {},
             selected_persona=selected_persona or {},
             selected_persona_id=(selected_persona or {}).get("persona_id"),
+            resolved_avatar_source=(selected_persona or {}).get("persona_source"),
+            resolved_avatar_name=(selected_persona or {}).get("name"),
             use_avatar_for_talking_scenes=bool(initial_pipeline_metadata.get("use_avatar_for_talking_scenes", False)),
+            requested_voice=requested_voice,
+            requested_language=requested_language,
+            avatar_synced_voice=avatar_synced_voice,
+            avatar_synced_language=avatar_synced_language,
+            resolved_talking_voice=effective_voice,
+            resolved_talking_language=effective_language,
             ugc_scene_plan=[
                 {
                     "scene_id": scene.get("scene_id"),
@@ -878,6 +1023,12 @@ def run_recipe_pipeline(
                     "render_lane": scene.get("render_lane"),
                     "persona_required": scene.get("persona_required"),
                     "use_locked_persona": scene.get("use_locked_persona"),
+                    "requested_voice": requested_voice,
+                    "requested_language": requested_language,
+                    "avatar_synced_voice": avatar_synced_voice,
+                    "avatar_synced_language": avatar_synced_language,
+                    "resolved_talking_voice": effective_voice,
+                    "resolved_talking_language": effective_language,
                 }
                 for scene in scenes
             ],
@@ -927,6 +1078,82 @@ def run_recipe_pipeline(
             title="Ad script drafted",
             detail="A dedicated creator-style UGC ad script was prepared for voiceover.",
         )
+    elif recipe.id in LTX_BENCHMARK_RECIPE_IDS:
+        scenes = build_ltx_cinematic_montage_scene_plan(recipe=recipe)
+        ltx_scene_plan_debug = [
+            {
+                "scene_id": scene.get("scene_id"),
+                "scene_role": scene.get("scene_role"),
+                "stage_label": scene.get("stage_label"),
+                "duration_seconds": scene.get("duration_seconds"),
+                "camera_motion_type": scene.get("camera_motion_type"),
+                "continuity_anchor": scene.get("continuity_anchor"),
+                "continuity_priority": scene.get("continuity_priority"),
+                "negative_guidance": scene.get("negative_guidance"),
+            }
+            for scene in scenes
+        ]
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            ltx_benchmark_scene_plan=ltx_scene_plan_debug,
+            render_mode="scene_stitch",
+            generator_model_family="ltx",
+            continuity_priority="high",
+        )
+        logger.info(
+            "ltx_cinematic_montage_scene_plan_built",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "scene_count": len(scenes),
+                "scene_plan": ltx_scene_plan_debug,
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="scene_plan_ready",
+            title="Benchmark scene plan ready",
+            detail="Three continuity-locked LTX benchmark scenes were prepared for sequential render and stitch.",
+        )
+    elif recipe.id in LTX_FREEFORM_RECIPE_IDS:
+        topic = str(normalized_inputs.get("text") or "").strip()
+        scenes = build_ltx_freeform_scene_plan(recipe=recipe, topic=topic)
+        ltx_scene_plan_debug = [
+            {
+                "scene_id": scene.get("scene_id"),
+                "scene_role": scene.get("scene_role"),
+                "stage_label": scene.get("stage_label"),
+                "duration_seconds": scene.get("duration_seconds"),
+                "story_mode": scene.get("story_mode"),
+                "story_subtopic": scene.get("story_subtopic"),
+                "camera_motion_type": scene.get("camera_motion_type"),
+                "continuity_anchor": scene.get("continuity_anchor"),
+            }
+            for scene in scenes
+        ]
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            ltx_storyboard_scene_plan=ltx_scene_plan_debug,
+            render_mode="scene_stitch",
+            generator_model_family="ltx",
+            continuity_priority="high",
+            ltx_story_mode=scenes[0].get("story_mode") if scenes else None,
+        )
+        logger.info(
+            "ltx_storyboard_scene_plan_built",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "scene_count": len(scenes),
+                "scene_plan": ltx_scene_plan_debug,
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="scene_plan_ready",
+            title="LTX scene plan ready",
+            detail="Three stitched LTX scenes were planned from the composer prompt.",
+        )
 
     if progress_callback:
         progress_callback(30)
@@ -942,6 +1169,8 @@ def run_recipe_pipeline(
         detail=(
             f"The UGC ad was split into {len(scenes)} scene blocks for render orchestration."
             if recipe.id in UGC_AD_RECIPE_IDS
+            else f"The LTX video was split into {len(scenes)} stitched scene blocks."
+            if recipe.id in LTX_RECIPE_IDS
             else f"The explainer was split into {len(scenes)} scene blocks for render orchestration."
         ),
     )
@@ -998,13 +1227,13 @@ def run_recipe_pipeline(
                     video_id=video_id,
                     prompt=master_prompt,
                     model_key=recipe.generation_defaults.model_key,
-                    aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                    aspect_ratio=effective_aspect_ratio,
                     resolution=recipe.generation_defaults.resolution,
                     duration_seconds=recipe.duration_seconds,
                     reference_image_url=reference,
-                    voice=recipe.generation_defaults.voice,
-                    language=recipe.generation_defaults.language,
-                    captions_enabled=recipe.generation_defaults.captions_enabled,
+                    voice=effective_voice,
+                    language=effective_language,
+                    captions_enabled=effective_captions_enabled,
                     narration_enabled=False,
                     caption_style=recipe.generation_defaults.caption_style,
                     metadata={
@@ -1090,13 +1319,13 @@ def run_recipe_pipeline(
                         video_id=f'{video_id}-{scene["scene_id"]}',
                         prompt=prompt,
                         model_key="sora2",
-                        aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                        aspect_ratio=effective_aspect_ratio,
                         resolution=recipe.generation_defaults.resolution,
                         duration_seconds=int(scene["duration_seconds"]),
                         reference_image_url=reference,
-                        voice=recipe.generation_defaults.voice,
-                        language=recipe.generation_defaults.language,
-                        captions_enabled=recipe.generation_defaults.captions_enabled,
+                        voice=effective_voice,
+                        language=effective_language,
+                        captions_enabled=effective_captions_enabled,
                         narration_enabled=False,
                         caption_style=recipe.generation_defaults.caption_style,
                         metadata={
@@ -1119,7 +1348,7 @@ def run_recipe_pipeline(
             rendered_path = stitcher.stitch_video(
                 clips=clip_urls,
                 render_id=video_id,
-                aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                aspect_ratio=effective_aspect_ratio,
                 resolution=recipe.generation_defaults.resolution,
             )
 
@@ -1153,9 +1382,9 @@ def run_recipe_pipeline(
             video_path=rendered_path,
             recipe_music=recipe.config.music,
             render_id=video_id,
-            narration_text=narration_text,
-            voice=voice_override or recipe.generation_defaults.voice,
-            language=language_override or recipe.generation_defaults.language,
+            narration_text=narration_text if effective_narration_enabled else None,
+            voice=effective_voice,
+            language=effective_language,
         )
 
         if progress_callback:
@@ -1226,8 +1455,10 @@ def run_recipe_pipeline(
 
     # Default old path for all other recipes
     clip_urls: list[str] = []
+    ltx_scene_outputs: list[dict[str, Any]] = []
     total_scenes = max(len(scenes), 1)
     compiled_scene_prompts: list[dict[str, Any]] = []
+    ugc_talking_scene_debug: list[dict[str, Any]] = []
 
     for index, scene in enumerate(scenes):
         scene_progress = 35 + int((index / total_scenes) * 35)
@@ -1337,6 +1568,12 @@ def run_recipe_pipeline(
                     "talking_mode": scene.get("talking_mode"),
                     "render_lane": scene.get("render_lane"),
                     "persona_required": scene.get("persona_required"),
+                    "continuity_subject_role": scene.get("continuity_subject_role"),
+                    "continuity_subject_label": scene.get("continuity_subject_label"),
+                    "continuity_anchor": scene.get("continuity_anchor"),
+                    "must_preserve_subject_identity": scene.get("must_preserve_subject_identity"),
+                    "must_avoid_new_spokesperson": scene.get("must_avoid_new_spokesperson"),
+                    "school_testimonial_mode": scene.get("school_testimonial_mode"),
                     "avoid_guidance": scene.get("sora_negative_guidance"),
                     "compiled_prompt": prompt,
                 }
@@ -1354,44 +1591,103 @@ def run_recipe_pipeline(
                     "qa_flags": scene.get("qa_flags"),
                     "talking_mode": scene.get("talking_mode"),
                     "render_lane": scene.get("render_lane"),
+                    "continuity_subject_role": scene.get("continuity_subject_role"),
+                    "continuity_anchor": scene.get("continuity_anchor"),
+                    "must_preserve_subject_identity": scene.get("must_preserve_subject_identity"),
+                    "must_avoid_new_spokesperson": scene.get("must_avoid_new_spokesperson"),
+                    "school_testimonial_mode": scene.get("school_testimonial_mode"),
                     "camera_framing": scene.get("camera_framing"),
                     "motion_intent": scene.get("motion_intent"),
                     "transition_intent": scene.get("transition_intent"),
                     "ending_hold_instruction": scene.get("ending_hold_instruction"),
                 },
             )
+        elif recipe.id in LTX_RECIPE_IDS:
+            compiled_scene_prompts.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "scene_role": scene.get("scene_role"),
+                    "stage_name": scene.get("stage_name"),
+                    "duration_seconds": scene.get("duration_seconds"),
+                    "story_mode": scene.get("story_mode"),
+                    "story_subtopic": scene.get("story_subtopic"),
+                    "camera_motion_type": scene.get("camera_motion_type"),
+                    "continuity_anchor": scene.get("continuity_anchor"),
+                    "continuity_priority": scene.get("continuity_priority"),
+                    "negative_guidance": scene.get("negative_guidance"),
+                    "compiled_prompt": prompt,
+                }
+            )
+            logger.info(
+                "ltx_benchmark_scene_prompt_compiled",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "scene_id": scene.get("scene_id"),
+                    "scene_role": scene.get("scene_role"),
+                    "duration_seconds": scene.get("duration_seconds"),
+                    "story_mode": scene.get("story_mode"),
+                    "camera_motion_type": scene.get("camera_motion_type"),
+                    "continuity_anchor": scene.get("continuity_anchor"),
+                },
+            )
 
         talking_audio_url: str | None = None
-        if scene.get("render_lane") == "talking_avatar":
+        talking_audio_duration_seconds: float | None = None
+        if effective_narration_enabled and scene.get("render_lane") == "talking_avatar":
             talking_script = str(scene.get("local_narration_context") or scene.get("beat_summary") or "").strip()
             if talking_script:
-                voice_path, _, _ = pipeline.generate_narration_track(
+                voice_path, voice_duration, _ = pipeline.generate_narration_track(
                     render_id=f'{video_id}-{scene["scene_id"]}-talking',
                     script=talking_script,
-                    language_name=language_override or recipe.generation_defaults.language,
-                    voice_name=(selected_persona or {}).get("default_voice_id") or voice_override or recipe.generation_defaults.voice,
+                    language_name=effective_language,
+                    voice_name=(selected_persona or {}).get("default_voice_id") or effective_voice,
                     audio_sample_rate_hz=22050,
+                    speech_rate=get_settings().avatar_tts_speech_rate,
                 )
-                talking_audio_url = str(voice_path) if voice_path else None
+                if voice_path and voice_path.exists():
+                    talking_audio_duration_seconds = float(voice_duration or 0.0) or None
+                    talking_audio_url = _upload_talking_scene_audio(
+                        user_id=user_id,
+                        video_id=video_id,
+                        scene_id=str(scene["scene_id"]),
+                        voice_path=voice_path,
+                    )
+                    logger.info(
+                        "ugc_talking_scene_audio_prepared",
+                        extra={
+                            "video_id": video_id,
+                            "scene_id": scene.get("scene_id"),
+                            "persona_id": (selected_persona or {}).get("persona_id"),
+                            "persona_source": (selected_persona or {}).get("persona_source"),
+                            "audio_duration_seconds": talking_audio_duration_seconds,
+                            "audio_url": talking_audio_url,
+                        },
+                    )
+
+        clip_prompt = prompt
+        if scene.get("render_lane") == "talking_avatar":
+            clip_prompt = _build_ugc_talking_avatar_prompt(scene=scene, selected_persona=selected_persona)
 
         clip_result = generation.generate_video_clip(
             ClipGenerationRequest(
                 video_id=f'{video_id}-{scene["scene_id"]}',
-                prompt=prompt,
+                prompt=clip_prompt,
                 model_key=recipe.generation_defaults.model_key,
-                aspect_ratio=recipe.generation_defaults.aspect_ratio,
+                aspect_ratio=effective_aspect_ratio,
                 resolution=recipe.generation_defaults.resolution,
                 duration_seconds=int(scene["duration_seconds"]),
                 reference_image_url=reference,
-                voice=voice_override or recipe.generation_defaults.voice,
-                language=language_override or recipe.generation_defaults.language,
-                captions_enabled=recipe.generation_defaults.captions_enabled,
+                voice=effective_voice,
+                language=effective_language,
+                captions_enabled=effective_captions_enabled,
                 narration_enabled=False,
                 caption_style=recipe.generation_defaults.caption_style,
                 render_lane=str(scene.get("render_lane") or "cinematic_broll"),
                 persona_id=(selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
                 persona_image_url=(selected_persona or {}).get("image_url") if scene.get("use_locked_persona") else None,
                 talking_audio_url=talking_audio_url,
+                talking_audio_duration_seconds=talking_audio_duration_seconds,
                 talking_behavior_prompt=(selected_persona or {}).get("default_behavior_prompt") if scene.get("use_locked_persona") else None,
                 talking_script=str(scene.get("local_narration_context") or scene.get("beat_summary") or "").strip() or None,
                 metadata={
@@ -1399,13 +1695,83 @@ def run_recipe_pipeline(
                     "scene_id": scene["scene_id"],
                     "scene_index": index,
                     "scene_beats": scene.get("beat_names"),
+                    "scene_role": scene.get("scene_role"),
                     "talking_mode": scene.get("talking_mode"),
                     "render_lane": scene.get("render_lane"),
                     "persona_required": scene.get("persona_required"),
+                    "generator_model_family": scene.get("generator_model_family"),
+                    "render_mode": scene.get("render_mode"),
+                    "continuity_priority": scene.get("continuity_priority"),
+                    "stitch_safe_ending": scene.get("stitch_safe_ending"),
                     "selected_persona_id": (selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
+                    "selected_persona_source": (selected_persona or {}).get("persona_source") if scene.get("use_locked_persona") else None,
+                    "talking_audio_duration_seconds": talking_audio_duration_seconds,
+                    "requested_voice": requested_voice,
+                    "requested_language": requested_language,
+                    "avatar_synced_voice": avatar_synced_voice,
+                    "avatar_synced_language": avatar_synced_language,
+                    "resolved_talking_voice": (selected_persona or {}).get("default_voice_id") if scene.get("use_locked_persona") else effective_voice,
+                    "resolved_talking_language": (selected_persona or {}).get("language_preference") if scene.get("use_locked_persona") else effective_language,
+                    "require_talking_avatar": bool(
+                        requested_persona_id
+                        and use_avatar_for_talking_scenes
+                        and scene.get("use_locked_persona")
+                    ),
                 },
             )
         )
+        if recipe.id in LTX_RECIPE_IDS:
+            logger.info(
+                "ltx_benchmark_scene_render_completed",
+                extra={
+                    "video_id": video_id,
+                    "recipe_id": recipe.id,
+                    "scene_id": scene.get("scene_id"),
+                    "scene_role": scene.get("scene_role"),
+                    "scene_prompt": prompt,
+                    "model_used": getattr(clip_result, "model_key", None),
+                    "provider_used": getattr(clip_result, "provider", None),
+                    "duration_requested": scene.get("duration_seconds"),
+                    "output_path": clip_result.video_url,
+                },
+            )
+            clip_meta = dict(getattr(clip_result, "metadata", {}) or {})
+            ltx_scene_outputs.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "scene_role": scene.get("scene_role"),
+                    "duration_seconds": int(scene.get("duration_seconds") or 0),
+                    "provider": getattr(clip_result, "provider", None),
+                    "model_key": getattr(clip_result, "model_key", None),
+                    "clip_url": clip_result.video_url,
+                    "external_job_id": clip_meta.get("external_job_id"),
+                    "output_name": clip_meta.get("output_name"),
+                    "provider_status_url": clip_meta.get("status_url"),
+                    "provider_video_url": clip_meta.get("video_url"),
+                }
+            )
+        if recipe.id in UGC_AD_RECIPE_IDS and str(scene.get("render_lane") or "") == "talking_avatar":
+            clip_meta = dict(getattr(clip_result, "metadata", {}) or {})
+            ugc_talking_scene_debug.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "resolved_avatar_source": (selected_persona or {}).get("persona_source"),
+                    "resolved_avatar_id": (selected_persona or {}).get("persona_id"),
+                    "resolved_avatar_name": (selected_persona or {}).get("name"),
+                    "requested_voice": requested_voice,
+                    "requested_language": requested_language,
+                    "avatar_synced_voice": avatar_synced_voice,
+                    "avatar_synced_language": avatar_synced_language,
+                    "resolved_talking_voice": (selected_persona or {}).get("default_voice_id") if scene.get("use_locked_persona") else effective_voice,
+                    "resolved_talking_language": (selected_persona or {}).get("language_preference") if scene.get("use_locked_persona") else effective_language,
+                    "talking_provider": str(getattr(clip_result, "model_key", "") or ""),
+                    "talking_provider_label": str(getattr(clip_result, "provider", "") or ""),
+                    "talking_fallback_reason": clip_meta.get("talking_avatar_fallback_reason"),
+                    "talking_audio_duration_seconds": talking_audio_duration_seconds,
+                    "num_frames": clip_meta.get("num_frames"),
+                }
+            )
 
         clip_urls.append(clip_result.video_url)
 
@@ -1425,14 +1791,52 @@ def run_recipe_pipeline(
             },
         )
 
+    if recipe.id in UGC_AD_RECIPE_IDS:
+        intro_outro_watchouts: list[dict[str, Any]] = []
+        for scene in scenes:
+            scene_flags = [str(flag) for flag in (scene.get("qa_flags") or []) if str(flag).strip()]
+            focused = [flag for flag in scene_flags if flag in {"intro_abrupt_motion_risk", "outro_resolution_risk"}]
+            if not focused:
+                continue
+            intro_outro_watchouts.append(
+                {
+                    "scene_id": scene.get("scene_id"),
+                    "stage_name": scene.get("stage_name"),
+                    "flags": focused,
+                }
+            )
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            resolved_avatar_source=(selected_persona or {}).get("persona_source"),
+            resolved_avatar_id=(selected_persona or {}).get("persona_id"),
+            resolved_avatar_name=(selected_persona or {}).get("name"),
+            requested_voice=requested_voice,
+            requested_language=requested_language,
+            avatar_synced_voice=avatar_synced_voice,
+            avatar_synced_language=avatar_synced_language,
+            resolved_talking_voice=effective_voice,
+            resolved_talking_language=effective_language,
+            ugc_talking_scene_debug=ugc_talking_scene_debug,
+            intro_outro_watchouts=intro_outro_watchouts,
+        )
+
     if progress_callback:
         progress_callback(75)
 
     stitcher = VideoStitcher()
+    if recipe.id in LTX_RECIPE_IDS:
+        logger.info(
+            "ltx_benchmark_stitch_started",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "clip_count": len(clip_urls),
+            },
+        )
     stitched_path = stitcher.stitch_video(
         clips=clip_urls,
         render_id=video_id,
-        aspect_ratio=recipe.generation_defaults.aspect_ratio,
+        aspect_ratio=effective_aspect_ratio,
         resolution=recipe.generation_defaults.resolution,
     )
 
@@ -1443,6 +1847,11 @@ def run_recipe_pipeline(
         "recipe_video_stitched",
         extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(stitched_path)},
     )
+    if recipe.id in LTX_RECIPE_IDS:
+        logger.info(
+            "ltx_benchmark_stitch_completed",
+            extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(stitched_path)},
+        )
     _append_pipeline_event(
         video_id=video_id,
         kind="timeline_assembled",
@@ -1450,6 +1859,8 @@ def run_recipe_pipeline(
         detail=(
             "All generated ad scenes were stitched into a single mobile-first timeline."
             if recipe.id in UGC_AD_RECIPE_IDS
+            else "All three LTX scenes were stitched into a single cinematic timeline."
+            if recipe.id in LTX_RECIPE_IDS
             else "All generated clips were stitched into a single timeline."
         ),
     )
@@ -1461,9 +1872,12 @@ def run_recipe_pipeline(
         video_path=stitched_path,
         recipe_music=recipe.config.music,
         render_id=video_id,
-        narration_text=narration_text,
-        voice=voice_override or recipe.generation_defaults.voice,
-        language=language_override or recipe.generation_defaults.language,
+        narration_text=narration_text if effective_narration_enabled else None,
+        voice=effective_voice,
+        language=effective_language,
+        audio_fade_in_seconds=0.12 if recipe.id in UGC_AD_RECIPE_IDS else 0.0,
+        audio_fade_out_seconds=0.22 if recipe.id in UGC_AD_RECIPE_IDS else 0.0,
+        music_mix_gain=0.06 if recipe.id in UGC_AD_RECIPE_IDS else 0.08,
     )
 
     if progress_callback:
@@ -1480,6 +1894,8 @@ def run_recipe_pipeline(
         detail=(
             "Voiceover and BGM were added to the UGC ad timeline."
             if recipe.id in UGC_AD_RECIPE_IDS
+            else "No narration or BGM were added; the stitched benchmark montage was finalized as-is."
+            if recipe.id in LTX_RECIPE_IDS
             else "Voiceover and BGM were added to the explainer timeline."
         ),
     )
@@ -1499,6 +1915,8 @@ def run_recipe_pipeline(
         detail=(
             "The UGC ad render completed successfully."
             if recipe.id in UGC_AD_RECIPE_IDS
+            else "The LTX stitched render completed successfully."
+            if recipe.id in LTX_RECIPE_IDS
             else "The explainer render completed successfully."
         ),
     )
@@ -1512,9 +1930,17 @@ def run_recipe_pipeline(
             video_id=video_id,
             compiled_sora_scene_prompts=compiled_scene_prompts,
         )
+    elif recipe.id in LTX_RECIPE_IDS:
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            compiled_ltx_scene_prompts=compiled_scene_prompts,
+            ltx_scene_outputs=ltx_scene_outputs,
+            stitched_output_url=f"/static/renders/{Path(final_path).name}",
+            stitched_scene_count=len(clip_urls),
+        )
     _merge_pipeline_metadata(
         video_id=video_id,
-        render_mode="multi_shot",
+        render_mode="scene_stitch" if recipe.id in LTX_RECIPE_IDS else "multi_shot",
         recipe_label=recipe.catalog.title,
         recipe_duration_seconds=recipe.duration_seconds,
         effective_duration_seconds=sum(int(scene["duration_seconds"]) for scene in scenes),
@@ -1537,8 +1963,8 @@ def run_recipe_pipeline(
             "overlay_text": overlay_text,
             "requested_model": recipe.generation_defaults.model_key,
             "resolved_model": recipe.generation_defaults.model_key,
-            "multishot": True,
-            "render_mode": "multi_shot",
+            "multishot": False if recipe.id in LTX_RECIPE_IDS else True,
+            "render_mode": "scene_stitch" if recipe.id in LTX_RECIPE_IDS else "multi_shot",
             "recipe_label": recipe.catalog.title,
             "recipe_duration_seconds": recipe.duration_seconds,
             "effective_duration_seconds": sum(int(scene["duration_seconds"]) for scene in scenes),

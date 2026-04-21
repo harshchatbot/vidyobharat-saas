@@ -21,11 +21,12 @@ from app.core.shared_config import load_shared_json
 from app.db.repositories.video_repository import VideoRepository
 from app.models.entities import Video, VideoStatus
 from app.providers.storage import build_storage_provider
-from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS
+from app.recipes.recipe_registry import STITCHED_VIDEO_RECIPE_IDS
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService
 from app.services.fal_video_service import FalVideoService
 from app.services.generation_router import resolve_generation_route
+from app.services.video.ltx_service import LtxService
 from app.services.model_registry import get_model_definition, resolve_model_key
 from app.services.render_service import celery_app
 from app.services.smart_model_router import SmartModelRouter
@@ -108,6 +109,7 @@ class ModelRegistryEntry:
     canonical_model_key: str | None = None
     mode_ids: list[str] | None = None
     billing_unit: str | None = None
+    internal_only: bool = False
 
 
 @dataclass
@@ -140,6 +142,7 @@ class AIVideoCreateService:
             canonical_model_key=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).model_key if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
             mode_ids=list((get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).mode_ids) if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else [],
             billing_unit=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).billing_unit if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
+            internal_only=bool(model.get('internalOnly', False)),
         )
         for model in _VIDEO_MODELS_CONFIG
     }
@@ -171,6 +174,7 @@ class AIVideoCreateService:
         self.pipeline = VideoPipelineService()
         self.tagging = AssetTaggingService(db)
         self.fal = FalVideoService()
+        self.ltx = LtxService(settings)
 
         self.providers = {
             'sora2': self.generate_with_sora2,
@@ -183,6 +187,7 @@ class AIVideoCreateService:
             'wan_2_5': self.generate_with_fal,
             'sora_2': self.generate_with_sora2,
             'veo_3_1': self.generate_with_veo3,
+            'ltx': self.generate_with_ltx_self_hosted,
         }
 
         self.model_router = SmartModelRouter()
@@ -200,10 +205,15 @@ class AIVideoCreateService:
             'wan_2_5': [],
             'sora_2': [],
             'veo_3_1': [],
+            'ltx': [],
         }
 
-    def list_models(self) -> list[ModelRegistryEntry]:
-        models = list(self.VIDEO_MODEL_REGISTRY.values())
+    def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:
+        models = [
+            model
+            for model in self.VIDEO_MODEL_REGISTRY.values()
+            if include_internal or not bool(model.internal_only)
+        ]
         if self.settings.wan_video_enabled:
             return models
         wan_aliases = {'wan2.1_t2v_turbo', 'wan2.6_i2v_flash', 'wan2.5_t2v_preview', 'wan2.6_t2v'}
@@ -214,6 +224,46 @@ class AIVideoCreateService:
             else:
                 gated.append(model)
         return gated
+
+    def generate_with_ltx_self_hosted(self, params: dict[str, Any]) -> ProviderResult:
+        logger.info(
+            'ltx_legacy_wrapper_invoked',
+            extra={
+                'ai_video_provider_value': str(self.settings.ai_video_provider or '').strip(),
+                'requested_model': str(params.get('modelKey') or 'ltx'),
+                'legacy_compatibility_path': True,
+                'ltx_service_provider': self.ltx.provider_name(),
+                'ltx_service_provider_module': self.ltx.provider.__class__.__module__,
+                'ltx_service_provider_class': self.ltx.provider.__class__.__name__,
+            },
+        )
+        try:
+            video_url, metadata = self.ltx.generate_scene(
+                render_id=str(params['videoId']),
+                prompt=str(params['script']),
+                aspect_ratio=str(params['aspectRatio']),
+                resolution=str(params['resolution']),
+                duration_seconds=int(params['durationSeconds']),
+                metadata={
+                    **dict(params.get('recipeMetadata') or {}),
+                    'legacy_compatibility_path': True,
+                },
+            )
+        except Exception as exc:
+            raise ProviderError(str(exc)) from exc
+        provider_name = self.ltx.provider_name()
+        return ProviderResult(
+            provider=provider_name,
+            model_key='ltx',
+            video_url=video_url,
+            metadata={
+                'mode': provider_name,
+                'requested_model': 'ltx',
+                'resolved_model': 'ltx',
+                'selected_video_provider': provider_name,
+                **metadata,
+            },
+        )
 
     def list_inspiration(self) -> list[dict[str, object]]:
         return VIDEO_INSPIRATION_ITEMS
@@ -270,7 +320,7 @@ class AIVideoCreateService:
 
         self._validate_output_settings(model_key=registry_model_key, aspect_ratio=aspect_ratio, resolution=resolution)
 
-        if recipe_id in EXPLAINER_RECIPE_IDS and duration_seconds:
+        if recipe_id in STITCHED_VIDEO_RECIPE_IDS and duration_seconds:
             normalized_duration = int(duration_seconds)
         else:
             normalized_duration = self._normalize_duration(
@@ -657,6 +707,7 @@ class AIVideoCreateService:
         logger.info(
             'video_model_route_resolved',
             extra={
+                'ai_video_provider_value': str(self.settings.ai_video_provider or '').strip(),
                 'requested_model': requested_model,
                 'canonical_model_key': route.canonical_model_key,
                 'normalized_primary_key': primary_key,
@@ -664,6 +715,7 @@ class AIVideoCreateService:
                 'provider_model_key': route.provider_model_key,
                 'fallback_model_key': route.fallback_model_key,
                 'available_providers': sorted(self.providers.keys()),
+                'legacy_compatibility_path': primary_key == 'ltx',
             },
         )
 
@@ -1144,6 +1196,9 @@ def celery_process_ai_video(video_id: str) -> None:
                 user_id=video.user_id,
                 voice_override=video.voice,
                 language_override=video.language,
+                aspect_ratio_override=video.aspect_ratio,
+                captions_override=bool(video.captions_enabled),
+                narration_override=bool(getattr(video, 'narration_enabled', True)),
                 progress_callback=lambda progress: repo.update(video, status=VideoStatus.processing, progress=progress),
             )
         else:
@@ -1276,6 +1331,7 @@ def celery_process_ai_video(video_id: str) -> None:
             [part for part in [str(existing_provider_message or '').strip(), *provider_notes] if part]
         ) or None
         service._reconcile_video_credits_for_resolved_model(video=video, result=result)
+        result_metadata = dict(result.metadata or {})
         stored_video_url = _persist_generated_video(storage, video.user_id, video.selected_model or 'video', result.video_url)
         stored_thumb_url = _persist_generated_thumbnail(
             storage=storage,
@@ -1297,6 +1353,13 @@ def celery_process_ai_video(video_id: str) -> None:
             progress=100,
             status=VideoStatus.completed,
             error_message=None,
+            external_job_id=result_metadata.get('external_job_id') or result_metadata.get('job_id'),
+            provider_status=result_metadata.get('status') or result_metadata.get('provider_status'),
+            provider_raw_response=result_metadata.get('provider_payload'),
+            provider_status_url=result_metadata.get('status_url'),
+            provider_submit_url=result_metadata.get('submit_url'),
+            provider_video_url=result_metadata.get('video_url') or stored_video_url,
+            stderr_tail=result_metadata.get('stderr_tail'),
         )
         logger.info(
             'local_video_completed',
@@ -1324,11 +1387,20 @@ def celery_process_ai_video(video_id: str) -> None:
         target = repo.get_by_id(video_id)
         if target:
             failure_status = _classify_video_failure_status(exc)
-            repo.update(target, status=failure_status, progress=100, error_message=str(exc)[:255])
+            error_text = str(exc)[:255]
+            failure_detail = str(exc)
+            repo.update(
+                target,
+                status=failure_status,
+                progress=100,
+                error_message=error_text,
+                stderr_tail=failure_detail[:1000],
+            )
             try:
                 charged_credits = int(raw_data.get('applied_credits') or 0)
                 already_refunded = bool(raw_data.get('failed_refunded', False))
-                if charged_credits > 0 and not already_refunded:
+                refund_allowed, refund_skip_reason = _should_refund_failed_video(exc=exc, raw_data=raw_data)
+                if charged_credits > 0 and not already_refunded and refund_allowed:
                     credit_service = CreditService(None)
                     credit_service.top_up_credits(
                         user_id=target.user_id,
@@ -1347,6 +1419,21 @@ def celery_process_ai_video(video_id: str) -> None:
                     logger.info(
                         'ai_video_job_refunded',
                         extra={'render_id': video_id, 'user_id': target.user_id, 'credits': charged_credits},
+                    )
+                    if str(target.selected_model or '').strip() == 'ltx':
+                        logger.info(
+                            'ltx_refunded',
+                            extra={'render_id': video_id, 'user_id': target.user_id, 'credits': charged_credits},
+                        )
+                elif charged_credits > 0 and not already_refunded and not refund_allowed:
+                    logger.info(
+                        'ai_video_job_refund_skipped_provider_cost_incurred',
+                        extra={
+                            'render_id': video_id,
+                            'user_id': target.user_id,
+                            'credits': charged_credits,
+                            'reason': refund_skip_reason,
+                        },
                     )
                 elif charged_credits <= 0:
                     logger.info(
@@ -1373,6 +1460,8 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
     provider_markers = (
         'provider',
         'fal',
+        'ltx',
+        'runpod',
         'wan',
         'openai',
         'sora',
@@ -1390,6 +1479,40 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
     if any(marker in text for marker in provider_markers):
         return VideoStatus.provider_failed
     return VideoStatus.failed
+
+
+def _should_refund_failed_video(*, exc: Exception, raw_data: dict[str, Any]) -> tuple[bool, str | None]:
+    text = str(exc or "").lower()
+    # If provider accepted the request and we later timed out in queue/polling,
+    # external provider cost may already be incurred. Avoid auto-refund mismatch.
+    provider_timeout_markers = (
+        "timed out while waiting for completion",
+        "fal video generation timed out",
+        "ltx generation timed out",
+        "openai video generation timed out",
+    )
+    provider_request_markers = (
+        "request_id",
+        "status_url",
+        "response_url",
+        "in_queue",
+        "queued",
+        "processing",
+    )
+    provider_name_markers = ("fal", "ltx", "runpod", "openai", "sora", "kling", "veo", "wan")
+    if (
+        any(marker in text for marker in provider_timeout_markers)
+        and any(marker in text for marker in provider_request_markers)
+        and any(marker in text for marker in provider_name_markers)
+    ):
+        return False, "provider_timeout_after_request_accept"
+
+    # Optional explicit override for emergency support interventions.
+    metadata = dict(raw_data.get("pipeline_metadata") or raw_data.get("pipelineMetadata") or {})
+    if bool(metadata.get("force_refund_on_failure")):
+        return True, "force_refund_on_failure"
+
+    return True, None
 
 
 def _extract_openai_output_url(payload: dict[str, Any]) -> str | None:

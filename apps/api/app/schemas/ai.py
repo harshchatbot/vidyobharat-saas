@@ -226,6 +226,23 @@ class AIVideoStatusResponse(BaseModel):
     ttsFallbackUsed: bool = False
 
 
+class VideoStudioChatMessage(BaseModel):
+    role: str = Field(min_length=1, max_length=20)
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class VideoStudioChatRequest(BaseModel):
+    videoId: str = Field(min_length=1, max_length=120)
+    message: str = Field(min_length=1, max_length=4000)
+    chatHistory: list[VideoStudioChatMessage] = Field(default_factory=list, max_length=12)
+
+
+class VideoStudioChatResponse(BaseModel):
+    reply: str
+    provider: str
+    model: str
+
+
 class ScriptGenerateRequest(BaseModel):
     template: str = Field(min_length=2, max_length=80)
     topic: str = Field(min_length=2, max_length=300)

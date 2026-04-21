@@ -9,7 +9,7 @@ import {
   Check,
   ChevronDown,
   LayoutTemplate,
-  LoaderCircle,
+  Lock,
   Play,
   Plus,
   RectangleHorizontal,
@@ -23,6 +23,7 @@ import {
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { Textarea } from '@/components/ui/Textarea';
@@ -150,7 +151,29 @@ type SavedAvatarPersona = {
   id: string;
   name: string;
   reference_image_url?: string | null;
+  preview_video_url?: string | null;
   niche?: string | null;
+  tone?: string | null;
+  gender_identity?: string | null;
+  preferred_voice?: string | null;
+  language_preference?: string | null;
+};
+
+type AvatarSelection = {
+  personaId: string;
+  name: string;
+  imageUrl?: string;
+  source: 'preset' | 'saved';
+  sourceLabel: 'Preset' | 'Saved';
+  genderPresentation?: string | null;
+  preferredVoice?: string | null;
+  preferredLanguage?: string | null;
+  languageTags?: string[];
+  styleLabel?: string | null;
+  languageInfo?: string | null;
+  voiceInfo?: string | null;
+  previewVideoUrl?: string | null;
+  description?: string | null;
 };
 
 type AssetPickerState = {
@@ -174,8 +197,8 @@ const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
   { key: 'creator_quality', label: 'Creator Quality', helper: 'More polished image output for standout posts' },
-  { key: 'creator_pro', label: 'Creator Pro', helper: 'Best-value video setup with creator-safe defaults' },
-  { key: 'premium', label: 'Premium', helper: 'Higher-end visual output for important hero content' },
+  { key: 'creator_pro', label: 'Standard', helper: 'Balanced video quality for faster creator-first iterations' },
+  { key: 'premium', label: 'High Quality', helper: 'Higher-end visual output for important hero content' },
 ];
 
 const VIDEO_MODEL_FALLBACK = buildVideoModelsForApiFallback();
@@ -318,6 +341,7 @@ function buildVideoCreatePayload(input: {
   type: 'recipe';
   recipeId: string;
   prompt: string;
+  aspectRatio?: '9:16' | '16:9' | '1:1';
   language: string;
   voice: string;
   captionsEnabled: boolean;
@@ -346,6 +370,7 @@ function buildVideoCreatePayload(input: {
       inputs: {
         text: input.prompt,
       },
+      aspectRatio: input.aspectRatio,
       language: input.language,
       voice: input.voice,
       captionsEnabled: input.captionsEnabled,
@@ -493,6 +518,44 @@ function normalizeImageModelKey(modelKey?: string | null) {
 function buildComposerVoicePreviewText(prompt: string) {
   const normalized = prompt.replace(/\s+/g, ' ').trim();
   return normalized.slice(0, 240);
+}
+
+function summarizeLanguageTags(tags: string[] | undefined): string | null {
+  const values = (tags || []).filter(Boolean).slice(0, 3);
+  return values.length ? values.join(' · ') : null;
+}
+
+function resolveAvatarPreferredVoice(avatar: AvatarSelection): string | null {
+  const explicitVoice = String(avatar.preferredVoice || '').trim();
+  if (explicitVoice) return explicitVoice;
+
+  if (avatar.source === 'preset') {
+    const presetVoiceMap: Record<string, string> = {
+      'av-priya': 'Priya',
+      'av-ananya': 'Priya',
+      'av-arjun': 'Shubh',
+      'av-ravi': 'Shubh',
+    };
+    const mapped = presetVoiceMap[avatar.personaId];
+    if (mapped) return mapped;
+  }
+
+  const normalizedGender = String(avatar.genderPresentation || '').toLowerCase();
+  if (normalizedGender.startsWith('f')) return 'Priya';
+  if (normalizedGender.startsWith('m')) return 'Shubh';
+
+  const normalizedName = avatar.name.toLowerCase();
+  if (['priya', 'ananya', 'mira'].some((token) => normalizedName.includes(token))) return 'Priya';
+  if (['arjun', 'ravi', 'shubh', 'aarav', 'dev'].some((token) => normalizedName.includes(token))) return 'Shubh';
+
+  return null;
+}
+
+function resolveAvatarPreferredLanguage(avatar: AvatarSelection): string | null {
+  const explicitLanguage = String(avatar.preferredLanguage || '').trim();
+  if (explicitLanguage) return explicitLanguage;
+  const firstTag = (avatar.languageTags || []).find((tag) => typeof tag === 'string' && tag.trim().length > 0);
+  return firstTag ? firstTag.trim() : null;
 }
 
 function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
@@ -855,6 +918,35 @@ function ModelRow({
   );
 }
 
+function getFriendlyErrorMessage(error: unknown) {
+  const fallback = 'Something went wrong. Please try again.';
+
+  if (!(error instanceof Error)) return fallback;
+
+  const message = error.message || fallback;
+
+  try {
+    const parsed = JSON.parse(message);
+
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const first = parsed[0];
+
+      if (first?.type === 'string_too_long' && Array.isArray(first?.loc) && first.loc.includes('topic')) {
+        const max = first?.ctx?.max_length ?? 300;
+        return `Prompt is too long. Please keep it under ${max} characters.`;
+      }
+
+      if (typeof first?.msg === 'string') {
+        return first.msg;
+      }
+    }
+  } catch {
+    // not JSON, continue
+  }
+
+  return message;
+}
+
 export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -901,13 +993,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
   const [voicePreviewMessage, setVoicePreviewMessage] = useState<string | null>(null);
+  const [publishingImageId, setPublishingImageId] = useState<string | null>(null);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState<{
-    personaId: string;
-    name: string;
-    imageUrl?: string;
-    source?: "preset" | "saved";
-  } | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarSelection | null>(null);
+  const [avatarPreviewPersonaId, setAvatarPreviewPersonaId] = useState<string | null>(null);
   const [navigationOverlayLabel, setNavigationOverlayLabel] = useState<string | null>(null);
 
   const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
@@ -916,6 +1005,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarSyncKeyRef = useRef<string | null>(null);
   const { show } = useToast();
 
   const visibleQualityProfiles = useMemo(
@@ -970,16 +1060,166 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     window.dispatchEvent(new CustomEvent('rangmanch:navigation-start'));
     router.push(href);
   };
+
+  const toggleGeneratedImagePublish = async (image: GeneratedImage) => {
+    setPublishingImageId(image.id);
+    try {
+      const result = await api.publishInspiration('image', image.id, !image.is_public_inspiration, userId);
+      setLatestGeneratedImage((current) =>
+        current && current.id === image.id
+          ? {
+              ...current,
+              is_public_inspiration: result.is_public_inspiration,
+              moderation_status: result.moderation_status,
+              inspiration_score: result.inspiration_score,
+              like_count: result.like_count,
+            }
+          : current,
+      );
+      show({
+        title: result.is_public_inspiration ? 'Published to inspiration' : 'Removed from inspiration',
+        message: result.is_public_inspiration
+          ? (result.moderation_status !== 'approved'
+              ? 'Submitted for review. It will appear after moderation.'
+              : 'Your image is now visible in inspiration.')
+          : 'Your image is no longer visible in inspiration.',
+        variant: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update publish status.';
+      show({ title: 'Publish update failed', message, variant: 'error' });
+    } finally {
+      setPublishingImageId(null);
+    }
+  };
   const selectedLanguageLabel = useMemo(
     () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
     [languageOptions, selectedLanguage],
   );
+  const recipeSettingsLocked = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && Boolean(recipeComposer),
+    [activeRecipeSource, recipeComposer],
+  );
+  const avatarVoiceLocked = useMemo(
+    () =>
+      recipeSettingsLocked &&
+      activeRecipeSource?.kind === 'recipe' &&
+      activeRecipeSource.recipe.recipe.id === 'ugc_ad' &&
+      Boolean(selectedAvatar),
+    [activeRecipeSource, recipeSettingsLocked, selectedAvatar],
+  );
+  const activeRecipeDefaults = useMemo(
+    () => (activeRecipeSource?.kind === 'recipe' ? activeRecipeSource.recipe.recipe.generation_defaults : null),
+    [activeRecipeSource],
+  );
+  const activeRecipeDurationSeconds = useMemo(
+    () => (activeRecipeSource?.kind === 'recipe' ? Number(activeRecipeSource.recipe.recipe.duration_seconds || 0) : null),
+    [activeRecipeSource],
+  );
+  const isRecipeLongForm = Boolean(activeRecipeDurationSeconds && activeRecipeDurationSeconds > 10);
+  const avatarOptions = useMemo<AvatarSelection[]>(() => {
+    const presetItems = presetAvatars.map((avatar) => ({
+      personaId: avatar.id,
+      name: avatar.name,
+      imageUrl: avatar.primary_image || avatar.thumbnail_url,
+      source: 'preset' as const,
+      sourceLabel: 'Preset' as const,
+      preferredLanguage: avatar.language_tags?.[0] || null,
+      preferredVoice: avatar.recommended_voice || null,
+      languageTags: avatar.language_tags || [],
+      styleLabel: avatar.category || avatar.style || 'Preset avatar',
+      languageInfo: summarizeLanguageTags(avatar.language_tags),
+      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected Sarvam voice',
+      previewVideoUrl: avatar.preview_video_url || null,
+      description:
+        avatar.description ||
+        `${avatar.name} is tuned for creator-style talking scenes with a ${avatar.style} look${avatar.tags?.length ? ` and ${avatar.tags.slice(0, 3).join(', ')} tags` : ''}.`,
+    }));
+    const savedItems = savedPersonas.map((persona) => ({
+      personaId: persona.id,
+      name: persona.name,
+      imageUrl: persona.reference_image_url || undefined,
+      source: 'saved' as const,
+      sourceLabel: 'Saved' as const,
+      genderPresentation: persona.gender_identity || null,
+      preferredVoice: persona.preferred_voice || null,
+      preferredLanguage: persona.language_preference || null,
+      languageTags: [],
+      styleLabel: persona.niche || persona.tone || 'Saved persona',
+      languageInfo: selectedLanguageLabel || null,
+      voiceInfo: selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected Sarvam voice',
+      previewVideoUrl: persona.preview_video_url || null,
+      description: persona.tone
+        ? `${persona.name} carries a ${persona.tone} creator tone for talking scenes.`
+        : `${persona.name} is one of your saved personas for repeatable avatar-led ads.`,
+    }));
+    return [...presetItems, ...savedItems];
+  }, [presetAvatars, savedPersonas, selectedLanguageLabel, selectedVoice]);
+  const activeAvatarPreview = useMemo(
+    () =>
+      avatarOptions.find((option) => option.personaId === avatarPreviewPersonaId) ??
+      (selectedAvatar ? avatarOptions.find((option) => option.personaId === selectedAvatar.personaId) : null) ??
+      avatarOptions[0] ??
+      null,
+    [avatarOptions, avatarPreviewPersonaId, selectedAvatar],
+  );
+  useEffect(() => {
+    if (!isAvatarPickerOpen) return;
+    setAvatarPreviewPersonaId((current) => {
+      if (current && avatarOptions.some((option) => option.personaId === current)) {
+        return current;
+      }
+      if (selectedAvatar && avatarOptions.some((option) => option.personaId === selectedAvatar.personaId)) {
+        return selectedAvatar.personaId;
+      }
+      return avatarOptions[0]?.personaId ?? null;
+    });
+  }, [avatarOptions, isAvatarPickerOpen, selectedAvatar]);
+
+  const openAvatarPicker = () => {
+    setAvatarPreviewPersonaId(selectedAvatar?.personaId ?? avatarOptions[0]?.personaId ?? null);
+    setIsAvatarPickerOpen(true);
+  };
+
+  const applyAvatarSelection = (avatar: AvatarSelection | null) => {
+    setSelectedAvatar(avatar);
+    if (isUgcAdRecipe && avatar) {
+      const preferredVoice = resolveAvatarPreferredVoice(avatar);
+      if (preferredVoice && voiceOptions.some((option) => option.key === preferredVoice)) {
+        setSelectedVoice(preferredVoice);
+      }
+      const preferredLanguage = resolveAvatarPreferredLanguage(avatar);
+      if (preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)) {
+        setSelectedLanguage(preferredLanguage);
+      }
+    }
+    setIsAvatarPickerOpen(false);
+  };
   const firstEmptySlotId = useMemo(() => firstEmptyRecipeTextSlot(recipeComposer), [recipeComposer]);
   const composerIntent = useMemo(() => detectVideoIntent(idea), [idea]);
   const isUgcAdRecipe = useMemo(
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
     [activeRecipeSource],
   );
+  useEffect(() => {
+    if (!isUgcAdRecipe || !selectedAvatar) {
+      avatarSyncKeyRef.current = null;
+      return;
+    }
+
+    const syncKey = `${selectedAvatar.personaId}:${voiceOptions.length}:${languageOptions.length}`;
+    if (avatarSyncKeyRef.current === syncKey) return;
+
+    const preferredVoice = resolveAvatarPreferredVoice(selectedAvatar);
+    if (preferredVoice && voiceOptions.some((option) => option.key === preferredVoice)) {
+      setSelectedVoice(preferredVoice);
+    }
+    const preferredLanguage = resolveAvatarPreferredLanguage(selectedAvatar);
+    if (preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)) {
+      setSelectedLanguage(preferredLanguage);
+    }
+    avatarSyncKeyRef.current = syncKey;
+  }, [isUgcAdRecipe, languageOptions, selectedAvatar, voiceOptions]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1235,16 +1475,36 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     const defaults = recipe.recipe.generation_defaults ?? {};
     const nextMode: ComposerMode = (recipe.recipe.type === 'image' ? 'image' : 'video');
     const composerState = resolveRecipeComposer(recipe);
+    const recipeModelKey = String(defaults.model_key || '').trim();
     setRecipeComposer(composerState);
     setRecipeSlotAssets({});
+    setUploadedAssetName(null);
+    setUploadedComposerAsset(null);
     setIdea(assembleRecipePrompt(composerState));
     setMode(nextMode);
-    setModelPanelKey(nextMode === 'image' ? selectedImageModelKey : selectedVideoModelKey);
+    if (nextMode === 'video' && recipeModelKey) {
+      setSelectedVideoModelKey(recipeModelKey);
+      setModelPanelKey(recipeModelKey);
+    } else if (nextMode === 'image') {
+      setModelPanelKey(selectedImageModelKey);
+    } else {
+      setModelPanelKey(selectedVideoModelKey);
+    }
     setVideoLaunch(null);
     setAspectRatio((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16');
-    setDurationPreference(String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5');
+    setDurationPreference(Number(recipe.recipe.duration_seconds || defaults.duration_seconds || 0) > 10 ? 'auto' : (String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5'));
     setCaptionsEnabled(Boolean(defaults.captions_enabled ?? true));
     setVoiceEnabled(Boolean(defaults.narration_enabled ?? true));
+    if (defaults.voice) {
+      setSelectedVoice(String(defaults.voice));
+    }
+    if (defaults.language) {
+      const matchingLanguage =
+        languageOptions.find((option) => option.code === defaults.language) ??
+        languageOptions.find((option) => option.label === defaults.language) ??
+        languageOptions.find((option) => option.label.toLowerCase().includes(String(defaults.language).toLowerCase()));
+      setSelectedLanguage(matchingLanguage?.code ?? String(defaults.language));
+    }
     setQualityProfile(nextMode === 'video' ? (defaults.quality === 'high' ? 'premium' : 'creator_pro') : 'creator_quality');
     setActiveRecipeLabel(recipe.title);
     setActiveRecipeSource({ kind: 'recipe', recipe });
@@ -1360,6 +1620,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           {
             recipeId: recipe.id,
             inputs,
+            aspectRatio,
             language: selectedLanguage,
             voice: selectedVoice,
             captionsEnabled,
@@ -1412,6 +1673,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             type: 'recipe',
             recipeId: explainerRecipeId,
             prompt: trimmedIdea,
+            aspectRatio,
             language: selectedLanguage,
             voice: selectedVoice,
             captionsEnabled,
@@ -1436,7 +1698,38 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         modelKey: selectedVideoModelKey,
         resolution: getVideoResolutionForModel(selectedVideoModelKey, qualityProfile),
       };
-      const durationSeconds = durationPreference === '10' ? 10 : 5;
+      if (selectedVideoModelKey === 'ltx') {
+        const videoResult = await api.createAIVideo(
+          buildVideoCreatePayload({
+            type: 'freeform',
+            templateLabel: 'LTX Storyboard',
+            script: trimmedIdea,
+            modelKey: selectedVideoModelKey,
+            lane: 'creator_pro',
+            aspectRatio,
+            resolution: '720p',
+            quality: 'standard',
+            durationSeconds: 24,
+            captionsEnabled,
+            narrationEnabled: voiceEnabled,
+            language: selectedLanguage,
+            voice: selectedVoice,
+            imageUrl: uploadedComposerAsset?.assetUrl,
+          }),
+          userId,
+        );
+        show({
+          title: 'LTX render started',
+          message: 'Your stitched LTX video is now rendering. We are opening the live status page.',
+          variant: 'success',
+        });
+        router.push(`/videos/${videoResult.id}`);
+        return;
+      }
+      const durationSeconds =
+        durationPreference === 'auto'
+          ? Number(getDefaultVideoDurationForModel(selectedVideoModelKey))
+          : Number(durationPreference);
       const templateKey = pickVideoTemplateKey(trimmedIdea);
       const templateLabel = TEMPLATE_OPTIONS.find((item) => item.key === templateKey)?.label || 'Story / Scene Reel';
       const scriptResult = await api.generateScriptV2(
@@ -1485,7 +1778,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       router.push(`/videos/${videoResult.id}`);
       return;
     } catch (nextError) {
-      const message = nextError instanceof Error ? nextError.message : 'Could not prepare the unified creation flow.';
+      const message = getFriendlyErrorMessage(nextError) || 'Could not prepare the unified creation flow.';
       setError(message);
       setVideoLaunch(null);
       show({ title: 'Could not prepare creation flow', message, variant: 'error', durationMs: 5200 });
@@ -1511,127 +1804,192 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       />
 
       <section className="space-y-4">
-        {isAvatarPickerOpen && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-            <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-white/10 bg-[hsl(var(--color-bg)/0.92)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold">Choose AI Avatar</h3>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setIsAvatarPickerOpen(false);
-                      setShowCreateCustomAvatarModal(true);
-                    }}
-                    className="rounded-lg border px-3 py-1.5 text-sm"
-                  >
-                    Create Your Own Avatar
-                  </button>
-
-                  <button onClick={() => setIsAvatarPickerOpen(false)}>✕</button>
-                </div>
+        <Modal open={isAvatarPickerOpen} onClose={() => setIsAvatarPickerOpen(false)}>
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">AI Avatar</p>
+                <h3 className="mt-1 text-xl font-semibold text-text">Choose your spokesperson</h3>
+                <p className="mt-1 text-sm text-muted">
+                  Preview the avatar first, then use it for talking scenes inside your UGC recipe.
+                </p>
               </div>
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedAvatar(null);
-                    setIsAvatarPickerOpen(false);
-                  }}
+                  onClick={() => applyAvatarSelection(null)}
                   className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-muted transition hover:text-text"
                 >
                   Continue without avatar
                 </button>
-                {selectedAvatar ? (
-                  <span className="text-xs text-muted">
-                    Selected: {selectedAvatar.name}
-                  </span>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAvatarPickerOpen(false);
+                    setShowCreateCustomAvatarModal(true);
+                  }}
+                  className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
+                >
+                  Create Your Own Avatar
+                </button>
               </div>
+            </div>
 
-              {isAvatarLoading ? (
-                <div className="py-6 text-sm text-gray-500">Loading avatars...</div>
-              ) : (
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-white/45">
-                      Preset Avatars
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                      {presetAvatars.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            setSelectedAvatar({
-                              personaId: p.id,
-                              name: p.name,
-                              imageUrl: p.thumbnail_url,
-                              source: 'preset',
-                            });
+            {isAvatarLoading ? (
+              <div className="py-10 text-center text-sm text-muted">Loading avatars...</div>
+            ) : (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_340px]">
+                <div className="space-y-5">
+                  {[
+                    { label: 'Preset Avatars', items: avatarOptions.filter((item) => item.source === 'preset') },
+                    { label: 'Saved Avatars', items: avatarOptions.filter((item) => item.source === 'saved') },
+                  ].map((group) =>
+                    group.items.length ? (
+                      <section key={group.label} className="space-y-3">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">{group.label}</p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {group.items.map((avatar) => {
+                            const isFocused = activeAvatarPreview?.personaId === avatar.personaId;
+                            const isSelected = selectedAvatar?.personaId === avatar.personaId;
+                            return (
+                              <div
+                                key={avatar.personaId}
+                                className={`rounded-[20px] border p-3 transition ${
+                                  isFocused
+                                    ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.08)]'
+                                    : 'border-[hsl(var(--color-border)/0.74)] bg-[hsl(var(--color-surface)/0.72)]'
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setAvatarPreviewPersonaId(avatar.personaId)}
+                                  className="w-full text-left"
+                                >
+                                  <div className="overflow-hidden rounded-[16px] bg-[hsl(var(--color-surface)/0.7)]">
+                                    {avatar.imageUrl ? (
+                                      <img
+                                        src={avatar.imageUrl}
+                                        alt={avatar.name}
+                                        className="h-36 w-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-36 items-center justify-center text-sm text-muted">No preview image</div>
+                                    )}
+                                  </div>
+                                  <div className="mt-3 flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-text">{avatar.name}</p>
+                                      <p className="mt-1 text-xs text-muted">{avatar.styleLabel || avatar.sourceLabel}</p>
+                                    </div>
+                                    <span className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                                      {avatar.sourceLabel}
+                                    </span>
+                                  </div>
+                                </button>
+                                <div className="mt-3 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAvatarPreviewPersonaId(avatar.personaId)}
+                                    className="flex-1 rounded-[12px] border border-[hsl(var(--color-border)/0.74)] px-3 py-2 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
+                                  >
+                                    Preview
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyAvatarSelection(avatar)}
+                                    className={`flex-1 rounded-[12px] px-3 py-2 text-xs font-semibold transition ${
+                                      isSelected
+                                        ? 'bg-[hsl(var(--color-accent)/0.18)] text-text'
+                                        : 'bg-[linear-gradient(to_right,#818cf8,#a855f7)] text-white hover:opacity-95'
+                                    }`}
+                                  >
+                                    {isSelected ? 'Selected' : 'Use this avatar'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ) : null,
+                  )}
 
-                            setIsAvatarPickerOpen(false);
-                          }}
-                          className="rounded-lg border p-2 text-left transition hover:border-[hsl(var(--color-accent)/0.4)]"
-                        >
-                          {p.thumbnail_url && (
-                            <img
-                              src={p.thumbnail_url}
-                              alt={p.name}
-                              className="mb-2 h-24 w-full rounded-lg object-cover"
-                            />
-                          )}
-                          <div className="text-sm font-medium">{p.name}</div>
-                        </button>
-                      ))}
+                  {avatarOptions.length === 0 ? (
+                    <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border)/0.74)] p-6 text-sm text-muted">
+                      No avatars found yet. Create one to use a repeatable talking persona in your UGC ad flow.
                     </div>
-                  </div>
+                  ) : null}
+                </div>
 
-                  <div>
-                    <h4 className="mb-2 text-sm font-medium">My Saved Personas</h4>
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                      {savedPersonas.map((p) => {
-                        const imageSrc = p.reference_image_url || null;
-
-                        return (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              setSelectedAvatar({
-                                personaId: p.id,
-                                name: p.name,
-                                imageUrl: imageSrc || undefined,
-                                source: 'saved',
-                              });
-
-                              setIsAvatarPickerOpen(false);
-                            }}
-                            className="rounded-lg border p-2 text-left transition hover:border-[hsl(var(--color-accent)/0.4)]"
-                          >
-                            {imageSrc && (
-                              <img
-                                src={imageSrc}
-                                alt={p.name}
-                                className="mb-2 h-24 w-full rounded-lg object-cover"
-                              />
-                            )}
-                            <div className="text-sm font-medium">{p.name}</div>
-                            <div className="text-xs text-muted">{p.niche || 'Saved persona'}</div>
-                          </button>
-                        );
-                      })}
+                <aside className="rounded-[24px] border border-[hsl(var(--color-border)/0.74)] bg-[hsl(var(--color-surface)/0.74)] p-4 xl:sticky xl:top-0">
+                  {activeAvatarPreview ? (
+                    <div className="space-y-4">
+                      <div className="overflow-hidden rounded-[20px] bg-[hsl(var(--color-bg)/0.72)]">
+                        {activeAvatarPreview.imageUrl ? (
+                          <img
+                            src={activeAvatarPreview.imageUrl}
+                            alt={activeAvatarPreview.name}
+                            className="h-[280px] w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-[280px] items-center justify-center text-sm text-muted">No preview available</div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-lg font-semibold text-text">{activeAvatarPreview.name}</h4>
+                          <span className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                            {activeAvatarPreview.sourceLabel}
+                          </span>
+                        </div>
+                        {activeAvatarPreview.styleLabel ? (
+                          <p className="mt-1 text-sm text-muted">{activeAvatarPreview.styleLabel}</p>
+                        ) : null}
+                      </div>
+                      {activeAvatarPreview.description ? (
+                        <p className="text-sm leading-6 text-muted">{activeAvatarPreview.description}</p>
+                      ) : null}
+                      <div className="grid gap-2">
+                        {activeAvatarPreview.languageInfo ? (
+                          <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Language</p>
+                            <p className="mt-1 text-sm text-text">{activeAvatarPreview.languageInfo}</p>
+                          </div>
+                        ) : null}
+                        {activeAvatarPreview.voiceInfo ? (
+                          <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.7)] px-3 py-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Voice</p>
+                            <p className="mt-1 text-sm text-text">{activeAvatarPreview.voiceInfo}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                      {activeAvatarPreview.previewVideoUrl ? (
+                        <video className="w-full rounded-[16px]" controls src={activeAvatarPreview.previewVideoUrl} />
+                      ) : (
+                        <div className="rounded-[16px] border border-dashed border-[hsl(var(--color-border)/0.74)] px-4 py-3 text-sm text-muted">
+                          Preview video will appear here once avatar preview media is available. You can still use the image preview right away.
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => applyAvatarSelection(activeAvatarPreview)}
+                        className="w-full rounded-[14px] bg-[linear-gradient(to_right,#818cf8,#a855f7)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(168,85,247,0.24)] hover:opacity-95"
+                      >
+                        Use this avatar
+                      </button>
                     </div>
-                  </div>
-
-                  {presetAvatars.length === 0 && savedPersonas.length === 0 && (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-gray-500">
-                      No avatars found yet.
+                  ) : (
+                    <div className="flex h-full min-h-[320px] items-center justify-center rounded-[20px] border border-dashed border-[hsl(var(--color-border)/0.74)] p-6 text-center text-sm text-muted">
+                      Pick an avatar to inspect the larger preview and selection details.
                     </div>
                   )}
-                </div>
-              )}
-            </div>
+                </aside>
+              </div>
+            )}
           </div>
-        )}
+        </Modal>
 
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">Create</p>
@@ -1655,23 +2013,23 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <span>Recipe: {activeRecipeLabel}</span>
                     </div>
                   ) : null}
-                {isUgcAdRecipe && selectedAvatar ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsAvatarPickerOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)] dark:border-white/12 dark:bg-white/5"
-                  >
-                    {selectedAvatar.imageUrl ? (
-                      <img src={selectedAvatar.imageUrl} alt={selectedAvatar.name} className="h-5 w-5 rounded-full object-cover" />
-                    ) : (
-                      <UserRound className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                    )}
-                    <span>AI Avatar: {selectedAvatar.name}</span>
-                  </button>
-                ) : null}
+                  {isUgcAdRecipe && selectedAvatar ? (
+                    <button
+                      type="button"
+                      onClick={openAvatarPicker}
+                      className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)] dark:border-white/12 dark:bg-white/5"
+                    >
+                      {selectedAvatar.imageUrl ? (
+                        <img src={selectedAvatar.imageUrl} alt={selectedAvatar.name} className="h-5 w-5 rounded-full object-cover" />
+                      ) : (
+                        <UserRound className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                      )}
+                      <span>AI Avatar: {selectedAvatar.name}</span>
+                    </button>
+                  ) : null}
                   {uploadedAssetName ? (
                     <Badge variant="outline" className="rounded-full border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] text-text dark:border-white/12 dark:bg-white/5">
-                      Asset: {uploadedAssetName}
+                      Reference image: {uploadedAssetName}
                     </Badge>
                   ) : null}
                   {recipeComposer ? (
@@ -1758,13 +2116,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
               {mode === 'video' && idea.trim() && !recipeComposer ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                {willAutoRouteToExplainer ? (
-                  <>
-                    <Badge variant="outline">Detected as: Deep explainer</Badge>
-                    <p className="text-xs text-muted">
-                      We’ll route this into the Deep Dive Explainer pipeline automatically for more scenes, longer narration, and a more visual explanation.
-                    </p>
-                  </>
+                  {willAutoRouteToExplainer ? (
+                    <>
+                      <Badge variant="outline">Detected as: Deep explainer</Badge>
+                      <p className="text-xs text-muted">
+                        We’ll route this into the Deep Dive Explainer pipeline automatically for more scenes, longer narration, and a more visual explanation.
+                      </p>
+                    </>
                   ) : composerIntent !== 'generic' ? (
                     <>
                       <Badge variant="outline">
@@ -1790,16 +2148,22 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[250px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Assets</p>
-                          <p className="mt-1 text-xs text-muted">Bring visuals or avatar context into the composer.</p>
+                          <p className="mt-1 text-xs text-muted">
+                            {recipeComposer
+                              ? 'Recipe mode uses its own upload slots. Keep AI Avatar here for UGC talking scenes.'
+                              : 'Add one reference image for your next freeform image or video generation.'}
+                          </p>
                         </div>
-                        <button type="button" onClick={() => { setPendingUploadTarget('composer-asset'); fileInputRef.current?.click(); closeMenus(); }} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
-                          <Upload className="h-4 w-4" /> Upload image
-                        </button>
+                        {!recipeComposer ? (
+                          <button type="button" onClick={() => { setPendingUploadTarget('composer-asset'); fileInputRef.current?.click(); closeMenus(); }} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
+                            <Upload className="h-4 w-4" /> Upload reference image
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => {
                             closeMenus?.();
-                            setIsAvatarPickerOpen(true);
+                            openAvatarPicker();
                           }}
                           className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]"
                         >
@@ -1812,11 +2176,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setOpenMenu((current) => (current === 'model' ? null : 'model'))}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
+                      onClick={() => {
+                        if (recipeSettingsLocked) return;
+                        setOpenMenu((current) => (current === 'model' ? null : 'model'));
+                      }}
+                      disabled={recipeSettingsLocked}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                        recipeSettingsLocked
+                          ? 'cursor-not-allowed border-white/6 bg-white/[0.03] text-white/38'
+                          : 'border-white/10 bg-white/[0.04] text-white/74 hover:bg-white/[0.08] hover:text-white'
+                      }`}
                     >
                       <Box className="h-4 w-4 text-white/60" />
                       {currentModelLabel}
+                      {recipeSettingsLocked ? <Lock className="h-3.5 w-3.5 text-white/40" /> : null}
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'model' ? (
@@ -2004,7 +2377,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                   {isUgcAdRecipe ? (
                     <button
                       type="button"
-                      onClick={() => setIsAvatarPickerOpen(true)}
+                      onClick={openAvatarPicker}
                       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
                     >
                       <UserRound className="h-4 w-4 text-white/60" />
@@ -2026,40 +2399,91 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[280px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">More</p>
-                          <p className="mt-1 text-xs text-muted">Tune clip length, narration, and captions without leaving the composer.</p>
+                          <p className="mt-1 text-xs text-muted">
+                            {recipeSettingsLocked
+                              ? 'Recipe mode keeps quality, duration, captions, and narration locked to the workflow defaults.'
+                              : 'Tune clip length, narration, and captions without leaving the composer.'}
+                          </p>
                         </div>
                         <div className="rounded-[14px] px-3 py-2">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
+                            {recipeSettingsLocked ? <span className="text-[11px] text-muted">Recipe controlled</span> : null}
+                          </div>
                           <div className="mt-2 grid gap-1">
-                            {visibleQualityProfiles.map((option) => (
-                              <button
-                                key={option.key}
-                                type="button"
-                                onClick={() => setQualityProfile(option.key)}
-                                className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${qualityProfile === option.key ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'}`}
-                              >
-                                <span>
-                                  <span className="block font-semibold text-inherit">{option.label}</span>
-                                  <span className="mt-0.5 block text-xs text-muted">{option.helper}</span>
-                                </span>
-                                {qualityProfile === option.key ? <Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
-                              </button>
-                            ))}
+                            {visibleQualityProfiles.map((option) => {
+                              const disabled = recipeSettingsLocked;
+                              return (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => {
+                                    if (disabled) return;
+                                    setQualityProfile(option.key);
+                                  }}
+                                  disabled={disabled}
+                                  className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${
+                                    qualityProfile === option.key
+                                      ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                      : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                  } ${disabled ? 'cursor-not-allowed opacity-65' : ''}`}
+                                >
+                                  <span>
+                                    <span className="block font-semibold text-inherit">{option.label}</span>
+                                    <span className="mt-0.5 block text-xs text-muted">{option.helper}</span>
+                                  </span>
+                                  {qualityProfile === option.key ? <Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                         <div className="rounded-[14px] px-3 py-2">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
+                            {recipeSettingsLocked ? (
+                              <span className="text-[11px] text-muted">
+                                {isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
+                              </span>
+                            ) : null}
+                          </div>
                           <div className="mt-2 grid gap-1">
                             {(['auto', '5', '10'] as const).map((option) => (
-                              <button key={option} type="button" onClick={() => setDurationPreference(option)} className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'}`}>
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => {
+                                  if (recipeSettingsLocked) return;
+                                  setDurationPreference(option);
+                                }}
+                                disabled={recipeSettingsLocked}
+                                className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${
+                                  durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
+                              >
                                 <span>{option === 'auto' ? 'Auto' : `${option}s`}</span>
                                 {durationPreference === option ? <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
                               </button>
                             ))}
                           </div>
+                          {recipeSettingsLocked && activeRecipeDurationSeconds ? (
+                            <p className="mt-2 px-2 text-xs text-muted">
+                              This recipe renders about {activeRecipeDurationSeconds}s in its own planned scene structure.
+                            </p>
+                          ) : null}
                         </div>
                         <div className="mt-1 border-t border-[hsl(var(--color-border)/0.6)] px-3 py-2">
-                          <button type="button" onClick={() => setVoiceEnabled((current) => !current)} className="flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (recipeSettingsLocked) return;
+                              setVoiceEnabled((current) => !current);
+                            }}
+                            disabled={recipeSettingsLocked}
+                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${
+                              recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
+                            }`}
+                          >
                             <span>Voice</span>
                             <span className="text-xs text-muted">{voiceEnabled ? 'On' : 'Off'}</span>
                           </button>
@@ -2085,6 +2509,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               <select
                                 value={selectedVoice}
                                 onChange={(event) => setSelectedVoice(event.target.value)}
+                                disabled={avatarVoiceLocked}
                                 className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
                               >
                                 {voiceOptions.map((option) => (
@@ -2094,6 +2519,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                 ))}
                               </select>
                             </label>
+                          ) : null}
+                          {avatarVoiceLocked ? (
+                            <p className="mt-2 px-2 text-xs leading-5 text-muted">
+                              Voice is locked to the selected AI avatar for UGC talking scenes.
+                            </p>
                           ) : null}
                           {voiceEnabled ? (
                             <div className="mt-3 px-2">
@@ -2115,7 +2545,17 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
                             </div>
                           ) : null}
-                          <button type="button" onClick={() => setCaptionsEnabled((current) => !current)} className="flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (recipeSettingsLocked) return;
+                              setCaptionsEnabled((current) => !current);
+                            }}
+                            disabled={recipeSettingsLocked}
+                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${
+                              recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
+                            }`}
+                          >
                             <span>Captions</span>
                             <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>
                           </button>
@@ -2301,12 +2741,12 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                   setAssetPicker(null);
                   show({
                     title: 'Reference image attached',
-                    message: 'We will use this as the reference for your next image generation from the composer.',
+                    message: 'We will use this as one visual reference for your next freeform image or video generation.',
                     variant: 'success',
                   });
                 }
               } catch (uploadError) {
-                const message = uploadError instanceof Error ? uploadError.message : 'Could not upload that image.';
+                const message = getFriendlyErrorMessage(uploadError) || 'Could not upload that image.';
                 setError(message);
                 show({ title: 'Upload failed', message, variant: 'error' });
               } finally {
@@ -2393,54 +2833,60 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         )}
       </section>
 
-      <Modal open={imageResultOpen && Boolean(latestGeneratedImage)} onClose={() => setImageResultOpen(false)}>
-        {latestGeneratedImage ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
-              <img
-                src={latestGeneratedImage.image_url}
-                alt={latestGeneratedImage.prompt}
-                className="w-full object-contain bg-black"
-                style={{ aspectRatio: aspectRatioToCss(latestGeneratedImage.aspect_ratio) }}
-              />
-            </div>
-            <div className="flex h-full flex-col rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.82)] p-5">
-              <div className="space-y-4">
-                <Badge variant="outline">AI image</Badge>
-                <div>
-                  <h3 className="font-heading text-2xl font-extrabold tracking-tight text-text">Image ready</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">{latestGeneratedImage.prompt}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted">
-                  <Badge variant="outline">{latestGeneratedImage.model_key}</Badge>
-                  <Badge variant="outline">{latestGeneratedImage.aspect_ratio}</Badge>
-                  <Badge variant="outline">{latestGeneratedImage.resolution}</Badge>
-                </div>
-              </div>
-              <div className="mt-auto flex flex-wrap gap-2 pt-6">
-                <a href={latestGeneratedImage.image_url} target="_blank" rel="noreferrer" className="flex-1">
-                  <Button type="button" className="w-full rounded-[16px] py-3 text-sm font-semibold">
-                    Open full image
-                  </Button>
-                </a>
-                <Link
-                  href="/library"
-                  className="flex-1"
-                  onClick={(event) => navigateWithComposerLoader(event, '/library', 'library')}
+      {latestGeneratedImage ? (
+        <ImageDetailModal
+          open={imageResultOpen}
+          onClose={() => setImageResultOpen(false)}
+          imageUrl={latestGeneratedImage.image_url}
+          imageAlt={latestGeneratedImage.prompt}
+          title="Image ready"
+          prompt={latestGeneratedImage.prompt}
+          imageAspectRatio={aspectRatioToCss(latestGeneratedImage.aspect_ratio)}
+          badges={
+            <>
+              <Badge variant="outline">AI image</Badge>
+              <Badge variant="outline">{latestGeneratedImage.model_key}</Badge>
+              <Badge variant="outline">{latestGeneratedImage.aspect_ratio}</Badge>
+              <Badge variant="outline">{latestGeneratedImage.resolution}</Badge>
+              {latestGeneratedImage.is_public_inspiration ? <Badge variant="outline">{latestGeneratedImage.moderation_status}</Badge> : null}
+            </>
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void toggleGeneratedImagePublish(latestGeneratedImage)}
+                disabled={publishingImageId === latestGeneratedImage.id}
+              >
+                {publishingImageId === latestGeneratedImage.id
+                  ? 'Updating...'
+                  : latestGeneratedImage.is_public_inspiration
+                    ? 'Unpublish'
+                    : 'Publish to inspiration'}
+              </Button>
+              <a href={latestGeneratedImage.image_url} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none">
+                <Button type="button" className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                  Open full image
+                </Button>
+              </a>
+              <Link
+                href="/library"
+                className="flex-1 sm:flex-none"
+                onClick={(event) => navigateWithComposerLoader(event, '/library', 'library')}
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full rounded-[16px] py-3 text-sm font-semibold"
                 >
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full rounded-[16px] py-3 text-sm font-semibold"
-                  >
-                    Open library
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+                  Open library
+                </Button>
+              </Link>
+            </>
+          }
+        />
+      ) : null}
 
       <Modal open={Boolean(selectedRecipe)} onClose={() => setSelectedRecipe(null)}>
         {selectedRecipe ? (
@@ -2482,38 +2928,29 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         ) : null}
       </Modal>
 
-      <Modal open={Boolean(selectedInspirationPhoto)} onClose={() => setSelectedInspirationPhoto(null)}>
-        {selectedInspirationPhoto ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
-              <img
-                src={selectedInspirationPhoto.previewUrl}
-                alt={selectedInspirationPhoto.title}
-                className="w-full object-cover"
-                style={{ aspectRatio: aspectRatioToCss(selectedInspirationPhoto.aspectRatio) }}
-              />
-            </div>
-            <div className="flex h-full flex-col rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.82)] p-5">
-              <div className="space-y-4">
-                {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
-                <div>
-                  <h3 className="font-heading text-3xl font-extrabold tracking-tight text-text">{selectedInspirationPhoto.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">{selectedInspirationPhoto.prompt}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted">
-                  <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
-                  <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
-                </div>
-              </div>
-              <div className="mt-auto pt-6">
-                <Button type="button" onClick={() => applyInspirationPhotoToComposer(selectedInspirationPhoto)} className="w-full rounded-[16px] py-3 text-sm font-semibold">
-                  Use this style
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      {selectedInspirationPhoto ? (
+        <ImageDetailModal
+          open={Boolean(selectedInspirationPhoto)}
+          onClose={() => setSelectedInspirationPhoto(null)}
+          imageUrl={selectedInspirationPhoto.previewUrl}
+          imageAlt={selectedInspirationPhoto.title}
+          title={selectedInspirationPhoto.title}
+          prompt={selectedInspirationPhoto.prompt}
+          imageAspectRatio={aspectRatioToCss(selectedInspirationPhoto.aspectRatio)}
+          badges={
+            <>
+              {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
+              <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
+              <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
+            </>
+          }
+          actions={
+            <Button type="button" onClick={() => applyInspirationPhotoToComposer(selectedInspirationPhoto)} className="w-full rounded-[16px] py-3 text-sm font-semibold sm:w-auto">
+              Use this style
+            </Button>
+          }
+        />
+      ) : null}
 
       <CreateCustomAvatarModal
         open={showCreateCustomAvatarModal}
@@ -2535,13 +2972,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             name: avatar.name,
             imageUrl: avatar.imageUrl,
             source: 'saved',
+            sourceLabel: 'Saved',
+            preferredVoice: avatar.preferredVoice || null,
+            preferredLanguage: avatar.preferredLanguage || null,
+            languageTags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
+            styleLabel: 'Custom avatar',
+            languageInfo: selectedLanguageLabel || null,
+            voiceInfo: avatar.preferredVoice ? `${avatar.preferredVoice} voice selected` : 'Uses your selected Sarvam voice',
+            previewVideoUrl: null,
+            description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
           });
           setSavedPersonas((current) => [
             {
               id: avatar.avatarId,
               name: avatar.name,
               reference_image_url: avatar.imageUrl,
+              preview_video_url: null,
               niche: 'Custom avatar',
+              preferred_voice: avatar.preferredVoice || null,
+              language_preference: avatar.preferredLanguage || null,
             },
             ...current,
           ]);
@@ -2553,6 +3002,24 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           });
         }}
         onPreviewCompleted={(preview) => {
+          setSavedPersonas((current) =>
+            current.map((persona) =>
+              persona.id === preview.avatarId
+                ? {
+                    ...persona,
+                    preview_video_url: preview.videoUrl,
+                  }
+                : persona,
+            ),
+          );
+          setSelectedAvatar((current) =>
+            current?.personaId === preview.avatarId
+              ? {
+                  ...current,
+                  previewVideoUrl: preview.videoUrl,
+                }
+              : current,
+          );
           show({
             title: 'Preview ready',
             message: 'Your talking avatar preview has been generated successfully.',

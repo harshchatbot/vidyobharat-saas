@@ -2,7 +2,102 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, RecipeConfig, UGC_AD_RECIPE_IDS
+from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, LTX_BENCHMARK_RECIPE_IDS, LTX_FREEFORM_RECIPE_IDS, RecipeConfig, UGC_AD_RECIPE_IDS
+
+
+def build_ltx_cinematic_montage_prompt(
+    recipe: RecipeConfig,
+    scene: dict[str, Any],
+    reference: str | None,
+    inputs: dict[str, Any] | None = None,
+) -> str:
+    del reference, inputs
+    prompt = (
+        "Create one stitched-scene cinematic video shot for a self-hosted LTX benchmark.\n\n"
+        f"Recipe: {recipe.catalog.title}\n"
+        f"Scene role: {scene.get('scene_role')}\n"
+        f"Stage: {scene.get('stage_label')}\n"
+        f"Duration: {int(scene.get('duration_seconds') or 0)} seconds\n"
+        f"Render mode: {scene.get('render_mode')}\n"
+        f"Generator model family: {scene.get('generator_model_family')}\n"
+        f"Continuity priority: {scene.get('continuity_priority')}\n"
+        f"Continuity anchor: {scene.get('continuity_anchor')}\n"
+        f"Same subject required: {scene.get('same_subject_required')}\n"
+        f"Same wardrobe required: {scene.get('same_wardrobe_required')}\n"
+        f"Same environment family: {scene.get('same_environment_family')}\n"
+        f"Location family: {scene.get('location_family')}\n"
+        f"Emotion style: {scene.get('emotion_style')}\n"
+        f"Visual style: {scene.get('visual_style')}\n"
+        f"Max action complexity: {scene.get('max_action_complexity')}\n"
+        f"Topic focus: {scene.get('topic_focus')}\n"
+        f"Visual objective: {scene.get('visual_objective')}\n"
+        f"Subject: {scene.get('subject_description')}\n"
+        f"Environment: {scene.get('environment_description')}\n"
+        f"Camera framing: {scene.get('camera_framing')}\n"
+        f"Camera motion type: {scene.get('camera_motion_type')}\n"
+        f"Motion/action: {scene.get('motion_intent')}\n"
+        f"Transition intent: {scene.get('transition_intent')}\n"
+        f"Transition from previous scene: {scene.get('transition_from_previous')}\n"
+        f"Transition to next scene: {scene.get('transition_to_next')}\n"
+        f"Ending behavior: {scene.get('ending_hold_instruction')}\n"
+        f"Stitch-safe ending: {scene.get('stitch_safe_ending')}\n"
+    )
+    prompt += (
+        "Maintain exactly the same woman, same cream sweater, same dark jeans, same rainy modern cafe, and same late-afternoon lighting across all three stitched scenes.\n"
+        "Keep the shot cinematic, realistic, calm, reflective, and continuity-first.\n"
+        "No speaking, no lip sync, no abrupt fast motion, no complex hand-object interaction, no crowded choreography, and no extreme pose changes.\n"
+        "Keep motion smooth and controlled, with a clean stable ending that is safe for hard-cut stitching.\n"
+    )
+    negative_guidance = str(scene.get("negative_guidance") or "").strip()
+    if negative_guidance:
+        prompt += f"Negative guidance: {negative_guidance}.\n"
+    return prompt
+
+
+def build_ltx_storyboard_prompt(
+    recipe: RecipeConfig,
+    scene: dict[str, Any],
+    reference: str | None,
+    inputs: dict[str, Any] | None = None,
+) -> str:
+    del reference
+    normalized_inputs = dict(inputs or {})
+    text_input = str(normalized_inputs.get("text") or scene.get("source_prompt") or "").strip()
+    prompt = (
+        "Create one stitched-scene cinematic video shot for a self-hosted LTX storyboard flow.\n\n"
+        f"Recipe: {recipe.catalog.title}\n"
+        f"Story mode: {scene.get('story_mode')}\n"
+        f"Story subtopic: {scene.get('story_subtopic')}\n"
+        f"Source prompt: {text_input}\n"
+        f"Scene role: {scene.get('scene_role')}\n"
+        f"Stage: {scene.get('stage_label')}\n"
+        f"Duration: {int(scene.get('duration_seconds') or 0)} seconds\n"
+        f"Render mode: {scene.get('render_mode')}\n"
+        f"Generator model family: {scene.get('generator_model_family')}\n"
+        f"Continuity priority: {scene.get('continuity_priority')}\n"
+        f"Continuity anchor: {scene.get('continuity_anchor')}\n"
+        f"Topic focus: {scene.get('topic_focus')}\n"
+        f"Visual objective: {scene.get('visual_objective')}\n"
+        f"Subject: {scene.get('subject_description')}\n"
+        f"Environment: {scene.get('environment_description')}\n"
+        f"Camera framing: {scene.get('camera_framing')}\n"
+        f"Camera motion type: {scene.get('camera_motion_type')}\n"
+        f"Motion/action: {scene.get('motion_intent')}\n"
+        f"Transition intent: {scene.get('transition_intent')}\n"
+        f"Transition from previous scene: {scene.get('transition_from_previous')}\n"
+        f"Transition to next scene: {scene.get('transition_to_next')}\n"
+        f"Ending behavior: {scene.get('ending_hold_instruction')}\n"
+        f"Stitch-safe ending: {scene.get('stitch_safe_ending')}\n"
+    )
+    prompt += (
+        "Preserve the same subject, same environment family, same lighting family, and same tonal world across all three stitched scenes.\n"
+        "Keep the shot cinematic, realistic, continuity-first, and suitable for hard-cut stitching.\n"
+        "No speaking, no lip sync, no abrupt fast motion, no crowded choreography, and no major subject drift.\n"
+    )
+    negative_guidance = str(scene.get("negative_guidance") or "").strip()
+    if negative_guidance:
+        prompt += f"Negative guidance: {negative_guidance}.\n"
+    return prompt
 
 
 def build_sora_deep_explainer_prompt(
@@ -154,6 +249,12 @@ def build_sora_ugc_ad_prompt(
     talking_mode = str(scene.get('talking_mode') or 'none').strip()
     render_lane = str(scene.get('render_lane') or '').strip()
     persona_required = bool(scene.get('persona_required'))
+    continuity_subject_role = str(scene.get('continuity_subject_role') or '').strip()
+    continuity_subject_label = str(scene.get('continuity_subject_label') or '').strip()
+    continuity_anchor = str(scene.get('continuity_anchor') or '').strip()
+    must_preserve_subject_identity = bool(scene.get('must_preserve_subject_identity'))
+    must_avoid_new_spokesperson = bool(scene.get('must_avoid_new_spokesperson'))
+    school_testimonial_mode = bool(scene.get('school_testimonial_mode'))
     avoid_motifs = [str(item).strip() for item in (scene.get('avoid_motifs') or []) if str(item).strip()]
 
     prompt = (
@@ -185,6 +286,12 @@ def build_sora_ugc_ad_prompt(
         f'Ending behavior: {ending_hold_instruction}\n'
         f'Talking mode: {talking_mode}\n'
         f'Render lane: {render_lane}\n'
+        f'Continuity subject role: {continuity_subject_role}\n'
+        f'Continuity subject label: {continuity_subject_label}\n'
+        f'Continuity anchor: {continuity_anchor}\n'
+        f'Must preserve subject identity: {"yes" if must_preserve_subject_identity else "no"}\n'
+        f'Must avoid new spokesperson: {"yes" if must_avoid_new_spokesperson else "no"}\n'
+        f'School testimonial mode: {"yes" if school_testimonial_mode else "no"}\n'
     )
 
     if client_brief_mode:
@@ -234,6 +341,22 @@ def build_sora_ugc_ad_prompt(
             'Do not depend on direct lips-visible dialogue to make the scene work.\n'
         )
 
+    if must_preserve_subject_identity:
+        prompt += (
+            'Preserve the same spokesperson identity established earlier in the ad.\n'
+            'Do not swap to a different face, age, or presenter styling.\n'
+        )
+    if must_avoid_new_spokesperson:
+        prompt += (
+            'Do not introduce a fresh spokesperson or a new solo parent/customer face in this scene.\n'
+            'Keep continuity through environment, child/family context, provider context, or the already-established spokesperson.\n'
+        )
+    if school_testimonial_mode:
+        prompt += (
+            'This is a school or parent-testimonial style local-service ad.\n'
+            'Keep one parent trust story across the reel, reinforce the same child/family context, and avoid switching to a different mother for proof or CTA scenes.\n'
+        )
+
     if client_brief_mode:
         prompt += (
             'Use the client brief to make the ad feel like it belongs to a real business, not a generic category ad.\n'
@@ -275,6 +398,10 @@ def build_scene_prompt(
         return build_sora_deep_explainer_prompt(recipe, scene, reference, inputs)
     if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key == 'sora2':
         return build_sora_ugc_ad_prompt(recipe, scene, reference, inputs)
+    if recipe.id in LTX_BENCHMARK_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':
+        return build_ltx_cinematic_montage_prompt(recipe, scene, reference, inputs)
+    if recipe.id in LTX_FREEFORM_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':
+        return build_ltx_storyboard_prompt(recipe, scene, reference, inputs)
 
     beat_names = tuple(scene.get('beat_names') or ())
     beat_list = ', '.join(beat_names)

@@ -43,6 +43,14 @@ PROVIDER_REGISTRY: dict[str, ProviderDefinition] = {
         description='Primary async video generation provider for daily reels and creator-oriented clip generation.',
         primary_for_modes=('daily_reels', 'creator_mode'),
     ),
+    'ltx': ProviderDefinition(
+        provider_id='ltx',
+        label='Self-hosted LTX',
+        mediums=('video',),
+        description='Internal self-hosted LTX provider for stitched cinematic benchmark scene renders.',
+        primary_for_modes=('internal_benchmark',),
+        supports_fallback=False,
+    ),
     'recraft': ProviderDefinition(
         provider_id='recraft',
         label='Recraft',

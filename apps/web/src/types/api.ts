@@ -54,6 +54,16 @@ export type Avatar = {
   style: string;
   language_tags: string[];
   thumbnail_url: string;
+  tags?: string[];
+  category?: string | null;
+  reference_images?: string[];
+  primary_image?: string | null;
+  preview_video_url?: string | null;
+  prompt_template?: string | null;
+  negative_prompt?: string | null;
+  recommended_voice?: string | null;
+  status?: string | null;
+  description?: string | null;
 };
 
 export type Template = {
@@ -310,6 +320,53 @@ export type Video = {
       sora_negative_guidance?: string;
       anti_repetition_note?: string;
     }>;
+    ugc_scene_plan?: Array<{
+      scene_id?: string;
+      stage_name?: string;
+      stage_label?: string;
+      ugc_ad_family?: string;
+      ugc_ad_subtopic?: string;
+      ugc_mode?: string;
+      shot_archetype?: string;
+      subtopic_visual_anchor?: string;
+      qa_flags?: string[];
+      scene_type?: string;
+      topic_focus?: string;
+      visual_objective?: string;
+      camera_framing?: string;
+      motion_intent?: string;
+      transition_intent?: string;
+      ending_hold_instruction?: string;
+      requested_voice?: string | null;
+      requested_language?: string | null;
+      avatar_synced_voice?: string | null;
+      avatar_synced_language?: string | null;
+      resolved_talking_voice?: string | null;
+      resolved_talking_language?: string | null;
+    }>;
+    resolved_avatar_source?: string | null;
+    resolved_avatar_id?: string | null;
+    resolved_avatar_name?: string | null;
+    requested_voice?: string | null;
+    requested_language?: string | null;
+    avatar_synced_voice?: string | null;
+    avatar_synced_language?: string | null;
+    resolved_talking_voice?: string | null;
+    resolved_talking_language?: string | null;
+    ugc_talking_scene_debug?: Array<{
+      scene_id?: string;
+      stage_name?: string;
+      talking_provider?: string | null;
+      talking_provider_label?: string | null;
+      talking_fallback_reason?: string | null;
+      num_frames?: number | null;
+      talking_audio_duration_seconds?: number | null;
+    }>;
+    intro_outro_watchouts?: Array<{
+      scene_id?: string;
+      stage_name?: string;
+      flags?: string[];
+    }>;
     [key: string]: unknown;
   };
   created_at: string;
@@ -565,6 +622,7 @@ export type StandardVideoCreateRequest = {
 export type RecipeVideoCreateRequest = {
   recipeId: string;
   inputs: Record<string, string | string[]>;
+  aspectRatio?: '9:16' | '16:9' | '1:1' | string;
   language?: string;
   voice?: string;
   captionsEnabled?: boolean;
@@ -604,6 +662,23 @@ export type AIVideoStatusResponse = {
   ttsResolvedVoice: string | null;
   ttsProviderMessage: string | null;
   ttsFallbackUsed: boolean;
+};
+
+export type VideoStudioChatMessage = {
+  role: 'user' | 'assistant' | string;
+  text: string;
+};
+
+export type VideoStudioChatRequest = {
+  videoId: string;
+  message: string;
+  chatHistory?: VideoStudioChatMessage[];
+};
+
+export type VideoStudioChatResponse = {
+  reply: string;
+  provider: string;
+  model: string;
 };
 
 export type ImageModel = {

@@ -11,6 +11,7 @@ import { CreditChip } from '@/components/credits/CreditChip';
 import { CreditProvider, useCredits } from '@/components/credits/CreditContext';
 import { TopNav } from '@/components/layout/TopNav';
 import { Button } from '@/components/ui/Button';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { API_URL } from '@/lib/env';
 
@@ -79,7 +80,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const [isPending, startTransition] = useTransition();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'create' | 'billing' | 'more'>(null);
-  const [mobileGroupOpen, setMobileGroupOpen] = useState<null | 'create' | 'billing' | 'more'>(null);
   const [mobileNavTapLocked, setMobileNavTapLocked] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [projectsNavPending, setProjectsNavPending] = useState(false);
@@ -108,7 +108,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       if (event.key === 'Escape') {
         setAccountMenuOpen(false);
         setMobileNavOpen(false);
-        setMobileGroupOpen(null);
         setMobileNavTapLocked(false);
         setDesktopNavOpen(null);
       }
@@ -124,7 +123,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   useEffect(() => {
     setMobileNavOpen(false);
-    setMobileGroupOpen(null);
     setMobileNavTapLocked(false);
     setDesktopNavOpen(null);
     setAccountMenuOpen(false);
@@ -134,7 +132,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   useEffect(() => {
     if (mobileNavOpen) return;
-    setMobileGroupOpen(null);
     setMobileNavTapLocked(false);
   }, [mobileNavOpen]);
 
@@ -161,7 +158,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
     setDesktopNavOpen(null);
     setMobileNavOpen(false);
-    setMobileGroupOpen(null);
     setAccountMenuOpen(false);
     if (isAlreadyOnTarget) {
       setRouteTransitionLabel(null);
@@ -179,7 +175,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       setProjectsNavPending(false);
       setDesktopNavOpen(null);
       setMobileNavOpen(false);
-      setMobileGroupOpen(null);
       setMobileNavTapLocked(false);
       setRouteTransitionLabel(null);
       return;
@@ -192,11 +187,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     if (mobileNavTapLocked || isPending) return;
     setMobileNavTapLocked(true);
     navigateWithinApp(href, label);
-  };
-
-  const toggleMobileGroup = (group: 'create' | 'billing' | 'more') => {
-    if (mobileNavTapLocked || isPending) return;
-    setMobileGroupOpen((current) => (current === group ? null : group));
   };
 
   if (inApp) {
@@ -268,6 +258,14 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       ],
     } as const;
 
+    const mobileNavItems = [
+      { href: '/create', label: 'Explore', hint: 'Recipe-led creation', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer') },
+      { href: '/projects', label: 'Projects', hint: projectsNavPending ? 'Loading workspace…' : 'Organize renders', icon: FolderKanban, active: pathname.startsWith('/projects') },
+      { href: '/library', label: 'Library', hint: 'Revisit outputs', icon: Video, active: pathname.startsWith('/library') },
+      { href: '/billing', label: 'Billing', hint: 'Credits and plans', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits') },
+      { href: '/help', label: 'More', hint: 'Help and settings', icon: Settings, active: isMoreRoute(pathname) },
+    ] as const;
+
     return (
       <CreditProvider userId={userId}>
       <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${immersiveStudioRoute ? '' : useExpandedAppShell ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
@@ -276,16 +274,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
             <div className="h-full w-1/3 animate-[rangmanch-route-slide_1.05s_ease-in-out_infinite] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0),hsl(var(--color-accent)),hsl(var(--color-accent)/0))]" />
           </div>
         </div>
-        <div className={`pointer-events-none fixed right-3 top-[84px] z-[95] transition-all duration-200 sm:right-6 sm:top-[92px] xl:right-8 ${isPending && routeTransitionLabel ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.96),hsl(var(--color-elevated)/0.94))] px-3.5 py-2 text-xs font-medium text-text shadow-soft backdrop-blur-xl">
-            <span className="relative inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
-              <span className="absolute h-4 w-4 rounded-full border border-[hsl(var(--color-accent)/0.24)]" />
-              <span className="absolute h-4 w-4 rounded-full border border-transparent border-t-[hsl(var(--color-accent))] border-r-[hsl(var(--color-accent)/0.5)] rangmanch-loader-ring" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent)/0.85)]" />
-            </span>
-            {routeTransitionLabel ? getRouteTransitionCopy(routeTransitionLabel) : 'Loading'}
-          </div>
-        </div>
+        <LoadingOverlay
+          open={isPending && Boolean(routeTransitionLabel)}
+          title={routeTransitionLabel ? getRouteTransitionCopy(routeTransitionLabel) : 'Loading workspace'}
+          description={routeTransitionLabel ? `Opening ${routeTransitionLabel}.` : 'Opening your workspace.'}
+          accentLabel="Workspace"
+        />
         {!immersiveStudioRoute ? (
         <aside ref={desktopNavRef} className={`rangmanch-app-rail relative z-[70] hidden overflow-visible py-4 xl:block ${useExpandedAppShell ? 'px-4' : 'px-2'}`}>
           <div className="flex h-full flex-col">
@@ -298,7 +292,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   {[
                     { href: '/create', label: 'Explore', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer'), onClick: () => navigateWithinApp('/create', 'Create') },
                     { href: '/projects', label: 'Projects', icon: FolderKanban, active: pathname.startsWith('/projects'), onClick: openProjectsWorkspace },
-                    { href: '/videos', label: 'Videos', icon: Video, active: pathname.startsWith('/videos'), onClick: () => navigateWithinApp('/videos', 'Videos') },
+                    { href: '/library', label: 'Library', icon: Video, active: pathname.startsWith('/library'), onClick: () => navigateWithinApp('/library', 'library') },
                     { href: '/billing', label: 'Billing', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits'), onClick: () => navigateWithinApp('/billing', 'Billing') },
                     { href: '/help', label: 'More', icon: Settings, active: isMoreRoute(pathname), onClick: () => navigateWithinApp('/help', 'Help') },
                   ].map((item) => {
@@ -618,7 +612,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="flex items-center justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => navigateFromMobileMenu('/create', 'Create')}
+                        onClick={() => navigateFromMobileMenu('/create', 'Explore')}
                         className="inline-flex min-w-0 shrink-0 items-center"
                         aria-label="Go to dashboard"
                       >
@@ -629,7 +623,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         aria-label="Close navigation menu"
                         onClick={() => {
                           setMobileNavOpen(false);
-                          setMobileGroupOpen(null);
                           setMobileNavTapLocked(false);
                         }}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text"
@@ -650,108 +643,20 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] p-2 sm:rounded-[var(--radius-lg)]">
                     <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">Workspace</p>
                     <nav className="grid gap-1.5">
-                  {navItems.map((item) => {
-                const active = item.groupKey === 'create'
-              ? pathname.startsWith('/images') || pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer')
-              : item.groupKey === 'projects'
-                ? pathname.startsWith('/projects')
-                : item.groupKey === 'billing'
-                  ? pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits')
-                  : isMoreRoute(pathname);
+                      {mobileNavItems.map((item) => {
                         const Icon = item.icon;
                         const baseClass = `inline-flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
-                          active
+                          item.active
                             ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
                             : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
                         }`;
                         const iconClass = `inline-flex h-9 w-9 items-center justify-center rounded-full border sm:h-10 sm:w-10 ${
-                          active
+                          item.active
                             ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
                             : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
                         }`;
 
-                        if (item.kind === 'group') {
-                          const groupKey = item.groupKey as 'create' | 'billing' | 'more';
-                          const expanded = mobileGroupOpen === groupKey;
-                          return (
-                            <div key={item.label} className="space-y-1.5">
-                              <button
-                                type="button"
-                                onClick={() => toggleMobileGroup(groupKey)}
-                                className={`flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left text-sm font-medium transition sm:rounded-[var(--radius-md)] ${
-                                  active || expanded
-                                    ? 'bg-[linear-gradient(135deg,hsl(var(--color-accent)/0.18),hsl(var(--color-accent)/0.06))] text-text'
-                                    : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
-                                }`}
-                                aria-label={expanded ? `Collapse ${item.label}` : `Expand ${item.label}`}
-                                aria-expanded={expanded}
-                              >
-                                <span className={iconClass}>
-                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block font-semibold text-text">{item.label}</span>
-                                  <span className="block text-xs text-muted">{item.hint}</span>
-                                </span>
-                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-muted transition">
-                                  <ChevronDown className={`h-4 w-4 transition ${expanded ? 'rotate-180 text-text' : 'text-muted'}`} />
-                                </span>
-                              </button>
-                              {expanded ? (
-                                <div className="ml-4 grid gap-1.5 border-l border-[hsl(var(--color-border)/0.7)] pl-3">
-                                  {navGroups[groupKey].map((groupItem) => {
-                                    const GroupIcon = groupItem.icon;
-                                    const activeChild = pathname === groupItem.href || pathname.startsWith(`${groupItem.href}/`);
-                                    return (
-                                      <button
-                                        key={groupItem.href}
-                                        type="button"
-                                        onClick={() => navigateFromMobileMenu(groupItem.href, groupItem.label)}
-                                        className={`inline-flex items-center gap-2.5 rounded-[12px] px-2 py-2 text-sm transition ${
-                                          activeChild
-                                            ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
-                                            : 'text-muted hover:bg-[hsl(var(--color-surface))] hover:text-text'
-                                        }`}
-                                      >
-                                        <span className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border ${
-                                          activeChild
-                                            ? 'border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.12)] text-[hsl(var(--color-accent))]'
-                                            : 'border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.4)] text-muted'
-                                        }`}>
-                                          {flyoutPreviews[groupItem.href] ? (
-                                            <img src={flyoutPreviews[groupItem.href]} alt={groupItem.label} className="absolute inset-0 h-full w-full object-cover opacity-85" />
-                                          ) : null}
-                                          <span className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--color-bg)/0.02)] via-[hsl(var(--color-bg)/0.14)] to-[hsl(var(--color-bg)/0.64)]" />
-                                          <GroupIcon className="relative z-10 h-3 w-3" />
-                                        </span>
-                                        <span className="min-w-0 flex-1">
-                                          <span className="block truncate text-[12px] font-medium leading-tight text-text">{groupItem.label}</span>
-                                          <span className="block truncate text-[10px] text-muted">
-                                            {groupItem.href === '/create'
-                                              ? 'Unified creation hub'
-                                              : groupItem.href === '/images'
-                                              ? 'Fast social visuals'
-                                              : groupItem.href === '/templates'
-                                                ? 'Guided workflows'
-                                              : groupItem.href === '/influencer'
-                                                ? 'Consistent avatar creation'
-                                              : groupItem.href === '/billing'
-                                                      ? 'Credits and plans'
-                                                      : groupItem.href === '/help'
-                                                        ? 'Quick answers'
-                                                      : 'Workspace settings'}
-                                          </span>
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              ) : null}
-                            </div>
-                          );
-                        }
-
-                        if (item.groupKey === 'projects') {
+                        if (item.href === '/projects') {
                           return (
                             <button
                               key={item.label}
@@ -778,7 +683,22 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                           );
                         }
 
-                        return null;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => navigateFromMobileMenu(item.href, item.label)}
+                            className={baseClass}
+                          >
+                            <span className={iconClass}>
+                              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1 text-left">
+                              <span className="block font-semibold text-text">{item.label}</span>
+                              <span className="block text-xs text-muted">{item.hint}</span>
+                            </span>
+                          </button>
+                        );
                       })}
                     </nav>
                   </div>

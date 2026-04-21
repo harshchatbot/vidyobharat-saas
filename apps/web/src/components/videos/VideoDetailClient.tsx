@@ -33,7 +33,7 @@ import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import { Undo2, Redo2, MinusCircle, PlusCircle } from "lucide-react";
-import type { MusicTrack, TTSLanguageOption, TTSVoiceOption, Video } from '@/types/api';
+import type { MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, VideoStudioChatMessage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -250,12 +250,14 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const [audioWaveformBars, setAudioWaveformBars] = useState<number[]>([]);
   const [bgmWaveformBars, setBgmWaveformBars] = useState<number[]>([]);
   const [assistantInput, setAssistantInput] = useState('');
-  const [assistantMessages, setAssistantMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [assistantMessages, setAssistantMessages] = useState<VideoStudioChatMessage[]>([]);
+  const [assistantBusy, setAssistantBusy] = useState(false);
   const [todoOverrides, setTodoOverrides] = useState<Record<string, boolean>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timelineBoundsRef = useRef<{ left: number; width: number } | null>(null);
   const { wallet, refreshing } = useCredits();
   const { show } = useToast();
+  const terminalToastRef = useRef<string | null>(null);
 
   const load = async () => {
     try {
@@ -299,6 +301,30 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
     return () => clearInterval(interval);
   }, [video?.status]);
+
+  useEffect(() => {
+    if (!video) return;
+    if (!terminalToastRef.current && (video.status === 'completed' || video.status === 'failed' || video.status === 'provider_failed' || video.status === 'timed_out')) {
+      terminalToastRef.current = `${video.id}:${video.status}`;
+      if (video.status === 'completed') {
+        show({
+          title: 'Video ready',
+          message: 'Your video finished rendering and is ready to preview.',
+          variant: 'success',
+        });
+      } else {
+        show({
+          title: video.status === 'timed_out' ? 'Generation timed out' : 'Video generation failed',
+          message: video.error_message || 'The render did not complete successfully.',
+          variant: 'error',
+        });
+      }
+      return;
+    }
+    if (video.status !== 'completed' && video.status !== 'failed' && video.status !== 'provider_failed' && video.status !== 'timed_out') {
+      terminalToastRef.current = null;
+    }
+  }, [show, video]);
 
   const posterUrl = useMemo(() => {
     if (!video) return null;
@@ -479,9 +505,14 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     () => video?.pipeline_metadata?.deep_scene_plan ?? [],
     [video?.pipeline_metadata],
   );
+  const ugcScenePlan = useMemo(
+    () => video?.pipeline_metadata?.ugc_scene_plan ?? [],
+    [video?.pipeline_metadata],
+  );
+  const plannerScenePlan = deepScenePlan.length > 0 ? deepScenePlan : ugcScenePlan;
   const plannerQaEntries = useMemo(
     () =>
-      deepScenePlan
+      plannerScenePlan
         .map((scene) => {
           const flags = Array.isArray(scene?.qa_flags)
             ? scene.qa_flags.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0)
@@ -495,8 +526,59 @@ export function VideoDetailClient({ userId, videoId }: Props) {
           };
         })
         .filter((entry): entry is { sceneId: string; stageLabel: string; shotArchetype: string | null; flags: string[] } => Boolean(entry)),
-    [deepScenePlan],
+    [plannerScenePlan],
   );
+  const ugcAvatarDebug = useMemo(() => {
+    const metadata = video?.pipeline_metadata;
+    if (!metadata) return null;
+    const source = typeof metadata.resolved_avatar_source === 'string' ? metadata.resolved_avatar_source : null;
+    const avatarId = typeof metadata.resolved_avatar_id === 'string' ? metadata.resolved_avatar_id : null;
+    const avatarName = typeof metadata.resolved_avatar_name === 'string' ? metadata.resolved_avatar_name : null;
+    const requestedVoice = typeof metadata.requested_voice === 'string' ? metadata.requested_voice : null;
+    const requestedLanguage = typeof metadata.requested_language === 'string' ? metadata.requested_language : null;
+    const syncedVoice = typeof metadata.avatar_synced_voice === 'string' ? metadata.avatar_synced_voice : null;
+    const syncedLanguage = typeof metadata.avatar_synced_language === 'string' ? metadata.avatar_synced_language : null;
+    const resolvedVoice = typeof metadata.resolved_talking_voice === 'string' ? metadata.resolved_talking_voice : null;
+    const resolvedLanguage = typeof metadata.resolved_talking_language === 'string' ? metadata.resolved_talking_language : null;
+    const runtimeRows = Array.isArray(metadata.ugc_talking_scene_debug)
+      ? metadata.ugc_talking_scene_debug
+          .map((row) => {
+            const sceneId = typeof row?.scene_id === 'string' ? row.scene_id : null;
+            const provider = typeof row?.talking_provider === 'string' ? row.talking_provider : null;
+            const providerLabel = typeof row?.talking_provider_label === 'string' ? row.talking_provider_label : null;
+            const fallbackReason = typeof row?.talking_fallback_reason === 'string' ? row.talking_fallback_reason : null;
+            if (!sceneId && !provider && !providerLabel && !fallbackReason) return null;
+            return { sceneId, provider, providerLabel, fallbackReason };
+          })
+          .filter((row): row is { sceneId: string | null; provider: string | null; providerLabel: string | null; fallbackReason: string | null } => Boolean(row))
+      : [];
+    const watchouts = Array.isArray(metadata.intro_outro_watchouts)
+      ? metadata.intro_outro_watchouts
+          .map((row) => ({
+            sceneId: typeof row?.scene_id === 'string' ? row.scene_id : 'scene',
+            stage: typeof row?.stage_name === 'string' ? row.stage_name : 'stage',
+            flags: Array.isArray(row?.flags)
+              ? row.flags.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0)
+              : [],
+          }))
+          .filter((row) => row.flags.length > 0)
+      : [];
+    const hasCore = Boolean(source || avatarId || avatarName || requestedVoice || resolvedVoice || runtimeRows.length > 0 || watchouts.length > 0);
+    if (!hasCore) return null;
+    return {
+      source,
+      avatarId,
+      avatarName,
+      requestedVoice,
+      requestedLanguage,
+      syncedVoice,
+      syncedLanguage,
+      resolvedVoice,
+      resolvedLanguage,
+      runtimeRows,
+      watchouts,
+    };
+  }, [video?.pipeline_metadata]);
 
   const stage = video ? getStage(video.progress, video.status) : null;
   const isGenerationActive = video?.status === 'draft' || video?.status === 'processing';
@@ -613,49 +695,66 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     setAssistantMessages((current) => [...current, { role, text }]);
   };
 
-  const runAssistantAction = (action: 'explain' | 'assets' | 'notes') => {
-    if (action === 'assets') {
-      setAssetTab('visual');
-      pushAssistantMessage(
-        'assistant',
-        `I surfaced the current visual assets${referenceImages.length > 0 ? ` and found ${referenceImages.length} reference image${referenceImages.length === 1 ? '' : 's'}` : ''
-        } for this render.`,
-      );
-      return;
-    }
-    if (action === 'notes') {
-      pushAssistantMessage('assistant', `Export notes: ${createdSummary}`);
-      return;
-    }
-    pushAssistantMessage('assistant', `This render is currently in "${stage?.label ?? 'progress'}". ${stage?.detail ?? ''}`);
-  };
-
-  const submitAssistantPrompt = () => {
-    const prompt = assistantInput.trim();
+  const sendAssistantPrompt = async (promptText: string) => {
+    const prompt = promptText.trim();
     if (!prompt) return;
 
     pushAssistantMessage('user', prompt);
+    setAssistantInput('');
+    setAssistantBusy(true);
 
     if (/asset|reference|image/i.test(prompt)) {
       setAssetTab('visual');
-      pushAssistantMessage('assistant', 'I opened the visual assets context for this render and kept the current reference media in view.');
-    } else if (/todo|run|execute|complete/i.test(prompt)) {
-      setTodoOverrides(Object.fromEntries(todoItems.map((item) => [item.label, true])));
-      pushAssistantMessage('assistant', 'I marked the current workflow todos as executed in this studio view so you can track them as complete.');
     } else if (/music|bgm|audio/i.test(prompt)) {
       setAssetTab('bgm');
-      pushAssistantMessage(
-        'assistant',
-        `I switched to the BGM context. ${selectedTrack?.name || 'The current music layer'} is the active audio source for this render.`,
-      );
-    } else {
-      pushAssistantMessage(
-        'assistant',
-        `I can help with this render. Right now the studio is at "${stage?.label ?? 'processing'}" and the current summary is: ${createdSummary}`,
-      );
     }
 
-    setAssistantInput('');
+    try {
+      const response = await api.videoStudioChat(
+        {
+          videoId,
+          message: prompt,
+          chatHistory: assistantMessages.slice(-6),
+        },
+        userId,
+      );
+      if (/todo|run|execute|complete/i.test(prompt)) {
+        setTodoOverrides(Object.fromEntries(todoItems.map((item) => [item.label, true])));
+      }
+      pushAssistantMessage('assistant', response.reply);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Studio AI could not respond right now.';
+      show({
+        title: 'Studio AI unavailable',
+        message,
+        variant: 'error',
+      });
+      pushAssistantMessage(
+        'assistant',
+        `I hit a temporary issue reaching Studio AI. Right now the studio is at "${stage?.label ?? 'processing'}" and the current summary is: ${createdSummary}`,
+      );
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  const runAssistantAction = (action: 'explain' | 'assets' | 'notes') => {
+    if (assistantBusy) return;
+    if (action === 'assets') {
+      setAssetTab('visual');
+      void sendAssistantPrompt('Show me the current visual assets and reference context for this render.');
+      return;
+    }
+    if (action === 'notes') {
+      void sendAssistantPrompt('Give me concise export notes and the final status for this render.');
+      return;
+    }
+    void sendAssistantPrompt('Explain the current render status and the next best edit step.');
+  };
+
+  const submitAssistantPrompt = () => {
+    if (assistantBusy) return;
+    void sendAssistantPrompt(assistantInput);
   };
 
   useEffect(() => {
@@ -1463,6 +1562,65 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   </div>
                 ) : null}
 
+                {ugcAvatarDebug ? (
+                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
+                        <AudioLines className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
+                        UGC avatar sync
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm text-text">
+                      <p>
+                        Avatar: {ugcAvatarDebug.avatarName || '—'} ({ugcAvatarDebug.source || 'unknown'})
+                        {ugcAvatarDebug.avatarId ? ` · ${ugcAvatarDebug.avatarId}` : ''}
+                      </p>
+                      <p>
+                        Voice contract: requested {ugcAvatarDebug.requestedVoice || '—'} / {ugcAvatarDebug.requestedLanguage || '—'}
+                        {' -> '}synced {ugcAvatarDebug.syncedVoice || '—'} / {ugcAvatarDebug.syncedLanguage || '—'}
+                        {' -> '}resolved {ugcAvatarDebug.resolvedVoice || '—'} / {ugcAvatarDebug.resolvedLanguage || '—'}
+                      </p>
+                    </div>
+                    {ugcAvatarDebug.runtimeRows.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {ugcAvatarDebug.runtimeRows.slice(0, 4).map((row, index) => (
+                          <div key={`${row.sceneId || 'scene'}-${index}`} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
+                            <p className="font-semibold text-text">
+                              {row.sceneId || 'Talking scene'} · {row.providerLabel || row.provider || 'provider unknown'}
+                            </p>
+                            {row.fallbackReason ? (
+                              <p className="mt-1 text-[hsl(var(--color-warning))]">
+                                fallback: {row.fallbackReason}
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-[hsl(var(--color-success))]">Talking provider path succeeded.</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {ugcAvatarDebug.watchouts.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {ugcAvatarDebug.watchouts.map((row) => (
+                          <div key={`${row.sceneId}-${row.stage}`} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
+                            <p className="font-semibold text-text">{row.stage.replace(/_/g, ' ')}</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {row.flags.map((flag) => (
+                                <span
+                                  key={flag}
+                                  className="inline-flex items-center rounded-full bg-[hsl(var(--color-warning)/0.12)] px-2 py-0.5 text-[11px] font-medium text-[hsl(var(--color-warning))]"
+                                >
+                                  {flag.replace(/_/g, ' ')}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {assistantMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
@@ -1502,6 +1660,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   <button
                     type="button"
                     onClick={() => runAssistantAction('explain')}
+                    disabled={assistantBusy}
                     className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
                   >
                     Explain edit
@@ -1509,6 +1668,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   <button
                     type="button"
                     onClick={() => runAssistantAction('assets')}
+                    disabled={assistantBusy}
                     className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
                   >
                     Show assets
@@ -1516,6 +1676,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   <button
                     type="button"
                     onClick={() => runAssistantAction('notes')}
+                    disabled={assistantBusy}
                     className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
                   >
                     Export notes
@@ -1524,7 +1685,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted">
                   <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                  Ask me anything...
+                  {assistantBusy ? 'Studio AI is thinking…' : 'Ask me anything...'}
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-[hsl(var(--color-bg-soft))] px-3.5 py-3 text-sm text-muted">
@@ -1534,11 +1695,12 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                       value={assistantInput}
                       onChange={(event) => setAssistantInput(event.target.value)}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                        if (event.key === 'Enter' && !assistantBusy) {
                           event.preventDefault();
                           submitAssistantPrompt();
                         }
                       }}
+                      disabled={assistantBusy}
                       placeholder="Ask about this render, assets, or the next edit step…"
                       className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
                     />
@@ -1546,10 +1708,11 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                   <button
                     type="button"
                     onClick={submitAssistantPrompt}
+                    disabled={assistantBusy || !assistantInput.trim()}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-none"
                     aria-label="Send"
                   >
-                    <Sparkles className="h-4 w-4" />
+                    {assistantBusy ? <Spinner /> : <Sparkles className="h-4 w-4" />}
                   </button>
                 </div>
               </div>

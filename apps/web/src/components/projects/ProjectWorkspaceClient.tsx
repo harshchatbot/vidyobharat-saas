@@ -7,9 +7,11 @@ import { ArrowLeft, Clapperboard, Filter, FolderOpen, ImageIcon, Languages, Mic2
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
 import { MediaPosterCard } from '@/components/ui/MediaPosterCard';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Textarea } from '@/components/ui/Textarea';
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { GeneratedImage, ProjectDetail, Video as VideoAsset } from '@/types/api';
@@ -38,10 +40,10 @@ type UnifiedOutput =
       title: string;
       preview: string;
       createdAt: string;
-      href: string;
       templateValue: string;
       modeValue: string;
       badges: string[];
+      source: GeneratedImage;
     }
   | {
       id: string;
@@ -64,10 +66,10 @@ function mapImageOutput(item: GeneratedImage): UnifiedOutput | null {
     title: item.prompt || 'Untitled image',
     preview,
     createdAt: item.created_at,
-    href: preview,
     templateValue: item.template_id || 'none',
     modeValue: item.mode_id || item.model_key || 'none',
     badges: [item.model_key, item.aspect_ratio, item.resolution, item.template_id].filter(Boolean) as string[],
+    source: item,
   };
 }
 
@@ -91,11 +93,16 @@ function mapVideoOutput(item: VideoAsset): UnifiedOutput {
 
 export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDetail; userId: string }) {
   const { project } = detail;
+  const { show } = useToast();
   const [script, setScript] = useState(project.script);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [assetFilter, setAssetFilter] = useState<OutputFilter>('all');
   const [selectedTemplateFilter, setSelectedTemplateFilter] = useState('all');
   const [selectedModeFilter, setSelectedModeFilter] = useState('all');
+  const [projectImages, setProjectImages] = useState<GeneratedImage[]>(detail.images || []);
+  const [selectedProjectImage, setSelectedProjectImage] = useState<GeneratedImage | null>(null);
+  const [publishingImageId, setPublishingImageId] = useState<string | null>(null);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const saveFingerprint = useRef(`${project.script}`);
 
   useEffect(() => {
@@ -125,7 +132,11 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
     return () => window.clearTimeout(timer);
   }, [project.id, project.language, project.template, project.title, project.voice, script, userId]);
 
-  const imageItems = detail.images || [];
+  useEffect(() => {
+    setProjectImages(detail.images || []);
+  }, [detail.images]);
+
+  const imageItems = projectImages;
   const videoItems = detail.videos || [];
   const summary = detail.summary || {
     imageCount: imageItems.length,
@@ -173,6 +184,66 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [assetFilter, imageItems, selectedModeFilter, selectedTemplateFilter, videoItems]);
+
+  const toggleProjectImagePublish = async (image: GeneratedImage) => {
+    setPublishingImageId(image.id);
+    try {
+      const result = await api.publishInspiration('image', image.id, !image.is_public_inspiration, userId);
+      setProjectImages((current) =>
+        current.map((item) =>
+          item.id === image.id
+            ? {
+                ...item,
+                is_public_inspiration: result.is_public_inspiration,
+                moderation_status: result.moderation_status,
+                inspiration_score: result.inspiration_score,
+                like_count: result.like_count,
+              }
+            : item,
+        ),
+      );
+      setSelectedProjectImage((current) =>
+        current && current.id === image.id
+          ? {
+              ...current,
+              is_public_inspiration: result.is_public_inspiration,
+              moderation_status: result.moderation_status,
+              inspiration_score: result.inspiration_score,
+              like_count: result.like_count,
+            }
+          : current,
+      );
+      show({
+        title: result.is_public_inspiration ? 'Published to inspiration' : 'Removed from inspiration',
+        message: result.is_public_inspiration
+          ? (result.moderation_status !== 'approved'
+              ? 'Submitted for review. It will appear after moderation.'
+              : 'Your image is now visible in inspiration.')
+          : 'Your image is no longer visible in inspiration.',
+        variant: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update publish status.';
+      show({ title: 'Publish update failed', message, variant: 'error' });
+    } finally {
+      setPublishingImageId(null);
+    }
+  };
+
+  const deleteProjectImage = async (image: GeneratedImage) => {
+    setDeletingImageId(image.id);
+    try {
+      await api.deleteGeneratedImage(image.id, userId);
+      setProjectImages((current) => current.filter((item) => item.id !== image.id));
+      setSelectedProjectImage((current) => (current?.id === image.id ? null : current));
+      show({ title: 'Image deleted', message: 'The image was removed from this project.', variant: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete image.';
+      show({ title: 'Delete failed', message, variant: 'error' });
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -349,7 +420,8 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
                 key={`${item.kind}-${item.id}`}
                 preview={item.preview}
                 title={item.title}
-                href={item.href}
+                href={item.kind === 'video' ? item.href : undefined}
+                onClick={item.kind === 'image' ? () => setSelectedProjectImage(item.source) : undefined}
                 meta={
                   <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
                     <Badge>{item.kind}</Badge>
@@ -364,6 +436,80 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
           </div>
         )}
       </section>
+
+      {selectedProjectImage ? (
+        <ImageDetailModal
+          open={Boolean(selectedProjectImage)}
+          onClose={() => setSelectedProjectImage(null)}
+          imageUrl={toAbsolute(selectedProjectImage.image_url) || selectedProjectImage.image_url}
+          imageAlt={selectedProjectImage.prompt || 'Project image'}
+          title="Project image"
+          subtitle={`Created ${formatRelativeTime(selectedProjectImage.created_at)}`}
+          prompt={selectedProjectImage.prompt}
+          imageAspectRatio={selectedProjectImage.aspect_ratio}
+          badges={
+            <>
+              <Badge>{selectedProjectImage.model_key}</Badge>
+              <Badge>{selectedProjectImage.aspect_ratio}</Badge>
+              <Badge>{selectedProjectImage.resolution}</Badge>
+              <Badge>{selectedProjectImage.status}</Badge>
+              {selectedProjectImage.is_public_inspiration ? <Badge>{selectedProjectImage.moderation_status}</Badge> : null}
+            </>
+          }
+          details={
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedProjectImage.model_key}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedProjectImage.aspect_ratio}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedProjectImage.resolution}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Credits</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedProjectImage.applied_credits}</p>
+              </div>
+            </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void toggleProjectImagePublish(selectedProjectImage)}
+                disabled={publishingImageId === selectedProjectImage.id}
+              >
+                {publishingImageId === selectedProjectImage.id
+                  ? 'Updating...'
+                  : selectedProjectImage.is_public_inspiration
+                    ? 'Unpublish'
+                    : 'Publish to inspiration'}
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void deleteProjectImage(selectedProjectImage)}
+                disabled={deletingImageId === selectedProjectImage.id}
+              >
+                {deletingImageId === selectedProjectImage.id ? 'Deleting...' : 'Delete image'}
+              </Button>
+              <a
+                href={toAbsolute(selectedProjectImage.image_url) || selectedProjectImage.image_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+              >
+                Open full image
+              </a>
+            </>
+          }
+        />
+      ) : null}
     </div>
   );
 }

@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Clapperboard, ImageIcon, LoaderCircle, Search } from 'lucide-react';
+import { Clapperboard, ExternalLink, ImageIcon, LoaderCircle, Search, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { GeneratedImage, Video } from '@/types/api';
@@ -37,12 +39,16 @@ function relativeTime(value: string) {
 }
 
 export function VideoLibraryClient({ userId, initialVideos, initialImages }: Props) {
+  const { show } = useToast();
   const [videos, setVideos] = useState(initialVideos);
   const [images, setImages] = useState(initialImages);
   const [query, setQuery] = useState('');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterKey>('all');
   const [refreshing, setRefreshing] = useState(initialVideos.length === 0 && initialImages.length === 0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setVideos(initialVideos);
@@ -116,6 +122,66 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
       return haystack.includes(trimmed);
     });
   }, [images, mediaFilter, query]);
+
+  const togglePublish = async (image: GeneratedImage) => {
+    setPublishingId(image.id);
+    try {
+      const result = await api.publishInspiration('image', image.id, !image.is_public_inspiration, userId);
+      setImages((current) =>
+        current.map((item) =>
+          item.id === image.id
+            ? {
+                ...item,
+                is_public_inspiration: result.is_public_inspiration,
+                moderation_status: result.moderation_status,
+                inspiration_score: result.inspiration_score,
+                like_count: result.like_count,
+              }
+            : item,
+        ),
+      );
+      setSelectedImage((current) =>
+        current && current.id === image.id
+          ? {
+              ...current,
+              is_public_inspiration: result.is_public_inspiration,
+              moderation_status: result.moderation_status,
+              inspiration_score: result.inspiration_score,
+              like_count: result.like_count,
+            }
+          : current,
+      );
+      show({
+        title: result.is_public_inspiration ? 'Published to inspiration' : 'Removed from inspiration',
+        message: result.is_public_inspiration
+          ? (result.moderation_status !== 'approved'
+              ? 'Submitted for review. It will appear after moderation.'
+              : 'Your image is now visible in inspiration.')
+          : 'Your image is no longer visible in inspiration.',
+        variant: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update publish status.';
+      show({ title: 'Publish update failed', message, variant: 'error' });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const deleteImage = async (image: GeneratedImage) => {
+    setDeletingId(image.id);
+    try {
+      await api.deleteGeneratedImage(image.id, userId);
+      setImages((current) => current.filter((item) => item.id !== image.id));
+      setSelectedImage((current) => (current?.id === image.id ? null : current));
+      show({ title: 'Image deleted', message: 'The image was removed from your library.', variant: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete image.';
+      show({ title: 'Delete failed', message, variant: 'error' });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -201,13 +267,12 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredImages.map((image) => {
-            const preview = image.thumbnail_url || image.image_url;
+            const preview = toAbsoluteUrl(image.thumbnail_url || image.image_url) || image.image_url;
             return (
-              <a
+              <button
                 key={`image-${image.id}`}
-                href={image.image_url}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                onClick={() => setSelectedImage(image)}
                 className="group overflow-hidden bg-[hsl(var(--color-surface))] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
               >
                 <div className="relative overflow-hidden border-b border-[hsl(var(--color-border-soft)/0.3)] bg-black">
@@ -236,12 +301,12 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
                   <div className="flex items-center justify-between text-xs text-muted">
                     <span>{relativeTime(image.created_at)}</span>
                     <span className="inline-flex items-center gap-1">
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      Open image
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open details
                     </span>
                   </div>
                 </div>
-              </a>
+              </button>
             );
           })}
           {filteredVideos.map((video) => {
@@ -306,6 +371,83 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
           })}
         </div>
       )}
+
+      {selectedImage ? (
+        <ImageDetailModal
+          open={Boolean(selectedImage)}
+          onClose={() => setSelectedImage(null)}
+          imageUrl={toAbsoluteUrl(selectedImage.image_url) || selectedImage.image_url}
+          imageAlt={selectedImage.prompt || 'Library image'}
+          title="Library image"
+          subtitle={`Created ${relativeTime(selectedImage.created_at)}`}
+          prompt={selectedImage.prompt}
+          imageAspectRatio={selectedImage.aspect_ratio}
+          badges={
+            <>
+              <Badge>{selectedImage.model_key}</Badge>
+              <Badge>{selectedImage.aspect_ratio}</Badge>
+              <Badge>{selectedImage.resolution}</Badge>
+              <Badge>{selectedImage.status}</Badge>
+              {selectedImage.is_public_inspiration ? <Badge>{selectedImage.moderation_status}</Badge> : null}
+            </>
+          }
+          details={
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Model</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedImage.model_key}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Aspect Ratio</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedImage.aspect_ratio}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Resolution</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedImage.resolution}</p>
+              </div>
+              <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.78)] p-2.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Credits</p>
+                <p className="mt-1 text-[11px] font-semibold text-text">{selectedImage.applied_credits}</p>
+              </div>
+            </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void togglePublish(selectedImage)}
+                disabled={publishingId === selectedImage.id}
+              >
+                {publishingId === selectedImage.id
+                  ? 'Updating...'
+                  : selectedImage.is_public_inspiration
+                    ? 'Unpublish'
+                    : 'Publish to inspiration'}
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => void deleteImage(selectedImage)}
+                disabled={deletingId === selectedImage.id}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deletingId === selectedImage.id ? 'Deleting...' : 'Delete image'}
+              </Button>
+              <a
+                href={toAbsoluteUrl(selectedImage.image_url) || selectedImage.image_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-4 py-2 text-sm font-semibold text-text"
+              >
+                <ExternalLink className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                Open full image
+              </a>
+            </>
+          }
+        />
+      ) : null}
     </div>
   );
 }

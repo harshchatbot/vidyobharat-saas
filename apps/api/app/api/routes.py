@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
-from openai import OpenAI
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
 from sqlalchemy.orm import Session
 
@@ -34,6 +33,8 @@ from app.schemas.ai import (
     ScriptTranslateRequest,
     ScriptResponse,
     TextResponse,
+    VideoStudioChatRequest,
+    VideoStudioChatResponse,
 )
 from app.schemas.asset import (
     AssetSearchResponse,
@@ -44,6 +45,14 @@ from app.schemas.asset import (
     InspirationLikeResponse,
     InspirationPublishRequest,
     InspirationPublishResponse,
+)
+from app.schemas.avatar import (
+    ActorCreateResponse,
+    ActorDetailResponse,
+    ActorVisibilityUpdateRequest,
+    ActorVisibilityUpdateResponse,
+    TestAvatarRequest,
+    TestAvatarResponse,
 )
 from app.schemas.auth import MockLoginRequest, MockLoginResponse, MockSignupRequest, MockSignupResponse
 from app.schemas.catalog import AvatarResponse, RecipeCatalogResponse, TemplateResponse
@@ -123,7 +132,10 @@ from app.services.upload_service import UploadService
 from app.services.user_service import UserService
 from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
+from app.services.llm.qwen_service import QwenService
+from app.services.video_studio_ai_service import VideoStudioAIService
 from app.recipes.recipe_registry import (
+    build_ltx_recipe_request,
     build_explainer_recipe_request,
     build_normalized_video_payload,
     detect_video_intent_from_payload,
@@ -132,6 +144,7 @@ from app.recipes.recipe_registry import (
     maybe_should_use_explainer_recipe,
     normalize_explainer_video_request,
     recipe_pipeline_metadata,
+    should_use_ltx_storyboard_recipe,
     validate_recipe_inputs,
 )
 from app.services.tts import (
@@ -1055,27 +1068,19 @@ def generate_script_v2(
         f'{context_block}\n'
     )
     script_text = ''
-    if settings.openai_api_key:
-        try:
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                temperature=0.7,
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': (
-                            'You are a senior short-video scriptwriter. '
-                            'Always output scene-wise scripts using Opening shot, Scene 1/2/3, Closing shot, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA ending. '
-                            'Respect timing, keep language natural, and return plain text only.'
-                        ),
-                    },
-                    {'role': 'user', 'content': prompt},
-                ],
-            )
-            script_text = (response.choices[0].message.content or '').strip()
-        except Exception:
-            logger.exception('ai_script_generate_provider_failed')
+    try:
+        script_text = QwenService(settings).complete_text(
+            task_type='script_generate',
+            system_prompt=(
+                'You are a senior short-video scriptwriter. '
+                'Always output scene-wise scripts using Opening shot, Scene 1/2/3, Closing shot, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA ending. '
+                'Respect timing, keep language natural, and return plain text only.'
+            ),
+            user_prompt=prompt,
+            temperature=0.7,
+        )
+    except Exception:
+        logger.exception('ai_script_generate_provider_failed')
     if not script_text:
         script_text = _build_structured_script_fallback(
             topic=payload.topic,
@@ -1166,28 +1171,20 @@ def enhance_script_v2(
     )
     script_text = ''
     provider_success = False
-    if settings.openai_api_key:
-        try:
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                temperature=0.5,
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': (
-                            'You are a senior video script editor. '
-                            'Improve flow and cinematic quality while preserving intent. '
-                            'Always return Opening shot, Scene blocks, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA in plain text.'
-                        ),
-                    },
-                    {'role': 'user', 'content': prompt},
-                ],
-            )
-            script_text = (response.choices[0].message.content or '').strip()
-            provider_success = bool(script_text)
-        except Exception:
-            logger.exception('ai_script_enhance_provider_failed')
+    try:
+        script_text = QwenService(settings).complete_text(
+            task_type='script_enhance',
+            system_prompt=(
+                'You are a senior video script editor. '
+                'Improve flow and cinematic quality while preserving intent. '
+                'Always return Opening shot, Scene blocks, narrator lines, opening cue, ending cue, visual/camera/mood cues, and CTA in plain text.'
+            ),
+            user_prompt=prompt,
+            temperature=0.5,
+        )
+        provider_success = bool(script_text)
+    except Exception:
+        logger.exception('ai_script_enhance_provider_failed')
     if not script_text:
         script_text = _build_structured_script_fallback(
             topic=payload.template or 'General video',
@@ -1246,28 +1243,16 @@ def translate_script_text_v2(
     payload: ScriptTranslateRequest,
     _: str = Depends(get_user_id),
 ):
-    if not settings.openai_api_key:
-        raise HTTPException(status_code=503, detail='Translation provider is not configured.')
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model=settings.openai_model,
+        translated_text = QwenService(settings).complete_text(
+            task_type='translate',
+            system_prompt=(
+                'Translate the provided text accurately into the requested target language. '
+                'Return only the translated text. Do not explain. Keep names unchanged where appropriate.'
+            ),
+            user_prompt=f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
             temperature=0.2,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        'Translate the provided text accurately into the requested target language. '
-                        'Return only the translated text. Do not explain. Keep names unchanged where appropriate.'
-                    ),
-                },
-                {
-                    'role': 'user',
-                    'content': f'Target language: {payload.target_language}\n\nText:\n{payload.text}',
-                },
-            ],
         )
-        translated_text = (response.choices[0].message.content or '').strip()
     except Exception as exc:
         logger.exception(
             'ai_script_translate_provider_failed',
@@ -1286,22 +1271,13 @@ def generate_reel_script(
 ):
     prompt = _build_reel_prompt(payload)
     try:
-        if not settings.openai_api_key:
-            raise HTTPException(status_code=500, detail='OPENAI_API_KEY is not configured in apps/api/.env')
-
-        client = OpenAI(api_key=settings.openai_api_key)
-        response = client.chat.completions.create(
-            model=settings.openai_model,
+        result = QwenService(settings).complete_structured(
+            task_type='reel_script',
+            schema_model=ReelScriptResponse,
+            system_prompt='Output valid JSON only.',
+            user_prompt=prompt,
             temperature=0.7,
-            response_format={'type': 'json_object'},
-            messages=[
-                {'role': 'system', 'content': 'Output valid JSON only.'},
-                {'role': 'user', 'content': prompt},
-            ],
         )
-        content = response.choices[0].message.content or '{}'
-        parsed = _extract_json_payload(content)
-        result = ReelScriptResponse.model_validate(parsed)
         logger.info(
             'reel_script_generated',
             extra={
@@ -1317,12 +1293,6 @@ def generate_reel_script(
             extra={'request_id': get_request_id(), 'error': str(exc)},
         )
         raise HTTPException(status_code=422, detail='Generated script format is invalid') from exc
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            'reel_script_json_parse_failed',
-            extra={'request_id': get_request_id(), 'error': str(exc)},
-        )
-        raise HTTPException(status_code=502, detail='AI response was not valid JSON') from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -1334,6 +1304,23 @@ def generate_reel_script(
         if settings.env != 'development':
             detail = 'Failed to generate reel script'
         raise HTTPException(status_code=500, detail=detail) from exc
+
+
+@router.post('/api/ai/video/studio-chat', response_model=VideoStudioChatResponse, include_in_schema=False)
+def studio_ai_video_chat(
+    payload: VideoStudioChatRequest,
+    user_id: str = Depends(get_user_id),
+):
+    video = AIVideoCreateService(None, settings).get_video(payload.videoId, user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail='Video job not found')
+
+    reply = VideoStudioAIService(settings).reply(
+        video=video,
+        message=payload.message,
+        chat_history=[item.model_dump() for item in payload.chatHistory],
+    )
+    return VideoStudioChatResponse(**reply)
 
 
 @router.post('/ai/video/generate', response_model=AIVideoGenerateResponse)
@@ -1395,8 +1382,9 @@ def generate_ai_video(
 @router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
 @router.get('/api/ai/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
 @router.get('/api/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
-def list_ai_video_models(_: str = Depends(get_user_id)):
+def list_ai_video_models(user_id: str = Depends(get_user_id)):
     service = AIVideoCreateService(None, settings)
+    include_internal = settings.env == 'development' or user_id in set(settings.admin_user_ids_list)
     return [
         AIVideoModelResponse(
             key=model.key,
@@ -1418,7 +1406,7 @@ def list_ai_video_models(_: str = Depends(get_user_id)):
             modeIds=model.mode_ids or [],
             billingUnit=model.billing_unit,
         )
-        for model in service.list_models()
+        for model in service.list_models(include_internal=include_internal)
     ]
 
 
@@ -1441,6 +1429,8 @@ def create_ai_video(
             recipe = get_recipe(payload.recipeId)
             normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
             normalized_payload = build_normalized_video_payload(recipe, normalized_recipe_inputs)
+            if payload.aspectRatio:
+                normalized_payload['aspectRatio'] = str(payload.aspectRatio).strip()
             if payload.language:
                 normalized_payload['language'] = str(payload.language).strip()
             if payload.voice:
@@ -1454,6 +1444,27 @@ def create_ai_video(
                 pipeline_metadata['talking_mode_preference'] = str(payload.talkingModePreference).strip()
             if payload.useAvatarForTalkingScenes is not None:
                 pipeline_metadata['use_avatar_for_talking_scenes'] = bool(payload.useAvatarForTalkingScenes)
+        elif should_use_ltx_storyboard_recipe(normalized_payload):
+            recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_ltx_recipe_request(
+                str(payload.script or '').strip()
+            )
+            if payload.aspectRatio:
+                normalized_payload['aspectRatio'] = str(payload.aspectRatio).strip()
+            if payload.language:
+                normalized_payload['language'] = str(payload.language).strip()
+            if payload.voice:
+                normalized_payload['voice'] = str(payload.voice).strip()
+            normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
+            normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
+            logger.info(
+                'ai_video_create_auto_rerouted_to_ltx_storyboard',
+                extra={
+                    'request_id': request_id,
+                    'user_id': user_id,
+                    'recipe_id': recipe.id,
+                    'model_key': normalized_payload.get('modelKey'),
+                },
+            )
         elif maybe_should_use_explainer_recipe(normalized_payload):
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_explainer_recipe_request(
                 str(payload.script or '').strip()
@@ -2621,10 +2632,121 @@ def list_avatars(
     search: str | None = None,
     scope: str | None = None,
     language: str | None = None,
-    _: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
 ):
     service = AvatarService()
-    return service.list_avatars(search=search, scope=scope, language=language)
+    return service.list_avatars(search=search, scope=scope, language=language, user_id=user_id)
+
+
+@router.post('/actors/create', response_model=ActorCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post('/api/actors/create', response_model=ActorCreateResponse, include_in_schema=False, status_code=status.HTTP_201_CREATED)
+async def create_actor(
+    name: str = Form(...),
+    scope: str = Form('own'),
+    tags: str = Form(''),
+    category: str = Form('ugc_influencer'),
+    language_support: str = Form('en-IN'),
+    prompt_template: str = Form(...),
+    negative_prompt: str = Form(''),
+    recommended_voice: str = Form(...),
+    thumb: UploadFile = File(...),
+    ref_front: UploadFile = File(...),
+    ref_alt: UploadFile | None = File(default=None),
+    preview: UploadFile | None = File(default=None),
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        service = AvatarService()
+        actor_id = service.create_actor(
+            user_id=user_id,
+            name=name,
+            scope=scope,
+            tags=[item.strip() for item in tags.split(',') if item.strip()],
+            category=category,
+            language_support=[item.strip() for item in language_support.split(',') if item.strip()],
+            prompt_template=prompt_template,
+            negative_prompt=negative_prompt,
+            recommended_voice=recommended_voice,
+            thumb_bytes=await thumb.read(),
+            thumb_content_type=thumb.content_type or 'image/jpeg',
+            ref_front_bytes=await ref_front.read(),
+            ref_front_content_type=ref_front.content_type or 'image/jpeg',
+            ref_alt_bytes=await ref_alt.read() if ref_alt else None,
+            ref_alt_content_type=ref_alt.content_type if ref_alt else None,
+            preview_bytes=await preview.read() if preview else None,
+            preview_content_type=preview.content_type if preview else None,
+        )
+        return ActorCreateResponse(actor_id=actor_id, status='active')
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('actor_create_failed', extra={'request_id': get_request_id(), 'user_id': user_id, 'error': str(exc)})
+        raise HTTPException(status_code=500, detail='Failed to create actor') from exc
+
+
+@router.get('/actors/list', response_model=list[AvatarResponse])
+@router.get('/api/actors/list', response_model=list[AvatarResponse], include_in_schema=False)
+def list_actors(
+    search: str | None = None,
+    scope: str | None = None,
+    language: str | None = None,
+    user_id: str = Depends(get_user_id),
+):
+    service = AvatarService()
+    return service.list_avatars(search=search, scope=scope, language=language, user_id=user_id)
+
+
+@router.get('/actors/{actor_id}', response_model=ActorDetailResponse)
+@router.get('/api/actors/{actor_id}', response_model=ActorDetailResponse, include_in_schema=False)
+def get_actor_details(
+    actor_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    actor = AvatarService().get_actor_details(actor_id, user_id=user_id)
+    if not actor:
+        raise HTTPException(status_code=404, detail='Actor not found')
+    return ActorDetailResponse(**actor)
+
+
+@router.post('/actors/{actor_id}/visibility', response_model=ActorVisibilityUpdateResponse)
+@router.post('/api/actors/{actor_id}/visibility', response_model=ActorVisibilityUpdateResponse, include_in_schema=False)
+def update_actor_visibility(
+    actor_id: str,
+    payload: ActorVisibilityUpdateRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        actor = AvatarService().update_actor_scope(actor_id=actor_id, user_id=user_id, scope=payload.scope)
+        return ActorVisibilityUpdateResponse(actor_id=actor.id, scope=actor.scope, status=actor.status or 'active')
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post('/test-avatar', response_model=TestAvatarResponse)
+@router.post('/api/test-avatar', response_model=TestAvatarResponse, include_in_schema=False)
+def test_avatar(
+    payload: TestAvatarRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        result = get_avatar_preview_service().generate_test_avatar_video(
+            actor_id=payload.actor_id,
+            user_id=user_id,
+            script_text=payload.script_text,
+        )
+        return TestAvatarResponse(**result)
+    except RuntimeError as exc:
+        detail = str(exc).strip()
+        if 'not found' in detail.lower():
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=422, detail=detail) from exc
+    except Exception as exc:
+        logger.exception('test_avatar_failed', extra={'request_id': get_request_id(), 'user_id': user_id, 'actor_id': payload.actor_id, 'error': str(exc)})
+        raise HTTPException(status_code=500, detail='Failed to generate talking avatar video') from exc
 
 
 @router.post('/api/avatars/custom', response_model=CreateCustomAvatarResponse, status_code=status.HTTP_201_CREATED)
@@ -2639,9 +2761,19 @@ def create_custom_avatar(
         doc = {
             'avatar_id': avatar_ref.id,
             'user_id': user_id,
+            'scope': 'own',
             'name': payload.name.strip(),
             'reference_image_url': str(payload.reference_image_url),
+            'reference_images': [str(payload.reference_image_url)],
+            'primary_image': str(payload.reference_image_url),
+            'thumbnail_url': str(payload.reference_image_url),
             'preferred_voice': (payload.preferred_voice or 'shubh').strip().lower() or 'shubh',
+            'recommended_voice': (payload.preferred_voice or 'shubh').strip() or 'Shubh',
+            'category': 'custom_avatar',
+            'tags': ['custom', 'ugc'],
+            'language_support': ['en-IN'],
+            'prompt_template': 'Indian creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
+            'negative_prompt': 'distorted face, broken lips, asymmetry, blurry eyes',
             'status': 'ready_for_preview',
             'created_at': now,
             'updated_at': now,
@@ -2669,49 +2801,6 @@ def create_custom_avatar(
         )
         raise HTTPException(status_code=500, detail='Failed to create custom avatar') from exc
 
-
-
-@router.post('/api/avatars/custom', response_model=CreateCustomAvatarResponse, status_code=status.HTTP_201_CREATED)
-def create_custom_avatar(
-    payload: CreateCustomAvatarRequest,
-    user_id: str = Depends(get_user_id),
-):
-    try:
-        avatar_ref = firestore.client().collection('avatars').document()
-        now = firestore.SERVER_TIMESTAMP
-
-        doc = {
-            'avatar_id': avatar_ref.id,
-            'user_id': user_id,
-            'name': payload.name.strip(),
-            'reference_image_url': str(payload.reference_image_url),
-            'preferred_voice': (payload.preferred_voice or 'shubh').strip().lower() or 'shubh',
-            'status': 'ready_for_preview',
-            'created_at': now,
-            'updated_at': now,
-        }
-
-        avatar_ref.set(doc)
-
-        return CreateCustomAvatarResponse(
-            avatar_id=doc['avatar_id'],
-            user_id=doc['user_id'],
-            name=doc['name'],
-            reference_image_url=doc['reference_image_url'],
-            preferred_voice=doc['preferred_voice'],
-            status=doc['status'],
-        )
-
-    except Exception as exc:
-        logger.exception(
-            'custom_avatar_create_failed',
-            extra={
-                'request_id': get_request_id(),
-                'user_id': user_id,
-                'error': str(exc),
-            },
-        )
-        raise HTTPException(status_code=500, detail='Failed to create custom avatar') from exc
 
 
 @router.post('/api/avatars/custom/{avatar_id}/preview', response_model=GenerateCustomAvatarPreviewResponse)
@@ -2801,60 +2890,6 @@ def generate_custom_avatar_preview(
             },
         )
         raise HTTPException(status_code=500, detail='Failed to generate avatar preview') from exc
-
-
-@router.get('/api/avatars/custom/{avatar_id}/preview/{job_id}', response_model=CustomAvatarPreviewStatusResponse)
-def get_custom_avatar_preview_status(
-    avatar_id: str,
-    job_id: str,
-    user_id: str = Depends(get_user_id),
-):
-    try:
-        avatar_snap = firestore.client().collection('avatars').document(avatar_id).get()
-        if not avatar_snap.exists:
-            raise HTTPException(status_code=404, detail='Avatar not found')
-
-        avatar = avatar_snap.to_dict()
-        if avatar.get('user_id') != user_id:
-            raise HTTPException(status_code=403, detail='You do not have access to this avatar')
-
-        avatar_preview_service = get_avatar_preview_service()
-        job = avatar_preview_service.get_preview_job(job_id=job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail='Preview job not found')
-
-        if job.get('avatar_id') != avatar_id:
-            raise HTTPException(status_code=404, detail='Preview job does not belong to this avatar')
-
-        return CustomAvatarPreviewStatusResponse(
-            job_id=job['job_id'],
-            avatar_id=job['avatar_id'],
-            user_id=job['user_id'],
-            status=job['status'],
-            script=job.get('script'),
-            voice=job.get('voice'),
-            language=job.get('language'),
-            audio_url=job.get('audio_url'),
-            video_url=job.get('video_url'),
-            provider=job.get('provider'),
-            error_message=job.get('error_message'),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception(
-            'custom_avatar_preview_status_failed',
-            extra={
-                'request_id': get_request_id(),
-                'user_id': user_id,
-                'avatar_id': avatar_id,
-                'job_id': job_id,
-                'error': str(exc),
-            },
-        )
-        raise HTTPException(status_code=500, detail='Failed to fetch avatar preview status') from exc
-
 
 
 @router.get('/api/avatars/custom/{avatar_id}/preview/{job_id}', response_model=CustomAvatarPreviewStatusResponse)

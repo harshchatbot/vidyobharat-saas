@@ -55,6 +55,8 @@ import type {
   UserSettings,
   UserSettingsUpdateRequest,
   Video,
+  VideoStudioChatRequest,
+  VideoStudioChatResponse,
   VideoCreateRequest,
   VideoCreateResponse,
 } from '@/types/api';
@@ -112,6 +114,44 @@ export type CustomAvatarPreviewStatusResponse = {
   video_url?: string | null;
   provider?: string | null;
   error_message?: string | null;
+};
+
+export type ActorCreateResponse = {
+  actor_id: string;
+  status: string;
+};
+
+export type ActorDetailResponse = {
+  id: string;
+  name: string;
+  thumbnail_url: string;
+  reference_images: string[];
+  primary_image?: string | null;
+  preview_video_url?: string | null;
+  tags: string[];
+  category?: string | null;
+  language_support: string[];
+  prompt_template?: string | null;
+  negative_prompt?: string | null;
+  recommended_voice?: string | null;
+  created_at?: string | null;
+  status: string;
+  scope: string;
+};
+
+export type TestAvatarRequest = {
+  actor_id: string;
+  script_text: string;
+};
+
+export type TestAvatarResponse = {
+  status: string;
+  video_url: string;
+  actor_id: string;
+  duration?: number | null;
+  audio_url?: string | null;
+  selected_reference_image?: string | null;
+  retry_attempts?: number;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 40_000;
@@ -416,6 +456,23 @@ export const api = {
     if (params?.language) query.set('language', params.language);
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return request<Avatar[]>(`/avatars${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  listActors(userId: string, params?: { search?: string; scope?: string; language?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.language) query.set('language', params.language);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<Avatar[]>(`/actors/list${suffix}`, {}, { userId, cache: 'no-store' });
+  },
+  getActorDetails(actorId: string, userId: string) {
+    return request<ActorDetailResponse>(`/actors/${actorId}`, {}, { userId, cache: 'no-store' });
+  },
+  testAvatar(payload: TestAvatarRequest, userId: string) {
+    return request<TestAvatarResponse>('/test-avatar', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store', timeoutMs: 120_000 });
   },
   listTemplates(userId: string, params?: { search?: string; category?: string; aspect_ratio?: string }) {
     const query = new URLSearchParams();
@@ -740,6 +797,12 @@ export const api = {
   },
   getAIVideoStatus(videoId: string, userId: string) {
     return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store', timeoutMs: 25_000 });
+  },
+  videoStudioChat(payload: VideoStudioChatRequest, userId: string) {
+    return request<VideoStudioChatResponse>('/api/ai/video/studio-chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store', timeoutMs: 35_000 });
   },
   listImageModels(userId: string) {
     return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store', timeoutMs: 20_000 });

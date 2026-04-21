@@ -197,6 +197,20 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         fallback_model_key='sora_2',
         aliases=('veo3',),
     ),
+    'ltx': GenerationModelDefinition(
+        model_key='ltx',
+        display_name='Self-hosted LTX',
+        medium='video',
+        provider='ltx',
+        provider_model_key='ltx-self-hosted',
+        mode_ids=('internal_benchmark',),
+        cost_profile='ltx_benchmark',
+        billing_unit='per_second',
+        quality_tier='experimental',
+        user_facing_description='Internal stitched-scene benchmark route for self-hosted LTX cinematic montage testing.',
+        default_duration_seconds=5,
+        is_experimental=True,
+    ),
 }
 
 MODEL_ALIASES: dict[str, str] = {}

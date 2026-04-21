@@ -78,7 +78,12 @@ export function CreateAvatarClient({ userId }: Props) {
             <img src={avatar.thumbnail_url} alt={avatar.name} className="h-36 w-full object-cover" />
             <div className="p-3">
               <p className="font-semibold text-text">{avatar.name}</p>
-              <p className="text-xs text-muted">{avatar.style} • {avatar.language_tags.join(', ')}</p>
+              <p className="text-xs text-muted">
+                {[avatar.category || avatar.style, avatar.language_tags.join(', ')].filter(Boolean).join(' • ')}
+              </p>
+              {avatar.tags?.length ? (
+                <p className="mt-1 text-[11px] text-muted">{avatar.tags.slice(0, 4).join(', ')}</p>
+              ) : null}
             </div>
           </button>
         ))}

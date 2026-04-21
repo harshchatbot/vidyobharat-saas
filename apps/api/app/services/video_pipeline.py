@@ -164,6 +164,7 @@ class VideoPipelineService:
         language_name: str | None,
         voice_name: str,
         audio_sample_rate_hz: int,
+        speech_rate: float = 1.0,
     ) -> tuple[Path | None, float, dict[str, object]]:
         if not script.strip():
             return None, 0.0, {
@@ -178,6 +179,7 @@ class VideoPipelineService:
             cache_dir=self.tts_cache_dir,
             language=language_name,
             sample_rate_hz=audio_sample_rate_hz,
+            speech_rate=speech_rate,
         )
         voice_path = voice_result.path
         voice_duration = self._probe_duration(voice_path)
