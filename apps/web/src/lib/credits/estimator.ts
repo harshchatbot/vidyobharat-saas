@@ -32,7 +32,7 @@ const FREE_VOICE_KEYS = new Set(creditEngine.freeVoiceKeys);
 const FREE_IMAGE_MODELS = new Set<string>(creditEngine.freeImageModels as string[]);
 const FREE_IMAGE_RESOLUTIONS = new Set<string>(creditEngine.freeImageResolutions as string[]);
 
-const VIDEO_MODEL_ALIASES = creditEngine.videoModelAliases as Record<string, 'sora' | 'sora_pro' | 'veo' | 'kling'>;
+const VIDEO_MODEL_ALIASES = creditEngine.videoModelAliases as Record<string, string>;
 
 const IMAGE_MODEL_TIERS = creditEngine.imageModelTiers as Record<string, 'standard' | 'premium'>;
 const IMAGE_MODEL_ALIASES = (creditEngine.imageModelAliases ?? {}) as Record<string, string>;
@@ -152,7 +152,7 @@ function estimateImageGenerate(payload: Record<string, unknown>, currentCredits:
 
 function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: number): CreditEstimateResponse {
   const modelKey = String(payload.modelKey ?? payload.selectedModel ?? payload.model ?? '').trim().toLowerCase();
-  const model = VIDEO_MODEL_ALIASES[modelKey] ?? 'sora';
+  const model = VIDEO_MODEL_ALIASES[modelKey] ?? 'fal_ltx23_i2v';
   const resolution = String(payload.resolution ?? '720p').trim() as '720p' | '1080p';
   const quality = String(payload.quality ?? 'standard').trim().toLowerCase() as 'standard' | 'high';
   const durationSeconds = safeInt(payload.durationSeconds, VIDEO_MULTIPLIERS.baseDuration);
@@ -165,9 +165,10 @@ function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: n
   const imageUrlsRaw = (payload.imageUrls ?? payload.image_urls ?? payload.reference_images ?? []) as unknown;
   const hasReferences = Array.isArray(imageUrlsRaw) && imageUrlsRaw.length > 0;
 
+  const videoModelMultipliers = VIDEO_MULTIPLIERS.model as Record<string, number>;
   const videoBaseRaw =
     VIDEO_MULTIPLIERS.baseCredits *
-    VIDEO_MULTIPLIERS.model[model] *
+    (videoModelMultipliers[model] ?? 1) *
     (VIDEO_MULTIPLIERS.resolution[resolution] ?? VIDEO_MULTIPLIERS.resolution['720p']) *
     Math.max(durationSeconds, 1) /
     VIDEO_MULTIPLIERS.baseDuration *
@@ -176,7 +177,7 @@ function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: n
 
   const breakdown: EstimateBreakdownItem[] = [
     item('base', VIDEO_MULTIPLIERS.baseCredits, 'Base video credits'),
-    item('model_multiplier', VIDEO_MULTIPLIERS.model[model], `${model} model multiplier`),
+    item('model_multiplier', videoModelMultipliers[model] ?? 1, `${model} model multiplier`),
     item('resolution_multiplier', VIDEO_MULTIPLIERS.resolution[resolution] ?? 1, `${resolution} resolution multiplier`),
     item('duration_factor', Math.max(durationSeconds, 1) / VIDEO_MULTIPLIERS.baseDuration, 'Duration factor'),
     item('quality_multiplier', VIDEO_MULTIPLIERS.quality[quality] ?? 1, `${quality} quality multiplier`),

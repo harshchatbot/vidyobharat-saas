@@ -85,9 +85,7 @@ function estimateInrFromCredits(credits: number) {
 function normalizeDurationForModel(modelKey: string, durationSeconds: number | null | undefined) {
   const duration = Number(durationSeconds);
   if (!Number.isFinite(duration) || duration <= 0) return null;
-  if (modelKey !== 'kling3') return Math.trunc(duration);
-  if (duration === 5 || duration === 10) return duration;
-  return 5;
+  return Math.trunc(duration);
 }
 
 function buildTierStageLabel(phase: RenderSessionPhase, progress: number) {
@@ -163,11 +161,6 @@ function mapUnifiedTemplateToVideoOption(template: UnifiedTemplate): TemplateOpt
 }
 
 const VIDEO_LANE_PROMPT_PLACEHOLDERS: Record<VideoLaneKey, { topic: string; script: string }> = {
-  daily: {
-    topic: 'Example: A short educational reel about why the brain uses so much energy',
-    script:
-      'Example: A stylized 3D animated brain glowing with electric pulses, dramatic close-up, strong first frame, vertical 9:16 reel, clean educational background, social-first motion, highly engaging short-form opener.',
-  },
   creator_pro: {
     topic: 'Example: Launch reel for a premium skincare product',
     script:
@@ -199,9 +192,9 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'Hook-first setup for fast, social storytelling.',
     preferredTemplateKeys: ['music-video', 'storyboard', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
     durationSeconds: '10',
     captionsEnabled: true,
@@ -213,9 +206,9 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'A guided narrative setup for before-after and emotional storytelling.',
     preferredTemplateKeys: ['storyboard', 'history', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
     durationSeconds: '10',
     captionsEnabled: true,
@@ -227,11 +220,11 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'Best-value ad setup for product visuals and conversion-focused pacing.',
     preferredTemplateKeys: ['product', 'startup', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
-    durationSeconds: '5',
+    durationSeconds: '6',
     captionsEnabled: false,
     topic: 'A premium short-form ad for a mango drink brand',
     script: 'Create a premium short-form ad for a mango drink bottle with bright summer visuals, clean product framing, lifestyle energy, and conversion-focused pacing.',
@@ -241,9 +234,9 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'A guided explainer setup with captions on by default.',
     preferredTemplateKeys: ['explainer-video', 'tech', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
     durationSeconds: '10',
     captionsEnabled: true,
@@ -255,9 +248,9 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'A strong starting point for persona-led and mythology-style visuals.',
     preferredTemplateKeys: ['character-vlog', 'mythology', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
     durationSeconds: '10',
     captionsEnabled: true,
@@ -269,11 +262,11 @@ const VIDEO_QUICK_START_PRESETS: Record<CreatorIntentKey, VideoQuickStartPreset>
     description: 'A playful short-form setup for mascot, pet, and loop-friendly content.',
     preferredTemplateKeys: ['music-video', 'asmr-video', 'custom'],
     lane: 'creator_pro',
-    modelKey: 'kling3',
+    modelKey: 'fal_ltx23_i2v',
     aspectRatio: '9:16',
-    resolution: '720p',
+    resolution: '1080p',
     quality: 'standard',
-    durationSeconds: '5',
+    durationSeconds: '6',
     captionsEnabled: false,
     topic: 'A playful mascot dance clip with shareable energy',
     script: 'Create a cute, loop-friendly reel featuring a playful mascot dancing with smooth movement, family-safe appeal, and high share potential.',
@@ -533,7 +526,7 @@ function defaultTemplateEstimatePayload(
   return {
     action: 'video_create' as const,
     payload: {
-      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'veo3',
+      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'fal_ltx23_i2v',
       resolution: defaults.resolution || '720p',
       durationSeconds: defaults.duration_seconds || 8,
       quality: defaults.quality || 'standard',
@@ -688,7 +681,7 @@ export function CreateVideoPage({
   const [models, setModels] = useState<AIVideoModel[]>(FALLBACK_VIDEO_MODELS);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [videoLane, setVideoLane] = useState<VideoLaneKey>(initialLane ?? 'creator_pro');
-  const [modelKey, setModelKey] = useState<VideoModelKey>(initialModelKey ?? 'kling3');
+  const [modelKey, setModelKey] = useState<VideoModelKey>(initialModelKey ?? 'fal_ltx23_i2v');
   const activeProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -777,7 +770,6 @@ export function CreateVideoPage({
   const selectedModelDisabled = selectedModel?.enabled === false;
   const selectedLane = getVideoLaneDefinition(videoLane);
   const recommendedEngineCopy = `${selectedLane.label} · ${selectedModel?.shortLabel ?? selectedModel?.label ?? 'Smart default'}`;
-  const isDailyLane = videoLane === 'daily';
   const activeLanePromptPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].script;
   const activeLaneTopicPlaceholder = VIDEO_LANE_PROMPT_PLACEHOLDERS[videoLane].topic;
   const selectedLanguageCode =
@@ -869,8 +861,8 @@ export function CreateVideoPage({
   const supportedResolutions = [...outputRule.resolutions] as string[];
   const hasReferenceImages = selectedImageUrls.length > 0;
   const seededDuration = durationRule.seededSeconds;
-  const klingMinDuration = durationRule.minSeconds;
-  const klingMaxDuration = durationRule.maxSeconds;
+  const minDuration = durationRule.minSeconds;
+  const maxDuration = durationRule.maxSeconds;
   const availableDurations: number[] = hasReferenceImages && seededDuration
     ? [seededDuration]
     : [...durationRule.presetSeconds];
@@ -917,7 +909,7 @@ export function CreateVideoPage({
     outputSizes[aspectRatio]?.[resolution] ??
     outputSizes[availableAspectRatios[0]?.value ?? '']?.[availableResolutions[0]?.value ?? ''] ??
     '';
-  const estimatedTime = videoLane === 'premium' ? '2-5 min' : videoLane === 'creator_pro' ? '2-4 min' : '1-3 min';
+  const estimatedTime = videoLane === 'premium' ? '2-5 min' : '2-4 min';
   const studioTitle = title.trim() || topic.trim() || selectedHeroTemplate?.title || template.label || 'Video studio';
   const sceneStrip = useMemo(() => deriveSceneStrip(script, studioTitle), [script, studioTitle]);
 
@@ -947,7 +939,7 @@ export function CreateVideoPage({
       return apiEstimated;
     }
     const aliasMap = (creditEngine.videoModelAliases ?? {}) as Record<string, string>;
-    const normalizedModel = aliasMap[String(modelKey).toLowerCase()] ?? 'sora';
+    const normalizedModel = aliasMap[String(modelKey).toLowerCase()] ?? 'fal_ltx23_i2v';
     const modelMultiplier = Number((creditEngine.video.modelMultiplier as Record<string, number>)[normalizedModel] ?? 0);
     const resolutionMultiplier = Number((creditEngine.video.resolutionMultiplier as Record<string, number>)[resolution] ?? 1);
     const qualityMultiplier = Number((creditEngine.video.qualityMultiplier as Record<string, number>)[quality] ?? 1);
@@ -1057,43 +1049,15 @@ export function CreateVideoPage({
     const previousLane = previousLaneRef.current;
     if (previousLane === videoLane) return;
     previousLaneRef.current = videoLane;
-    if (videoLane !== 'daily') return;
-
     setResolution('720p');
-    setQuality('standard');
-    setCaptionsEnabled(false);
-    setNarrationEnabled(false);
-    setSelectedImageUrls([]);
     setDurationMode('custom');
-
-    const safeDailyDurations = availableDurations.filter((value) => value === 5 || value === 8);
-    const fallbackDailyDuration = safeDailyDurations[0] ?? availableDurations[0] ?? 8;
-    setDurationSeconds(String(fallbackDailyDuration));
-  }, [availableDurations, videoLane]);
+  }, [videoLane]);
 
   useEffect(() => {
-    if (!isDailyLane) return;
-    const safeDailyDurations = availableDurations.filter((value) => value === 5 || value === 8);
-    const allowedDurations = safeDailyDurations.length > 0 ? safeDailyDurations : availableDurations;
-    if (allowedDurations.length === 0) return;
-    if (allowedDurations.includes(Number(durationSeconds))) return;
-    setDurationSeconds(String(allowedDurations[0]));
-  }, [availableDurations, durationSeconds, isDailyLane]);
-
-  useEffect(() => {
-    if (modelKey !== 'kling3') return;
     if (normalizedDurationSeconds === null) return;
     if (Number(durationSeconds) === normalizedDurationSeconds) return;
     setDurationSeconds(String(normalizedDurationSeconds));
-  }, [durationSeconds, modelKey, normalizedDurationSeconds]);
-
-  useEffect(() => {
-    if (videoLane !== 'daily') return;
-    const fallbackLane = VIDEO_LANES[0]?.key ?? 'creator_pro';
-    if (fallbackLane !== videoLane) {
-      setVideoLane(fallbackLane);
-    }
-  }, [videoLane]);
+  }, [durationSeconds, normalizedDurationSeconds]);
 
   useEffect(() => {
     if (laneModels.length > 0) return;
@@ -1109,11 +1073,11 @@ export function CreateVideoPage({
       setModelKey(fallbackModel.key as VideoModelKey);
     }
   }, [laneModels.length, modelKey, models, sharedModelMap, videoLane]);
-  const supportsCustomDuration = modelKey !== 'kling3' && durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined;
+  const supportsCustomDuration = durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined;
   const durationError =
     supportsCustomDuration
-      ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (klingMinDuration ?? 3) || Number(durationSeconds) > (klingMaxDuration ?? 10)
-        ? `Enter a duration between ${klingMinDuration}s and ${klingMaxDuration}s.`
+      ? (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) < (minDuration ?? 3) || Number(durationSeconds) > (maxDuration ?? 10)
+        ? `Enter a duration between ${minDuration}s and ${maxDuration}s.`
         : null)
       : (!availableDurations.includes(Number(durationSeconds))
         ? `Choose one of the supported ${selectedModel.label} durations: ${availableDurations.map((value) => `${value}s`).join(', ')}.`
@@ -1123,9 +1087,9 @@ export function CreateVideoPage({
       evaluateScriptQuality({
         script,
         durationSeconds: normalizedDurationSeconds || durationRule.defaultSeconds || 8,
-        structuredPreferred: !isDailyLane,
+        structuredPreferred: true,
       }),
-    [durationRule.defaultSeconds, isDailyLane, normalizedDurationSeconds, script],
+    [durationRule.defaultSeconds, normalizedDurationSeconds, script],
   );
   const generationOverlayVisible = renderSessionPhase === 'preparing' || renderSessionPhase === 'queued' || renderSessionPhase === 'processing';
   const overlayVisible = generationOverlayVisible || voiceTranslationLoading || initialLoading;
@@ -1792,8 +1756,8 @@ export function CreateVideoPage({
     }
 
     if (durationRule.minSeconds !== undefined && durationRule.maxSeconds !== undefined) {
-      const minimum = klingMinDuration ?? 3;
-      const maximum = klingMaxDuration ?? 10;
+      const minimum = minDuration ?? 3;
+      const maximum = maxDuration ?? 10;
       if (!Number.isFinite(currentSeconds) || currentSeconds < minimum || currentSeconds > maximum) {
         setDurationSeconds(String(durationRule.defaultSeconds));
       }
@@ -3058,35 +3022,6 @@ export function CreateVideoPage({
                     <div className="rounded-[18px] border border-dashed border-[hsl(var(--color-border)/0.85)] bg-[hsl(var(--color-bg)/0.28)] p-5 text-sm text-muted">
                       Your video idea and script will appear here after you start from the unified composer.
                     </div>
-                  ) : isDailyLane ? (
-                    <div className="space-y-2 rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Describe your video</label>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => void enhanceScript()}
-                          disabled={scriptLoading || !script.trim()}
-                          className="min-h-9 rounded-[12px] px-3 py-2 text-xs"
-                        >
-                          {scriptLoading ? <><Spinner className="h-3.5 w-3.5" />Improving...</> : <><Sparkles className="h-3.5 w-3.5" />Improve</>}
-                        </Button>
-                      </div>
-                      <Textarea
-                        ref={scriptTextareaRef}
-                        value={script}
-                        onChange={(event) => setScript(event.target.value)}
-                        placeholder={activeLanePromptPlaceholder}
-                        rows={9}
-                        className="min-h-[220px] resize-y bg-[hsl(var(--color-surface)/0.22)]"
-                      />
-                      <ScriptQualityPanel
-                        report={scriptQualityReport}
-                        onEnhance={() => void enhanceScript()}
-                        loading={scriptLoading}
-                        enhanceCredits={scriptEnhanceEstimate?.estimatedCredits ?? null}
-                      />
-                    </div>
                   ) : (
                     <div className="rounded-[18px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-bg)/0.24)] p-4">
                       <ScriptEditor
@@ -3249,8 +3184,8 @@ export function CreateVideoPage({
                       onDurationSecondsChange={setDurationSeconds}
                       availableDurations={availableDurations}
                       supportsCustomDuration={supportsCustomDuration}
-                      minDuration={klingMinDuration}
-                      maxDuration={klingMaxDuration}
+                      minDuration={minDuration}
+                      maxDuration={maxDuration}
                       durationHelperText={hasReferenceImages && seededDuration ? 'Image-seeded clips are currently fixed to 8 seconds for this model.' : durationRule.helperText}
                       durationError={durationError}
                       captionsEnabled={captionsEnabled}

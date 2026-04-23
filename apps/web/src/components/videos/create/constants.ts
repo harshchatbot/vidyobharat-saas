@@ -244,8 +244,7 @@ export const VIDEO_DURATION_RULES = Object.fromEntries(
 export const FALLBACK_VIDEO_MODELS: AIVideoModel[] = buildVideoModelsForApiFallback();
 
 export const MODEL_ICONS: Record<string, typeof Crown> = {
+  fal_ltx23_i2v: WandSparkles,
   sora2: Crown,
-  sora2_pro: Sparkles,
-  veo3: MonitorSmartphone,
-  kling3: WandSparkles,
+  ltx: Sparkles,
 };

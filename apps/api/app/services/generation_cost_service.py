@@ -94,14 +94,10 @@ class GenerationCostService:
             return 'openai_image'
         if resolved == 'recraft':
             return 'recraft_studio'
-        if resolved == 'wan_2_5':
-            return 'kling'
-        if resolved == 'kling_turbo':
-            return 'kling'
         if resolved == 'sora_2':
             return 'sora2'
-        if resolved == 'veo_3_1':
-            return 'veo3'
+        if resolved in {'fal-ai/ltx-2.3/image-to-video', 'ltx23_i2v'}:
+            return 'fal_ltx23_i2v'
         if resolved == 'ltx':
-            return 'ltx_benchmark'
+            return 'ltx'
         return resolved or model_key

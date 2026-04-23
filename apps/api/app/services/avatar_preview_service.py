@@ -9,9 +9,12 @@ from firebase_admin import firestore, storage
 from app.core.config import get_settings
 from app.providers.firebase import get_firebase_app
 
-from app.services.avatar_service import AvatarService
+from app.services.audio_analysis_service import AudioAnalysisService
+from app.services.avatar_service import AvatarService, build_avatar_master_prompt
+from app.services.emotion_service import build_behavior_timeline
 from app.services.fal_video_service import FalVideoService
 from app.services.recipe_audio_service import RecipeAudioService
+from app.services.timing_sync_service import TimingSyncService
 
 
 
@@ -22,6 +25,8 @@ class AvatarPreviewService:
     def __init__(self) -> None:
         self.audio_service = RecipeAudioService()
         self.fal_service = FalVideoService()
+        self.timing_service = TimingSyncService()
+        self.audio_analysis = AudioAnalysisService()
         self.settings = get_settings()
         app = get_firebase_app()
         self.db = firestore.client(app=app)
@@ -52,6 +57,7 @@ class AvatarPreviewService:
             'video_url': None,
             'provider': 'fal-ai/infinitalk',
             'error_message': None,
+            'voice_profile': None,
             'created_at': now,
             'updated_at': now,
         }
@@ -92,6 +98,7 @@ class AvatarPreviewService:
         _, candidate_reference_images = self._resolve_reference_images(avatar)
         if not candidate_reference_images:
             raise RuntimeError('Avatar reference image URL is missing')
+        voice_profile = dict(avatar.get('voice_profile') or {})
 
         self._update_job(
             job_ref,
@@ -102,15 +109,21 @@ class AvatarPreviewService:
         )
 
         try:
-            narration_path = self.audio_service._generate_narration_track_sarvam(
-                text=job['script'],
+            narration_path, timing_map = self._generate_timed_avatar_audio(
+                script_text=job['script'],
                 render_id=job_id,
                 voice=job.get('voice'),
+                voice_profile=voice_profile,
                 language=job.get('language'),
-                speech_rate=self.settings.avatar_tts_speech_rate,
             )
+            behavior_timeline = build_behavior_timeline(timing_map)
             if not narration_path or not narration_path.exists():
                 raise RuntimeError('Sarvam TTS failed to generate avatar preview audio')
+            audio_reactive_timeline = self.audio_analysis.analyze_audio_reactivity(
+                audio_path=narration_path,
+                timing_map=timing_map,
+            )
+            behavior_timeline = self.audio_analysis.merge_with_behavior(behavior_timeline, audio_reactive_timeline)
 
             audio_url = self._upload_file_to_storage(
                 local_path=narration_path,
@@ -122,10 +135,11 @@ class AvatarPreviewService:
             video_url, provider_metadata = self._generate_infinitalk_video_with_retries(
                 image_urls=candidate_reference_images,
                 audio_url=audio_url,
-                prompt=self._build_avatar_prompt(avatar=avatar),
+                prompt=self._build_avatar_prompt(avatar=avatar, behavior_timeline=behavior_timeline),
                 audio_duration_seconds=audio_duration_seconds,
                 avatar_id=str(job['avatar_id']),
                 job_id=job_id,
+                behavior_timeline=behavior_timeline,
             )
 
             now = datetime.now(timezone.utc)
@@ -136,6 +150,10 @@ class AvatarPreviewService:
                     'audio_url': audio_url,
                     'video_url': video_url,
                     'provider_metadata': provider_metadata,
+                    'timing_map': timing_map,
+                    'audio_reactive_timeline': audio_reactive_timeline,
+                    'behavior_timeline': behavior_timeline,
+                    'voice_profile': voice_profile,
                     'selected_reference_image': provider_metadata.get('selected_reference_image'),
                     'updated_at': now,
                 },
@@ -147,6 +165,8 @@ class AvatarPreviewService:
                     'last_preview_video_url': video_url,
                     'last_preview_audio_url': audio_url,
                     'last_preview_provider_metadata': provider_metadata,
+                    'last_preview_audio_reactive_timeline': audio_reactive_timeline,
+                    'last_preview_behavior_timeline': behavior_timeline,
                     'preview_video_url': video_url,
                     'updated_at': now,
                 },
@@ -159,6 +179,9 @@ class AvatarPreviewService:
                     'job_id': job_id,
                     'avatar_id': job['avatar_id'],
                     'user_id': job['user_id'],
+                    'timing_segment_count': len(timing_map or []),
+                    'audio_reactive_segment_count': len(audio_reactive_timeline or []),
+                    'behavior_segment_count': len(behavior_timeline or []),
                     'video_url': video_url,
                 },
             )
@@ -205,6 +228,7 @@ class AvatarPreviewService:
                 'prompt_template': custom_avatar.prompt_template,
                 'negative_prompt': custom_avatar.negative_prompt,
                 'recommended_voice': custom_avatar.preferred_voice,
+                'voice_profile': custom_avatar.voice_profile,
             }
         else:
             actor_payload = {
@@ -214,6 +238,7 @@ class AvatarPreviewService:
                 'prompt_template': actor.prompt_template,
                 'negative_prompt': actor.negative_prompt,
                 'recommended_voice': actor.recommended_voice,
+                'voice_profile': actor.voice_profile,
             }
 
         _, candidate_reference_images = self._resolve_reference_images(actor_payload)
@@ -221,15 +246,21 @@ class AvatarPreviewService:
             raise RuntimeError('No reference image available for this actor')
 
         test_job_id = f'test-{uuid.uuid4()}'
-        narration_path = self.audio_service._generate_narration_track_sarvam(
-            text=script_text.strip(),
+        narration_path, timing_map = self._generate_timed_avatar_audio(
+            script_text=script_text.strip(),
             render_id=test_job_id,
             voice=actor_payload.get('recommended_voice'),
+            voice_profile=actor_payload.get('voice_profile'),
             language='en-IN',
-            speech_rate=self.settings.avatar_tts_speech_rate,
         )
+        behavior_timeline = build_behavior_timeline(timing_map)
         if not narration_path or not narration_path.exists():
             raise RuntimeError('Sarvam TTS failed to generate actor test audio')
+        audio_reactive_timeline = self.audio_analysis.analyze_audio_reactivity(
+            audio_path=narration_path,
+            timing_map=timing_map,
+        )
+        behavior_timeline = self.audio_analysis.merge_with_behavior(behavior_timeline, audio_reactive_timeline)
 
         audio_url = self._upload_file_to_storage(
             local_path=narration_path,
@@ -240,10 +271,11 @@ class AvatarPreviewService:
         video_url, provider_metadata = self._generate_infinitalk_video_with_retries(
             image_urls=candidate_reference_images,
             audio_url=audio_url,
-            prompt=self._build_avatar_prompt(avatar=actor_payload),
+            prompt=self._build_avatar_prompt(avatar=actor_payload, behavior_timeline=behavior_timeline),
             audio_duration_seconds=audio_duration_seconds,
             avatar_id=actor_id,
             job_id=test_job_id,
+            behavior_timeline=behavior_timeline,
         )
         return {
             'status': 'success',
@@ -253,7 +285,80 @@ class AvatarPreviewService:
             'audio_url': audio_url,
             'selected_reference_image': provider_metadata.get('selected_reference_image'),
             'retry_attempts': int(provider_metadata.get('retry_attempts') or 0),
+            'voice_profile': actor_payload.get('voice_profile') or {},
+            'timing_map': timing_map,
+            'audio_reactive_timeline': audio_reactive_timeline,
+            'behavior_timeline': behavior_timeline,
         }
+
+    def _generate_timed_avatar_audio(
+        self,
+        *,
+        script_text: str,
+        render_id: str,
+        voice: str | None,
+        voice_profile: dict[str, Any] | None,
+        language: str | None,
+    ) -> tuple[Path | None, list[dict[str, Any]] | None]:
+        cleaned_script = str(script_text or "").strip()
+        if not cleaned_script:
+            return None, None
+
+        try:
+            lines = self.timing_service.split_script(cleaned_script)
+            if len(lines) <= 1:
+                narration_path = self.audio_service._generate_narration_track(
+                    text=cleaned_script,
+                    render_id=render_id,
+                    voice=voice,
+                    voice_profile=voice_profile,
+                    language=language,
+                )
+                if not narration_path:
+                    return None, None
+                duration_ms = int(max(1.0, self.audio_service.pipeline._probe_duration(narration_path) * 1000))
+                return narration_path, [{"text": cleaned_script, "start_ms": 0, "end_ms": duration_ms, "duration_ms": duration_ms}]
+
+            segment_counter = {"value": 0}
+
+            def _tts_func(line: str) -> Path | None:
+                segment_counter["value"] += 1
+                return self.audio_service._generate_narration_track(
+                    text=line,
+                    render_id=f"{render_id}-seg-{segment_counter['value']}",
+                    voice=voice,
+                    voice_profile=voice_profile,
+                    language=language,
+                )
+
+            segments = self.timing_service.generate_audio_segments(lines, _tts_func)
+            timing_map = self.timing_service.build_timing_map(segments)
+            merged_path = self.timing_service.merge_audio(
+                segments,
+                Path("data/renders") / f"{render_id}-timed.wav",
+            )
+            logger.info(
+                'avatar_timing_sync_completed',
+                extra={
+                    'render_id': render_id,
+                    'segment_count': len(segments),
+                    'total_duration_ms': timing_map[-1]['end_ms'] if timing_map else 0,
+                },
+            )
+            return merged_path, timing_map
+        except Exception as exc:
+            logger.warning(
+                'avatar_timing_sync_failed',
+                extra={'render_id': render_id, 'error': str(exc)},
+            )
+            narration_path = self.audio_service._generate_narration_track(
+                text=cleaned_script,
+                render_id=render_id,
+                voice=voice,
+                voice_profile=voice_profile,
+                language=language,
+            )
+            return narration_path, None
 
 
 
@@ -270,6 +375,7 @@ class AvatarPreviewService:
         audio_duration_seconds: float,
         avatar_id: str,
         job_id: str,
+        behavior_timeline: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         video_url, provider_metadata = self.fal_service.generate_infinite_talk(
             persona_image_url=image_url,
@@ -284,6 +390,7 @@ class AvatarPreviewService:
                 'preview_mode': True,
                 'infinitetalk_resolution': '480p',
                 'acceleration': self.settings.avatar_infinitalk_acceleration,
+                'behavior_timeline': behavior_timeline or [],
             },
         )
         return video_url, provider_metadata
@@ -297,6 +404,7 @@ class AvatarPreviewService:
         audio_duration_seconds: float,
         avatar_id: str,
         job_id: str,
+        behavior_timeline: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         last_error: Exception | None = None
         for index, image_url in enumerate(image_urls):
@@ -317,6 +425,7 @@ class AvatarPreviewService:
                     audio_duration_seconds=audio_duration_seconds,
                     avatar_id=avatar_id,
                     job_id=job_id,
+                    behavior_timeline=behavior_timeline,
                 )
                 return video_url, {
                     **provider_metadata,
@@ -350,26 +459,51 @@ class AvatarPreviewService:
         blob.make_public()
         return blob.public_url
 
-    def _build_avatar_prompt(self, *, avatar: dict[str, Any]) -> str:
-        custom_prompt = str(avatar.get('prompt_template') or '').strip()
-        negative_prompt = str(avatar.get('negative_prompt') or '').strip()
+    def _build_avatar_prompt(self, *, avatar: dict[str, Any], behavior_timeline: list[dict[str, Any]] | None = None) -> str:
         avatar_name = str(avatar.get('name') or '').strip()
-
-        if custom_prompt:
-            return f'{custom_prompt}. Avoid: {negative_prompt}.' if negative_prompt else custom_prompt
-
-        if avatar_name:
-            return (
-                f'{avatar_name} speaking directly to camera, '
-                'realistic talking head, natural lip sync, subtle head movement, '
-                'stable identity, clean UGC style, natural blinking, professional look.'
-            )
-
-        return (
-            'A realistic person speaking directly to camera, '
-            'natural lip sync, subtle head movement, stable identity, '
-            'clean UGC style, natural blinking, professional look.'
+        behavior_line = self._behavior_prompt_line(behavior_timeline)
+        context_bits = [f'Creator name: {avatar_name}.' if avatar_name else None, behavior_line]
+        context_line = " ".join(bit for bit in context_bits if bit).strip() or None
+        return build_avatar_master_prompt(
+            gender=avatar.get('gender'),
+            custom_prompt=avatar.get('prompt_template'),
+            negative_prompt=avatar.get('negative_prompt'),
+            context_line=context_line,
         )
+
+    def _behavior_prompt_line(self, behavior_timeline: list[dict[str, Any]] | None) -> str | None:
+        if not behavior_timeline:
+            return None
+        first = behavior_timeline[0]
+        emotion = str(first.get('smoothed_emotion') or first.get('emotion') or 'neutral')
+        motion = str(first.get('smoothed_head_motion') or first.get('head_motion') or 'micro_tilt')
+        if emotion == 'excited':
+            expression = 'smiling slightly with energetic expression and bright eyes.'
+        elif emotion == 'serious':
+            expression = 'focused expression with a slightly serious face and strong eye focus.'
+        elif emotion == 'confident':
+            expression = 'confident natural smile with persuasive warmth.'
+        elif emotion == 'transition_excited':
+            expression = 'a natural transition from neutral warmth to a slight bright smile.'
+        elif emotion == 'transition_serious':
+            expression = 'a natural transition into a more focused and slightly serious look.'
+        elif emotion == 'transition_confident':
+            expression = 'a natural transition into a calm confident smile.'
+        else:
+            expression = 'calm neutral expression with subtle warmth.'
+
+        motion_line = {
+            'slight_nod': 'Use a subtle slight nod while speaking.',
+            'micro_tilt': 'Use a restrained micro head tilt while speaking.',
+            'slow_shift': 'Use a very slow natural head shift while speaking.',
+        }.get(motion, 'Keep head movement subtle and natural.')
+        intensity = str(((first.get('audio_intensity') or {}).get('intensity')) or 'medium')
+        intensity_line = {
+            'high': 'Let the speaking feel a bit more expressive with slightly wider mouth movement.',
+            'low': 'Keep the speaking motion softer and more subtle.',
+            'medium': 'Keep the speaking motion balanced and conversational.',
+        }.get(intensity, 'Keep the speaking motion balanced and conversational.')
+        return f'Behavior cue: {expression} {motion_line} {intensity_line}'
 
     def _update_job(self, job_ref: Any, fields: dict[str, Any]) -> None:
         job_ref.set(fields, merge=True)

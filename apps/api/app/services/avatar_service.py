@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,60 @@ from app.providers.firebase import FirebaseNotConfiguredError, get_firebase_app,
 from app.schemas.catalog import AvatarResponse
 from app.services.tts import list_tts_voices
 
+logger = logging.getLogger(__name__)
+
+
+def build_avatar_master_prompt(
+    *,
+    gender: str | None,
+    custom_prompt: str | None = None,
+    negative_prompt: str | None = None,
+    context_line: str | None = None,
+) -> str:
+    normalized_gender = str(gender or '').strip().lower()
+    gender_label = normalized_gender if normalized_gender in {'female', 'male'} else 'person'
+    custom_line = str(custom_prompt or '').strip()
+    negative_line = str(negative_prompt or '').strip()
+    context = str(context_line or '').strip()
+
+    parts = [
+        'You are a human influencer speaking directly to camera.',
+        '',
+        'Character profile:',
+        f'- Gender: {gender_label}',
+        '- Personality: friendly, confident, relatable',
+        '- Tone: casual UGC creator',
+        '- Energy: medium-high',
+        '- Speaking style: fast, punchy, natural',
+        '',
+        'Behavior rules:',
+        '- Maintain direct eye contact with camera',
+        '- Use subtle head movement while speaking',
+        '- Natural facial expressions aligned with speech',
+        '- Slight smile when emphasizing positive points',
+        '- No exaggerated movements or unnatural expressions',
+        '- Keep delivery smooth and conversational',
+        '',
+        'Speech delivery:',
+        '- Speak clearly and slightly fast (social media style)',
+        '- Add natural pauses between sentences',
+        '- Emphasize key words naturally (not robotic)',
+        '',
+        'Video style:',
+        '- Selfie-style framing',
+        '- Realistic lighting',
+        '- Stable face (no distortion)',
+        '- Authentic influencer vibe',
+    ]
+    if context:
+        parts.extend(['', 'Scene context:', context])
+    if custom_line:
+        parts.extend(['', 'Actor-specific direction:', custom_line])
+    parts.extend(['', 'Goal:', 'Deliver the script like a real Instagram creator, not like an AI.'])
+    if negative_line:
+        parts.extend(['', f'Avoid: {negative_line}'])
+    return '\n'.join(parts)
+
 
 @dataclass(frozen=True)
 class ActorRecord:
@@ -18,6 +73,7 @@ class ActorRecord:
     name: str
     scope: str
     style: str
+    gender: str | None
     language_tags: list[str]
     thumbnail_url: str
     tags: list[str]
@@ -28,6 +84,7 @@ class ActorRecord:
     prompt_template: str | None
     negative_prompt: str | None
     recommended_voice: str | None
+    voice_profile: dict[str, Any] | None
     status: str | None
     description: str | None = None
     created_at: Any | None = None
@@ -43,8 +100,10 @@ class CustomAvatarRecord:
     name: str
     reference_image_url: str
     reference_images: list[str]
+    gender: str | None = None
     primary_image: str | None = None
     preferred_voice: str | None = None
+    voice_profile: dict[str, Any] | None = None
     language_preference: str | None = None
     status: str | None = None
     style_label: str | None = None
@@ -65,6 +124,7 @@ class AvatarService:
                 name='Priya',
                 scope='public',
                 style='studio',
+                gender='female',
                 language_tags=['hi-IN', 'en-IN'],
                 thumbnail_url='https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
                 tags=['ugc', 'indian', 'female', 'studio'],
@@ -75,6 +135,13 @@ class AvatarService:
                 prompt_template='Indian female creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
                 negative_prompt='distorted face, broken lips, asymmetry, blurry eyes',
                 recommended_voice='Priya',
+                voice_profile={
+                    'speaker': 'priya',
+                    'base_speed': 1.08,
+                    'pitch_style': 'medium',
+                    'tone': 'friendly_confident',
+                    'energy': 'medium_high',
+                },
                 status='active',
                 description='Public preset for warm, polished female UGC spokesperson videos.',
                 source='preset',
@@ -84,6 +151,7 @@ class AvatarService:
                 name='Arjun',
                 scope='public',
                 style='corporate',
+                gender='male',
                 language_tags=['hi-IN', 'ta-IN', 'en-IN'],
                 thumbnail_url='https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80',
                 tags=['ugc', 'indian', 'male', 'corporate'],
@@ -94,6 +162,13 @@ class AvatarService:
                 prompt_template='Indian male creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
                 negative_prompt='distorted face, broken lips, asymmetry, blurry eyes',
                 recommended_voice='Shubh',
+                voice_profile={
+                    'speaker': 'shubh',
+                    'base_speed': 1.05,
+                    'pitch_style': 'medium',
+                    'tone': 'confident_clear',
+                    'energy': 'medium',
+                },
                 status='active',
                 description='Public preset for confident male spokesperson and founder-style talking scenes.',
                 source='preset',
@@ -108,6 +183,8 @@ class AvatarService:
         user_id: str | None = None,
     ) -> list[AvatarResponse]:
         result = [self._to_avatar_response(item) for item in self._list_actor_records(user_id=user_id)]
+        if user_id:
+            result.extend(self._list_custom_avatar_responses(user_id=user_id))
 
         if scope:
             normalized_scope = scope.strip().lower()
@@ -132,6 +209,17 @@ class AvatarService:
                 or any(keyword in tag.lower() for tag in item.tags)
             ]
 
+        logger.info(
+            "avatar_list_resolved",
+            extra={
+                "user_id": user_id,
+                "scope": scope,
+                "language": language,
+                "public_actor_count": sum(1 for item in result if str(item.scope).lower() == "public"),
+                "saved_avatar_count": sum(1 for item in result if str(item.scope).lower() == "own"),
+                "result_count": len(result),
+            },
+        )
         return result
 
     def get_avatar(self, avatar_id: str, user_id: str | None = None) -> AvatarResponse | None:
@@ -181,6 +269,7 @@ class AvatarService:
             'prompt_template': record.prompt_template,
             'negative_prompt': record.negative_prompt,
             'recommended_voice': record.recommended_voice,
+            'voice_profile': record.voice_profile,
             'created_at': record.created_at,
             'status': record.status or 'active',
             'scope': record.scope,
@@ -192,6 +281,7 @@ class AvatarService:
         user_id: str,
         name: str,
         scope: str,
+        gender: str | None,
         tags: list[str],
         category: str,
         language_support: list[str],
@@ -209,6 +299,9 @@ class AvatarService:
     ) -> str:
         normalized_voice = self._validate_voice(recommended_voice)
         normalized_scope = self._validate_scope(scope)
+        normalized_gender = str(gender or '').strip().lower() or None
+        if normalized_gender and normalized_gender not in {'female', 'male'}:
+            raise ValueError('gender must be either "female" or "male"')
         name = name.strip()
         if not name:
             raise ValueError('Actor name is required')
@@ -239,6 +332,7 @@ class AvatarService:
             'user_id': user_id,
             'scope': normalized_scope,
             'name': name,
+            'gender': normalized_gender,
             'thumbnail_url': thumb_url,
             'reference_images': reference_images,
             'primary_image': ref_front_url,
@@ -249,6 +343,7 @@ class AvatarService:
             'prompt_template': prompt_template.strip(),
             'negative_prompt': negative_prompt.strip(),
             'recommended_voice': normalized_voice,
+            'voice_profile': self._build_default_voice_profile(voice_key=normalized_voice, gender=normalized_gender),
             'created_at': now,
             'updated_at': now,
             'status': 'active',
@@ -320,6 +415,7 @@ class AvatarService:
         preview_video_url = str(data.get('preview_video_url') or data.get('last_preview_video_url') or '').strip() or None
         preferred_voice = str(data.get('preferred_voice') or data.get('recommended_voice') or '').strip() or None
         language_preference = str(data.get('language_preference') or '').strip() or None
+        gender = str(data.get('gender') or '').strip() or None
 
         return CustomAvatarRecord(
             id=str(data.get('avatar_id') or normalized_id),
@@ -329,6 +425,12 @@ class AvatarService:
             reference_images=reference_images or [primary_image],
             primary_image=primary_image,
             preferred_voice=preferred_voice,
+            voice_profile=self._normalize_voice_profile(
+                data.get('voice_profile'),
+                voice_key=preferred_voice,
+                gender=gender,
+            ),
+            gender=gender,
             language_preference=language_preference,
             status=str(data.get('status') or '').strip() or None,
             style_label=style_label,
@@ -348,12 +450,21 @@ class AvatarService:
             return records
 
         for snap in db.collection('actors').stream():
-            data = snap.to_dict() or {}
-            actor_id = str(data.get('id') or snap.id)
-            item = self._actor_from_firestore(data, actor_id)
-            if item.scope == 'own' and item.user_id != user_id:
-                continue
-            records.append(item)
+            try:
+                data = snap.to_dict() or {}
+                actor_id = str(data.get('id') or snap.id)
+                item = self._actor_from_firestore(data, actor_id)
+                if item.scope == 'own' and item.user_id != user_id:
+                    continue
+                records.append(item)
+            except Exception as exc:
+                logger.warning(
+                    "avatar_list_actor_skipped",
+                    extra={
+                        "actor_id": getattr(snap, "id", None),
+                        "reason": str(exc),
+                    },
+                )
         return records
 
     def _actor_from_firestore(self, data: dict[str, Any], actor_id: str) -> ActorRecord:
@@ -366,6 +477,7 @@ class AvatarService:
             name=str(data.get('name') or 'Actor').strip(),
             scope=str(data.get('scope') or ('own' if data.get('user_id') else 'public')).strip() or 'public',
             style=style,
+            gender=str(data.get('gender') or '').strip() or None,
             language_tags=language_support,
             thumbnail_url=str(data.get('thumbnail_url') or primary_image or '').strip(),
             tags=[str(tag).strip() for tag in list(data.get('tags') or []) if str(tag).strip()],
@@ -376,6 +488,11 @@ class AvatarService:
             prompt_template=str(data.get('prompt_template') or '').strip() or None,
             negative_prompt=str(data.get('negative_prompt') or '').strip() or None,
             recommended_voice=str(data.get('recommended_voice') or '').strip() or None,
+            voice_profile=self._normalize_voice_profile(
+                data.get('voice_profile'),
+                voice_key=str(data.get('recommended_voice') or '').strip() or None,
+                gender=str(data.get('gender') or '').strip() or None,
+            ),
             status=str(data.get('status') or 'active').strip() or 'active',
             description=str(data.get('description') or '').strip() or None,
             created_at=data.get('created_at'),
@@ -390,6 +507,7 @@ class AvatarService:
             name=record.name,
             scope=record.scope,
             style=record.style,
+            gender=record.gender,
             language_tags=record.language_tags,
             thumbnail_url=record.thumbnail_url,
             tags=record.tags,
@@ -400,9 +518,71 @@ class AvatarService:
             prompt_template=record.prompt_template,
             negative_prompt=record.negative_prompt,
             recommended_voice=record.recommended_voice,
+            voice_profile=record.voice_profile,
             status=record.status,
             description=record.description,
         )
+
+    def _list_custom_avatar_responses(self, *, user_id: str) -> list[AvatarResponse]:
+        normalized_user_id = str(user_id or '').strip()
+        if not normalized_user_id:
+            return []
+
+        try:
+            db = get_firestore_client()
+        except FirebaseNotConfiguredError:
+            return []
+
+        items: list[AvatarResponse] = []
+        for snap in db.collection('avatars').stream():
+            try:
+                data = snap.to_dict() or {}
+                if str(data.get('user_id') or '').strip() != normalized_user_id:
+                    continue
+
+                reference_images = self._normalize_reference_images(
+                    data.get('reference_images') or ([data.get('reference_image_url')] if data.get('reference_image_url') else [])
+                )
+                reference_image_url = str(data.get('reference_image_url') or '').strip() or (reference_images[0] if reference_images else '')
+                primary_image = str(data.get('primary_image') or '').strip() or reference_image_url or (reference_images[0] if reference_images else None)
+                if not primary_image:
+                    continue
+
+                items.append(
+                    AvatarResponse(
+                        id=str(data.get('avatar_id') or snap.id),
+                        name=str(data.get('name') or 'Custom Avatar').strip(),
+                        scope='own',
+                        style=str(data.get('style_label') or data.get('category') or 'custom_avatar').strip() or 'custom_avatar',
+                        gender=str(data.get('gender') or '').strip() or None,
+                        language_tags=[str(item).strip() for item in list(data.get('language_support') or []) if str(item).strip()],
+                        thumbnail_url=str(data.get('thumbnail_url') or primary_image).strip(),
+                        tags=[str(item).strip() for item in list(data.get('tags') or []) if str(item).strip()] or ['custom', 'ugc'],
+                        category=str(data.get('category') or 'custom_avatar').strip() or 'custom_avatar',
+                        reference_images=reference_images or [primary_image],
+                        primary_image=primary_image,
+                        preview_video_url=str(data.get('preview_video_url') or data.get('last_preview_video_url') or '').strip() or None,
+                        prompt_template=str(data.get('prompt_template') or '').strip() or None,
+                        negative_prompt=str(data.get('negative_prompt') or '').strip() or None,
+                        recommended_voice=str(data.get('recommended_voice') or data.get('preferred_voice') or '').strip() or None,
+                        voice_profile=self._normalize_voice_profile(
+                            data.get('voice_profile'),
+                            voice_key=str(data.get('recommended_voice') or data.get('preferred_voice') or '').strip() or None,
+                            gender=str(data.get('gender') or '').strip() or None,
+                        ),
+                        status=str(data.get('status') or 'ready_for_preview').strip() or 'ready_for_preview',
+                        description=str(data.get('description') or '').strip() or None,
+                    )
+                )
+            except Exception as exc:
+                logger.warning(
+                    "avatar_list_custom_avatar_skipped",
+                    extra={
+                        "avatar_id": getattr(snap, "id", None),
+                        "reason": str(exc),
+                    },
+                )
+        return items
 
     def _upload_actor_file(self, *, actor_id: str, filename: str, content: bytes, content_type: str) -> str:
         relative_path = f'actors/{actor_id}/{filename}'
@@ -439,5 +619,63 @@ class AvatarService:
             raise ValueError('scope must be either "own" or "public"')
         return normalized
 
+    def resolve_default_voice_profile(self, *, voice_key: str | None, gender: str | None) -> dict[str, Any]:
+        return self._build_default_voice_profile(voice_key=voice_key, gender=gender)
+
     def _normalize_reference_images(self, value: list[Any]) -> list[str]:
         return [str(item).strip() for item in value if str(item).strip()]
+
+    def _build_default_voice_profile(self, *, voice_key: str | None, gender: str | None) -> dict[str, Any]:
+        normalized_voice = self._validate_voice(voice_key or 'Shubh')
+        voice_option = next((voice for voice in list_tts_voices() if voice.key == normalized_voice), None)
+        normalized_gender = str(gender or '').strip().lower()
+        if voice_option and not normalized_gender:
+            normalized_gender = str(voice_option.gender or '').strip().lower()
+
+        if normalized_gender == 'female':
+            return {
+                'speaker': str((voice_option.provider_voice if voice_option else 'priya')).strip().lower(),
+                'base_speed': 1.08,
+                'pitch_style': 'medium',
+                'tone': 'friendly_confident',
+                'energy': 'medium_high',
+            }
+        if normalized_gender == 'male':
+            return {
+                'speaker': str((voice_option.provider_voice if voice_option else 'shubh')).strip().lower(),
+                'base_speed': 1.05,
+                'pitch_style': 'medium',
+                'tone': 'confident_clear',
+                'energy': 'medium',
+            }
+        return {
+            'speaker': str((voice_option.provider_voice if voice_option else 'shubh')).strip().lower(),
+            'base_speed': 1.05,
+            'pitch_style': 'medium',
+            'tone': 'neutral',
+            'energy': 'medium',
+        }
+
+    def _normalize_voice_profile(
+        self,
+        value: Any,
+        *,
+        voice_key: str | None,
+        gender: str | None,
+    ) -> dict[str, Any]:
+        default = self._build_default_voice_profile(voice_key=voice_key, gender=gender)
+        if not isinstance(value, dict):
+            return default
+
+        normalized = dict(default)
+        speaker = str(value.get('speaker') or default['speaker']).strip().lower()
+        normalized['speaker'] = speaker or default['speaker']
+        try:
+            normalized['base_speed'] = float(value.get('base_speed', default['base_speed']))
+        except (TypeError, ValueError):
+            normalized['base_speed'] = default['base_speed']
+        normalized['base_speed'] = max(0.9, min(float(normalized['base_speed']), 1.25))
+        normalized['pitch_style'] = str(value.get('pitch_style') or default['pitch_style']).strip() or default['pitch_style']
+        normalized['tone'] = str(value.get('tone') or default['tone']).strip() or default['tone']
+        normalized['energy'] = str(value.get('energy') or default['energy']).strip() or default['energy']
+        return normalized

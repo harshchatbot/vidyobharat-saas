@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from app.providers.broll import BrollProvider
+from app.services.persona_voice_service import PersonaVoiceService
 from app.services.tts import generate_voiceover_detailed
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class VideoPipelineService:
         self.tts_cache_dir = Path('data/tts_cache')
         self.tts_cache_dir.mkdir(parents=True, exist_ok=True)
         self.broll_provider = BrollProvider()
+        self.persona_voice = PersonaVoiceService()
         self._font_cache: dict[str, str | None] = {}
 
     def build_video(self, render_id: str, script: str, include_broll: bool) -> tuple[str, str]:
@@ -165,6 +167,7 @@ class VideoPipelineService:
         voice_name: str,
         audio_sample_rate_hz: int,
         speech_rate: float = 1.0,
+        voice_profile: dict | None = None,
     ) -> tuple[Path | None, float, dict[str, object]]:
         if not script.strip():
             return None, 0.0, {
@@ -173,13 +176,19 @@ class VideoPipelineService:
                 'tts_provider_message': None,
                 'tts_fallback_used': False,
             }
-        voice_result = generate_voiceover_detailed(
+        persona_input = self.persona_voice.prepare_tts_input(
             script=script,
-            voice=voice_name,
+            voice_profile=voice_profile,
+            fallback_speaker=voice_name,
+            fallback_speech_rate=speech_rate,
+        )
+        voice_result = generate_voiceover_detailed(
+            script=str(persona_input['text']),
+            voice=str(persona_input['voice_key']),
             cache_dir=self.tts_cache_dir,
             language=language_name,
             sample_rate_hz=audio_sample_rate_hz,
-            speech_rate=speech_rate,
+            speech_rate=float(persona_input['speech_rate']),
         )
         voice_path = voice_result.path
         voice_duration = self._probe_duration(voice_path)
@@ -194,6 +203,8 @@ class VideoPipelineService:
             extra={
                 'render_id': render_id,
                 'voice': voice_result.resolved_voice,
+                'persona_speaker': persona_input['speaker'],
+                'persona_speech_rate': float(persona_input['speech_rate']),
                 'tts_provider': voice_result.provider,
                 'tts_fallback_used': voice_result.provider != 'Sarvam AI',
                 'cached': voice_result.cached,

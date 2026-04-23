@@ -47,6 +47,17 @@ class UgcAdClientBrief:
 
 
 @dataclass(frozen=True)
+class AvatarProductBrief:
+    avatar_name: str = ""
+    product_name: str = ""
+    product_category: str = ""
+    target_audience: str = ""
+    key_promise: str = ""
+    pain_point: str = ""
+    cta: str = ""
+
+
+@dataclass(frozen=True)
 class LtxStoryDetection:
     mode: str
     subtopic: str
@@ -554,6 +565,21 @@ def normalize_ugc_client_brief(*, topic: str, explicit: dict[str, Any] | None = 
     )
 
 
+def normalize_avatar_product_brief(*, topic: str, explicit: dict[str, Any] | None = None) -> AvatarProductBrief:
+    explicit = dict(explicit or {})
+    raw_text = " ".join(str(topic or "").split())
+
+    return AvatarProductBrief(
+        avatar_name=str(explicit.get("avatar_name") or explicit.get("avatarName") or "").strip(),
+        product_name=str(explicit.get("product_name") or explicit.get("productName") or "").strip(),
+        product_category=str(explicit.get("product_category") or explicit.get("productCategory") or "").strip(),
+        target_audience=str(explicit.get("target_audience") or explicit.get("targetAudience") or "").strip(),
+        key_promise=str(explicit.get("key_promise") or explicit.get("keyPromise") or raw_text).strip(),
+        pain_point=str(explicit.get("pain_point") or explicit.get("painPoint") or "").strip(),
+        cta=str(explicit.get("cta") or "shop now").strip(),
+    )
+
+
 def is_client_brief_mode(brief: UgcAdClientBrief) -> bool:
     signal_count = sum(
         1
@@ -837,10 +863,9 @@ def build_ugc_ad_scene_plan(
     *,
     recipe: RecipeConfig,
     topic: str,
-    scene_beats: list[str],
-    scene_narration_context: list[str],
     ugc_style: str,
     client_brief: UgcAdClientBrief | None = None,
+    timing_map: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     normalized_topic = " ".join(str(topic or "").split()) or "the product or service"
     family_detection = detect_ugc_ad_family(topic=normalized_topic, ugc_style=ugc_style)
@@ -850,7 +875,6 @@ def build_ugc_ad_scene_plan(
     resolved_brief = client_brief or normalize_ugc_client_brief(topic=normalized_topic)
     client_brief_mode = is_client_brief_mode(resolved_brief)
     business_context = build_ugc_business_context(resolved_brief)
-    hook_plan = build_ugc_hook_plan(brief=resolved_brief, family=family) if client_brief_mode else ""
 
     single_creator_mode = family in {"local_service_ugc_ad", "testimonial_ugc_ad"} or subtopic in {
         "salon", "spa", "clinic", "dentist", "skincare", "skin care", "serum", "beauty", "acne", "pimple"
@@ -878,7 +902,6 @@ def build_ugc_ad_scene_plan(
             client_brief=resolved_brief,
             client_brief_mode=client_brief_mode,
         )
-        local_narration = scene_narration_context[index] if index < len(scene_narration_context) else ""
         previous_stage = stage_blueprint[index - 1][1] if index > 0 else ""
         next_stage = stage_blueprint[index + 1][1] if index < len(stage_blueprint) - 1 else ""
         prompt_context = build_ugc_ad_prompt_context(
@@ -929,11 +952,9 @@ def build_ugc_ad_scene_plan(
             "stage_goal": stage_goal,
             "topic_focus": topic_focus,
             "visual_objective": _ugc_visual_objective_for_stage(stage_name=stage_name, topic=normalized_topic, topic_focus=topic_focus),
-            "local_narration_context": local_narration,
             "transition_intent": _ugc_transition_intent_for_family(family=family, stage_name=stage_name, previous_stage=previous_stage, next_stage=next_stage),
             "transition_from_previous": _ugc_transition_from_previous(family=family, previous_stage=previous_stage, stage_label=stage_label),
             "transition_to_next": _ugc_transition_to_next(family=family, next_stage=next_stage),
-            "beat_summary": scene_beats[index] if index < len(scene_beats) else "",
             "ugc_ad_family": family,
             "ugc_ad_subtopic": subtopic,
             "ugc_mode": ugc_mode,
@@ -947,7 +968,6 @@ def build_ugc_ad_scene_plan(
                 subtopic=subtopic,
                 client_brief=resolved_brief,
             ),
-            "hook_plan": hook_plan,
             "business_name": resolved_brief.business_name,
             "business_category": resolved_brief.business_category,
             "city": resolved_brief.city,
@@ -972,6 +992,23 @@ def build_ugc_ad_scene_plan(
             "talking_duration_hint_seconds": min(5, max(3, int(scene.get("duration_seconds") or 4))),
             **prompt_context,
         }
+        if timing_map and planned_scene.get("render_lane") == "talking_avatar":
+            first_segment = timing_map[0] if timing_map else {}
+            total_duration_seconds = max(1.0, float((timing_map[-1].get("end_ms") or 0) / 1000.0)) if timing_map else float(scene.get("duration_seconds") or 0)
+            first_duration_ms = int(first_segment.get("duration_ms") or 0)
+            planned_scene["timed_duration_seconds"] = round(total_duration_seconds, 2)
+            planned_scene["duration_seconds"] = max(1, int(round(total_duration_seconds)))
+            planned_scene["hook_line"] = str(first_segment.get("text") or "").strip()
+            planned_scene["hook_duration_ms"] = first_duration_ms
+            planned_scene["talking_duration_hint_seconds"] = max(1, int(round(total_duration_seconds)))
+            if first_duration_ms < 1500:
+                planned_scene["camera_framing"] = "tight close-up with strong face readability and direct eye contact"
+                planned_scene["motion_intent"] = "minimal movement with stable mouth readability and a crisp speaking beat"
+                planned_scene["timing_visual_rhythm"] = "short_segment_close_up"
+            else:
+                planned_scene["camera_framing"] = "medium shot with subtle movement and readable direct-to-camera delivery"
+                planned_scene["motion_intent"] = "medium shot with subtle movement and smooth conversational pacing"
+                planned_scene["timing_visual_rhythm"] = "long_segment_subtle_motion"
         planned_scene["anti_repetition_note"] = (
             f"Shift the ad treatment away from the previous {previous_scene_type or 'scene'} and keep the product story moving forward."
         )
@@ -1017,6 +1054,170 @@ def build_ugc_ad_scene_plan(
             if not has_service_intro_scene:
                 qa_flags.append("no_service_intro_scene")
             planned_scene["qa_flags"] = list(dict.fromkeys(qa_flags))
+
+    return planned
+
+
+def build_avatar_product_scene_plan(
+    *,
+    recipe: RecipeConfig,
+    topic: str,
+    avatar_product_brief: AvatarProductBrief,
+) -> list[dict[str, Any]]:
+    base_scenes = plan_scenes(recipe)
+
+    avatar_name = avatar_product_brief.avatar_name or "the selected avatar"
+    product_name = avatar_product_brief.product_name or "the product"
+    product_category = avatar_product_brief.product_category or "product"
+    target_audience = avatar_product_brief.target_audience or "the target audience"
+    key_promise = avatar_product_brief.key_promise or topic or "the core product benefit"
+    pain_point = avatar_product_brief.pain_point or "the user need"
+    cta = avatar_product_brief.cta or "shop now"
+
+    stage_blueprint = (
+        ("hook", "Hook", "avatar_hook", "open with the avatar introducing the product quickly"),
+        ("showcase", "Showcase", "product_showcase", "show the avatar naturally presenting or using the product"),
+        ("cta", "CTA", "avatar_cta", "close with the same avatar giving a clear recommendation and CTA"),
+    )
+
+    planned: list[dict[str, Any]] = []
+
+    for index, scene in enumerate(base_scenes):
+        stage_name, stage_label, scene_type, stage_goal = stage_blueprint[index]
+
+        if stage_name == "hook":
+            topic_focus = f"{avatar_name} introduces {product_name} for {target_audience} with a quick hook around {key_promise}"
+            visual_objective = f"Stop the scroll quickly and introduce {product_name} through the same avatar."
+            subject_description = f"the same avatar {avatar_name} speaking directly to camera and introducing {product_name} naturally"
+            environment_description = "a realistic indoor creator-style environment with clean product visibility"
+            camera_framing = "medium close-up or selfie-style framing with strong face readability and product context"
+            motion_intent = "light natural creator motion with a stable opening beat"
+            talking_mode = "lip_sync_required"
+            render_lane = "talking_avatar"
+            shot_scale = "medium"
+            shot_archetype = "avatar_product_hook"
+            subtopic_visual_anchor = f"{product_name} introduced quickly by the same avatar"
+        elif stage_name == "showcase":
+            topic_focus = f"{product_name} is shown clearly in hand or in use by {avatar_name}, proving {key_promise}"
+            visual_objective = f"Keep the same avatar on screen while making {product_name} clearly visible and believable through one clean showcase moment."
+            subject_description = f"the same avatar {avatar_name} clearly visible on screen, naturally holding, using, or presenting {product_name}"
+            environment_description = "the same indoor environment with continuity-safe creator realism and clear product visibility"
+            camera_framing = "medium shot or medium close-up with both avatar face and product visible together whenever possible"
+            motion_intent = "controlled demo-style motion with visible product handling, same avatar continuity, and no abrupt movement"
+            talking_mode = "voiceover_safe"
+            render_lane = "broll_safe"
+            shot_scale = "medium"
+            shot_archetype = "avatar_product_showcase"
+            subtopic_visual_anchor = f"{product_name} clearly visible with the same avatar on screen"
+        else:
+            topic_focus = f"{avatar_name} closes with a natural recommendation for {product_name} and CTA: {cta}"
+            visual_objective = f"End with the same avatar clearly on screen in a creator-style recommendation close, with stable CTA framing for {product_name}."
+            subject_description = f"the same avatar {avatar_name} clearly visible on screen, wrapping up the recommendation with {product_name} still visible"
+            environment_description = "the same indoor creator environment with stable closing composition and continuity-safe product framing"
+            camera_framing = "stable medium close-up with avatar face and product visible together in the same frame"
+            motion_intent = "minimal motion with calm CTA close, same-avatar continuity, and stable ending"
+            talking_mode = "voiceover_safe"
+            render_lane = "broll_safe"
+            shot_scale = "medium"
+            shot_archetype = "avatar_product_cta"
+            subtopic_visual_anchor = f"{product_name} visible with the same avatar in the final recommendation close"
+
+        planned_scene = {
+            **scene,
+            "stage_name": stage_name,
+            "stage_label": stage_label,
+            "scene_type": scene_type,
+            "stage_goal": stage_goal,
+            "topic_focus": topic_focus,
+            "visual_objective": visual_objective,
+            "transition_intent": (
+                "Start with a stable first beat and move naturally into the product showcase."
+                if stage_name == "hook"
+                else "Turn product visibility into trust and recommendation."
+                if stage_name == "showcase"
+                else "Resolve into a calm native-feeling CTA ending with stable product visibility."
+            ),
+            "transition_from_previous": (
+                "Ease in naturally with the same selected avatar and product."
+                if index == 0
+                else f"Continue naturally from {stage_blueprint[index - 1][1]} with the same avatar, same product, and same creator environment."
+            ),
+            "transition_to_next": (
+                "Finish with enough stability to hand off naturally into Showcase."
+                if stage_name == "hook"
+                else "Finish with enough stability to hand off naturally into CTA."
+                if stage_name == "showcase"
+                else "Settle cleanly and hold long enough for the ad close to feel intentional."
+            ),
+            "ugc_ad_family": "avatar_product_ad",
+            "ugc_ad_subtopic": product_category,
+            "ugc_mode": "avatar_product",
+            "ugc_style": "creator_casual",
+            "client_brief_mode": False,
+            "single_creator_mode": True,
+            "creator_anchor": "same selected avatar across all scenes",
+            "continuity_subject_role": "avatar_spokesperson",
+            "continuity_subject_label": avatar_name,
+            "continuity_anchor": "same selected avatar clearly visible on screen, same product, same indoor creator environment",
+            "must_preserve_subject_identity": True,
+            "must_avoid_new_spokesperson": True,
+            "school_testimonial_mode": False,
+            "business_name": "",
+            "business_category": product_category,
+            "city": "",
+            "locality": "",
+            "target_audience": target_audience,
+            "main_service_or_product": product_name,
+            "main_pain_point": pain_point,
+            "key_promise": key_promise,
+            "trust_factor": "",
+            "offer": "",
+            "cta": cta,
+            "tone": "creator_confident_friendly",
+            "ad_goal": "purchase",
+            "brief_location_context": "",
+            "brief_service_context": product_name,
+            "avoid_motifs": [
+                "changing to a different spokesperson",
+                "product hidden for too long",
+                "glossy TV-commercial polish",
+                "random stock-footage drift",
+                "introducing a new face in CTA",
+            ],
+            "shot_scale": shot_scale,
+            "talking_mode": talking_mode,
+            "render_lane": render_lane,
+            "persona_required": True,
+            "use_locked_persona": True,
+            "talking_duration_hint_seconds": min(5, max(3, int(scene.get("duration_seconds") or 5))),
+            "subject_description": subject_description,
+            "environment_description": environment_description,
+            "camera_framing": camera_framing,
+            "motion_intent": motion_intent,
+            "ending_hold_instruction": (
+                "last 1.5 seconds visually stable, same avatar and product still visible, no abrupt CTA cut, no new visual idea in the final second"
+                if stage_name == "cta"
+                else "scene ending resolves cleanly with a brief stable hold for stitching"
+            ),
+            "shot_archetype": shot_archetype,
+            "subtopic_visual_anchor": subtopic_visual_anchor,
+            "extra_avoid_guidance": "avoid identity drift and avoid replacing the uploaded product with a different unrelated item",
+            "indian_context_note": (
+                "Prefer Indian creator styling, Indian indoor home or creator-room context, and realistic Indian social-media ad aesthetics when humans appear."
+            ),
+            "sora_negative_guidance": (
+                "avoid changing the face between scenes; avoid introducing a second spokesperson; "
+                "avoid weak product visibility; avoid glossy TV-commercial polish; "
+                "avoid unreadable text in frame; avoid swapping the uploaded product with a different item"
+            ),
+            "continuity_guidance": f"Preserve the same avatar identity and the same {product_name} across all scenes, and keep the avatar visibly present on screen in each scene.",
+            "anti_repetition_note": (
+                "Keep the product story moving forward while preserving the same avatar and same product continuity."
+            ),
+            "qa_flags": [],
+        }
+
+        planned.append(planned_scene)
 
     return planned
 

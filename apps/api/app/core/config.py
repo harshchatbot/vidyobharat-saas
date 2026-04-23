@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     openai_video_poll_interval_seconds: int = 5
     sarvam_api_key: str | None = None
     sarvam_model: str = 'bulbul:v3'
-    avatar_tts_speech_rate: float = 1.12
+    avatar_tts_speech_rate: float = 1.00
     avatar_infinitalk_acceleration: str = 'high'
     kling_api_key: str | None = None
     kling_api_secret: str | None = None
@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     fal_api_base: str = 'https://queue.fal.run'
     fal_recraft_image_endpoint: str = 'fal-ai/recraft-v3'
     fal_recraft_image_pro_endpoint: str = 'fal-ai/recraft-v3'
-    ai_text_provider: str = 'mock'
+    ai_text_provider: str = 'hf_qwen'
     ai_video_provider: str = 'mock'
     hf_token: str | None = None
     hf_qwen_model: str = 'Qwen/Qwen3.6-35B-A3B'
@@ -119,7 +119,6 @@ class Settings(BaseSettings):
     ltx_mock_malformed_status: bool = False
     ltx_mock_queue_seconds: int = 2
     ltx_mock_processing_seconds: int = 3
-    wan_video_enabled: bool = True
     heygen_api_key: str | None = None
     heygen_api_base: str = 'https://api.heygen.com'
     runway_api_key: str | None = None

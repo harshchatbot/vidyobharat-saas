@@ -21,15 +21,9 @@
     "baseDuration": 15,
     "baseCredits": 10,
     "modelMultiplier": {
-      "kling": 1.0,
-      "kling_turbo": 0.7,
-      "wan_2_5": 0.7,
-      "ltx_benchmark": 1.0,
-      "veo_3_1": 20.8,
-      "sora_2": 10.5,
-      "veo": 20.8,
-      "sora": 10.5,
-      "sora_pro": 31.2
+      "fal_ltx23_i2v": 1.0,
+      "sora2": 10.5,
+      "ltx": 1.0
     },
     "resolutionMultiplier": {
       "720p": 1.0,
@@ -114,27 +108,13 @@
     "maxCreditsCap": 20
   },
   "videoModelAliases": {
-    "wan_2_5": "wan_2_5",
-    "wan2.1_t2v_turbo": "wan_2_5",
-    "wan2.5_t2v_preview": "wan_2_5",
-    "kling_turbo": "kling_turbo",
-    "wan2.6_i2v_flash": "kling_turbo",
-    "kling": "kling",
-    "wan2.6_t2v": "kling",
-    "grok_daily": "kling_turbo",
-    "grok_pro": "kling",
-    "ltx": "ltx_benchmark",
-    "ltx_benchmark": "ltx_benchmark",
-    "sora_2": "sora_2",
-    "sora2": "sora",
-    "sora": "sora",
-    "veo_3_1": "veo_3_1",
-    "sora2_pro": "sora_pro",
-    "sora_pro": "sora_pro",
-    "veo3": "veo",
-    "veo": "veo",
-    "kling3": "kling",
-    "kling": "kling"
+    "fal_ltx23_i2v": "fal_ltx23_i2v",
+    "ltx23_i2v": "fal_ltx23_i2v",
+    "fal-ai/ltx-2.3/image-to-video": "fal_ltx23_i2v",
+    "sora2": "sora2",
+    "sora_2": "sora2",
+    "ltx": "ltx",
+    "ltx_benchmark": "ltx"
   },
   "imageModelTiers": {
     "budget_image_model": "standard",

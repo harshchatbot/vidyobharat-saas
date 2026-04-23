@@ -7,9 +7,9 @@ from typing import Any
 
 RECOMMENDED_MODEL_MODES: dict[str, dict[str, str]] = {
     'best_video': {
-        'label': 'Veo 3.1',
-        'description': 'Best for cinematic short-form video.',
-        'internal_model_key': 'veo_3_1',
+        'label': 'Sora 2',
+        'description': 'Best for premium short-form video.',
+        'internal_model_key': 'sora2',
         'display_group': 'Best for Video',
     },
     'best_photos': {
@@ -168,7 +168,7 @@ HERO_TEMPLATE_REGISTRY: list[HeroTemplateSeed] = [
         suggested_durations=[8, 12, 15],
         suggested_styles=['Cinematic', 'Cute Animated', 'Premium Explainer'],
         safety_profile='educational_character_safe',
-        generation_defaults={'model_key': 'veo3', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 12, 'quality': 'standard'},
+        generation_defaults={'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 12, 'quality': 'standard'},
     ),
     HeroTemplateSeed(
         id='viral_dance_clip',
@@ -201,7 +201,7 @@ HERO_TEMPLATE_REGISTRY: list[HeroTemplateSeed] = [
         suggested_durations=[6, 8, 10],
         suggested_styles=['Cute', 'Festival', 'High-energy'],
         safety_profile='family_safe_social',
-        generation_defaults={'model_key': 'veo3', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
+        generation_defaults={'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 8, 'quality': 'standard'},
     ),
     HeroTemplateSeed(
         id='client_ad_reel',
@@ -241,7 +241,7 @@ HERO_TEMPLATE_REGISTRY: list[HeroTemplateSeed] = [
         suggested_durations=[8, 12, 15],
         suggested_styles=['Premium', 'Modern', 'Trust-building'],
         safety_profile='brand_safe_ad',
-        generation_defaults={'model_key': 'veo3', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 12, 'quality': 'standard'},
+        generation_defaults={'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 12, 'quality': 'standard'},
     ),
     HeroTemplateSeed(
         id='story_slides_reel',
@@ -278,7 +278,7 @@ HERO_TEMPLATE_REGISTRY: list[HeroTemplateSeed] = [
         suggested_durations=[8, 12, 15],
         suggested_styles=['Energetic', 'Educational', 'Premium'],
         safety_profile='general_educational',
-        generation_defaults={'model_key': 'veo3', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 10, 'quality': 'standard'},
+        generation_defaults={'model_key': 'sora2', 'aspect_ratio': '9:16', 'resolution': '720p', 'voice': 'Shubh', 'language': 'English', 'duration_seconds': 10, 'quality': 'standard'},
     ),
     HeroTemplateSeed(
         id='linkedin_carousel_pack',

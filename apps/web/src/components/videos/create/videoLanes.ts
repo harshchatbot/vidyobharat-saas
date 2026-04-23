@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { Film, Sparkles } from 'lucide-react';
 
-export type VideoLaneKey = 'daily' | 'creator_pro' | 'premium';
+export type VideoLaneKey = 'creator_pro' | 'premium';
 
 export type VideoLaneDefinition = {
   key: VideoLaneKey;

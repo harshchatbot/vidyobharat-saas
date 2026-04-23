@@ -32,6 +32,9 @@ class ClipGenerationRequest:
     persona_image_url: str | None = None
     talking_audio_url: str | None = None
     talking_audio_duration_seconds: float | None = None
+    timing_map: list[dict[str, Any]] | None = None
+    speaking_segments: list[dict[str, int]] | None = None
+    audio_reactive_timeline: list[dict[str, Any]] | None = None
     talking_behavior_prompt: str | None = None
     talking_script: str | None = None
 
@@ -73,6 +76,9 @@ class VideoGenerationService:
             'persona_id': request.persona_id,
             'talking_audio_url': request.talking_audio_url,
             'talking_audio_duration_seconds': request.talking_audio_duration_seconds,
+            'timing_map': request.timing_map,
+            'speaking_segments': request.speaking_segments,
+            'audio_reactive_timeline': request.audio_reactive_timeline,
         }
         if request.persona_id and not request.persona_image_url:
             raise RuntimeError(f'Selected avatar "{request.persona_id}" could not be resolved to a usable image for talking scenes')
@@ -91,6 +97,9 @@ class VideoGenerationService:
                         **request.metadata,
                         'persona_id': request.persona_id,
                         'talking_behavior_prompt': request.talking_behavior_prompt,
+                        'timing_map': request.timing_map,
+                        'speaking_segments': request.speaking_segments,
+                        'audio_reactive_timeline': request.audio_reactive_timeline,
                     },
                 )
                 from app.services.ai_video_service import ProviderResult
@@ -108,6 +117,8 @@ class VideoGenerationService:
                         'persona_id': request.persona_id,
                         'audio_url': request.talking_audio_url,
                         'audio_duration_seconds': request.talking_audio_duration_seconds,
+                        'timing_map': request.timing_map,
+                        'audio_reactive_timeline': request.audio_reactive_timeline,
                         'error': str(exc),
                     },
                 )

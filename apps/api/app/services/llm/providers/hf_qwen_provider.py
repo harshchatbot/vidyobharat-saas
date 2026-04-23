@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.services.llm.base import LLMProvider
+from app.services.llm.hf_qwen_client import HFQwenChatClient
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +16,13 @@ logger = logging.getLogger(__name__)
 class HFQwenProvider(LLMProvider):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        if not self.settings.hf_token:
-            raise RuntimeError('HF_TOKEN is required for hf_qwen provider')
+        self.client = HFQwenChatClient(settings=settings)
 
     def provider_name(self) -> str:
         return 'hf_qwen'
 
     def healthcheck(self) -> dict[str, Any]:
-        return {'provider': self.provider_name(), 'ok': True, 'model': self.settings.hf_qwen_model}
+        return {'provider': self.provider_name(), 'ok': True, 'model': self.client.selected_model_name()}
 
     def complete_text(self, *, task_type: str, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
         response = self._chat_completion(
@@ -70,39 +70,14 @@ class HFQwenProvider(LLMProvider):
         temperature: float,
         response_format: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        try:
-            from huggingface_hub import InferenceClient
-        except ImportError as exc:
-            raise RuntimeError('huggingface_hub is required for hf_qwen provider') from exc
-
-        client = InferenceClient(
-            provider=self.settings.hf_qwen_provider,
-            api_key=self.settings.hf_token,
-            timeout=float(self.settings.hf_qwen_timeout or 90),
+        content = self.client.chat_completion(
+            task_type=task_type,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            response_format=response_format,
         )
-        request_kwargs: dict[str, Any] = {
-            'model': self.settings.hf_qwen_model,
-            'messages': [
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': user_prompt},
-            ],
-            'temperature': temperature,
-        }
-        if response_format is not None:
-            request_kwargs['response_format'] = response_format
-        logger.info(
-            'hf_qwen_request',
-            extra={
-                'provider': self.provider_name(),
-                'model': self.settings.hf_qwen_model,
-                'task_type': task_type,
-                'structured_output': bool(response_format),
-                'timeout_seconds': self.settings.hf_qwen_timeout,
-            },
-        )
-        completion = client.chat.completions.create(**request_kwargs)
-        message = completion.choices[0].message
-        return {'content': getattr(message, 'content', '')}
+        return {'content': content}
 
     @staticmethod
     def _extract_json_payload(value: str) -> dict[str, Any]:

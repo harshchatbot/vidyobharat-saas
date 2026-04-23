@@ -78,6 +78,8 @@ export type InspirationListOptions = {
 export type CreateCustomAvatarRequest = {
   name: string;
   reference_image_url: string;
+  reference_images?: string[];
+  gender: 'female' | 'male';
   preferred_voice?: string;
 };
 
@@ -86,6 +88,9 @@ export type CreateCustomAvatarResponse = {
   user_id: string;
   name: string;
   reference_image_url: string;
+  reference_images?: string[];
+  primary_image?: string | null;
+  gender?: 'female' | 'male';
   preferred_voice: string;
   status: string;
 };
@@ -152,6 +157,10 @@ export type TestAvatarResponse = {
   audio_url?: string | null;
   selected_reference_image?: string | null;
   retry_attempts?: number;
+  timing_map?: Array<Record<string, unknown>> | null;
+  behavior_timeline?: Array<Record<string, unknown>> | null;
+  audio_reactive_timeline?: Array<Record<string, unknown>> | null;
+  voice_profile?: Record<string, unknown> | null;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 40_000;

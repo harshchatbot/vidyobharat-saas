@@ -31,12 +31,11 @@ const IMAGE_EXAMPLE_PRIORITY: Array<{ id: string; label: string; shortLabel: str
 ];
 
 const VIDEO_EXAMPLE_PRIORITY: Array<{ id: string; label: string; shortLabel: string; modelKey: string; resolution: string; durationSeconds: number; quality: string }> = [
-  { id: 'kling-draft', label: 'short Kling draft clips', shortLabel: 'Kling drafts', modelKey: 'kling3', resolution: '720p', durationSeconds: 5, quality: 'standard' },
-  { id: 'sora-clips', label: 'Sora 2 clips', shortLabel: 'Sora 2 clips', modelKey: 'sora2', resolution: '720p', durationSeconds: 4, quality: 'standard' },
-  { id: 'veo-clips', label: 'Veo 3.1 clips', shortLabel: 'Veo 3.1 clips', modelKey: 'veo3', resolution: '720p', durationSeconds: 4, quality: 'standard' },
+  { id: 'fal-ltx-clips', label: 'Fal LTX 2.3 I2V test clips', shortLabel: 'Fal LTX test clips', modelKey: 'fal_ltx23_i2v', resolution: '720p', durationSeconds: 4, quality: 'standard' },
+  { id: 'sora-clips', label: 'Sora 2 premium clips', shortLabel: 'Sora 2 clips', modelKey: 'sora2', resolution: '720p', durationSeconds: 4, quality: 'standard' },
 ];
 
-const EXAMPLE_ORDER = ['gemini-flash', 'kling-draft', 'sora-clips', 'veo-clips', 'recraft-studio', 'openai-image'] as const;
+const EXAMPLE_ORDER = ['gemini-flash', 'fal-ltx-clips', 'sora-clips', 'recraft-studio', 'openai-image'] as const;
 
 const BEST_FOR_COPY: Record<string, string> = {
   free: 'Best for testing workflows',
@@ -48,7 +47,7 @@ const BEST_FOR_COPY: Record<string, string> = {
 
 function normalizeVideoModelKey(modelKey: string): string {
   const aliases = (creditEngine.videoModelAliases ?? {}) as Record<string, string>;
-  return aliases[String(modelKey).toLowerCase()] ?? 'sora';
+  return aliases[String(modelKey).toLowerCase()] ?? 'fal_ltx23_i2v';
 }
 
 function normalizeImageModelKey(modelKey: string): string {
@@ -159,9 +158,8 @@ export function getEstimateAssumptions(): string[] {
   const assumptions = ['Gemini Flash images use 1536 resolution.'];
 
   const enabledVideoIds = new Set(getEnabledVideoExampleConfigs().map((item) => item.id));
-  if (enabledVideoIds.has('kling-draft')) assumptions.push('Kling examples use 720p, 5s, standard, free voice, captions off.');
+  if (enabledVideoIds.has('fal-ltx-clips')) assumptions.push('Fal LTX 2.3 I2V examples use 720p, 4s, standard, free voice, captions off.');
   if (enabledVideoIds.has('sora-clips')) assumptions.push('Sora examples use 720p, 4s, standard.');
-  if (enabledVideoIds.has('veo-clips')) assumptions.push('Veo examples use 720p, 4s, standard.');
   assumptions.push('Voice, captions, reference images, and higher resolution increase credit usage.');
 
   return assumptions;
@@ -169,17 +167,17 @@ export function getEstimateAssumptions(): string[] {
 
 export function describeVideoEstimate(modelKey: string, estimatedCredits: number): string | null {
   const normalized = normalizeVideoModelKey(modelKey);
-  if (normalized === 'veo_3_1') {
+  if (normalized === 'sora2') {
     if (estimatedCredits >= 80) {
-      return 'Veo 3.1 is a premium model. This setup can use a large share of Starter plan credits.';
+      return 'Sora 2 is a premium model. This setup can use a large share of Starter plan credits.';
     }
     if (estimatedCredits >= 50) {
-      return 'Veo 3.1 is a premium model. Starter is best for a few polished clips, not high-volume output.';
+      return 'Sora 2 is a premium model. Starter is best for a few polished clips, not high-volume output.';
     }
   }
 
   if (estimatedCredits >= 120) {
-    return 'Premium-heavy setup. Consider Kling or a shorter duration for faster draft generation.';
+    return 'Premium-heavy setup. Consider Fal LTX 2.3 I2V or a shorter duration for faster draft generation.';
   }
   if (estimatedCredits >= 80) {
     return 'This setup uses a large share of Starter plan credits.';

@@ -54,11 +54,13 @@ def _resolve_definition(*, medium: Medium, model_key: str | None, mode_id: str |
             return get_model_definition('gpt_image_1_5')
         return get_model_definition('budget_image_model')
 
+    if mode_id == 'internal_benchmark':
+        return get_model_definition('ltx')
     if mode_id == 'premium_cinema':
-        return get_model_definition('veo_3_1')
-    if mode_id == 'creator_mode' or template_id in {'character_explainer_reel', 'client_ad_reel', 'story_slides_reel'}:
-        return get_model_definition('sora_2')
-    return get_model_definition('wan_2_5')
+        return get_model_definition('sora2')
+    if mode_id in {'creator_mode', 'daily_reels'} or template_id in {'character_explainer_reel', 'client_ad_reel', 'story_slides_reel'}:
+        return get_model_definition('fal_ltx23_i2v')
+    return get_model_definition('fal_ltx23_i2v')
 
 
 def _billing_model_key(model_key: str) -> str:
@@ -69,16 +71,6 @@ def _billing_model_key(model_key: str) -> str:
         return 'openai_image'
     if resolved == 'recraft':
         return 'recraft_studio'
-    if resolved == 'wan_2_5':
-        return 'kling'
-    if resolved == 'kling_turbo':
-        return 'kling'
-    if resolved == 'kling':
-        return 'kling3'
-    if resolved == 'sora_2':
-        return 'sora2'
-    if resolved == 'veo_3_1':
-        return 'veo3'
-    if resolved == 'ltx':
-        return 'ltx_benchmark'
+    if resolved == 'ltx_benchmark':
+        return 'ltx'
     return resolved

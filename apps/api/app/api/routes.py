@@ -4,6 +4,7 @@ import hashlib
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
@@ -159,6 +160,7 @@ from app.services.tts import (
     list_tts_voices,
 )
 from app.services.avatar_preview_service import AvatarPreviewService
+from app.providers.firebase import get_firestore_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -168,6 +170,8 @@ settings = get_settings()
 class CreateCustomAvatarRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     reference_image_url: HttpUrl
+    reference_images: list[HttpUrl] = Field(default_factory=list, max_length=3)
+    gender: Literal['female', 'male']
     preferred_voice: str | None = 'shubh'
 
 
@@ -176,6 +180,9 @@ class CreateCustomAvatarResponse(BaseModel):
     user_id: str
     name: str
     reference_image_url: str
+    reference_images: list[str] = Field(default_factory=list)
+    primary_image: str | None = None
+    gender: Literal['female', 'male']
     preferred_voice: str
     status: str
 
@@ -192,6 +199,25 @@ class GenerateCustomAvatarPreviewResponse(BaseModel):
     status: str
 
 
+def _canonical_voice_key(value: str | None) -> str:
+    normalized = str(value or '').strip()
+    if not normalized:
+        return 'Shubh'
+    for item in list_tts_voices():
+        if item.key == normalized or item.key.lower() == normalized.lower():
+            return item.key
+    raise ValueError(f'preferred_voice "{normalized}" does not exist')
+
+
+def _validate_voice_for_avatar_gender(*, voice_key: str, gender: str) -> str:
+    for item in list_tts_voices():
+        if item.key == voice_key:
+            if str(item.gender or '').strip().lower() != str(gender or '').strip().lower():
+                raise ValueError(f'Voice "{voice_key}" does not match avatar gender "{gender}"')
+            return voice_key
+    raise ValueError(f'preferred_voice "{voice_key}" does not exist')
+
+
 class CustomAvatarPreviewStatusResponse(BaseModel):
     job_id: str
     avatar_id: str
@@ -204,6 +230,10 @@ class CustomAvatarPreviewStatusResponse(BaseModel):
     video_url: str | None = None
     provider: str | None = None
     error_message: str | None = None
+    timing_map: list[dict[str, object]] | None = None
+    behavior_timeline: list[dict[str, object]] | None = None
+    audio_reactive_timeline: list[dict[str, object]] | None = None
+    voice_profile: dict[str, object] | None = None
 
 def get_avatar_preview_service() -> AvatarPreviewService:
     return AvatarPreviewService()
@@ -1836,6 +1866,7 @@ def get_ai_video_status(
         ttsResolvedVoice=getattr(video, 'tts_resolved_voice', None),
         ttsProviderMessage=getattr(video, 'tts_provider_message', None),
         ttsFallbackUsed=bool(getattr(video, 'tts_fallback_used', False)),
+        pipelineMetadata=dict(getattr(video, 'pipeline_metadata', {}) or {}),
     )
 
 
@@ -2643,6 +2674,7 @@ def list_avatars(
 async def create_actor(
     name: str = Form(...),
     scope: str = Form('own'),
+    gender: str = Form(...),
     tags: str = Form(''),
     category: str = Form('ugc_influencer'),
     language_support: str = Form('en-IN'),
@@ -2661,6 +2693,7 @@ async def create_actor(
             user_id=user_id,
             name=name,
             scope=scope,
+            gender=gender,
             tags=[item.strip() for item in tags.split(',') if item.strip()],
             category=category,
             language_support=[item.strip() for item in language_support.split(',') if item.strip()],
@@ -2755,20 +2788,35 @@ def create_custom_avatar(
     user_id: str = Depends(get_user_id),
 ):
     try:
+        avatar_service = AvatarService()
         avatar_ref = firestore.client().collection('avatars').document()
         now = firestore.SERVER_TIMESTAMP
+        reference_images = [str(item) for item in (payload.reference_images or []) if str(item).strip()]
+        primary_image = str(payload.reference_image_url)
+        ordered_reference_images: list[str] = [primary_image]
+        for item in reference_images:
+            if item not in ordered_reference_images:
+                ordered_reference_images.append(item)
+        ordered_reference_images = ordered_reference_images[:3]
+        canonical_voice = _canonical_voice_key(payload.preferred_voice)
+        _validate_voice_for_avatar_gender(voice_key=canonical_voice, gender=payload.gender)
 
         doc = {
             'avatar_id': avatar_ref.id,
             'user_id': user_id,
             'scope': 'own',
             'name': payload.name.strip(),
-            'reference_image_url': str(payload.reference_image_url),
-            'reference_images': [str(payload.reference_image_url)],
-            'primary_image': str(payload.reference_image_url),
-            'thumbnail_url': str(payload.reference_image_url),
-            'preferred_voice': (payload.preferred_voice or 'shubh').strip().lower() or 'shubh',
-            'recommended_voice': (payload.preferred_voice or 'shubh').strip() or 'Shubh',
+            'reference_image_url': primary_image,
+            'reference_images': ordered_reference_images,
+            'primary_image': primary_image,
+            'thumbnail_url': primary_image,
+            'preferred_voice': canonical_voice,
+            'recommended_voice': canonical_voice,
+            'voice_profile': avatar_service.resolve_default_voice_profile(
+                voice_key=canonical_voice,
+                gender=payload.gender,
+            ),
+            'gender': payload.gender,
             'category': 'custom_avatar',
             'tags': ['custom', 'ugc'],
             'language_support': ['en-IN'],
@@ -2786,6 +2834,9 @@ def create_custom_avatar(
             user_id=doc['user_id'],
             name=doc['name'],
             reference_image_url=doc['reference_image_url'],
+            reference_images=doc['reference_images'],
+            primary_image=doc['primary_image'],
+            gender=doc['gender'],
             preferred_voice=doc['preferred_voice'],
             status=doc['status'],
         )
@@ -2817,6 +2868,10 @@ def generate_custom_avatar_preview(
         avatar = avatar_snap.to_dict()
         if avatar.get('user_id') != user_id:
             raise HTTPException(status_code=403, detail='You do not have access to this avatar')
+        resolved_voice = _canonical_voice_key(payload.voice or avatar.get('preferred_voice') or 'Shubh')
+        avatar_gender = str(avatar.get('gender') or '').strip().lower()
+        if avatar_gender in {'female', 'male'}:
+            _validate_voice_for_avatar_gender(voice_key=resolved_voice, gender=avatar_gender)
 
         avatar_preview_service = get_avatar_preview_service()
 
@@ -2826,7 +2881,7 @@ def generate_custom_avatar_preview(
             'avatar_preview_generate',
             {
                 'avatar_id': avatar_id,
-                'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                'voice': resolved_voice,
                 'language': payload.language or 'en-IN',
             },
         )
@@ -2837,7 +2892,7 @@ def generate_custom_avatar_preview(
             feature_key='avatar_preview_generate',
             metadata={
                 'avatar_id': avatar_id,
-                'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                'voice': resolved_voice,
                 'language': payload.language or 'en-IN',
             },
             source='premium',
@@ -2847,7 +2902,7 @@ def generate_custom_avatar_preview(
                     'user_id': user_id,
                     'avatar_id': avatar_id,
                     'script': payload.script,
-                    'voice': payload.voice or avatar.get('preferred_voice') or 'shubh',
+                    'voice': resolved_voice,
                     'language': payload.language or 'en-IN',
                 },
             ),
@@ -2858,7 +2913,7 @@ def generate_custom_avatar_preview(
             avatar_id=avatar_id,
             user_id=user_id,
             script=payload.script,
-            voice=payload.voice or avatar.get('preferred_voice') or 'shubh',
+            voice=resolved_voice,
             language=payload.language or 'en-IN',
         )
 
@@ -2927,6 +2982,10 @@ def get_custom_avatar_preview_status(
             video_url=job.get('video_url'),
             provider=job.get('provider'),
             error_message=job.get('error_message'),
+            timing_map=job.get('timing_map'),
+            behavior_timeline=job.get('behavior_timeline'),
+            audio_reactive_timeline=job.get('audio_reactive_timeline'),
+            voice_profile=job.get('voice_profile'),
         )
 
     except HTTPException:
@@ -3618,3 +3677,120 @@ def delete_video(
         raise HTTPException(status_code=404, detail='Video not found')
     logger.info('video_deleted', extra={'request_id': get_request_id(), 'user_id': user_id, 'video_id': video_id})
     return UploadDeleteResponse(asset_id=video_id, deleted=True)
+
+
+
+
+@router.post("/webhooks/video-complete")
+async def video_complete_webhook(request: Request):
+
+    payload = await request.json()
+
+    print("🔥 WEBHOOK RECEIVED:", payload)
+
+    status = payload.get("status")
+    video_url = payload.get("video_url")
+    metadata = payload.get("metadata", {})
+
+    video_id = metadata.get("video_id")
+    user_id = metadata.get("user_id")  # VERY IMPORTANT
+
+    if not video_id or not user_id:
+        return {"error": "missing video_id or user_id"}
+
+    db = get_firestore_client()
+
+    video_ref = db.collection("users") \
+                  .document(user_id) \
+                  .collection("videos") \
+                  .document(video_id)
+
+    update_data = {
+        "status": status,
+        "updatedAt": datetime.utcnow().isoformat(),
+    }
+
+    if status == "completed":
+        update_data["outputUrl"] = video_url
+        update_data["completedAt"] = datetime.utcnow().isoformat()
+
+    if status == "failed":
+        update_data["errorMessage"] = payload.get("error")
+
+    video_ref.set(update_data, merge=True)
+
+    print("✅ VIDEO UPDATED:", video_id)
+
+    return {"ok": True}
+
+
+    payload = await request.json()
+
+    print("🔥 WEBHOOK RECEIVED:", payload)
+
+    status = payload.get("status")
+    video_url = payload.get("video_url")
+    metadata = payload.get("metadata", {})
+
+    video_id = metadata.get("video_id")
+    user_id = metadata.get("user_id")  # VERY IMPORTANT
+
+    if not video_id or not user_id:
+        return {"error": "missing video_id or user_id"}
+
+    db = get_firestore_client()
+
+    video_ref = db.collection("users") \
+                  .document(user_id) \
+                  .collection("videos") \
+                  .document(video_id)
+
+    update_data = {
+        "status": status,
+        "updatedAt": datetime.utcnow().isoformat(),
+    }
+
+    if status == "completed":
+        update_data["outputUrl"] = video_url
+        update_data["completedAt"] = datetime.utcnow().isoformat()
+
+    if status == "failed":
+        update_data["errorMessage"] = payload.get("error")
+
+    video_ref.set(update_data, merge=True)
+
+    print("✅ VIDEO UPDATED:", video_id)
+
+    return {"ok": True}
+    payload = await request.json()
+
+    print("🔥 WEBHOOK RECEIVED:", payload)
+
+    # Extract fields
+    job_id = payload.get("job_id")
+    status = payload.get("status")
+    video_url = payload.get("video_url")
+
+    metadata = payload.get("metadata", {})
+    video_id = metadata.get("video_id")
+
+    if not video_id:
+        return {"error": "missing video_id"}
+
+    db = get_db()
+
+    update_data = {
+        "status": status,
+        "updated_at": datetime.utcnow(),
+    }
+
+    if status == "completed":
+        update_data["video_url"] = video_url
+        update_data["completed_at"] = datetime.utcnow()
+
+    if status == "failed":
+        update_data["error"] = payload.get("error", "unknown error")
+
+    db.collection("videos").document(video_id).update(update_data)
+
+    return {"ok": True}

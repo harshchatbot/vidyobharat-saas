@@ -58,7 +58,7 @@ function defaultEstimatePayload(template: Template | null, inputs: Record<string
   return {
     action: 'video_create',
     payload: {
-      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'veo3',
+      model: modelOverride || defaults.model_key || template.recommended_model?.internal_model_key || 'fal_ltx23_i2v',
       resolution: defaults.resolution || '720p',
       durationSeconds: defaults.duration_seconds || 8,
       quality: defaults.quality || 'standard',

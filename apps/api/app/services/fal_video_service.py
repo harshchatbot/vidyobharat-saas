@@ -16,12 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class FalVideoService:
-    _STATUS_POLL_INTERVAL_SECONDS = 4
+    _STATUS_POLL_INTERVAL_SECONDS = 12
     _TERMINAL_STATUS_TIMEOUT_SECONDS = 600
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
-        'kling': 420,
-        'kling_turbo': 300,
-        'kling_v3': 480,
+        'fal_ltx23_i2v': 1080,
         'fal_infinite_talk': 1200,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
@@ -40,6 +38,7 @@ class FalVideoService:
             or str(os.getenv('FAL_API_KEY') or '').strip()
         )
 
+    
     def generate_infinite_talk(
         self,
         *,
@@ -50,21 +49,31 @@ class FalVideoService:
         audio_duration_seconds: float | None = None,
         resolution: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str | None, dict[str, Any]]:
+
         if not self._effective_fal_api_key:
             raise RuntimeError('FAL_API_KEY is not configured for InfiniteTalk generation')
+
         endpoint = 'fal-ai/infinitalk'
         submit_url = f'{self.settings.fal_api_base.rstrip("/")}/{endpoint}'
+
         resolved_resolution = self._normalize_infinitetalk_resolution(
             requested_resolution=resolution,
             metadata=metadata or {},
         )
+
         chosen_num_frames = self._choose_infinitetalk_num_frames(
             audio_duration_seconds=audio_duration_seconds,
             duration_hint_seconds=duration_hint_seconds,
         )
+
         acceleration = self._normalize_infinitetalk_acceleration((metadata or {}).get('acceleration'))
         seed = (metadata or {}).get('seed')
+
+        timing_map = (metadata or {}).get('timing_map')
+        speaking_segments = (metadata or {}).get('speaking_segments')
+        audio_reactive_timeline = (metadata or {}).get('audio_reactive_timeline')
+
         payload: dict[str, Any] = {
             'image_url': persona_image_url,
             'audio_url': audio_url,
@@ -73,111 +82,69 @@ class FalVideoService:
             'resolution': resolved_resolution,
             'acceleration': acceleration,
         }
+
         if isinstance(seed, int):
             payload['seed'] = seed
+
+        # 🚀 WEBHOOK ADDED
+        webhook_url = f"{self.settings.base_url}/webhooks/video-complete"
+
+        payload["webhook"] = webhook_url
+        payload["metadata"] = {
+            "video_id": (metadata or {}).get("video_id"),
+            "user_id": (metadata or {}).get("user_id"),
+        }
 
         headers = {
             'Authorization': f'Key {self._effective_fal_api_key}',
             'Content-Type': 'application/json',
         }
+
         with httpx.Client(timeout=httpx.Timeout(90.0, connect=20.0), follow_redirects=True) as client:
+
             logger.info(
                 'fal_infinite_talk_submit_started',
                 extra={
                     'endpoint': endpoint,
                     'persona_id': (metadata or {}).get('persona_id'),
                     'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
-                    'duration_hint_seconds': duration_hint_seconds,
                     'num_frames': chosen_num_frames,
                     'resolution': resolved_resolution,
                     'acceleration': acceleration,
+                    'webhook_enabled': True,
                 },
             )
+
             submit = client.post(submit_url, headers=headers, json=payload)
+
             if submit.status_code >= 400:
                 raise RuntimeError(f'fal InfiniteTalk submit failed ({submit.status_code}): {submit.text[:480]}')
 
             data = submit.json()
-            request_id = str(data.get('request_id') or '').strip() or None
-            status_url = data.get('status_url')
-            if not status_url and request_id:
-                status_url = f'{submit_url}/requests/{request_id}/status'
-            if not status_url:
-                direct_video_url = self._extract_video_url(data)
-                if direct_video_url:
-                    return direct_video_url, {
-                        'raw': data,
-                        'mode': 'immediate',
-                        'request_id': request_id,
-                        'num_frames': chosen_num_frames,
-                        'resolution': resolved_resolution,
-                        'acceleration': acceleration,
-                        'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
-                        'infinite_talk_used': True,
-                    }
-                raise RuntimeError('fal InfiniteTalk response did not include a polling url or output video')
+            request_id = str(data.get("request_id") or "").strip()
 
-            normalized_status_url = self._normalize_candidate_url(str(status_url).strip())
-            terminal_payload = self._poll_status_until_terminal(
-                client=client,
-                headers=headers,
-                status_url=normalized_status_url,
-                requested_model_key='fal_infinite_talk',
-                resolved_endpoint=endpoint,
-            )
-            direct_video_url = self._extract_video_url(terminal_payload)
-            if direct_video_url:
-                return direct_video_url, {
-                    'raw': terminal_payload,
-                    'mode': 'async',
-                    'request_id': terminal_payload.get('request_id') or request_id,
-                    'num_frames': chosen_num_frames,
-                    'resolution': resolved_resolution,
-                    'acceleration': acceleration,
-                    'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
-                    'infinite_talk_used': True,
-                }
-
-            state = self._normalize_state(terminal_payload)
-            if state in self._FAILURE_STATES:
-                raise RuntimeError(f'fal InfiniteTalk generation failed: {terminal_payload}')
-            if state not in self._SUCCESS_STATES:
-                raise RuntimeError(f'fal InfiniteTalk timed out while waiting for completion: {terminal_payload}')
-
-            result_payload = self._fetch_infinitetalk_result_payload(
-                client=client,
-                headers=headers,
-                submit_url=submit_url,
-                request_id=terminal_payload.get('request_id') or request_id,
-                submit_payload=data,
-                terminal_payload=terminal_payload,
-            )
-            video_url = self._extract_video_url(result_payload)
-            if not video_url:
-                raise RuntimeError(f'fal InfiniteTalk completed without output video url: {result_payload}')
-
-            resolved_request_id = result_payload.get('request_id') or terminal_payload.get('request_id') or request_id
             logger.info(
-                'fal_infinite_talk_completed',
+                "fal_infinite_talk_submitted_async",
                 extra={
-                    'request_id': resolved_request_id,
-                    'persona_id': (metadata or {}).get('persona_id'),
-                    'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
-                    'num_frames': chosen_num_frames,
-                    'resolution': resolved_resolution,
-                    'acceleration': acceleration,
-                    'video_url': video_url,
+                    "request_id": request_id,
+                    "webhook": webhook_url,
                 },
             )
-            return video_url, {
-                'raw': result_payload,
-                'mode': 'async',
-                'request_id': resolved_request_id,
-                'num_frames': chosen_num_frames,
-                'resolution': resolved_resolution,
-                'acceleration': acceleration,
-                'audio_duration_seconds': round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
-                'infinite_talk_used': True,
+
+            # ✅ NO POLLING — RETURN IMMEDIATELY
+            return None, {
+                "mode": "submitted",
+                "request_id": request_id,
+                "status": "processing",
+                "num_frames": chosen_num_frames,
+                "resolution": resolved_resolution,
+                "acceleration": acceleration,
+                "audio_duration_seconds": round(float(audio_duration_seconds or 0.0), 3) if audio_duration_seconds else None,
+                "timing_map": timing_map,
+                "speaking_segments": speaking_segments,
+                "audio_reactive_timeline": audio_reactive_timeline,
+                "infinite_talk_used": True,
+                "webhook_enabled": True,
             }
 
     def generate(
@@ -210,10 +177,6 @@ class FalVideoService:
 
         if multi_prompt:
             payload['multi_prompt'] = multi_prompt
-
-        if model_key == 'kling_v3':
-            payload['shot_type'] = shot_type or 'customize'
-            payload['generate_audio'] = bool(generate_audio) if generate_audio is not None else False
 
         headers = {
             'Authorization': f'Key {self._effective_fal_api_key}',
@@ -274,6 +237,7 @@ class FalVideoService:
                 requested_model_key=model_key,
                 resolved_endpoint=resolved_endpoint,
             )
+
 
             direct_video_url = self._extract_video_url(terminal_payload)
             if direct_video_url:
@@ -569,9 +533,7 @@ class FalVideoService:
 
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
-            'kling_turbo': 'fal-ai/kling-video/v1/turbo/text-to-video',
-            'kling': 'fal-ai/kling-video/v1/standard/text-to-video',
-            'kling_v3': 'fal-ai/kling-video/v3/standard/text-to-video',
+            'fal_ltx23_i2v': 'fal-ai/ltx-2.3/image-to-video',
         }
         endpoint = mapping.get(model_key)
         if not endpoint:

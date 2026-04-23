@@ -168,6 +168,29 @@ def _ugc_ad_scene_strategy() -> RecipeSceneStrategy:
     )
 
 
+
+def _avatar_product_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(
+                scene_id='scene_1_hook',
+                beat_names=('hook', 'product_intro'),
+                duration_seconds=5,
+            ),
+            RenderSceneConfig(
+                scene_id='scene_2_showcase',
+                beat_names=('demo', 'benefit'),
+                duration_seconds=5,
+            ),
+            RenderSceneConfig(
+                scene_id='scene_3_cta',
+                beat_names=('proof', 'cta', 'ending'),
+                duration_seconds=5,
+            ),
+        )
+    )
+
+
 def _ltx_cinematic_montage_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
@@ -214,7 +237,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a 10 second playful underwater cartoon pet video using the provided pet image.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -298,7 +321,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a 12 second narrated Time Echo explainer reel based on the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling_v3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -512,6 +535,94 @@ RECIPES: dict[str, RecipeConfig] = {
             ),
         },
     ),
+        'avatar_product': RecipeConfig(
+        id='avatar_product',
+        type='video',
+        duration_seconds=15,
+        input=RecipeInputConfig(image=True, text=True),
+        config=RecipeContentConfig(
+            style='avatar_led_product_ugc',
+            tone='conversational_creator_style_product_promo',
+            music='light_modern_creator_bed',
+            structure=('hook', 'product_intro', 'demo', 'benefit', 'proof', 'cta', 'ending'),
+            reference_prompt=(
+                'Use the uploaded product image as the primary product reference. '
+                'Create a vertical avatar-led product ad where the product remains recognisable and naturally visible. '
+                'Preserve the product’s key appearance cues such as shape, color family, packaging feel, and core identity. '
+                'Do not replace the product with a different unrelated object.'
+            ),
+            scene_guidance=(
+                'Create a vertical mobile-first avatar product ad with strong visual consistency across all scenes. '
+                'Keep the same spokesperson identity throughout, maintain realistic indoor lighting, natural creator-style framing, '
+                'clear product visibility, smooth scene progression, and a clean CTA ending. '
+                'Avoid TV-commercial polish, abrupt cuts, stock-footage drift, or delayed product reveal.'
+            ),
+            seed_prompt='Create a 15 second avatar-led product ad using the uploaded product image and supplied product brief.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='fal_ltx23_i2v',
+            aspect_ratio='9:16',
+            resolution='1080p',
+            quality='standard',
+            captions_enabled=True,
+            narration_enabled=True,
+            voice='Shubh',
+            language='English',
+            caption_style='classic',
+        ),
+        scene_strategy=_avatar_product_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='Avatar Product',
+            slug='avatar-product',
+            description='Upload a product image and turn it into a creator-style avatar ad with hook, showcase, and CTA.',
+            short_label='Avatar ad',
+            preview_video_url=_sample_video('advertisement.mp4'),
+            preview_image_url=_sample_video('creator-launch.png'),
+            active=True,
+            featured=True,
+            trending=True,
+            order=24,
+            tags=('all', 'ads', 'ugc', 'avatar', 'product', 'vertical'),
+            composer=RecipeComposerConfig(
+                recipe_label='Avatar Product',
+                mode='video',
+                starter_copy='Upload the product image and add a short product brief. The recipe turns it into an avatar-led product ad.',
+                fragments=(
+                    RecipeComposerFragment(type='text', value='Create an avatar product ad for '),
+                    RecipeComposerFragment(type='slot', slot_id='text'),
+                    RecipeComposerFragment(type='text', value=' using '),
+                    RecipeComposerFragment(type='slot', slot_id='image'),
+                    RecipeComposerFragment(type='text', value='.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='text',
+                        kind='text',
+                        label='Product brief',
+                        placeholder='a lightweight glow serum for busy working women',
+                        required=True,
+                    ),
+                    RecipeComposerSlot(
+                        id='image',
+                        kind='upload',
+                        label='Upload product image',
+                        placeholder='Upload product image',
+                        required=True,
+                        sample_label='Sample product image',
+                        sample_preview_url=_sample_video('creator-launch.png'),
+                        submit_target='image',
+                    ),
+                ),
+            ),
+        ),
+        reference_strategy='passthrough',
+        metadata={
+            'starter_badge': 'Avatar-led',
+            'version': 1,
+            'default_avatar_style': 'creator_casual',
+            'supports_product_image': True,
+        },
+    ),
     'ltx_cinematic_montage_v1': RecipeConfig(
         id='ltx_cinematic_montage_v1',
         type='video',
@@ -634,7 +745,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a viral dance clip using the given subject and dance style.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -691,7 +802,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a story slides reel from the provided topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -745,7 +856,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a character explainer reel from the supplied topic.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -802,7 +913,7 @@ RECIPES: dict[str, RecipeConfig] = {
             seed_prompt='Create a client ad reel from the supplied brief.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling3',
+            model_key='sora2',
             aspect_ratio='9:16',
             resolution='720p',
             quality='standard',
@@ -847,9 +958,9 @@ RECIPES: dict[str, RecipeConfig] = {
     ),
 }
 
-SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad'})
+SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product'})
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
-UGC_AD_RECIPE_IDS = frozenset({'ugc_ad'})
+UGC_AD_RECIPE_IDS = frozenset({'ugc_ad', 'avatar_product'})
 LTX_BENCHMARK_RECIPE_IDS = frozenset({'ltx_cinematic_montage_v1'})
 LTX_FREEFORM_RECIPE_IDS = frozenset({'ltx_storyboard_v1'})
 LTX_RECIPE_IDS = frozenset({*LTX_BENCHMARK_RECIPE_IDS, *LTX_FREEFORM_RECIPE_IDS})

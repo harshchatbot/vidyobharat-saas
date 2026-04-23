@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import base64
 import logging
-import os
 import subprocess
 from pathlib import Path
 
 import httpx
 
+from app.core.config import get_settings
+from app.services.persona_voice_service import PersonaVoiceService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS, VideoPipelineService
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,9 @@ SARVAM_DEFAULT_LANGUAGE = 'en-IN'
 
 class RecipeAudioService:
     def __init__(self) -> None:
+        self.settings = get_settings()
         self.pipeline = VideoPipelineService()
+        self.persona_voice = PersonaVoiceService()
 
     def add_audio(
         self,
@@ -34,6 +37,7 @@ class RecipeAudioService:
         render_id: str,
         narration_text: str | None = None,
         voice: str | None = None,
+        voice_profile: dict | None = None,
         language: str | None = None,
         audio_fade_in_seconds: float = 0.0,
         audio_fade_out_seconds: float = 0.0,
@@ -48,6 +52,7 @@ class RecipeAudioService:
                 text=cleaned_narration,
                 render_id=render_id,
                 voice=voice,
+                voice_profile=voice_profile,
                 language=language,
             )
 
@@ -105,24 +110,32 @@ class RecipeAudioService:
         text: str,
         render_id: str,
         voice: str | None,
+        voice_profile: dict | None,
         language: str | None,
     ) -> Path | None:
         """
         Try Sarvam TTS first. Fall back to macOS 'say' only for local/dev safety.
         """
+        persona_input = self.persona_voice.prepare_tts_input(
+            script=text,
+            voice_profile=voice_profile,
+            fallback_speaker=(voice or 'Shubh'),
+            fallback_speech_rate=self.settings.avatar_tts_speech_rate,
+        )
         sarvam_path = self._generate_narration_track_sarvam(
-            text=text,
+            text=str(persona_input['text']),
             render_id=render_id,
-            voice=voice,
+            voice=str(persona_input['speaker']),
             language=language,
+            speech_rate=float(persona_input['speech_rate']),
         )
         if sarvam_path:
             return sarvam_path
 
         return self._generate_narration_track_local_fallback(
-            text=text,
+            text=str(persona_input['text']),
             render_id=render_id,
-            voice=voice,
+            voice=str(persona_input['voice_key']),
             language=language,
         )
 
@@ -135,8 +148,7 @@ class RecipeAudioService:
         language: str | None,
         speech_rate: float = 1.0,
     ) -> Path | None:
-        api_key11 = os.getenv('SARVAM_API_KEY')
-        api_key = 'sk_kryrz476_sogJSeS1mfluV1ddQUkDcuRT'
+        api_key = self.settings.sarvam_api_key
         if not api_key:
             logger.info(
                 'recipe_narration_sarvam_skipped',

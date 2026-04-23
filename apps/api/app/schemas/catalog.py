@@ -8,6 +8,7 @@ class AvatarResponse(BaseModel):
     name: str
     scope: str
     style: str
+    gender: str | None = None
     language_tags: list[str] = Field(default_factory=list)
     thumbnail_url: str
     tags: list[str] = Field(default_factory=list)
@@ -18,6 +19,7 @@ class AvatarResponse(BaseModel):
     prompt_template: str | None = None
     negative_prompt: str | None = None
     recommended_voice: str | None = None
+    voice_profile: dict | None = None
     status: str | None = None
     description: str | None = None
 

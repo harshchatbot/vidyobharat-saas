@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 from base64 import b64decode
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -55,32 +55,17 @@ VIDEO_INSPIRATION_ITEMS = [
     {
         'id': 'vid-insp-2',
         'creator_name': 'Kabir',
-        'model_key': 'veo3',
-        'provider_name': 'Google Veo 3.1',
-        'title': 'Founder Launch Cut',
-        'prompt': 'Premium founder launch montage inside a dark tech office, moody blue-gold lighting, confident close-ups, polished motion, startup launch energy.',
+        'model_key': 'fal_ltx23_i2v',
+        'provider_name': 'fal.ai LTX 2.3 I2V',
+        'title': 'Seeded Product Test Clip',
+        'prompt': 'Product-led low-cost seeded test clip with clean motion, direct focus on the product, and strong mobile framing.',
         'video_url': 'https://cdn.coverr.co/videos/coverr-working-in-the-office-5176/1080p.mp4',
         'thumbnail_url': 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80',
-        'aspect_ratio': '16:9',
+        'aspect_ratio': '9:16',
         'resolution': '1080p',
         'duration_seconds': 8,
         'created_at': '2026-02-25T11:20:00Z',
-        'tags': ['startup', 'office', 'launch', 'cinematic', 'brand film'],
-    },
-    {
-        'id': 'vid-insp-3',
-        'creator_name': 'Aarohi',
-        'model_key': 'kling3',
-        'provider_name': 'Kling 3.0',
-        'title': 'Luxury Fashion Motion Poster',
-        'prompt': 'High-fashion motion poster with glossy reflections, portrait lens compression, elegant movement, and gold-accent editorial lighting.',
-        'video_url': 'https://cdn.coverr.co/videos/coverr-model-looking-at-camera-1568045416603?download=1080p',
-        'thumbnail_url': 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80',
-        'aspect_ratio': '4:5',
-        'resolution': '1080p',
-        'duration_seconds': 6,
-        'created_at': '2026-02-21T15:05:00Z',
-        'tags': ['fashion', 'luxury', 'poster', 'studio', 'editorial'],
+        'tags': ['seeded', 'testing', 'product', 'mobile-first', 'low-cost'],
     },
 ]
 
@@ -126,7 +111,7 @@ class AIVideoCreateService:
         str(model['key']): ModelRegistryEntry(
             key=str(model['key']),
             label=str(model.get('fullLabel') or model['label']),
-            description=str(model['description']),
+            description=str(model.get('description', '')),
             frontend_hint=str(model['frontendHint']),
             api_adapter=str(model['apiAdapter']),
             short_label=str(model.get('label') or model['key']),
@@ -178,52 +163,24 @@ class AIVideoCreateService:
 
         self.providers = {
             'sora2': self.generate_with_sora2,
-            'sora2_pro': self.generate_with_sora2,
-            'veo3': self.generate_with_veo3,
-            'kling3': self.generate_with_fal,
-            'kling_v3': self.generate_with_fal,
-            'kling_turbo': self.generate_with_fal,
-            'kling': self.generate_with_fal,
-            'wan_2_5': self.generate_with_fal,
-            'sora_2': self.generate_with_sora2,
-            'veo_3_1': self.generate_with_veo3,
             'ltx': self.generate_with_ltx_self_hosted,
+            'fal_ltx23_i2v': self.generate_with_fal,
         }
 
         self.model_router = SmartModelRouter()
 
-        # Keep fallbacks conservative. Do not route into disabled or unstable fal video models,
-        # and do not silently escalate creator/daily requests into incompatible Sora paths.
         self.video_fallbacks: dict[str, list[str]] = {
             'sora2': [],
-            'sora2_pro': [],
-            'veo3': [],
-            'kling3': [],
-            'kling_v3': [],
-            'kling_turbo': [],
-            'kling': [],
-            'wan_2_5': [],
-            'sora_2': [],
-            'veo_3_1': [],
+            'fal_ltx23_i2v': [],
             'ltx': [],
         }
 
     def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:
-        models = [
+        return [
             model
             for model in self.VIDEO_MODEL_REGISTRY.values()
             if include_internal or not bool(model.internal_only)
         ]
-        if self.settings.wan_video_enabled:
-            return models
-        wan_aliases = {'wan2.1_t2v_turbo', 'wan2.6_i2v_flash', 'wan2.5_t2v_preview', 'wan2.6_t2v'}
-        gated: list[ModelRegistryEntry] = []
-        for model in models:
-            if model.key in wan_aliases:
-                gated.append(replace(model, enabled=False, feature_gate='wan_disabled'))
-            else:
-                gated.append(model)
-        return gated
 
     def generate_with_ltx_self_hosted(self, params: dict[str, Any]) -> ProviderResult:
         logger.info(
@@ -269,14 +226,7 @@ class AIVideoCreateService:
         return VIDEO_INSPIRATION_ITEMS
 
     def _registry_key_for(self, model_key: str) -> str:
-        mapping = {
-            'kling_turbo': 'kling_turbo',
-            'kling': 'kling3',
-            'kling_v3': 'kling3',
-            'sora_2': 'sora2',
-            'veo_3_1': 'veo3',
-        }
-        return mapping.get(model_key, model_key)
+        return model_key
 
     def create_video(
         self,
@@ -589,81 +539,25 @@ class AIVideoCreateService:
             },
         )
 
-    def generate_with_veo3(self, params: dict[str, Any]) -> ProviderResult:
-        # Environment variables required for real integration:
-        # - GEMINI_API_KEY
-        # - or Vertex AI credentials if you choose the Vertex route for Veo 3.1
-        #
-        # Real Gemini / Vertex video generation integration belongs here. Replace this fallback
-        # with the official Google Veo 3.1 call using:
-        # - prompt=params["script"]
-        # - image reference when params["imageUrl"] is present
-        # - aspect ratio / duration / voice mapped to the provider payload
-        if not self.settings.gemini_api_key:
-            raise ProviderError('GEMINI_API_KEY is not configured for Veo 3.1')
-        output_path, _, tts_diagnostics = self._render_local_proxy(
-            render_id_prefix='veo3',
-            script=params['script'],
-            image_url=params.get('imageUrl'),
-            language=params.get('language'),
-            voice=params['voice'],
-            audio_sample_rate_hz=int((params.get('audioSettings') or {}).get('sampleRateHz') or 22050),
-            aspect_ratio=params['aspectRatio'],
-            resolution=params['resolution'],
-            duration_seconds=params['durationSeconds'],
-            captions_enabled=bool(params.get('captionsEnabled', True)),
-            narration_enabled=bool(params.get('narrationEnabled', True)),
-            caption_style=params.get('captionStyle'),
-        )
-        return ProviderResult(
-            provider='Google Veo 3.1',
-            model_key='veo3',
-            video_url=output_path,
-            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
-        )
-
-    def generate_with_kling3(self, params: dict[str, Any]) -> ProviderResult:
-        # Environment variables for real integration:
-        # - KLING_API_KEY
-        # - KLING_API_SECRET
-        # - KLING_API_BASE
-        #
-        # Insert the real Kling 3.0 API request here. The normalized response should
-        # still return the final video URL and provider label so the rest of the app
-        # does not care which provider produced the clip.
-        if not self.settings.kling_api_key:
-            raise ProviderError('KLING_API_KEY is not configured for Kling 3.0')
-        if not self.settings.kling_api_secret:
-            raise ProviderError('KLING_API_SECRET is not configured for Kling 3.0')
-        output_path, _, tts_diagnostics = self._render_local_proxy(
-            render_id_prefix='kling3',
-            script=params['script'],
-            image_url=params.get('imageUrl'),
-            language=params.get('language'),
-            voice=params['voice'],
-            audio_sample_rate_hz=int((params.get('audioSettings') or {}).get('sampleRateHz') or 22050),
-            aspect_ratio=params['aspectRatio'],
-            resolution=params['resolution'],
-            duration_seconds=params['durationSeconds'],
-            captions_enabled=bool(params.get('captionsEnabled', True)),
-            narration_enabled=bool(params.get('narrationEnabled', True)),
-            caption_style=params.get('captionStyle'),
-        )
-        return ProviderResult(
-            provider='Kling 3.0',
-            model_key='kling3',
-            video_url=output_path,
-            metadata={'mode': 'local-proxy-placeholder', 'voice': params['voice'], **tts_diagnostics},
-        )
-
 
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
         duration_seconds = int(params['durationSeconds'])
+        resolution = str(params['resolution'])
+        prompt = str(params['script'])
 
-        if requested_model == 'kling' and duration_seconds not in {5, 10}:
-            logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
-            duration_seconds = 5
+        if requested_model == 'fal_ltx23_i2v':
+            if duration_seconds not in {6, 8, 10}:
+                logger.warning('fal_ltx23_i2v_duration_normalized from=%s to=%s', duration_seconds, 6)
+                duration_seconds = 6
+
+            if resolution not in {'1080p', '1440p', '2160p'}:
+                logger.warning('fal_ltx23_i2v_resolution_normalized from=%s to=%s', resolution, '1080p')
+                resolution = '1080p'
+
+            if len(prompt) > 4500:
+                logger.warning('fal_ltx23_i2v_prompt_truncated original_length=%s truncated_length=%s', len(prompt), 4500)
+                prompt = prompt[:4500]
 
         logger.info(
             "fal_model_debug",
@@ -671,19 +565,20 @@ class AIVideoCreateService:
                 "requested_model": requested_model,
                 "payload_modelKey": params.get("modelKey"),
                 "has_multi_prompt": bool(params.get("multiPrompt")),
+                "normalized_duration_seconds": duration_seconds,
+                "normalized_resolution": resolution,
+                "prompt_length": len(prompt),
             },
         )
 
         video_url, metadata = self.fal.generate(
             model_key=requested_model,
-            prompt=params['script'],
+            prompt=prompt,
             aspect_ratio=params['aspectRatio'],
-            resolution=params['resolution'],
+            resolution=resolution,
             duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
             multi_prompt=params.get('multiPrompt'),
-            shot_type='customize' if requested_model == 'kling_v3' else None,
-            generate_audio=False if requested_model == 'kling_v3' else None,
         )
 
         return ProviderResult(
@@ -699,10 +594,6 @@ class AIVideoCreateService:
         recipe_metadata = payload.get('recipeMetadata') if isinstance(payload.get('recipeMetadata'), dict) else {}
         route = resolve_generation_route(medium='video', model_key=requested_model)
         primary_key = route.canonical_model_key or requested_model
-
-        # Normalize newly added runtime model aliases here so provider lookup is stable
-        if primary_key in {'kling3', 'kling_v3'} or requested_model in {'kling3', 'kling_v3'}:
-            primary_key = 'kling_v3'
 
         logger.info(
             'video_model_route_resolved',
@@ -1052,19 +943,11 @@ class AIVideoCreateService:
         if not rules:
             raise ProviderError(f'Unsupported model: {model_key}')
 
-        if model_key == 'veo3' and image_urls:
-            if duration_seconds is not None and duration_seconds != rules['seeded_only']:
-                raise ProviderError('Veo 3.1 image-seeded videos currently support only 8 second clips')
-            return int(rules['seeded_only'])
-
         if duration_mode != 'custom' or duration_seconds is None:
             return int(rules['default'])
 
         if 'presets' in rules:
             allowed = sorted(int(item) for item in rules['presets'])
-            if model_key in {'kling3', 'kling_v3'} and duration_seconds not in allowed:
-                logger.warning('kling_duration_normalized from=%s to=%s', duration_seconds, 5)
-                return 5
             if duration_seconds not in rules['presets']:
                 raise ProviderError(
                     f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports only {", ".join(f"{value}s" for value in allowed)} durations'
@@ -1462,12 +1345,9 @@ def _classify_video_failure_status(exc: Exception) -> VideoStatus:
         'fal',
         'ltx',
         'runpod',
-        'wan',
         'openai',
         'sora',
         'gemini',
-        'veo',
-        'kling',
         'moderation',
         'rate limit',
         'resourceexhausted',
@@ -1499,7 +1379,7 @@ def _should_refund_failed_video(*, exc: Exception, raw_data: dict[str, Any]) -> 
         "queued",
         "processing",
     )
-    provider_name_markers = ("fal", "ltx", "runpod", "openai", "sora", "kling", "veo", "wan")
+    provider_name_markers = ("fal", "ltx", "runpod", "openai", "sora")
     if (
         any(marker in text for marker in provider_timeout_markers)
         and any(marker in text for marker in provider_request_markers)

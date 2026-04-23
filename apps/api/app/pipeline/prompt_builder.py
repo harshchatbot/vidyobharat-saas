@@ -228,7 +228,6 @@ def build_sora_ugc_ad_prompt(
     offer = str(scene.get('offer') or '').strip()
     cta = str(scene.get('cta') or '').strip()
     ad_goal = str(scene.get('ad_goal') or '').strip()
-    hook_plan = str(scene.get('hook_plan') or '').strip()
     shot_archetype = str(scene.get('shot_archetype') or '').strip()
     subtopic_visual_anchor = str(scene.get('subtopic_visual_anchor') or '').strip()
     extra_avoid_guidance = str(scene.get('extra_avoid_guidance') or '').strip()
@@ -237,7 +236,6 @@ def build_sora_ugc_ad_prompt(
     environment_description = str(scene.get('environment_description') or '').strip()
     camera_framing = str(scene.get('camera_framing') or '').strip()
     motion_intent = str(scene.get('motion_intent') or '').strip()
-    local_narration_context = str(scene.get('local_narration_context') or '').strip()
     transition_intent = str(scene.get('transition_intent') or '').strip()
     transition_from_previous = str(scene.get('transition_from_previous') or '').strip()
     transition_to_next = str(scene.get('transition_to_next') or '').strip()
@@ -249,6 +247,7 @@ def build_sora_ugc_ad_prompt(
     talking_mode = str(scene.get('talking_mode') or 'none').strip()
     render_lane = str(scene.get('render_lane') or '').strip()
     persona_required = bool(scene.get('persona_required'))
+    is_avatar_product = ugc_mode == 'avatar_product'
     continuity_subject_role = str(scene.get('continuity_subject_role') or '').strip()
     continuity_subject_label = str(scene.get('continuity_subject_label') or '').strip()
     continuity_anchor = str(scene.get('continuity_anchor') or '').strip()
@@ -256,6 +255,9 @@ def build_sora_ugc_ad_prompt(
     must_avoid_new_spokesperson = bool(scene.get('must_avoid_new_spokesperson'))
     school_testimonial_mode = bool(scene.get('school_testimonial_mode'))
     avoid_motifs = [str(item).strip() for item in (scene.get('avoid_motifs') or []) if str(item).strip()]
+    showcase_visual_prompt = str(scene.get('showcase_visual_prompt') or '').strip()
+    enhancer_notes = [str(item).strip() for item in (scene.get('enhancer_notes') or []) if str(item).strip()]
+    spoken_line = str(scene.get('spoken_line') or '').strip()
 
     prompt = (
         'Create a native-feeling vertical UGC ad scene for Sora 2.\n\n'
@@ -277,7 +279,6 @@ def build_sora_ugc_ad_prompt(
         f'Environment: {environment_description}\n'
         f'Camera framing: {camera_framing}\n'
         f'Motion/action: {motion_intent}\n'
-        f'Local narration meaning: {local_narration_context}\n'
         f'Continuity: {continuity_guidance}\n'
         f'Transition intent: {transition_intent}\n'
         f'Transition from previous scene: {transition_from_previous}\n'
@@ -308,7 +309,6 @@ def build_sora_ugc_ad_prompt(
             f'Offer: {offer}\n'
             f'CTA: {cta}\n'
             f'Ad goal: {ad_goal}\n'
-            f'Hook plan: {hook_plan}\n'
         )
 
     if indian_context_note:
@@ -327,6 +327,13 @@ def build_sora_ugc_ad_prompt(
         'Readable copy will be handled by overlays, captions, and narration outside the generated shot.\n'
         'Avoid poster-like title cards, fake UI text, and stock-footage polish.\n'
     )
+
+    if spoken_line:
+        prompt += f'Scene spoken line: {spoken_line}\n'
+    if is_avatar_product and showcase_visual_prompt:
+        prompt += f'Avatar product showcase prompt: {showcase_visual_prompt}\n'
+    if enhancer_notes:
+        prompt += 'Enhancer production notes: ' + '; '.join(enhancer_notes) + '\n'
 
     if talking_mode == 'lip_sync_required':
         prompt += (
@@ -380,6 +387,20 @@ def build_sora_ugc_ad_prompt(
     if persona_required:
         prompt += 'A locked creator persona is expected for this scene when available.\n'
 
+
+    if is_avatar_product:
+        prompt += (
+            'This is an avatar-led product ad.\n'
+            'Preserve exactly the same selected avatar identity across all scenes.\n'
+            'Keep the avatar visibly present on screen in every scene, not just the opening shot.\n'
+            'Preserve the same product across all scenes.\n'
+            'If a product image reference is provided, treat it as the primary product reference.\n'
+            'Do not swap to a different presenter, different face, or different product.\n'
+            'Do not turn showcase or CTA scenes into product-only montage unless explicitly required.\n'
+            'Keep the product visible early, clearly, and naturally with the avatar.\n'
+            'Favor creator-native realism over glossy commercial polish.\n'
+        )
+
     prompt += (
         'Camera should feel intentional but natural, not like a glossy TV commercial.\n'
         'Motion should feel readable and creator-native, with no abrupt CTA cut or late scene confusion.\n'
@@ -396,7 +417,7 @@ def build_scene_prompt(
 ) -> str:
     if recipe.id == 'deep_dive_explainer' and recipe.generation_defaults.model_key == 'sora2':
         return build_sora_deep_explainer_prompt(recipe, scene, reference, inputs)
-    if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key == 'sora2':
+    if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key in {'sora2', 'fal_ltx23_i2v'}:
         return build_sora_ugc_ad_prompt(recipe, scene, reference, inputs)
     if recipe.id in LTX_BENCHMARK_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':
         return build_ltx_cinematic_montage_prompt(recipe, scene, reference, inputs)

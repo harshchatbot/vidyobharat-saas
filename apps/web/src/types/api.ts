@@ -52,6 +52,7 @@ export type Avatar = {
   name: string;
   scope: 'own' | 'public';
   style: string;
+  gender?: string | null;
   language_tags: string[];
   thumbnail_url: string;
   tags?: string[];
@@ -649,7 +650,7 @@ export type AIVideoStatusResponse = {
   status: 'queued' | 'processing' | 'success' | 'failed' | string;
   progress: number;
   videoUrl: string | null;
-  modelKey: 'sora2' | 'sora2_pro' | 'veo3' | 'kling3' | string | null;
+  modelKey: 'sora2' | 'fal_ltx23_i2v' | 'ltx' | string | null;
   modelLabel: string | null;
   provider: string | null;
   resolution: string;
@@ -662,6 +663,7 @@ export type AIVideoStatusResponse = {
   ttsResolvedVoice: string | null;
   ttsProviderMessage: string | null;
   ttsFallbackUsed: boolean;
+  pipelineMetadata?: Record<string, unknown> | null;
 };
 
 export type VideoStudioChatMessage = {
@@ -980,6 +982,8 @@ export type InfluencerPoseOption = {
 export type CreateCustomAvatarRequest = {
   name: string;
   reference_image_url: string;
+  reference_images?: string[];
+  gender: 'female' | 'male';
   preferred_voice?: string;
 };
 
@@ -988,6 +992,9 @@ export type CreateCustomAvatarResponse = {
   user_id: string;
   name: string;
   reference_image_url: string;
+  reference_images?: string[];
+  primary_image?: string | null;
+  gender?: 'female' | 'male';
   preferred_voice: string;
   status: string;
 };
@@ -1016,4 +1023,8 @@ export type CustomAvatarPreviewStatusResponse = {
   video_url?: string | null;
   provider?: string | null;
   error_message?: string | null;
+  timing_map?: Array<Record<string, unknown>> | null;
+  behavior_timeline?: Array<Record<string, unknown>> | null;
+  audio_reactive_timeline?: Array<Record<string, unknown>> | null;
+  voice_profile?: Record<string, unknown> | null;
 };

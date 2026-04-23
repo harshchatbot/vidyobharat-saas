@@ -506,7 +506,7 @@ class CreditService:
             or payload.get('model')
             or ''
         )
-        resolution = str(payload.get('resolution') or '720p')
+        resolution = str(payload.get('resolution') or '1080p')
         duration_seconds = int(payload.get('durationSeconds') or 15)
         quality = str(payload.get('quality') or 'standard')
         captions_enabled = bool(payload.get('captionsEnabled') if 'captionsEnabled' in payload else payload.get('captions_enabled'))
@@ -656,14 +656,23 @@ class CreditService:
     def _normalize_video_model(self, value: str) -> str:
         key = value.strip().lower()
 
-        # Temporary runtime aliases for newly added backend model keys
-        # until shared credit-engine config is updated.
-        if key in {'kling_v3', 'kling3'}:
-            return 'kling'
+        if not key:
+            raise ValueError('Missing video model for credit calculation')
+
+        runtime_aliases = {
+            'fal_ltx23_i2v': 'fal_ltx23_i2v',
+            'ltx23_i2v': 'fal_ltx23_i2v',
+            'fal-ai/ltx-2.3/image-to-video': 'fal_ltx23_i2v',
+            'sora_2': 'sora2',
+            'ltx_benchmark': 'ltx',
+        }
+
+        if key in runtime_aliases:
+            return runtime_aliases[key]
 
         normalized = self.video_model_aliases.get(key)
         if not normalized:
-            raise ValueError('Unsupported video model for credit calculation')
+            raise ValueError(f'Unsupported video model for credit calculation: {value}')
         return normalized
 
     def _resolve_image_model_tier(self, model_key: str) -> str:

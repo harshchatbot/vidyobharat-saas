@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field, HttpUrl
 class CreateAvatarRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     reference_image_url: HttpUrl
+    reference_images: list[HttpUrl] = Field(default_factory=list, max_length=3)
+    gender: Literal["female", "male"]
     preferred_voice: Optional[str] = "shubh"
 
 
@@ -12,6 +14,9 @@ class CreateAvatarResponse(BaseModel):
     avatar_id: str
     name: str
     reference_image_url: str
+    reference_images: list[str] = Field(default_factory=list)
+    primary_image: str | None = None
+    gender: Literal["female", "male"]
     preferred_voice: str
     status: Literal["ready_for_preview"]
 
@@ -35,6 +40,7 @@ class AvatarPreviewStatusResponse(BaseModel):
     video_url: Optional[str] = None
     audio_url: Optional[str] = None
     error_message: Optional[str] = None
+    timing_map: list[dict[str, Any]] | None = None
 
 
 class ActorCreateResponse(BaseModel):
@@ -65,6 +71,7 @@ class ActorDetailResponse(BaseModel):
     prompt_template: str | None = None
     negative_prompt: str | None = None
     recommended_voice: str | None = None
+    voice_profile: dict[str, Any] | None = None
     created_at: Any | None = None
     status: str
     scope: str = "own"
@@ -83,3 +90,7 @@ class TestAvatarResponse(BaseModel):
     audio_url: str | None = None
     selected_reference_image: str | None = None
     retry_attempts: int = 0
+    timing_map: list[dict[str, Any]] | None = None
+    behavior_timeline: list[dict[str, Any]] | None = None
+    audio_reactive_timeline: list[dict[str, Any]] | None = None
+    voice_profile: dict[str, Any] | None = None

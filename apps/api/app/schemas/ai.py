@@ -135,7 +135,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_aspect_ratio(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'9:16', '16:9', '1:1'}:
+        if value not in {'9:16', '16:9'}:
             raise ValueError('Unsupported aspectRatio')
         return value
 
@@ -144,7 +144,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_resolution(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'720p', '1080p', '1440p', '2160p'}:
+        if value not in {'720p'}:
             raise ValueError('Unsupported resolution')
         return value
 
@@ -224,6 +224,7 @@ class AIVideoStatusResponse(BaseModel):
     ttsResolvedVoice: str | None = None
     ttsProviderMessage: str | None = None
     ttsFallbackUsed: bool = False
+    pipelineMetadata: dict[str, object] | None = None
 
 
 class VideoStudioChatMessage(BaseModel):

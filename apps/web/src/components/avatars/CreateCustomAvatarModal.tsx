@@ -16,6 +16,8 @@ type Props = {
         avatarId: string;
         name: string;
         imageUrl: string;
+        referenceImages: string[];
+        gender: 'female' | 'male';
         preferredVoice: string;
         preferredLanguage: string;
     }) => void;
@@ -29,6 +31,7 @@ type Props = {
 type CatalogVoiceOption = {
     value: string;
     label: string;
+    gender: string;
     supportedLanguageCodes: string[];
     isFree: boolean;
 };
@@ -112,10 +115,11 @@ export default function CreateCustomAvatarModal({
     onPreviewCompleted,
 }: Props) {
     const [name, setName] = useState('');
+    const [gender, setGender] = useState<'female' | 'male'>('female');
     const [voice, setVoice] = useState('');
     const [language, setLanguage] = useState('');
     const [script, setScript] = useState(DEFAULT_SCRIPT);
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
 
     const [voiceOptions, setVoiceOptions] = useState<CatalogVoiceOption[]>([]);
     const [languageOptions, setLanguageOptions] = useState<CatalogLanguageOption[]>([]);
@@ -149,16 +153,21 @@ export default function CreateCustomAvatarModal({
     const pollRef = useRef<number | null>(null);
 
     const canCreateAvatar = useMemo(() => {
-        return !!name.trim() && !!file && status !== 'uploading' && status !== 'creating';
-    }, [name, file, status]);
+        return !!name.trim() && files.length > 0 && status !== 'uploading' && status !== 'creating';
+    }, [name, files, status]);
 
     const canGeneratePreview = useMemo(() => {
-        return !!avatarId && !!script.trim() && status !== 'uploading' && status !== 'creating';
-    }, [avatarId, script, status]);
+        return !!avatarId && !!script.trim() && !!voice && !!language && status !== 'uploading' && status !== 'creating';
+    }, [avatarId, script, voice, language, status]);
 
     const selectedVoiceOption = useMemo(() => {
         return voiceOptions.find((item) => item.value === voice) || null;
     }, [voiceOptions, voice]);
+
+    const genderFilteredVoiceOptions = useMemo(() => {
+        const normalizedGender = gender.toLowerCase();
+        return voiceOptions.filter((item) => item.gender.toLowerCase() === normalizedGender);
+    }, [gender, voiceOptions]);
 
     const filteredLanguageOptions = useMemo(() => {
         if (!selectedVoiceOption) return languageOptions;
@@ -200,6 +209,7 @@ export default function CreateCustomAvatarModal({
                               (item: {
                                   key?: string;
                                   label?: string;
+                                  gender?: string;
                                   supported_language_codes?: string[];
                               }) => {
                                   const voiceKey = item.key || '';
@@ -210,6 +220,7 @@ export default function CreateCustomAvatarModal({
                                   return {
                                       value: voiceKey,
                                       label: voiceLabel,
+                                      gender: item.gender || '',
                                       supportedLanguageCodes: Array.isArray(item.supported_language_codes)
                                           ? item.supported_language_codes
                                           : [],
@@ -258,6 +269,7 @@ export default function CreateCustomAvatarModal({
                         {
                             value: 'shubh',
                             label: 'Shubh',
+                            gender: 'male',
                             supportedLanguageCodes: ['en-IN', 'hi-IN'],
                             isFree: true,
                         },
@@ -292,6 +304,16 @@ export default function CreateCustomAvatarModal({
             setLanguage(filteredLanguageOptions[0].value);
         }
     }, [voice, language, selectedVoiceOption, filteredLanguageOptions]);
+
+    useEffect(() => {
+        if (!genderFilteredVoiceOptions.length) {
+            setVoice('');
+            return;
+        }
+        if (!genderFilteredVoiceOptions.some((item) => item.value === voice)) {
+            setVoice(genderFilteredVoiceOptions[0]?.value || '');
+        }
+    }, [genderFilteredVoiceOptions, voice]);
 
     useEffect(() => {
         if (!open || !userId || !voice || !language) return;
@@ -427,10 +449,11 @@ export default function CreateCustomAvatarModal({
 
     function resetLocalState() {
         setName('');
+        setGender('female');
         setVoice('');
         setLanguage('');
         setScript(DEFAULT_SCRIPT);
-        setFile(null);
+        setFiles([]);
         setImageUrl('');
         setAvatarId('');
         setJobId('');
@@ -459,12 +482,16 @@ export default function CreateCustomAvatarModal({
             setError('');
             setStatus('uploading');
 
-            if (!file) {
-                throw new Error('Please upload an image');
+            if (files.length === 0) {
+                throw new Error('Please upload at least one image');
             }
 
-            const uploaded = await uploadImage(file);
-            const uploadedImageUrl = uploaded.publicUrl;
+            const uploadedImages = await Promise.all(files.slice(0, 3).map((file) => uploadImage(file)));
+            const uploadedImageUrls = uploadedImages.map((item) => item.publicUrl).filter(Boolean);
+            const uploadedImageUrl = uploadedImageUrls[0];
+            if (!uploadedImageUrl) {
+                throw new Error('Failed to upload avatar images');
+            }
             setImageUrl(uploadedImageUrl);
 
             setStatus('creating');
@@ -473,6 +500,8 @@ export default function CreateCustomAvatarModal({
                 {
                     name: name.trim(),
                     reference_image_url: uploadedImageUrl,
+                    reference_images: uploadedImageUrls,
+                    gender,
                     preferred_voice: voice,
                 },
                 userId,
@@ -485,6 +514,8 @@ export default function CreateCustomAvatarModal({
                 avatarId: avatar.avatar_id,
                 name: avatar.name,
                 imageUrl: avatar.reference_image_url,
+                referenceImages: avatar.reference_images || uploadedImageUrls,
+                gender: avatar.gender || gender,
                 preferredVoice: avatar.preferred_voice,
                 preferredLanguage: language,
             });
@@ -643,7 +674,7 @@ export default function CreateCustomAvatarModal({
                         <div>
                             <h2 className="text-xl font-semibold text-white">Create Your Own Avatar</h2>
                             <p className="mt-1 text-sm text-white/60">
-                                Upload one clear face image, save the avatar, and generate a short talking preview.
+                                Upload up to three clear face images, save the avatar, and generate a short talking preview.
                             </p>
                         </div>
 
@@ -672,9 +703,34 @@ export default function CreateCustomAvatarModal({
                                 <input
                                     type="file"
                                     accept="image/png,image/jpeg,image/webp"
-                                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                    multiple
+                                    onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, 3))}
                                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"
                                 />
+                                <div className="mt-2 text-xs text-white/50">
+                                    Upload 1 to 3 images. The first image is used as the primary front-facing reference.
+                                </div>
+                                {files.length > 0 ? (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {files.map((item, index) => (
+                                            <div key={`${item.name}-${index}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70">
+                                                {index === 0 ? 'Primary' : `Alt ${index}`} · {item.name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm text-white/70">Gender</label>
+                                <select
+                                    value={gender}
+                                    onChange={(e) => setGender(e.target.value as 'female' | 'male')}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                                >
+                                    <option value="female">Female</option>
+                                    <option value="male">Male</option>
+                                </select>
                             </div>
 
                             <div>
@@ -682,15 +738,15 @@ export default function CreateCustomAvatarModal({
                                 <select
                                     value={voice}
                                     onChange={(e) => setVoice(e.target.value)}
-                                    disabled={ttsCatalogLoading || voiceOptions.length === 0}
+                                    disabled={ttsCatalogLoading || genderFilteredVoiceOptions.length === 0}
                                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none disabled:opacity-50"
                                 >
                                     {ttsCatalogLoading ? (
                                         <option value="">Loading voices...</option>
-                                    ) : voiceOptions.length === 0 ? (
+                                    ) : genderFilteredVoiceOptions.length === 0 ? (
                                         <option value="">No voices available</option>
                                     ) : (
-                                        voiceOptions.map((item) => (
+                                        genderFilteredVoiceOptions.map((item) => (
                                             <option key={item.value} value={item.value}>
                                                 {item.label} {item.isFree ? '— Free' : '— Premium'}
                                             </option>

@@ -165,6 +165,7 @@ type AvatarSelection = {
   imageUrl?: string;
   source: 'preset' | 'saved';
   sourceLabel: 'Preset' | 'Saved';
+  isCustomAvatar?: boolean;
   genderPresentation?: string | null;
   preferredVoice?: string | null;
   preferredLanguage?: string | null;
@@ -416,11 +417,11 @@ function pickImageMode(idea: string, profile: QualityProfile): 'fast_social' | '
   return 'fast_social';
 }
 
-function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: 'kling3' | 'veo3'; resolution: '720p' | '1080p' } {
+function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: 'fal_ltx23_i2v' | 'sora2'; resolution: '720p' } {
   if (profile === 'premium') {
-    return { lane: 'premium', modelKey: 'veo3', resolution: '1080p' };
+    return { lane: 'premium', modelKey: 'sora2', resolution: '720p' };
   }
-  return { lane: 'creator_pro', modelKey: 'kling3', resolution: '720p' };
+  return { lane: 'creator_pro', modelKey: 'fal_ltx23_i2v', resolution: '720p' };
 }
 
 function getVideoModelLane(modelKey: string): 'creator_pro' | 'premium' {
@@ -430,7 +431,6 @@ function getVideoModelLane(modelKey: string): 'creator_pro' | 'premium' {
 
 function getVideoResolutionForModel(modelKey: string, profile: QualityProfile): '720p' | '1080p' {
   const labels = VIDEO_MODEL_MAP[modelKey]?.resolutionLabels ?? ['720p'];
-  if (profile === 'premium' && labels.includes('1080p')) return '1080p';
   if (labels.includes('720p')) return '720p';
   if (labels.includes('1080p')) return '1080p';
   return '720p';
@@ -439,7 +439,8 @@ function getVideoResolutionForModel(modelKey: string, profile: QualityProfile): 
 function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' {
   const presets = VIDEO_MODEL_MAP[modelKey]?.durationPresets ?? [];
   if (presets.includes(10)) return '10';
-  return '5';
+  if (presets.includes(5)) return '5';
+  return '10';
 }
 
 function profileForVideoModel(modelKey: string): QualityProfile {
@@ -456,7 +457,7 @@ function shortVideoModelLabel(model: AIVideoModel) {
 }
 
 function creditPerSecondLabel(modelKey: string, resolutionLabel: string, quality: 'standard' | 'high') {
-  const aliasKey = (creditEngine.videoModelAliases?.[modelKey as keyof typeof creditEngine.videoModelAliases] ?? 'kling') as keyof typeof creditEngine.video.modelMultiplier;
+  const aliasKey = (creditEngine.videoModelAliases?.[modelKey as keyof typeof creditEngine.videoModelAliases] ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.video.modelMultiplier;
   const modelMultiplier = creditEngine.video.modelMultiplier?.[aliasKey] ?? 1;
   const resolutionKey = (resolutionLabel === '4K' ? '2160p' : resolutionLabel === '2K' ? '1440p' : resolutionLabel.toLowerCase()) as keyof typeof creditEngine.video.resolutionMultiplier;
   const resolutionMultiplier = creditEngine.video.resolutionMultiplier?.[resolutionKey] ?? 1;
@@ -568,7 +569,7 @@ function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
     if (typeof exact === 'number') return exact;
     return 5;
   }
-  const aliasKey = (creditEngine.videoModelAliases?.[String(defaults.model_key ?? 'kling3') as keyof typeof creditEngine.videoModelAliases] ?? 'kling') as keyof typeof creditEngine.video.modelMultiplier;
+  const aliasKey = (creditEngine.videoModelAliases?.[String(defaults.model_key ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.videoModelAliases] ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.video.modelMultiplier;
   const modelMultiplier = creditEngine.video.modelMultiplier?.[aliasKey] ?? 1;
   const resolutionKey = (defaults.resolution ?? '720p') as keyof typeof creditEngine.video.resolutionMultiplier;
   const resolutionMultiplier = creditEngine.video.resolutionMultiplier?.[resolutionKey] ?? 1;
@@ -966,7 +967,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling3');
+  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('fal_ltx23_i2v');
   const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
   const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
@@ -998,6 +999,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarSelection | null>(null);
   const [avatarPreviewPersonaId, setAvatarPreviewPersonaId] = useState<string | null>(null);
   const [navigationOverlayLabel, setNavigationOverlayLabel] = useState<string | null>(null);
+  const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
 
   const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
   const [savedPersonas, setSavedPersonas] = useState<SavedAvatarPersona[]>([]);
@@ -1122,8 +1124,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       personaId: avatar.id,
       name: avatar.name,
       imageUrl: avatar.primary_image || avatar.thumbnail_url,
-      source: 'preset' as const,
-      sourceLabel: 'Preset' as const,
+      source: avatar.category === 'custom_avatar' ? ('saved' as const) : ('preset' as const),
+      sourceLabel: avatar.category === 'custom_avatar' ? ('Saved' as const) : ('Preset' as const),
+      isCustomAvatar: avatar.category === 'custom_avatar',
+      genderPresentation: avatar.gender || null,
       preferredLanguage: avatar.language_tags?.[0] || null,
       preferredVoice: avatar.recommended_voice || null,
       languageTags: avatar.language_tags || [],
@@ -1141,6 +1145,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       imageUrl: persona.reference_image_url || undefined,
       source: 'saved' as const,
       sourceLabel: 'Saved' as const,
+      isCustomAvatar: false,
       genderPresentation: persona.gender_identity || null,
       preferredVoice: persona.preferred_voice || null,
       preferredLanguage: persona.language_preference || null,
@@ -1185,7 +1190,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setSelectedAvatar(avatar);
     if (isUgcAdRecipe && avatar) {
       const preferredVoice = resolveAvatarPreferredVoice(avatar);
-      if (preferredVoice && voiceOptions.some((option) => option.key === preferredVoice)) {
+      if (preferredVoice && avatarGenderFilteredVoiceOptions.some((option) => option.key === preferredVoice)) {
         setSelectedVoice(preferredVoice);
       }
       const preferredLanguage = resolveAvatarPreferredLanguage(avatar);
@@ -1201,6 +1206,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
     [activeRecipeSource],
   );
+  const avatarGenderFilteredVoiceOptions = useMemo(() => {
+    const avatarGender = String(selectedAvatar?.genderPresentation || '').trim().toLowerCase();
+    const isCustomAvatar = Boolean(selectedAvatar?.isCustomAvatar);
+    if (!isCustomAvatar || !isUgcAdRecipe || (avatarGender !== 'female' && avatarGender !== 'male')) {
+      return voiceOptions;
+    }
+    return voiceOptions.filter((option) => option.gender.toLowerCase() === avatarGender);
+  }, [isUgcAdRecipe, selectedAvatar, voiceOptions]);
   useEffect(() => {
     if (!isUgcAdRecipe || !selectedAvatar) {
       avatarSyncKeyRef.current = null;
@@ -1211,15 +1224,17 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     if (avatarSyncKeyRef.current === syncKey) return;
 
     const preferredVoice = resolveAvatarPreferredVoice(selectedAvatar);
-    if (preferredVoice && voiceOptions.some((option) => option.key === preferredVoice)) {
+    if (preferredVoice && avatarGenderFilteredVoiceOptions.some((option) => option.key === preferredVoice)) {
       setSelectedVoice(preferredVoice);
+    } else if (avatarGenderFilteredVoiceOptions[0]?.key) {
+      setSelectedVoice(avatarGenderFilteredVoiceOptions[0].key);
     }
     const preferredLanguage = resolveAvatarPreferredLanguage(selectedAvatar);
     if (preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)) {
       setSelectedLanguage(preferredLanguage);
     }
     avatarSyncKeyRef.current = syncKey;
-  }, [isUgcAdRecipe, languageOptions, selectedAvatar, voiceOptions]);
+  }, [avatarGenderFilteredVoiceOptions, isUgcAdRecipe, languageOptions, selectedAvatar, voiceOptions]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1271,7 +1286,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         const enabledFirst = [...videoModelResult.value].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
         setVideoModels(enabledFirst);
         if (!enabledFirst.some((model) => model.key === selectedVideoModelKey)) {
-          setSelectedVideoModelKey(enabledFirst[0]?.key ?? 'kling3');
+          setSelectedVideoModelKey(enabledFirst[0]?.key ?? 'fal_ltx23_i2v');
         }
       }
       if (imageModelResult.status === 'fulfilled' && imageModelResult.value.length > 0) {
@@ -1297,6 +1312,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       }
       if (avatarResult.status === 'fulfilled') {
         setPresetAvatars(avatarResult.value);
+        setAvatarLoadError(null);
+        if (process.env.NODE_ENV === 'development') {
+          const publicActors = avatarResult.value.filter((avatar) => avatar.scope === 'public').length;
+          const savedActors = avatarResult.value.filter((avatar) => avatar.scope === 'own').length;
+          console.info('avatar_picker_loaded', {
+            public_actor_count: publicActors,
+            saved_avatar_count: savedActors,
+            total_count: avatarResult.value.length,
+          });
+        }
+      } else {
+        const message = avatarResult.reason instanceof Error ? avatarResult.reason.message : 'Could not load public actors.';
+        setAvatarLoadError(message);
+        show({
+          title: 'Avatar library unavailable',
+          message: 'Public actors could not be loaded. Showing any locally available saved avatars as fallback.',
+          variant: 'error',
+          durationMs: 5200,
+        });
       }
       if (personaResult.status === 'fulfilled') {
         setSavedPersonas(personaResult.value);
@@ -1840,8 +1874,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_340px]">
                 <div className="space-y-5">
+                  {avatarLoadError ? (
+                    <div className="rounded-[16px] border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                      Public actors could not be loaded just now. Saved avatars are still available as fallback.
+                    </div>
+                  ) : null}
                   {[
-                    { label: 'Preset Avatars', items: avatarOptions.filter((item) => item.source === 'preset') },
+                    { label: 'Public Actors', items: avatarOptions.filter((item) => item.source === 'preset') },
                     { label: 'Saved Avatars', items: avatarOptions.filter((item) => item.source === 'saved') },
                   ].map((group) =>
                     group.items.length ? (
@@ -2222,8 +2261,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                   title={shortVideoModelLabel(model)}
                                   badges={[
                                     ...(model.resolutionLabels ?? []),
-                                    ...(model.key === 'sora2' || model.key === 'veo3' ? ['With Audio'] : []),
-                                    ...(model.key === 'kling3' ? ['Start End Frame'] : []),
+                                    ...(model.key === 'sora2' ? ['Premium'] : []),
+                                    ...(model.key === 'fal_ltx23_i2v' ? ['Image to Video'] : []),
                                   ]}
                                   active={selectedVideoModelKey === model.key}
                                   disabled={model.enabled === false}
@@ -2271,11 +2310,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                       onClick={() => {
                                         setSelectedVideoModelKey(activeVideoModelDetail.key);
                                         setModelPanelKey(activeVideoModelDetail.key);
-                                        setQualityProfile(label === '1080p' ? 'premium' : profileForVideoModel(activeVideoModelDetail.key));
+                                        setQualityProfile(profileForVideoModel(activeVideoModelDetail.key));
                                         setDurationPreference(getDefaultVideoDurationForModel(activeVideoModelDetail.key));
                                         closeMenus();
                                       }}
-                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${selectedVideoModelKey === activeVideoModelDetail.key && selectedVideoResolution === (label === '1080p' ? '1080p' : '720p')
+                                      className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${selectedVideoModelKey === activeVideoModelDetail.key && selectedVideoResolution === '720p'
                                         ? 'border border-white/12 bg-white/[0.09]'
                                         : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
                                         }`}
@@ -2284,7 +2323,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                         <p className="text-sm font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
                                         <div className="mt-1 flex flex-wrap gap-1.5">
                                           <ModelCapabilityBadge label={label} />
-                                          {(activeVideoModelDetail.key === 'sora2' || activeVideoModelDetail.key === 'veo3') ? <ModelCapabilityBadge label="With Audio" /> : null}
+                                          {activeVideoModelDetail.key === 'sora2' ? <ModelCapabilityBadge label="Premium" /> : null}
+                                          {activeVideoModelDetail.key === 'fal_ltx23_i2v' ? <ModelCapabilityBadge label="Image to Video" /> : null}
                                         </div>
                                       </div>
                                       <div className="text-right">
@@ -2503,7 +2543,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               </select>
                             </label>
                           ) : null}
-                          {voiceEnabled && voiceOptions.length > 0 ? (
+                          {voiceEnabled && avatarGenderFilteredVoiceOptions.length > 0 ? (
                             <label className="mt-3 block px-2">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Voice</span>
                               <select
@@ -2512,7 +2552,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                 disabled={avatarVoiceLocked}
                                 className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
                               >
-                                {voiceOptions.map((option) => (
+                                {avatarGenderFilteredVoiceOptions.map((option) => (
                                   <option key={option.key} value={option.key}>
                                     {option.label}
                                   </option>
@@ -2973,6 +3013,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             imageUrl: avatar.imageUrl,
             source: 'saved',
             sourceLabel: 'Saved',
+            isCustomAvatar: true,
+            genderPresentation: avatar.gender,
             preferredVoice: avatar.preferredVoice || null,
             preferredLanguage: avatar.preferredLanguage || null,
             languageTags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
@@ -2982,17 +3024,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             previewVideoUrl: null,
             description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
           });
-          setSavedPersonas((current) => [
+          setPresetAvatars((current) => [
             {
               id: avatar.avatarId,
               name: avatar.name,
-              reference_image_url: avatar.imageUrl,
+              scope: 'own',
+              style: 'custom_avatar',
+              gender: avatar.gender,
+              language_tags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
+              thumbnail_url: avatar.imageUrl,
+              tags: ['custom', 'ugc'],
+              category: 'custom_avatar',
+              reference_images: avatar.referenceImages,
+              primary_image: avatar.referenceImages[0] || avatar.imageUrl,
               preview_video_url: null,
-              niche: 'Custom avatar',
-              preferred_voice: avatar.preferredVoice || null,
-              language_preference: avatar.preferredLanguage || null,
+              recommended_voice: avatar.preferredVoice || null,
+              status: 'ready_for_preview',
+              description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
             },
-            ...current,
+            ...current.filter((item) => item.id !== avatar.avatarId),
           ]);
 
           show({
@@ -3002,14 +3052,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           });
         }}
         onPreviewCompleted={(preview) => {
-          setSavedPersonas((current) =>
-            current.map((persona) =>
-              persona.id === preview.avatarId
+          setPresetAvatars((current) =>
+            current.map((avatar) =>
+              avatar.id === preview.avatarId
                 ? {
-                    ...persona,
+                    ...avatar,
                     preview_video_url: preview.videoUrl,
                   }
-                : persona,
+                : avatar,
             ),
           );
           setSelectedAvatar((current) =>
