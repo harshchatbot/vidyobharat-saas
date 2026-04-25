@@ -1,6 +1,7 @@
 import { API_FALLBACK_URL, API_URL } from '@/lib/env';
 import type {
   Avatar,
+  AvatarLibraryResponse,
   AIVideoModel,
   AIVideoGenerateRequest,
   AIVideoGenerateResponse,
@@ -8,6 +9,8 @@ import type {
   AssetProjectAssignmentResponse,
   AssetTagFacet,
   AIVideoStatusResponse,
+  AvatarProductAssistRequest,
+  AvatarProductAssistResponse,
   MusicTrack,
   Project,
   ProjectAsset,
@@ -466,6 +469,12 @@ export const api = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return request<Avatar[]>(`/avatars${suffix}`, {}, { userId, cache: 'no-store' });
   },
+  listAvatarLibrary(userId: string, params?: { refreshPresets?: boolean }) {
+    const query = new URLSearchParams();
+    if (params?.refreshPresets) query.set('refresh_presets', 'true');
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<AvatarLibraryResponse>(`/api/avatars/library${suffix}`, {}, { userId, cache: 'no-store' });
+  },
   listActors(userId: string, params?: { search?: string; scope?: string; language?: string }) {
     const query = new URLSearchParams();
     if (params?.search) query.set('search', params.search);
@@ -803,6 +812,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }, { userId, cache: 'no-store', timeoutMs: 60_000 });
+  },
+  assistAvatarProductRecipe(payload: AvatarProductAssistRequest, userId: string) {
+    return request<AvatarProductAssistResponse>('/api/recipes/avatar-product/assist', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { userId, cache: 'no-store', timeoutMs: 25_000 });
   },
   getAIVideoStatus(videoId: string, userId: string) {
     return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store', timeoutMs: 25_000 });

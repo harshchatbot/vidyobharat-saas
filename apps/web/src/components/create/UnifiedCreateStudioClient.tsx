@@ -24,8 +24,10 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
+import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
 import { buildVideoModelsForApiFallback, getVideoModelMap } from '@/config/videoModels';
@@ -36,6 +38,8 @@ import { API_URL } from '@/lib/env';
 import type {
   AIVideoModel,
   Avatar,
+  AvatarProductAssistResponse,
+  AvatarLibraryResponse,
   GeneratedImage,
   ImageModel,
   InspirationImage,
@@ -56,6 +60,11 @@ type RecentEntryKind = 'recipe' | 'draft';
 type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image';
 type RecipeSourceKind = 'recipe';
 type VideoIntent = 'explainer' | 'cinematic' | 'quick_reel' | 'generic';
+
+const CHITRAKALA_PERSONA_ID = process.env.NEXT_PUBLIC_CHITRAKALA_PERSONA_ID ?? 'av-chitrakala';
+const CHITRAKALA_NAME = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_NAME ?? 'Chitrakala';
+const CHITRAKALA_IMAGE_URL = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_IMAGE_URL ?? '';
+const CHITRAKALA_PREVIEW_VIDEO_URL = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_PREVIEW_VIDEO_URL ?? '';
 
 type RecipeComposerFragment =
   | { type: 'text'; value: string }
@@ -147,18 +156,6 @@ type SlotAssetState = {
   source: 'upload' | 'sample' | 'avatar' | 'ai-generate';
 };
 
-type SavedAvatarPersona = {
-  id: string;
-  name: string;
-  reference_image_url?: string | null;
-  preview_video_url?: string | null;
-  niche?: string | null;
-  tone?: string | null;
-  gender_identity?: string | null;
-  preferred_voice?: string | null;
-  language_preference?: string | null;
-};
-
 type AvatarSelection = {
   personaId: string;
   name: string;
@@ -177,6 +174,26 @@ type AvatarSelection = {
   description?: string | null;
 };
 
+function buildChitrakalaAvatarSelection(): AvatarSelection {
+  return {
+    personaId: CHITRAKALA_PERSONA_ID,
+    name: CHITRAKALA_NAME,
+    imageUrl: CHITRAKALA_IMAGE_URL || undefined,
+    source: 'preset',
+    sourceLabel: 'Preset',
+    isCustomAvatar: false,
+    genderPresentation: 'female',
+    preferredLanguage: 'en-IN',
+    preferredVoice: 'Priya',
+    languageTags: ['en-IN'],
+    styleLabel: 'Fixed spokesperson',
+    languageInfo: 'English (India)',
+    voiceInfo: 'Priya voice selected',
+    previewVideoUrl: CHITRAKALA_PREVIEW_VIDEO_URL || null,
+    description: `${CHITRAKALA_NAME} is the fixed spokesperson for this V1 avatar product workflow.`,
+  };
+}
+
 type AssetPickerState = {
   slotId: string;
   slotLabel: string;
@@ -184,6 +201,26 @@ type AssetPickerState = {
   samplePreviewUrl?: string | null;
   left: number;
   top: number;
+};
+
+type AvatarProductAdvancedControls = {
+  campaign_objective: string;
+  platform: string;
+  duration_seconds: string;
+  brand_tone: string;
+  cta_preference: string;
+  language: string;
+  must_show_elements: string;
+  must_avoid_elements: string;
+  compliance_notes: string;
+  claims_to_avoid: string;
+  offer_text: string;
+  tagline: string;
+  voice_style: string;
+  music_vibe: string;
+  script_mode: 'auto_generate' | 'improve_draft' | 'use_exact_script';
+  provided_script: string;
+  strict_script_lock: boolean;
 };
 
 type ActiveRecipeSource =
@@ -249,6 +286,25 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
 
 const ASPECT_OPTIONS: Array<'9:16' | '16:9' | '1:1'> = ['9:16', '16:9', '1:1'];
 const RECENT_STORAGE_KEY = 'rangmanch:create-hub:recent:v1';
+const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = {
+  campaign_objective: '',
+  platform: 'Instagram Reels',
+  duration_seconds: '15',
+  brand_tone: 'creator_casual',
+  cta_preference: '',
+  language: 'English',
+  must_show_elements: '',
+  must_avoid_elements: '',
+  compliance_notes: '',
+  claims_to_avoid: '',
+  offer_text: '',
+  tagline: '',
+  voice_style: '',
+  music_vibe: '',
+  script_mode: 'auto_generate',
+  provided_script: '',
+  strict_script_lock: false,
+};
 const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTemplate }> = [
   { key: 'all', label: 'All' },
   { key: 'ads', label: 'Ads' },
@@ -408,6 +464,106 @@ function buildVideoCreatePayload(input: {
     captionStyle: 'classic',
     narrationEnabled: input.narrationEnabled,
   };
+}
+
+function serializeAvatarProductAdvancedControls(controls: AvatarProductAdvancedControls): Record<string, string | string[] | boolean | number> {
+  return {
+    ...controls,
+    must_show_elements: controls.must_show_elements,
+    must_avoid_elements: controls.must_avoid_elements,
+    claims_to_avoid: controls.claims_to_avoid,
+  };
+}
+
+function buildAvatarProductRecipeInputs(params: {
+  prompt: string;
+  imageUrl: string;
+  assistFields?: Record<string, unknown> | null;
+  advancedControls: AvatarProductAdvancedControls;
+  inlineAnswerPatch?: Record<string, string | string[]>;
+}): Record<string, string | string[]> {
+  const { prompt, imageUrl, assistFields, advancedControls, inlineAnswerPatch } = params;
+  const inputs: Record<string, string | string[]> = {
+    text: prompt,
+    image: imageUrl,
+  };
+  Object.entries(assistFields || {}).forEach(([key, value]) => {
+    if (value == null) return;
+    if (Array.isArray(value)) {
+      const normalized = value.map((item) => String(item).trim()).filter(Boolean);
+      if (normalized.length) inputs[key] = normalized;
+      return;
+    }
+    const normalized = String(value).trim();
+    if (normalized) inputs[key] = normalized;
+  });
+  Object.entries(advancedControls).forEach(([key, value]) => {
+    if (typeof value === 'boolean') {
+      inputs[key] = value ? 'true' : 'false';
+      return;
+    }
+    const normalized = String(value ?? '').trim();
+    if (normalized) inputs[key] = normalized;
+  });
+  Object.entries(inlineAnswerPatch || {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      const normalized = value.map((item) => String(item).trim()).filter(Boolean);
+      if (normalized.length) inputs[key] = normalized;
+      return;
+    }
+    const normalized = String(value).trim();
+    if (normalized) inputs[key] = normalized;
+  });
+  return inputs;
+}
+
+function buildAvatarProductInlineAnswerPatch(
+  answer: string,
+  assist: AvatarProductAssistResponse | null,
+): Record<string, string> {
+  const normalized = answer.trim();
+  if (!normalized) return {};
+
+  const nextQuestion = String(assist?.nextQuestion || '').toLowerCase();
+  const primaryMissing =
+    assist?.missingTier1?.[0]
+    || assist?.missingTier2?.[0]
+    || assist?.missingTier3?.[0]
+    || '';
+
+  if (nextQuestion.includes('what kind of product is this exactly')) {
+    return {
+      product_category: normalized,
+      product_subcategory: normalized,
+      category_specific_details: normalized,
+    };
+  }
+
+  switch (primaryMissing) {
+    case 'product_name':
+      return { product_name: normalized };
+    case 'product_category':
+      return {
+        product_category: normalized,
+        category_specific_details: normalized,
+      };
+    case 'target_audience':
+      return { target_audience: normalized };
+    case 'campaign_objective':
+      return { campaign_objective: normalized };
+    case 'platform':
+      return { platform: normalized };
+    case 'main_benefit':
+      return { main_benefit: normalized };
+    case 'brand_tone':
+      return { brand_tone: normalized };
+    case 'cta_preference':
+      return { cta_preference: normalized };
+    case 'language':
+      return { language: normalized };
+    default:
+      return { category_specific_details: normalized };
+  }
 }
 
 function pickImageMode(idea: string, profile: QualityProfile): 'fast_social' | 'premium_realism' {
@@ -1000,9 +1156,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [avatarPreviewPersonaId, setAvatarPreviewPersonaId] = useState<string | null>(null);
   const [navigationOverlayLabel, setNavigationOverlayLabel] = useState<string | null>(null);
   const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
+  const [avatarProductAdvancedOpen, setAvatarProductAdvancedOpen] = useState(false);
+  const [avatarProductAdvancedControls, setAvatarProductAdvancedControls] = useState<AvatarProductAdvancedControls>(DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS);
+  const [avatarProductAssist, setAvatarProductAssist] = useState<AvatarProductAssistResponse | null>(null);
+  const [avatarProductAssistLoading, setAvatarProductAssistLoading] = useState(false);
+  const [avatarProductInlineAnswer, setAvatarProductInlineAnswer] = useState('');
 
   const [presetAvatars, setPresetAvatars] = useState<Avatar[]>([]);
-  const [savedPersonas, setSavedPersonas] = useState<SavedAvatarPersona[]>([]);
+  const [savedAvatars, setSavedAvatars] = useState<Avatar[]>([]);
   const [isAvatarLoading, setIsAvatarLoading] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1017,6 +1178,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         : QUALITY_PROFILES.filter((item) => item.key === 'creator_pro' || item.key === 'premium'),
     [mode],
   );
+
+  const isHeygenCompatibleAvatar = (avatar: Avatar) =>
+    String(avatar.provider || '').trim().toLowerCase() === 'heygen'
+    && avatar.supports_avatar_video_generation === true;
 
   const displayedModelKey = mode === 'video' ? selectedVideoModelKey : selectedImageModelKey;
   const displayedVideoModel = useMemo(
@@ -1106,7 +1271,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () =>
       recipeSettingsLocked &&
       activeRecipeSource?.kind === 'recipe' &&
-      activeRecipeSource.recipe.recipe.id === 'ugc_ad' &&
+      (activeRecipeSource.recipe.recipe.id === 'ugc_ad' || activeRecipeSource.recipe.recipe.id === 'avatar_product') &&
       Boolean(selectedAvatar),
     [activeRecipeSource, recipeSettingsLocked, selectedAvatar],
   );
@@ -1120,18 +1285,19 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   );
   const isRecipeLongForm = Boolean(activeRecipeDurationSeconds && activeRecipeDurationSeconds > 10);
   const avatarOptions = useMemo<AvatarSelection[]>(() => {
+    const fixedChitrakala = buildChitrakalaAvatarSelection();
     const presetItems = presetAvatars.map((avatar) => ({
       personaId: avatar.id,
       name: avatar.name,
       imageUrl: avatar.primary_image || avatar.thumbnail_url,
-      source: avatar.category === 'custom_avatar' ? ('saved' as const) : ('preset' as const),
-      sourceLabel: avatar.category === 'custom_avatar' ? ('Saved' as const) : ('Preset' as const),
+      source: 'preset' as const,
+      sourceLabel: 'Preset' as const,
       isCustomAvatar: avatar.category === 'custom_avatar',
       genderPresentation: avatar.gender || null,
       preferredLanguage: avatar.language_tags?.[0] || null,
       preferredVoice: avatar.recommended_voice || null,
       languageTags: avatar.language_tags || [],
-      styleLabel: avatar.category || avatar.style || 'Preset avatar',
+      styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Preset avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags),
       voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected Sarvam voice',
       previewVideoUrl: avatar.preview_video_url || null,
@@ -1139,27 +1305,31 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         avatar.description ||
         `${avatar.name} is tuned for creator-style talking scenes with a ${avatar.style} look${avatar.tags?.length ? ` and ${avatar.tags.slice(0, 3).join(', ')} tags` : ''}.`,
     }));
-    const savedItems = savedPersonas.map((persona) => ({
-      personaId: persona.id,
-      name: persona.name,
-      imageUrl: persona.reference_image_url || undefined,
+    const savedItems = savedAvatars.map((avatar) => ({
+      personaId: avatar.id,
+      name: avatar.name,
+      imageUrl: avatar.primary_image || avatar.thumbnail_url || undefined,
       source: 'saved' as const,
       sourceLabel: 'Saved' as const,
-      isCustomAvatar: false,
-      genderPresentation: persona.gender_identity || null,
-      preferredVoice: persona.preferred_voice || null,
-      preferredLanguage: persona.language_preference || null,
-      languageTags: [],
-      styleLabel: persona.niche || persona.tone || 'Saved persona',
-      languageInfo: selectedLanguageLabel || null,
-      voiceInfo: selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected Sarvam voice',
-      previewVideoUrl: persona.preview_video_url || null,
-      description: persona.tone
-        ? `${persona.name} carries a ${persona.tone} creator tone for talking scenes.`
-        : `${persona.name} is one of your saved personas for repeatable avatar-led ads.`,
+      isCustomAvatar: avatar.category === 'custom_avatar',
+      genderPresentation: avatar.gender || null,
+      preferredVoice: avatar.recommended_voice || null,
+      preferredLanguage: avatar.language_tags?.[0] || null,
+      languageTags: avatar.language_tags || [],
+      styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Saved avatar',
+      languageInfo: summarizeLanguageTags(avatar.language_tags) || selectedLanguageLabel || null,
+      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected Sarvam voice'),
+      previewVideoUrl: avatar.preview_video_url || null,
+      description:
+        avatar.description ||
+        `${avatar.name} is one of your saved Avatar IV-compatible avatars for repeatable avatar-led ads.`,
     }));
+    const avatarProductRecipeActive = activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product';
+    if (avatarProductRecipeActive) {
+      return [fixedChitrakala];
+    }
     return [...presetItems, ...savedItems];
-  }, [presetAvatars, savedPersonas, selectedLanguageLabel, selectedVoice]);
+  }, [activeRecipeSource, presetAvatars, savedAvatars, selectedLanguageLabel, selectedVoice]);
   const activeAvatarPreview = useMemo(
     () =>
       avatarOptions.find((option) => option.personaId === avatarPreviewPersonaId) ??
@@ -1186,9 +1356,22 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setIsAvatarPickerOpen(true);
   };
 
+  const openUploadPickerForTarget = (target: 'composer-asset' | string) => {
+    setPendingUploadTarget(target);
+    setAssetPicker(null);
+    window.setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 0);
+  };
+
   const applyAvatarSelection = (avatar: AvatarSelection | null) => {
+    if (isAvatarProductRecipe) {
+      setSelectedAvatar(buildChitrakalaAvatarSelection());
+      setIsAvatarPickerOpen(false);
+      return;
+    }
     setSelectedAvatar(avatar);
-    if (isUgcAdRecipe && avatar) {
+    if (isAvatarDrivenRecipe && avatar) {
       const preferredVoice = resolveAvatarPreferredVoice(avatar);
       if (preferredVoice && avatarGenderFilteredVoiceOptions.some((option) => option.key === preferredVoice)) {
         setSelectedVoice(preferredVoice);
@@ -1206,16 +1389,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
     [activeRecipeSource],
   );
+  const isAvatarProductRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product',
+    [activeRecipeSource],
+  );
+  const isAvatarDrivenRecipe = isUgcAdRecipe || isAvatarProductRecipe;
+  const avatarProductInlineAnswerPatch = useMemo(
+    () => buildAvatarProductInlineAnswerPatch(avatarProductInlineAnswer, avatarProductAssist),
+    [avatarProductAssist, avatarProductInlineAnswer],
+  );
   const avatarGenderFilteredVoiceOptions = useMemo(() => {
     const avatarGender = String(selectedAvatar?.genderPresentation || '').trim().toLowerCase();
     const isCustomAvatar = Boolean(selectedAvatar?.isCustomAvatar);
-    if (!isCustomAvatar || !isUgcAdRecipe || (avatarGender !== 'female' && avatarGender !== 'male')) {
+    if (!isCustomAvatar || !isAvatarDrivenRecipe || (avatarGender !== 'female' && avatarGender !== 'male')) {
       return voiceOptions;
     }
     return voiceOptions.filter((option) => option.gender.toLowerCase() === avatarGender);
-  }, [isUgcAdRecipe, selectedAvatar, voiceOptions]);
+  }, [isAvatarDrivenRecipe, selectedAvatar, voiceOptions]);
   useEffect(() => {
-    if (!isUgcAdRecipe || !selectedAvatar) {
+    if (!isAvatarDrivenRecipe || !selectedAvatar) {
       avatarSyncKeyRef.current = null;
       return;
     }
@@ -1234,7 +1426,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setSelectedLanguage(preferredLanguage);
     }
     avatarSyncKeyRef.current = syncKey;
-  }, [avatarGenderFilteredVoiceOptions, isUgcAdRecipe, languageOptions, selectedAvatar, voiceOptions]);
+  }, [avatarGenderFilteredVoiceOptions, isAvatarDrivenRecipe, languageOptions, selectedAvatar, voiceOptions]);
+  useEffect(() => {
+    if (!isAvatarProductRecipe) {
+      setAvatarProductAssist(null);
+      setAvatarProductAssistLoading(false);
+      setAvatarProductInlineAnswer('');
+    }
+  }, [isAvatarProductRecipe]);
+  useEffect(() => {
+    if (!isAvatarProductRecipe) return;
+    setSelectedAvatar((current) => current?.personaId === CHITRAKALA_PERSONA_ID ? current : buildChitrakalaAvatarSelection());
+  }, [isAvatarProductRecipe]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1274,9 +1477,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       api.listImageModels(userId),
       api.listPublicImageInspiration({ limit: 12 }),
       api.getTtsCatalog(userId),
-      api.listAvatars(userId),
-      api.listInfluencerPersonas(userId),
-    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult, ttsResult, avatarResult, personaResult]) => {
+      api.listAvatarLibrary(userId),
+    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult, ttsResult, avatarLibraryResult]) => {
       if (cancelled) return;
 
       if (recipeResult.status === 'fulfilled') {
@@ -1310,30 +1512,33 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           setSelectedLanguage(preferredLanguage.code);
         }
       }
-      if (avatarResult.status === 'fulfilled') {
-        setPresetAvatars(avatarResult.value);
+      if (avatarLibraryResult.status === 'fulfilled') {
+        const library: AvatarLibraryResponse = avatarLibraryResult.value;
+        const compatiblePresetAvatars = (library.preset_avatars || []).filter(isHeygenCompatibleAvatar);
+        const compatibleSavedAvatars = (library.user_avatars || []).filter(isHeygenCompatibleAvatar);
+        setPresetAvatars(compatiblePresetAvatars);
+        setSavedAvatars(compatibleSavedAvatars);
         setAvatarLoadError(null);
         if (process.env.NODE_ENV === 'development') {
-          const publicActors = avatarResult.value.filter((avatar) => avatar.scope === 'public').length;
-          const savedActors = avatarResult.value.filter((avatar) => avatar.scope === 'own').length;
+          const publicActors = compatiblePresetAvatars.length;
+          const savedActors = compatibleSavedAvatars.length;
           console.info('avatar_picker_loaded', {
             public_actor_count: publicActors,
             saved_avatar_count: savedActors,
-            total_count: avatarResult.value.length,
+            total_count: publicActors + savedActors,
           });
         }
       } else {
-        const message = avatarResult.reason instanceof Error ? avatarResult.reason.message : 'Could not load public actors.';
+        const message = avatarLibraryResult.reason instanceof Error ? avatarLibraryResult.reason.message : 'Could not load compatible avatars.';
         setAvatarLoadError(message);
+        setPresetAvatars([]);
+        setSavedAvatars([]);
         show({
           title: 'Avatar library unavailable',
-          message: 'Public actors could not be loaded. Showing any locally available saved avatars as fallback.',
+          message: 'Compatible HeyGen avatars could not be loaded for this picker.',
           variant: 'error',
           durationMs: 5200,
         });
-      }
-      if (personaResult.status === 'fulfilled') {
-        setSavedPersonas(personaResult.value);
       }
       setIsAvatarLoading(false);
       setLoadingRecipes(false);
@@ -1459,6 +1664,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const exitRecipeComposer = () => {
     setRecipeComposer(null);
     setRecipeSlotAssets({});
+    setAvatarProductAssist(null);
+    setAvatarProductInlineAnswer('');
+    setAvatarProductAdvancedOpen(false);
     setActiveRecipeLabel(null);
     setActiveRecipeSource(null);
     setAssetPicker(null);
@@ -1491,6 +1699,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   };
 
   const openSlotAssetPicker = (slot: RecipeComposerSlot, event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (isAvatarProductRecipe && (slot.kind === 'upload' || slot.kind === 'reference-image')) {
+      event.preventDefault();
+      openUploadPickerForTarget(slot.id);
+      return;
+    }
     if (!composerRef.current) return;
     const composerBounds = composerRef.current.getBoundingClientRect();
     const targetBounds = event.currentTarget.getBoundingClientRect();
@@ -1512,6 +1725,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     const recipeModelKey = String(defaults.model_key || '').trim();
     setRecipeComposer(composerState);
     setRecipeSlotAssets({});
+    setAvatarProductInlineAnswer('');
+    setAvatarProductAdvancedControls(DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS);
+    setAvatarProductAssist(null);
+    setAvatarProductAdvancedOpen(false);
     setUploadedAssetName(null);
     setUploadedComposerAsset(null);
     setIdea(assembleRecipePrompt(composerState));
@@ -1610,7 +1827,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         return;
       }
     }
-
     setLoading(true);
     setError(null);
     closeMenus();
@@ -1635,10 +1851,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       if (recipeComposer && activeRecipeSource?.kind === 'recipe') {
         const recipe = activeRecipeSource.recipe.recipe;
         const inputs: Record<string, string | string[]> = {};
+        let imageValue = '';
         if (recipe.input?.image) {
           const imageSlot = recipeComposer.slots.find((slot) => slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image');
           const imageAsset = imageSlot ? recipeSlotAssets[imageSlot.id] : null;
-          const imageValue =
+          imageValue =
             imageAsset?.assetUrl ||
             (imageSlot ? recipeComposer.values[imageSlot.id] : '');
           if (!imageValue || (typeof imageValue === 'string' && !imageValue.trim())) {
@@ -1648,6 +1865,57 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         }
         if (recipe.input?.text) {
           inputs.text = trimmedIdea;
+        }
+        if (recipe.id === 'avatar_product' && imageValue) {
+          Object.assign(
+            inputs,
+            buildAvatarProductRecipeInputs({
+              prompt: trimmedIdea,
+              imageUrl: String(imageValue).trim(),
+              assistFields: avatarProductAssist?.fields ?? null,
+              advancedControls: avatarProductAdvancedControls,
+              inlineAnswerPatch: avatarProductInlineAnswerPatch,
+            }),
+          );
+        }
+
+        if (recipe.id === 'avatar_product') {
+          if (!selectedAvatar?.personaId) {
+            setError('Select an AI avatar first so the avatar product recipe knows who should appear in the ad.');
+            setLoading(false);
+            return;
+          }
+
+          try {
+            setAvatarProductAssistLoading(true);
+            const validation = await api.assistAvatarProductRecipe(
+              {
+                recipeId: 'avatar_product',
+                message: trimmedIdea,
+                inputs,
+                imageUrls: imageValue ? [String(imageValue).trim()] : [],
+                personaId: selectedAvatar.personaId,
+                advancedControls: serializeAvatarProductAdvancedControls(avatarProductAdvancedControls),
+              },
+              userId,
+            );
+            setAvatarProductAssist(validation);
+            if (!validation.canGenerate) {
+              setAvatarProductAdvancedOpen(true);
+              setError(
+                validation.nextQuestion
+                || 'Fill the required product details in Advanced controls before generating this avatar product ad.',
+              );
+              setLoading(false);
+              return;
+            }
+          } catch (assistError) {
+            setError(getFriendlyErrorMessage(assistError) || 'Could not validate the avatar product brief right now.');
+            setLoading(false);
+            return;
+          } finally {
+            setAvatarProductAssistLoading(false);
+          }
         }
 
         const result = await api.createAIVideo(
@@ -1659,14 +1927,16 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             voice: selectedVoice,
             captionsEnabled,
             narrationEnabled: voiceEnabled,
-            personaId: recipe.id === 'ugc_ad' ? (selectedAvatar?.personaId || undefined) : undefined,
-            useAvatarForTalkingScenes: recipe.id === 'ugc_ad' ? Boolean(selectedAvatar?.personaId) : undefined,
+            personaId: (recipe.id === 'ugc_ad' || recipe.id === 'avatar_product') ? (selectedAvatar?.personaId || undefined) : undefined,
+            useAvatarForTalkingScenes: (recipe.id === 'ugc_ad' || recipe.id === 'avatar_product') ? Boolean(selectedAvatar?.personaId) : undefined,
           },
           userId,
         );
         show({
           title: 'Recipe started',
-          message: 'Your video is now rendering. We are opening the live status page.',
+          message: recipe.id === 'avatar_product'
+            ? 'Your video is generating. You can safely leave this page. We’ll notify you when it’s ready.'
+            : 'Your video is now rendering. We are opening the live status page.',
           variant: 'success',
         });
         router.push(`/videos/${result.id}`);
@@ -1849,23 +2119,27 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => applyAvatarSelection(null)}
-                  className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-muted transition hover:text-text"
-                >
-                  Continue without avatar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAvatarPickerOpen(false);
-                    setShowCreateCustomAvatarModal(true);
-                  }}
-                  className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
-                >
-                  Create Your Own Avatar
-                </button>
+                {!isAvatarProductRecipe ? (
+                  <button
+                    type="button"
+                    onClick={() => applyAvatarSelection(null)}
+                    className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-muted transition hover:text-text"
+                  >
+                    Continue without avatar
+                  </button>
+                ) : null}
+                {!isAvatarProductRecipe ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAvatarPickerOpen(false);
+                      setShowCreateCustomAvatarModal(true);
+                    }}
+                    className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
+                  >
+                    Create Your Own Avatar
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -1874,7 +2148,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_340px]">
                 <div className="space-y-5">
-                  {avatarLoadError ? (
+                  {avatarLoadError && !isAvatarProductRecipe ? (
                     <div className="rounded-[16px] border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
                       Public actors could not be loaded just now. Saved avatars are still available as fallback.
                     </div>
@@ -2052,20 +2326,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <span>Recipe: {activeRecipeLabel}</span>
                     </div>
                   ) : null}
-                  {isUgcAdRecipe && selectedAvatar ? (
-                    <button
-                      type="button"
-                      onClick={openAvatarPicker}
-                      className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)] dark:border-white/12 dark:bg-white/5"
-                    >
-                      {selectedAvatar.imageUrl ? (
-                        <img src={selectedAvatar.imageUrl} alt={selectedAvatar.name} className="h-5 w-5 rounded-full object-cover" />
-                      ) : (
-                        <UserRound className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                      )}
-                      <span>AI Avatar: {selectedAvatar.name}</span>
-                    </button>
-                  ) : null}
                   {uploadedAssetName ? (
                     <Badge variant="outline" className="rounded-full border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-1.5 text-[11px] text-text dark:border-white/12 dark:bg-white/5">
                       Reference image: {uploadedAssetName}
@@ -2141,6 +2401,162 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     })}
                   </div>
                   <p className="text-xs text-muted">Start with the empty slots. Generate stays ready on the right, and you can still refine settings below.</p>
+                  {isAvatarProductRecipe ? (
+                    <div className="space-y-3 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.56)] p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text">Avatar product assistant</p>
+                          <p className="mt-1 text-xs text-muted">
+                            Generate checks the required business fields, and Advanced controls lets you refine the brief when needed.
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="rounded-full">
+                          {avatarProductAssistLoading ? 'Checking on generate…' : 'Checks happen on generate'}
+                        </Badge>
+                      </div>
+                      {avatarProductAssist?.fields ? (
+                        <div className="flex flex-wrap gap-2">
+                          {([
+                            ['product_name', 'Product'],
+                            ['product_category', 'Category'],
+                            ['target_audience', 'Audience'],
+                            ['campaign_objective', 'Objective'],
+                            ['platform', 'Platform'],
+                            ['main_benefit', 'Benefit'],
+                            ['script_mode', 'Script mode'],
+                          ] as const)
+                            .map(([key, label]) => {
+                              const value = avatarProductAssist.fields[key];
+                              if (!value || (typeof value === 'string' && !value.trim())) return null;
+                              return (
+                                <Badge key={key} variant="outline" className="rounded-full border-[hsl(var(--color-border)/0.8)] bg-transparent text-text">
+                                  {label}: {String(value)}
+                                </Badge>
+                              );
+                            })}
+                        </div>
+                      ) : null}
+                      <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.55)] px-3 py-3 dark:border-white/8 dark:bg-black/20">
+                        <button
+                          type="button"
+                          onClick={() => setAvatarProductAdvancedOpen((current) => !current)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-text">Advanced controls</p>
+                            <p className="mt-1 text-xs text-muted">Optional control for agencies, freelancers, and strict brand jobs.</p>
+                          </div>
+                          <ChevronDown className={`h-4 w-4 text-muted transition ${avatarProductAdvancedOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {avatarProductAdvancedOpen ? (
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            {avatarProductAssist?.nextQuestion ? (
+                              <div className="md:col-span-2 rounded-[14px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.48)] px-4 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Current assistant question</p>
+                                <p className="mt-2 text-sm text-text">
+                                  <span className="font-semibold">Question:</span> {avatarProductAssist.nextQuestion}
+                                </p>
+                                <label className="mt-3 block space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Answer here</span>
+                                  <Input
+                                    value={avatarProductInlineAnswer}
+                                    onChange={(event) => setAvatarProductInlineAnswer(event.target.value)}
+                                    placeholder="Example: soft drink, glow serum, running shoes, or fast-charging gadget"
+                                  />
+                                </label>
+                              </div>
+                            ) : null}
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Campaign objective</span>
+                              <Select value={avatarProductAdvancedControls.campaign_objective} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, campaign_objective: event.target.value }))}>
+                                <option value="">Select objective</option>
+                                <option value="build_awareness">Build awareness</option>
+                                <option value="get_clicks">Get clicks</option>
+                                <option value="drive_purchases">Drive purchases</option>
+                                <option value="drive_bookings">Drive bookings</option>
+                              </Select>
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Platform</span>
+                              <Select value={avatarProductAdvancedControls.platform} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, platform: event.target.value }))}>
+                                <option value="Instagram Reels">Instagram Reels</option>
+                                <option value="TikTok">TikTok</option>
+                                <option value="YouTube Shorts">YouTube Shorts</option>
+                                <option value="Meta ads">Meta ads</option>
+                                <option value="Amazon listing video">Amazon listing video</option>
+                              </Select>
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Brand tone</span>
+                              <Input value={avatarProductAdvancedControls.brand_tone} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, brand_tone: event.target.value }))} placeholder="friendly_confident" />
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">CTA preference</span>
+                              <Input value={avatarProductAdvancedControls.cta_preference} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, cta_preference: event.target.value }))} placeholder="shop now, learn more, try it today" />
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Voice style</span>
+                              <Input value={avatarProductAdvancedControls.voice_style} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, voice_style: event.target.value }))} placeholder="friendly, premium, calm, energetic" />
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Offer text</span>
+                              <Input value={avatarProductAdvancedControls.offer_text} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, offer_text: event.target.value }))} placeholder="20% off this week" />
+                            </label>
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Tagline</span>
+                              <Input value={avatarProductAdvancedControls.tagline} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, tagline: event.target.value }))} placeholder="Fuel fast mornings" />
+                            </label>
+                            <label className="space-y-1 text-sm md:col-span-2">
+                              <span className="text-muted">Must show elements</span>
+                              <Input value={avatarProductAdvancedControls.must_show_elements} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, must_show_elements: event.target.value }))} placeholder="logo, product pack, chilled droplets" />
+                            </label>
+                            <label className="space-y-1 text-sm md:col-span-2">
+                              <span className="text-muted">Must avoid elements</span>
+                              <Input value={avatarProductAdvancedControls.must_avoid_elements} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, must_avoid_elements: event.target.value }))} placeholder="messy background, exaggerated glow, unrelated props" />
+                            </label>
+                            <label className="space-y-1 text-sm md:col-span-2">
+                              <span className="text-muted">Compliance notes / claims to avoid</span>
+                              <Textarea rows={3} value={`${avatarProductAdvancedControls.compliance_notes}${avatarProductAdvancedControls.claims_to_avoid ? `\nClaims to avoid: ${avatarProductAdvancedControls.claims_to_avoid}` : ''}`.trim()} onChange={(event) => {
+                                const raw = event.target.value;
+                                const [firstLine, ...rest] = raw.split('\n');
+                                const claimsLine = rest.find((line) => line.toLowerCase().startsWith('claims to avoid:')) || '';
+                                setAvatarProductAdvancedControls((current) => ({
+                                  ...current,
+                                  compliance_notes: firstLine.trim(),
+                                  claims_to_avoid: claimsLine.replace(/claims to avoid:/i, '').trim(),
+                                }));
+                              }} placeholder="Avoid medical claims.\nClaims to avoid: clinically proven, cures acne" />
+                            </label>
+                            <label className="space-y-1 text-sm md:col-span-2">
+                              <span className="text-muted">Script mode</span>
+                              <Select value={avatarProductAdvancedControls.script_mode} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, script_mode: event.target.value as AvatarProductAdvancedControls['script_mode'] }))}>
+                                <option value="auto_generate">Auto generate</option>
+                                <option value="improve_draft">Improve draft</option>
+                                <option value="use_exact_script">Use exact script</option>
+                              </Select>
+                            </label>
+                            {avatarProductAdvancedControls.script_mode !== 'auto_generate' ? (
+                              <label className="space-y-1 text-sm md:col-span-2">
+                                <span className="text-muted">Provided script / brand lines</span>
+                                <Textarea rows={4} value={avatarProductAdvancedControls.provided_script} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, provided_script: event.target.value }))} placeholder="Paste your rough draft or exact approved script here." />
+                              </label>
+                            ) : null}
+                            {avatarProductAdvancedControls.script_mode === 'use_exact_script' ? (
+                              <label className="flex items-center gap-3 text-sm text-text md:col-span-2">
+                                <input
+                                  type="checkbox"
+                                  checked={avatarProductAdvancedControls.strict_script_lock}
+                                  onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, strict_script_lock: event.target.checked }))}
+                                  className="h-4 w-4 rounded border-[hsl(var(--color-border))]"
+                                />
+                                Keep the provided script locked. Only allow minimal scene/timing segmentation.
+                              </label>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <Textarea
@@ -2414,15 +2830,19 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     ) : null}
                   </div>
 
-                  {isUgcAdRecipe ? (
+                  {isAvatarDrivenRecipe ? (
                     <button
                       type="button"
                       onClick={openAvatarPicker}
                       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
                     >
-                      <UserRound className="h-4 w-4 text-white/60" />
-                      {selectedAvatar ? selectedAvatar.name : 'AI Avatar'}
-                      <ChevronDown className="h-4 w-4 text-muted" />
+                      {selectedAvatar?.imageUrl ? (
+                        <img src={selectedAvatar.imageUrl} alt={selectedAvatar.name} className="h-5 w-5 rounded-full object-cover" />
+                      ) : (
+                        <UserRound className="h-4 w-4 text-white/60" />
+                      )}
+                      {selectedAvatar ? selectedAvatar.name : 'Select AI Avatar'}
+                      {isAvatarProductRecipe ? <Lock className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
                     </button>
                   ) : null}
 
@@ -2483,30 +2903,39 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
                             {recipeSettingsLocked ? (
                               <span className="text-[11px] text-muted">
-                                {isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
+                                {isAvatarProductRecipe ? '15s · recipe controlled' : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
                               </span>
                             ) : null}
                           </div>
-                          <div className="mt-2 grid gap-1">
-                            {(['auto', '5', '10'] as const).map((option) => (
-                              <button
-                                key={option}
-                                type="button"
-                                onClick={() => {
-                                  if (recipeSettingsLocked) return;
-                                  setDurationPreference(option);
-                                }}
-                                disabled={recipeSettingsLocked}
-                                className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${
-                                  durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
-                                } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
-                              >
-                                <span>{option === 'auto' ? 'Auto' : `${option}s`}</span>
-                                {durationPreference === option ? <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
-                              </button>
-                            ))}
-                          </div>
-                          {recipeSettingsLocked && activeRecipeDurationSeconds ? (
+                          {recipeSettingsLocked && isAvatarProductRecipe ? (
+                            <div className="mt-2 rounded-[12px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-3 py-3 text-sm text-text">
+                              <p className="font-semibold">15 second recipe flow</p>
+                              <p className="mt-1 text-xs leading-5 text-muted">
+                                Avatar Product currently renders as three planned scenes of about 5 seconds each. The generic 5s and 10s options do not override this recipe.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-2 grid gap-1">
+                              {(['auto', '5', '10'] as const).map((option) => (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    if (recipeSettingsLocked) return;
+                                    setDurationPreference(option);
+                                  }}
+                                  disabled={recipeSettingsLocked}
+                                  className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${
+                                    durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                  } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
+                                >
+                                  <span>{option === 'auto' ? 'Auto' : `${option}s`}</span>
+                                  {durationPreference === option ? <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {recipeSettingsLocked && activeRecipeDurationSeconds && !isAvatarProductRecipe ? (
                             <p className="mt-2 px-2 text-xs text-muted">
                               This recipe renders about {activeRecipeDurationSeconds}s in its own planned scene structure.
                             </p>
@@ -2562,7 +2991,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           ) : null}
                           {avatarVoiceLocked ? (
                             <p className="mt-2 px-2 text-xs leading-5 text-muted">
-                              Voice is locked to the selected AI avatar for UGC talking scenes.
+                              Voice is locked to the selected AI avatar for avatar-driven talking scenes.
                             </p>
                           ) : null}
                           {voiceEnabled ? (
@@ -2599,6 +3028,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <span>Captions</span>
                             <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>
                           </button>
+                          {recipeSettingsLocked && isAvatarProductRecipe ? (
+                            <p className="mt-2 px-2 text-xs leading-5 text-muted">
+                              Captions stay on for this recipe and are applied from the final script during export. They are readable burned-in overlays, not word-level synced subtitles yet.
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     ) : null}
@@ -2667,18 +3101,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               </div>
             </div>
 
-            {assetPicker ? (
-              <div
-                className="absolute z-30 w-[min(92vw,560px)] rounded-[24px] border border-[hsl(var(--color-border)/0.78)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.98),hsl(var(--color-elevated)/0.98))] p-3 shadow-hard backdrop-blur-xl"
-                style={{ left: assetPicker.left, top: assetPicker.top }}
-              >
+            <Modal open={Boolean(assetPicker)} onClose={() => setAssetPicker(null)}>
+              {assetPicker ? (
                 <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
                   <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.76)] bg-[hsl(var(--color-bg)/0.55)] p-2">
                     <button
                       type="button"
                       onClick={() => {
-                        setPendingUploadTarget(assetPicker.slotId);
-                        fileInputRef.current?.click();
+                        openUploadPickerForTarget(assetPicker.slotId);
                       }}
                       className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm text-text transition hover:bg-[hsl(var(--color-bg)/0.7)]"
                     >
@@ -2732,8 +3162,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     </Button>
                   </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </Modal>
 
             {error ? (
               <div className="rounded-[18px] border border-[hsl(var(--color-danger)/0.5)] bg-[hsl(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[hsl(var(--color-danger))]">
@@ -3024,12 +3454,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             previewVideoUrl: null,
             description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
           });
-          setPresetAvatars((current) => [
+          setSavedAvatars((current) => [
             {
               id: avatar.avatarId,
               name: avatar.name,
               scope: 'own',
               style: 'custom_avatar',
+              provider: 'heygen',
+              provider_api_version: 'v2_photo_avatar',
+              avatar_family: 'avatar_iv',
+              avatar_type: 'photo_avatar',
+              ownership: 'private',
+              supports_avatar_video_generation: true,
               gender: avatar.gender,
               language_tags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
               thumbnail_url: avatar.imageUrl,
@@ -3052,7 +3488,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           });
         }}
         onPreviewCompleted={(preview) => {
-          setPresetAvatars((current) =>
+          setSavedAvatars((current) =>
             current.map((avatar) =>
               avatar.id === preview.avatarId
                 ? {

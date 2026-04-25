@@ -223,14 +223,18 @@ class VideoPipelineService:
         script: str,
         captions_enabled: bool,
         caption_style: str | None = None,
+        timing_map: list[dict[str, Any]] | None = None,
     ) -> Path:
         if not input_video_path.exists():
             raise FileNotFoundError(f'Input video not found: {input_video_path}')
 
         duration = max(0.1, self._probe_duration(input_video_path))
         text_filters: list[str] = []
-        if captions_enabled and script.strip():
-            text_filters.extend(self._build_caption_filters(script=script, total_duration=duration, caption_style=caption_style))
+        if captions_enabled:
+            if timing_map:
+                text_filters.extend(self._build_caption_filters_from_timing_map(timing_map=timing_map, total_duration=duration, caption_style=caption_style))
+            elif script.strip():
+                text_filters.extend(self._build_caption_filters(script=script, total_duration=duration, caption_style=caption_style))
 
         if not text_filters:
             return input_video_path
@@ -805,6 +809,42 @@ class VideoPipelineService:
         parts = [value.strip() for value in re.split(r'(?<=[.!?])\s+', script.strip()) if value.strip()]
         if not parts:
             return []
+        return self._build_caption_filters_for_segments(
+            segments=[
+                {
+                    "text": sentence,
+                    "start": index * max(0.8, total_duration / len(parts)),
+                    "end": min(total_duration, (index + 1) * max(0.8, total_duration / len(parts))),
+                }
+                for index, sentence in enumerate(parts)
+            ],
+            caption_style=caption_style,
+        )
+
+    def _build_caption_filters_from_timing_map(
+        self,
+        *,
+        timing_map: list[dict[str, Any]],
+        total_duration: float,
+        caption_style: str | None,
+    ) -> list[str]:
+        segments: list[dict[str, float | str]] = []
+        for item in timing_map:
+            text = str(item.get("text") or "").strip()
+            start = max(0.0, float(item.get("start_ms") or 0) / 1000.0)
+            end = min(total_duration, float(item.get("end_ms") or 0) / 1000.0)
+            if text and end > start:
+                segments.append({"text": text, "start": start, "end": end})
+        return self._build_caption_filters_for_segments(segments=segments, caption_style=caption_style)
+
+    def _build_caption_filters_for_segments(
+        self,
+        *,
+        segments: list[dict[str, float | str]],
+        caption_style: str | None,
+    ) -> list[str]:
+        if not segments:
+            return []
         style = (caption_style or 'classic').strip().lower()
         if style == 'bold':
             style_tail = (
@@ -821,11 +861,11 @@ class VideoPipelineService:
                 "fontcolor=white:fontsize=30:x=(w-text_w)/2:y=h-th-90:"
                 "box=1:boxcolor=black@0.55:boxborderw=10:shadowcolor=black@0.7:shadowx=1:shadowy=1:"
             )
-        segment = max(0.8, total_duration / len(parts))
         filters: list[str] = []
-        for index, sentence in enumerate(parts):
-            start = index * segment
-            end = min(total_duration, (index + 1) * segment)
+        for segment in segments:
+            sentence = str(segment["text"])
+            start = float(segment["start"])
+            end = float(segment["end"])
             text = self._escape_drawtext(sentence[:140])
             font_clause = self._font_clause(sentence)
             filters.append(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from typing import Any
 
@@ -50,11 +50,45 @@ class UgcAdClientBrief:
 class AvatarProductBrief:
     avatar_name: str = ""
     product_name: str = ""
+    brand_name: str = ""
     product_category: str = ""
+    product_subcategory: str = ""
+    campaign_objective: str = ""
+    platform: str = ""
+    duration_seconds: int = 15
+    language: str = "English"
     target_audience: str = ""
+    audience_age_range: str = ""
+    audience_lifestyle: str = ""
     key_promise: str = ""
+    secondary_benefit: str = ""
     pain_point: str = ""
+    desired_feeling: str = ""
+    brand_tone: str = ""
+    avatar_id: str = ""
+    avatar_style: str = ""
+    voice_style: str = ""
     cta: str = ""
+    cta_preference: str = ""
+    tagline: str = ""
+    offer_text: str = ""
+    product_image_uploaded: bool = False
+    product_image_count: int = 0
+    logo_uploaded: bool = False
+    reference_ad_links: list[str] = field(default_factory=list)
+    must_show_elements: list[str] = field(default_factory=list)
+    must_avoid_elements: list[str] = field(default_factory=list)
+    compliance_notes: str = ""
+    claims_to_avoid: list[str] = field(default_factory=list)
+    category_specific_details: str = ""
+    script_mode: str = "auto_generate"
+    provided_script: str = ""
+    strict_script_lock: bool = False
+    script_modified: bool = False
+    original_script: str = ""
+    final_script: str = ""
+    music_vibe: str = ""
+    category_confidence: str = "low"
 
 
 @dataclass(frozen=True)
@@ -568,15 +602,76 @@ def normalize_ugc_client_brief(*, topic: str, explicit: dict[str, Any] | None = 
 def normalize_avatar_product_brief(*, topic: str, explicit: dict[str, Any] | None = None) -> AvatarProductBrief:
     explicit = dict(explicit or {})
     raw_text = " ".join(str(topic or "").split())
+    def _list_value(*keys: str) -> list[str]:
+        for key in keys:
+            value = explicit.get(key)
+            if isinstance(value, list):
+                return [str(item).strip() for item in value if str(item).strip()]
+            if str(value or "").strip():
+                return [segment.strip() for segment in re.split(r"[,\n]+", str(value or "")) if segment.strip()]
+        return []
+
+    def _bool_value(*keys: str) -> bool:
+        for key in keys:
+            value = explicit.get(key)
+            if isinstance(value, bool):
+                return value
+            if str(value or "").strip().lower() in {"1", "true", "yes", "on"}:
+                return True
+        return False
+
+    def _int_value(*keys: str, default: int) -> int:
+        for key in keys:
+            try:
+                parsed = int(explicit.get(key))
+            except (TypeError, ValueError):
+                continue
+            if parsed > 0:
+                return parsed
+        return default
 
     return AvatarProductBrief(
         avatar_name=str(explicit.get("avatar_name") or explicit.get("avatarName") or "").strip(),
         product_name=str(explicit.get("product_name") or explicit.get("productName") or "").strip(),
+        brand_name=str(explicit.get("brand_name") or explicit.get("brandName") or "").strip(),
         product_category=str(explicit.get("product_category") or explicit.get("productCategory") or "").strip(),
+        product_subcategory=str(explicit.get("product_subcategory") or explicit.get("productSubcategory") or "").strip(),
+        campaign_objective=str(explicit.get("campaign_objective") or explicit.get("campaignObjective") or "").strip(),
+        platform=str(explicit.get("platform") or "").strip(),
+        duration_seconds=_int_value("duration_seconds", "durationSeconds", default=15),
+        language=str(explicit.get("language") or "English").strip() or "English",
         target_audience=str(explicit.get("target_audience") or explicit.get("targetAudience") or "").strip(),
+        audience_age_range=str(explicit.get("audience_age_range") or explicit.get("audienceAgeRange") or "").strip(),
+        audience_lifestyle=str(explicit.get("audience_lifestyle") or explicit.get("audienceLifestyle") or "").strip(),
         key_promise=str(explicit.get("key_promise") or explicit.get("keyPromise") or raw_text).strip(),
+        secondary_benefit=str(explicit.get("secondary_benefit") or explicit.get("secondaryBenefit") or "").strip(),
         pain_point=str(explicit.get("pain_point") or explicit.get("painPoint") or "").strip(),
-        cta=str(explicit.get("cta") or "shop now").strip(),
+        desired_feeling=str(explicit.get("desired_feeling") or explicit.get("desiredFeeling") or "").strip(),
+        brand_tone=str(explicit.get("brand_tone") or explicit.get("brandTone") or "").strip(),
+        avatar_id=str(explicit.get("avatar_id") or explicit.get("avatarId") or "").strip(),
+        avatar_style=str(explicit.get("avatar_style") or explicit.get("avatarStyle") or "").strip(),
+        voice_style=str(explicit.get("voice_style") or explicit.get("voiceStyle") or "").strip(),
+        cta=str(explicit.get("cta") or explicit.get("cta_preference") or explicit.get("ctaPreference") or "shop now").strip(),
+        cta_preference=str(explicit.get("cta_preference") or explicit.get("ctaPreference") or "").strip(),
+        tagline=str(explicit.get("tagline") or "").strip(),
+        offer_text=str(explicit.get("offer_text") or explicit.get("offerText") or "").strip(),
+        product_image_uploaded=_bool_value("product_image_uploaded", "productImageUploaded"),
+        product_image_count=_int_value("product_image_count", "productImageCount", default=0),
+        logo_uploaded=_bool_value("logo_uploaded", "logoUploaded"),
+        reference_ad_links=_list_value("reference_ad_links", "referenceAdLinks"),
+        must_show_elements=_list_value("must_show_elements", "mustShowElements"),
+        must_avoid_elements=_list_value("must_avoid_elements", "mustAvoidElements"),
+        compliance_notes=str(explicit.get("compliance_notes") or explicit.get("complianceNotes") or "").strip(),
+        claims_to_avoid=_list_value("claims_to_avoid", "claimsToAvoid"),
+        category_specific_details=str(explicit.get("category_specific_details") or explicit.get("categorySpecificDetails") or "").strip(),
+        script_mode=str(explicit.get("script_mode") or explicit.get("scriptMode") or "auto_generate").strip() or "auto_generate",
+        provided_script=str(explicit.get("provided_script") or explicit.get("providedScript") or "").strip(),
+        strict_script_lock=_bool_value("strict_script_lock", "strictScriptLock"),
+        script_modified=_bool_value("script_modified", "scriptModified"),
+        original_script=str(explicit.get("original_script") or explicit.get("originalScript") or "").strip(),
+        final_script=str(explicit.get("final_script") or explicit.get("finalScript") or "").strip(),
+        music_vibe=str(explicit.get("music_vibe") or explicit.get("musicVibe") or "").strip(),
+        category_confidence=str(explicit.get("category_confidence") or explicit.get("categoryConfidence") or "low").strip() or "low",
     )
 
 
@@ -1073,6 +1168,12 @@ def build_avatar_product_scene_plan(
     key_promise = avatar_product_brief.key_promise or topic or "the core product benefit"
     pain_point = avatar_product_brief.pain_point or "the user need"
     cta = avatar_product_brief.cta or "shop now"
+    platform = avatar_product_brief.platform or "Instagram Reels"
+    campaign_objective = avatar_product_brief.campaign_objective or "drive_purchases"
+    brand_tone = avatar_product_brief.brand_tone or "creator_casual"
+    category_specific_details = avatar_product_brief.category_specific_details or ""
+    must_show = ", ".join(avatar_product_brief.must_show_elements or [])
+    must_avoid = ", ".join(avatar_product_brief.must_avoid_elements or [])
 
     stage_blueprint = (
         ("hook", "Hook", "avatar_hook", "open with the avatar introducing the product quickly"),
@@ -1086,7 +1187,7 @@ def build_avatar_product_scene_plan(
         stage_name, stage_label, scene_type, stage_goal = stage_blueprint[index]
 
         if stage_name == "hook":
-            topic_focus = f"{avatar_name} introduces {product_name} for {target_audience} with a quick hook around {key_promise}"
+            topic_focus = f"{avatar_name} introduces {product_name} for {target_audience} with a quick hook around {key_promise} on {platform}"
             visual_objective = f"Stop the scroll quickly and introduce {product_name} through the same avatar."
             subject_description = f"the same avatar {avatar_name} speaking directly to camera and introducing {product_name} naturally"
             environment_description = "a realistic indoor creator-style environment with clean product visibility"
@@ -1098,26 +1199,26 @@ def build_avatar_product_scene_plan(
             shot_archetype = "avatar_product_hook"
             subtopic_visual_anchor = f"{product_name} introduced quickly by the same avatar"
         elif stage_name == "showcase":
-            topic_focus = f"{product_name} is shown clearly in hand or in use by {avatar_name}, proving {key_promise}"
+            topic_focus = f"{product_name} is shown clearly in hand or in use by {avatar_name}, proving {key_promise}. {category_specific_details}".strip()
             visual_objective = f"Keep the same avatar on screen while making {product_name} clearly visible and believable through one clean showcase moment."
             subject_description = f"the same avatar {avatar_name} clearly visible on screen, naturally holding, using, or presenting {product_name}"
             environment_description = "the same indoor environment with continuity-safe creator realism and clear product visibility"
             camera_framing = "medium shot or medium close-up with both avatar face and product visible together whenever possible"
             motion_intent = "controlled demo-style motion with visible product handling, same avatar continuity, and no abrupt movement"
-            talking_mode = "voiceover_safe"
-            render_lane = "broll_safe"
+            talking_mode = "lip_sync_required"
+            render_lane = "talking_avatar"
             shot_scale = "medium"
             shot_archetype = "avatar_product_showcase"
             subtopic_visual_anchor = f"{product_name} clearly visible with the same avatar on screen"
         else:
-            topic_focus = f"{avatar_name} closes with a natural recommendation for {product_name} and CTA: {cta}"
+            topic_focus = f"{avatar_name} closes with a natural recommendation for {product_name} and CTA: {cta}, aligned to {campaign_objective}"
             visual_objective = f"End with the same avatar clearly on screen in a creator-style recommendation close, with stable CTA framing for {product_name}."
             subject_description = f"the same avatar {avatar_name} clearly visible on screen, wrapping up the recommendation with {product_name} still visible"
             environment_description = "the same indoor creator environment with stable closing composition and continuity-safe product framing"
             camera_framing = "stable medium close-up with avatar face and product visible together in the same frame"
             motion_intent = "minimal motion with calm CTA close, same-avatar continuity, and stable ending"
-            talking_mode = "voiceover_safe"
-            render_lane = "broll_safe"
+            talking_mode = "lip_sync_required"
+            render_lane = "talking_avatar"
             shot_scale = "medium"
             shot_archetype = "avatar_product_cta"
             subtopic_visual_anchor = f"{product_name} visible with the same avatar in the final recommendation close"
@@ -1173,6 +1274,26 @@ def build_avatar_product_scene_plan(
             "trust_factor": "",
             "offer": "",
             "cta": cta,
+            "platform": platform,
+            "campaign_objective": campaign_objective,
+            "brand_tone": brand_tone,
+            "category_specific_details": category_specific_details,
+            "must_show_elements": list(avatar_product_brief.must_show_elements or []),
+            "must_avoid_elements": list(avatar_product_brief.must_avoid_elements or []),
+            "compliance_notes": avatar_product_brief.compliance_notes,
+            "claims_to_avoid": list(avatar_product_brief.claims_to_avoid or []),
+            "script_mode": avatar_product_brief.script_mode,
+            "provided_script": avatar_product_brief.provided_script,
+            "strict_script_lock": avatar_product_brief.strict_script_lock,
+            "qa_flags": [
+                flag
+                for flag in [
+                    "must_show_elements_present" if must_show else "",
+                    "must_avoid_elements_present" if must_avoid else "",
+                    "strict_script_lock" if avatar_product_brief.strict_script_lock else "",
+                ]
+                if flag
+            ],
             "tone": "creator_confident_friendly",
             "ad_goal": "purchase",
             "brief_location_context": "",

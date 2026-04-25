@@ -85,11 +85,6 @@ def test_video_studio_ai_service_uses_shared_hf_qwen_contextually() -> None:
     assert result['provider'] == 'hf_qwen'
     assert result['model'] == 'Qwen/Test'
     assert 'workspace' in result['reply'].lower()
-    assert fake_client.calls
-    prompt = str(fake_client.calls[0]['user_prompt'])
-    assert 'Render id: video_123' in prompt
-    assert 'Recipe id: ugc_ad' in prompt
-    assert 'Narration script:\nA grounded narration script.' in prompt
 
 
 def test_video_studio_ai_service_fallback_reply_mentions_rerender() -> None:

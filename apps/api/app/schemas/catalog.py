@@ -8,6 +8,12 @@ class AvatarResponse(BaseModel):
     name: str
     scope: str
     style: str
+    provider: str | None = None
+    provider_api_version: str | None = None
+    avatar_family: str | None = None
+    avatar_type: str | None = None
+    ownership: str | None = None
+    supports_avatar_video_generation: bool | None = None
     gender: str | None = None
     language_tags: list[str] = Field(default_factory=list)
     thumbnail_url: str

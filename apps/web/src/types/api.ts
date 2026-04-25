@@ -52,6 +52,12 @@ export type Avatar = {
   name: string;
   scope: 'own' | 'public';
   style: string;
+  provider?: string | null;
+  provider_api_version?: string | null;
+  avatar_family?: string | null;
+  avatar_type?: string | null;
+  ownership?: string | null;
+  supports_avatar_video_generation?: boolean | null;
   gender?: string | null;
   language_tags: string[];
   thumbnail_url: string;
@@ -65,6 +71,11 @@ export type Avatar = {
   recommended_voice?: string | null;
   status?: string | null;
   description?: string | null;
+};
+
+export type AvatarLibraryResponse = {
+  preset_avatars: Avatar[];
+  user_avatars: Avatar[];
 };
 
 export type Template = {
@@ -631,6 +642,25 @@ export type RecipeVideoCreateRequest = {
   personaId?: string;
   talkingModePreference?: string;
   useAvatarForTalkingScenes?: boolean;
+};
+
+export type AvatarProductAssistRequest = {
+  recipeId?: string;
+  message: string;
+  inputs?: Record<string, string | string[]>;
+  imageUrls?: string[];
+  personaId?: string;
+  advancedControls?: Record<string, string | string[] | boolean | number>;
+};
+
+export type AvatarProductAssistResponse = {
+  fields: Record<string, unknown>;
+  canGenerate: boolean;
+  nextQuestion: string | null;
+  missingTier1: string[];
+  missingTier2: string[];
+  missingTier3: string[];
+  advancedControlsSummary: Record<string, unknown>;
 };
 
 export type VideoCreateRequest = StandardVideoCreateRequest | RecipeVideoCreateRequest;

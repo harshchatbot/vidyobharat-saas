@@ -26,6 +26,8 @@ from app.schemas.ai import (
     AIVideoGenerateResponse,
     AIVideoModelResponse,
     AIVideoStatusResponse,
+    AvatarProductAssistRequest,
+    AvatarProductAssistResponse,
     ReelScriptRequest,
     ReelScriptResponse,
     ScriptEnhanceRequest,
@@ -135,6 +137,7 @@ from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 from app.services.llm.qwen_service import QwenService
 from app.services.video_studio_ai_service import VideoStudioAIService
+from app.services.avatar_product_workflow_service import AvatarProductWorkflowService
 from app.recipes.recipe_registry import (
     build_ltx_recipe_request,
     build_explainer_recipe_request,
@@ -160,6 +163,7 @@ from app.services.tts import (
     list_tts_voices,
 )
 from app.services.avatar_preview_service import AvatarPreviewService
+from app.services.heygen_avatar_service import HeygenAvatarService
 from app.providers.firebase import get_firestore_client
 
 router = APIRouter()
@@ -197,6 +201,42 @@ class GenerateCustomAvatarPreviewResponse(BaseModel):
     job_id: str
     avatar_id: str
     status: str
+
+
+class GenerateAvatarLookRequest(BaseModel):
+    prompt: str = Field(..., min_length=3, max_length=500)
+
+
+class GenerateAvatarLookResponse(BaseModel):
+    id: str
+    avatar_id: str
+    look_id: str
+    prompt: str
+    preview_url: str | None = None
+    status: str
+
+
+class AvatarLibraryItemResponse(BaseModel):
+    id: str
+    provider: str | None = None
+    provider_api_version: str | None = None
+    name: str
+    avatar_id: str | None = None
+    avatar_group_id: str | None = None
+    avatar_family: str | None = None
+    avatar_type: str | None = None
+    ownership: str | None = None
+    supports_avatar_video_generation: bool | None = None
+    type: str | None = None
+    user_id: str | None = None
+    preview_url: str | None = None
+    thumbnail_url: str | None = None
+    created_at: object | None = None
+
+
+class AvatarLibraryResponse(BaseModel):
+    preset_avatars: list[AvatarLibraryItemResponse] = Field(default_factory=list)
+    user_avatars: list[AvatarLibraryItemResponse] = Field(default_factory=list)
 
 
 def _canonical_voice_key(value: str | None) -> str:
@@ -1353,6 +1393,31 @@ def studio_ai_video_chat(
     return VideoStudioChatResponse(**reply)
 
 
+@router.post('/api/recipes/avatar-product/assist', response_model=AvatarProductAssistResponse, include_in_schema=False)
+def assist_avatar_product_recipe(
+    payload: AvatarProductAssistRequest,
+    user_id: str = Depends(get_user_id),
+):
+    del user_id
+    service = AvatarProductWorkflowService()
+    workflow = service.assess(
+        message=payload.message,
+        inputs=payload.inputs,
+        image_urls=payload.imageUrls,
+        avatar_id=payload.personaId,
+        advanced_controls=payload.advancedControls,
+    )
+    return AvatarProductAssistResponse(
+        fields=service.export_fields(workflow.fields),
+        canGenerate=workflow.can_generate,
+        nextQuestion=workflow.next_question,
+        missingTier1=workflow.missing_tier_1,
+        missingTier2=workflow.missing_tier_2,
+        missingTier3=workflow.missing_tier_3,
+        advancedControlsSummary=workflow.advanced_controls_summary,
+    )
+
+
 @router.post('/ai/video/generate', response_model=AIVideoGenerateResponse)
 def generate_ai_video(
     payload: AIVideoGenerateRequest,
@@ -1468,12 +1533,22 @@ def create_ai_video(
             normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
             normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
             pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
-            if payload.personaId:
+            if recipe.id == 'avatar_product':
+                pipeline_metadata['pipeline_version'] = 'chitrakala_v1'
+                pipeline_metadata['avatar_name'] = str(settings.chitrakala_avatar_name or 'Chitrakala').strip() or 'Chitrakala'
+                if settings.chitrakala_avatar_image_url:
+                    pipeline_metadata['avatar_image_url'] = str(settings.chitrakala_avatar_image_url).strip()
+                pipeline_metadata['persona_id'] = str(settings.chitrakala_persona_id or '').strip() or (
+                    str(payload.personaId).strip() if payload.personaId else None
+                )
+            if payload.personaId and recipe.id != 'avatar_product':
                 pipeline_metadata['persona_id'] = str(payload.personaId).strip()
             if payload.talkingModePreference:
                 pipeline_metadata['talking_mode_preference'] = str(payload.talkingModePreference).strip()
             if payload.useAvatarForTalkingScenes is not None:
                 pipeline_metadata['use_avatar_for_talking_scenes'] = bool(payload.useAvatarForTalkingScenes)
+            if recipe.id == 'avatar_product':
+                pipeline_metadata['use_avatar_for_talking_scenes'] = True
         elif should_use_ltx_storyboard_recipe(normalized_payload):
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_ltx_recipe_request(
                 str(payload.script or '').strip()
@@ -2789,7 +2864,9 @@ def create_custom_avatar(
 ):
     try:
         avatar_service = AvatarService()
-        avatar_ref = firestore.client().collection('avatars').document()
+        heygen_service = HeygenAvatarService()
+        db = get_firestore_client()
+        avatar_ref = db.collection('avatars').document()
         now = firestore.SERVER_TIMESTAMP
         reference_images = [str(item) for item in (payload.reference_images or []) if str(item).strip()]
         primary_image = str(payload.reference_image_url)
@@ -2800,29 +2877,43 @@ def create_custom_avatar(
         ordered_reference_images = ordered_reference_images[:3]
         canonical_voice = _canonical_voice_key(payload.preferred_voice)
         _validate_voice_for_avatar_gender(voice_key=canonical_voice, gender=payload.gender)
+        provider_result = heygen_service.create_avatar_from_image(image_url=primary_image, name=payload.name.strip())
+        internal_avatar_id = avatar_ref.id
 
         doc = {
-            'avatar_id': avatar_ref.id,
+            'id': internal_avatar_id,
+            'avatar_id': internal_avatar_id,
             'user_id': user_id,
             'scope': 'own',
+            'provider': 'heygen',
+            'provider_api_version': 'v2_photo_avatar',
+            'provider_avatar_id': provider_result['avatar_id'],
+            'avatar_group_id': provider_result['avatar_group_id'],
             'name': payload.name.strip(),
             'reference_image_url': primary_image,
             'reference_images': ordered_reference_images,
             'primary_image': primary_image,
-            'thumbnail_url': primary_image,
+            'thumbnail_url': str(provider_result.get('preview_url') or primary_image),
+            'preview_url': str(provider_result.get('preview_url') or primary_image),
             'preferred_voice': canonical_voice,
             'recommended_voice': canonical_voice,
+            'provider_voice_id': str(settings.heygen_default_voice_id or '').strip() or None,
+            'voice_provider': 'heygen',
             'voice_profile': avatar_service.resolve_default_voice_profile(
                 voice_key=canonical_voice,
                 gender=payload.gender,
             ),
             'gender': payload.gender,
+            'avatar_family': 'avatar_iv',
+            'avatar_type': str(provider_result.get('avatar_type') or 'photo_avatar'),
+            'ownership': str(provider_result.get('ownership') or 'private'),
+            'supports_avatar_video_generation': bool(provider_result.get('supports_avatar_video_generation', True)),
             'category': 'custom_avatar',
-            'tags': ['custom', 'ugc'],
+            'tags': ['custom', 'ugc', 'heygen'],
             'language_support': ['en-IN'],
             'prompt_template': 'Indian creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
             'negative_prompt': 'distorted face, broken lips, asymmetry, blurry eyes',
-            'status': 'ready_for_preview',
+            'status': 'ready',
             'created_at': now,
             'updated_at': now,
         }
@@ -2945,6 +3036,86 @@ def generate_custom_avatar_preview(
             },
         )
         raise HTTPException(status_code=500, detail='Failed to generate avatar preview') from exc
+
+
+@router.post('/api/avatars/custom/{avatar_id}/looks', response_model=GenerateAvatarLookResponse, status_code=status.HTTP_201_CREATED)
+def generate_custom_avatar_look(
+    avatar_id: str,
+    payload: GenerateAvatarLookRequest,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        db = get_firestore_client()
+        avatar_snap = db.collection('avatars').document(avatar_id).get()
+        if not avatar_snap.exists:
+            raise HTTPException(status_code=404, detail='Avatar not found')
+
+        avatar = avatar_snap.to_dict() or {}
+        if str(avatar.get('user_id') or '').strip() != str(user_id or '').strip():
+            raise HTTPException(status_code=403, detail='You do not have access to this avatar')
+
+        avatar_group_id = str(avatar.get('avatar_group_id') or '').strip()
+        if not avatar_group_id:
+            raise HTTPException(status_code=422, detail='Avatar is missing a HeyGen avatar group id')
+
+        look_result = HeygenAvatarService().generate_look(group_id=avatar_group_id, prompt=payload.prompt)
+        look_ref = db.collection('avatar_looks').document()
+        look_doc = {
+            'id': look_ref.id,
+            'avatar_id': avatar_id,
+            'look_id': look_result['look_id'],
+            'prompt': payload.prompt.strip(),
+            'preview_url': look_result.get('preview_url'),
+            'provider': 'heygen',
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'updated_at': firestore.SERVER_TIMESTAMP,
+        }
+        look_ref.set(look_doc)
+        return GenerateAvatarLookResponse(
+            id=look_ref.id,
+            avatar_id=avatar_id,
+            look_id=str(look_doc['look_id']),
+            prompt=look_doc['prompt'],
+            preview_url=look_doc.get('preview_url'),
+            status='ready',
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            'custom_avatar_generate_look_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'avatar_id': avatar_id,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to generate avatar look') from exc
+
+
+@router.get('/api/avatars/library', response_model=AvatarLibraryResponse)
+def list_avatar_library(
+    refresh_presets: bool = False,
+    user_id: str = Depends(get_user_id),
+):
+    try:
+        library = HeygenAvatarService().list_avatar_library(user_id=user_id, refresh_presets=refresh_presets)
+        return AvatarLibraryResponse(
+            preset_avatars=[AvatarLibraryItemResponse(**item) for item in library['preset_avatars']],
+            user_avatars=[AvatarLibraryItemResponse(**item) for item in library['user_avatars']],
+        )
+    except Exception as exc:
+        logger.exception(
+            'avatar_library_list_failed',
+            extra={
+                'request_id': get_request_id(),
+                'user_id': user_id,
+                'refresh_presets': refresh_presets,
+                'error': str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail='Failed to list avatar library') from exc
 
 
 @router.get('/api/avatars/custom/{avatar_id}/preview/{job_id}', response_model=CustomAvatarPreviewStatusResponse)

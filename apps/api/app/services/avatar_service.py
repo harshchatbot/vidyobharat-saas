@@ -241,16 +241,24 @@ class AvatarService:
             return None
 
         snap = db.collection('actors').document(normalized_id).get()
-        if not snap.exists:
+        if snap.exists:
+            data = snap.to_dict() or {}
+            item_user_id = str(data.get('user_id') or '').strip() or None
+            item_scope = str(data.get('scope') or ('own' if item_user_id else 'public')).strip() or 'public'
+            if item_scope == 'own' and item_user_id and user_id and item_user_id != user_id:
+                return None
+            if item_scope == 'own' and item_user_id and not user_id:
+                return None
+            return self._actor_from_firestore(data, normalized_id)
+
+        preset_snap = db.collection('preset_avatars').document(normalized_id).get()
+        if preset_snap.exists:
+            return self._actor_from_firestore(preset_snap.to_dict() or {}, normalized_id)
+
+        heygen_snap = db.collection('heygen_avatars').document(normalized_id).get()
+        if not heygen_snap.exists:
             return None
-        data = snap.to_dict() or {}
-        item_user_id = str(data.get('user_id') or '').strip() or None
-        item_scope = str(data.get('scope') or ('own' if item_user_id else 'public')).strip() or 'public'
-        if item_scope == 'own' and item_user_id and user_id and item_user_id != user_id:
-            return None
-        if item_scope == 'own' and item_user_id and not user_id:
-            return None
-        return self._actor_from_firestore(data, normalized_id)
+        return self._actor_from_firestore(heygen_snap.to_dict() or {}, normalized_id)
 
     def get_actor_details(self, actor_id: str, user_id: str | None = None) -> dict[str, Any] | None:
         record = self.get_actor_record(actor_id, user_id=user_id)
@@ -418,7 +426,7 @@ class AvatarService:
         gender = str(data.get('gender') or '').strip() or None
 
         return CustomAvatarRecord(
-            id=str(data.get('avatar_id') or normalized_id),
+            id=str(data.get('id') or normalized_id),
             user_id=normalized_user_id,
             name=str(data.get('name') or 'Custom Avatar').strip(),
             reference_image_url=reference_image_url,
@@ -465,6 +473,36 @@ class AvatarService:
                         "reason": str(exc),
                     },
                 )
+        for snap in db.collection('preset_avatars').stream():
+            try:
+                if snap.id == '_meta':
+                    continue
+                data = snap.to_dict() or {}
+                actor_id = str(data.get('id') or snap.id)
+                records.append(self._actor_from_firestore(data, actor_id))
+            except Exception as exc:
+                logger.warning(
+                    "avatar_list_preset_avatar_skipped",
+                    extra={
+                        "avatar_id": getattr(snap, "id", None),
+                        "reason": str(exc),
+                    },
+                )
+        for snap in db.collection('heygen_avatars').stream():
+            try:
+                if snap.id == '_meta':
+                    continue
+                data = snap.to_dict() or {}
+                actor_id = str(data.get('id') or snap.id)
+                records.append(self._actor_from_firestore(data, actor_id))
+            except Exception as exc:
+                logger.warning(
+                    "avatar_list_heygen_avatar_skipped",
+                    extra={
+                        "avatar_id": getattr(snap, "id", None),
+                        "reason": str(exc),
+                    },
+                )
         return records
 
     def _actor_from_firestore(self, data: dict[str, Any], actor_id: str) -> ActorRecord:
@@ -472,12 +510,17 @@ class AvatarService:
         reference_images = self._normalize_reference_images(data.get('reference_images') or [])
         primary_image = str(data.get('primary_image') or '').strip() or (reference_images[0] if reference_images else None)
         style = str(data.get('style') or data.get('category') or 'actor').strip()
+        normalized_gender = str(data.get('gender') or '').strip() or None
+        resolved_recommended_voice = self._resolve_catalog_voice_key(
+            str(data.get('recommended_voice') or '').strip() or None,
+            normalized_gender,
+        )
         return ActorRecord(
             id=actor_id,
             name=str(data.get('name') or 'Actor').strip(),
             scope=str(data.get('scope') or ('own' if data.get('user_id') else 'public')).strip() or 'public',
             style=style,
-            gender=str(data.get('gender') or '').strip() or None,
+            gender=normalized_gender,
             language_tags=language_support,
             thumbnail_url=str(data.get('thumbnail_url') or primary_image or '').strip(),
             tags=[str(tag).strip() for tag in list(data.get('tags') or []) if str(tag).strip()],
@@ -487,17 +530,17 @@ class AvatarService:
             preview_video_url=str(data.get('preview_video_url') or '').strip() or None,
             prompt_template=str(data.get('prompt_template') or '').strip() or None,
             negative_prompt=str(data.get('negative_prompt') or '').strip() or None,
-            recommended_voice=str(data.get('recommended_voice') or '').strip() or None,
+            recommended_voice=resolved_recommended_voice,
             voice_profile=self._normalize_voice_profile(
                 data.get('voice_profile'),
-                voice_key=str(data.get('recommended_voice') or '').strip() or None,
-                gender=str(data.get('gender') or '').strip() or None,
+                voice_key=resolved_recommended_voice,
+                gender=normalized_gender,
             ),
             status=str(data.get('status') or 'active').strip() or 'active',
             description=str(data.get('description') or '').strip() or None,
             created_at=data.get('created_at'),
             raw=data,
-            source='actor',
+            source=str(data.get('source') or 'actor').strip() or 'actor',
             user_id=str(data.get('user_id') or '').strip() or None,
         )
 
@@ -507,6 +550,16 @@ class AvatarService:
             name=record.name,
             scope=record.scope,
             style=record.style,
+            provider=str((record.raw or {}).get('provider') or '').strip() or None,
+            provider_api_version=str((record.raw or {}).get('provider_api_version') or '').strip() or None,
+            avatar_family=str((record.raw or {}).get('avatar_family') or '').strip() or None,
+            avatar_type=str((record.raw or {}).get('avatar_type') or '').strip() or None,
+            ownership=str((record.raw or {}).get('ownership') or '').strip() or None,
+            supports_avatar_video_generation=(
+                bool((record.raw or {}).get('supports_avatar_video_generation'))
+                if (record.raw or {}).get('supports_avatar_video_generation') is not None
+                else None
+            ),
             gender=record.gender,
             language_tags=record.language_tags,
             thumbnail_url=record.thumbnail_url,
@@ -547,14 +600,29 @@ class AvatarService:
                 primary_image = str(data.get('primary_image') or '').strip() or reference_image_url or (reference_images[0] if reference_images else None)
                 if not primary_image:
                     continue
+                normalized_gender = str(data.get('gender') or '').strip() or None
+                resolved_recommended_voice = self._resolve_catalog_voice_key(
+                    str(data.get('recommended_voice') or data.get('preferred_voice') or '').strip() or None,
+                    normalized_gender,
+                )
 
                 items.append(
                     AvatarResponse(
-                        id=str(data.get('avatar_id') or snap.id),
+                        id=str(data.get('id') or snap.id),
                         name=str(data.get('name') or 'Custom Avatar').strip(),
                         scope='own',
                         style=str(data.get('style_label') or data.get('category') or 'custom_avatar').strip() or 'custom_avatar',
-                        gender=str(data.get('gender') or '').strip() or None,
+                        provider=str(data.get('provider') or '').strip() or None,
+                        provider_api_version=str(data.get('provider_api_version') or '').strip() or None,
+                        avatar_family=str(data.get('avatar_family') or '').strip() or None,
+                        avatar_type=str(data.get('avatar_type') or '').strip() or None,
+                        ownership=str(data.get('ownership') or '').strip() or None,
+                        supports_avatar_video_generation=(
+                            bool(data.get('supports_avatar_video_generation'))
+                            if data.get('supports_avatar_video_generation') is not None
+                            else None
+                        ),
+                        gender=normalized_gender,
                         language_tags=[str(item).strip() for item in list(data.get('language_support') or []) if str(item).strip()],
                         thumbnail_url=str(data.get('thumbnail_url') or primary_image).strip(),
                         tags=[str(item).strip() for item in list(data.get('tags') or []) if str(item).strip()] or ['custom', 'ugc'],
@@ -564,11 +632,11 @@ class AvatarService:
                         preview_video_url=str(data.get('preview_video_url') or data.get('last_preview_video_url') or '').strip() or None,
                         prompt_template=str(data.get('prompt_template') or '').strip() or None,
                         negative_prompt=str(data.get('negative_prompt') or '').strip() or None,
-                        recommended_voice=str(data.get('recommended_voice') or data.get('preferred_voice') or '').strip() or None,
+                        recommended_voice=resolved_recommended_voice,
                         voice_profile=self._normalize_voice_profile(
                             data.get('voice_profile'),
-                            voice_key=str(data.get('recommended_voice') or data.get('preferred_voice') or '').strip() or None,
-                            gender=str(data.get('gender') or '').strip() or None,
+                            voice_key=resolved_recommended_voice,
+                            gender=normalized_gender,
                         ),
                         status=str(data.get('status') or 'ready_for_preview').strip() or 'ready_for_preview',
                         description=str(data.get('description') or '').strip() or None,
@@ -613,6 +681,16 @@ class AvatarService:
             raise ValueError(f'recommended_voice "{normalized}" does not exist')
         return normalized
 
+    def _resolve_catalog_voice_key(self, recommended_voice: str | None, gender: str | None) -> str:
+        normalized = str(recommended_voice or '').strip()
+        if normalized:
+            try:
+                return self._validate_voice(normalized)
+            except ValueError:
+                pass
+        normalized_gender = str(gender or '').strip().lower()
+        return 'Priya' if normalized_gender == 'female' else 'Shubh'
+
     def _validate_scope(self, scope: str | None) -> str:
         normalized = str(scope or 'own').strip().lower() or 'own'
         if normalized not in {'own', 'public'}:
@@ -626,7 +704,7 @@ class AvatarService:
         return [str(item).strip() for item in value if str(item).strip()]
 
     def _build_default_voice_profile(self, *, voice_key: str | None, gender: str | None) -> dict[str, Any]:
-        normalized_voice = self._validate_voice(voice_key or 'Shubh')
+        normalized_voice = self._resolve_catalog_voice_key(voice_key, gender)
         voice_option = next((voice for voice in list_tts_voices() if voice.key == normalized_voice), None)
         normalized_gender = str(gender or '').strip().lower()
         if voice_option and not normalized_gender:

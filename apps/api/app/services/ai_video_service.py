@@ -542,6 +542,7 @@ class AIVideoCreateService:
 
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
+        recipe_metadata = params.get('recipeMetadata') if isinstance(params.get('recipeMetadata'), dict) else {}
         duration_seconds = int(params['durationSeconds'])
         resolution = str(params['resolution'])
         prompt = str(params['script'])
@@ -579,6 +580,7 @@ class AIVideoCreateService:
             duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
             multi_prompt=params.get('multiPrompt'),
+            request_context=recipe_metadata,
         )
 
         return ProviderResult(
@@ -1262,6 +1264,8 @@ def celery_process_ai_video(video_id: str) -> None:
     except Exception as exc:
         if 'recipe_id' in locals() and recipe_id:
             logger.exception('recipe_pipeline_failed', extra={'render_id': video_id, 'recipe_id': recipe_id})
+            if recipe_id == 'avatar_product' and str(raw_data.get('pipeline_metadata', {}).get('pipeline_version') or '').strip() == 'chitrakala_v1':
+                logger.exception('chitrakala_v1_failed', extra={'render_id': video_id, 'recipe_id': recipe_id, 'error': str(exc)})
         logger.exception(
             'local_video_completion_failed',
             extra={'render_id': video_id, 'error': str(exc)[:255]},

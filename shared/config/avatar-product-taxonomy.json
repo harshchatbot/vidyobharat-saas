@@ -1,0 +1,242 @@
+{
+  "default_category": "generic_ecommerce",
+  "tier_1_fields": [
+    "product_image_uploaded",
+    "product_name",
+    "product_category",
+    "target_audience",
+    "campaign_objective",
+    "platform",
+    "avatar_id",
+    "main_benefit"
+  ],
+  "tier_2_fields": [
+    "brand_tone",
+    "duration_seconds",
+    "cta_preference",
+    "language",
+    "offer_text",
+    "tagline"
+  ],
+  "tier_3_fields": [
+    "category_specific_details",
+    "compliance_notes",
+    "must_show_elements",
+    "must_avoid_elements",
+    "claims_to_avoid",
+    "script_mode",
+    "provided_script",
+    "strict_script_lock"
+  ],
+  "field_hints": {
+    "target_audience": "Who is this ad for? Example: college students, working women, runners, or local families.",
+    "campaign_objective": "What do you want this ad to do? Example: build awareness, get clicks, or drive purchases.",
+    "main_benefit": "What should the ad highlight most? Example: chilled refreshment, lightweight feel, comfort, or fast charging.",
+    "platform": "Where will this run? Example: Instagram Reels, YouTube Shorts, Meta ads, or Amazon listing video.",
+    "avatar_id": "Which avatar should speak in the ad? Example: Aarohi for friendly creator energy or Riya for a polished product demo.",
+    "product_image_uploaded": "Please upload the main product image first. Example: the hero pack shot, can photo, or product bottle image."
+  },
+  "categories": {
+    "beverage": {
+      "keywords": ["drink", "beverage", "cola", "soft drink", "soda", "juice", "energy drink", "can", "bottle"],
+      "subcategories": {
+        "soft_drink": ["cola", "soft drink", "soda", "pepsi", "coke", "sprite", "can"],
+        "juice": ["juice", "mango drink", "orange drink"],
+        "energy_drink": ["energy drink", "electrolyte", "sports drink"]
+      },
+      "follow_up_questions": [
+        "What should the ad focus on most? Example: chilled refreshment, taste, or youth vibe.",
+        "How should the drink be shown? Example: can in hand, bottle close-up, or pouring into a glass."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on refreshment, temperature cues, hand-held pack presence, and a quick thirst-relief payoff.",
+        "showcase_focus": "Show the pack clearly and make the sip or chilled hold feel immediately satisfying.",
+        "cta_style": "Keep the CTA social and easy, like a creator recommendation.",
+        "visual_requirements": [
+          "visible condensation or chilled cues when relevant",
+          "pack readability in hand",
+          "one realistic consumption or hold action"
+        ]
+      }
+    },
+    "skincare_beauty": {
+      "keywords": ["serum", "moisturizer", "sunscreen", "skincare", "beauty", "face wash", "cream", "glow"],
+      "subcategories": {
+        "serum": ["serum", "vitamin c", "niacinamide"],
+        "moisturizer": ["moisturizer", "cream", "hydrating cream"],
+        "sunscreen": ["sunscreen", "spf", "sunblock"]
+      },
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: glow, hydration, lightweight texture, or fast absorption.",
+        "Should the creator apply the product on camera? Example: yes, show two drops on the cheek."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on texture, application realism, skin feel, and believable creator trust.",
+        "showcase_focus": "Show the product in hand and on-skin application or texture reveal.",
+        "cta_style": "Keep the CTA soft and trust-based, not like a hard beauty ad sell.",
+        "visual_requirements": [
+          "product bottle visible with readable identity cues",
+          "realistic skin texture",
+          "simple application motion"
+        ]
+      }
+    },
+    "fashion_footwear": {
+      "keywords": ["shoe", "shoes", "sneaker", "sneakers", "footwear", "runner", "running shoes", "sandals"],
+      "subcategories": {
+        "running_shoes": ["running shoes", "runners", "run shoe"],
+        "sneakers": ["sneakers", "street shoes"],
+        "sandals": ["sandals", "slides"]
+      },
+      "follow_up_questions": [
+        "What matters most in this ad? Example: comfort, style, performance, or everyday wear.",
+        "How should the product be shown? Example: on feet, walking shot, or close-up in hand."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on movement, comfort cues, and a clear on-person product reveal.",
+        "showcase_focus": "Show the product on-feet or in a clean handling shot with motion realism.",
+        "cta_style": "Keep the CTA lifestyle-oriented and confidence-led.",
+        "visual_requirements": [
+          "product visible from angle that explains the silhouette",
+          "natural walking or handling motion",
+          "creator styling should feel everyday and wearable"
+        ]
+      }
+    },
+    "electronics_gadgets": {
+      "keywords": ["charger", "phone", "speaker", "headphones", "earbuds", "laptop", "tablet", "gadget"],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: fast charging, sound quality, portability, or smart features."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on one immediately understandable utility or feature payoff.",
+        "showcase_focus": "Show real handling and one clear feature demo.",
+        "cta_style": "Keep the CTA utility-led and simple.",
+        "visual_requirements": [
+          "device screen or hardware visible when relevant",
+          "realistic hand interaction"
+        ]
+      }
+    },
+    "food_snacks": {
+      "keywords": ["snack", "chips", "protein bar", "cookies", "breakfast", "oats", "meal"],
+      "follow_up_questions": [
+        "What should the ad focus on most? Example: taste, convenience, protein, or quick breakfast energy."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on appetite appeal, convenience, and pack clarity.",
+        "showcase_focus": "Show the product pack and one easy eating or prep moment.",
+        "cta_style": "Keep the CTA casual and helpful.",
+        "visual_requirements": [
+          "pack visibility",
+          "one simple consumption or prep action"
+        ]
+      }
+    },
+    "home_kitchen": {
+      "keywords": ["pan", "bottle opener", "kitchen", "mixer", "organizer", "home"],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: convenience, durability, easy cleaning, or space saving."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on practical usefulness inside a believable home setting.",
+        "showcase_focus": "Show one clear before-or-after or usage moment.",
+        "cta_style": "Keep the CTA helpful and low-pressure.",
+        "visual_requirements": [
+          "home context visible",
+          "practical use moment"
+        ]
+      }
+    },
+    "health_wellness": {
+      "keywords": ["supplement", "protein", "wellness", "vitamin", "health"],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: energy, daily routine support, recovery, or convenience."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Keep the tone responsible and avoid risky health claims.",
+        "showcase_focus": "Show the product as part of a believable daily routine.",
+        "cta_style": "Keep the CTA cautious and trust-based.",
+        "visual_requirements": [
+          "pack visible",
+          "daily routine context"
+        ]
+      }
+    },
+    "baby_kids": {
+      "keywords": ["baby", "kids", "kids product", "toddler", "children"],
+      "follow_up_questions": [
+        "What should the ad reassure parents about? Example: comfort, convenience, safety cues, or easy routine fit."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Keep the tone gentle, practical, and parent-trust-led.",
+        "showcase_focus": "Show one believable parent-use or family context moment.",
+        "cta_style": "Keep the CTA reassuring and soft.",
+        "visual_requirements": [
+          "family-safe context",
+          "clear product visibility"
+        ]
+      }
+    },
+    "pet_products": {
+      "keywords": ["pet", "dog", "cat", "pet food", "pet toy", "leash"],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: ease for pet parents, pet comfort, or fun play moment."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on pet-parent trust and believable interaction.",
+        "showcase_focus": "Show the product with the pet or in a clear pet-use context.",
+        "cta_style": "Keep the CTA friendly and helpful.",
+        "visual_requirements": [
+          "pet and product visible together when relevant"
+        ]
+      }
+    },
+    "automotive_accessories": {
+      "keywords": ["car", "bike", "automotive", "helmet", "dash cam", "car charger", "seat cover"],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: safety, convenience, smart utility, or durability."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on practical utility in a believable vehicle context.",
+        "showcase_focus": "Show installation or active in-car use clearly.",
+        "cta_style": "Keep the CTA utility-led.",
+        "visual_requirements": [
+          "vehicle context visible",
+          "accessory in use"
+        ]
+      }
+    },
+    "local_service": {
+      "keywords": ["salon", "clinic", "dentist", "cafe", "gym", "studio", "repair", "coaching"],
+      "follow_up_questions": [
+        "What should the ad focus on most? Example: trust, convenience, local credibility, or fast booking."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on trust, service outcome, and a local-customer feel.",
+        "showcase_focus": "Show the environment and service proof rather than a physical product.",
+        "cta_style": "Keep the CTA booking-friendly and local.",
+        "visual_requirements": [
+          "location or service context visible",
+          "credible service proof moment"
+        ]
+      }
+    },
+    "generic_ecommerce": {
+      "keywords": [],
+      "follow_up_questions": [
+        "What should the ad highlight most? Example: convenience, quality, design, or everyday usefulness.",
+        "How should the product be shown? Example: in hand, in use, or close-up on a table."
+      ],
+      "enhancer_prompt_rules": {
+        "category_context": "Focus on one clear user benefit and easy product understanding.",
+        "showcase_focus": "Show the product clearly and make one believable use moment easy to understand.",
+        "cta_style": "Keep the CTA creator-friendly and simple.",
+        "visual_requirements": [
+          "product visible clearly",
+          "one believable use or handling action"
+        ]
+      }
+    }
+  }
+}

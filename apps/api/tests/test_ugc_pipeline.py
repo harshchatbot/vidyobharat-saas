@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from app.pipeline.pipeline_engine import (
     _apply_avatar_product_enhancer_to_scenes,
+    _apply_chitrakala_v1_scene_strategy,
     _avatar_product_enhancer_metadata,
+    _build_chitrakala_showcase_prompt,
     _compose_avatar_product_narration_script,
     _extract_ugc_talking_excerpt,
+    _is_chitrakala_showcase_scene,
+    _resolve_requested_avatar_id,
+    _split_chitrakala_manual_script,
     clean_ugc_script,
     generate_ugc_raw_script,
 )
-from app.pipeline.scene_planner import build_ugc_ad_scene_plan
+from app.pipeline.scene_planner import AvatarProductBrief, build_avatar_product_scene_plan, build_ugc_ad_scene_plan
 from app.recipes.recipe_registry import get_recipe
 from app.services.hf_qwen_enhancer_service import HFQwenEnhancerInput, HFQwenEnhancerResult
 
@@ -122,14 +127,20 @@ def test_apply_avatar_product_enhancer_to_scenes_maps_scene_fields() -> None:
 def test_avatar_product_enhancer_metadata_tracks_success() -> None:
     enhancer_input = HFQwenEnhancerInput(
         product_name="Protein oats cup",
+        brand_name="FastFuel",
         product_type="breakfast",
+        product_subcategory="oats",
+        campaign_objective="drive_purchases",
+        platform="Instagram Reels",
         target_audience="college students",
         avatar_style="friendly creator",
         brand_tone="creator_casual",
+        main_benefit="protein breakfast",
         brief="Quick breakfast for busy mornings",
         recommended_voice="priya",
         has_product_image=True,
         reference_image_count=2,
+        category_specific_details="Focus on convenience during rushed mornings.",
     )
     enhancer_result = HFQwenEnhancerResult(
         hook_line="My mornings were always rushed.",
@@ -152,6 +163,7 @@ def test_avatar_product_enhancer_metadata_tracks_success() -> None:
     assert metadata["model"] == "Qwen/Test"
     assert metadata["hook_line"] == enhancer_result.hook_line
     assert metadata["avatar_product_input_summary"]["product_name"] == "Protein oats cup"
+    assert metadata["avatar_product_input_summary"]["category_specific_details"] == "Focus on convenience during rushed mornings."
 
 
 def test_avatar_product_enhancer_metadata_tracks_failure() -> None:
@@ -166,3 +178,115 @@ def test_avatar_product_enhancer_metadata_tracks_failure() -> None:
     assert metadata["status"] == "failed"
     assert metadata["error"] == "timeout"
     assert metadata["avatar_product_input_summary"]["product_name"] == "Protein oats cup"
+
+
+def test_avatar_product_scene_plan_routes_all_scenes_to_talking_avatar() -> None:
+    recipe = get_recipe("avatar_product")
+
+    scenes = build_avatar_product_scene_plan(
+        recipe=recipe,
+        topic="Cold cola creator ad",
+        avatar_product_brief=AvatarProductBrief(
+            avatar_name="Ritu",
+            product_name="Amm Pespi",
+            product_category="beverage",
+            target_audience="young adults",
+            key_promise="refreshing taste",
+            cta="shop now",
+        ),
+    )
+
+    assert [scene["stage_name"] for scene in scenes] == ["hook", "showcase", "cta"]
+    assert all(scene["render_lane"] == "talking_avatar" for scene in scenes)
+    assert all(scene["talking_mode"] == "lip_sync_required" for scene in scenes)
+    assert all(scene["persona_required"] is True for scene in scenes)
+    assert all(scene["use_locked_persona"] is True for scene in scenes)
+
+
+def test_resolve_requested_avatar_id_prefers_persona_id_metadata() -> None:
+    requested_avatar_id = _resolve_requested_avatar_id(
+        initial_pipeline_metadata={"persona_id": "persona_123", "avatar_id": "legacy_avatar"},
+        normalized_inputs={"avatar_id": "input_avatar"},
+    )
+
+    assert requested_avatar_id == "persona_123"
+
+
+def test_resolve_requested_avatar_id_falls_back_to_legacy_avatar_id() -> None:
+    requested_avatar_id = _resolve_requested_avatar_id(
+        initial_pipeline_metadata={"avatar_id": "legacy_avatar"},
+        normalized_inputs={"avatar_id": "input_avatar"},
+    )
+
+    assert requested_avatar_id == "legacy_avatar"
+
+
+def test_resolve_requested_avatar_id_returns_none_when_missing() -> None:
+    requested_avatar_id = _resolve_requested_avatar_id(
+        initial_pipeline_metadata={},
+        normalized_inputs={},
+    )
+
+    assert requested_avatar_id is None
+
+
+def test_split_chitrakala_manual_script_normalizes_three_lines() -> None:
+    split_lines = _split_chitrakala_manual_script(
+        "Hook: Summer is brutal.\nShowcase: This drink stays refreshing and easy to grab.\nCTA: Try it today.",
+        product_name="Amm Pespi",
+        cta="Shop now",
+    )
+
+    assert split_lines["hook_line"] == "Summer is brutal."
+    assert split_lines["showcase_line"] == "This drink stays refreshing and easy to grab."
+    assert split_lines["cta_line"] == "Try it today."
+
+
+def test_build_chitrakala_showcase_prompt_includes_required_details() -> None:
+    prompt = _build_chitrakala_showcase_prompt(
+        product_name="Amm Pespi",
+        showcase_visual_prompt="Hero label reveal with chilled droplets.",
+        must_show_elements=["logo", "blue label"],
+    )
+
+    assert "Amm Pespi" in prompt
+    assert "Hero label reveal with chilled droplets." in prompt
+    assert "logo, blue label" in prompt
+
+
+def test_apply_chitrakala_v1_scene_strategy_routes_showcase_to_ltx() -> None:
+    scenes = [
+        {"scene_id": "scene_1_hook", "stage_name": "hook", "render_lane": "talking_avatar", "use_locked_persona": True},
+        {"scene_id": "scene_2_showcase", "stage_name": "showcase", "render_lane": "talking_avatar", "use_locked_persona": True},
+        {"scene_id": "scene_3_cta", "stage_name": "cta", "render_lane": "talking_avatar", "use_locked_persona": True},
+    ]
+
+    updated = _apply_chitrakala_v1_scene_strategy(
+        scenes=scenes,
+        showcase_visual_prompt="Close hero shot with one natural hand interaction.",
+        product_name="Amm Pespi",
+    )
+
+    assert updated[0]["render_lane"] == "talking_avatar"
+    assert updated[1]["render_lane"] == "cinematic_broll"
+    assert updated[1]["model_key"] == "fal_ltx23_i2v"
+    assert updated[1]["use_locked_persona"] is False
+    assert updated[2]["render_lane"] == "talking_avatar"
+
+
+def test_is_chitrakala_showcase_scene_only_matches_v1_showcase() -> None:
+    assert _is_chitrakala_showcase_scene(
+        recipe_id="avatar_product",
+        initial_pipeline_metadata={"pipeline_version": "chitrakala_v1"},
+        scene={"stage_name": "showcase"},
+    )
+    assert not _is_chitrakala_showcase_scene(
+        recipe_id="avatar_product",
+        initial_pipeline_metadata={"pipeline_version": "legacy"},
+        scene={"stage_name": "showcase"},
+    )
+    assert not _is_chitrakala_showcase_scene(
+        recipe_id="avatar_product",
+        initial_pipeline_metadata={"pipeline_version": "chitrakala_v1"},
+        scene={"stage_name": "hook"},
+    )

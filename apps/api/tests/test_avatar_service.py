@@ -63,6 +63,16 @@ def test_avatar_service_builds_consistent_voice_profile_defaults() -> None:
     assert profile['base_speed'] == 1.08
 
 
+def test_avatar_service_falls_back_for_non_catalog_provider_voice_ids() -> None:
+    service = AvatarService()
+    profile = service.resolve_default_voice_profile(
+        voice_key='9799f1ba6acd4b2b993fe813a18f9a91',
+        gender='female',
+    )
+    assert profile['speaker'] == 'priya'
+    assert service._resolve_catalog_voice_key('9799f1ba6acd4b2b993fe813a18f9a91', 'female') == 'Priya'
+
+
 def test_persona_voice_service_prepares_tts_input_consistently() -> None:
     service = PersonaVoiceService()
     prepared = service.prepare_tts_input(
@@ -119,6 +129,10 @@ def test_avatar_service_skips_malformed_public_actor_records(monkeypatch: pytest
                     ]
                 )
             if name == 'avatars':
+                return FakeCollection([])
+            if name == 'preset_avatars':
+                return FakeCollection([])
+            if name == 'heygen_avatars':
                 return FakeCollection([])
             raise AssertionError(f'unexpected collection {name}')
 

@@ -35,6 +35,7 @@ class RecipeAudioService:
         video_path: Path,
         recipe_music: str | None,
         render_id: str,
+        narration_path: Path | None = None,
         narration_text: str | None = None,
         voice: str | None = None,
         voice_profile: dict | None = None,
@@ -43,11 +44,10 @@ class RecipeAudioService:
         audio_fade_out_seconds: float = 0.0,
         music_mix_gain: float = 0.08,
     ) -> Path:
-        narration_path: Path | None = None
         music_path: Path | None = None
 
         cleaned_narration = str(narration_text or '').strip()
-        if cleaned_narration:
+        if narration_path is None and cleaned_narration:
             narration_path = self._generate_narration_track(
                 text=cleaned_narration,
                 render_id=render_id,

@@ -244,6 +244,25 @@ class VideoStudioChatResponse(BaseModel):
     model: str
 
 
+class AvatarProductAssistRequest(BaseModel):
+    recipeId: str = Field(default='avatar_product', min_length=1, max_length=120)
+    message: str = Field(default='', max_length=4000)
+    inputs: dict[str, str | list[str]] = Field(default_factory=dict)
+    imageUrls: list[str] = Field(default_factory=list, max_length=8)
+    personaId: str | None = Field(default=None, max_length=120)
+    advancedControls: dict[str, str | list[str] | bool | int] = Field(default_factory=dict)
+
+
+class AvatarProductAssistResponse(BaseModel):
+    fields: dict[str, object]
+    canGenerate: bool
+    nextQuestion: str | None = None
+    missingTier1: list[str] = Field(default_factory=list)
+    missingTier2: list[str] = Field(default_factory=list)
+    missingTier3: list[str] = Field(default_factory=list)
+    advancedControlsSummary: dict[str, object] = Field(default_factory=dict)
+
+
 class ScriptGenerateRequest(BaseModel):
     template: str = Field(min_length=2, max_length=80)
     topic: str = Field(min_length=2, max_length=300)

@@ -13,15 +13,40 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HFQwenEnhancerInput:
     product_name: str
+    brand_name: str | None = None
     product_type: str | None = None
+    product_subcategory: str | None = None
+    campaign_objective: str | None = None
+    platform: str | None = None
+    duration_seconds: int | None = None
+    language: str | None = None
     target_audience: str | None = None
+    audience_age_range: str | None = None
+    audience_lifestyle: str | None = None
+    main_benefit: str | None = None
+    secondary_benefit: str | None = None
+    key_problem_solved: str | None = None
+    desired_feeling: str | None = None
     avatar_style: str | None = None
     brand_tone: str | None = None
+    voice_style: str | None = None
+    cta_preference: str | None = None
+    tagline: str | None = None
+    offer_text: str | None = None
     brief: str | None = None
     avatar_prompt_template: str | None = None
     recommended_voice: str | None = None
     has_product_image: bool = False
     reference_image_count: int = 0
+    must_show_elements: list[str] | None = None
+    must_avoid_elements: list[str] | None = None
+    compliance_notes: str | None = None
+    claims_to_avoid: list[str] | None = None
+    category_specific_details: str | None = None
+    script_mode: str = "auto_generate"
+    provided_script: str | None = None
+    strict_script_lock: bool = False
+    category_prompt_rules: dict[str, Any] | None = None
 
 
 @dataclass
@@ -46,10 +71,6 @@ class HFQwenEnhancerService:
     - Keep spoken lines short for avatar scenes
     - Produce a more grounded showcase visual prompt for image-to-video generation
     """
-
-    DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-    DEFAULT_PROVIDER = "auto"
-    DEFAULT_TIMEOUT_SECONDS = 90
 
     BANNED_PHRASES = {
         "hey there",
@@ -91,6 +112,10 @@ class HFQwenEnhancerService:
         self,
         enhancer_input: HFQwenEnhancerInput,
     ) -> HFQwenEnhancerResult:
+        script_mode = str(enhancer_input.script_mode or "auto_generate").strip() or "auto_generate"
+        if script_mode == "use_exact_script" and str(enhancer_input.provided_script or "").strip():
+            return self._segment_locked_script(enhancer_input)
+
         prompt = self._build_v4_prompt(enhancer_input)
 
         logger.info(
@@ -146,16 +171,47 @@ class HFQwenEnhancerService:
     def _build_v4_prompt(self, enhancer_input: HFQwenEnhancerInput) -> str:
         payload = {
             "product_name": enhancer_input.product_name,
+            "brand_name": enhancer_input.brand_name or "",
             "product_type": enhancer_input.product_type or "",
+            "product_subcategory": enhancer_input.product_subcategory or "",
+            "campaign_objective": enhancer_input.campaign_objective or "",
+            "platform": enhancer_input.platform or "",
+            "duration_seconds": enhancer_input.duration_seconds or 15,
+            "language": enhancer_input.language or "",
             "target_audience": enhancer_input.target_audience or "",
+            "audience_age_range": enhancer_input.audience_age_range or "",
+            "audience_lifestyle": enhancer_input.audience_lifestyle or "",
+            "main_benefit": enhancer_input.main_benefit or "",
+            "secondary_benefit": enhancer_input.secondary_benefit or "",
+            "key_problem_solved": enhancer_input.key_problem_solved or "",
+            "desired_feeling": enhancer_input.desired_feeling or "",
             "avatar_style": enhancer_input.avatar_style or "",
             "brand_tone": enhancer_input.brand_tone or "",
+            "voice_style": enhancer_input.voice_style or "",
+            "cta_preference": enhancer_input.cta_preference or "",
+            "tagline": enhancer_input.tagline or "",
+            "offer_text": enhancer_input.offer_text or "",
             "brief": enhancer_input.brief or "",
             "avatar_prompt_template": enhancer_input.avatar_prompt_template or "",
             "recommended_voice": enhancer_input.recommended_voice or "",
             "has_product_image": enhancer_input.has_product_image,
             "reference_image_count": enhancer_input.reference_image_count,
+            "must_show_elements": enhancer_input.must_show_elements or [],
+            "must_avoid_elements": enhancer_input.must_avoid_elements or [],
+            "compliance_notes": enhancer_input.compliance_notes or "",
+            "claims_to_avoid": enhancer_input.claims_to_avoid or [],
+            "category_specific_details": enhancer_input.category_specific_details or "",
+            "script_mode": enhancer_input.script_mode,
+            "provided_script": enhancer_input.provided_script or "",
+            "strict_script_lock": enhancer_input.strict_script_lock,
+            "category_prompt_rules": enhancer_input.category_prompt_rules or {},
         }
+
+        category_rules = enhancer_input.category_prompt_rules or {}
+        category_context = str(category_rules.get("category_context") or "").strip()
+        showcase_focus = str(category_rules.get("showcase_focus") or "").strip()
+        cta_style = str(category_rules.get("cta_style") or "").strip()
+        visual_requirements = [str(item).strip() for item in (category_rules.get("visual_requirements") or []) if str(item).strip()]
 
         return f"""
 You are an ad-script enhancer for short AI-generated avatar product ads.
@@ -193,6 +249,11 @@ Style guidance:
 - Showcase should mention feel, texture, absorption, or use experience
 - CTA should feel soft, like a suggestion
 
+Script handling rules:
+- script_mode=auto_generate: create fresh hook/showcase/CTA from the brief
+- script_mode=improve_draft: improve the provided draft respectfully while preserving intent
+- script_mode=use_exact_script: do not rewrite the provided script wording; only segment it if needed and preserve brand-safe phrasing
+
 Bad examples:
 - "Hey there, glowing skin lovers!"
 - "This serum gives you that natural glow, trust me!"
@@ -222,6 +283,12 @@ Notes rules:
 - Mention bottle visibility, texture, motion, realism, or framing
 - Avoid vague phrases like "natural skincare experience"
 
+Category context:
+- {category_context or "No extra category context provided."}
+- Showcase focus: {showcase_focus or "Use the strongest believable product-use moment."}
+- CTA style: {cta_style or "Keep the CTA creator-friendly and simple."}
+- Visual requirements: {", ".join(visual_requirements) or "Keep product visibility clear and motion realistic."}
+
 Required JSON format:
 {{
   "hook_line": "...",
@@ -235,6 +302,27 @@ Required JSON format:
 Input:
 {json.dumps(payload, ensure_ascii=False)}
 """.strip()
+
+    def _segment_locked_script(self, enhancer_input: HFQwenEnhancerInput) -> HFQwenEnhancerResult:
+        lines = self._split_script_preserving_wording(str(enhancer_input.provided_script or "").strip())
+        hook_line = lines[0] if lines else enhancer_input.product_name
+        showcase_line = lines[1] if len(lines) > 1 else (lines[0] if lines else enhancer_input.brief or enhancer_input.product_name)
+        cta_line = lines[2] if len(lines) > 2 else (lines[-1] if lines else enhancer_input.product_name)
+        notes = [
+            "Preserve the provided script wording as closely as possible.",
+            "Keep product visibility and brand-safe delivery consistent.",
+        ]
+        return HFQwenEnhancerResult(
+            hook_line=self._normalize_spoken_line(hook_line, max_words=18),
+            showcase_line=self._normalize_spoken_line(showcase_line, max_words=24),
+            cta_line=self._normalize_spoken_line(cta_line, max_words=18),
+            showcase_visual_prompt=self._build_fallback_visual_prompt(enhancer_input),
+            voice_tone=self._normalize_voice_tone(enhancer_input.voice_style or enhancer_input.brand_tone, enhancer_input),
+            notes=notes,
+            raw_response=enhancer_input.provided_script,
+            model=self.model,
+            provider=self.provider,
+        )
 
     def _parse_json_response(self, raw_content: str) -> dict[str, Any]:
         cleaned = raw_content.strip()
@@ -281,6 +369,25 @@ Input:
             "voice_tone": voice_tone,
             "notes": notes,
         }
+
+    def _split_script_preserving_wording(self, script: str) -> list[str]:
+        cleaned = " ".join(str(script or "").split()).strip()
+        if not cleaned:
+            return []
+        sentences = [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", cleaned) if segment.strip()]
+        if len(sentences) >= 3:
+            return [sentences[0], " ".join(sentences[1:-1]).strip() or sentences[1], sentences[-1]]
+        if len(sentences) == 2:
+            return [sentences[0], sentences[1], sentences[1]]
+        words = cleaned.split()
+        if len(words) < 9:
+            return [cleaned, cleaned, cleaned]
+        third = max(1, len(words) // 3)
+        return [
+            " ".join(words[:third]).strip(),
+            " ".join(words[third: third * 2]).strip(),
+            " ".join(words[third * 2:]).strip(),
+        ]
 
     def _normalize_spoken_line(self, value: Any, max_words: int) -> str:
         text = self._clean_text(value)

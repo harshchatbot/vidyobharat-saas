@@ -34,6 +34,7 @@ from app.services.avatar_service import AvatarService, build_avatar_master_promp
 from app.services.audio_service import RecipeAudioService
 from app.services.emotion_service import build_behavior_timeline
 from app.services.hf_qwen_enhancer_service import HFQwenEnhancerInput, HFQwenEnhancerResult, HFQwenEnhancerService
+from app.services.avatar_product_workflow_service import AvatarProductWorkflowService
 from app.services.influencer_service import InfluencerService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.llm.base import ScriptPlan
@@ -106,10 +107,212 @@ def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
     return dict(data.get("pipeline_metadata") or data.get("pipelineMetadata") or {})
 
 
+def _resolve_requested_avatar_id(
+    *,
+    initial_pipeline_metadata: dict[str, Any],
+    normalized_inputs: dict[str, Any],
+) -> str | None:
+    candidates = (
+        initial_pipeline_metadata.get("persona_id"),
+        initial_pipeline_metadata.get("avatar_id"),
+        normalized_inputs.get("avatar_id"),
+    )
+    for candidate in candidates:
+        normalized = str(candidate or "").strip()
+        if normalized:
+            return normalized
+    return None
+
+
+def _is_chitrakala_v1(*, recipe_id: str, initial_pipeline_metadata: dict[str, Any]) -> bool:
+    return recipe_id == 'avatar_product' and str(initial_pipeline_metadata.get('pipeline_version') or '').strip() == 'chitrakala_v1'
+
+
+def _compact_spoken_line(text: str, *, fallback: str) -> str:
+    cleaned = re.sub(r'\s+', ' ', str(text or '').strip())
+    if not cleaned:
+        return fallback
+    cleaned = re.sub(r'^[\-\*\d\.\)\(]+\s*', '', cleaned).strip()
+    cleaned = re.sub(r'^(?:hook|showcase|cta|scene\s*\d+)[:\-]\s*', '', cleaned, flags=re.IGNORECASE).strip()
+    if len(cleaned) <= 140:
+        return cleaned
+    shortened = cleaned[:140].rsplit(' ', 1)[0].strip()
+    return shortened or cleaned[:140].strip()
+
+
+def _split_chitrakala_manual_script(
+    script: str,
+    *,
+    product_name: str,
+    cta: str,
+) -> dict[str, str]:
+    normalized = str(script or '').strip()
+    if not normalized:
+        return {
+            'hook_line': '',
+            'showcase_line': '',
+            'cta_line': '',
+        }
+
+    normalized = normalized.replace('\r', '\n')
+    raw_parts = [
+        segment.strip(' -\n\t')
+        for segment in re.split(r'(?:\n+|(?<=[.!?])\s+)', normalized)
+        if segment and segment.strip(' -\n\t')
+    ]
+    if len(raw_parts) < 3:
+        comma_parts = [segment.strip() for segment in re.split(r'\s*,\s*', normalized) if segment.strip()]
+        if len(comma_parts) >= 3:
+            raw_parts = comma_parts
+
+    while len(raw_parts) < 3:
+        if not raw_parts:
+            raw_parts.append(f'{product_name} is worth a quick look.')
+        elif len(raw_parts) == 1:
+            raw_parts.append(f'Here is what makes {product_name} easy to trust.')
+        else:
+            raw_parts.append(cta)
+
+    hook_line, showcase_line, cta_line = raw_parts[:3]
+    return {
+        'hook_line': _compact_spoken_line(hook_line, fallback=f'{product_name} is the quick fix you want to notice today.'),
+        'showcase_line': _compact_spoken_line(showcase_line, fallback=f'This is where {product_name} clearly shows why it stands out.'),
+        'cta_line': _compact_spoken_line(cta_line, fallback=cta),
+    }
+
+
+def _build_chitrakala_showcase_prompt(
+    *,
+    product_name: str,
+    showcase_visual_prompt: str | None,
+    must_show_elements: list[str] | None,
+) -> str:
+    must_show_text = ', '.join(item for item in (must_show_elements or []) if str(item).strip())
+    visual_prompt = str(showcase_visual_prompt or '').strip()
+    base = (
+        f'natural UGC product shot of {product_name}, hand holding the product, indoor Indian home lighting, '
+        'realistic phone-shot ad, product clearly visible, no distorted label, vertical framing, stable product readability'
+    )
+    if visual_prompt:
+        base = f'{base}. {visual_prompt}'
+    if must_show_text:
+        base = f'{base}. Required product details to preserve: {must_show_text}'
+    return base
+
+
+def _is_chitrakala_showcase_scene(
+    *,
+    recipe_id: str,
+    initial_pipeline_metadata: dict[str, Any],
+    scene: dict[str, Any],
+) -> bool:
+    return _is_chitrakala_v1(
+        recipe_id=recipe_id,
+        initial_pipeline_metadata=initial_pipeline_metadata,
+    ) and str(scene.get('stage_name') or '').strip().lower() == 'showcase'
+
+
+def _apply_chitrakala_v1_scene_strategy(
+    *,
+    scenes: list[dict[str, Any]],
+    showcase_visual_prompt: str | None,
+    product_name: str,
+) -> list[dict[str, Any]]:
+    updated_scenes: list[dict[str, Any]] = []
+    for scene in scenes:
+        updated = dict(scene)
+        stage_name = str(updated.get('stage_name') or '').strip().lower()
+        if stage_name == 'showcase':
+            updated['render_lane'] = 'cinematic_broll'
+            updated['talking_mode'] = 'voiceover_safe'
+            updated['persona_required'] = False
+            updated['use_locked_persona'] = False
+            updated['generator_model_family'] = 'ltx'
+            updated['model_key'] = 'fal_ltx23_i2v'
+            updated['visual_objective'] = (
+                f'Create one clean believable showcase beat for {product_name} with the product clearly readable and hero-framed.'
+            )
+            updated['showcase_visual_prompt'] = showcase_visual_prompt or updated.get('showcase_visual_prompt')
+            updated['motion_intent'] = 'subtle handheld realism with stable product framing and a clean hero reveal'
+            updated['camera_framing'] = 'close-up or medium close-up hero product framing with one natural hand interaction'
+        else:
+            updated['render_lane'] = 'talking_avatar'
+            updated['persona_required'] = True
+            updated['use_locked_persona'] = True
+        updated_scenes.append(updated)
+    return updated_scenes
+
+
+def _persona_provider_fields(raw: dict[str, Any] | None, *, default_provider: str = 'fal') -> dict[str, Any]:
+    source = dict(raw or {})
+    provider = str(source.get('provider') or '').strip().lower() or default_provider
+    provider_avatar_id = str(
+        source.get('provider_avatar_id')
+        or source.get('avatar_provider_id')
+        or source.get('heygen_avatar_id')
+        or ''
+    ).strip() or None
+    provider_voice_id = str(source.get('provider_voice_id') or source.get('voice_id') or '').strip() or None
+    voice_provider = str(source.get('voice_provider') or '').strip().lower() or ('heygen' if provider == 'heygen' else 'sarvam')
+    return {
+        'provider': provider,
+        'provider_avatar_id': provider_avatar_id,
+        'provider_voice_id': provider_voice_id,
+        'voice_provider': voice_provider,
+        'provider_api_version': str(source.get('provider_api_version') or '').strip() or None,
+        'avatar_family': str(source.get('avatar_family') or '').strip() or None,
+        'avatar_type': str(source.get('avatar_type') or '').strip() or None,
+        'ownership': str(source.get('ownership') or '').strip() or None,
+        'supports_avatar_video_generation': (
+            bool(source.get('supports_avatar_video_generation'))
+            if source.get('supports_avatar_video_generation') is not None
+            else None
+        ),
+    }
+
+
 def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override: str | None, language_override: str | None) -> dict[str, Any] | None:
     normalized_id = str(persona_id or "").strip()
     if not normalized_id:
         return None
+
+    settings = get_settings()
+    chitrakala_persona_id = str(settings.chitrakala_persona_id or '').strip()
+    if normalized_id == chitrakala_persona_id:
+        image_url = str(settings.chitrakala_avatar_image_url or '').strip()
+        thumbnail_url = str(settings.chitrakala_avatar_thumbnail_url or image_url).strip() or image_url
+        if not image_url:
+            return None
+        return {
+            "persona_id": chitrakala_persona_id,
+            "persona_source": "chitrakala_v1",
+            "name": str(settings.chitrakala_avatar_name or 'Chitrakala').strip() or 'Chitrakala',
+            "image_url": image_url,
+            "thumbnail_url": thumbnail_url,
+            "style_label": "fixed_brand_avatar",
+            "niche": "product_ad",
+            "gender": "female",
+            "default_voice_id": voice_override or str(settings.chitrakala_voice or 'Priya').strip() or 'Priya',
+            "language_preference": language_override or str(settings.chitrakala_language or 'en-IN').strip() or 'en-IN',
+            "default_behavior_prompt": (
+                str(settings.chitrakala_avatar_prompt_template or '').strip()
+                or 'friendly Indian creator named Chitrakala speaking naturally to camera, subtle head movement, persuasive calm expression, minimal movement'
+            ),
+            "negative_prompt": str(settings.chitrakala_avatar_negative_prompt or '').strip() or None,
+            "reference_images": [image_url],
+            "voice_profile": None,
+            "default_camera_style": "selfie_medium_close",
+            "preview_video_url": None,
+            "provider": "fal",
+            "provider_avatar_id": None,
+            "provider_voice_id": None,
+            "voice_provider": "sarvam",
+            "provider_api_version": None,
+            "avatar_family": "fixed_avatar",
+            "avatar_type": "image_reference",
+            "ownership": "app",
+            "supports_avatar_video_generation": True,
+        }
 
     avatar_service = AvatarService()
     actor = avatar_service.get_actor_record(normalized_id, user_id=user_id)
@@ -136,6 +339,7 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "voice_profile": actor.voice_profile,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": actor.preview_video_url,
+            **_persona_provider_fields(actor.raw, default_provider='heygen' if str((actor.raw or {}).get('provider') or '').strip().lower() == 'heygen' else 'fal'),
         }
 
     if normalized_id.startswith("av-"):
@@ -161,6 +365,10 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "voice_profile": None,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": None,
+            "provider": "fal",
+            "provider_avatar_id": None,
+            "provider_voice_id": None,
+            "voice_provider": "sarvam",
         }
 
     try:
@@ -195,6 +403,10 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "voice_profile": None,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": None,
+            "provider": "fal",
+            "provider_avatar_id": None,
+            "provider_voice_id": None,
+            "voice_provider": "sarvam",
         }
 
     custom_avatar = avatar_service.get_custom_avatar(normalized_id, user_id)
@@ -224,6 +436,7 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
         "default_camera_style": "selfie_medium_close",
         "preview_video_url": custom_avatar.preview_video_url,
         "negative_prompt": custom_avatar.negative_prompt,
+        **_persona_provider_fields(custom_avatar.raw, default_provider='fal'),
     }
 
 
@@ -382,6 +595,44 @@ def _apply_behavior_to_ugc_scene(scene: dict[str, Any], behavior_timeline: list[
     return updated
 
 
+def _fallback_timing_map_for_scene(*, script: str, duration_seconds: float | None) -> list[dict[str, Any]] | None:
+    cleaned_script = " ".join(str(script or "").split())
+    effective_duration_seconds = float(duration_seconds or 0.0)
+    if not cleaned_script or effective_duration_seconds <= 0.0:
+        return None
+    duration_ms = int(max(1.0, effective_duration_seconds * 1000.0))
+    return [
+        {
+            "text": cleaned_script,
+            "start_ms": 0,
+            "end_ms": duration_ms,
+            "duration_ms": duration_ms,
+            "pause_after_ms": 0,
+        }
+    ]
+
+
+def _merge_scene_timing_maps(
+    scene_audio_tracks: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    merged: list[dict[str, Any]] = []
+    current_offset_ms = 0
+    for track in scene_audio_tracks:
+        timing_map = list(track.get("timing_map") or [])
+        for item in timing_map:
+            merged.append(
+                {
+                    **item,
+                    "scene_id": track.get("scene_id"),
+                    "stage_name": track.get("stage_name"),
+                    "start_ms": int(item.get("start_ms") or 0) + current_offset_ms,
+                    "end_ms": int(item.get("end_ms") or 0) + current_offset_ms,
+                }
+            )
+        current_offset_ms += int(track.get("duration_ms") or 0)
+    return merged, current_offset_ms
+
+
 def _compose_avatar_product_narration_script(enhancer_result: HFQwenEnhancerResult) -> str:
     parts = [
         str(enhancer_result.hook_line or "").strip(),
@@ -434,15 +685,39 @@ def _avatar_product_enhancer_metadata(
         "status": "success" if enhancer_result else "failed",
         "avatar_product_input_summary": {
             "product_name": enhancer_input.product_name,
+            "brand_name": enhancer_input.brand_name,
             "product_type": enhancer_input.product_type,
+            "product_subcategory": enhancer_input.product_subcategory,
+            "campaign_objective": enhancer_input.campaign_objective,
+            "platform": enhancer_input.platform,
+            "duration_seconds": enhancer_input.duration_seconds,
+            "language": enhancer_input.language,
             "target_audience": enhancer_input.target_audience,
+            "audience_age_range": enhancer_input.audience_age_range,
+            "audience_lifestyle": enhancer_input.audience_lifestyle,
+            "main_benefit": enhancer_input.main_benefit,
+            "secondary_benefit": enhancer_input.secondary_benefit,
+            "key_problem_solved": enhancer_input.key_problem_solved,
+            "desired_feeling": enhancer_input.desired_feeling,
             "avatar_style": enhancer_input.avatar_style,
             "brand_tone": enhancer_input.brand_tone,
+            "voice_style": enhancer_input.voice_style,
+            "cta_preference": enhancer_input.cta_preference,
+            "tagline": enhancer_input.tagline,
+            "offer_text": enhancer_input.offer_text,
             "brief": enhancer_input.brief,
             "avatar_prompt_template": enhancer_input.avatar_prompt_template,
             "recommended_voice": enhancer_input.recommended_voice,
             "has_product_image": enhancer_input.has_product_image,
             "reference_image_count": enhancer_input.reference_image_count,
+            "must_show_elements": list(enhancer_input.must_show_elements or []),
+            "must_avoid_elements": list(enhancer_input.must_avoid_elements or []),
+            "compliance_notes": enhancer_input.compliance_notes,
+            "claims_to_avoid": list(enhancer_input.claims_to_avoid or []),
+            "category_specific_details": enhancer_input.category_specific_details,
+            "script_mode": enhancer_input.script_mode,
+            "provided_script": enhancer_input.provided_script,
+            "strict_script_lock": enhancer_input.strict_script_lock,
         },
     }
     if enhancer_result:
@@ -524,6 +799,11 @@ def _build_ugc_scene_plan_metadata(
             "showcase_visual_prompt": scene.get("showcase_visual_prompt"),
             "enhancer_notes": scene.get("enhancer_notes"),
             "enhancer_voice_tone": scene.get("enhancer_voice_tone"),
+            "platform": scene.get("platform"),
+            "campaign_objective": scene.get("campaign_objective"),
+            "brand_tone": scene.get("brand_tone"),
+            "category_specific_details": scene.get("category_specific_details"),
+            "script_mode": scene.get("script_mode"),
         }
         for scene in scenes
     ]
@@ -925,11 +1205,14 @@ def run_recipe_pipeline(
     effective_aspect_ratio = aspect_ratio_override or recipe.generation_defaults.aspect_ratio
     effective_captions_enabled = recipe.generation_defaults.captions_enabled if captions_override is None else bool(captions_override)
     effective_narration_enabled = recipe.generation_defaults.narration_enabled if narration_override is None else bool(narration_override)
+    avatar_product_requires_voice = recipe.id == "avatar_product"
     requested_voice = effective_voice
     requested_language = effective_language
-    requested_avatar_id = (
-    initial_pipeline_metadata.get("avatar_id")
-    or normalized_inputs.get("avatar_id")
+    metadata_persona_id = str(initial_pipeline_metadata.get("persona_id") or "").strip() or None
+    metadata_avatar_id = str(initial_pipeline_metadata.get("avatar_id") or "").strip() or None
+    requested_avatar_id = _resolve_requested_avatar_id(
+        initial_pipeline_metadata=initial_pipeline_metadata,
+        normalized_inputs=normalized_inputs,
     )
     use_avatar_for_talking_scenes = bool(
         initial_pipeline_metadata.get("use_avatar_for_talking_scenes", bool(requested_avatar_id))
@@ -945,6 +1228,8 @@ def run_recipe_pipeline(
         extra={
             "video_id": video_id,
             "recipe_id": recipe.id,
+            "metadata_persona_id": metadata_persona_id,
+            "metadata_avatar_id": metadata_avatar_id,
             "requested_avatar_id": requested_avatar_id,
             "use_avatar_for_talking_scenes": use_avatar_for_talking_scenes,
             "resolved_persona_id": (selected_persona or {}).get("persona_id"),
@@ -1111,19 +1396,55 @@ def run_recipe_pipeline(
         )
     elif recipe.id in UGC_AD_RECIPE_IDS:
         topic = str(normalized_inputs.get("text") or "").strip()
+        is_chitrakala_v1 = _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata)
         ugc_ad_style = _resolve_ugc_ad_style(recipe, normalized_inputs)
+        avatar_product_workflow: dict[str, Any] | None = None
+        workflow_result = None
 
         if recipe.id == "avatar_product":
+            if is_chitrakala_v1:
+                logger.info(
+                    'chitrakala_v1_started',
+                    extra={'video_id': video_id, 'recipe_id': recipe.id, 'requested_avatar_id': requested_avatar_id, 'has_reference': bool(reference)},
+                )
+                _append_pipeline_event(
+                    video_id=video_id,
+                    kind='chitrakala_started',
+                    title='Chitrakala ad started',
+                    detail='Preparing the fixed 3-scene Chitrakala product ad workflow.',
+                )
+            workflow_service = AvatarProductWorkflowService()
+            workflow_result = workflow_service.assess(
+                message=topic,
+                inputs={
+                    **dict(initial_pipeline_metadata.get("inputs") or {}),
+                    **dict(normalized_inputs or {}),
+                    "avatar_id": requested_avatar_id or "",
+                    "avatar_name": initial_pipeline_metadata.get("avatar_name") or initial_pipeline_metadata.get("persona_name") or "",
+                },
+                image_urls=[
+                    str(item).strip()
+                    for item in [
+                        normalized_inputs.get("image"),
+                        *(normalized_inputs.get("imageUrls") or [] if isinstance(normalized_inputs.get("imageUrls"), list) else []),
+                    ]
+                    if str(item or "").strip()
+                ],
+                avatar_id=requested_avatar_id,
+                advanced_controls=dict(normalized_inputs.get("advanced_controls") or {}) if isinstance(normalized_inputs.get("advanced_controls"), dict) else None,
+            )
+            avatar_product_workflow = workflow_service.export_fields(workflow_result.fields)
             avatar_product_brief = normalize_avatar_product_brief(
                 topic=topic,
                 explicit={
-                    "avatar_name": initial_pipeline_metadata.get("avatar_name") or initial_pipeline_metadata.get("persona_name") or "",
-                    "product_name": initial_pipeline_metadata.get("product_name") or "",
-                    "product_category": initial_pipeline_metadata.get("product_category") or "",
-                    "target_audience": initial_pipeline_metadata.get("target_audience") or "",
-                    "key_promise": initial_pipeline_metadata.get("key_promise") or topic,
-                    "pain_point": initial_pipeline_metadata.get("pain_point") or "",
-                    "cta": initial_pipeline_metadata.get("cta") or "shop now",
+                    **avatar_product_workflow,
+                    "avatar_name": initial_pipeline_metadata.get("avatar_name") or initial_pipeline_metadata.get("persona_name") or (selected_persona or {}).get("name") or "",
+                    "product_name": avatar_product_workflow.get("product_name") or initial_pipeline_metadata.get("product_name") or "",
+                    "product_category": avatar_product_workflow.get("product_category") or initial_pipeline_metadata.get("product_category") or "",
+                    "target_audience": avatar_product_workflow.get("target_audience") or initial_pipeline_metadata.get("target_audience") or "",
+                    "key_promise": avatar_product_workflow.get("main_benefit") or initial_pipeline_metadata.get("key_promise") or topic,
+                    "pain_point": avatar_product_workflow.get("key_problem_solved") or initial_pipeline_metadata.get("pain_point") or "",
+                    "cta": avatar_product_workflow.get("cta_preference") or initial_pipeline_metadata.get("cta") or "shop now",
                 },
             )
 
@@ -1167,44 +1488,142 @@ def run_recipe_pipeline(
         if recipe.id == "avatar_product":
             enhancer_input = HFQwenEnhancerInput(
                 product_name=avatar_product_brief.product_name or topic or "the product",
+                brand_name=avatar_product_brief.brand_name or None,
                 product_type=avatar_product_brief.product_category or None,
+                product_subcategory=avatar_product_brief.product_subcategory or None,
+                campaign_objective=avatar_product_brief.campaign_objective or None,
+                platform=avatar_product_brief.platform or None,
+                duration_seconds=avatar_product_brief.duration_seconds or recipe.duration_seconds,
+                language=avatar_product_brief.language or effective_language or None,
                 target_audience=avatar_product_brief.target_audience or None,
+                audience_age_range=avatar_product_brief.audience_age_range or None,
+                audience_lifestyle=avatar_product_brief.audience_lifestyle or None,
+                main_benefit=avatar_product_brief.key_promise or None,
+                secondary_benefit=avatar_product_brief.secondary_benefit or None,
+                key_problem_solved=avatar_product_brief.pain_point or None,
+                desired_feeling=avatar_product_brief.desired_feeling or None,
                 avatar_style=str((selected_persona or {}).get("style_label") or (selected_persona or {}).get("default_behavior_prompt") or avatar_product_brief.avatar_name or "").strip() or None,
-                brand_tone=ugc_ad_style or "creator_casual",
+                brand_tone=avatar_product_brief.brand_tone or ugc_ad_style or "creator_casual",
+                voice_style=avatar_product_brief.voice_style or None,
+                cta_preference=avatar_product_brief.cta_preference or avatar_product_brief.cta or None,
+                tagline=avatar_product_brief.tagline or None,
+                offer_text=avatar_product_brief.offer_text or None,
                 brief=avatar_product_brief.key_promise or topic,
                 avatar_prompt_template=str((selected_persona or {}).get("default_behavior_prompt") or "").strip() or None,
                 recommended_voice=str((selected_persona or {}).get("default_voice_id") or effective_voice or "").strip() or None,
                 has_product_image=bool(reference),
-                reference_image_count=max(
-                    0,
-                    len([item for item in (normalized_inputs.get("imageUrls") or []) if str(item).strip()])
-                    if isinstance(normalized_inputs.get("imageUrls"), list)
-                    else 0,
-                ),
+                reference_image_count=avatar_product_brief.product_image_count,
+                must_show_elements=list(avatar_product_brief.must_show_elements or []),
+                must_avoid_elements=list(avatar_product_brief.must_avoid_elements or []),
+                compliance_notes=avatar_product_brief.compliance_notes or None,
+                claims_to_avoid=list(avatar_product_brief.claims_to_avoid or []),
+                category_specific_details=avatar_product_brief.category_specific_details or None,
+                script_mode=avatar_product_brief.script_mode or "auto_generate",
+                provided_script=avatar_product_brief.provided_script or None,
+                strict_script_lock=avatar_product_brief.strict_script_lock,
+                category_prompt_rules=workflow_service.category_rules(avatar_product_brief.product_category),
             )
-            try:
-                enhancer_result = HFQwenEnhancerService(settings=get_settings()).enhance_avatar_product_ad(enhancer_input)
-                scenes = _apply_avatar_product_enhancer_to_scenes(scenes=scenes, enhancer_result=enhancer_result)
-                narration_script = _compose_avatar_product_narration_script(enhancer_result)
-                enhancer_metadata = _avatar_product_enhancer_metadata(
-                    enhancer_result=enhancer_result,
-                    enhancer_input=enhancer_input,
+            provided_script = str(avatar_product_brief.provided_script or '').strip()
+            if is_chitrakala_v1 and provided_script:
+                split_lines = _split_chitrakala_manual_script(
+                    provided_script,
+                    product_name=avatar_product_brief.product_name or topic or 'the product',
+                    cta=avatar_product_brief.cta or 'Shop now',
+                )
+                scenes = [
+                    {
+                        **scene,
+                        'spoken_line': split_lines['hook_line'] if str(scene.get('stage_name') or '').strip().lower() == 'hook'
+                        else split_lines['showcase_line'] if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
+                        else split_lines['cta_line'],
+                        'showcase_visual_prompt': (
+                            _build_chitrakala_showcase_prompt(
+                                product_name=avatar_product_brief.product_name or topic or 'the product',
+                                showcase_visual_prompt=scene.get('showcase_visual_prompt'),
+                                must_show_elements=list(scene.get('must_show_elements') or []),
+                            )
+                            if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
+                            else scene.get('showcase_visual_prompt')
+                        ),
+                    }
+                    for scene in scenes
+                ]
+                narration_script = ' '.join(
+                    line for line in [
+                        split_lines['hook_line'],
+                        split_lines['showcase_line'],
+                        split_lines['cta_line'],
+                    ]
+                    if line
+                ).strip()
+                enhancer_metadata = {
+                    'status': 'manual_script_split',
+                    'hook_line': split_lines['hook_line'],
+                    'showcase_line': split_lines['showcase_line'],
+                    'cta_line': split_lines['cta_line'],
+                    'showcase_visual_prompt': next(
+                        (
+                            str(scene.get('showcase_visual_prompt') or '').strip()
+                            for scene in scenes
+                            if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
+                        ),
+                        '',
+                    ),
+                }
+                logger.info(
+                    'chitrakala_script_ready',
+                    extra={'video_id': video_id, 'source': 'manual_script', **split_lines},
                 )
                 _append_pipeline_event(
                     video_id=video_id,
-                    kind="avatar_product_enhanced",
-                    title="Avatar ad enhanced",
-                    detail="HF Qwen prepared hook, showcase, and CTA guidance for the avatar product recipe.",
+                    kind='chitrakala_script_ready',
+                    title='Script prepared',
+                    detail='Your script was normalized into hook, showcase, and CTA lines for cleaner lip sync.',
                 )
-            except Exception as exc:
-                logger.exception(
-                    "avatar_product_enhancer_failed",
-                    extra={"video_id": video_id, "recipe_id": recipe.id, "product_name": enhancer_input.product_name},
-                )
-                enhancer_metadata = _avatar_product_enhancer_metadata(
-                    enhancer_result=None,
-                    enhancer_input=enhancer_input,
-                    error=str(exc),
+            else:
+                try:
+                    enhancer_result = HFQwenEnhancerService(settings=get_settings()).enhance_avatar_product_ad(enhancer_input)
+                    scenes = _apply_avatar_product_enhancer_to_scenes(scenes=scenes, enhancer_result=enhancer_result)
+                    narration_script = _compose_avatar_product_narration_script(enhancer_result)
+                    enhancer_metadata = _avatar_product_enhancer_metadata(
+                        enhancer_result=enhancer_result,
+                        enhancer_input=enhancer_input,
+                    )
+                    if is_chitrakala_v1:
+                        logger.info(
+                            'chitrakala_script_ready',
+                            extra={
+                                'video_id': video_id,
+                                'source': 'hf_qwen',
+                                'hook_line': enhancer_result.hook_line,
+                                'showcase_line': enhancer_result.showcase_line,
+                                'cta_line': enhancer_result.cta_line,
+                            },
+                        )
+                    _append_pipeline_event(
+                        video_id=video_id,
+                        kind="avatar_product_enhanced",
+                        title="Avatar ad enhanced",
+                        detail="HF Qwen prepared hook, showcase, and CTA guidance for the avatar product recipe.",
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "avatar_product_enhancer_failed",
+                        extra={"video_id": video_id, "recipe_id": recipe.id, "product_name": enhancer_input.product_name},
+                    )
+                    enhancer_metadata = _avatar_product_enhancer_metadata(
+                        enhancer_result=None,
+                        enhancer_input=enhancer_input,
+                        error=str(exc),
+                    )
+
+            if is_chitrakala_v1:
+                scenes = _apply_chitrakala_v1_scene_strategy(
+                    scenes=scenes,
+                    showcase_visual_prompt=(
+                        str((enhancer_metadata or {}).get('showcase_visual_prompt') or '').strip() or None
+                    ),
+                    product_name=avatar_product_brief.product_name or topic or 'the product',
                 )
 
         if not narration_script:
@@ -1229,7 +1648,17 @@ def run_recipe_pipeline(
                     )
 
             requires_locked_persona = any(bool(scene.get("persona_required")) for scene in scenes)
-            if requested_avatar_id and use_avatar_for_talking_scenes and requires_locked_persona:
+            strict_avatar_recipe = recipe.id == "avatar_product" and requires_locked_persona
+            if strict_avatar_recipe and not selected_persona:
+                _merge_pipeline_metadata(
+                    video_id=video_id,
+                    selected_persona_resolution_status="failed",
+                    selected_persona_error="Avatar Product requires a selected AI avatar for all talking scenes.",
+                    requested_avatar_id=requested_avatar_id,
+                )
+                raise RuntimeError("Avatar Product requires a selected AI avatar for all talking scenes.")
+
+            if (requested_avatar_id and use_avatar_for_talking_scenes and requires_locked_persona) or strict_avatar_recipe:
                 if not selected_persona:
                     _merge_pipeline_metadata(
                         video_id=video_id,
@@ -1271,9 +1700,28 @@ def run_recipe_pipeline(
             ugc_business_context=ugc_business_context,
             ugc_client_brief=ugc_client_brief.__dict__ if ugc_client_brief else {},
             avatar_product_brief=avatar_product_brief.__dict__ if avatar_product_brief else {},
+            avatar_product_workflow=avatar_product_workflow or {},
+            avatar_product_script_summary=(
+                {
+                    "script_mode": avatar_product_brief.script_mode,
+                    "strict_script_lock": avatar_product_brief.strict_script_lock,
+                    "provided_script": avatar_product_brief.provided_script,
+                    "original_script": avatar_product_brief.original_script or avatar_product_brief.provided_script,
+                    "final_script": narration_script,
+                    "script_modified": bool(
+                        avatar_product_brief.provided_script
+                        and " ".join(str(avatar_product_brief.provided_script or "").split())
+                        != " ".join(str(narration_script or "").split())
+                    ),
+                }
+                if avatar_product_brief
+                else {}
+            ),
+            advanced_controls_summary=(workflow_result.advanced_controls_summary if recipe.id == "avatar_product" else {}),
             enhancer=enhancer_metadata,
             selected_persona=selected_persona or {},
             selected_persona_id=(selected_persona or {}).get("persona_id"),
+            requested_avatar_id=requested_avatar_id,
             resolved_avatar_source=(selected_persona or {}).get("persona_source"),
             resolved_avatar_name=(selected_persona or {}).get("name"),
             use_avatar_for_talking_scenes=bool(initial_pipeline_metadata.get("use_avatar_for_talking_scenes", False)),
@@ -1455,6 +1903,98 @@ def run_recipe_pipeline(
     compiled_scene_prompts: list[dict[str, Any]] = []
     ugc_talking_scene_debug: list[dict[str, Any]] = []
     ugc_talking_timing_maps: list[dict[str, Any]] = []
+    ugc_talking_audio_tracks: list[dict[str, Any]] = []
+
+    
+
+    if recipe.id == "avatar_product" and _is_chitrakala_v1(
+        recipe_id=recipe.id,
+        initial_pipeline_metadata=initial_pipeline_metadata,
+    ):
+        from app.services.fal_video_service import FalVideoService
+
+        fal_service = FalVideoService()
+
+        product_name = avatar_product_brief.product_name if avatar_product_brief else (topic or "the product")
+        chitrakala_image_url = str((selected_persona or {}).get("image_url") or "").strip()
+        product_image_url = str(reference or "").strip()
+
+        kling_prompt = f"""
+        Use Image 1 as Chitrakala, the same Indian female creator.
+        Use Image 2 as the product reference.
+
+        Create a realistic vertical UGC ad video for Instagram Reels.
+        Chitrakala speaks naturally to camera while holding or presenting {product_name}.
+        Keep her face consistent, natural expression, realistic hand grip, product label clearly visible.
+        Phone-shot creator style, Indian home/creator setup, soft natural lighting.
+
+        Spoken ad script:
+        {narration_script}
+
+        Avoid distorted face, extra fingers, warped product label, blurry product, fake plastic skin, exaggerated AI glow.
+        """.strip()
+
+        logger.info("chitrakala_kling_started", extra={"video_id": video_id})
+        kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
+            prompt=kling_prompt,
+            image_urls=[url for url in [chitrakala_image_url, product_image_url] if url],
+            aspect_ratio="9:16",
+            duration="5",
+        )
+
+        logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})
+        audio_url, tts_meta = fal_service.generate_gemini_flash_tts(
+            text=narration_script or "",
+            voice="Kore",
+            language_code="English (India)",
+        )
+
+        logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})
+        final_video_url, lipsync_meta = fal_service.generate_sync_lipsync_v2(
+            video_url=kling_video_url,
+            audio_url=audio_url,
+        )
+
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            pipeline_version="chitrakala_v1",
+            chitrakala_single_output=True,
+            chitrakala_kling_video_url=kling_video_url,
+            chitrakala_tts_audio_url=audio_url,
+            chitrakala_lipsync_video_url=final_video_url,
+            chitrakala_kling_meta=kling_meta,
+            chitrakala_tts_meta=tts_meta,
+            chitrakala_lipsync_meta=lipsync_meta,
+            completion_notification={
+                "title": "Your Chitrakala product ad is ready.",
+                "message": "Your Chitrakala product ad is ready.",
+            },
+        )
+
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="chitrakala_completed",
+            title="Chitrakala ad ready",
+            detail="Your Chitrakala product ad is ready.",
+        )
+
+        return RecipePipelineResult(
+            provider="fal",
+            model_key="fal-ai/kling-video/o1/reference-to-video + fal-ai/gemini-3.1-flash-tts + fal-ai/sync-lipsync/v2",
+            video_url=final_video_url,
+            metadata={
+                "recipe_id": recipe.id,
+                "pipeline_version": "chitrakala_v1",
+                "reference_asset": str(reference),
+                "scene_count": 1,
+                "narration_script": narration_script,
+                "requested_model": "kling_reference_to_video",
+                "resolved_model": "kling_reference_to_video",
+                "render_mode": "single_ad",
+                "fallback_used": False,
+            },
+        )
+
 
     for index, scene in enumerate(scenes):
         scene_progress = 35 + int((index / total_scenes) * 35)
@@ -1485,11 +2025,12 @@ def run_recipe_pipeline(
         speaking_segments: list[dict[str, int]] | None = None
         audio_reactive_timeline: list[dict[str, Any]] | None = None
         behavior_timeline: list[dict[str, Any]] | None = None
+        talking_voice_path: Path | None = None
         talking_script = ""
         if recipe.id in UGC_AD_RECIPE_IDS and scene.get("render_lane") == "talking_avatar":
             talking_script = str(scene.get("spoken_line") or "").strip() or _extract_ugc_talking_excerpt(narration_script or "")
-        if effective_narration_enabled and scene.get("render_lane") == "talking_avatar" and talking_script:
-            voice_path, voice_duration, talking_timing_map = _generate_timed_talking_audio(
+        if (effective_narration_enabled or avatar_product_requires_voice) and scene.get("render_lane") == "talking_avatar" and talking_script:
+            talking_voice_path, voice_duration, talking_timing_map = _generate_timed_talking_audio(
                 pipeline=pipeline,
                 render_id=f'{video_id}-{scene["scene_id"]}-talking',
                 script=talking_script,
@@ -1498,24 +2039,29 @@ def run_recipe_pipeline(
                 voice_profile=(selected_persona or {}).get("voice_profile"),
                 speech_rate=get_settings().avatar_tts_speech_rate,
             )
+            if not talking_timing_map:
+                talking_timing_map = _fallback_timing_map_for_scene(
+                    script=talking_script,
+                    duration_seconds=voice_duration,
+                )
             scene = _apply_timing_to_ugc_scene(scene, talking_timing_map)
             speaking_segments = TimingSyncService().build_speaking_segments(talking_timing_map)
             behavior_timeline = build_behavior_timeline(talking_timing_map)
-            if voice_path and voice_path.exists():
+            if talking_voice_path and talking_voice_path.exists():
                 audio_analysis = AudioAnalysisService()
                 audio_reactive_timeline = audio_analysis.analyze_audio_reactivity(
-                    audio_path=voice_path,
+                    audio_path=talking_voice_path,
                     timing_map=talking_timing_map,
                 )
                 behavior_timeline = audio_analysis.merge_with_behavior(behavior_timeline, audio_reactive_timeline)
             scene = _apply_behavior_to_ugc_scene(scene, behavior_timeline)
-            if voice_path and voice_path.exists():
+            if talking_voice_path and talking_voice_path.exists():
                 talking_audio_duration_seconds = float(voice_duration or 0.0) or None
                 talking_audio_url = _upload_talking_scene_audio(
                     user_id=user_id,
                     video_id=video_id,
                     scene_id=str(scene["scene_id"]),
-                    voice_path=voice_path,
+                    voice_path=talking_voice_path,
                 )
                 logger.info(
                     "ugc_talking_scene_audio_prepared",
@@ -1525,6 +2071,7 @@ def run_recipe_pipeline(
                         "persona_id": (selected_persona or {}).get("persona_id"),
                         "persona_source": (selected_persona or {}).get("persona_source"),
                         "audio_duration_seconds": talking_audio_duration_seconds,
+                        "audio_local_path": str(talking_voice_path),
                         "audio_url": talking_audio_url,
                         "timing_segment_count": len(talking_timing_map or []),
                         "audio_reactive_segment_count": len(audio_reactive_timeline or []),
@@ -1676,18 +2223,49 @@ def run_recipe_pipeline(
             )
 
         clip_prompt = prompt
-        if scene.get("render_lane") == "talking_avatar":
+        if _is_chitrakala_showcase_scene(
+            recipe_id=recipe.id,
+            initial_pipeline_metadata=initial_pipeline_metadata,
+            scene=scene,
+        ):
+            clip_prompt = _build_chitrakala_showcase_prompt(
+                product_name=avatar_product_brief.product_name if avatar_product_brief else (topic or 'the product'),
+                showcase_visual_prompt=str(scene.get('showcase_visual_prompt') or '').strip() or None,
+                must_show_elements=list(scene.get('must_show_elements') or []),
+            )
+        if scene.get("render_lane") == "talking_avatar" and not _is_chitrakala_v1(
+            recipe_id=recipe.id,
+            initial_pipeline_metadata=initial_pipeline_metadata,
+        ):
             clip_prompt = _build_ugc_talking_avatar_prompt(
                 scene=scene,
                 selected_persona=selected_persona,
                 behavior_timeline=behavior_timeline,
             )
+        if compiled_scene_prompts:
+            compiled_scene_prompts[-1]["compiled_prompt"] = clip_prompt
+
+        scene_model_key = str(scene.get("model_key") or recipe.generation_defaults.model_key)
+        if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
+            scene_stage = str(scene.get("stage_name") or "").strip().lower()
+            logger.info(
+                f'chitrakala_scene_{index + 1}_started',
+                extra={
+                    'video_id': video_id,
+                    'scene_id': scene.get('scene_id'),
+                    'stage_name': scene_stage,
+                    'render_lane': scene.get('render_lane'),
+                    'model_key': scene_model_key,
+                },
+            )
+
+
 
         clip_result = generation.generate_video_clip(
             ClipGenerationRequest(
                 video_id=f'{video_id}-{scene["scene_id"]}',
                 prompt=clip_prompt,
-                model_key=recipe.generation_defaults.model_key,
+                model_key=scene_model_key,
                 aspect_ratio=effective_aspect_ratio,
                 resolution=recipe.generation_defaults.resolution,
                 duration_seconds=int(scene["duration_seconds"]),
@@ -1700,6 +2278,10 @@ def run_recipe_pipeline(
                 render_lane=str(scene.get("render_lane") or "cinematic_broll"),
                 persona_id=(selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
                 persona_image_url=(selected_persona or {}).get("image_url") if scene.get("use_locked_persona") else None,
+                persona_provider=(selected_persona or {}).get("provider") if scene.get("use_locked_persona") else None,
+                persona_avatar_id=(selected_persona or {}).get("provider_avatar_id") if scene.get("use_locked_persona") else None,
+                persona_voice_id=(selected_persona or {}).get("provider_voice_id") if scene.get("use_locked_persona") else None,
+                voice_provider=(selected_persona or {}).get("voice_provider") if scene.get("use_locked_persona") else None,
                 talking_audio_url=talking_audio_url,
                 talking_audio_duration_seconds=talking_audio_duration_seconds,
                 timing_map=talking_timing_map,
@@ -1713,6 +2295,7 @@ def run_recipe_pipeline(
                     "scene_index": index,
                     "scene_beats": scene.get("beat_names"),
                     "scene_role": scene.get("scene_role"),
+                    "stage_name": scene.get("stage_name"),
                     "talking_mode": scene.get("talking_mode"),
                     "render_lane": scene.get("render_lane"),
                     "persona_required": scene.get("persona_required"),
@@ -1722,6 +2305,10 @@ def run_recipe_pipeline(
                     "stitch_safe_ending": scene.get("stitch_safe_ending"),
                     "selected_persona_id": (selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
                     "selected_persona_source": (selected_persona or {}).get("persona_source") if scene.get("use_locked_persona") else None,
+                    "supports_avatar_video_generation": (selected_persona or {}).get("supports_avatar_video_generation") if scene.get("use_locked_persona") else None,
+                    "persona_avatar_type": (selected_persona or {}).get("avatar_type") if scene.get("use_locked_persona") else None,
+                    "persona_provider_api_version": (selected_persona or {}).get("provider_api_version") if scene.get("use_locked_persona") else None,
+                    "must_show_elements": list(scene.get("must_show_elements") or []),
                     "talking_audio_duration_seconds": talking_audio_duration_seconds,
                     "timing_map": talking_timing_map,
                     "speaking_segments": speaking_segments,
@@ -1734,9 +2321,16 @@ def run_recipe_pipeline(
                     "resolved_talking_voice": (selected_persona or {}).get("default_voice_id") if scene.get("use_locked_persona") else effective_voice,
                     "resolved_talking_language": (selected_persona or {}).get("language_preference") if scene.get("use_locked_persona") else effective_language,
                     "require_talking_avatar": bool(
-                        requested_avatar_id
-                        and use_avatar_for_talking_scenes
-                        and scene.get("use_locked_persona")
+                        (
+                            requested_avatar_id
+                            and use_avatar_for_talking_scenes
+                            and scene.get("use_locked_persona")
+                        )
+                        or (
+                            recipe.id == "avatar_product"
+                            and scene.get("render_lane") == "talking_avatar"
+                            and scene.get("use_locked_persona")
+                        )
                     ),
                 },
             )
@@ -1773,6 +2367,17 @@ def run_recipe_pipeline(
             )
         if recipe.id in UGC_AD_RECIPE_IDS and str(scene.get("render_lane") or "") == "talking_avatar":
             clip_meta = dict(getattr(clip_result, "metadata", {}) or {})
+            if talking_voice_path and talking_voice_path.exists() and talking_audio_duration_seconds:
+                ugc_talking_audio_tracks.append(
+                    {
+                        "scene_id": scene.get("scene_id"),
+                        "stage_name": scene.get("stage_name"),
+                        "audio_path": str(talking_voice_path),
+                        "duration_ms": int(max(1.0, talking_audio_duration_seconds * 1000.0)),
+                        "timing_map": talking_timing_map or [],
+                        "spoken_line": talking_script,
+                    }
+                )
             if talking_timing_map:
                 ugc_talking_timing_maps.append(
                     {
@@ -1798,8 +2403,10 @@ def run_recipe_pipeline(
                     "resolved_talking_language": (selected_persona or {}).get("language_preference") if scene.get("use_locked_persona") else effective_language,
                     "talking_provider": str(getattr(clip_result, "model_key", "") or ""),
                     "talking_provider_label": str(getattr(clip_result, "provider", "") or ""),
+                    "talking_request_id": clip_meta.get("request_id"),
                     "talking_fallback_reason": clip_meta.get("talking_avatar_fallback_reason"),
                     "talking_audio_duration_seconds": talking_audio_duration_seconds,
+                    "timing_segment_count": len(talking_timing_map or []),
                     "timing_map": talking_timing_map,
                     "speaking_segments": speaking_segments,
                     "audio_reactive_timeline": audio_reactive_timeline,
@@ -1813,6 +2420,20 @@ def run_recipe_pipeline(
             )
 
         clip_urls.append(clip_result.video_url)
+
+        if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
+            logger.info(
+                f'chitrakala_scene_{index + 1}_completed',
+                extra={
+                    'video_id': video_id,
+                    'scene_id': scene.get('scene_id'),
+                    'stage_name': scene.get('stage_name'),
+                    'render_lane': scene.get('render_lane'),
+                    'model_key': scene_model_key,
+                    'provider': getattr(clip_result, 'provider', None),
+                    'video_url': clip_result.video_url,
+                },
+            )
 
         scene_done_progress = 35 + int(((index + 1) / total_scenes) * 35)
         if progress_callback:
@@ -1844,6 +2465,7 @@ def run_recipe_pipeline(
                     "flags": focused,
                 }
             )
+        merged_scene_timing_map, merged_scene_audio_duration_ms = _merge_scene_timing_maps(ugc_talking_audio_tracks)
         _merge_pipeline_metadata(
             video_id=video_id,
             resolved_avatar_source=(selected_persona or {}).get("persona_source"),
@@ -1858,6 +2480,9 @@ def run_recipe_pipeline(
             ugc_talking_scene_debug=ugc_talking_scene_debug,
             timing_map=ugc_talking_timing_maps[0]["timing_map"] if ugc_talking_timing_maps else None,
             ugc_talking_timing_maps=ugc_talking_timing_maps,
+            ugc_talking_audio_tracks=ugc_talking_audio_tracks,
+            merged_talking_timing_map=merged_scene_timing_map,
+            merged_talking_audio_duration_ms=merged_scene_audio_duration_ms,
             audio_reactive_timeline=ugc_talking_timing_maps[0]["audio_reactive_timeline"] if ugc_talking_timing_maps else None,
             behavior_timeline=ugc_talking_timing_maps[0]["behavior_timeline"] if ugc_talking_timing_maps else None,
             ugc_talking_behavior_timelines=ugc_talking_timing_maps,
@@ -1869,6 +2494,8 @@ def run_recipe_pipeline(
         progress_callback(75)
 
     stitcher = VideoStitcher()
+    if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
+        logger.info('chitrakala_stitch_started', extra={'video_id': video_id, 'clip_count': len(clip_urls)})
     if recipe.id in LTX_RECIPE_IDS:
         logger.info(
             "ltx_benchmark_stitch_started",
@@ -1892,6 +2519,8 @@ def run_recipe_pipeline(
         "recipe_video_stitched",
         extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(stitched_path)},
     )
+    if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
+        logger.info('chitrakala_stitch_completed', extra={'video_id': video_id, 'output_path': str(stitched_path)})
     if recipe.id in LTX_RECIPE_IDS:
         logger.info(
             "ltx_benchmark_stitch_completed",
@@ -1912,12 +2541,39 @@ def run_recipe_pipeline(
 
     audio_service = RecipeAudioService()
     narration_text = narration_script if recipe.id in EXPLAINER_RECIPE_IDS or recipe.id in UGC_AD_RECIPE_IDS else None
+    merged_avatar_narration_path: Path | None = None
+    merged_avatar_timing_map: list[dict[str, Any]] | None = None
+    if recipe.id == "avatar_product" and ugc_talking_audio_tracks:
+        timing_service = TimingSyncService(pause_after_line_ms=0)
+        merged_avatar_narration_path = timing_service.merge_audio(
+            [
+                {
+                    "text": str(track.get("spoken_line") or ""),
+                    "audio_path": str(track["audio_path"]),
+                    "duration_ms": int(track["duration_ms"]),
+                }
+                for track in ugc_talking_audio_tracks
+            ],
+            Path("data/renders") / f"{video_id}-merged-avatar-narration.wav",
+        )
+        merged_avatar_timing_map, merged_audio_duration_ms = _merge_scene_timing_maps(ugc_talking_audio_tracks)
+        logger.info(
+            "avatar_product_talking_audio_merged",
+            extra={
+                "video_id": video_id,
+                "scene_count": len(ugc_talking_audio_tracks),
+                "merged_audio_path": str(merged_avatar_narration_path),
+                "merged_timing_segment_count": len(merged_avatar_timing_map),
+                "merged_audio_duration_ms": merged_audio_duration_ms,
+            },
+        )
 
     final_path = audio_service.add_audio(
         video_path=stitched_path,
         recipe_music=recipe.config.music,
         render_id=video_id,
-        narration_text=narration_text if effective_narration_enabled else None,
+        narration_path=merged_avatar_narration_path if recipe.id == "avatar_product" and (effective_narration_enabled or avatar_product_requires_voice) else None,
+        narration_text=narration_text if effective_narration_enabled and recipe.id != "avatar_product" else None,
         voice=effective_voice,
         voice_profile=(selected_persona or {}).get("voice_profile") if recipe.id in UGC_AD_RECIPE_IDS else None,
         language=effective_language,
@@ -1926,6 +2582,18 @@ def run_recipe_pipeline(
         music_mix_gain=0.06 if recipe.id in UGC_AD_RECIPE_IDS else 0.08,
     )
 
+    if recipe.id == "avatar_product" and effective_captions_enabled:
+        caption_output = Path("data/renders") / f"{video_id}-captions.mp4"
+        final_path = pipeline.burn_overlays_on_video(
+            input_video_path=final_path,
+            output_video_path=caption_output,
+            title=recipe.catalog.title,
+            script=narration_script or "",
+            captions_enabled=True,
+            caption_style=recipe.generation_defaults.caption_style,
+            timing_map=merged_avatar_timing_map,
+        )
+
     if progress_callback:
         progress_callback(92)
 
@@ -1933,6 +2601,22 @@ def run_recipe_pipeline(
         "recipe_audio_added",
         extra={"video_id": video_id, "recipe_id": recipe.id, "output_path": str(final_path)},
     )
+    if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
+        logger.info('chitrakala_v1_completed', extra={'video_id': video_id, 'output_path': str(final_path)})
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            completion_notification={
+                'title': 'Your Chitrakala product ad is ready.',
+                'message': 'Your Chitrakala product ad is ready.',
+            },
+            pipeline_version='chitrakala_v1',
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind='chitrakala_completed',
+            title='Chitrakala ad ready',
+            detail='Your Chitrakala product ad is ready.',
+        )
     _append_pipeline_event(
         video_id=video_id,
         kind="audio_added",
