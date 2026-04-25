@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { API_URL } from '@/lib/env';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 type Props = {
   userId: string | null;
@@ -285,8 +286,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
           <div className="flex h-full flex-col">
             {useExpandedAppShell ? (
               <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
-                <div className="flex items-center">
+                <div className="flex items-center justify-between">
                   <BrandLogo href="/create" variant="full" size="md" priority="sidebar" />
+                  <NotificationBell />
                 </div>
                 <div className="mt-7 space-y-1.5">
                   {[
@@ -513,6 +515,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="hidden md:block">
                   <CreditChip />
                 </div>
+                <NotificationBell />
                 <div className="hidden md:block">
                   <ToggleTheme />
                 </div>
@@ -577,6 +580,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 md:hidden">
                       <div className="flex items-center justify-between gap-3">
                         <CreditChip onNavigate={navigateWithinApp} />
+                        <NotificationBell />
                         <ToggleTheme />
                       </div>
                     </div>

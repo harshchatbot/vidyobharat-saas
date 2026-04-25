@@ -1935,11 +1935,19 @@ def run_recipe_pipeline(
         """.strip()
 
         logger.info("chitrakala_kling_started", extra={"video_id": video_id})
+
+        requested_duration = int(
+            normalized_inputs.get("duration_seconds")
+            or normalized_inputs.get("durationSeconds")
+            or 5
+        )
+
+        kling_duration = str(min(10, max(3, requested_duration)))
         kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
             prompt=kling_prompt,
             image_urls=[url for url in [chitrakala_image_url, product_image_url] if url],
             aspect_ratio="9:16",
-            duration="5",
+            duration=kling_duration,
         )
 
         logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})

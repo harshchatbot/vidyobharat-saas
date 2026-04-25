@@ -1154,6 +1154,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarSelection | null>(null);
   const [avatarPreviewPersonaId, setAvatarPreviewPersonaId] = useState<string | null>(null);
+  const [avatarPreviewModal, setAvatarPreviewModal] = useState<AvatarSelection | null>(null);
   const [navigationOverlayLabel, setNavigationOverlayLabel] = useState<string | null>(null);
   const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
   const [avatarProductAdvancedOpen, setAvatarProductAdvancedOpen] = useState(false);
@@ -2177,7 +2178,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               >
                                 <button
                                   type="button"
-                                  onClick={() => setAvatarPreviewPersonaId(avatar.personaId)}
+                                  onClick={() => {
+                                    setAvatarPreviewPersonaId(avatar.personaId);
+                                    setAvatarPreviewModal(avatar);
+                                  }}
                                   className="w-full text-left"
                                 >
                                   <div className="overflow-hidden rounded-[16px] bg-[hsl(var(--color-surface)/0.7)]">
@@ -2302,6 +2306,62 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               </div>
             )}
           </div>
+        </Modal>
+
+        <Modal open={Boolean(avatarPreviewModal)} onClose={() => setAvatarPreviewModal(null)}>
+          {avatarPreviewModal ? (
+            <div className="mx-auto max-w-[420px] space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+                    Avatar Preview
+                  </p>
+                  <h3 className="text-lg font-semibold text-text">{avatarPreviewModal.name}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAvatarPreviewModal(null)}
+                  className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1 text-sm text-muted transition hover:text-text"
+                >
+                  Close
+                </button>
+              </div>
+
+              {avatarPreviewModal.previewVideoUrl ? (
+                <video
+                  src={avatarPreviewModal.previewVideoUrl}
+                  poster={avatarPreviewModal.imageUrl}
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="max-h-[70vh] w-full rounded-[20px] bg-black object-contain"
+                />
+              ) : avatarPreviewModal.imageUrl ? (
+                <img
+                  src={avatarPreviewModal.imageUrl}
+                  alt={avatarPreviewModal.name}
+                  className="max-h-[70vh] w-full rounded-[20px] object-contain"
+                />
+              ) : (
+                <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border)/0.74)] p-6 text-sm text-muted">
+                  No preview available.
+                </div>
+              )}
+
+              <Button
+                type="button"
+                onClick={() => {
+                  applyAvatarSelection(avatarPreviewModal);
+                  setAvatarPreviewModal(null);
+                }}
+                className="w-full rounded-[14px]"
+              >
+                Use this avatar
+              </Button>
+            </div>
+          ) : null}
         </Modal>
 
         <div className="space-y-1">

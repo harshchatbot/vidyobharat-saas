@@ -9,6 +9,8 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+
 const navLinks = [
   { href: '/platform', label: 'Platform' },
   { href: '/use-cases', label: 'Use cases' },
@@ -117,6 +119,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
             {userId && (
               <>
+                <NotificationBell />
                 <Link
                   href="/dashboard"
                   className="ml-2 inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
@@ -141,6 +144,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
           </nav>
 
           <div className="flex items-center gap-2 lg:hidden">
+          {userId && <NotificationBell />}
             <ToggleTheme />
             <button
               type="button"
