@@ -391,14 +391,25 @@ def build_sora_ugc_ad_prompt(
     if is_avatar_product:
         prompt += (
             'This is an avatar-led product ad.\n'
-            'Preserve exactly the same selected avatar identity across all scenes.\n'
-            'Keep the avatar visibly present on screen in every scene, not just the opening shot.\n'
-            'Preserve the same product across all scenes.\n'
-            'If a product image reference is provided, treat it as the primary product reference.\n'
-            'Do not swap to a different presenter, different face, or different product.\n'
-            'Do not turn showcase or CTA scenes into product-only montage unless explicitly required.\n'
-            'Keep the product visible early, clearly, and naturally with the avatar.\n'
-            'Favor creator-native realism over glossy commercial polish.\n'
+
+            # 🔥 CRITICAL IDENTITY LOCK
+            'Use Image 1 STRICTLY as the SAME person across the entire video.\n'
+            'Do NOT change face, identity, skin tone, hairstyle, age, or facial structure.\n'
+            'Maintain EXACT same person from start to end.\n'
+
+            # 🔥 PRODUCT LOCK
+            'Use Image 2 STRICTLY as the SAME product.\n'
+            'Do NOT change product shape, color, material, or design.\n'
+
+            # 🔥 BEHAVIOR
+            'The avatar must remain visible on screen while interacting with the product.\n'
+            'Keep product clearly visible early and throughout the video.\n'
+
+            # 🔥 STRICT NEGATIVE
+            'Avoid identity drift, face mutation, new characters, extra people, or product changes.\n'
+
+            # STYLE
+            'Keep it realistic, creator-style, handheld, and natural.\n'
         )
 
     prompt += (

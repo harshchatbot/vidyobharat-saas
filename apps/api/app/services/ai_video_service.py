@@ -165,6 +165,9 @@ class AIVideoCreateService:
             'sora2': self.generate_with_sora2,
             'ltx': self.generate_with_ltx_self_hosted,
             'fal_ltx23_i2v': self.generate_with_fal,
+            'kling_v16_standard_i2v': self.generate_with_fal,
+            'kling_v16_pro_i2v': self.generate_with_fal,
+            'kling_o1_reference': self.generate_with_fal,
         }
 
         self.model_router = SmartModelRouter()
@@ -173,6 +176,9 @@ class AIVideoCreateService:
             'sora2': [],
             'fal_ltx23_i2v': [],
             'ltx': [],
+            'kling_v16_standard_i2v': [],
+            'kling_v16_pro_i2v': ['kling_v16_standard_i2v'],
+            'kling_o1_reference': ['kling_v16_pro_i2v'],
         }
 
     def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:

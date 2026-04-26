@@ -23,7 +23,10 @@
     "modelMultiplier": {
       "fal_ltx23_i2v": 1.0,
       "sora2": 10.5,
-      "ltx": 1.0
+      "ltx": 1.0,
+      "kling_v16_standard_i2v": 2.5,
+      "kling_v16_pro_i2v": 3.5,
+      "kling_o1_reference": 5.5
     },
     "resolutionMultiplier": {
       "720p": 1.0,

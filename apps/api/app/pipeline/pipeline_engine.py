@@ -100,6 +100,32 @@ def _merge_pipeline_metadata(*, video_id: str, **fields: Any) -> None:
     repo.collection.document(video_id).set({"pipeline_metadata": metadata, "updated_at": utcnow()}, merge=True)
 
 
+
+def _persist_final_video(
+    *,
+    video_id: str,
+    user_id: str,
+    video_url: str,
+    status: str = "completed",
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    repo = VideoRepository(None)
+    repo.collection.document(video_id).set(
+        {
+            "id": video_id,
+            "video_id": video_id,
+            "user_id": user_id,
+            "videoUrl": video_url,
+            "video_url": video_url,
+            "status": status,
+            "provider_status": status,
+            "pipeline_metadata": metadata or {},
+            "updated_at": utcnow(),
+        },
+        merge=True,
+    )
+
+
 def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
     repo = VideoRepository(None)
     snapshot = repo.collection.document(video_id).get()
@@ -1184,6 +1210,76 @@ def _build_long_explainer_sora_fallback_plan(
     return scenes, merged_beats, merged_contexts, sum(int(scene["duration_seconds"]) for scene in scenes)
 
 
+
+def _smart_model_router(
+    *,
+    scene: dict[str, Any],
+    recipe_id: str,
+    quality_profile: str,
+    is_chitrakala: bool,
+) -> str:
+
+    stage = str(scene.get("stage_name") or "").lower()
+    render_lane = str(scene.get("render_lane") or "").lower()
+
+    # ---------------------------------------
+    # 🚨 CHITRAKALA → ALWAYS CONSISTENT
+    # ---------------------------------------
+    if is_chitrakala:
+        if render_lane == "talking_avatar":
+            return "kling_o3_reference"
+        return "fal_ltx23_i2v"
+
+    # ---------------------------------------
+    # 🎯 AVATAR PRODUCT (MAIN MONEY FLOW)
+    # ---------------------------------------
+    if recipe_id == "avatar_product":
+
+        if quality_profile == "premium":
+            if render_lane == "talking_avatar":
+                return "kling_o3_reference"   # 🔥 identity lock
+            return "kling_v16_pro_elements"   # 💰 showcase cheaper
+
+        if quality_profile == "high":
+            return "kling_v16_pro_elements"
+
+        return "fal_ltx23_i2v"
+
+    # ---------------------------------------
+    # 🎬 UGC ADS
+    # ---------------------------------------
+    if recipe_id in UGC_AD_RECIPE_IDS:
+        if render_lane == "talking_avatar":
+            return "kling_o3_reference"
+        return "kling_v16_standard_elements"
+
+    # ---------------------------------------
+    # 🎥 EXPLAINERS
+    # ---------------------------------------
+    if recipe_id in EXPLAINER_RECIPE_IDS:
+        return "sora_2"
+
+    # fallback
+    return "fal_ltx23_i2v"
+
+
+# ---------------------------------------
+# 🔁 SCENE RETRY DETECTOR
+# ---------------------------------------
+def _should_retry_scene(meta: dict) -> bool:
+    issues = [
+        "face_distortion",
+        "extra_fingers",
+        "identity_drift",
+        "blur_product",
+    ]
+    return any(issue in str(meta).lower() for issue in issues)
+
+
+# ---------------------------------------
+# 🚀 MAIN PIPELINE
+# ---------------------------------------
+
 def run_recipe_pipeline(
     recipe_id: str,
     inputs: dict[str, Any],
@@ -1907,31 +2003,58 @@ def run_recipe_pipeline(
 
     
 
-    if recipe.id == "avatar_product" and _is_chitrakala_v1(
-        recipe_id=recipe.id,
-        initial_pipeline_metadata=initial_pipeline_metadata,
-    ):
+    if recipe.id == "avatar_product":
         from app.services.fal_video_service import FalVideoService
 
         fal_service = FalVideoService()
 
         product_name = avatar_product_brief.product_name if avatar_product_brief else (topic or "the product")
-        chitrakala_image_url = str((selected_persona or {}).get("image_url") or "").strip()
+        avatar_image_url = str((selected_persona or {}).get("image_url") or "").strip()
         product_image_url = str(reference or "").strip()
+        avatar_name = str((selected_persona or {}).get("name") or "the selected avatar").strip()
+
+        if not avatar_image_url:
+            raise RuntimeError("Avatar Product requires a selected avatar image for single-shot generation.")
+
+        if not product_image_url:
+            raise RuntimeError("Avatar Product requires an uploaded product image for single-shot generation.")
 
         kling_prompt = f"""
-        Use Image 1 as Chitrakala, the same Indian female creator.
-        Use Image 2 as the product reference.
+        Use Image 1 STRICTLY as {avatar_name}, the same selected creator/avatar.
+        Do NOT change face, identity, skin tone, hairstyle, age, or facial structure.
 
-        Create a realistic vertical UGC ad video for Instagram Reels.
-        Chitrakala speaks naturally to camera while holding or presenting {product_name}.
-        Keep her face consistent, natural expression, realistic hand grip, product label clearly visible.
-        Phone-shot creator style, Indian home/creator setup, soft natural lighting.
+        Use Image 2 STRICTLY as the same product reference.
+        Do NOT change the product shape, color, packaging, label, material, or design.
+
+        Create a realistic vertical single-shot UGC product ad for Instagram Reels.
+        The selected creator speaks naturally to camera while holding, presenting, or naturally using {product_name}.
+
+        The creator and product must remain visible together as much as possible.
+        Keep the face consistent, product clearly visible, natural hand grip, realistic mouth movement, and creator-style phone-shot framing.
+
+        Style:
+        - Indian creator-style UGC ad
+        - realistic indoor home or creator setup
+        - soft natural lighting
+        - handheld but stable mobile camera feel
+        - natural expression
+        - no glossy TV commercial look
 
         Spoken ad script:
         {narration_script}
 
-        Avoid distorted face, extra fingers, warped product label, blurry product, fake plastic skin, exaggerated AI glow.
+        Avoid:
+        - identity drift
+        - face mutation
+        - new characters
+        - extra people
+        - extra fingers
+        - warped hands
+        - blurry product
+        - unreadable product label
+        - product changing into another object
+        - fake plastic skin
+        - exaggerated AI glow
         """.strip()
 
         logger.info("chitrakala_kling_started", extra={"video_id": video_id})
@@ -1942,12 +2065,54 @@ def run_recipe_pipeline(
             or 5
         )
 
-        kling_duration = str(min(10, max(3, requested_duration)))
+        kling_duration = "10" if requested_duration >= 10 else "5"
+
+        quality_profile = str(
+            normalized_inputs.get("quality_profile")
+            or normalized_inputs.get("qualityProfile")
+            or "standard"
+        ).strip().lower()
+
+        requested_video_model_key = str(
+            normalized_inputs.get("video_model_key")
+            or normalized_inputs.get("model_key")
+            or normalized_inputs.get("modelKey")
+            or ""
+        ).strip()
+
+        if quality_profile == "premium":
+            resolved_video_model_key = "kling_o3_reference"
+        elif quality_profile == "high":
+            resolved_video_model_key = "kling_v16_pro_elements"
+        else:
+            resolved_video_model_key = "kling_v16_standard_elements"
+
+        # Cost guard: never allow O3 unless premium
+        if requested_video_model_key == "kling_o3_reference" and quality_profile != "premium":
+            requested_video_model_key = ""
+
+        if requested_video_model_key in {
+            "kling_v16_standard_elements",
+            "kling_v16_pro_elements",
+            "kling_o3_reference",
+        }:
+            resolved_video_model_key = requested_video_model_key
+
+        logger.info(
+            "chitrakala_model_selection",
+            extra={
+                "video_id": video_id,
+                "requested_video_model_key": requested_video_model_key,
+                "normalized_inputs_model_key": normalized_inputs.get("video_model_key"),
+            },
+        )
+
         kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
             prompt=kling_prompt,
-            image_urls=[url for url in [chitrakala_image_url, product_image_url] if url],
+            image_urls=[url for url in [avatar_image_url, product_image_url] if url],
             aspect_ratio="9:16",
             duration=kling_duration,
+            model_key=resolved_video_model_key,
         )
 
         logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})
@@ -1965,39 +2130,53 @@ def run_recipe_pipeline(
 
         _merge_pipeline_metadata(
             video_id=video_id,
-            pipeline_version="chitrakala_v1",
-            chitrakala_single_output=True,
-            chitrakala_kling_video_url=kling_video_url,
-            chitrakala_tts_audio_url=audio_url,
-            chitrakala_lipsync_video_url=final_video_url,
-            chitrakala_kling_meta=kling_meta,
-            chitrakala_tts_meta=tts_meta,
-            chitrakala_lipsync_meta=lipsync_meta,
+            pipeline_version="avatar_product_single_shot_v1",
+            avatar_product_single_output=True,
+            avatar_product_kling_video_url=kling_video_url,
+            avatar_product_tts_audio_url=audio_url,
+            avatar_product_lipsync_video_url=final_video_url,
+            avatar_product_kling_meta=kling_meta,
+            avatar_product_tts_meta=tts_meta,
+            avatar_product_lipsync_meta=lipsync_meta,
             completion_notification={
-                "title": "Your Chitrakala product ad is ready.",
-                "message": "Your Chitrakala product ad is ready.",
+                "title": "Your avatar product ad is ready.",
+                "message": "Your avatar product ad is ready.",
+            },
+        )
+
+        _persist_final_video(
+            video_id=video_id,
+            user_id=user_id,
+            video_url=final_video_url,
+            metadata={
+                "recipe_id": recipe.id,
+                "pipeline_version": "avatar_product_single_shot_v1",
+                "render_mode": "single_ad",
+                "final_video_url": final_video_url,
+                "kling_video_url": kling_video_url,
+                "tts_audio_url": audio_url,
             },
         )
 
         _append_pipeline_event(
             video_id=video_id,
-            kind="chitrakala_completed",
-            title="Chitrakala ad ready",
-            detail="Your Chitrakala product ad is ready.",
+            kind="avatar_product_completed",
+            title="Avatar product ad ready",
+            detail="Your avatar product ad is ready.",
         )
 
         return RecipePipelineResult(
             provider="fal",
-            model_key="fal-ai/kling-video/o1/reference-to-video + fal-ai/gemini-3.1-flash-tts + fal-ai/sync-lipsync/v2",
+            model_key=f"{resolved_video_model_key} + fal-ai/gemini-3.1-flash-tts + fal-ai/sync-lipsync/v2",
             video_url=final_video_url,
             metadata={
                 "recipe_id": recipe.id,
-                "pipeline_version": "chitrakala_v1",
+                "pipeline_version": "avatar_product_single_shot_v1",
                 "reference_asset": str(reference),
                 "scene_count": 1,
                 "narration_script": narration_script,
-                "requested_model": "kling_reference_to_video",
-                "resolved_model": "kling_reference_to_video",
+                "requested_model": requested_video_model_key,
+                "resolved_model": resolved_video_model_key,
                 "render_mode": "single_ad",
                 "fallback_used": False,
             },
@@ -2253,7 +2432,35 @@ def run_recipe_pipeline(
         if compiled_scene_prompts:
             compiled_scene_prompts[-1]["compiled_prompt"] = clip_prompt
 
-        scene_model_key = str(scene.get("model_key") or recipe.generation_defaults.model_key)
+        
+        quality_profile = str(normalized_inputs.get("quality_profile") or "standard").lower()
+
+        duration = int(scene.get("duration_seconds") or 5)
+
+        scene_model_key = _smart_model_router(
+            scene=scene,
+            recipe_id=recipe.id,
+            quality_profile=quality_profile,
+            is_chitrakala=_is_chitrakala_v1(
+                recipe_id=recipe.id,
+                initial_pipeline_metadata=initial_pipeline_metadata,
+            ),
+        )
+
+
+        # 🚨 COST GUARD: Prevent accidental O3 usage
+        if quality_profile != "premium" and scene_model_key == "kling_o3_reference":
+            scene_model_key = "kling_v16_standard_elements"
+
+
+        # 🔥 duration-based override (cost control)
+        if duration >= 10:
+            if quality_profile == "premium":
+                scene_model_key = "kling_o3_reference"
+            else:
+                scene_model_key = "kling_v16_standard_elements"
+
+
         if _is_chitrakala_v1(recipe_id=recipe.id, initial_pipeline_metadata=initial_pipeline_metadata):
             scene_stage = str(scene.get("stage_name") or "").strip().lower()
             logger.info(
@@ -2269,80 +2476,56 @@ def run_recipe_pipeline(
 
 
 
-        clip_result = generation.generate_video_clip(
-            ClipGenerationRequest(
-                video_id=f'{video_id}-{scene["scene_id"]}',
-                prompt=clip_prompt,
-                model_key=scene_model_key,
-                aspect_ratio=effective_aspect_ratio,
-                resolution=recipe.generation_defaults.resolution,
-                duration_seconds=int(scene["duration_seconds"]),
-                reference_image_url=reference,
-                voice=effective_voice,
-                language=effective_language,
-                captions_enabled=effective_captions_enabled,
-                narration_enabled=False,
-                caption_style=recipe.generation_defaults.caption_style,
-                render_lane=str(scene.get("render_lane") or "cinematic_broll"),
-                persona_id=(selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
-                persona_image_url=(selected_persona or {}).get("image_url") if scene.get("use_locked_persona") else None,
-                persona_provider=(selected_persona or {}).get("provider") if scene.get("use_locked_persona") else None,
-                persona_avatar_id=(selected_persona or {}).get("provider_avatar_id") if scene.get("use_locked_persona") else None,
-                persona_voice_id=(selected_persona or {}).get("provider_voice_id") if scene.get("use_locked_persona") else None,
-                voice_provider=(selected_persona or {}).get("voice_provider") if scene.get("use_locked_persona") else None,
-                talking_audio_url=talking_audio_url,
-                talking_audio_duration_seconds=talking_audio_duration_seconds,
-                timing_map=talking_timing_map,
-                speaking_segments=speaking_segments,
-                audio_reactive_timeline=audio_reactive_timeline,
-                talking_behavior_prompt=(selected_persona or {}).get("default_behavior_prompt") if scene.get("use_locked_persona") else None,
-                talking_script=talking_script or None,
-                metadata={
-                    "recipe_id": recipe.id,
-                    "scene_id": scene["scene_id"],
-                    "scene_index": index,
-                    "scene_beats": scene.get("beat_names"),
-                    "scene_role": scene.get("scene_role"),
-                    "stage_name": scene.get("stage_name"),
-                    "talking_mode": scene.get("talking_mode"),
-                    "render_lane": scene.get("render_lane"),
-                    "persona_required": scene.get("persona_required"),
-                    "generator_model_family": scene.get("generator_model_family"),
-                    "render_mode": scene.get("render_mode"),
-                    "continuity_priority": scene.get("continuity_priority"),
-                    "stitch_safe_ending": scene.get("stitch_safe_ending"),
-                    "selected_persona_id": (selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
-                    "selected_persona_source": (selected_persona or {}).get("persona_source") if scene.get("use_locked_persona") else None,
-                    "supports_avatar_video_generation": (selected_persona or {}).get("supports_avatar_video_generation") if scene.get("use_locked_persona") else None,
-                    "persona_avatar_type": (selected_persona or {}).get("avatar_type") if scene.get("use_locked_persona") else None,
-                    "persona_provider_api_version": (selected_persona or {}).get("provider_api_version") if scene.get("use_locked_persona") else None,
-                    "must_show_elements": list(scene.get("must_show_elements") or []),
-                    "talking_audio_duration_seconds": talking_audio_duration_seconds,
-                    "timing_map": talking_timing_map,
-                    "speaking_segments": speaking_segments,
-                    "audio_reactive_timeline": audio_reactive_timeline,
-                    "behavior_timeline": behavior_timeline,
-                    "requested_voice": requested_voice,
-                    "requested_language": requested_language,
-                    "avatar_synced_voice": avatar_synced_voice,
-                    "avatar_synced_language": avatar_synced_language,
-                    "resolved_talking_voice": (selected_persona or {}).get("default_voice_id") if scene.get("use_locked_persona") else effective_voice,
-                    "resolved_talking_language": (selected_persona or {}).get("language_preference") if scene.get("use_locked_persona") else effective_language,
-                    "require_talking_avatar": bool(
-                        (
-                            requested_avatar_id
-                            and use_avatar_for_talking_scenes
-                            and scene.get("use_locked_persona")
-                        )
-                        or (
-                            recipe.id == "avatar_product"
-                            and scene.get("render_lane") == "talking_avatar"
-                            and scene.get("use_locked_persona")
-                        )
-                    ),
-                },
-            )
+        clip_request = ClipGenerationRequest(
+            video_id=f'{video_id}-{scene["scene_id"]}',
+            prompt=clip_prompt,
+            model_key=scene_model_key,
+            aspect_ratio=effective_aspect_ratio,
+            resolution=recipe.generation_defaults.resolution,
+            duration_seconds=int(scene["duration_seconds"]),
+            reference_image_url=(
+                reference if scene_model_key != "kling_o3_reference" else None
+            ),
+            voice=effective_voice,
+            language=effective_language,
+            captions_enabled=effective_captions_enabled,
+            narration_enabled=False,
+            render_lane=str(scene.get("render_lane") or "cinematic_broll"),
+            persona_id=(selected_persona or {}).get("persona_id") if scene.get("use_locked_persona") else None,
+            persona_image_url=(selected_persona or {}).get("image_url") if scene.get("use_locked_persona") else None,
+            persona_provider=(selected_persona or {}).get("provider") if scene.get("use_locked_persona") else None,
+            persona_avatar_id=(selected_persona or {}).get("provider_avatar_id") if scene.get("use_locked_persona") else None,
+            persona_voice_id=(selected_persona or {}).get("provider_voice_id") if scene.get("use_locked_persona") else None,
+            voice_provider=(selected_persona or {}).get("voice_provider") if scene.get("use_locked_persona") else None,
+            talking_audio_url=talking_audio_url,
+            talking_audio_duration_seconds=talking_audio_duration_seconds,
+            timing_map=talking_timing_map,
+            speaking_segments=speaking_segments,
+            audio_reactive_timeline=audio_reactive_timeline,
+            talking_behavior_prompt=(selected_persona or {}).get("default_behavior_prompt") if scene.get("use_locked_persona") else None,
+            talking_script=talking_script or None,
+            metadata={}
         )
+
+        clip_result = None
+
+        # ---------------------------------------
+        # 🔁 AUTO RETRY LOGIC
+        # ---------------------------------------
+        clip_result = None
+
+        for attempt in range(2):
+            clip_result = generation.generate_video_clip(clip_request)
+
+            if not _should_retry_scene(clip_result.metadata):
+                break
+
+            clip_request = clip_request.copy(update={
+                "model_key": "kling_o3_reference",
+                "prompt": clip_prompt + "\n\nFix face, hands, identity consistency."
+            })
+
+
         if recipe.id in LTX_RECIPE_IDS:
             logger.info(
                 "ltx_benchmark_scene_render_completed",
@@ -2688,10 +2871,27 @@ def run_recipe_pipeline(
         fallback_used=False,
     )
 
+
+
+    final_url = f"/static/renders/{Path(final_path).name}"
+
+    _persist_final_video(
+        video_id=video_id,
+        user_id=user_id,
+        video_url=final_url,
+        metadata={
+            "recipe_id": recipe.id,
+            "recipe_label": recipe.catalog.title,
+            "scene_count": len(scenes),
+            "render_mode": "scene_stitch" if recipe.id in LTX_RECIPE_IDS else "multi_shot",
+            "final_output_path": str(final_path),
+        },
+    )
+
     return RecipePipelineResult(
         provider="recipe_pipeline",
         model_key=recipe.generation_defaults.model_key,
-        video_url=f"/static/renders/{Path(final_path).name}",
+        video_url=final_url,
         metadata={
             "recipe_id": recipe.id,
             "reference_asset": str(reference),
@@ -2710,6 +2910,8 @@ def run_recipe_pipeline(
             "fallback_used": False,
         },
     )
+
+
 
 
 def _prepare_reference_asset(

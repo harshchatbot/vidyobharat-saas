@@ -665,6 +665,12 @@ class CreditService:
             'fal-ai/ltx-2.3/image-to-video': 'fal_ltx23_i2v',
             'sora_2': 'sora2',
             'ltx_benchmark': 'ltx',
+            'kling_v16_standard_i2v': 'kling_v16_standard_i2v',
+            'kling_v16_pro_i2v': 'kling_v16_pro_i2v',
+            'kling_o1_reference': 'kling_o1_reference',
+            'kling_standard': 'kling_v16_standard_i2v',
+            'kling_pro': 'kling_v16_pro_i2v',
+            'kling_o1': 'kling_o1_reference',
         }
 
         if key in runtime_aliases:

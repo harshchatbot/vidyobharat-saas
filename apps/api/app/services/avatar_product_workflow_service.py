@@ -107,6 +107,13 @@ class AvatarProductWorkflowService:
             merged_source.get("productName"),
             self._extract_product_name(message),
         )
+        # 🔥 FIX: boost category detection using product_name
+        if product_name and detected_category == self.default_category:
+            detected_category, detected_subcategory, confidence = self.detect_category(
+                message=product_name,
+                explicit_category=None,
+                explicit_subcategory=None,
+            )
         brand_name = self._first_nonempty(
             merged_source.get("brand_name"),
             merged_source.get("brandName"),
@@ -331,6 +338,8 @@ class AvatarProductWorkflowService:
 
         return None
 
+
+
     def _advanced_controls_summary(self, fields: AvatarProductWorkflowFields) -> dict[str, Any]:
         return {
             "campaign_objective": fields.campaign_objective,
@@ -490,3 +499,36 @@ class AvatarProductWorkflowService:
             if cleaned:
                 return cleaned
         return ""
+
+
+    def autofill_with_ai(
+        self,
+        *,
+        text: str,
+        image_url: str | None = None,
+        current_controls: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        text = self._clean_text(text)
+
+        # 🔥 Simple V1 logic (no Qwen yet — safe & fast)
+        product_name = self._extract_product_name(text) or text
+
+        return {
+            "product_name": product_name,
+            "product_category": "fashion_accessories" if "bag" in text.lower() else "generic_ecommerce",
+            "target_audience": "women looking for stylish and unique accessories",
+            "main_benefit": "adds a stylish handmade touch to everyday outfits",
+            "desired_feeling": "stylish",
+            "must_show_elements": [
+                "crochet texture",
+                "premium handmade finish",
+                "stylish design",
+            ],
+            "must_avoid_elements": [
+                "cheap plastic look",
+                "blurry texture",
+                "distorted shape",
+            ],
+            "brand_tone": "creator_casual",
+            "cta_preference": "Shop now",
+        }

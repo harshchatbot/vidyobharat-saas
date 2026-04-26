@@ -725,8 +725,25 @@ export const api = {
       return result;
     });
   },
-  getVideo(videoId: string, userId: string) {
-    return request<Video>(`/videos/${videoId}`, {}, { userId, cache: 'no-store' });
+  autofillAvatarProduct: async (payload: {
+    text: string;
+    image_url?: string;
+    advanced_controls?: Record<string, unknown>;
+  }) => {
+    const res = await fetch(`${API_URL}/api/recipes/avatar-product/autofill`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || 'Autofill API failed');
+    }
+  
+    return res.json();
   },
   deleteVideo(videoId: string, userId: string) {
     return request<{ asset_id: string; deleted: boolean }>(`/videos/${videoId}`, {
@@ -1138,4 +1155,6 @@ export const api = {
       method: 'GET',
     }, { userId, cache: 'no-store', timeoutMs: 30_000 });
   },
+
+  
 };

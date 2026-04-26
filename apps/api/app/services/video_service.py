@@ -81,8 +81,21 @@ class VideoService:
             duration_seconds = None
         if audio_sample_rate_hz not in {8000, 22050, 48000}:
             raise ValueError('audio_sample_rate_hz must be one of 8000|22050|48000')
-        if selected_model and selected_model not in {'sora2', 'fal_ltx23_i2v', 'ltx'}:
-            raise ValueError('selected_model must be one of sora2|fal_ltx23_i2v|ltx')
+        allowed_video_models = {
+            'sora2',
+            'fal_ltx23_i2v',
+            'ltx',
+            'kling_v16_standard_i2v',
+            'kling_v16_pro_i2v',
+            'kling_o1_reference',
+        }
+
+        if selected_model and selected_model not in allowed_video_models:
+            raise ValueError(
+                'selected_model must be one of '
+                'sora2|fal_ltx23_i2v|ltx|'
+                'kling_v16_standard_i2v|kling_v16_pro_i2v|kling_o1_reference'
+            )
         normalized_reference_images = [value.strip() for value in (reference_images or []) if value.strip()]
 
         image_urls: list[str] = []

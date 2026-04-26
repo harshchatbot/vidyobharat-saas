@@ -53,7 +53,7 @@ import CreateCustomAvatarModal from '@/components/avatars/CreateCustomAvatarModa
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
-type QualityProfile = 'fast_social' | 'creator_quality' | 'creator_pro' | 'premium';
+type QualityProfile = 'fast_social' | 'creator_quality' | 'standard' | 'high_quality' | 'premium';
 type RecipeTab = 'all' | 'ads' | 'explainer' | 'inspiration_photos';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
 type RecentEntryKind = 'recipe' | 'draft';
@@ -185,9 +185,9 @@ function buildChitrakalaAvatarSelection(): AvatarSelection {
     genderPresentation: 'female',
     preferredLanguage: 'en-IN',
     preferredVoice: 'Priya',
-    languageTags: ['en-IN'],
+    languageTags: ['en-IN', 'hi-IN', 'pa-IN'],
     styleLabel: 'Fixed spokesperson',
-    languageInfo: 'English (India)',
+    languageInfo: 'English (India) · Hindi · Punjabi',
     voiceInfo: 'Priya voice selected',
     previewVideoUrl: CHITRAKALA_PREVIEW_VIDEO_URL || null,
     description: `${CHITRAKALA_NAME} is the fixed spokesperson for this V1 avatar product workflow.`,
@@ -202,6 +202,7 @@ type AssetPickerState = {
   left: number;
   top: number;
 };
+
 
 type AvatarProductAdvancedControls = {
   campaign_objective: string;
@@ -221,7 +222,11 @@ type AvatarProductAdvancedControls = {
   script_mode: 'auto_generate' | 'improve_draft' | 'use_exact_script';
   provided_script: string;
   strict_script_lock: boolean;
+
+  video_model_key: string;
+  quality_profile: string;
 };
+
 
 type ActiveRecipeSource =
   | { kind: 'recipe'; recipe: RecipeCard }
@@ -235,8 +240,9 @@ const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
   { key: 'creator_quality', label: 'Creator Quality', helper: 'More polished image output for standout posts' },
-  { key: 'creator_pro', label: 'Standard', helper: 'Balanced video quality for faster creator-first iterations' },
-  { key: 'premium', label: 'High Quality', helper: 'Higher-end visual output for important hero content' },
+  { key: 'standard', label: 'Standard', helper: 'Affordable UGC quality for avatar/product videos' },
+  { key: 'high_quality', label: 'High Quality', helper: 'Better motion and product clarity' },
+  { key: 'premium', label: 'Premium', helper: 'Highest reference consistency. Costs more credits.' },
 ];
 
 const VIDEO_MODEL_FALLBACK = buildVideoModelsForApiFallback();
@@ -289,7 +295,7 @@ const RECENT_STORAGE_KEY = 'rangmanch:create-hub:recent:v1';
 const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = {
   campaign_objective: '',
   platform: 'Instagram Reels',
-  duration_seconds: '15',
+  duration_seconds: '5',
   brand_tone: 'creator_casual',
   cta_preference: '',
   language: 'English',
@@ -304,6 +310,9 @@ const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = 
   script_mode: 'auto_generate',
   provided_script: '',
   strict_script_lock: false,
+
+  video_model_key: 'kling_v16_standard_i2v',
+  quality_profile: 'standard',
 };
 const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTemplate }> = [
   { key: 'all', label: 'All' },
@@ -573,11 +582,21 @@ function pickImageMode(idea: string, profile: QualityProfile): 'fast_social' | '
   return 'fast_social';
 }
 
-function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: 'fal_ltx23_i2v' | 'sora2'; resolution: '720p' } {
+function resolveVideoModelKeyFromQuality(profile: QualityProfile): string {
+  if (profile === 'premium') return 'kling_o1_reference';
+  if (profile === 'high_quality') return 'kling_v16_pro_i2v';
+  return 'kling_v16_standard_i2v';
+}
+
+
+function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: string; resolution: '720p' } {
   if (profile === 'premium') {
-    return { lane: 'premium', modelKey: 'sora2', resolution: '720p' };
+    return { lane: 'premium', modelKey: 'kling_o1_reference', resolution: '720p' };
   }
-  return { lane: 'creator_pro', modelKey: 'fal_ltx23_i2v', resolution: '720p' };
+  if (profile === 'high_quality') {
+    return { lane: 'premium', modelKey: 'kling_v16_pro_i2v', resolution: '720p' };
+  }
+  return { lane: 'creator_pro', modelKey: 'kling_v16_standard_i2v', resolution: '720p' };
 }
 
 function getVideoModelLane(modelKey: string): 'creator_pro' | 'premium' {
@@ -600,7 +619,9 @@ function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' {
 }
 
 function profileForVideoModel(modelKey: string): QualityProfile {
-  return getVideoModelLane(modelKey) === 'premium' ? 'premium' : 'creator_pro';
+  if (modelKey === 'kling_o1_reference') return 'premium';
+  if (modelKey === 'kling_v16_pro_i2v') return 'high_quality';
+  return 'standard';
 }
 
 function profileForImageModel(modelKey: string): QualityProfile {
@@ -713,6 +734,22 @@ function resolveAvatarPreferredLanguage(avatar: AvatarSelection): string | null 
   if (explicitLanguage) return explicitLanguage;
   const firstTag = (avatar.languageTags || []).find((tag) => typeof tag === 'string' && tag.trim().length > 0);
   return firstTag ? firstTag.trim() : null;
+}
+
+function getSupportedLanguagesForAvatarProduct(
+  languageOptions: TTSLanguageOption[],
+  selectedAvatar: AvatarSelection | null,
+): TTSLanguageOption[] {
+  const avatarLanguageTags = selectedAvatar?.languageTags || [];
+
+  if (avatarLanguageTags.length > 0) {
+    const allowedCodes = new Set(avatarLanguageTags);
+    const filtered = languageOptions.filter((option) => allowedCodes.has(option.code));
+    if (filtered.length > 0) return filtered;
+  }
+
+  const v1AllowedCodes = new Set(['en-IN', 'hi-IN']);
+  return languageOptions.filter((option) => v1AllowedCodes.has(option.code));
 }
 
 function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
@@ -1110,7 +1147,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [showCreateCustomAvatarModal, setShowCreateCustomAvatarModal] = useState(false);
   const [idea, setIdea] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
-  const [qualityProfile, setQualityProfile] = useState<QualityProfile>('creator_pro');
+  const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [durationPreference, setDurationPreference] = useState<'auto' | '5' | '10'>('auto');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -1123,7 +1160,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('fal_ltx23_i2v');
+  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling_v16_standard_i2v');
   const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
   const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
@@ -1176,7 +1213,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () =>
       mode === 'image'
         ? QUALITY_PROFILES.filter((item) => item.key === 'fast_social' || item.key === 'creator_quality')
-        : QUALITY_PROFILES.filter((item) => item.key === 'creator_pro' || item.key === 'premium'),
+        : QUALITY_PROFILES.filter((item) => item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium'),
     [mode],
   );
 
@@ -1236,20 +1273,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setLatestGeneratedImage((current) =>
         current && current.id === image.id
           ? {
-              ...current,
-              is_public_inspiration: result.is_public_inspiration,
-              moderation_status: result.moderation_status,
-              inspiration_score: result.inspiration_score,
-              like_count: result.like_count,
-            }
+            ...current,
+            is_public_inspiration: result.is_public_inspiration,
+            moderation_status: result.moderation_status,
+            inspiration_score: result.inspiration_score,
+            like_count: result.like_count,
+          }
           : current,
       );
       show({
         title: result.is_public_inspiration ? 'Published to inspiration' : 'Removed from inspiration',
         message: result.is_public_inspiration
           ? (result.moderation_status !== 'approved'
-              ? 'Submitted for review. It will appear after moderation.'
-              : 'Your image is now visible in inspiration.')
+            ? 'Submitted for review. It will appear after moderation.'
+            : 'Your image is now visible in inspiration.')
           : 'Your image is no longer visible in inspiration.',
         variant: 'success',
       });
@@ -1390,10 +1427,36 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
     [activeRecipeSource],
   );
+
   const isAvatarProductRecipe = useMemo(
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product',
     [activeRecipeSource],
   );
+
+  const visibleLanguageOptions = useMemo(
+    () =>
+      isAvatarProductRecipe
+        ? getSupportedLanguagesForAvatarProduct(languageOptions, selectedAvatar)
+        : languageOptions,
+    [isAvatarProductRecipe, languageOptions, selectedAvatar],
+  );
+  useEffect(() => {
+    if (!isAvatarProductRecipe) return;
+    if (!visibleLanguageOptions.length) return;
+
+    const isCurrentSupported = visibleLanguageOptions.some((option) => option.code === selectedLanguage);
+    if (!isCurrentSupported) {
+      const fallbackLanguage =
+        visibleLanguageOptions.find((option) => option.code === 'en-IN') ||
+        visibleLanguageOptions[0];
+
+      setSelectedLanguage(fallbackLanguage.code);
+      setAvatarProductAdvancedControls((current) => ({
+        ...current,
+        language: fallbackLanguage.code,
+      }));
+    }
+  }, [isAvatarProductRecipe, selectedLanguage, visibleLanguageOptions]);
   const isAvatarDrivenRecipe = isUgcAdRecipe || isAvatarProductRecipe;
   const avatarProductInlineAnswerPatch = useMemo(
     () => buildAvatarProductInlineAnswerPatch(avatarProductInlineAnswer, avatarProductAssist),
@@ -1757,7 +1820,42 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         languageOptions.find((option) => option.label.toLowerCase().includes(String(defaults.language).toLowerCase()));
       setSelectedLanguage(matchingLanguage?.code ?? String(defaults.language));
     }
-    setQualityProfile(nextMode === 'video' ? (defaults.quality === 'high' ? 'premium' : 'creator_pro') : 'creator_quality');
+    setQualityProfile(
+      nextMode === 'video'
+        ? defaults.quality === 'high'
+          ? 'high_quality'
+          : 'standard'
+        : 'creator_quality',
+    );
+    if (recipe.id === 'avatar_product') {
+      const defaultQuality: QualityProfile = 'standard';
+      const defaultModelKey = resolveVideoModelKeyFromQuality(defaultQuality);
+      const fixedAvatar = buildChitrakalaAvatarSelection();
+
+      setQualityProfile(defaultQuality);
+      setSelectedVideoModelKey(defaultModelKey);
+      setModelPanelKey(defaultModelKey);
+      setDurationPreference('5');
+      setCaptionsEnabled(false);
+      setVoiceEnabled(true);
+      setSelectedAvatar(fixedAvatar);
+      setSelectedVoice(fixedAvatar.preferredVoice || 'Priya');
+
+      const defaultLanguage =
+        fixedAvatar.preferredLanguage && languageOptions.some((option) => option.code === fixedAvatar.preferredLanguage)
+          ? fixedAvatar.preferredLanguage
+          : 'en-IN';
+
+      setSelectedLanguage(defaultLanguage);
+
+      setAvatarProductAdvancedControls((current) => ({
+        ...current,
+        duration_seconds: '5',
+        video_model_key: defaultModelKey,
+        quality_profile: defaultQuality,
+        language: defaultLanguage,
+      }));
+    }
     setActiveRecipeLabel(recipe.title);
     setActiveRecipeSource({ kind: 'recipe', recipe });
     setSelectedRecipe(null);
@@ -1769,7 +1867,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       prompt: recipe.description,
       mode: 'video',
       aspectRatio: ((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16'),
-      qualityProfile: nextMode === 'video' ? (defaults.quality === 'high' ? 'premium' : 'creator_pro') : 'creator_quality',
+      qualityProfile: nextMode === 'video' ? (defaults.quality === 'high' ? 'high_quality' : 'standard') : 'creator_quality',
       recipeId: recipe.id,
       createdAt: Date.now(),
     });
@@ -1810,6 +1908,43 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       variant: 'success',
     });
   };
+
+
+  const handleAvatarProductAutofill = async () => {
+    const promptText = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
+  
+    const imageSlot = recipeComposer?.slots.find(
+      (slot) => slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image',
+    );
+  
+    const imageUrl =
+      (imageSlot ? recipeSlotAssets[imageSlot.id]?.assetUrl : null) ||
+      (imageSlot ? recipeComposer?.values[imageSlot.id] : '') ||
+      '';
+  
+    try {
+      const result = await api.autofillAvatarProduct({
+        text: promptText,
+        image_url: imageUrl,
+        advanced_controls: avatarProductAdvancedControls,
+      });
+  
+      setAvatarProductAdvancedControls((current) => ({
+        ...current,
+        ...result,
+      }));
+  
+      show({
+        title: 'Advanced controls filled',
+        message: 'AI suggestions have been added. You can edit them before generating.',
+        variant: 'success',
+      });
+    } catch (error) {
+      const message = getFriendlyErrorMessage(error) || 'Could not auto-fill product details.';
+      show({ title: 'Auto-fill failed', message, variant: 'error' });
+    }
+  };
+
 
   const launchUnifiedFlow = async () => {
     const recipePrompt = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
@@ -2092,6 +2227,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }
   };
 
+
   const currentProfileLabel = QUALITY_PROFILES.find((item) => item.key === qualityProfile)?.label ?? 'Creator Pro';
   const currentModelLabel = mode === 'video' ? shortVideoModelLabel(displayedVideoModel) : displayedImageModel?.label ?? 'Image';
   const currentModelHint = mode === 'video' ? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
@@ -2170,11 +2306,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             return (
                               <div
                                 key={avatar.personaId}
-                                className={`rounded-[20px] border p-3 transition ${
-                                  isFocused
-                                    ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.08)]'
-                                    : 'border-[hsl(var(--color-border)/0.74)] bg-[hsl(var(--color-surface)/0.72)]'
-                                }`}
+                                className={`rounded-[20px] border p-3 transition ${isFocused
+                                  ? 'border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.08)]'
+                                  : 'border-[hsl(var(--color-border)/0.74)] bg-[hsl(var(--color-surface)/0.72)]'
+                                  }`}
                               >
                                 <button
                                   type="button"
@@ -2216,11 +2351,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                   <button
                                     type="button"
                                     onClick={() => applyAvatarSelection(avatar)}
-                                    className={`flex-1 rounded-[12px] px-3 py-2 text-xs font-semibold transition ${
-                                      isSelected
-                                        ? 'bg-[hsl(var(--color-accent)/0.18)] text-text'
-                                        : 'bg-[linear-gradient(to_right,#818cf8,#a855f7)] text-white hover:opacity-95'
-                                    }`}
+                                    className={`flex-1 rounded-[12px] px-3 py-2 text-xs font-semibold transition ${isSelected
+                                      ? 'bg-[hsl(var(--color-accent)/0.18)] text-text'
+                                      : 'bg-[linear-gradient(to_right,#818cf8,#a855f7)] text-white hover:opacity-95'
+                                      }`}
                                   >
                                     {isSelected ? 'Selected' : 'Use this avatar'}
                                   </button>
@@ -2496,6 +2630,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             })}
                         </div>
                       ) : null}
+
+                      
+
+
                       <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.55)] px-3 py-3 dark:border-white/8 dark:bg-black/20">
                         <button
                           type="button"
@@ -2696,11 +2834,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         setOpenMenu((current) => (current === 'model' ? null : 'model'));
                       }}
                       disabled={recipeSettingsLocked}
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
-                        recipeSettingsLocked
-                          ? 'cursor-not-allowed border-white/6 bg-white/[0.03] text-white/38'
-                          : 'border-white/10 bg-white/[0.04] text-white/74 hover:bg-white/[0.08] hover:text-white'
-                      }`}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${recipeSettingsLocked
+                        ? 'cursor-not-allowed border-white/6 bg-white/[0.03] text-white/38'
+                        : 'border-white/10 bg-white/[0.04] text-white/74 hover:bg-white/[0.08] hover:text-white'
+                        }`}
                     >
                       <Box className="h-4 w-4 text-white/60" />
                       {currentModelLabel}
@@ -2920,33 +3057,51 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">More</p>
                           <p className="mt-1 text-xs text-muted">
-                            {recipeSettingsLocked
-                              ? 'Recipe mode keeps quality, duration, captions, and narration locked to the workflow defaults.'
-                              : 'Tune clip length, narration, and captions without leaving the composer.'}
+                            {isAvatarProductRecipe
+                              ? 'Tune quality and duration. Voice is matched to the selected avatar.'
+                              : recipeSettingsLocked
+                                ? 'Recipe mode keeps settings locked to the workflow defaults.'
+                                : 'Tune clip length, narration, and captions without leaving the composer.'}
                           </p>
                         </div>
                         <div className="rounded-[14px] px-3 py-2">
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
-                            {recipeSettingsLocked ? <span className="text-[11px] text-muted">Recipe controlled</span> : null}
+                            {recipeSettingsLocked && !isAvatarProductRecipe ? (
+                              <span className="text-[11px] text-muted">Recipe controlled</span>
+                            ) : null}
                           </div>
                           <div className="mt-2 grid gap-1">
                             {visibleQualityProfiles.map((option) => {
-                              const disabled = recipeSettingsLocked;
+                              const disabled = recipeSettingsLocked && !isAvatarProductRecipe;
                               return (
                                 <button
                                   key={option.key}
                                   type="button"
                                   onClick={() => {
                                     if (disabled) return;
+
                                     setQualityProfile(option.key);
+
+                                    if (mode === 'video') {
+                                      const modelKey = resolveVideoModelKeyFromQuality(option.key);
+                                      setSelectedVideoModelKey(modelKey);
+                                      setModelPanelKey(modelKey);
+
+                                      if (isAvatarProductRecipe) {
+                                        setAvatarProductAdvancedControls((current) => ({
+                                          ...current,
+                                          video_model_key: modelKey,
+                                          quality_profile: option.key,
+                                        }));
+                                      }
+                                    }
                                   }}
                                   disabled={disabled}
-                                  className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${
-                                    qualityProfile === option.key
-                                      ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
-                                      : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
-                                  } ${disabled ? 'cursor-not-allowed opacity-65' : ''}`}
+                                  className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${qualityProfile === option.key
+                                    ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                    : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                    } ${disabled ? 'cursor-not-allowed opacity-65' : ''}`}
                                 >
                                   <span>
                                     <span className="block font-semibold text-inherit">{option.label}</span>
@@ -2963,16 +3118,36 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
                             {recipeSettingsLocked ? (
                               <span className="text-[11px] text-muted">
-                                {isAvatarProductRecipe ? '15s · recipe controlled' : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
+                                {isAvatarProductRecipe ? `${durationPreference === '10' ? '10s' : '5s'} · selectable` : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
                               </span>
                             ) : null}
                           </div>
                           {recipeSettingsLocked && isAvatarProductRecipe ? (
-                            <div className="mt-2 rounded-[12px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.52)] px-3 py-3 text-sm text-text">
-                              <p className="font-semibold">15 second recipe flow</p>
-                              <p className="mt-1 text-xs leading-5 text-muted">
-                                Avatar Product currently renders as three planned scenes of about 5 seconds each. The generic 5s and 10s options do not override this recipe.
-                              </p>
+                            <div className="mt-2 grid gap-1">
+                              {(['5', '10'] as const).map((option) => (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    setDurationPreference(option);
+                                    if (isAvatarProductRecipe) {
+                                      setAvatarProductAdvancedControls((current) => ({
+                                        ...current,
+                                        duration_seconds: option,
+                                      }));
+                                    }
+                                  }}
+                                  className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option
+                                    ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                    : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                    }`}
+                                >
+                                  <span>{option}s</span>
+                                  {durationPreference === option ? (
+                                    <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                                  ) : null}
+                                </button>
+                              ))}
                             </div>
                           ) : (
                             <div className="mt-2 grid gap-1">
@@ -2985,9 +3160,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                     setDurationPreference(option);
                                   }}
                                   disabled={recipeSettingsLocked}
-                                  className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${
-                                    durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
-                                  } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
+                                  className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                    } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
                                 >
                                   <span>{option === 'auto' ? 'Auto' : `${option}s`}</span>
                                   {durationPreference === option ? <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
@@ -3009,14 +3183,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               setVoiceEnabled((current) => !current);
                             }}
                             disabled={recipeSettingsLocked}
-                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${
-                              recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
-                            }`}
+                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
+                              }`}
                           >
                             <span>Voice</span>
                             <span className="text-xs text-muted">{voiceEnabled ? 'On' : 'Off'}</span>
                           </button>
-                          {voiceEnabled && languageOptions.length > 0 ? (
+                          {voiceEnabled && visibleLanguageOptions.length > 0 ? (
                             <label className="mt-2 block px-2">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Language</span>
                               <select
@@ -3024,7 +3197,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                 onChange={(event) => setSelectedLanguage(event.target.value)}
                                 className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
                               >
-                                {languageOptions.map((option) => (
+                                {visibleLanguageOptions.map((option) => (
                                   <option key={`${option.code}-${option.label}`} value={option.code}>
                                     {option.label}
                                   </option>
@@ -3051,7 +3224,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           ) : null}
                           {avatarVoiceLocked ? (
                             <p className="mt-2 px-2 text-xs leading-5 text-muted">
-                              Voice is locked to the selected AI avatar for avatar-driven talking scenes.
+                              Voice is matched to the selected AI avatar. You can choose a supported language for the same avatar workflow.
                             </p>
                           ) : null}
                           {voiceEnabled ? (
@@ -3074,24 +3247,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
                             </div>
                           ) : null}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (recipeSettingsLocked) return;
-                              setCaptionsEnabled((current) => !current);
-                            }}
-                            disabled={recipeSettingsLocked}
-                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${
-                              recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
-                            }`}
-                          >
-                            <span>Captions</span>
-                            <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>
-                          </button>
-                          {recipeSettingsLocked && isAvatarProductRecipe ? (
-                            <p className="mt-2 px-2 text-xs leading-5 text-muted">
-                              Captions stay on for this recipe and are applied from the final script during export. They are readable burned-in overlays, not word-level synced subtitles yet.
-                            </p>
+                          {!isAvatarProductRecipe ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (recipeSettingsLocked) return;
+                                setCaptionsEnabled((current) => !current);
+                              }}
+                              disabled={recipeSettingsLocked}
+                              className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
+                                }`}
+                            >
+                              <span>Captions</span>
+                              <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>
+                            </button>
                           ) : null}
                         </div>
                       </div>
@@ -3120,10 +3289,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
             <div className="pt-0.5 text-[12px] text-muted">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/6 bg-transparent px-2.5 py-1 text-white/58">
-                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                  {activeRecipeLabel ? 'Start with a recipe. Refine it in the composer.' : `${currentModelLabel} · ${currentModelHint || currentProfileLabel}. You can refine this later.`}
-                </span>
                 {latestGeneratedImage ? (
                   <button
                     type="button"
@@ -3144,20 +3309,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     Remove reference
                   </button>
                 ) : null}
-                <Link
-                  href="/library"
-                  onClick={(event) => navigateWithComposerLoader(event, '/library', 'library')}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  Open library
-                </Link>
-                <Link
-                  href="/projects"
-                  onClick={(event) => navigateWithComposerLoader(event, '/projects', 'projects')}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-white/78 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  Open projects
-                </Link>
               </div>
             </div>
 
@@ -3552,18 +3703,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             current.map((avatar) =>
               avatar.id === preview.avatarId
                 ? {
-                    ...avatar,
-                    preview_video_url: preview.videoUrl,
-                  }
+                  ...avatar,
+                  preview_video_url: preview.videoUrl,
+                }
                 : avatar,
             ),
           );
           setSelectedAvatar((current) =>
             current?.personaId === preview.avatarId
               ? {
-                  ...current,
-                  previewVideoUrl: preview.videoUrl,
-                }
+                ...current,
+                previewVideoUrl: preview.videoUrl,
+              }
               : current,
           );
           show({

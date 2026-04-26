@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Resp
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
 from sqlalchemy.orm import Session
 
+from typing import Any
+
 from app.workers.avatar_tasks import process_avatar_preview_job
 from firebase_admin import firestore
 from app.api.deps import get_user_id, require_admin_user
@@ -1416,6 +1418,19 @@ def assist_avatar_product_recipe(
         missingTier3=workflow.missing_tier_3,
         advancedControlsSummary=workflow.advanced_controls_summary,
     )
+
+
+
+@router.post("/api/recipes/avatar-product/autofill")
+async def autofill_avatar_product(payload: dict[str, Any]):
+    service = AvatarProductWorkflowService()
+
+    return service.autofill_with_ai(
+        text=str(payload.get("text") or payload.get("message") or ""),
+        image_url=str(payload.get("image_url") or ""),
+        current_controls=dict(payload.get("advanced_controls") or {}),
+    )
+
 
 
 @router.post('/ai/video/generate', response_model=AIVideoGenerateResponse)

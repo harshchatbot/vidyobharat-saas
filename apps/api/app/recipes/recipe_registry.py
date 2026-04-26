@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import re
 from typing import Any
+import random
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,10 @@ class RecipeConfig:
 
 def _sample_video(path: str) -> str:
     return f'/videos/samples/{path}'
+
+
+def _random_sample_video(*filenames: str) -> str:
+    return _sample_video(random.choice(filenames))
 
 
 def _story_scene_strategy() -> RecipeSceneStrategy:
@@ -268,9 +273,9 @@ RECIPES: dict[str, RecipeConfig] = {
             short_label='Fun',
             preview_video_url=_sample_video('creator111.mp4'),
             preview_image_url=_sample_video('creator-launch.png'),
-            active=True,
-            featured=True,
-            trending=True,
+            active=False,
+            featured=False,
+            trending=False,
             order=10,
             tags=('all', 'trending', 'entertainment', 'character'),
             composer=RecipeComposerConfig(
@@ -484,9 +489,9 @@ RECIPES: dict[str, RecipeConfig] = {
             short_label='UGC ad',
             preview_video_url=_sample_video('time-echo-explainer.mp4'),
             preview_image_url=_sample_video('creator-launch.png'),
-            active=True,
-            featured=True,
-            trending=True,
+            active=False,
+            featured=False,
+            trending=False,
             order=23,
             tags=('all', 'ads', 'ugc', 'performance', 'creator', 'vertical'),
             composer=RecipeComposerConfig(
@@ -538,7 +543,7 @@ RECIPES: dict[str, RecipeConfig] = {
         'avatar_product': RecipeConfig(
         id='avatar_product',
         type='video',
-        duration_seconds=15,
+        duration_seconds=5,
         input=RecipeInputConfig(image=True, text=True),
         config=RecipeContentConfig(
             style='avatar_led_product_ugc',
@@ -557,14 +562,14 @@ RECIPES: dict[str, RecipeConfig] = {
                 'clear product visibility, smooth scene progression, and a clean CTA ending. '
                 'Avoid TV-commercial polish, abrupt cuts, stock-footage drift, or delayed product reveal.'
             ),
-            seed_prompt='Create a 15 second avatar-led product ad using the uploaded product image and supplied product brief.',
+            seed_prompt='Create a 5 to 10 second avatar-led product ad using the uploaded product image and supplied product brief.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='fal_ltx23_i2v',
+            model_key='kling_v16_standard_i2v',
             aspect_ratio='9:16',
-            resolution='1080p',
+            resolution='720p',
             quality='standard',
-            captions_enabled=True,
+            captions_enabled=False,
             narration_enabled=True,
             voice='Shubh',
             language='English',
@@ -572,12 +577,15 @@ RECIPES: dict[str, RecipeConfig] = {
         ),
         scene_strategy=_avatar_product_scene_strategy(),
         catalog=RecipeCatalogConfig(
-            title='Avatar Product',
-            slug='avatar-product',
-            description='Upload a product image and turn it into a creator-style avatar ad with hook, showcase, and CTA.',
-            short_label='Avatar ad',
-            preview_video_url=_sample_video('advertisement.mp4'),
-            preview_image_url=_sample_video('creator-launch.png'),
+            title='Product Ad with AI Creator',
+            slug='product-ad-creator',
+            description='Indian AI creator promotes your product',
+            short_label='Creator ad',
+            preview_video_url=_random_sample_video(
+                'ugc_ad_preview.mp4',
+                'ugc_avtaar_product_ad.mp4',
+            ),
+            preview_image_url=_sample_video('ugc_avtaar_product_ad.mp4'),
             active=True,
             featured=True,
             trending=True,
@@ -1137,7 +1145,26 @@ def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) 
 def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     defaults = recipe.generation_defaults
-    resolved_model_key = defaults.model_key
+
+    requested_model_key = str(
+        normalized_inputs.get('video_model_key')
+        or normalized_inputs.get('model_key')
+        or normalized_inputs.get('modelKey')
+        or ''
+    ).strip()
+    resolved_model_key = requested_model_key or defaults.model_key
+
+    requested_duration = str(normalized_inputs.get('duration_seconds') or '').strip()
+    duration_seconds = int(requested_duration) if requested_duration.isdigit() else recipe.duration_seconds
+
+    if recipe.id == 'avatar_product' and duration_seconds not in {5, 10}:
+        duration_seconds = 5
+
+    resolved_quality = str(
+        normalized_inputs.get('quality_profile')
+        or normalized_inputs.get('quality')
+        or defaults.quality
+    ).strip() or defaults.quality
     image_urls: list[str] = []
     if recipe.input.image and normalized_inputs.get('image'):
         image_urls.append(str(normalized_inputs['image']))
@@ -1155,9 +1182,9 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
         'language': defaults.language,
         'aspectRatio': defaults.aspect_ratio,
         'resolution': defaults.resolution,
-        'quality': defaults.quality,
+        'quality': resolved_quality,
         'durationMode': 'custom',
-        'durationSeconds': recipe.duration_seconds,
+        'durationSeconds': duration_seconds,
         'voice': defaults.voice,
         'imageUrls': image_urls,
         'music': {

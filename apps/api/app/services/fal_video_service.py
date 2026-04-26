@@ -55,31 +55,68 @@ class FalVideoService:
 
 
     def generate_kling_reference_video(
-            self,
-            *,
-            prompt: str,
-            image_urls: list[str],
-            aspect_ratio: str = '9:16',
-            duration: str = '5',
-        ) -> tuple[str, dict[str, Any]]:
-            if not self._effective_fal_api_key:
-                raise RuntimeError('FAL_API_KEY is not configured for Kling reference-to-video generation')
+        self,
+        *,
+        prompt: str,
+        image_urls: list[str],
+        aspect_ratio: str = '9:16',
+        duration: str = '5',
+        model_key: str = 'kling_v16_standard_elements',  # ✅ default fixed
+    ) -> tuple[str, dict[str, Any]]:
 
-            endpoint = str(getattr(self.settings, 'fal_kling_reference_to_video_endpoint', '') or 'fal-ai/kling-video/o1/reference-to-video')
-            payload = {
-                'prompt': prompt,
-                'image_urls': image_urls,
-                'aspect_ratio': aspect_ratio,
-                'duration': duration,
-            }
+        if not self._effective_fal_api_key:
+            raise RuntimeError('FAL_API_KEY is not configured for Kling video generation')
 
-            return self._submit_fal_media_job(
-                endpoint=endpoint,
-                payload=payload,
-                model_key='fal_kling_reference_to_video',
-                log_prefix='chitrakala_kling',
-                extract_kind='video',
-            )
+        endpoint = self._endpoint_for(model_key)
+
+        payload: dict[str, Any] = {
+            'prompt': prompt,
+            'aspect_ratio': aspect_ratio,
+            'duration': duration,
+        }
+
+        # ---------------------------------------
+        # ✅ CORRECT PAYLOAD PER MODEL TYPE
+        # ---------------------------------------
+
+        # 🔴 PREMIUM → O3 (reference-to-video)
+        if model_key == 'kling_o3_reference':
+            if not image_urls:
+                raise ValueError('kling_o3_reference requires at least one image')
+            payload['image_urls'] = image_urls  # multi-reference
+
+        # 🟡 HIGH QUALITY / 🟢 STANDARD → ELEMENTS
+        elif model_key in ['kling_v16_standard_elements', 'kling_v16_pro_elements']:
+            if not image_urls:
+                raise ValueError('elements models require image inputs')
+            payload['input_image_urls'] = image_urls  # IMPORTANT: NOT image_url
+
+        # ⚠️ FALLBACK (should rarely hit)
+        else:
+            if image_urls:
+                payload['image_url'] = image_urls[-1]
+
+        # ---------------------------------------
+        # DEBUG LOG (VERY USEFUL)
+        # ---------------------------------------
+        logger.info(
+            'kling_payload_debug',
+            extra={
+                'model_key': model_key,
+                'endpoint': endpoint,
+                'image_count': len(image_urls),
+                'payload_keys': list(payload.keys()),
+            },
+        )
+
+        return self._submit_fal_media_job(
+            endpoint=endpoint,
+            payload=payload,
+            model_key=model_key,
+            log_prefix='chitrakala_kling',
+            extract_kind='video',
+        )
+
 
     def generate_gemini_flash_tts(
             self,
@@ -911,13 +948,26 @@ class FalVideoService:
             return candidates
         return [('POST', normalized), ('GET', normalized)]
 
+
+
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
             'fal_ltx23_i2v': 'fal-ai/ltx-2.3/image-to-video',
+
+            # ✅ STANDARD
+            'kling_v16_standard_elements': 'fal-ai/kling-video/v1.6/standard/elements',
+
+            # ✅ HIGH QUALITY
+            'kling_v16_pro_elements': 'fal-ai/kling-video/v1.6/pro/elements',
+
+            # ✅ PREMIUM
+            'kling_o3_reference': 'fal-ai/kling-video/o3/standard/reference-to-video',
         }
+
         endpoint = mapping.get(model_key)
         if not endpoint:
             raise ValueError(f'Unsupported fal model key: {model_key}')
+
         return endpoint
 
 
