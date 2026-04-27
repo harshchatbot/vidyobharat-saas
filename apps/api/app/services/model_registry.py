@@ -111,6 +111,7 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         ),
     ),
 
+
     # ✅ HIGH QUALITY (PRO ELEMENTS)
     'kling_v16_pro_elements': GenerationModelDefinition(
         model_key='kling_v16_pro_elements',
@@ -145,6 +146,7 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         fallback_model_key='kling_v16_pro_elements',
         aliases=(
             'kling_o3',
+            'kling_o3_standard_reference',
             'fal-ai/kling-video/o3/standard/reference-to-video',
         ),
     ),

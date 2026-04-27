@@ -168,6 +168,11 @@ class AIVideoCreateService:
             'kling_v16_standard_i2v': self.generate_with_fal,
             'kling_v16_pro_i2v': self.generate_with_fal,
             'kling_o1_reference': self.generate_with_fal,
+
+            # Kling O3 reference routes used by Avatar Product.
+            'kling_o3_reference': self.generate_with_fal,
+            'kling_o3_standard_reference': self.generate_with_fal,
+            'kling_o3_pro_reference': self.generate_with_fal,
         }
 
         self.model_router = SmartModelRouter()
@@ -179,6 +184,11 @@ class AIVideoCreateService:
             'kling_v16_standard_i2v': [],
             'kling_v16_pro_i2v': ['kling_v16_standard_i2v'],
             'kling_o1_reference': ['kling_v16_pro_i2v'],
+
+            # O3 routes can fall back to older Kling routes if needed.
+            'kling_o3_reference': ['kling_v16_pro_i2v', 'kling_v16_standard_i2v'],
+            'kling_o3_standard_reference': ['kling_o3_reference', 'kling_v16_standard_i2v'],
+            'kling_o3_pro_reference': ['kling_o3_reference', 'kling_v16_pro_i2v'],
         }
 
     def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:

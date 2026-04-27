@@ -67,9 +67,9 @@ class HFQwenEnhancerService:
     Hugging Face Qwen-backed enhancer for avatar product ads.
 
     Purpose:
-    - Convert a messy product brief into a clean 3-scene creator-style ad structure
-    - Keep spoken lines short for avatar scenes
-    - Produce a more grounded showcase visual prompt for image-to-video generation
+    - Convert a messy product brief into a clean creator-style ad script
+    - Keep spoken lines short enough for the requested duration
+    - Produce grounded visual guidance without forcing every product into skincare/bottle behavior
     """
 
     BANNED_PHRASES = {
@@ -124,6 +124,9 @@ class HFQwenEnhancerService:
                 "model": self.model,
                 "provider": self.provider,
                 "product_name": enhancer_input.product_name,
+                "product_type": enhancer_input.product_type,
+                "product_subcategory": enhancer_input.product_subcategory,
+                "duration_seconds": enhancer_input.duration_seconds,
             },
         )
 
@@ -134,7 +137,7 @@ class HFQwenEnhancerService:
                 "avatar product ad pipelines."
             ),
             user_prompt=prompt,
-            temperature=0.3,
+            temperature=0.25,
             max_tokens=700,
         )
         if not raw_content:
@@ -167,6 +170,89 @@ class HFQwenEnhancerService:
         )
 
         return result
+
+    def _script_limits_for_duration(self, duration_seconds: int | None) -> dict[str, int]:
+        try:
+            duration = int(duration_seconds or 15)
+        except (TypeError, ValueError):
+            duration = 15
+
+        # Conservative spoken-word budgets so TTS/lipsync does not feel rushed or cut.
+        if duration <= 5:
+            return {"hook_words": 4, "showcase_words": 6, "cta_words": 4, "total_words": 14}
+        if duration <= 10:
+            return {"hook_words": 7, "showcase_words": 10, "cta_words": 7, "total_words": 24}
+        if duration <= 15:
+            return {"hook_words": 9, "showcase_words": 14, "cta_words": 9, "total_words": 32}
+        return {"hook_words": 14, "showcase_words": 24, "cta_words": 16, "total_words": 54}
+
+    def _product_identity_text(self, enhancer_input: HFQwenEnhancerInput) -> str:
+        parts = [
+            f"Product name: {self._clean_text(enhancer_input.product_name)}" if self._clean_text(enhancer_input.product_name) else "",
+            f"Product type/category: {self._clean_text(enhancer_input.product_type)}" if self._clean_text(enhancer_input.product_type) else "",
+            f"Product subcategory: {self._clean_text(enhancer_input.product_subcategory)}" if self._clean_text(enhancer_input.product_subcategory) else "",
+            f"Category details: {self._clean_text(enhancer_input.category_specific_details)}" if self._clean_text(enhancer_input.category_specific_details) else "",
+            f"Must show: {', '.join(enhancer_input.must_show_elements or [])}" if enhancer_input.must_show_elements else "",
+            f"Must avoid: {', '.join(enhancer_input.must_avoid_elements or [])}" if enhancer_input.must_avoid_elements else "",
+        ]
+        return "\n".join(part for part in parts if part).strip()
+
+    def _product_identity_blob(self, enhancer_input: HFQwenEnhancerInput) -> str:
+        return " ".join(
+            [
+                self._clean_text(enhancer_input.product_name),
+                self._clean_text(enhancer_input.product_type),
+                self._clean_text(enhancer_input.product_subcategory),
+                self._clean_text(enhancer_input.category_specific_details),
+                " ".join(enhancer_input.must_show_elements or []),
+            ]
+        ).lower()
+
+    def _category_script_guidance(self, enhancer_input: HFQwenEnhancerInput) -> str:
+        identity = self._product_identity_blob(enhancer_input)
+        must_show = ", ".join(enhancer_input.must_show_elements or []) or "use the most important visible product detail"
+        must_avoid = ", ".join(enhancer_input.must_avoid_elements or []) or "do not invent unrelated product types"
+
+        if any(word in identity for word in ["earring", "earrings"]):
+            return (
+                "This product is earrings. Write only about earrings. Do not mention watches, skincare, serum, "
+                "bottle, cream, necklace, pendant, ring, bracelet, or any other product type. Good angles: "
+                "elegant sparkle, styling, gifting, lightweight look. "
+                f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+            )
+
+        if any(word in identity for word in ["jewellery", "jewelry", "necklace", "pendant", "ring", "bracelet"]):
+            return (
+                "This product is jewellery. Use the exact jewellery type if provided. Do not change it into watches, "
+                "skincare, bottles, clothes, or another jewellery type. Good angles: elegance, shine, gifting, outfit styling. "
+                f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+            )
+
+        if any(word in identity for word in ["skincare", "skin care", "serum", "cream", "lotion", "beauty", "cosmetic"]):
+            return (
+                "This product is skincare/beauty. Write about feel, texture, routine, glow, or ease of use. "
+                "Do not overclaim medical results. "
+                f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+            )
+
+        if any(word in identity for word in ["shoe", "shoes", "sneaker", "sneakers", "footwear", "sandal"]):
+            return (
+                "This product is footwear. Write about comfort, style, everyday use, or gifting. Do not mention skincare, "
+                "jewellery, bottle, or watch. "
+                f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+            )
+
+        if any(word in identity for word in ["crochet", "handmade", "handcrafted", "decor", "craft", "handicraft"]):
+            return (
+                "This product is handmade/craft/decor. Write about handmade feel, uniqueness, texture, gifting, or home decor. "
+                "Do not mention skincare, bottle, watch, or jewellery unless the product is jewellery. "
+                f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+            )
+
+        return (
+            "Use the exact product type from the input. Do not invent another product category. "
+            f"Must show/mention only if natural: {must_show}. Must avoid: {must_avoid}."
+        )
 
     def _build_v4_prompt(self, enhancer_input: HFQwenEnhancerInput) -> str:
         payload = {
@@ -212,12 +298,15 @@ class HFQwenEnhancerService:
         showcase_focus = str(category_rules.get("showcase_focus") or "").strip()
         cta_style = str(category_rules.get("cta_style") or "").strip()
         visual_requirements = [str(item).strip() for item in (category_rules.get("visual_requirements") or []) if str(item).strip()]
+        script_limits = self._script_limits_for_duration(enhancer_input.duration_seconds)
+        product_identity_text = self._product_identity_text(enhancer_input)
+        category_script_guidance = self._category_script_guidance(enhancer_input)
 
         return f"""
 You are an ad-script enhancer for short AI-generated avatar product ads.
 
-Your job is to create a believable 3-scene creator-style product ad.
-The output must sound like a real person casually recommending a product, not like ad copy.
+Your job is to create a believable creator-style product ad that fits the requested duration.
+The output must sound like a real person casually recommending the exact product, not like ad copy.
 
 Return only valid JSON.
 No markdown.
@@ -229,9 +318,13 @@ Scene structure:
 - Scene 3 = Soft CTA
 
 Hard speech rules:
-- hook_line: 10 words or fewer
-- showcase_line: 12 words or fewer
-- cta_line: 10 words or fewer
+- Target duration: {enhancer_input.duration_seconds or 15} seconds
+- Total spoken script must be {script_limits["total_words"]} words or fewer
+- hook_line: {script_limits["hook_words"]} words or fewer
+- showcase_line: {script_limits["showcase_words"]} words or fewer
+- cta_line: {script_limits["cta_words"]} words or fewer
+- If duration is 5 seconds, write one very short complete thought split across hook/showcase/CTA
+- No sentence should feel unfinished or abruptly cut
 - Simple spoken English
 - Casual, natural, believable
 - One idea per line
@@ -246,8 +339,10 @@ Do not use phrases like:
 
 Style guidance:
 - Hook should feel like a relatable personal observation
-- Showcase should mention feel, texture, absorption, or use experience
+- Showcase should mention the most believable benefit for the exact product type
 - CTA should feel soft, like a suggestion
+- Never invent a different product category
+- Use the exact product name/type/subcategory from the input
 
 Script handling rules:
 - script_mode=auto_generate: create fresh hook/showcase/CTA from the brief
@@ -258,30 +353,42 @@ Bad examples:
 - "Hey there, glowing skin lovers!"
 - "This serum gives you that natural glow, trust me!"
 - "Get your bottle now!"
+- "Chiming watches add a touch of elegance."
+- "It feels smooth, fits ly."
 
 Good examples:
-- "My skin felt dull, so I tried this."
-- "It feels light and absorbs really fast."
-- "Worth trying if you want a simple glow."
+- "These earrings add instant elegance."
+- "Soft sparkle, easy to style."
+- "Check them out."
+- "This feels light for daily use."
+- "Worth trying if it fits your routine."
 
 Visual prompt rules for showcase_visual_prompt:
 - One sentence only
 - Must be written for realistic image-to-video generation
 - Must include:
   1. avatar/creator identity
-  2. product bottle clearly visible
-  3. actual application or handling action
+  2. exact product type clearly visible
+  3. product held or presented naturally
   4. camera framing
   5. lighting source
-  6. realistic skin/product texture
+  6. realistic product texture/material
   7. natural motion
+- Do not force skincare application unless the product is skincare
+- Do not force bottle visibility unless the product is a bottle/tube/jar
 - Do not write it like marketing copy
 
 Notes rules:
 - Notes must be short downstream production instructions
 - Be specific and actionable
-- Mention bottle visibility, texture, motion, realism, or framing
-- Avoid vague phrases like "natural skincare experience"
+- Mention visibility, texture/material, motion, lighting, realism, or framing
+- Avoid vague phrases like "natural product experience"
+
+Product identity lock:
+{product_identity_text or "No product identity provided."}
+
+Category/script guidance:
+{category_script_guidance}
 
 Category context:
 - {category_context or "No extra category context provided."}
@@ -342,22 +449,28 @@ Input:
         parsed: dict[str, Any],
         enhancer_input: HFQwenEnhancerInput,
     ) -> dict[str, Any]:
-        hook_line = self._normalize_spoken_line(parsed.get("hook_line", ""), max_words=10)
-        showcase_line = self._normalize_spoken_line(parsed.get("showcase_line", ""), max_words=12)
-        cta_line = self._normalize_spoken_line(parsed.get("cta_line", ""), max_words=10)
-        showcase_visual_prompt = self._normalize_visual_prompt(
-            parsed.get("showcase_visual_prompt", ""),
-            enhancer_input,
-        )
+        script_limits = self._script_limits_for_duration(enhancer_input.duration_seconds)
+
+        hook_line = self._normalize_spoken_line(parsed.get("hook_line", ""), max_words=script_limits["hook_words"])
+        showcase_line = self._normalize_spoken_line(parsed.get("showcase_line", ""), max_words=script_limits["showcase_words"])
+        cta_line = self._normalize_spoken_line(parsed.get("cta_line", ""), max_words=script_limits["cta_words"])
+        showcase_visual_prompt = self._normalize_visual_prompt(parsed.get("showcase_visual_prompt", ""), enhancer_input)
         voice_tone = self._normalize_voice_tone(parsed.get("voice_tone"), enhancer_input)
         notes = self._normalize_notes(parsed.get("notes"), enhancer_input)
 
-        if not hook_line:
-            hook_line = "My skin felt dull, so I tried this."
-        if not showcase_line:
-            showcase_line = "It feels light and absorbs really fast."
-        if not cta_line:
-            cta_line = "Worth trying if you want a simple glow."
+        if not hook_line or not showcase_line or not cta_line:
+            fallback = self._fallback_avatar_product_script(enhancer_input)
+            hook_line = hook_line or fallback["hook_line"]
+            showcase_line = showcase_line or fallback["showcase_line"]
+            cta_line = cta_line or fallback["cta_line"]
+
+        combined_script = " ".join([hook_line, showcase_line, cta_line]).strip()
+        if self._script_has_product_conflict(combined_script, enhancer_input) or self._script_has_broken_language(combined_script):
+            fallback = self._fallback_avatar_product_script(enhancer_input)
+            hook_line = fallback["hook_line"]
+            showcase_line = fallback["showcase_line"]
+            cta_line = fallback["cta_line"]
+
         if not showcase_visual_prompt:
             showcase_visual_prompt = self._build_fallback_visual_prompt(enhancer_input)
 
@@ -369,6 +482,119 @@ Input:
             "voice_tone": voice_tone,
             "notes": notes,
         }
+
+    def _fallback_avatar_product_script(self, enhancer_input: HFQwenEnhancerInput) -> dict[str, str]:
+        product_name = self._clean_text(enhancer_input.product_name) or "this product"
+        identity = self._product_identity_blob(enhancer_input)
+        duration = int(enhancer_input.duration_seconds or 15)
+
+        if "earring" in identity:
+            if duration <= 5:
+                return {
+                    "hook_line": "These earrings add instant elegance.",
+                    "showcase_line": "Soft sparkle, easy to style.",
+                    "cta_line": "Check them out.",
+                }
+            return {
+                "hook_line": "These earrings feel instantly elegant.",
+                "showcase_line": "They add soft sparkle without looking too loud.",
+                "cta_line": "Check them out if you love earrings.",
+            }
+
+        if "jewellery" in identity or "jewelry" in identity:
+            if duration <= 5:
+                return {
+                    "hook_line": f"{product_name} feels elegant.",
+                    "showcase_line": "Soft shine, easy to style.",
+                    "cta_line": "Check it out.",
+                }
+            return {
+                "hook_line": f"{product_name} feels instantly elegant.",
+                "showcase_line": "It adds a soft styling touch.",
+                "cta_line": "Check it out if you love jewellery.",
+            }
+
+        if any(word in identity for word in ["skincare", "skin care", "serum", "cream", "beauty"]):
+            if duration <= 5:
+                return {
+                    "hook_line": "Skin feeling dull?",
+                    "showcase_line": f"{product_name} feels light.",
+                    "cta_line": "Try it once.",
+                }
+            return {
+                "hook_line": "My skin felt dull today.",
+                "showcase_line": f"{product_name} feels light and easy.",
+                "cta_line": "Try it for a simple glow.",
+            }
+
+        if any(word in identity for word in ["shoe", "shoes", "sneaker", "footwear", "sandal"]):
+            if duration <= 5:
+                return {
+                    "hook_line": "These look easy to wear.",
+                    "showcase_line": "Clean style, everyday comfort.",
+                    "cta_line": "Check them out.",
+                }
+            return {
+                "hook_line": "These caught my attention today.",
+                "showcase_line": "They look easy to style and comfortable.",
+                "cta_line": "Check them out if this fits you.",
+            }
+
+        if any(word in identity for word in ["crochet", "handmade", "handcrafted", "decor", "craft", "handicraft"]):
+            if duration <= 5:
+                return {
+                    "hook_line": "This feels beautifully handmade.",
+                    "showcase_line": "Unique texture, thoughtful detail.",
+                    "cta_line": "Check it out.",
+                }
+            return {
+                "hook_line": "This handmade piece feels special.",
+                "showcase_line": "The texture and details make it stand out.",
+                "cta_line": "Check it out if you love handmade things.",
+            }
+
+        if duration <= 5:
+            return {
+                "hook_line": f"{product_name} caught my attention.",
+                "showcase_line": "Simple, useful, easy to like.",
+                "cta_line": "Check it out.",
+            }
+        return {
+            "hook_line": f"{product_name} caught my attention.",
+            "showcase_line": "It feels useful, simple, and easy to like.",
+            "cta_line": "Check it out if this fits your style.",
+        }
+
+    def _script_has_product_conflict(self, text: str, enhancer_input: HFQwenEnhancerInput) -> bool:
+        combined = self._clean_text(text).lower()
+        identity = self._product_identity_blob(enhancer_input)
+
+        if "earring" in identity:
+            conflicts = ["watch", "watches", "skincare", "serum", "bottle", "cream", "necklace", "pendant", "bracelet", "ring"]
+            return any(word in combined for word in conflicts)
+        if "jewellery" in identity or "jewelry" in identity:
+            conflicts = ["watch", "watches", "skincare", "serum", "bottle", "cream"]
+            return any(word in combined for word in conflicts)
+        if any(word in identity for word in ["skincare", "skin care", "serum", "cream", "beauty"]):
+            conflicts = ["earring", "earrings", "necklace", "pendant", "watch", "watches", "shoe", "shoes"]
+            return any(word in combined for word in conflicts)
+        if any(word in identity for word in ["shoe", "shoes", "sneaker", "footwear"]):
+            conflicts = ["serum", "bottle", "cream", "earring", "earrings", "necklace", "watch", "watches"]
+            return any(word in combined for word in conflicts)
+        return False
+
+    def _script_has_broken_language(self, text: str) -> bool:
+        cleaned = self._clean_text(text)
+        if not cleaned:
+            return True
+        broken_patterns = [
+            r"\blooks\s+[.?!]",
+            r"\bfits\s+ly\b",
+            r"\bfeels\s+[.?!]",
+            r"\bchiming watches\b",
+            r"\b\w+\s+ly[.?!]?\b",
+        ]
+        return any(re.search(pattern, cleaned, flags=re.IGNORECASE) for pattern in broken_patterns)
 
     def _split_script_preserving_wording(self, script: str) -> list[str]:
         cleaned = " ".join(str(script or "").split()).strip()
@@ -391,14 +617,9 @@ Input:
 
     def _normalize_spoken_line(self, value: Any, max_words: int) -> str:
         text = self._clean_text(value)
-
         if not text:
             return ""
 
-        lowered = text.lower()
-        for phrase in self.BANNED_PHRASES:
-            lowered = lowered.replace(phrase, "")
-        # reapply cleanup to original text through phrase removal
         for phrase in self.BANNED_PHRASES:
             pattern = re.compile(re.escape(phrase), flags=re.IGNORECASE)
             text = pattern.sub("", text)
@@ -412,34 +633,35 @@ Input:
             text = " ".join(words[:max_words]).rstrip(",.;:- ")
 
         text = text.strip()
-
-        # Avoid trailing orphan punctuation
         text = re.sub(r"[\s,;:]+$", "", text)
-
         return text
 
-    def _normalize_visual_prompt(
-        self,
-        value: Any,
-        enhancer_input: HFQwenEnhancerInput,
-    ) -> str:
+    def _normalize_visual_prompt(self, value: Any, enhancer_input: HFQwenEnhancerInput) -> str:
         text = self._clean_text(value)
         if not text:
             return self._build_fallback_visual_prompt(enhancer_input)
 
         lower = text.lower()
+        identity = self._product_identity_blob(enhancer_input)
+        is_bottle_like = any(word in identity for word in ["skincare", "skin care", "serum", "cream", "lotion", "bottle", "tube", "jar"])
 
         must_add = []
         if "close-up" not in lower and "medium close-up" not in lower and "medium shot" not in lower:
             must_add.append("medium close-up")
-        if "natural light" not in lower and "soft natural" not in lower and "daylight" not in lower:
+        if "natural light" not in lower and "soft natural" not in lower and "daylight" not in lower and "soft indoor" not in lower:
             must_add.append("soft natural light")
         if "realistic" not in lower:
-            must_add.append("realistic skin texture")
-        if "bottle" not in lower and "product" not in lower and enhancer_input.product_name:
-            must_add.append("product bottle clearly visible")
-        if not any(word in lower for word in ["applying", "holding", "dispensing", "using"]):
-            must_add.append("gently applying the product")
+            must_add.append("realistic product texture")
+        if "product" not in lower and enhancer_input.product_name:
+            if is_bottle_like:
+                must_add.append("product packaging clearly visible")
+            else:
+                must_add.append(f"{enhancer_input.product_name} clearly visible")
+        if not any(word in lower for word in ["holding", "presenting", "showing", "applying", "dispensing", "using"]):
+            if is_bottle_like:
+                must_add.append("holding the product near the face")
+            else:
+                must_add.append("holding and presenting the product near the camera")
 
         if must_add:
             text = f"{text.rstrip('.')} , " + ", ".join(must_add)
@@ -447,13 +669,14 @@ Input:
         text = re.sub(r"\s+", " ", text).strip()
         text = text.replace(" , ", ", ")
         text = text.rstrip(" .") + "."
-
         return text
 
     def _normalize_voice_tone(self, value: Any, enhancer_input: HFQwenEnhancerInput) -> str:
         text = self._clean_text(value)
         if text:
             return text
+        if enhancer_input.voice_style:
+            return enhancer_input.voice_style
         if enhancer_input.brand_tone:
             return enhancer_input.brand_tone
         return "Trustworthy, simple, modern"
@@ -469,18 +692,16 @@ Input:
 
         notes = [note for note in notes if len(note.split()) >= 3]
 
-        actionable_keywords = ("visible", "texture", "motion", "light", "framing", "label", "realistic")
-        useful_notes = [
-            note for note in notes if any(keyword in note.lower() for keyword in actionable_keywords)
-        ]
+        actionable_keywords = ("visible", "texture", "material", "motion", "light", "framing", "label", "realistic", "product")
+        useful_notes = [note for note in notes if any(keyword in note.lower() for keyword in actionable_keywords)]
 
         if useful_notes:
             notes = useful_notes
 
         if len(notes) < 2:
             fallback_notes = [
-                "Keep product bottle visible during the showcase shot.",
-                "Show lightweight texture with natural hand movement.",
+                "Keep the exact product clearly visible during the showcase shot.",
+                "Use natural hand movement with realistic product texture and lighting.",
             ]
             for fallback in fallback_notes:
                 if fallback not in notes:
@@ -491,10 +712,19 @@ Input:
     def _build_fallback_visual_prompt(self, enhancer_input: HFQwenEnhancerInput) -> str:
         avatar = enhancer_input.avatar_style or "friendly creator"
         product = enhancer_input.product_name or "product"
+        identity = self._product_identity_blob(enhancer_input)
+
+        if any(word in identity for word in ["skincare", "skin care", "serum", "cream", "lotion", "bottle", "tube", "jar"]):
+            return (
+                f"Medium close-up of a {avatar} holding {product} near the face, "
+                f"product packaging clearly visible, soft natural vanity light, "
+                f"realistic skin and product texture, natural hand motion."
+            )
+
         return (
-            f"Medium close-up of a {avatar} holding the {product} bottle near the face and "
-            f"gently applying it to the cheek, product bottle clearly visible, soft natural "
-            f"bathroom light, realistic skin texture and natural hand motion."
+            f"Medium close-up of a {avatar} holding and presenting {product} near the camera, "
+            f"product clearly visible, soft natural indoor light, realistic product texture, "
+            f"stable creator-style hand motion."
         )
 
     @staticmethod

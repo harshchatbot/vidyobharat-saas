@@ -237,8 +237,11 @@ class AvatarLibraryItemResponse(BaseModel):
 
 
 class AvatarLibraryResponse(BaseModel):
-    preset_avatars: list[AvatarLibraryItemResponse] = Field(default_factory=list)
-    user_avatars: list[AvatarLibraryItemResponse] = Field(default_factory=list)
+    avatars: list[AvatarResponse] = Field(default_factory=list)
+
+    # Temporary backward-compatible fields.
+    preset_avatars: list[AvatarResponse] = Field(default_factory=list)
+    user_avatars: list[AvatarResponse] = Field(default_factory=list)
 
 
 def _canonical_voice_key(value: str | None) -> str:
@@ -1677,10 +1680,23 @@ def create_ai_video(
             if normalized_payload.get('durationSeconds') is not None
             else None
         )
+        
+
+        if recipe.id == "avatar_product":
+            requested_model_key = str(normalized_recipe_inputs.get("video_model_key") or "").strip()
+
+            if requested_model_key == "kling_o3_standard_reference":
+                normalized_recipe_inputs["video_model_key"] = "kling_o3_reference"
+
         provider_safe_model_key = str(normalized_payload['modelKey'])
 
+        if provider_safe_model_key == "kling_o3_standard_reference":
+            provider_safe_model_key = "kling_o3_reference"
+            normalized_payload["modelKey"] = "kling_o3_reference"
+
+
         if recipe and recipe.id == 'ugc_ad' and recipe.scene_strategy.render_scenes:
-            provider_safe_duration_seconds = int(recipe.scene_strategy.render_scenes[0].duration_seconds)
+                    provider_safe_duration_seconds = int(recipe.scene_strategy.render_scenes[0].duration_seconds)
 
         service = AIVideoCreateService(None, settings)
         video = service.create_video(
@@ -3109,16 +3125,20 @@ def generate_custom_avatar_look(
         raise HTTPException(status_code=500, detail='Failed to generate avatar look') from exc
 
 
+
 @router.get('/api/avatars/library', response_model=AvatarLibraryResponse)
 def list_avatar_library(
     refresh_presets: bool = False,
     user_id: str = Depends(get_user_id),
 ):
+    del refresh_presets
+
     try:
-        library = HeygenAvatarService().list_avatar_library(user_id=user_id, refresh_presets=refresh_presets)
+        avatars = AvatarService().list_avatars(user_id=user_id)
         return AvatarLibraryResponse(
-            preset_avatars=[AvatarLibraryItemResponse(**item) for item in library['preset_avatars']],
-            user_avatars=[AvatarLibraryItemResponse(**item) for item in library['user_avatars']],
+            avatars=avatars,
+            preset_avatars=[],
+            user_avatars=[],
         )
     except Exception as exc:
         logger.exception(
@@ -3126,7 +3146,6 @@ def list_avatar_library(
             extra={
                 'request_id': get_request_id(),
                 'user_id': user_id,
-                'refresh_presets': refresh_presets,
                 'error': str(exc),
             },
         )

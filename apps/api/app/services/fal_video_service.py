@@ -34,6 +34,16 @@ class FalVideoService:
         'fal_ltx23_i2v': 1080,
         'fal_infinite_talk': 1800,
         'fal_kling_reference_to_video': 1800,
+
+        # Kling O3 reference models can queue longer than normal short I2V jobs.
+        'kling_o3_standard_reference': 1800,
+        'kling_o3_pro_reference': 1800,
+        'kling_o3_4k_reference': 2400,
+
+        # Legacy/fallback Elements routes.
+        'kling_v16_standard_elements': 1800,
+        'kling_v16_pro_elements': 1800,
+
         'fal_gemini_flash_tts': 600,
         'fal_sync_lipsync_v2': 1200,
     }
@@ -61,7 +71,7 @@ class FalVideoService:
         image_urls: list[str],
         aspect_ratio: str = '9:16',
         duration: str = '5',
-        model_key: str = 'kling_v16_standard_elements',  # ✅ default fixed
+        model_key: str = 'kling_o3_standard_reference',  # ✅ default fixed
     ) -> tuple[str, dict[str, Any]]:
 
         if not self._effective_fal_api_key:
@@ -79,19 +89,35 @@ class FalVideoService:
         # ✅ CORRECT PAYLOAD PER MODEL TYPE
         # ---------------------------------------
 
-        # 🔴 PREMIUM → O3 (reference-to-video)
-        if model_key == 'kling_o3_reference':
+        # 🔴 O3 REFERENCE MODELS
+        # Best for avatar + product reference consistency.
+        if model_key in {
+            'kling_o3_standard_reference',
+            'kling_o3_pro_reference',
+            'kling_o3_4k_reference',
+            # Backward compatibility for any old caller still using this key.
+            'kling_o3_reference',
+        }:
             if not image_urls:
-                raise ValueError('kling_o3_reference requires at least one image')
-            payload['image_urls'] = image_urls  # multi-reference
+                raise ValueError(f'{model_key} requires at least one reference image')
 
-        # 🟡 HIGH QUALITY / 🟢 STANDARD → ELEMENTS
-        elif model_key in ['kling_v16_standard_elements', 'kling_v16_pro_elements']:
+            # O3 reference-to-video expects multi-reference images here.
+            payload['image_urls'] = image_urls
+
+            # We generate voice separately with Gemini/Google TTS and then run Sync LipSync.
+            # So keep Kling native audio off if the endpoint supports this flag.
+            payload['generate_audio'] = False
+
+        # 🟡 LEGACY ELEMENTS MODELS
+        # Keep as fallback/draft only.
+        elif model_key in {'kling_v16_standard_elements', 'kling_v16_pro_elements'}:
             if not image_urls:
                 raise ValueError('elements models require image inputs')
-            payload['input_image_urls'] = image_urls  # IMPORTANT: NOT image_url
 
-        # ⚠️ FALLBACK (should rarely hit)
+            # Elements API uses input_image_urls, not image_urls.
+            payload['input_image_urls'] = image_urls
+
+        # ⚠️ FALLBACK
         else:
             if image_urls:
                 payload['image_url'] = image_urls[-1]
@@ -954,14 +980,18 @@ class FalVideoService:
         mapping = {
             'fal_ltx23_i2v': 'fal-ai/ltx-2.3/image-to-video',
 
-            # ✅ STANDARD
-            'kling_v16_standard_elements': 'fal-ai/kling-video/v1.6/standard/elements',
+            # ✅ O3 REFERENCE MODELS — main avatar product route
+            'kling_o3_standard_reference': 'fal-ai/kling-video/o3/standard/reference-to-video',
+            'kling_o3_pro_reference': 'fal-ai/kling-video/o3/pro/reference-to-video',
+            'kling_o3_4k_reference': 'fal-ai/kling-video/o3/4k/reference-to-video',
 
-            # ✅ HIGH QUALITY
-            'kling_v16_pro_elements': 'fal-ai/kling-video/v1.6/pro/elements',
-
-            # ✅ PREMIUM
+            # Backward compatibility for old key.
+            # Treat old generic O3 key as O3 Standard.
             'kling_o3_reference': 'fal-ai/kling-video/o3/standard/reference-to-video',
+
+            # ✅ LEGACY/FALLBACK ELEMENTS MODELS
+            'kling_v16_standard_elements': 'fal-ai/kling-video/v1.6/standard/elements',
+            'kling_v16_pro_elements': 'fal-ai/kling-video/v1.6/pro/elements',
         }
 
         endpoint = mapping.get(model_key)
@@ -969,7 +999,6 @@ class FalVideoService:
             raise ValueError(f'Unsupported fal model key: {model_key}')
 
         return endpoint
-
 
     def _normalize_candidate_url(self, value: str) -> str:
         if value.startswith('http://') or value.startswith('https://'):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import mimetypes
@@ -668,6 +669,55 @@ def _compose_avatar_product_narration_script(enhancer_result: HFQwenEnhancerResu
     return " ".join(part for part in parts if part).strip()
 
 
+
+def _repair_avatar_product_narration_for_category(
+    script: str,
+    *,
+    product_category_hint: str,
+    product_name: str = "",
+) -> tuple[str, list[str], bool]:
+    category = str(product_category_hint or "").strip().lower()
+    text = str(script or "")
+
+    if not any(word in category for word in ["clothing", "apparel", "fashion", "kurti", "dress", "top", "shirt", "saree", "lehenga"]):
+        return text, [], False
+
+    forbidden_terms = [
+        "handmade earrings",
+        "handmade earring",
+        "earrings",
+        "earring",
+        "jewellery",
+        "jewelry",
+        "necklace",
+        "pendant",
+        "ring",
+        "bracelet",
+        "crochet",
+        "serum",
+        "skincare",
+        "bottle",
+        "gadget",
+        "charger",
+    ]
+
+    found_terms = [term for term in forbidden_terms if term in text.lower()]
+
+    if not found_terms:
+        return text, [], False
+
+    safe_product_name = product_name.strip() or "this kurti"
+
+    repaired = (
+        f"{safe_product_name} is soft, breathable, and perfect for everyday wear. "
+        "Style it for office, college, or casual outings. "
+        f"Check out {safe_product_name} today."
+    )
+
+    return repaired, found_terms, True
+
+
+
 def _apply_avatar_product_enhancer_to_scenes(
     *,
     scenes: list[dict[str, Any]],
@@ -1179,6 +1229,336 @@ def _join_nonempty_text(parts: list[str]) -> str:
     return " ".join(values).strip()
 
 
+
+def _avatar_product_category_hint(normalized_inputs: dict[str, Any], avatar_product_brief: AvatarProductBrief | None) -> str:
+    category = str(
+        normalized_inputs.get("product_category")
+        or normalized_inputs.get("productCategory")
+        or (avatar_product_brief.product_category if avatar_product_brief else "")
+        or ""
+    ).strip().lower()
+
+    subcategory = str(
+        normalized_inputs.get("product_subcategory")
+        or normalized_inputs.get("productSubcategory")
+        or (avatar_product_brief.product_subcategory if avatar_product_brief else "")
+        or ""
+    ).strip().lower()
+
+    product_name = str(
+        normalized_inputs.get("product_name")
+        or normalized_inputs.get("productName")
+        or (avatar_product_brief.product_name if avatar_product_brief else "")
+        or ""
+    ).strip().lower()
+
+    combined = " ".join(part for part in [category, subcategory, product_name] if part).strip()
+
+    if any(term in combined for term in ["cloth", "clothing", "fashion", "apparel", "kurti", "dress", "top", "shirt", "saree", "lehenga"]):
+        return "clothing women kurti" if "kurti" in combined else "clothing apparel"
+
+    if any(term in combined for term in ["earring", "earrings"]):
+        return "jewellery earrings"
+
+    if any(term in combined for term in ["necklace", "pendant"]):
+        return "jewellery pendant necklace"
+
+    if any(term in combined for term in ["jewel", "jewellery", "jewelry", "ring", "bracelet", "bangle"]):
+        return "jewellery"
+
+    if any(term in combined for term in ["skin", "skincare", "beauty", "serum", "cream", "cosmetic", "makeup"]):
+        return "beauty skincare"
+
+    if any(term in combined for term in ["food", "beverage", "drink", "snack", "juice", "coffee", "tea"]):
+        return "food beverage"
+
+    if any(term in combined for term in ["electronic", "gadget", "charger", "phone", "power bank", "earbuds", "speaker"]):
+        return "electronics gadget"
+
+    return combined or "general product"
+
+
+def _build_avatar_product_category_preservation_rules(*, product_category_hint: str) -> str:
+    category = str(product_category_hint or "").strip().lower()
+
+    if any(word in category for word in ["clothing", "apparel", "fashion", "kurti", "dress", "top", "shirt", "saree", "lehenga"]):
+        return (
+            "STRICT PRODUCT CATEGORY LOCK: Product is clothing/apparel only. "
+            "If the subcategory says kurti, describe it only as a kurti or clothing item. "
+            "Preserve the clothing silhouette, fabric texture, color, neckline, sleeve style, button details, print/motifs, and daily-wear styling from Image 2. "
+            "The script and visual prompt must talk about fabric, comfort, fit, styling, daily wear, office, college, casual outings, neckline, sleeves, and clothing details only. "
+            "Do not mention earrings, earring, jewellery, jewelry, necklace, pendant, ring, bracelet, crochet, serum, skincare, bottle, gadget, charger, shoes, or handmade accessories. "
+            "Do not turn the product into jewellery, skincare, a bottle, a gadget, or crochet/handmade accessories. "
+            "If older context, image interpretation, or previous assistant output conflicts, trust the selected product_category and product_subcategory."
+        )
+
+    if any(word in category for word in ["skincare", "beauty", "cosmetic", "serum", "cream", "lotion", "bottle", "packaging"]):
+        return "Preserve bottle/tube/jar shape, cap, color, packaging, material, front orientation, and label area from Image 2. Do not mirror, rotate, redesign, rewrite label, or invent fake text."
+
+    if any(word in category for word in ["earring", "earrings"]):
+        return (
+            "Product is earrings only. Preserve the exact earring shape, pair structure, blue stone color, metal color, shine, size, and drop design from Image 2. "
+            "Show the earrings held between fingers near the face or near the ear area as a jewellery showcase. "
+            "Do not turn earrings into a pendant, necklace, ring, bracelet, watch, serum bottle, skincare product, or packaging. "
+            "Do not show a serum bottle or unrelated product in hand."
+        )
+
+    if any(word in category for word in ["ring", "rings"]):
+        return (
+            "Product is a ring only. Preserve the exact ring shape, stone, metal color, size, shine, and design from Image 2. "
+            "Show the ring held between fingers close to the camera as a jewellery showcase. "
+            "Do not turn the ring into earrings, necklace, pendant, bracelet, watch, bottle, or skincare product."
+        )
+
+    if any(word in category for word in ["necklace", "pendant"]):
+        return (
+            "Product is a COMPLETE necklace with a pendant. Preserve the exact full necklace structure from Image 2: "
+            "the visible gold chain, the centered blue teardrop pendant, the gold border, and the small white stones. "
+            "CRITICAL: The gold chain MUST remain visible and connected to the pendant at all times. "
+            "Show the necklace carefully presented with both hands close to the camera, creating a 'U' shape with the chain. "
+            "The pendant must be centered and facing the camera directly. "
+            "DO NOT turn it into earrings, ring, bracelet, or a serum bottle. "
+            "DO NOT show the necklace worn on the neck. "
+            "DO NOT let the pendant casually dangle from one hand."
+        )
+
+    if any(word in category for word in ["bracelet", "bangle"]):
+        return (
+            "Product is a bracelet or bangle only. Preserve the exact bracelet shape, metal color, stones, size, shine, and design from Image 2. "
+            "Show it held near the wrist or close to the camera as a jewellery showcase. "
+            "Do not turn it into earrings, necklace, pendant, ring, watch, bottle, or skincare product."
+        )
+
+    if any(word in category for word in ["jewellery", "jewelry", "earring", "earrings", "necklace", "ring", "bracelet", "pendant"]):
+        return "Preserve jewellery type, metal color, stones, shape, size, shine, and design from Image 2. The jewellery must be ONLY in the creator's hand near the camera. The creator must NOT wear jewellery on ears, neck, wrist, or fingers. No earrings worn, no necklace worn, no pendant worn, no jewellery on body. Do not add matching earrings, necklace, pendant, ring, chain, pearls, or extra jewellery."
+
+    if any(word in category for word in ["shoe", "shoes", "sneaker", "sneakers", "sandal", "sandals", "footwear"]):
+        return """
+            Preserve the exact shoe shape, sole, color, material, laces/strap pattern, logo area, and pair structure from Image 2.
+            Do not make the avatar wear the shoes.
+            Show the shoes held in hand or presented beside the avatar.
+            Do not change the shoe into a different style, color, or footwear type.
+            """.strip()
+
+    if any(word in category for word in ["toy", "toys", "kids", "children", "baby"]):
+        return """
+            Preserve the toy shape, colors, character features, material, size, and playful design from Image 2.
+            Show the toy safely held or presented near the camera.
+            Do not add children, babies, extra people, or unsafe interactions.
+            Do not transform the toy into a different character or object.
+            """.strip()
+
+    if any(word in category for word in ["kurti", "saree", "sari", "dress", "clothing", "apparel", "fashion", "fabric"]):
+        return """
+            Preserve the fabric color, print, embroidery, border, texture, pattern, and garment type from Image 2.
+            Do not make the avatar wear the garment in this single-shot ad.
+            Show the clothing/fabric neatly held or presented in hand.
+            Do not change a saree into a kurti, dress, dupatta, or another garment type.
+            """.strip()
+
+    if any(word in category for word in ["handmade", "handcrafted", "crochet", "decor", "home", "craft", "handicraft"]):
+        return """
+            Preserve the handmade shape, thread/fabric texture, color pattern, beads, tassels, stitching, and craft details from Image 2.
+            Show the handcrafted item held near the camera or gently presented in hand.
+            Do not place it on a pouch, card, bag, box, or unrelated accessory unless it exists in Image 2.
+            Do not transform it into a different decor item.
+            """.strip()
+
+    return "Preserve the exact product shape, color, material, size, texture, and visible design details from Image 2."
+
+
+def _pick_avatar_product_ugc_variant(*, video_id: str, product_category_hint: str) -> dict[str, str]:
+    category = str(product_category_hint or "").strip().lower()
+
+    if any(word in category for word in ["skincare", "beauty", "cosmetic", "serum", "cream", "lotion", "bottle", "packaging"]):
+        variants = [
+            {
+                "setting": "clean dressing table or skincare vanity corner with soft daylight",
+                "wardrobe": "soft pastel cream or peach casual top, clean skincare creator look, no loud patterns",
+                "camera": "medium close-up selfie framing, product held beside face",
+                "movement": "gentle product lift once toward camera, small smile, steady grip",
+            },
+            {
+                "setting": "bright bathroom vanity corner with neutral clean background",
+                "wardrobe": "simple light pink or off-white casual top, fresh minimal styling",
+                "camera": "chest-up vertical phone-shot framing, product centered near camera",
+                "movement": "subtle product tilt, calm head nod, minimal hand movement",
+            },
+            {
+                "setting": "window-side bedroom corner with soft natural light",
+                "wardrobe": "soft beige or cream top, natural everyday creator styling",
+                "camera": "close creator framing, product held at lower center then raised near face",
+                "movement": "natural talking expression, one slow product showcase movement",
+            },
+        ]
+
+
+    elif any(word in category for word in ["jewellery", "jewelry", "necklace", "pendant"]):
+        variants = [
+            {
+                "setting": "premium indoor vanity or soft luxury dressing corner with warm neutral light",
+                "wardrobe": "plain elegant cream, beige, or black top; no extra jewellery or distracting accessories",
+                "camera": "tight vertical creator framing, both hands presenting the full necklace close to the camera",
+                "movement": "careful two-handed jewellery presentation, chain held neatly to create a 'U' shape, pendant centered, premium showcase feel",
+            },
+            {
+                "setting": "minimal luxury setup with soft window daylight and neutral background",
+                "wardrobe": "simple black or champagne elegant top, clean premium styling, no jewellery worn",
+                "camera": "close-up vertical framing focusing on the hands and the necklace",
+                "movement": "hands holding both ends of the chain, presenting the centered pendant toward the camera, steady and elegant",
+            }
+        ]
+
+
+
+    elif any(word in category for word in ["shoe", "shoes", "sneaker", "sneakers", "sandal", "sandals", "footwear"]):
+        variants = [
+            {
+                "setting": "clean living room or entryway corner with daylight",
+                "wardrobe": "casual white, denim, or neutral outfit, simple everyday styling",
+                "camera": "chest-up vertical framing, shoes held beside the avatar",
+                "movement": "gentle product lift, small smile, stable hand position",
+            },
+            {
+                "setting": "minimal home hallway or wardrobe corner",
+                "wardrobe": "simple casual neutral top, no loud prints, clean lifestyle look",
+                "camera": "medium shot with product clearly centered",
+                "movement": "slow shoe tilt once to show shape, no walking or wearing",
+            },
+        ]
+
+    elif any(word in category for word in ["toy", "toys", "kids", "children", "baby"]):
+        variants = [
+            {
+                "setting": "bright clean playroom-style shelf background",
+                "wardrobe": "soft pastel friendly casual top, warm approachable styling",
+                "camera": "medium close-up creator framing, toy held near camera",
+                "movement": "small playful product gesture, warm smile, stable hands",
+            },
+            {
+                "setting": "cozy family room corner with colorful but clean background",
+                "wardrobe": "simple cheerful casual outfit, soft colors, no distracting patterns",
+                "camera": "vertical phone-shot framing, toy centered and clearly visible",
+                "movement": "gentle toy lift, no children or extra people",
+            },
+        ]
+
+    elif any(word in category for word in ["kurti", "saree", "sari", "dress", "clothing", "apparel", "fashion", "fabric"]):
+        variants = [
+            {
+                "setting": "clean wardrobe or dressing area with soft daylight",
+                "wardrobe": "plain neutral simple outfit that does not compete with the clothing product",
+                "camera": "medium vertical creator framing, fabric held neatly in both hands",
+                "movement": "slow fabric lift to show print, no wearing or draping",
+            },
+            {
+                "setting": "simple bedroom corner with neutral wall and warm light",
+                "wardrobe": "simple solid cream, beige, or black top, minimal styling",
+                "camera": "chest-up phone-shot framing, garment held in front clearly",
+                "movement": "gentle hand movement to show texture and border",
+            },
+        ]
+
+    elif any(word in category for word in ["handmade", "handcrafted", "crochet", "decor", "home", "craft", "handicraft"]):
+        variants = [
+            {
+                "setting": "cozy home decor shelf corner with soft daylight",
+                "wardrobe": "earthy beige, rust, olive, or cream casual kurti/top, cozy handmade creator style",
+                "camera": "medium close-up creator framing, handmade item held near camera",
+                "movement": "slow product tilt, relaxed smile, stable hand grip",
+            },
+            {
+                "setting": "warm living room corner with simple Indian home decor",
+                "wardrobe": "warm neutral casual top, simple natural styling, no loud patterns",
+                "camera": "vertical phone-shot framing, product centered beside face",
+                "movement": "gentle product lift once, small pointing gesture",
+            },
+            {
+                "setting": "minimal desk or craft table setup with warm lamp light",
+                "wardrobe": "plain cream or earthy casual outfit, handmade creator look",
+                "camera": "close creator framing, handmade texture clearly visible",
+                "movement": "steady product presentation, no fast movement",
+            },
+        ]
+
+    else:
+        variants = [
+            {
+                "setting": "bright living room corner with neutral background",
+                "wardrobe": "simple neutral casual top, clean creator styling",
+                "camera": "chest-up handheld creator framing, product centered near camera",
+                "movement": "gentle hand gesture, product tilt once to catch light",
+            },
+            {
+                "setting": "minimal home desk setup with warm lamp lighting",
+                "wardrobe": "plain cream, beige, or soft pastel top, no distracting patterns",
+                "camera": "close creator framing, product held at lower center then raised near face",
+                "movement": "natural talking expression, subtle product showcase movement",
+            },
+            {
+                "setting": "simple Indian home balcony or window-side corner with daylight",
+                "wardrobe": "simple everyday neutral outfit, authentic creator look",
+                "camera": "stable vertical mobile shot, creator and product both visible",
+                "movement": "product held steady, small pointing gesture, natural blink and smile",
+            },
+        ]
+
+    seed_text = f"{video_id}:{category}"
+    index = int(hashlib.sha256(seed_text.encode("utf-8")).hexdigest(), 16) % len(variants)
+    return variants[index]
+
+def _trim_kling_prompt(prompt: str, *, max_chars: int = 2400) -> str:
+    cleaned = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[:max_chars].rsplit(" ", 1)[0].strip()
+
+
+
+
+def _build_avatar_product_single_shot_kling_prompt(
+    *,
+    avatar_name: str,
+    product_name: str,
+    product_category_hint: str,
+    narration_script: str | None,
+    video_id: str,
+) -> tuple[str, dict[str, str], str]:
+    category_preservation_rules = _build_avatar_product_category_preservation_rules(
+        product_category_hint=product_category_hint,
+    )
+    ugc_variant = _pick_avatar_product_ugc_variant(
+        video_id=video_id,
+        product_category_hint=product_category_hint,
+    )
+
+    prompt = f"""
+        Image 1 is ONLY the creator identity reference for {avatar_name}. Use it for face, identity, hairstyle, age, skin tone, and expression only. Ignore any product, bottle, jewellery, accessory, or object visible in Image 1.
+
+        Image 2 is the ONLY product reference. Use Image 2 as the exact product being promoted. {category_preservation_rules}
+
+        The product must be visible from the first frame/first second and stay clearly visible with the creator throughout the video.
+
+        The product must remain only in the creator's hand. Do not show the creator wearing the product or wearing any matching version of the product. Keep it as a handheld showcase item only.
+
+        Scene variation:
+        Setting: {ugc_variant["setting"]}.
+        Wardrobe: {ugc_variant["wardrobe"]}.
+        Camera: {ugc_variant["camera"]}.
+        Movement: {ugc_variant["movement"]}.
+
+        Style: Indian creator-style UGC, realistic indoor creator setup, soft natural lighting, stable handheld phone-shot feel, natural skin texture, no glossy TV commercial look, no scene cuts, no b-roll, no extra characters. Same creator identity and hairstyle must remain unchanged; only outfit color/style and room setup may vary to match the product category.
+
+        Spoken script:
+        {str(narration_script or "").strip()}
+
+        Avoid: identity drift, face mutation, extra people, extra fingers, warped hands, distorted grip, blurry product, product changing into another object, serum bottle, skincare bottle, cosmetic tube, unrelated packaging, wrong jewellery type, fake unreadable text, mirror flip, plastic skin, exaggerated AI glow.
+        """.strip()
+
+    return _trim_kling_prompt(prompt), ugc_variant, category_preservation_rules
+
+
+
 def _build_long_explainer_sora_fallback_plan(
     *,
     scene_beats: list[str],
@@ -1534,15 +1914,93 @@ def run_recipe_pipeline(
                 topic=topic,
                 explicit={
                     **avatar_product_workflow,
-                    "avatar_name": initial_pipeline_metadata.get("avatar_name") or initial_pipeline_metadata.get("persona_name") or (selected_persona or {}).get("name") or "",
-                    "product_name": avatar_product_workflow.get("product_name") or initial_pipeline_metadata.get("product_name") or "",
-                    "product_category": avatar_product_workflow.get("product_category") or initial_pipeline_metadata.get("product_category") or "",
-                    "target_audience": avatar_product_workflow.get("target_audience") or initial_pipeline_metadata.get("target_audience") or "",
-                    "key_promise": avatar_product_workflow.get("main_benefit") or initial_pipeline_metadata.get("key_promise") or topic,
-                    "pain_point": avatar_product_workflow.get("key_problem_solved") or initial_pipeline_metadata.get("pain_point") or "",
-                    "cta": avatar_product_workflow.get("cta_preference") or initial_pipeline_metadata.get("cta") or "shop now",
+
+                    "avatar_name": (
+                        initial_pipeline_metadata.get("avatar_name")
+                        or initial_pipeline_metadata.get("persona_name")
+                        or (selected_persona or {}).get("name")
+                        or ""
+                    ),
+
+                    "product_name": (
+                        normalized_inputs.get("product_name")
+                        or normalized_inputs.get("productName")
+                        or avatar_product_workflow.get("product_name")
+                        or initial_pipeline_metadata.get("product_name")
+                        or ""
+                    ),
+                    "product_category": (
+                        normalized_inputs.get("product_category")
+                        or normalized_inputs.get("productCategory")
+                        or avatar_product_workflow.get("product_category")
+                        or initial_pipeline_metadata.get("product_category")
+                        or ""
+                    ),
+                    "product_subcategory": (
+                        normalized_inputs.get("product_subcategory")
+                        or normalized_inputs.get("productSubcategory")
+                        or avatar_product_workflow.get("product_subcategory")
+                        or initial_pipeline_metadata.get("product_subcategory")
+                        or ""
+                    ),
+                    "target_audience": (
+                        normalized_inputs.get("target_audience")
+                        or normalized_inputs.get("targetAudience")
+                        or avatar_product_workflow.get("target_audience")
+                        or initial_pipeline_metadata.get("target_audience")
+                        or ""
+                    ),
+                    "key_promise": (
+                        normalized_inputs.get("main_benefit")
+                        or normalized_inputs.get("mainBenefit")
+                        or avatar_product_workflow.get("main_benefit")
+                        or initial_pipeline_metadata.get("key_promise")
+                        or topic
+                    ),
+                    "pain_point": (
+                        normalized_inputs.get("key_problem_solved")
+                        or normalized_inputs.get("keyProblemSolved")
+                        or avatar_product_workflow.get("key_problem_solved")
+                        or initial_pipeline_metadata.get("pain_point")
+                        or ""
+                    ),
+                    "cta": (
+                        normalized_inputs.get("cta_preference")
+                        or normalized_inputs.get("ctaPreference")
+                        or avatar_product_workflow.get("cta_preference")
+                        or initial_pipeline_metadata.get("cta")
+                        or "shop now"
+                    ),
                 },
             )
+
+
+            product_category_hint = _avatar_product_category_hint(
+                normalized_inputs=normalized_inputs,
+                avatar_product_brief=avatar_product_brief,
+            )
+
+            category_preservation_rules_for_script = _build_avatar_product_category_preservation_rules(
+                product_category_hint=product_category_hint,
+            )
+
+            logger.info(
+                "avatar_product_category_lock",
+                extra={
+                    "video_id": video_id,
+                    "product_category_hint": product_category_hint,
+                    "product_category": normalized_inputs.get("product_category"),
+                    "product_subcategory": normalized_inputs.get("product_subcategory"),
+                    "product_name": normalized_inputs.get("product_name"),
+                    "brief_product_category": avatar_product_brief.product_category,
+                    "brief_product_subcategory": avatar_product_brief.product_subcategory,
+                    "brief_product_name": avatar_product_brief.product_name,
+                    "must_show_elements": normalized_inputs.get("must_show_elements"),
+                    "must_avoid_elements": normalized_inputs.get("must_avoid_elements"),
+                },
+            )
+
+
 
             ugc_client_brief = UgcAdClientBrief(
                 business_name="",
@@ -1582,6 +2040,27 @@ def run_recipe_pipeline(
 
         enhancer_metadata: dict[str, Any] | None = None
         if recipe.id == "avatar_product":
+            raw_category_rules = workflow_service.category_rules(avatar_product_brief.product_category)
+
+            if isinstance(raw_category_rules, dict):
+                category_prompt_rules = {
+                    **raw_category_rules,
+                    "category_context": _join_nonempty_text([
+                        str(raw_category_rules.get("category_context") or ""),
+                        category_preservation_rules_for_script,
+                    ]),
+                    "category_lock": category_preservation_rules_for_script,
+                    "product_category_hint": product_category_hint,
+                }
+            else:
+                category_prompt_rules = {
+                    "category_context": _join_nonempty_text([
+                        str(raw_category_rules or ""),
+                        category_preservation_rules_for_script,
+                    ]),
+                    "category_lock": category_preservation_rules_for_script,
+                    "product_category_hint": product_category_hint,
+                }
             enhancer_input = HFQwenEnhancerInput(
                 product_name=avatar_product_brief.product_name or topic or "the product",
                 brand_name=avatar_product_brief.brand_name or None,
@@ -1617,7 +2096,7 @@ def run_recipe_pipeline(
                 script_mode=avatar_product_brief.script_mode or "auto_generate",
                 provided_script=avatar_product_brief.provided_script or None,
                 strict_script_lock=avatar_product_brief.strict_script_lock,
-                category_prompt_rules=workflow_service.category_rules(avatar_product_brief.product_category),
+                category_prompt_rules=category_prompt_rules,
             )
             provided_script = str(avatar_product_brief.provided_script or '').strip()
             if is_chitrakala_v1 and provided_script:
@@ -1652,6 +2131,27 @@ def run_recipe_pipeline(
                     ]
                     if line
                 ).strip()
+
+
+                narration_script, forbidden_terms_found, script_repaired = _repair_avatar_product_narration_for_category(
+                    narration_script,
+                    product_category_hint=product_category_hint,
+                    product_name=avatar_product_brief.product_name or topic or "this product",
+                )
+
+                logger.info(
+                    "avatar_product_script_category_validation",
+                    extra={
+                        "video_id": video_id,
+                        "product_category_hint": product_category_hint,
+                        "forbidden_terms_found": forbidden_terms_found,
+                        "script_repaired": script_repaired,
+                        "source": "manual_script",
+                        "narration_script": narration_script[:220],
+                    },
+                )
+
+
                 enhancer_metadata = {
                     'status': 'manual_script_split',
                     'hook_line': split_lines['hook_line'],
@@ -1681,10 +2181,41 @@ def run_recipe_pipeline(
                     enhancer_result = HFQwenEnhancerService(settings=get_settings()).enhance_avatar_product_ad(enhancer_input)
                     scenes = _apply_avatar_product_enhancer_to_scenes(scenes=scenes, enhancer_result=enhancer_result)
                     narration_script = _compose_avatar_product_narration_script(enhancer_result)
+
+                    product_name_for_script = str(
+                        avatar_product_brief.product_name
+                        or normalized_inputs.get("product_name")
+                        or normalized_inputs.get("productName")
+                        or "this product"
+                    ).strip()
+
+                    narration_script, forbidden_terms_found, script_repaired = _repair_avatar_product_narration_for_category(
+                        narration_script,
+                        product_category_hint=product_category_hint,
+                        product_name=product_name_for_script,
+                    )
+
+                    logger.info(
+                        "avatar_product_script_category_validation",
+                        extra={
+                            "video_id": video_id,
+                            "product_category_hint": product_category_hint,
+                            "forbidden_terms_found": forbidden_terms_found,
+                            "script_repaired": script_repaired,
+                            "narration_script": narration_script[:220],
+                        },
+                    )
+
                     enhancer_metadata = _avatar_product_enhancer_metadata(
                         enhancer_result=enhancer_result,
                         enhancer_input=enhancer_input,
                     )
+                    enhancer_metadata["script_category_validation"] = {
+                        "product_category_hint": product_category_hint,
+                        "forbidden_terms_found": forbidden_terms_found,
+                        "script_repaired": script_repaired,
+                        "final_narration_script": narration_script,
+                    }
                     if is_chitrakala_v1:
                         logger.info(
                             'chitrakala_script_ready',
@@ -1745,6 +2276,31 @@ def run_recipe_pipeline(
 
             requires_locked_persona = any(bool(scene.get("persona_required")) for scene in scenes)
             strict_avatar_recipe = recipe.id == "avatar_product" and requires_locked_persona
+
+            if recipe.id == "avatar_product" and avatar_product_brief:
+                product_category_hint_for_repair = _avatar_product_category_hint(
+                    normalized_inputs=normalized_inputs,
+                    avatar_product_brief=avatar_product_brief,
+                )
+
+                narration_script, forbidden_terms_found, script_repaired = _repair_avatar_product_narration_for_category(
+                    narration_script or "",
+                    product_category_hint=product_category_hint_for_repair,
+                    product_name=avatar_product_brief.product_name or topic or "this product",
+                )
+
+            logger.info(
+                "avatar_product_script_category_validation",
+                extra={
+                    "video_id": video_id,
+                    "product_category_hint": product_category_hint_for_repair,
+                    "forbidden_terms_found": forbidden_terms_found,
+                    "script_repaired": script_repaired,
+                    "source": "post_fallback_or_final_script",
+                    "narration_script": narration_script[:220],
+                },
+            )
+
             if strict_avatar_recipe and not selected_persona:
                 _merge_pipeline_metadata(
                     video_id=video_id,
@@ -2019,45 +2575,29 @@ def run_recipe_pipeline(
         if not product_image_url:
             raise RuntimeError("Avatar Product requires an uploaded product image for single-shot generation.")
 
-        kling_prompt = f"""
-        Use Image 1 STRICTLY as {avatar_name}, the same selected creator/avatar.
-        Do NOT change face, identity, skin tone, hairstyle, age, or facial structure.
 
-        Use Image 2 STRICTLY as the same product reference.
-        Do NOT change the product shape, color, packaging, label, material, or design.
+        product_category_hint = product_category_hint or _avatar_product_category_hint(
+            normalized_inputs=normalized_inputs,
+            avatar_product_brief=avatar_product_brief,
+        )
 
-        Create a realistic vertical single-shot UGC product ad for Instagram Reels.
-        The selected creator speaks naturally to camera while holding, presenting, or naturally using {product_name}.
+        kling_prompt, ugc_variant, category_preservation_rules = _build_avatar_product_single_shot_kling_prompt(
+            avatar_name=avatar_name,
+            product_name=product_name,
+            product_category_hint=product_category_hint,
+            narration_script=narration_script,
+            video_id=video_id,
+        )
 
-        The creator and product must remain visible together as much as possible.
-        Keep the face consistent, product clearly visible, natural hand grip, realistic mouth movement, and creator-style phone-shot framing.
-
-        Style:
-        - Indian creator-style UGC ad
-        - realistic indoor home or creator setup
-        - soft natural lighting
-        - handheld but stable mobile camera feel
-        - natural expression
-        - no glossy TV commercial look
-
-        Spoken ad script:
-        {narration_script}
-
-        Avoid:
-        - identity drift
-        - face mutation
-        - new characters
-        - extra people
-        - extra fingers
-        - warped hands
-        - blurry product
-        - unreadable product label
-        - product changing into another object
-        - fake plastic skin
-        - exaggerated AI glow
-        """.strip()
-
-        logger.info("chitrakala_kling_started", extra={"video_id": video_id})
+        logger.info(
+            "chitrakala_kling_started",
+            extra={
+                "video_id": video_id,
+                "product_category_hint": product_category_hint,
+                "ugc_variant": ugc_variant,
+                "kling_prompt_length": len(kling_prompt),
+            },
+        )
 
         requested_duration = int(
             normalized_inputs.get("duration_seconds")
@@ -2080,29 +2620,45 @@ def run_recipe_pipeline(
             or ""
         ).strip()
 
-        if quality_profile == "premium":
-            resolved_video_model_key = "kling_o3_reference"
-        elif quality_profile == "high":
-            resolved_video_model_key = "kling_v16_pro_elements"
-        else:
-            resolved_video_model_key = "kling_v16_standard_elements"
+        allowed_avatar_product_models = {
+            "kling_o3_standard_reference",
+            "kling_o3_pro_reference",
+            "kling_o3_4k_reference",
 
-        # Cost guard: never allow O3 unless premium
-        if requested_video_model_key == "kling_o3_reference" and quality_profile != "premium":
-            requested_video_model_key = ""
-
-        if requested_video_model_key in {
+            # Legacy fallback models
             "kling_v16_standard_elements",
             "kling_v16_pro_elements",
+
+            # Backward compatibility only
             "kling_o3_reference",
-        }:
+        }
+
+        if requested_video_model_key in allowed_avatar_product_models:
             resolved_video_model_key = requested_video_model_key
+        elif quality_profile in {"high", "high_quality"}:
+            resolved_video_model_key = "kling_o3_pro_reference"
+        elif quality_profile == "premium":
+            # Cost-safe for now. Do not auto-use 4K yet.
+            resolved_video_model_key = "kling_o3_pro_reference"
+        else:
+            resolved_video_model_key = "kling_o3_standard_reference"
+
+        # Backward compatibility: old generic O3 key means O3 Standard now.
+        if resolved_video_model_key == "kling_o3_reference":
+            resolved_video_model_key = "kling_o3_standard_reference"
+
+        # Cost guard: only block accidental 4K for non-premium profiles.
+        if quality_profile != "premium" and resolved_video_model_key == "kling_o3_4k_reference":
+            resolved_video_model_key = "kling_o3_standard_reference"
+
 
         logger.info(
             "chitrakala_model_selection",
             extra={
                 "video_id": video_id,
+                "quality_profile": quality_profile,
                 "requested_video_model_key": requested_video_model_key,
+                "resolved_video_model_key": resolved_video_model_key,
                 "normalized_inputs_model_key": normalized_inputs.get("video_model_key"),
             },
         )
@@ -2114,6 +2670,14 @@ def run_recipe_pipeline(
             duration=kling_duration,
             model_key=resolved_video_model_key,
         )
+
+        # Timing Safety Cap for 5-6s ads
+        if kling_duration == "5" or requested_duration <= 6:
+            # Tokenize by space and limit to roughly 12 words
+            words = narration_script.split()
+            if len(words) > 12:
+                narration_script = " ".join(words[:11]) + "."
+                logger.info("shortening_script_for_timing_safety", extra={"video_id": video_id})
 
         logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})
         audio_url, tts_meta = fal_service.generate_gemini_flash_tts(
@@ -2132,6 +2696,10 @@ def run_recipe_pipeline(
             video_id=video_id,
             pipeline_version="avatar_product_single_shot_v1",
             avatar_product_single_output=True,
+            avatar_product_product_category_hint=product_category_hint,
+            avatar_product_ugc_variant=ugc_variant,
+            avatar_product_category_preservation_rules=category_preservation_rules,
+            avatar_product_kling_prompt=kling_prompt,
             avatar_product_kling_video_url=kling_video_url,
             avatar_product_tts_audio_url=audio_url,
             avatar_product_lipsync_video_url=final_video_url,
@@ -2177,6 +2745,8 @@ def run_recipe_pipeline(
                 "narration_script": narration_script,
                 "requested_model": requested_video_model_key,
                 "resolved_model": resolved_video_model_key,
+                "product_category_hint": product_category_hint,
+                "ugc_variant": ugc_variant,
                 "render_mode": "single_ad",
                 "fallback_used": False,
             },

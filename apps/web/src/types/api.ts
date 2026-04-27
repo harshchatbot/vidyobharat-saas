@@ -74,8 +74,9 @@ export type Avatar = {
 };
 
 export type AvatarLibraryResponse = {
-  preset_avatars: Avatar[];
-  user_avatars: Avatar[];
+  avatars: Avatar[];
+  preset_avatars?: Avatar[];
+  user_avatars?: Avatar[];
 };
 
 export type Template = {

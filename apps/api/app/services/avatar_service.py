@@ -183,8 +183,6 @@ class AvatarService:
         user_id: str | None = None,
     ) -> list[AvatarResponse]:
         result = [self._to_avatar_response(item) for item in self._list_actor_records(user_id=user_id)]
-        if user_id:
-            result.extend(self._list_custom_avatar_responses(user_id=user_id))
 
         if scope:
             normalized_scope = scope.strip().lower()
@@ -226,39 +224,47 @@ class AvatarService:
         record = self.get_actor_record(avatar_id, user_id=user_id)
         return self._to_avatar_response(record) if record else None
 
+
+
     def get_actor_record(self, actor_id: str, user_id: str | None = None) -> ActorRecord | None:
         normalized_id = str(actor_id or '').strip()
         if not normalized_id:
             return None
-
-        for item in self._preset_records:
-            if item.id == normalized_id:
-                return item
 
         try:
             db = get_firestore_client()
         except FirebaseNotConfiguredError:
             return None
 
-        snap = db.collection('actors').document(normalized_id).get()
-        if snap.exists:
-            data = snap.to_dict() or {}
-            item_user_id = str(data.get('user_id') or '').strip() or None
-            item_scope = str(data.get('scope') or ('own' if item_user_id else 'public')).strip() or 'public'
-            if item_scope == 'own' and item_user_id and user_id and item_user_id != user_id:
-                return None
-            if item_scope == 'own' and item_user_id and not user_id:
-                return None
-            return self._actor_from_firestore(data, normalized_id)
-
-        preset_snap = db.collection('preset_avatars').document(normalized_id).get()
-        if preset_snap.exists:
-            return self._actor_from_firestore(preset_snap.to_dict() or {}, normalized_id)
-
-        heygen_snap = db.collection('heygen_avatars').document(normalized_id).get()
-        if not heygen_snap.exists:
+        snap = db.collection('avatars').document(normalized_id).get()
+        if not snap.exists:
             return None
-        return self._actor_from_firestore(heygen_snap.to_dict() or {}, normalized_id)
+
+        data = snap.to_dict() or {}
+        item_user_id = str(data.get('user_id') or '').strip() or None
+        status = str(data.get('status') or 'active').strip().lower()
+
+        if status not in {'active', 'ready_for_preview', 'ready'}:
+            return None
+
+        visibility = str(data.get('visibility') or '').strip().lower()
+        scope = str(data.get('scope') or '').strip().lower()
+        avatar_type = str(data.get('avatar_type') or data.get('type') or '').strip().lower()
+
+        is_public = (
+            visibility == 'public'
+            or scope == 'public'
+            or avatar_type == 'system'
+            or bool(data.get('is_public'))
+        )
+
+        is_owner = bool(user_id and item_user_id and item_user_id == str(user_id).strip())
+
+        if not is_public and not is_owner:
+            return None
+
+        return self._actor_from_firestore(data, normalized_id)
+
 
     def get_actor_details(self, actor_id: str, user_id: str | None = None) -> dict[str, Any] | None:
         record = self.get_actor_record(actor_id, user_id=user_id)
@@ -450,65 +456,82 @@ class AvatarService:
             raw=data,
         )
 
+
+
     def _list_actor_records(self, *, user_id: str | None) -> list[ActorRecord]:
-        records = list(self._preset_records)
+        records: list[ActorRecord] = []
+
         try:
             db = get_firestore_client()
         except FirebaseNotConfiguredError:
             return records
 
-        for snap in db.collection('actors').stream():
+        normalized_user_id = str(user_id or '').strip()
+
+        for snap in db.collection('avatars').stream():
             try:
                 data = snap.to_dict() or {}
-                actor_id = str(data.get('id') or snap.id)
-                item = self._actor_from_firestore(data, actor_id)
-                if item.scope == 'own' and item.user_id != user_id:
+                avatar_id = str(data.get('id') or data.get('avatar_id') or data.get('persona_id') or snap.id).strip()
+                if not avatar_id:
                     continue
-                records.append(item)
-            except Exception as exc:
-                logger.warning(
-                    "avatar_list_actor_skipped",
-                    extra={
-                        "actor_id": getattr(snap, "id", None),
-                        "reason": str(exc),
-                    },
+
+                status = str(data.get('status') or 'active').strip().lower()
+                if status not in {'active', 'ready_for_preview', 'ready'}:
+                    continue
+
+                item_user_id = str(data.get('user_id') or '').strip()
+                visibility = str(data.get('visibility') or '').strip().lower()
+                scope = str(data.get('scope') or '').strip().lower()
+                avatar_type = str(data.get('avatar_type') or data.get('type') or '').strip().lower()
+
+                is_public = (
+                    visibility == 'public'
+                    or scope == 'public'
+                    or avatar_type == 'system'
+                    or bool(data.get('is_public'))
                 )
-        for snap in db.collection('preset_avatars').stream():
-            try:
-                if snap.id == '_meta':
+
+                is_owner = bool(normalized_user_id and item_user_id == normalized_user_id)
+
+                if not is_public and not is_owner:
                     continue
-                data = snap.to_dict() or {}
-                actor_id = str(data.get('id') or snap.id)
-                records.append(self._actor_from_firestore(data, actor_id))
+
+                records.append(self._actor_from_firestore(data, avatar_id))
             except Exception as exc:
                 logger.warning(
-                    "avatar_list_preset_avatar_skipped",
-                    extra={
-                        "avatar_id": getattr(snap, "id", None),
-                        "reason": str(exc),
-                    },
-                )
-        for snap in db.collection('heygen_avatars').stream():
-            try:
-                if snap.id == '_meta':
-                    continue
-                data = snap.to_dict() or {}
-                actor_id = str(data.get('id') or snap.id)
-                records.append(self._actor_from_firestore(data, actor_id))
-            except Exception as exc:
-                logger.warning(
-                    "avatar_list_heygen_avatar_skipped",
+                    "avatar_list_avatar_skipped",
                     extra={
                         "avatar_id": getattr(snap, "id", None),
                         "reason": str(exc),
                     },
                 )
+
+        records.sort(
+            key=lambda item: (
+                0 if item.scope == 'public' else 1,
+                str(item.name or '').lower(),
+            )
+        )
         return records
 
+
     def _actor_from_firestore(self, data: dict[str, Any], actor_id: str) -> ActorRecord:
-        language_support = [str(item).strip() for item in list(data.get('language_support') or []) if str(item).strip()]
-        reference_images = self._normalize_reference_images(data.get('reference_images') or [])
-        primary_image = str(data.get('primary_image') or '').strip() or (reference_images[0] if reference_images else None)
+        language_support = [
+            str(item).strip()
+            for item in list(data.get('language_support') or data.get('supported_languages') or data.get('language_tags') or [])
+            if str(item).strip()
+        ]
+        reference_images = self._normalize_reference_images(
+            data.get('reference_images')
+            or ([data.get('reference_image_url')] if data.get('reference_image_url') else [])
+            or ([data.get('avatar_image_url')] if data.get('avatar_image_url') else [])
+        )
+        primary_image = (
+            str(data.get('primary_image') or '').strip()
+            or str(data.get('reference_image_url') or '').strip()
+            or str(data.get('avatar_image_url') or '').strip()
+            or (reference_images[0] if reference_images else None)
+        )
         style = str(data.get('style') or data.get('category') or 'actor').strip()
         normalized_gender = str(data.get('gender') or '').strip() or None
         resolved_recommended_voice = self._resolve_catalog_voice_key(
@@ -517,8 +540,13 @@ class AvatarService:
         )
         return ActorRecord(
             id=actor_id,
-            name=str(data.get('name') or 'Actor').strip(),
-            scope=str(data.get('scope') or ('own' if data.get('user_id') else 'public')).strip() or 'public',
+            name=str(data.get('display_name') or data.get('name') or 'Avatar').strip(),
+            scope=str(
+                data.get('scope')
+                or ('public' if str(data.get('visibility') or '').lower() == 'public' else '')
+                or ('public' if str(data.get('avatar_type') or data.get('type') or '').lower() == 'system' else '')
+                or ('own' if data.get('user_id') else 'public')
+            ).strip() or 'public',
             style=style,
             gender=normalized_gender,
             language_tags=language_support,
@@ -540,7 +568,7 @@ class AvatarService:
             description=str(data.get('description') or '').strip() or None,
             created_at=data.get('created_at'),
             raw=data,
-            source=str(data.get('source') or 'actor').strip() or 'actor',
+            source=str(data.get('source') or data.get('provider') or 'avatar').strip() or 'avatar',
             user_id=str(data.get('user_id') or '').strip() or None,
         )
 

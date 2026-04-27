@@ -61,10 +61,6 @@ type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image
 type RecipeSourceKind = 'recipe';
 type VideoIntent = 'explainer' | 'cinematic' | 'quick_reel' | 'generic';
 
-const CHITRAKALA_PERSONA_ID = process.env.NEXT_PUBLIC_CHITRAKALA_PERSONA_ID ?? 'av-chitrakala';
-const CHITRAKALA_NAME = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_NAME ?? 'Chitrakala';
-const CHITRAKALA_IMAGE_URL = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_IMAGE_URL ?? '';
-const CHITRAKALA_PREVIEW_VIDEO_URL = process.env.NEXT_PUBLIC_CHITRAKALA_AVATAR_PREVIEW_VIDEO_URL ?? '';
 
 type RecipeComposerFragment =
   | { type: 'text'; value: string }
@@ -103,7 +99,7 @@ type VideoLaunchState = {
   initialModelKey: string;
   initialAspectRatio: '9:16' | '16:9' | '1:1';
   initialResolution: '720p' | '1080p';
-  initialDurationSeconds: '5' | '10';
+  initialDurationSeconds: '5' | '10' | '15';
   initialCaptionsEnabled: boolean;
   initialNarrationEnabled: boolean;
 };
@@ -174,25 +170,7 @@ type AvatarSelection = {
   description?: string | null;
 };
 
-function buildChitrakalaAvatarSelection(): AvatarSelection {
-  return {
-    personaId: CHITRAKALA_PERSONA_ID,
-    name: CHITRAKALA_NAME,
-    imageUrl: CHITRAKALA_IMAGE_URL || undefined,
-    source: 'preset',
-    sourceLabel: 'Preset',
-    isCustomAvatar: false,
-    genderPresentation: 'female',
-    preferredLanguage: 'en-IN',
-    preferredVoice: 'Priya',
-    languageTags: ['en-IN', 'hi-IN', 'pa-IN'],
-    styleLabel: 'Fixed spokesperson',
-    languageInfo: 'English (India) · Hindi · Punjabi',
-    voiceInfo: 'Priya voice selected',
-    previewVideoUrl: CHITRAKALA_PREVIEW_VIDEO_URL || null,
-    description: `${CHITRAKALA_NAME} is the fixed spokesperson for this V1 avatar product workflow.`,
-  };
-}
+
 
 type AssetPickerState = {
   slotId: string;
@@ -205,6 +183,8 @@ type AssetPickerState = {
 
 
 type AvatarProductAdvancedControls = {
+  product_category: string;
+  product_subcategory: string;
   campaign_objective: string;
   platform: string;
   duration_seconds: string;
@@ -293,9 +273,11 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
 const ASPECT_OPTIONS: Array<'9:16' | '16:9' | '1:1'> = ['9:16', '16:9', '1:1'];
 const RECENT_STORAGE_KEY = 'rangmanch:create-hub:recent:v1';
 const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = {
+  product_category: '',
+  product_subcategory: '',
   campaign_objective: '',
   platform: 'Instagram Reels',
-  duration_seconds: '5',
+  duration_seconds: '10',
   brand_tone: 'creator_casual',
   cta_preference: '',
   language: 'English',
@@ -311,9 +293,24 @@ const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = 
   provided_script: '',
   strict_script_lock: false,
 
-  video_model_key: 'kling_v16_standard_i2v',
+  video_model_key: 'kling_o3_reference',
   quality_profile: 'standard',
 };
+
+const AVATAR_PRODUCT_CATEGORY_OPTIONS = [
+  { value: 'clothing', label: 'Clothing / Fashion' },
+  { value: 'jewellery', label: 'Jewellery' },
+  { value: 'beauty_skincare', label: 'Beauty / Skincare' },
+  { value: 'food_beverage', label: 'Food / Beverage' },
+  { value: 'electronics', label: 'Electronics / Gadgets' },
+  { value: 'home_decor', label: 'Home / Decor' },
+  { value: 'fitness_wellness', label: 'Fitness / Wellness' },
+  { value: 'kids_toys', label: 'Kids / Toys' },
+  { value: 'footwear', label: 'Footwear' },
+  { value: 'bags_accessories', label: 'Bags / Accessories' },
+  { value: 'other', label: 'Other' },
+];
+
 const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTemplate }> = [
   { key: 'all', label: 'All' },
   { key: 'ads', label: 'Ads' },
@@ -526,6 +523,62 @@ function buildAvatarProductRecipeInputs(params: {
   return inputs;
 }
 
+
+function normalizeAvatarProductCategory(value: string) {
+  const normalized = value.trim();
+  const lower = normalized.toLowerCase();
+
+  if (!normalized) {
+    return {
+      product_category: '',
+      product_subcategory: '',
+    };
+  }
+
+  if (lower.includes('cloth') || lower.includes('fashion') || lower.includes('apparel') || lower.includes('kurti') || lower.includes('dress') || lower.includes('top')) {
+    return {
+      product_category: 'clothing',
+      product_subcategory: lower.includes('kurti') ? 'women kurti' : normalized,
+    };
+  }
+
+  if (lower.includes('jewel') || lower.includes('necklace') || lower.includes('pendant') || lower.includes('earring') || lower.includes('ring')) {
+    return {
+      product_category: 'jewellery',
+      product_subcategory: normalized,
+    };
+  }
+
+  if (lower.includes('skin') || lower.includes('serum') || lower.includes('beauty') || lower.includes('cream') || lower.includes('cosmetic')) {
+    return {
+      product_category: 'beauty_skincare',
+      product_subcategory: normalized,
+    };
+  }
+
+  if (lower.includes('food') || lower.includes('drink') || lower.includes('beverage') || lower.includes('snack')) {
+    return {
+      product_category: 'food_beverage',
+      product_subcategory: normalized,
+    };
+  }
+
+  if (lower.includes('electronic') || lower.includes('gadget') || lower.includes('charger') || lower.includes('phone') || lower.includes('power bank')) {
+    return {
+      product_category: 'electronics',
+      product_subcategory: normalized,
+    };
+  }
+
+  return {
+    product_category: normalized,
+    product_subcategory: normalized,
+  };
+}
+
+
+
+
 function buildAvatarProductInlineAnswerPatch(
   answer: string,
   assist: AvatarProductAssistResponse | null,
@@ -541,9 +594,10 @@ function buildAvatarProductInlineAnswerPatch(
     || '';
 
   if (nextQuestion.includes('what kind of product is this exactly')) {
+    const categoryPatch = normalizeAvatarProductCategory(normalized);
+
     return {
-      product_category: normalized,
-      product_subcategory: normalized,
+      ...categoryPatch,
       category_specific_details: normalized,
     };
   }
@@ -551,11 +605,14 @@ function buildAvatarProductInlineAnswerPatch(
   switch (primaryMissing) {
     case 'product_name':
       return { product_name: normalized };
-    case 'product_category':
+    case 'product_category': {
+      const categoryPatch = normalizeAvatarProductCategory(normalized);
+
       return {
-        product_category: normalized,
+        ...categoryPatch,
         category_specific_details: normalized,
       };
+    }
     case 'target_audience':
       return { target_audience: normalized };
     case 'campaign_objective':
@@ -583,20 +640,28 @@ function pickImageMode(idea: string, profile: QualityProfile): 'fast_social' | '
 }
 
 function resolveVideoModelKeyFromQuality(profile: QualityProfile): string {
-  if (profile === 'premium') return 'kling_o1_reference';
-  if (profile === 'high_quality') return 'kling_v16_pro_i2v';
-  return 'kling_v16_standard_i2v';
+  if (profile === 'premium') return 'kling_o3_reference';
+  if (profile === 'high_quality') return 'kling_v16_pro_elements';
+  return 'kling_v16_standard_elements';
+}
+
+
+
+function resolveAvatarProductVideoModelKeyFromQuality(profile: QualityProfile): string {
+  if (profile === 'premium') return 'kling_o3_reference';
+  if (profile === 'high_quality') return 'kling_o3_standard_reference';
+  return 'kling_o3_reference';
 }
 
 
 function normalizeVideoProfile(profile: QualityProfile): { lane: 'creator_pro' | 'premium'; modelKey: string; resolution: '720p' } {
   if (profile === 'premium') {
-    return { lane: 'premium', modelKey: 'kling_o1_reference', resolution: '720p' };
+    return { lane: 'premium', modelKey: 'kling_o3_reference', resolution: '720p' };
   }
   if (profile === 'high_quality') {
-    return { lane: 'premium', modelKey: 'kling_v16_pro_i2v', resolution: '720p' };
+    return { lane: 'premium', modelKey: 'kling_v16_pro_elements', resolution: '720p' };
   }
-  return { lane: 'creator_pro', modelKey: 'kling_v16_standard_i2v', resolution: '720p' };
+  return { lane: 'creator_pro', modelKey: 'kling_v16_standard_elements', resolution: '720p' };
 }
 
 function getVideoModelLane(modelKey: string): 'creator_pro' | 'premium' {
@@ -611,7 +676,7 @@ function getVideoResolutionForModel(modelKey: string, profile: QualityProfile): 
   return '720p';
 }
 
-function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' {
+function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' | '15' {
   const presets = VIDEO_MODEL_MAP[modelKey]?.durationPresets ?? [];
   if (presets.includes(10)) return '10';
   if (presets.includes(5)) return '5';
@@ -619,8 +684,8 @@ function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' {
 }
 
 function profileForVideoModel(modelKey: string): QualityProfile {
-  if (modelKey === 'kling_o1_reference') return 'premium';
-  if (modelKey === 'kling_v16_pro_i2v') return 'high_quality';
+  if (modelKey === 'kling_o3_reference') return 'premium';
+  if (modelKey === 'kling_v16_pro_elements') return 'high_quality';
   return 'standard';
 }
 
@@ -1149,7 +1214,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [durationPreference, setDurationPreference] = useState<'auto' | '5' | '10'>('auto');
+  const [durationPreference, setDurationPreference] = useState<'auto' | '5' | '10' | '15'>('auto');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -1160,7 +1225,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling_v16_standard_i2v');
+  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling_v16_standard_elements');
   const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
   const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
@@ -1217,9 +1282,19 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     [mode],
   );
 
-  const isHeygenCompatibleAvatar = (avatar: Avatar) =>
-    String(avatar.provider || '').trim().toLowerCase() === 'heygen'
-    && avatar.supports_avatar_video_generation === true;
+  const isAvatarProductCompatibleAvatar = (avatar: Avatar) => {
+    const provider = String(avatar.provider || '').trim().toLowerCase();
+
+    return (
+      provider === 'reference_image' ||
+      provider === 'heygen' ||
+      Boolean(
+        avatar.primary_image ||
+        avatar.thumbnail_url ||
+        avatar.reference_images?.[0]
+      )
+    );
+  };
 
   const displayedModelKey = mode === 'video' ? selectedVideoModelKey : selectedImageModelKey;
   const displayedVideoModel = useMemo(
@@ -1322,8 +1397,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     [activeRecipeSource],
   );
   const isRecipeLongForm = Boolean(activeRecipeDurationSeconds && activeRecipeDurationSeconds > 10);
+
   const avatarOptions = useMemo<AvatarSelection[]>(() => {
-    const fixedChitrakala = buildChitrakalaAvatarSelection();
     const presetItems = presetAvatars.map((avatar) => ({
       personaId: avatar.id,
       name: avatar.name,
@@ -1337,12 +1412,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Preset avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags),
-      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected Sarvam voice',
+      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected voice',
       previewVideoUrl: avatar.preview_video_url || null,
       description:
         avatar.description ||
-        `${avatar.name} is tuned for creator-style talking scenes with a ${avatar.style} look${avatar.tags?.length ? ` and ${avatar.tags.slice(0, 3).join(', ')} tags` : ''}.`,
+        `${avatar.name} is tuned for creator-style talking scenes.`,
     }));
+
     const savedItems = savedAvatars.map((avatar) => ({
       personaId: avatar.id,
       name: avatar.name,
@@ -1356,18 +1432,17 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Saved avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags) || selectedLanguageLabel || null,
-      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected Sarvam voice'),
+      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected voice'),
       previewVideoUrl: avatar.preview_video_url || null,
       description:
         avatar.description ||
-        `${avatar.name} is one of your saved Avatar IV-compatible avatars for repeatable avatar-led ads.`,
+        `${avatar.name} is one of your saved avatars for repeatable avatar-led ads.`,
     }));
-    const avatarProductRecipeActive = activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product';
-    if (avatarProductRecipeActive) {
-      return [fixedChitrakala];
-    }
+
     return [...presetItems, ...savedItems];
-  }, [activeRecipeSource, presetAvatars, savedAvatars, selectedLanguageLabel, selectedVoice]);
+  }, [presetAvatars, savedAvatars, selectedLanguageLabel, selectedVoice]);
+
+
   const activeAvatarPreview = useMemo(
     () =>
       avatarOptions.find((option) => option.personaId === avatarPreviewPersonaId) ??
@@ -1403,11 +1478,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   };
 
   const applyAvatarSelection = (avatar: AvatarSelection | null) => {
-    if (isAvatarProductRecipe) {
-      setSelectedAvatar(buildChitrakalaAvatarSelection());
-      setIsAvatarPickerOpen(false);
+    if (isAvatarProductRecipe && !avatar) {
       return;
     }
+
     setSelectedAvatar(avatar);
     if (isAvatarDrivenRecipe && avatar) {
       const preferredVoice = resolveAvatarPreferredVoice(avatar);
@@ -1498,10 +1572,21 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setAvatarProductInlineAnswer('');
     }
   }, [isAvatarProductRecipe]);
+
+
   useEffect(() => {
     if (!isAvatarProductRecipe) return;
-    setSelectedAvatar((current) => current?.personaId === CHITRAKALA_PERSONA_ID ? current : buildChitrakalaAvatarSelection());
-  }, [isAvatarProductRecipe]);
+    if (selectedAvatar && avatarOptions.some((item) => item.personaId === selectedAvatar.personaId)) return;
+
+    const defaultAvatar =
+      avatarOptions.find((item) => item.personaId === 'av-chitrakala') ||
+      avatarOptions[0] ||
+      null;
+
+    if (defaultAvatar) {
+      setSelectedAvatar(defaultAvatar);
+    }
+  }, [isAvatarProductRecipe, avatarOptions, selectedAvatar]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1576,34 +1661,60 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           setSelectedLanguage(preferredLanguage.code);
         }
       }
+
+
       if (avatarLibraryResult.status === 'fulfilled') {
         const library: AvatarLibraryResponse = avatarLibraryResult.value;
-        const compatiblePresetAvatars = (library.preset_avatars || []).filter(isHeygenCompatibleAvatar);
-        const compatibleSavedAvatars = (library.user_avatars || []).filter(isHeygenCompatibleAvatar);
-        setPresetAvatars(compatiblePresetAvatars);
-        setSavedAvatars(compatibleSavedAvatars);
+
+        const compatibleAvatars = (
+          library.avatars?.length
+            ? library.avatars
+            : [...(library.preset_avatars || []), ...(library.user_avatars || [])]
+        ).filter(isAvatarProductCompatibleAvatar);
+
+        const publicAvatars = compatibleAvatars.filter((avatar) =>
+          avatar.scope === 'public' ||
+          avatar.avatar_type === 'system' ||
+          avatar.provider === 'reference_image'
+        );
+
+        const privateAvatars = compatibleAvatars.filter((avatar) =>
+          avatar.scope !== 'public' &&
+          avatar.avatar_type !== 'system' &&
+          avatar.provider !== 'reference_image'
+        );
+
+        setPresetAvatars(publicAvatars);
+        setSavedAvatars(privateAvatars);
         setAvatarLoadError(null);
+
         if (process.env.NODE_ENV === 'development') {
-          const publicActors = compatiblePresetAvatars.length;
-          const savedActors = compatibleSavedAvatars.length;
           console.info('avatar_picker_loaded', {
-            public_actor_count: publicActors,
-            saved_avatar_count: savedActors,
-            total_count: publicActors + savedActors,
+            public_actor_count: publicAvatars.length,
+            saved_avatar_count: privateAvatars.length,
+            total_count: compatibleAvatars.length,
+            avatar_ids: compatibleAvatars.map((avatar) => avatar.id),
           });
         }
       } else {
-        const message = avatarLibraryResult.reason instanceof Error ? avatarLibraryResult.reason.message : 'Could not load compatible avatars.';
+        const message = avatarLibraryResult.reason instanceof Error
+          ? avatarLibraryResult.reason.message
+          : 'Could not load avatars.';
+
         setAvatarLoadError(message);
         setPresetAvatars([]);
         setSavedAvatars([]);
+
         show({
           title: 'Avatar library unavailable',
-          message: 'Compatible HeyGen avatars could not be loaded for this picker.',
+          message: 'Avatars could not be loaded for this picker.',
           variant: 'error',
           durationMs: 5200,
         });
       }
+
+
+
       setIsAvatarLoading(false);
       setLoadingRecipes(false);
       setModelsLoading(false);
@@ -1829,28 +1940,28 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     );
     if (recipe.id === 'avatar_product') {
       const defaultQuality: QualityProfile = 'standard';
-      const defaultModelKey = resolveVideoModelKeyFromQuality(defaultQuality);
-      const fixedAvatar = buildChitrakalaAvatarSelection();
+      const defaultModelKey = resolveAvatarProductVideoModelKeyFromQuality(defaultQuality);
+      const defaultAvatar =
+        avatarOptions.find((item) => item.personaId === 'av-chitrakala') ||
+        avatarOptions[0] ||
+        null;
 
-      setQualityProfile(defaultQuality);
-      setSelectedVideoModelKey(defaultModelKey);
-      setModelPanelKey(defaultModelKey);
-      setDurationPreference('5');
-      setCaptionsEnabled(false);
-      setVoiceEnabled(true);
-      setSelectedAvatar(fixedAvatar);
-      setSelectedVoice(fixedAvatar.preferredVoice || 'Priya');
+      if (defaultAvatar) {
+        setSelectedAvatar(defaultAvatar);
+        setSelectedVoice(resolveAvatarPreferredVoice(defaultAvatar) || 'Priya');
+      }
 
+      const preferredLanguage = defaultAvatar ? resolveAvatarPreferredLanguage(defaultAvatar) : null;
       const defaultLanguage =
-        fixedAvatar.preferredLanguage && languageOptions.some((option) => option.code === fixedAvatar.preferredLanguage)
-          ? fixedAvatar.preferredLanguage
+        preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)
+          ? preferredLanguage
           : 'en-IN';
 
       setSelectedLanguage(defaultLanguage);
 
       setAvatarProductAdvancedControls((current) => ({
         ...current,
-        duration_seconds: '5',
+        duration_seconds: '10',
         video_model_key: defaultModelKey,
         quality_profile: defaultQuality,
         language: defaultLanguage,
@@ -1910,30 +2021,58 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   };
 
 
+
+  const avatarProductPromptText = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
+
+  const avatarProductImageSlot = recipeComposer?.slots.find(
+    (slot) => slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image',
+  );
+
+  const avatarProductImageUrl =
+    (avatarProductImageSlot ? recipeSlotAssets[avatarProductImageSlot.id]?.assetUrl : null) ||
+    (avatarProductImageSlot ? recipeComposer?.values[avatarProductImageSlot.id] : '') ||
+    '';
+
+  const canAutoFillAvatarProduct =
+    Boolean(avatarProductPromptText.trim()) &&
+    Boolean(String(avatarProductImageUrl || '').trim()) &&
+    Boolean(avatarProductAdvancedControls.product_category.trim());
+
+
   const handleAvatarProductAutofill = async () => {
-    const promptText = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
-  
-    const imageSlot = recipeComposer?.slots.find(
-      (slot) => slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image',
-    );
-  
-    const imageUrl =
-      (imageSlot ? recipeSlotAssets[imageSlot.id]?.assetUrl : null) ||
-      (imageSlot ? recipeComposer?.values[imageSlot.id] : '') ||
-      '';
-  
+    const promptText = avatarProductPromptText;
+    const imageUrl = String(avatarProductImageUrl || '').trim();
+
+    if (!canAutoFillAvatarProduct) {
+      setAvatarProductAdvancedOpen(true);
+
+      show({
+        title: 'Complete required details first',
+        message: 'Add the product brief, upload the product image, and select a product category before using Auto AI Fill.',
+        variant: 'error',
+      });
+
+      return;
+    }
+
     try {
+      setAvatarProductAssistLoading(true);
+
       const result = await api.autofillAvatarProduct({
         text: promptText,
         image_url: imageUrl,
         advanced_controls: avatarProductAdvancedControls,
       });
-  
+
       setAvatarProductAdvancedControls((current) => ({
         ...current,
         ...result,
+        product_category: current.product_category || String(result.product_category || ''),
+        product_subcategory: current.product_subcategory || String(result.product_subcategory || ''),
       }));
-  
+
+      setAvatarProductAdvancedOpen(true);
+
       show({
         title: 'Advanced controls filled',
         message: 'AI suggestions have been added. You can edit them before generating.',
@@ -1942,6 +2081,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     } catch (error) {
       const message = getFriendlyErrorMessage(error) || 'Could not auto-fill product details.';
       show({ title: 'Auto-fill failed', message, variant: 'error' });
+    } finally {
+      setAvatarProductAssistLoading(false);
     }
   };
 
@@ -2018,6 +2159,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         if (recipe.id === 'avatar_product') {
           if (!selectedAvatar?.personaId) {
             setError('Select an AI avatar first so the avatar product recipe knows who should appear in the ad.');
+            setLoading(false);
+            return;
+          }
+
+          if (!avatarProductAdvancedControls.product_category.trim()) {
+            setAvatarProductAdvancedOpen(true);
+            setError('Select a product category first.');
             setLoading(false);
             return;
           }
@@ -2601,12 +2749,31 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         <div>
                           <p className="text-sm font-semibold text-text">Avatar product assistant</p>
                           <p className="mt-1 text-xs text-muted">
-                            Generate checks the required business fields, and Advanced controls lets you refine the brief when needed.
+                            Select the product category, then generate. Auto AI Fill can help complete the remaining brand details.
                           </p>
                         </div>
-                        <Badge variant="outline" className="rounded-full">
-                          {avatarProductAssistLoading ? 'Checking on generate…' : 'Checks happen on generate'}
-                        </Badge>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="h-9 rounded-full px-3 text-xs font-semibold"
+                            onClick={() => void handleAvatarProductAutofill()}
+                            disabled={avatarProductAssistLoading || loading || !canAutoFillAvatarProduct}
+                          >
+                            {avatarProductAssistLoading ? 'Filling…' : 'Auto AI Fill'}
+                          </Button>
+
+                          <Badge variant="outline" className="rounded-full">
+                            {avatarProductAssistLoading ? 'Checking…' : 'Checks happen on generate'}
+                          </Badge>
+                          {!canAutoFillAvatarProduct ? (
+                            <p className="mt-2 text-xs text-muted">
+                              Auto AI Fill unlocks after you add a product brief, upload the product image, and select a product category.
+                            </p>
+                          ) : null}
+
+                        </div>
                       </div>
                       {avatarProductAssist?.fields ? (
                         <div className="flex flex-wrap gap-2">
@@ -2631,7 +2798,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         </div>
                       ) : null}
 
-                      
+
 
 
                       <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-bg)/0.55)] px-3 py-3 dark:border-white/8 dark:bg-black/20">
@@ -2648,7 +2815,42 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         </button>
                         {avatarProductAdvancedOpen ? (
                           <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {avatarProductAssist?.nextQuestion ? (
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">
+                                Product category <span className="text-[hsl(var(--color-danger))]">*</span>
+                              </span>
+                              <Select
+                                value={avatarProductAdvancedControls.product_category}
+                                onChange={(event) =>
+                                  setAvatarProductAdvancedControls((current) => ({
+                                    ...current,
+                                    product_category: event.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">Select category</option>
+                                {AVATAR_PRODUCT_CATEGORY_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Select>
+                            </label>
+
+                            <label className="space-y-1 text-sm">
+                              <span className="text-muted">Product subcategory</span>
+                              <Input
+                                value={avatarProductAdvancedControls.product_subcategory}
+                                onChange={(event) =>
+                                  setAvatarProductAdvancedControls((current) => ({
+                                    ...current,
+                                    product_subcategory: event.target.value,
+                                  }))
+                                }
+                                placeholder="Example: women kurti, pendant necklace, face serum"
+                              />
+                            </label>
+                            {avatarProductAssist?.nextQuestion && !avatarProductAdvancedControls.product_category ? (
                               <div className="md:col-span-2 rounded-[14px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.48)] px-4 py-3">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Current assistant question</p>
                                 <p className="mt-2 text-sm text-text">
@@ -2702,7 +2904,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             </label>
                             <label className="space-y-1 text-sm">
                               <span className="text-muted">Tagline</span>
-                              <Input value={avatarProductAdvancedControls.tagline} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, tagline: event.target.value }))} placeholder="Fuel fast mornings" />
+                              <Input value={avatarProductAdvancedControls.tagline} onChange={(event) => setAvatarProductAdvancedControls((current) => ({ ...current, tagline: event.target.value }))} placeholder="Everyday comfort, effortless style" />
                             </label>
                             <label className="space-y-1 text-sm md:col-span-2">
                               <span className="text-muted">Must show elements</span>
@@ -3084,7 +3286,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                     setQualityProfile(option.key);
 
                                     if (mode === 'video') {
-                                      const modelKey = resolveVideoModelKeyFromQuality(option.key);
+                                      const modelKey = isAvatarProductRecipe
+                                        ? resolveAvatarProductVideoModelKeyFromQuality(option.key)
+                                        : resolveVideoModelKeyFromQuality(option.key);
+
                                       setSelectedVideoModelKey(modelKey);
                                       setModelPanelKey(modelKey);
 
@@ -3118,13 +3323,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
                             {recipeSettingsLocked ? (
                               <span className="text-[11px] text-muted">
-                                {isAvatarProductRecipe ? `${durationPreference === '10' ? '10s' : '5s'} · selectable` : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
+                                {isAvatarProductRecipe ? `${durationPreference === '15' ? '15s' : durationPreference === '10' ? '10s' : '5s'} · selectable` : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
                               </span>
                             ) : null}
                           </div>
                           {recipeSettingsLocked && isAvatarProductRecipe ? (
                             <div className="mt-2 grid gap-1">
-                              {(['5', '10'] as const).map((option) => (
+                              {(['5', '10', '15'] as const).map((option) => (
                                 <button
                                   key={option}
                                   type="button"

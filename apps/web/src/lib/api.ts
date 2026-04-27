@@ -828,7 +828,10 @@ export const api = {
     return request<VideoCreateResponse>('/api/ai/video/create', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store', timeoutMs: 60_000 });
+    }, { userId, cache: 'no-store', timeoutMs: 180_000 });
+  },
+  getVideo(videoId: string, userId: string) {
+    return request<Video>(`/videos/${videoId}`, {}, { userId, cache: 'no-store' });
   },
   assistAvatarProductRecipe(payload: AvatarProductAssistRequest, userId: string) {
     return request<AvatarProductAssistResponse>('/api/recipes/avatar-product/assist', {

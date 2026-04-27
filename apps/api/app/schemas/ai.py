@@ -151,7 +151,7 @@ class AIVideoCreateRequest(BaseModel):
     @field_validator('quality')
     @classmethod
     def validate_quality(cls, value: str) -> str:
-        if value not in {'standard', 'high'}:
+        if value not in {'standard', 'high', 'premium'}:
             raise ValueError('Unsupported quality')
         return value
 
@@ -160,7 +160,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_duration_mode(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'auto', 'custom'}:
+        if value not in {'auto', 'custom', 'fixed'}:
             raise ValueError('Unsupported durationMode')
         return value
 

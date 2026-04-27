@@ -671,6 +671,12 @@ class CreditService:
             'kling_standard': 'kling_v16_standard_i2v',
             'kling_pro': 'kling_v16_pro_i2v',
             'kling_o1': 'kling_o1_reference',
+
+            # Avatar Product / O3 reference models.
+            # Temporary billing alias until credit-engine.json gets dedicated O3 multipliers.
+            'kling_o3_standard_reference': 'kling_o1_reference',
+            'kling_o3_reference': 'kling_o1_reference',
+            'kling_o3_pro_reference': 'kling_o1_reference',
         }
 
         if key in runtime_aliases:
