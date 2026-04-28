@@ -49,7 +49,6 @@ import type {
   VideoCreateRequest,
 } from '@/types/api';
 
-import CreateCustomAvatarModal from '@/components/avatars/CreateCustomAvatarModal';
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
@@ -1212,7 +1211,6 @@ function getFriendlyErrorMessage(error: unknown) {
 export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [showCreateCustomAvatarModal, setShowCreateCustomAvatarModal] = useState(false);
   const [idea, setIdea] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
@@ -1331,11 +1329,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
 
   const isAvatarProductCompatibleAvatar = (avatar: Avatar) => {
-    const provider = String(avatar.provider || '').trim().toLowerCase();
-
     return (
-      provider === 'reference_image' ||
-      provider === 'heygen' ||
       Boolean(
         avatar.primary_image ||
         avatar.thumbnail_url ||
@@ -2450,18 +2444,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-muted transition hover:text-text"
                   >
                     Continue without avatar
-                  </button>
-                ) : null}
-                {!isAvatarProductRecipe ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAvatarPickerOpen(false);
-                      setShowCreateCustomAvatarModal(true);
-                    }}
-                    className="rounded-full border border-[hsl(var(--color-border)/0.7)] px-3 py-1.5 text-xs font-semibold text-text transition hover:border-[hsl(var(--color-accent)/0.35)]"
-                  >
-                    Create Your Own Avatar
                   </button>
                 ) : null}
               </div>
@@ -3883,97 +3865,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         />
       ) : null}
 
-      <CreateCustomAvatarModal
-        open={showCreateCustomAvatarModal}
-        onClose={() => setShowCreateCustomAvatarModal(false)}
-        userId={userId}
-        uploadImage={async (file) => {
-          const uploaded = await api.uploadFileDirect(
-            { file, kind: 'avatar_source' },
-            userId,
-          );
-
-          return {
-            publicUrl: uploaded.public_url,
-          };
-        }}
-        onAvatarCreated={(avatar) => {
-          setSelectedAvatar({
-            personaId: avatar.avatarId,
-            name: avatar.name,
-            imageUrl: avatar.imageUrl,
-            source: 'saved',
-            sourceLabel: 'Saved',
-            isCustomAvatar: true,
-            genderPresentation: avatar.gender,
-            preferredVoice: avatar.preferredVoice || null,
-            preferredLanguage: avatar.preferredLanguage || null,
-            languageTags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
-            styleLabel: 'Custom avatar',
-            languageInfo: selectedLanguageLabel || null,
-            voiceInfo: avatar.preferredVoice ? `${avatar.preferredVoice} voice selected` : 'Uses your selected Sarvam voice',
-            previewVideoUrl: null,
-            description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
-          });
-          setSavedAvatars((current) => [
-            {
-              id: avatar.avatarId,
-              name: avatar.name,
-              scope: 'own',
-              style: 'custom_avatar',
-              provider: 'heygen',
-              provider_api_version: 'v2_photo_avatar',
-              avatar_family: 'avatar_iv',
-              avatar_type: 'photo_avatar',
-              ownership: 'private',
-              supports_avatar_video_generation: true,
-              gender: avatar.gender,
-              language_tags: avatar.preferredLanguage ? [avatar.preferredLanguage] : [],
-              thumbnail_url: avatar.imageUrl,
-              tags: ['custom', 'ugc'],
-              category: 'custom_avatar',
-              reference_images: avatar.referenceImages,
-              primary_image: avatar.referenceImages[0] || avatar.imageUrl,
-              preview_video_url: null,
-              recommended_voice: avatar.preferredVoice || null,
-              status: 'ready_for_preview',
-              description: `${avatar.name} is now available as a reusable saved avatar for talking scenes.`,
-            },
-            ...current.filter((item) => item.id !== avatar.avatarId),
-          ]);
-
-          show({
-            title: 'Avatar created',
-            message: `${avatar.name} is now available in your saved personas.`,
-            variant: 'success',
-          });
-        }}
-        onPreviewCompleted={(preview) => {
-          setSavedAvatars((current) =>
-            current.map((avatar) =>
-              avatar.id === preview.avatarId
-                ? {
-                  ...avatar,
-                  preview_video_url: preview.videoUrl,
-                }
-                : avatar,
-            ),
-          );
-          setSelectedAvatar((current) =>
-            current?.personaId === preview.avatarId
-              ? {
-                ...current,
-                previewVideoUrl: preview.videoUrl,
-              }
-              : current,
-          );
-          show({
-            title: 'Preview ready',
-            message: 'Your talking avatar preview has been generated successfully.',
-            variant: 'success',
-          });
-        }}
-      />
     </div>
   );
 }

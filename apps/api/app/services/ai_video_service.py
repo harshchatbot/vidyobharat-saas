@@ -6,6 +6,7 @@ import threading
 import time
 from base64 import b64decode
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -1264,6 +1265,72 @@ def celery_process_ai_video(video_id: str) -> None:
             provider_video_url=result_metadata.get('video_url') or stored_video_url,
             stderr_tail=result_metadata.get('stderr_tail'),
         )
+
+
+        try:
+            completion_notification: dict[str, Any] = {}
+
+            try:
+                latest_snapshot = repo.collection.document(video_id).get()
+                latest_data = latest_snapshot.to_dict() or {}
+                pipeline_metadata = latest_data.get("pipeline_metadata") or latest_data.get("pipelineMetadata") or {}
+
+                if isinstance(pipeline_metadata, dict):
+                    raw_notification = pipeline_metadata.get("completion_notification") or {}
+                    if isinstance(raw_notification, dict):
+                        completion_notification = raw_notification
+            except Exception:
+                completion_notification = {}
+
+            title = str(
+                completion_notification.get("title")
+                or "Your video is ready"
+            ).strip()
+
+            message = str(
+                completion_notification.get("message")
+                or "Your video generation has completed."
+            ).strip()
+
+            repo.collection.document(video_id).reference._client.collection("notifications").add({
+                "user_id": video.user_id,
+                "type": "video_completed",
+                "title": title,
+                "message": message,
+                "video_id": video.id,
+                "recipe_id": recipe_id,
+                "read": False,
+                "created_at": datetime.utcnow(),
+                "metadata": {
+                    "output_url": stored_video_url,
+                    "thumbnail_url": stored_thumb_url,
+                    "selected_model": video.selected_model,
+                    "provider": result.provider,
+                },
+            })
+
+            logger.info(
+                "video_completion_notification_created",
+                extra={"render_id": video.id, "user_id": video.user_id},
+            )
+        except Exception:
+            logger.exception(
+                "video_completion_notification_failed",
+                extra={"render_id": video.id, "user_id": video.user_id},
+            )
+
+        logger.info(
+            'local_video_completed',
+            extra={
+                'render_id': video.id,
+                'provider': result.provider,
+                'model_key': video.selected_model,
+                'output_url_present': bool(stored_video_url),
+            },
+        )
+
+
+        
         logger.info(
             'local_video_completed',
             extra={

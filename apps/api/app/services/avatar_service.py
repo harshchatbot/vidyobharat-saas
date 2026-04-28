@@ -408,6 +408,8 @@ class AvatarService:
             return None
 
         data = snap.to_dict() or {}
+        if str(data.get('provider') or '').strip().lower() == 'heygen':
+            return None
         if str(data.get('user_id') or '').strip() != normalized_user_id:
             return None
 
@@ -477,6 +479,8 @@ class AvatarService:
 
                 status = str(data.get('status') or 'active').strip().lower()
                 if status not in {'active', 'ready_for_preview', 'ready'}:
+                    continue
+                if str(data.get('provider') or '').strip().lower() == 'heygen':
                     continue
 
                 item_user_id = str(data.get('user_id') or '').strip()
@@ -619,6 +623,8 @@ class AvatarService:
             try:
                 data = snap.to_dict() or {}
                 if str(data.get('user_id') or '').strip() != normalized_user_id:
+                    continue
+                if str(data.get('provider') or '').strip().lower() == 'heygen':
                     continue
 
                 reference_images = self._normalize_reference_images(

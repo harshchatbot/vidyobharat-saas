@@ -317,11 +317,10 @@ def _persona_provider_fields(raw: dict[str, Any] | None, *, default_provider: st
     provider_avatar_id = str(
         source.get('provider_avatar_id')
         or source.get('avatar_provider_id')
-        or source.get('heygen_avatar_id')
         or ''
     ).strip() or None
     provider_voice_id = str(source.get('provider_voice_id') or source.get('voice_id') or '').strip() or None
-    voice_provider = str(source.get('voice_provider') or '').strip().lower() or ('heygen' if provider == 'heygen' else 'sarvam')
+    voice_provider = str(source.get('voice_provider') or '').strip().lower() or 'sarvam'
     return {
         'provider': provider,
         'provider_avatar_id': provider_avatar_id,
@@ -407,7 +406,7 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "voice_profile": actor.voice_profile,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": actor.preview_video_url,
-            **_persona_provider_fields(actor.raw, default_provider='heygen' if str((actor.raw or {}).get('provider') or '').strip().lower() == 'heygen' else 'fal'),
+            **_persona_provider_fields(actor.raw, default_provider='fal'),
         }
 
     if normalized_id.startswith("av-"):

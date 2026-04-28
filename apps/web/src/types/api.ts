@@ -456,23 +456,6 @@ export type ReelScriptOutput = {
   hashtags: string[];
 };
 
-export type AIVideoGenerateRequest = {
-  templateId: string;
-  topic: string;
-  tone: string;
-  language: string;
-  selectedModel: string;
-  voice?: string;
-  referenceImages?: string[];
-};
-
-export type AIVideoGenerateResponse = {
-  videoUrl: string;
-  provider: string;
-  duration: number;
-  quality: string;
-};
-
 export type AIVideoModel = {
   key: string;
   label: string;
@@ -1008,54 +991,4 @@ export type InfluencerPoseOption = {
   key: string;
   label: string;
   description: string;
-};
-
-export type CreateCustomAvatarRequest = {
-  name: string;
-  reference_image_url: string;
-  reference_images?: string[];
-  gender: 'female' | 'male';
-  preferred_voice?: string;
-};
-
-export type CreateCustomAvatarResponse = {
-  avatar_id: string;
-  user_id: string;
-  name: string;
-  reference_image_url: string;
-  reference_images?: string[];
-  primary_image?: string | null;
-  gender?: 'female' | 'male';
-  preferred_voice: string;
-  status: string;
-};
-
-export type GenerateCustomAvatarPreviewRequest = {
-  script: string;
-  voice?: string;
-  language?: string;
-};
-
-export type GenerateCustomAvatarPreviewResponse = {
-  job_id: string;
-  avatar_id: string;
-  status: string;
-};
-
-export type CustomAvatarPreviewStatusResponse = {
-  job_id: string;
-  avatar_id: string;
-  user_id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | string;
-  script?: string | null;
-  voice?: string | null;
-  language?: string | null;
-  audio_url?: string | null;
-  video_url?: string | null;
-  provider?: string | null;
-  error_message?: string | null;
-  timing_map?: Array<Record<string, unknown>> | null;
-  behavior_timeline?: Array<Record<string, unknown>> | null;
-  audio_reactive_timeline?: Array<Record<string, unknown>> | null;
-  voice_profile?: Record<string, unknown> | null;
 };

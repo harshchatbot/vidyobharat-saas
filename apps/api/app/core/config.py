@@ -122,13 +122,6 @@ class Settings(BaseSettings):
     ltx_mock_malformed_status: bool = False
     ltx_mock_queue_seconds: int = 2
     ltx_mock_processing_seconds: int = 3
-    heygen_api_key: str | None = None
-    heygen_api_base: str = 'https://api.heygen.com'
-    heygen_default_voice_id: str | None = None
-    heygen_request_timeout_seconds: int = 60
-    heygen_generation_timeout_seconds: int = 1800
-    heygen_poll_interval_seconds: int = 10
-    heygen_preset_cache_ttl_seconds: int = 3600
     chitrakala_persona_id: str = 'av-chitrakala'
     chitrakala_avatar_name: str = 'Chitrakala'
     chitrakala_avatar_image_url: str | None = None
