@@ -53,7 +53,7 @@ import CreateCustomAvatarModal from '@/components/avatars/CreateCustomAvatarModa
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
-type QualityProfile = 'fast_social' | 'creator_quality' | 'standard' | 'high_quality' | 'premium';
+type QualityProfile = 'fast_social' | 'creator_quality' | 'affordable' | 'standard' | 'high_quality' | 'premium';
 type RecipeTab = 'all' | 'ads' | 'explainer' | 'inspiration_photos';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
 type RecentEntryKind = 'recipe' | 'draft';
@@ -220,6 +220,7 @@ const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
   { key: 'creator_quality', label: 'Creator Quality', helper: 'More polished image output for standout posts' },
+  { key: 'affordable', label: 'Affordable', helper: 'Most-Popular, budget-friendly avatar product ads using Seedance Lite' },
   { key: 'standard', label: 'Standard', helper: 'Affordable UGC quality for avatar/product videos' },
   { key: 'high_quality', label: 'High Quality', helper: 'Better motion and product clarity' },
   { key: 'premium', label: 'Premium', helper: 'Highest reference consistency. Costs more credits.' },
@@ -293,8 +294,8 @@ const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = 
   provided_script: '',
   strict_script_lock: false,
 
-  video_model_key: 'kling_o3_reference',
-  quality_profile: 'standard',
+  video_model_key: 'seedance_v1_lite_reference',
+  quality_profile: 'affordable',
 };
 
 const AVATAR_PRODUCT_CATEGORY_OPTIONS = [
@@ -648,6 +649,7 @@ function resolveVideoModelKeyFromQuality(profile: QualityProfile): string {
 
 
 function resolveAvatarProductVideoModelKeyFromQuality(profile: QualityProfile): string {
+  if (profile === 'affordable') return 'seedance_v1_lite_reference';
   if (profile === 'premium') return 'kling_o3_reference';
   if (profile === 'high_quality') return 'kling_o3_standard_reference';
   return 'kling_o3_reference';
@@ -684,8 +686,9 @@ function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' | '15' {
 }
 
 function profileForVideoModel(modelKey: string): QualityProfile {
+  if (modelKey === 'seedance_v1_lite_reference') return 'affordable';
   if (modelKey === 'kling_o3_reference') return 'premium';
-  if (modelKey === 'kling_v16_pro_elements') return 'high_quality';
+  if (modelKey === 'kling_v16_pro_elements' || modelKey === 'kling_o3_standard_reference') return 'high_quality';
   return 'standard';
 }
 
@@ -1274,13 +1277,58 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const avatarSyncKeyRef = useRef<string | null>(null);
   const { show } = useToast();
 
+  const isUgcAdRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
+    [activeRecipeSource],
+  );
+
+  const isAvatarProductRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product',
+    [activeRecipeSource],
+  );
   const visibleQualityProfiles = useMemo(
     () =>
       mode === 'image'
         ? QUALITY_PROFILES.filter((item) => item.key === 'fast_social' || item.key === 'creator_quality')
-        : QUALITY_PROFILES.filter((item) => item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium'),
-    [mode],
+        : isAvatarProductRecipe
+          ? QUALITY_PROFILES.filter((item) => item.key === 'affordable' || item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium')
+          : QUALITY_PROFILES.filter((item) => item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium'),
+    [mode, isAvatarProductRecipe],
   );
+
+  const visibleAvatarProductDurationOptions = useMemo(() => {
+    if (
+      isAvatarProductRecipe &&
+      avatarProductAdvancedControls.quality_profile === 'affordable'
+    ) {
+      return ['5', '10'] as const;
+    }
+
+    return ['5', '10', '15'] as const;
+  }, [isAvatarProductRecipe, avatarProductAdvancedControls.quality_profile]);
+
+
+
+  useEffect(() => {
+    if (!isAvatarProductRecipe) return;
+
+    if (
+      avatarProductAdvancedControls.quality_profile === 'affordable' &&
+      avatarProductAdvancedControls.duration_seconds === '15'
+    ) {
+      setDurationPreference('10');
+
+      setAvatarProductAdvancedControls((current) => ({
+        ...current,
+        duration_seconds: '10',
+      }));
+    }
+  }, [
+    isAvatarProductRecipe,
+    avatarProductAdvancedControls.quality_profile,
+    avatarProductAdvancedControls.duration_seconds,
+  ]);
+
 
   const isAvatarProductCompatibleAvatar = (avatar: Avatar) => {
     const provider = String(avatar.provider || '').trim().toLowerCase();
@@ -1497,15 +1545,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   };
   const firstEmptySlotId = useMemo(() => firstEmptyRecipeTextSlot(recipeComposer), [recipeComposer]);
   const composerIntent = useMemo(() => detectVideoIntent(idea), [idea]);
-  const isUgcAdRecipe = useMemo(
-    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
-    [activeRecipeSource],
-  );
-
-  const isAvatarProductRecipe = useMemo(
-    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product',
-    [activeRecipeSource],
-  );
 
   const visibleLanguageOptions = useMemo(
     () =>
@@ -1939,7 +1978,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         : 'creator_quality',
     );
     if (recipe.id === 'avatar_product') {
-      const defaultQuality: QualityProfile = 'standard';
+      const defaultQuality: QualityProfile = 'affordable';
       const defaultModelKey = resolveAvatarProductVideoModelKeyFromQuality(defaultQuality);
       const defaultAvatar =
         avatarOptions.find((item) => item.personaId === 'av-chitrakala') ||
@@ -3323,13 +3362,19 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
                             {recipeSettingsLocked ? (
                               <span className="text-[11px] text-muted">
-                                {isAvatarProductRecipe ? `${durationPreference === '15' ? '15s' : durationPreference === '10' ? '10s' : '5s'} · selectable` : isRecipeLongForm ? 'Auto · recipe controlled' : 'Recipe controlled'}
+                                {isAvatarProductRecipe
+                                  ? avatarProductAdvancedControls.quality_profile === 'affordable'
+                                    ? '5s / 10s · affordable'
+                                    : `${durationPreference === '15' ? '15s' : durationPreference === '10' ? '10s' : '5s'} · selectable`
+                                  : isRecipeLongForm
+                                    ? 'Auto · recipe controlled'
+                                    : 'Recipe controlled'}
                               </span>
                             ) : null}
                           </div>
                           {recipeSettingsLocked && isAvatarProductRecipe ? (
                             <div className="mt-2 grid gap-1">
-                              {(['5', '10', '15'] as const).map((option) => (
+                              {visibleAvatarProductDurationOptions.map((option) => (
                                 <button
                                   key={option}
                                   type="button"

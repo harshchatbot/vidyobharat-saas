@@ -150,6 +150,26 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
             'fal-ai/kling-video/o3/standard/reference-to-video',
         ),
     ),
+
+    'seedance_v1_lite_reference': GenerationModelDefinition(
+        model_key='seedance_v1_lite_reference',
+        display_name='Seedance Lite Reference',
+        medium='video',
+        provider='fal',
+        provider_model_key='fal-ai/bytedance/seedance/v1/lite/reference-to-video',
+        mode_ids=('creator_pro',),
+        billing_unit='per_video',
+        quality_tier='affordable',
+        cost_profile='seedance_v1_lite_reference',
+        user_facing_description='Affordable reference-to-video route for avatar product ads.',
+        fallback_model_key='kling_o3_standard_reference',
+        aliases=(
+            'seedance_lite_reference',
+            'seedance_v1_lite',
+            'fal-ai/bytedance/seedance/v1/lite/reference-to-video',
+        ),
+    ),
+
 }
 
 

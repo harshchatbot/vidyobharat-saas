@@ -167,6 +167,47 @@ def _compact_spoken_line(text: str, *, fallback: str) -> str:
     return shortened or cleaned[:140].strip()
 
 
+
+def _cap_spoken_script_for_duration(
+    script: str,
+    *,
+    duration_seconds: int,
+    language: str | None = None,
+) -> str:
+    cleaned = re.sub(r"\s+", " ", str(script or "").strip())
+    if not cleaned:
+        return ""
+
+    duration = max(5, min(int(duration_seconds or 5), 30))
+    language_normalized = str(language or "").strip().lower()
+
+    # Hindi generally needs fewer words for clean lip-sync in short ads.
+    if "hi" in language_normalized or "hindi" in language_normalized:
+        max_words = {
+            5: 12,
+            10: 22,
+            15: 32,
+            30: 58,
+        }.get(duration, max(12, int(duration * 2.2)))
+    else:
+        max_words = {
+            5: 14,
+            10: 26,
+            15: 38,
+            30: 65,
+        }.get(duration, max(14, int(duration * 2.6)))
+
+    words = cleaned.split()
+    if len(words) <= max_words:
+        return cleaned
+
+    shortened = " ".join(words[:max_words]).strip()
+    shortened = re.sub(r"[,;:\-–—]+$", "", shortened).strip()
+    if shortened and shortened[-1] not in ".!?।":
+        shortened += "।" if ("hi" in language_normalized or "hindi" in language_normalized) else "."
+    return shortened
+
+
 def _split_chitrakala_manual_script(
     script: str,
     *,
@@ -1058,12 +1099,41 @@ Style: {ugc_style}
     ).strip()
 
 
-def _fallback_ugc_raw_script(topic: str) -> str:
-    normalized_topic = _normalize_topic(topic)
-    return (
-        f"I recently tried {normalized_topic} and it actually made a difference. "
-        "You should check it out."
-    )
+
+def _fallback_avatar_product_script(
+    *,
+    product_name: str,
+    product_category_hint: str,
+    main_benefit: str | None = None,
+    cta: str | None = None,
+    language: str | None = None,
+) -> str:
+    safe_product_name = str(product_name or "").strip() or "this product"
+    category = str(product_category_hint or "").strip().lower()
+    benefit = str(main_benefit or "").strip()
+    cta_text = str(cta or "").strip() or f"Check out {safe_product_name} today"
+    language_normalized = str(language or "").strip().lower()
+
+    if "hi" in language_normalized or "hindi" in language_normalized:
+        if any(word in category for word in ["toy", "kids", "children", "baby"]):
+            return f"{safe_product_name} बच्चों के लिए क्यूट और मज़ेदार है। {cta_text}।"
+        if any(word in category for word in ["shoe", "sneaker", "footwear"]):
+            return f"{safe_product_name} स्टाइलिश और कम्फर्टेबल है। {cta_text}।"
+        if any(word in category for word in ["clothing", "kurti", "fashion", "apparel"]):
+            return f"{safe_product_name} सॉफ्ट, स्टाइलिश और डेली वियर के लिए परफेक्ट है। {cta_text}।"
+        return f"{safe_product_name} आपके लिए एक स्मार्ट और उपयोगी पसंद है। {cta_text}।"
+
+    if any(word in category for word in ["toy", "kids", "children", "baby"]):
+        return f"{safe_product_name} is cute, fun, and perfect for little kids. {cta_text}."
+    if any(word in category for word in ["shoe", "sneaker", "footwear"]):
+        return f"{safe_product_name} is stylish, comfortable, and easy for daily wear. {cta_text}."
+    if any(word in category for word in ["clothing", "kurti", "fashion", "apparel"]):
+        return f"{safe_product_name} is soft, stylish, and perfect for everyday wear. {cta_text}."
+
+    if benefit:
+        return f"{safe_product_name} is designed for {benefit}. {cta_text}."
+
+    return f"{safe_product_name} is simple, useful, and worth checking out. {cta_text}."
 
 
 def _extract_ugc_talking_excerpt(narration_script: str, *, max_sentences: int = 2, max_chars: int = 220) -> str:
@@ -1287,9 +1357,11 @@ def _build_avatar_product_category_preservation_rules(*, product_category_hint: 
             "If the subcategory says kurti, describe it only as a kurti or clothing item. "
             "Preserve the clothing silhouette, fabric texture, color, neckline, sleeve style, button details, print/motifs, and daily-wear styling from Image 2. "
             "The script and visual prompt must talk about fabric, comfort, fit, styling, daily wear, office, college, casual outings, neckline, sleeves, and clothing details only. "
-            "Do not mention earrings, earring, jewellery, jewelry, necklace, pendant, ring, bracelet, crochet, serum, skincare, bottle, gadget, charger, shoes, or handmade accessories. "
-            "Do not turn the product into jewellery, skincare, a bottle, a gadget, or crochet/handmade accessories. "
-            "If older context, image interpretation, or previous assistant output conflicts, trust the selected product_category and product_subcategory."
+            "Hero reveal timing: the kurti must be opened/unfolded clearly between second 1 and second 3. "
+            "By second 3, show the full front side of the kurti with neckline, button placket, sleeves, motifs, and fabric texture clearly visible. "
+            "After reveal, hold the kurti steady and front-facing for at least 2 seconds. "
+            "Keep the creator's face visible above or beside the garment; do not cover the full face with the kurti. "
+            "Do not mention earrings..."
         )
 
     if any(word in category for word in ["skincare", "beauty", "cosmetic", "serum", "cream", "lotion", "bottle", "packaging"]):
@@ -1443,21 +1515,30 @@ def _pick_avatar_product_ugc_variant(*, video_id: str, product_category_hint: st
             },
         ]
 
+
     elif any(word in category for word in ["kurti", "saree", "sari", "dress", "clothing", "apparel", "fashion", "fabric"]):
         variants = [
             {
                 "setting": "clean wardrobe or dressing area with soft daylight",
                 "wardrobe": "plain neutral simple outfit that does not compete with the clothing product",
-                "camera": "medium vertical creator framing, fabric held neatly in both hands",
-                "movement": "slow fabric lift to show print, no wearing or draping",
+                "camera": "medium vertical creator framing, creator face visible above or beside the garment",
+                "movement": (
+                    "start with the folded kurti visible at chest level, then between second 1 and second 3 "
+                    "unfold and raise it with both hands into a clear front-facing hero reveal; keep neckline, button placket, sleeves, motifs, and fabric visible; "
+                    "do not cover the creator's full face"
+                ),
             },
             {
-                "setting": "simple bedroom corner with neutral wall and warm light",
+                "setting": "simple bedroom or wardrobe corner with neutral wall and warm light",
                 "wardrobe": "simple solid cream, beige, or black top, minimal styling",
-                "camera": "chest-up phone-shot framing, garment held in front clearly",
-                "movement": "gentle hand movement to show texture and border",
+                "camera": "chest-up phone-shot framing, full front of garment visible during reveal",
+                "movement": (
+                    "within the first 1 to 3 seconds, open the kurti fully toward the camera as the hero product reveal; "
+                    "hold it steady after reveal with both hands, face still partially visible, product centered and readable"
+                ),
             },
         ]
+
 
     elif any(word in category for word in ["handmade", "handcrafted", "crochet", "decor", "home", "craft", "handicraft"]):
         variants = [
@@ -1539,6 +1620,14 @@ def _build_avatar_product_single_shot_kling_prompt(
 
         The product must be visible from the first frame/first second and stay clearly visible with the creator throughout the video.
 
+        TIMED HERO PRODUCT REVEAL:
+        - Between second 1 and second 3, the creator must complete a clear hero reveal of the product.
+        - For clothing/kurti products, start with the garment folded or partly held at chest level, then unfold/open it with both hands toward the camera.
+        - By second 3, the full front side of the kurti must be clearly visible: neckline, button placket, sleeves, color, motifs/print, and fabric texture.
+        - After the reveal, hold the product steady and front-facing for at least 2 seconds.
+        - Keep the creator's face visible above or beside the garment; do not let the kurti fully cover the face.
+        - Avoid random waving, casual dangling, or hiding the product.
+
         The product must remain only in the creator's hand. Do not show the creator wearing the product or wearing any matching version of the product. Keep it as a handheld showcase item only.
 
         Scene variation:
@@ -1557,6 +1646,80 @@ def _build_avatar_product_single_shot_kling_prompt(
 
     return _trim_kling_prompt(prompt), ugc_variant, category_preservation_rules
 
+
+def _build_avatar_product_seedance_lite_prompt(
+    *,
+    base_prompt: str,
+    product_category_hint: str,
+    narration_script: str | None,
+) -> str:
+    category = str(product_category_hint or "").strip().lower()
+    script_preview = " ".join(str(narration_script or "").split())[:260]
+
+    reference_rules = (
+        "Use Reference Image 1 only as the creator/avatar identity reference. "
+        "Use Reference Image 2 only as the exact product reference. "
+        "Do not merge the product into the creator identity. "
+        "Do not change the product category, color, shape, design, or visible details. "
+    )
+
+    speaking_motion = (
+        "The creator is looking directly into the lens and speaking energetically to the camera. "
+        "Her mouth is moving clearly and continuously with natural speech-like motion as she presents the product. "
+        "She is nodding and smiling while talking, with natural facial expressions. "
+        "Keep mouth movement realistic and not exaggerated. "
+        "Keep the face visible and readable for later lip-sync replacement. "
+    )
+
+    if any(word in category for word in ["sneaker", "shoe", "shoes", "footwear", "sandal"]):
+        product_motion = (
+            "The product is footwear. The creator holds the pair of shoes with both hands near chest level. "
+            "The shoes are held steadily in the foreground, facing the camera. "
+            "The product must remain visible from the first second. "
+            "Do not show the creator wearing the shoes. "
+            "Do not turn the shoes into heels, sandals, boots, bags, jewellery, clothing, bottles, or any other product. "
+        )
+    elif any(word in category for word in ["kurti", "clothing", "apparel", "fashion", "dress", "saree", "fabric"]):
+        product_motion = (
+            "The product is clothing. The creator holds the garment with both hands and presents it clearly. "
+            "Between second 1 and second 3, she opens or raises the garment for a hero reveal. "
+            "Keep her face visible above or beside the garment. "
+            "Do not turn the clothing product into jewellery, skincare, shoes, bag, or bottle. "
+        )
+    elif any(word in category for word in ["jewellery", "jewelry", "earring", "necklace", "pendant", "ring", "bracelet"]):
+        product_motion = (
+            "The product is jewellery. The creator presents the jewellery carefully near the camera. "
+            "Do not add extra jewellery on the body. Do not transform the jewellery into skincare, shoes, clothing, or a bottle. "
+        )
+    elif any(word in category for word in ["skincare", "beauty", "serum", "cream", "cosmetic", "bottle"]):
+        product_motion = (
+            "The product is a beauty or skincare item. The creator holds the bottle/tube/jar beside her face and then closer to the camera. "
+            "Do not transform it into jewellery, clothing, shoes, or a gadget. "
+        )
+    else:
+        product_motion = (
+            "The creator holds the product steadily in the foreground and presents it clearly to the camera. "
+            "The product remains visible from the first second and stays visible while she speaks. "
+        )
+
+    script_context = (
+        f"The visual performance should match this short spoken ad script, but do not add captions or text overlays: {script_preview}. "
+        if script_preview
+        else ""
+    )
+
+    return _trim_kling_prompt(
+        (
+            f"{base_prompt}\n\n"
+            f"{reference_rules}\n"
+            f"{speaking_motion}\n"
+            f"{product_motion}\n"
+            f"{script_context}\n"
+            "Soft natural indoor lighting, realistic skin textures, stable handheld framing, premium casual UGC ad style, "
+            "720p, 9:16 vertical composition, no captions, no subtitles, no text overlays, no random logos."
+        ),
+        max_chars=2600,
+    )
 
 
 def _build_long_explainer_sora_fallback_plan(
@@ -2262,10 +2425,18 @@ def run_recipe_pipeline(
                     )
                 )
             except Exception:
-                logger.exception("ugc_raw_script_generation_failed", extra={"topic": _normalize_topic(topic), "ugc_style": ugc_ad_style})
-                narration_script = ""
-        if not narration_script:
-            narration_script = _fallback_ugc_raw_script(topic)
+                logger.exception("ugc_raw_script_generation_failed")
+
+                if recipe.id == "avatar_product" and avatar_product_brief:
+                    narration_script = _fallback_avatar_product_script(
+                        product_name=avatar_product_brief.product_name,
+                        product_category_hint=product_category_hint,
+                        main_benefit=avatar_product_brief.key_promise,
+                        cta=avatar_product_brief.cta,
+                        language=effective_language,
+                    )
+                else:
+                    narration_script = _fallback_ugc_raw_script(topic)
 
         if recipe.id in {"ugc_ad", "avatar_product"}:
             for scene in scenes:
@@ -2621,6 +2792,7 @@ def run_recipe_pipeline(
         ).strip()
 
         allowed_avatar_product_models = {
+            "seedance_v1_lite_reference",
             "kling_o3_standard_reference",
             "kling_o3_pro_reference",
             "kling_o3_4k_reference",
@@ -2635,6 +2807,8 @@ def run_recipe_pipeline(
 
         if requested_video_model_key in allowed_avatar_product_models:
             resolved_video_model_key = requested_video_model_key
+        elif quality_profile == "affordable":
+            resolved_video_model_key = "seedance_v1_lite_reference"
         elif quality_profile in {"high", "high_quality"}:
             resolved_video_model_key = "kling_o3_pro_reference"
         elif quality_profile == "premium":
@@ -2663,27 +2837,58 @@ def run_recipe_pipeline(
             },
         )
 
-        kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
-            prompt=kling_prompt,
-            image_urls=[url for url in [avatar_image_url, product_image_url] if url],
-            aspect_ratio="9:16",
-            duration=kling_duration,
-            model_key=resolved_video_model_key,
+        seedance_prompt = None
+
+        if resolved_video_model_key == "seedance_v1_lite_reference":
+            seedance_prompt = _build_avatar_product_seedance_lite_prompt(
+                base_prompt=kling_prompt,
+                product_category_hint=product_category_hint,
+                narration_script=narration_script or "",
+            )
+
+            kling_video_url, kling_meta = fal_service.generate_seedance_lite_reference_video(
+                prompt=seedance_prompt,
+                reference_image_urls=[url for url in [avatar_image_url, product_image_url] if url],
+                aspect_ratio="9:16",
+                resolution="720p",
+                duration=kling_duration,
+                camera_fixed=False,
+            )
+        else:
+            kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
+                prompt=kling_prompt,
+                image_urls=[url for url in [avatar_image_url, product_image_url] if url],
+                aspect_ratio="9:16",
+                duration=kling_duration,
+                model_key=resolved_video_model_key,
+            )
+
+        original_narration_script_for_tts = str(narration_script or "").strip()
+
+        narration_script = _cap_spoken_script_for_duration(
+            narration_script or "",
+            duration_seconds=requested_duration,
+            language=effective_language,
         )
 
-        # Timing Safety Cap for 5-6s ads
-        if kling_duration == "5" or requested_duration <= 6:
-            # Tokenize by space and limit to roughly 12 words
-            words = narration_script.split()
-            if len(words) > 12:
-                narration_script = " ".join(words[:11]) + "."
-                logger.info("shortening_script_for_timing_safety", extra={"video_id": video_id})
+        if narration_script != original_narration_script_for_tts:
+            logger.info(
+                "avatar_product_tts_script_capped",
+                extra={
+                    "video_id": video_id,
+                    "requested_duration": requested_duration,
+                    "language": effective_language,
+                    "original_word_count": len(original_narration_script_for_tts.split()),
+                    "final_word_count": len(narration_script.split()),
+                    "final_script": narration_script,
+                },
+            )
 
         logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})
         audio_url, tts_meta = fal_service.generate_gemini_flash_tts(
             text=narration_script or "",
             voice="Kore",
-            language_code="English (India)",
+            language_code="Hindi" if str(effective_language or "").lower().startswith("hi") or "hindi" in str(effective_language or "").lower() else "English (India)",
         )
 
         logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})
@@ -2699,8 +2904,12 @@ def run_recipe_pipeline(
             avatar_product_product_category_hint=product_category_hint,
             avatar_product_ugc_variant=ugc_variant,
             avatar_product_category_preservation_rules=category_preservation_rules,
+            avatar_product_hero_reveal_timing="Hero reveal should happen between second 1 and second 3, with product held steady after reveal.",
             avatar_product_kling_prompt=kling_prompt,
             avatar_product_kling_video_url=kling_video_url,
+            avatar_product_base_video_model=resolved_video_model_key,
+            avatar_product_affordable_lane=resolved_video_model_key == "seedance_v1_lite_reference",
+            avatar_product_seedance_prompt=seedance_prompt,
             avatar_product_tts_audio_url=audio_url,
             avatar_product_lipsync_video_url=final_video_url,
             avatar_product_kling_meta=kling_meta,

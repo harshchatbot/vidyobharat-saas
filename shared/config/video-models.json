@@ -250,6 +250,35 @@
       "durationPresets": [5, 6],
       "defaultDurationSeconds": 5,
       "durationHelperText": "Internal LTX benchmark scene route for 5s to 6s stitched scenes."
+    },
+    {
+      "key": "seedance_v1_lite_reference",
+      "lane": "creator_pro",
+      "label": "Seedance Lite Reference",
+      "fullLabel": "Seedance 1.0 Lite Reference to Video",
+      "description": "Affordable reference-to-video route for avatar product ads using avatar and product reference images.",
+      "frontendHint": "Budget-friendly option for quick UGC product ads. Lower consistency than premium Kling routes.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/bytedance/seedance/v1/lite/reference-to-video",
+      "tier": "affordable",
+      "enabled": true,
+      "featured": true,
+      "internalOnly": false,
+      "featureGate": null,
+      "qualityBadge": "Affordable",
+      "speedBadge": "Fast",
+      "creditBadge": "Low credits",
+      "resolutionLabels": ["720p", "480p"],
+      "supportedResolutions": ["720p", "480p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280", "480p": "480x854" },
+        "16:9": { "720p": "1280x720", "480p": "854x480" },
+        "1:1": { "720p": "720x720", "480p": "480x480" }
+      },
+      "durationPresets": [5, 6, 10],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Affordable 5s/10s reference video route using avatar + product images."
     }
   ]
 }

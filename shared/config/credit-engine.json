@@ -22,6 +22,7 @@
     "baseCredits": 10,
     "modelMultiplier": {
       "fal_ltx23_i2v": 1.0,
+      "seedance_v1_lite_reference": 2.2,
       "sora2": 10.5,
       "ltx": 1.0,
       "kling_v16_standard_i2v": 2.5,
@@ -35,8 +36,10 @@
       "2160p": 3.2
     },
     "qualityMultiplier": {
+      "affordable": 0.8,
       "standard": 1.0,
-      "high": 1.3
+      "high": 1.3,
+      "premium": 1.8
     },
     "maxCreditsCap": 600
   },
@@ -117,7 +120,11 @@
     "sora2": "sora2",
     "sora_2": "sora2",
     "ltx": "ltx",
-    "ltx_benchmark": "ltx"
+    "ltx_benchmark": "ltx",
+    "seedance_v1_lite_reference": "seedance_v1_lite_reference",
+    "seedance_lite_reference": "seedance_v1_lite_reference",
+    "seedance_v1_lite": "seedance_v1_lite_reference",
+    "fal-ai/bytedance/seedance/v1/lite/reference-to-video": "seedance_v1_lite_reference"
   },
   "imageModelTiers": {
     "budget_image_model": "standard",

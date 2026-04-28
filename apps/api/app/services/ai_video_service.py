@@ -173,6 +173,7 @@ class AIVideoCreateService:
             'kling_o3_reference': self.generate_with_fal,
             'kling_o3_standard_reference': self.generate_with_fal,
             'kling_o3_pro_reference': self.generate_with_fal,
+            'seedance_v1_lite_reference': self.generate_with_fal,
         }
 
         self.model_router = SmartModelRouter()
@@ -184,6 +185,7 @@ class AIVideoCreateService:
             'kling_v16_standard_i2v': [],
             'kling_v16_pro_i2v': ['kling_v16_standard_i2v'],
             'kling_o1_reference': ['kling_v16_pro_i2v'],
+            'seedance_v1_lite_reference': ['kling_o3_standard_reference'],
 
             # O3 routes can fall back to older Kling routes if needed.
             'kling_o3_reference': ['kling_v16_pro_i2v', 'kling_v16_standard_i2v'],

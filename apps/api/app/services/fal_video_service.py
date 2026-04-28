@@ -34,6 +34,7 @@ class FalVideoService:
         'fal_ltx23_i2v': 1080,
         'fal_infinite_talk': 1800,
         'fal_kling_reference_to_video': 1800,
+        'seedance_v1_lite_reference': 1200,
 
         # Kling O3 reference models can queue longer than normal short I2V jobs.
         'kling_o3_standard_reference': 1800,
@@ -140,6 +141,61 @@ class FalVideoService:
             payload=payload,
             model_key=model_key,
             log_prefix='chitrakala_kling',
+            extract_kind='video',
+        )
+
+
+
+    def generate_seedance_lite_reference_video(
+        self,
+        *,
+        prompt: str,
+        reference_image_urls: list[str],
+        aspect_ratio: str = '9:16',
+        resolution: str = '720p',
+        duration: str = '5',
+        camera_fixed: bool = False,
+        seed: int | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        if not self._effective_fal_api_key:
+            raise RuntimeError('FAL_API_KEY is not configured for Seedance video generation')
+
+        endpoint = self._endpoint_for('seedance_v1_lite_reference')
+
+        cleaned_urls = [str(url or '').strip() for url in reference_image_urls if str(url or '').strip()]
+        if not cleaned_urls:
+            raise ValueError('seedance_v1_lite_reference requires at least one reference image')
+
+        payload: dict[str, Any] = {
+            'prompt': prompt,
+            'reference_image_urls': cleaned_urls[:4],
+            'aspect_ratio': aspect_ratio,
+            'resolution': resolution,
+            'duration': str(duration),
+            'camera_fixed': bool(camera_fixed),
+        }
+
+        if seed is not None:
+            payload['seed'] = int(seed)
+
+        logger.info(
+            'seedance_lite_payload_debug',
+            extra={
+                'endpoint': endpoint,
+                'image_count': len(cleaned_urls[:4]),
+                'payload_keys': list(payload.keys()),
+                'aspect_ratio': aspect_ratio,
+                'resolution': resolution,
+                'duration': str(duration),
+                'camera_fixed': bool(camera_fixed),
+            },
+        )
+
+        return self._submit_fal_media_job(
+            endpoint=endpoint,
+            payload=payload,
+            model_key='seedance_v1_lite_reference',
+            log_prefix='chitrakala_seedance_lite',
             extract_kind='video',
         )
 
@@ -979,6 +1035,7 @@ class FalVideoService:
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
             'fal_ltx23_i2v': 'fal-ai/ltx-2.3/image-to-video',
+            'seedance_v1_lite_reference': 'fal-ai/bytedance/seedance/v1/lite/reference-to-video',
 
             # ✅ O3 REFERENCE MODELS — main avatar product route
             'kling_o3_standard_reference': 'fal-ai/kling-video/o3/standard/reference-to-video',
