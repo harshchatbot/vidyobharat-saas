@@ -55,6 +55,7 @@ class AIVideoModelResponse(BaseModel):
     speedBadge: str | None = None
     creditBadge: str | None = None
     resolutionLabels: list[str] = Field(default_factory=list)
+    supportsNativeAudio: bool = False
     providerId: str | None = None
     canonicalModelKey: str | None = None
     modeIds: list[str] = Field(default_factory=list)
@@ -77,6 +78,7 @@ class VideoAudioSettings(BaseModel):
     volume: int = Field(default=20, ge=0, le=100)
     ducking: bool = True
     sampleRateHz: int = Field(default=48000, ge=8000, le=48000)
+    nativeAudioEnabled: bool = False
 
 
 class AIVideoCreateRequest(BaseModel):
@@ -97,9 +99,10 @@ class AIVideoCreateRequest(BaseModel):
     imageUrls: list[str] = Field(default_factory=list)
     music: VideoMusicSettings = Field(default_factory=VideoMusicSettings)
     audioSettings: VideoAudioSettings = Field(default_factory=VideoAudioSettings)
-    captionsEnabled: bool = True
+    captionsEnabled: bool = False
     captionStyle: str = Field(default='classic', max_length=40)
     narrationEnabled: bool = True
+    audioMode: str | None = Field(default=None, max_length=40)
     recipeId: str | None = Field(default=None, max_length=120)
     inputs: dict[str, str | list[str]] = Field(default_factory=dict)
     personaId: str | None = Field(default=None, max_length=120)
@@ -138,6 +141,16 @@ class AIVideoCreateRequest(BaseModel):
             return value
         if value not in {'auto', 'custom', 'fixed'}:
             raise ValueError('Unsupported durationMode')
+        return value
+
+    @field_validator('audioMode')
+    @classmethod
+    def validate_audio_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in {'silent', 'auto_scene_sound'}:
+            raise ValueError('Unsupported audioMode')
+        return value
         return value
 
     @field_validator('modelKey')

@@ -54,6 +54,7 @@ class CreditEstimate:
     required_credits: int
     breakdown: list[CreditCostItem]
     premium: bool
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -130,6 +131,9 @@ class CreditService:
         self.video_model_aliases = self.credit_engine['videoModelAliases']
         self.image_model_tiers = self.credit_engine['imageModelTiers']
         self.image_model_aliases = self.credit_engine.get('imageModelAliases', {})
+        self.avatar_product_fixed_pricing = self.credit_engine.get('avatarProductFixedPricing', {})
+        self.normal_video_fixed_pricing = self.credit_engine.get('normalVideoFixedPricing', {})
+        self.video_add_ons = self.credit_engine.get('videoAddOns', {})
 
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -499,6 +503,7 @@ class CreditService:
         return self._sum(items)
 
     def _estimate_video_create(self, payload: dict[str, Any]) -> CreditEstimate:
+        recipe_id = str(payload.get('recipeId') or payload.get('recipe_id') or '').strip()
         model_key = str(
             payload.get('modelKey')
             or payload.get('selected_model')
@@ -513,7 +518,43 @@ class CreditService:
         narration_enabled = bool(payload.get('narrationEnabled') if 'narrationEnabled' in payload else payload.get('narration_enabled', True))
         voice = str(payload.get('voice') or '')
         image_urls = payload.get('imageUrls') or payload.get('image_urls') or payload.get('reference_images') or []
+        inputs = payload.get('inputs') if isinstance(payload.get('inputs'), dict) else {}
+        audio_settings = payload.get('audioSettings') if isinstance(payload.get('audioSettings'), dict) else {}
+        audio_mode = str(payload.get('audioMode') or payload.get('audio_mode') or '').strip().lower() or 'silent'
+        native_audio_enabled = bool(audio_settings.get('nativeAudioEnabled', False))
         sample_rate = int(payload.get('sampleRateHz') or ((payload.get('audioSettings') or {}).get('sampleRateHz') if isinstance(payload.get('audioSettings'), dict) else 22050) or 22050)
+        effective_audio_mode = 'auto_scene_sound' if (audio_mode == 'auto_scene_sound' or native_audio_enabled) else 'silent'
+
+        if recipe_id == 'avatar_product':
+            quality_profile = str(
+                (inputs or {}).get('quality_profile')
+                or (inputs or {}).get('quality')
+                or quality
+                or 'standard'
+            ).strip().lower()
+            duration_key = self._duration_bucket_str(
+                payload.get('durationSeconds')
+                or (inputs or {}).get('duration_seconds')
+                or duration_seconds
+            )
+            return self._estimate_avatar_product_fixed_pricing(
+                quality_profile=quality_profile,
+                duration_key=duration_key,
+            )
+
+        normalized_model = self._normalize_video_model(model_key)
+        duration_key = self._duration_bucket_str(duration_seconds)
+        if normalized_model in self.normal_video_fixed_pricing:
+            return self._estimate_normal_video_fixed_pricing(
+                model_key=normalized_model,
+                duration_key=duration_key,
+                effective_audio_mode=effective_audio_mode,
+                narration_enabled=narration_enabled,
+                narration_text=str(payload.get('script') or payload.get('text') or ''),
+                captions_enabled=captions_enabled,
+                image_urls=image_urls,
+            )
+
         video_total, items = self._calculate_video_credits_with_breakdown(
             model=model_key,
             resolution=resolution,
@@ -533,7 +574,169 @@ class CreditService:
         if isinstance(image_urls, list) and len(image_urls) > 0:
             items.append(self._item('character_consistency'))
         items.append(self._item('auto_tag'))
-        return self._sum(items, base_total=video_total + voice_total)
+        return self._sum(
+            items,
+            base_total=video_total + voice_total,
+            metadata={
+                'pricing_mode': 'legacy_multiplier',
+                'selected_model': normalized_model,
+                'duration_seconds': duration_seconds,
+                'audio_mode': effective_audio_mode,
+                'applied_add_ons': [item.component for item in items],
+            },
+        )
+
+    def _estimate_avatar_product_fixed_pricing(self, *, quality_profile: str, duration_key: str) -> CreditEstimate:
+        normalized_quality = self._normalize_avatar_product_quality(quality_profile)
+        quality_pricing = self.avatar_product_fixed_pricing.get(normalized_quality) or {}
+        if duration_key not in quality_pricing:
+            raise ValueError(f'Unsupported avatar product pricing combination: {normalized_quality} / {duration_key}s')
+        total = int(quality_pricing[duration_key])
+        return CreditEstimate(
+            required_credits=total,
+            breakdown=[
+                CreditCostItem(
+                    component='avatar_product_fixed',
+                    label=f'Avatar Product {normalized_quality.title()} {duration_key}s',
+                    value=float(total),
+                )
+            ],
+            premium=total > 0,
+            metadata={
+                'pricing_mode': 'avatar_product_fixed',
+                'selected_model': 'avatar_product',
+                'duration_seconds': int(duration_key),
+                'audio_mode': 'silent',
+                'applied_add_ons': [],
+            },
+        )
+
+    def _estimate_normal_video_fixed_pricing(
+        self,
+        *,
+        model_key: str,
+        duration_key: str,
+        effective_audio_mode: str,
+        narration_enabled: bool,
+        narration_text: str,
+        captions_enabled: bool,
+        image_urls: Any,
+    ) -> CreditEstimate:
+        model_pricing = self.normal_video_fixed_pricing.get(model_key) or {}
+        if duration_key not in model_pricing:
+            raise ValueError(f'Unsupported normal video pricing combination: {model_key} / {duration_key}s')
+
+        base_total = int(model_pricing[duration_key])
+        items = [
+            CreditCostItem(
+                component='normal_video_fixed',
+                label=f'{model_key} {duration_key}s base pricing',
+                value=float(base_total),
+            )
+        ]
+        applied_add_ons: list[str] = []
+
+        native_audio_total = 0
+        if effective_audio_mode == 'auto_scene_sound':
+            native_audio_total = self._duration_add_on_value('nativeAutoSceneSound', duration_key)
+            if native_audio_total > 0:
+                items.append(
+                    CreditCostItem(
+                        component='native_auto_scene_sound',
+                        label=f'Native auto scene sound +{duration_key}s',
+                        value=float(native_audio_total),
+                    )
+                )
+                applied_add_ons.append('native_auto_scene_sound')
+
+        narration_total = 0
+        if narration_enabled:
+            narration_total = self._estimate_gemini_tts_narration_add_on(narration_text)
+            if narration_total > 0:
+                items.append(
+                    CreditCostItem(
+                        component='gemini_tts_narration',
+                        label='Gemini TTS narration add-on',
+                        value=float(narration_total),
+                    )
+                )
+                applied_add_ons.append('narration')
+
+        reference_total = 0
+        if isinstance(image_urls, list) and len(image_urls) > 0:
+            reference_total = int(self.video_add_ons.get('referenceConsistency', 0) or 0)
+            if reference_total > 0:
+                items.append(
+                    CreditCostItem(
+                        component='reference_consistency',
+                        label='Reference image / character consistency',
+                        value=float(reference_total),
+                    )
+                )
+                applied_add_ons.append('reference_consistency')
+
+        infra_total = self._duration_add_on_value('infraBuffer', duration_key)
+        if infra_total > 0:
+            items.append(
+                CreditCostItem(
+                    component='infra_buffer',
+                    label=f'Normal video infra buffer +{duration_key}s',
+                    value=float(infra_total),
+                )
+            )
+            applied_add_ons.append('infra_buffer')
+
+        if captions_enabled:
+            logger.warning('captions_enabled_ignored_for_fixed_video_pricing model=%s duration=%s', model_key, duration_key)
+
+        total = base_total + native_audio_total + narration_total + reference_total + infra_total
+        return CreditEstimate(
+            required_credits=total,
+            breakdown=items,
+            premium=total > 0,
+            metadata={
+                'pricing_mode': 'normal_video_fixed',
+                'selected_model': model_key,
+                'duration_seconds': int(duration_key),
+                'audio_mode': effective_audio_mode,
+                'applied_add_ons': applied_add_ons,
+            },
+        )
+
+    def _normalize_avatar_product_quality(self, value: str) -> str:
+        normalized = str(value or '').strip().lower()
+        aliases = {
+            'affordable': 'affordable',
+            'standard': 'standard',
+            'high': 'high',
+            'high_quality': 'high',
+            'premium': 'premium',
+        }
+        resolved = aliases.get(normalized)
+        if not resolved:
+            raise ValueError(f'Unsupported avatar product quality profile: {value}')
+        return resolved
+
+    def _duration_bucket_str(self, value: Any) -> str:
+        duration = int(value or 0)
+        if duration <= 5:
+            return '5'
+        if duration <= 10:
+            return '10'
+        return '15'
+
+    def _duration_add_on_value(self, key: str, duration_key: str) -> int:
+        section = self.video_add_ons.get(key) or {}
+        return int(section.get(duration_key, 0) or 0)
+
+    def _estimate_gemini_tts_narration_add_on(self, text: str) -> int:
+        section = self.video_add_ons.get('geminiTtsNarration') or {}
+        per_1000 = int(section.get('per1000Chars', 0) or 0)
+        minimum = int(section.get('minimum', 0) or 0)
+        if per_1000 <= 0:
+            return 0
+        chars = max(1, len(str(text or '').strip()))
+        return max(minimum, math.ceil(chars / 1000) * per_1000)
 
     def _estimate_script_enhance(self) -> CreditEstimate:
         return self._sum([self._item('script_enhance'), self._item('auto_tag')])
@@ -554,9 +757,9 @@ class CreditService:
     def _item(self, key: str) -> CreditCostItem:
         return CreditCostItem(component=key, label=self._label_for_key(key), value=int(self.credit_costs[key]))
 
-    def _sum(self, items: list[CreditCostItem], *, base_total: int = 0) -> CreditEstimate:
+    def _sum(self, items: list[CreditCostItem], *, base_total: int = 0, metadata: dict[str, Any] | None = None) -> CreditEstimate:
         total = base_total + sum(int(item.value) for item in items)
-        return CreditEstimate(required_credits=total, breakdown=items, premium=total > 0)
+        return CreditEstimate(required_credits=total, breakdown=items, premium=total > 0, metadata=metadata or {})
 
     def _calculate_video_credits_with_breakdown(
         self,
@@ -675,12 +878,6 @@ class CreditService:
             'kling_standard': 'kling_v16_standard_i2v',
             'kling_pro': 'kling_v16_pro_i2v',
             'kling_o1': 'kling_o1_reference',
-
-            # Avatar Product / O3 reference models.
-            # Temporary billing alias until credit-engine.json gets dedicated O3 multipliers.
-            'kling_o3_standard_reference': 'kling_o1_reference',
-            'kling_o3_reference': 'kling_o1_reference',
-            'kling_o3_pro_reference': 'kling_o1_reference',
         }
 
         if key in runtime_aliases:

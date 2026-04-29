@@ -1,5 +1,4 @@
 import creditEngine from '@/config/creditEngine';
-import { getVideoModelConfigs } from '@/config/videoModels';
 
 type VideoCostInput = {
   modelKey: string;
@@ -11,6 +10,11 @@ type VideoCostInput = {
   voiceKey?: string;
   sampleRateHz?: number;
   referenceImages?: number;
+  audioMode?: 'silent' | 'auto_scene_sound';
+  nativeAudioEnabled?: boolean;
+  recipeId?: string;
+  recipeInputs?: Record<string, unknown>;
+  scriptText?: string;
 };
 
 export type OutputEstimate = {
@@ -22,169 +26,281 @@ export type OutputEstimate = {
   kind: 'image' | 'video';
 };
 
+export type PlanOutcomeRow = {
+  plan: string;
+  credits: number;
+  affordable5sAds: string;
+  affordable10sAds: string;
+  standard5sAds: string;
+  standardImages: string;
+};
+
 const FREE_VOICE_KEYS = new Set<string>((creditEngine.freeVoiceKeys ?? []) as string[]);
-
-const IMAGE_EXAMPLE_PRIORITY: Array<{ id: string; label: string; shortLabel: string; modelKey: string; resolution: string }> = [
-  { id: 'gemini-flash', label: 'Gemini Flash images', shortLabel: 'Gemini Flash images', modelKey: 'gemini_flash_image', resolution: '1536' },
-  { id: 'recraft-studio', label: 'Recraft Studio images', shortLabel: 'Recraft images', modelKey: 'recraft_studio', resolution: '1536' },
-  { id: 'openai-image', label: 'OpenAI Image renders', shortLabel: 'OpenAI Image renders', modelKey: 'openai_image', resolution: '1536' },
-];
-
-const VIDEO_EXAMPLE_PRIORITY: Array<{ id: string; label: string; shortLabel: string; modelKey: string; resolution: string; durationSeconds: number; quality: string }> = [
-  { id: 'fal-ltx-clips', label: 'Fal LTX 2.3 I2V test clips', shortLabel: 'Fal LTX test clips', modelKey: 'fal_ltx23_i2v', resolution: '720p', durationSeconds: 4, quality: 'standard' },
-  { id: 'sora-clips', label: 'Sora 2 premium clips', shortLabel: 'Sora 2 clips', modelKey: 'sora2', resolution: '720p', durationSeconds: 4, quality: 'standard' },
-];
-
-const EXAMPLE_ORDER = ['gemini-flash', 'fal-ltx-clips', 'sora-clips', 'recraft-studio', 'openai-image'] as const;
+const IMAGE_MODEL_ALIASES = (creditEngine.imageModelAliases ?? {}) as Record<string, string>;
+const VIDEO_MODEL_ALIASES = (creditEngine.videoModelAliases ?? {}) as Record<string, string>;
+const IMAGE_MODEL_PRICING = (creditEngine.image.modelPricing ?? {}) as Record<string, Record<string, number>>;
+const AVATAR_PRODUCT_FIXED_PRICING = (creditEngine.avatarProductFixedPricing ?? {}) as Record<string, Record<string, number>>;
+const NORMAL_VIDEO_FIXED_PRICING = (creditEngine.normalVideoFixedPricing ?? {}) as Record<string, Record<string, number>>;
+const VIDEO_ADD_ONS = (creditEngine.videoAddOns ?? {}) as Record<string, unknown>;
 
 const BEST_FOR_COPY: Record<string, string> = {
-  free: 'Best for testing workflows',
-  starter: 'Best for images and fast draft videos',
-  creator: 'Best for active creators mixing images and premium video',
-  growth: 'Best for growing teams and repeat campaigns',
-  pro: 'Best for production-heavy premium output',
+  free: 'Best for testing and first outputs',
+  activation: 'Best for unlocking your first real ad wins',
+  starter: 'Best for solo creators making early ads',
+  creator: 'Best for active creators shipping weekly content',
+  growth: 'Best for teams and repeat campaign output',
+  pro: 'Best for agencies and high-volume production',
+};
+
+const PLAN_OUTCOME_ROWS: Record<string, PlanOutcomeRow> = {
+  free: {
+    plan: 'Free',
+    credits: 40,
+    affordable5sAds: '0',
+    affordable10sAds: '0',
+    standard5sAds: '0',
+    standardImages: '8–10',
+  },
+  activation: {
+    plan: 'Activation',
+    credits: 120,
+    affordable5sAds: '2',
+    affordable10sAds: '1',
+    standard5sAds: '1',
+    standardImages: '24–30',
+  },
+  starter: {
+    plan: 'Starter',
+    credits: 200,
+    affordable5sAds: '4',
+    affordable10sAds: '2',
+    standard5sAds: '2',
+    standardImages: '40–50',
+  },
+  creator: {
+    plan: 'Creator',
+    credits: 650,
+    affordable5sAds: '13',
+    affordable10sAds: '6',
+    standard5sAds: '8',
+    standardImages: '130–160',
+  },
+  growth: {
+    plan: 'Growth',
+    credits: 1400,
+    affordable5sAds: '28',
+    affordable10sAds: '14',
+    standard5sAds: '17',
+    standardImages: '280–350',
+  },
+  pro: {
+    plan: 'Pro',
+    credits: 3000,
+    affordable5sAds: '61',
+    affordable10sAds: '30',
+    standard5sAds: '37',
+    standardImages: '600–750',
+  },
+};
+
+const PLAN_OUTCOME_EXAMPLES: Record<string, string[]> = {
+  free: [
+    'Not enough for a full Avatar Product ad',
+    'About 8–10 standard images',
+    'Useful for first tests and drafts',
+  ],
+  activation: [
+    'About 2 affordable 5s ads',
+    'About 1 affordable 10s ad',
+    'About 24–30 standard images',
+  ],
+  starter: [
+    'About 4 affordable 5s ads',
+    'About 2 affordable 10s ads',
+    'About 40–50 standard images',
+  ],
+  creator: [
+    'About 13 affordable 5s ads',
+    'About 6 affordable 10s ads',
+    'About 130–160 standard images',
+  ],
+  growth: [
+    'About 28 affordable 5s ads',
+    'About 14 affordable 10s ads',
+    'About 280–350 standard images',
+  ],
+  pro: [
+    'About 61 affordable 5s ads',
+    'About 30 affordable 10s ads',
+    'About 600–750 standard images',
+  ],
 };
 
 function normalizeVideoModelKey(modelKey: string): string {
-  const aliases = (creditEngine.videoModelAliases ?? {}) as Record<string, string>;
-  return aliases[String(modelKey).toLowerCase()] ?? 'fal_ltx23_i2v';
+  const normalized = String(modelKey || '').trim().toLowerCase();
+  const resolved = VIDEO_MODEL_ALIASES[normalized] ?? normalized;
+  if (resolved === 'ltx') return 'fal_ltx23_i2v';
+  return resolved;
 }
 
 function normalizeImageModelKey(modelKey: string): string {
-  const aliases = (creditEngine.imageModelAliases ?? {}) as Record<string, string>;
-  return aliases[String(modelKey).toLowerCase()] ?? String(modelKey).toLowerCase();
+  const normalized = String(modelKey || '').trim().toLowerCase();
+  return IMAGE_MODEL_ALIASES[normalized] ?? normalized;
+}
+
+function normalizeAvatarProductQuality(quality: string): string {
+  const normalized = String(quality || '').trim().toLowerCase();
+  if (normalized === 'high_quality') return 'high';
+  if (normalized === 'high') return 'high';
+  if (normalized === 'premium') return 'premium';
+  if (normalized === 'affordable') return 'affordable';
+  return 'standard';
+}
+
+function durationBucket(durationSeconds: number): '5' | '10' | '15' {
+  if (durationSeconds <= 5) return '5';
+  if (durationSeconds <= 10) return '10';
+  return '15';
+}
+
+function getDurationAddOn(sectionKey: string, duration: '5' | '10' | '15'): number {
+  const section = (VIDEO_ADD_ONS[sectionKey] ?? {}) as Record<string, number>;
+  return Number(section[duration] ?? 0);
+}
+
+function getGeminiNarrationAddOn(text: string): number {
+  const section = (VIDEO_ADD_ONS.geminiTtsNarration ?? {}) as Record<string, number>;
+  const per1000Chars = Number(section.per1000Chars ?? 0);
+  const minimum = Number(section.minimum ?? 0);
+  if (per1000Chars <= 0) return 0;
+  const chars = Math.max(1, String(text || '').trim().length);
+  return Math.max(minimum, Math.ceil(chars / 1000) * per1000Chars);
 }
 
 export function calculateVideoCredits(input: VideoCostInput): number {
-  const normalizedModel = normalizeVideoModelKey(input.modelKey);
-  const modelMultiplier = Number((creditEngine.video.modelMultiplier as Record<string, number>)[normalizedModel] ?? 0);
-  const resolutionMultiplier = Number((creditEngine.video.resolutionMultiplier as Record<string, number>)[input.resolution] ?? 1);
-  const qualityMultiplier = Number((creditEngine.video.qualityMultiplier as Record<string, number>)[input.quality] ?? 1);
-  const baseCredits = Number(creditEngine.video.baseCredits ?? 0);
-  const baseDuration = Number(creditEngine.video.baseDuration ?? 15);
-  const duration = Math.max(1, Number(input.durationSeconds) || 1);
-  const baseRaw = baseCredits * modelMultiplier * resolutionMultiplier * (duration / Math.max(baseDuration, 1)) * qualityMultiplier;
+  const duration = durationBucket(Math.max(1, Number(input.durationSeconds) || 1));
+  const audioMode = input.audioMode === 'auto_scene_sound' || input.nativeAudioEnabled ? 'auto_scene_sound' : 'silent';
 
-  let total = Math.max(1, Math.ceil(baseRaw));
-
-  if (input.narrationEnabled) {
-    const voiceKey = String(input.voiceKey ?? '');
-    const provider = FREE_VOICE_KEYS.has(voiceKey) ? 'free' : 'sarvam';
-    if (provider !== 'free') {
-      const voiceBase = Number(creditEngine.voice.baseCredits ?? 0);
-      const providerMul = Number((creditEngine.voice.providerMultiplier as Record<string, number>)[provider] ?? 0);
-      const sampleRateKey = Number(input.sampleRateHz ?? 22050) >= 48000 ? '48000' : '22050';
-      const sampleRateMul = Number((creditEngine.voice.sampleRateMultiplier as Record<string, number>)[sampleRateKey] ?? 1);
-      total += Math.max(1, Math.ceil(voiceBase * providerMul * sampleRateMul));
-    }
+  if (input.recipeId === 'avatar_product') {
+    const recipeInputs = input.recipeInputs ?? {};
+    const quality = normalizeAvatarProductQuality(
+      String(recipeInputs.quality_profile ?? recipeInputs.quality ?? input.quality ?? 'standard'),
+    );
+    const pricing = AVATAR_PRODUCT_FIXED_PRICING[quality]?.[duration];
+    return Number(pricing ?? 0);
   }
 
-  if (input.captionsEnabled) total += Number(creditEngine.fixedCosts.auto_caption ?? 0);
-  if ((input.referenceImages ?? 0) > 0) total += Number(creditEngine.fixedCosts.character_consistency ?? 0);
-  total += Number(creditEngine.fixedCosts.auto_tag ?? 0);
+  const normalizedModel = normalizeVideoModelKey(input.modelKey);
+  const base = Number(NORMAL_VIDEO_FIXED_PRICING[normalizedModel]?.[duration] ?? 0);
+  if (base <= 0) return 0;
 
-  return Math.max(0, Math.ceil(total));
+  let total = base;
+  if (audioMode === 'auto_scene_sound') total += getDurationAddOn('nativeAutoSceneSound', duration);
+  if ((input.referenceImages ?? 0) > 0) total += Number(VIDEO_ADD_ONS.referenceConsistency ?? 0);
+  if (input.narrationEnabled && !FREE_VOICE_KEYS.has(String(input.voiceKey ?? ''))) {
+    total += getGeminiNarrationAddOn(String(input.scriptText ?? ''));
+  }
+  total += getDurationAddOn('infraBuffer', duration);
+  return total;
 }
 
 export function calculateImageCredits(modelKey: string, resolution: string): number {
   const normalizedModel = normalizeImageModelKey(modelKey);
-  const modelPricing = (creditEngine.image.modelPricing as Record<string, Record<string, number>>)[normalizedModel];
-  if (!modelPricing) return 0;
-  return Number(modelPricing[resolution] ?? 0);
+  return Number(IMAGE_MODEL_PRICING[normalizedModel]?.[resolution] ?? 0);
 }
 
 export function getBestForCopy(planKey: string): string {
   return BEST_FOR_COPY[planKey] ?? 'Best for mixed creative workflows';
 }
 
-function getEnabledVideoExampleConfigs() {
-  const enabledModels = new Set(
-    getVideoModelConfigs()
-      .filter((model) => model.enabled !== false)
-      .map((model) => model.key.toLowerCase()),
-  );
+function midpointFromRange(value: string): number {
+  const normalized = value.trim();
+  if (!normalized.includes('–')) return Number(normalized) || 0;
+  const [start, end] = normalized.split('–').map((part) => Number(part));
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.round((start + end) / 2);
+}
 
-  return VIDEO_EXAMPLE_PRIORITY.filter((item) => enabledModels.has(item.modelKey.toLowerCase()));
+function rowForCredits(credits: number): PlanOutcomeRow {
+  if (credits <= 40) return PLAN_OUTCOME_ROWS.free;
+  if (credits <= 120) return PLAN_OUTCOME_ROWS.activation;
+  if (credits <= 200) return PLAN_OUTCOME_ROWS.starter;
+  if (credits <= 650) return PLAN_OUTCOME_ROWS.creator;
+  if (credits <= 1400) return PLAN_OUTCOME_ROWS.growth;
+  return PLAN_OUTCOME_ROWS.pro;
 }
 
 export function getPlanOutputEstimates(credits: number, limit = 4): OutputEstimate[] {
-  const estimatesById = new Map<string, OutputEstimate>();
-
-  for (const item of IMAGE_EXAMPLE_PRIORITY) {
-    const perItemCredits = calculateImageCredits(item.modelKey, item.resolution);
-    if (perItemCredits <= 0) continue;
-    const count = Math.floor(credits / perItemCredits);
-    if (count <= 0) continue;
-    estimatesById.set(item.id, {
-      id: item.id,
-      label: item.label,
-      shortLabel: item.shortLabel,
-      count,
-      perItemCredits,
-      kind: 'image',
-    });
-  }
-
-  for (const item of getEnabledVideoExampleConfigs()) {
-    const perItemCredits = calculateVideoCredits({
-      modelKey: item.modelKey,
-      resolution: item.resolution,
-      durationSeconds: item.durationSeconds,
-      quality: item.quality,
-      captionsEnabled: false,
-      narrationEnabled: false,
-      referenceImages: 0,
-    });
-    if (perItemCredits <= 0) continue;
-    const count = Math.floor(credits / perItemCredits);
-    if (count <= 0) continue;
-    estimatesById.set(item.id, {
-      id: item.id,
-      label: item.label,
-      shortLabel: item.shortLabel,
-      count,
-      perItemCredits,
+  const row = rowForCredits(credits);
+  const estimates: OutputEstimate[] = [
+    {
+      id: 'affordable-5s-ad',
+      label: 'Affordable 5s Avatar Product ads',
+      shortLabel: 'Affordable 5s ads',
+      count: midpointFromRange(row.affordable5sAds),
+      perItemCredits: 49,
       kind: 'video',
-    });
-  }
+    },
+    {
+      id: 'affordable-10s-ad',
+      label: 'Affordable 10s Avatar Product ads',
+      shortLabel: 'Affordable 10s ads',
+      count: midpointFromRange(row.affordable10sAds),
+      perItemCredits: 99,
+      kind: 'video',
+    },
+    {
+      id: 'standard-5s-ad',
+      label: 'Standard 5s Avatar Product ads',
+      shortLabel: 'Standard 5s ads',
+      count: midpointFromRange(row.standard5sAds),
+      perItemCredits: 79,
+      kind: 'video',
+    },
+    {
+      id: 'standard-images',
+      label: 'Standard images',
+      shortLabel: 'Standard images',
+      count: midpointFromRange(row.standardImages),
+      perItemCredits: 4,
+      kind: 'image',
+    },
+  ];
 
-  return EXAMPLE_ORDER
-    .map((id) => estimatesById.get(id))
-    .filter((item): item is OutputEstimate => Boolean(item))
-    .slice(0, limit);
+  return estimates.filter((estimate) => estimate.count > 0).slice(0, limit);
+}
+
+export function getPlanOutcomeExamples(planKey: string): string[] {
+  return PLAN_OUTCOME_EXAMPLES[planKey] ?? PLAN_OUTCOME_EXAMPLES.creator;
+}
+
+export function getPlanOutcomeRows(): PlanOutcomeRow[] {
+  return [
+    PLAN_OUTCOME_ROWS.free,
+    PLAN_OUTCOME_ROWS.activation,
+    PLAN_OUTCOME_ROWS.starter,
+    PLAN_OUTCOME_ROWS.creator,
+    PLAN_OUTCOME_ROWS.growth,
+    PLAN_OUTCOME_ROWS.pro,
+  ];
 }
 
 export function getEstimateAssumptions(): string[] {
-  const assumptions = ['Gemini Flash images use 1536 resolution.'];
-
-  const enabledVideoIds = new Set(getEnabledVideoExampleConfigs().map((item) => item.id));
-  if (enabledVideoIds.has('fal-ltx-clips')) assumptions.push('Fal LTX 2.3 I2V examples use 720p, 4s, standard, free voice, captions off.');
-  if (enabledVideoIds.has('sora-clips')) assumptions.push('Sora examples use 720p, 4s, standard.');
-  assumptions.push('Voice, captions, reference images, and higher resolution increase credit usage.');
-
-  return assumptions;
+  return [
+    'Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.',
+  ];
 }
 
 export function describeVideoEstimate(modelKey: string, estimatedCredits: number): string | null {
   const normalized = normalizeVideoModelKey(modelKey);
-  if (normalized === 'sora2') {
-    if (estimatedCredits >= 80) {
-      return 'Sora 2 is a premium model. This setup can use a large share of Starter plan credits.';
-    }
-    if (estimatedCredits >= 50) {
-      return 'Sora 2 is a premium model. Starter is best for a few polished clips, not high-volume output.';
-    }
+  if (normalized === 'kling_o3_4k_reference' && estimatedCredits >= 249) {
+    return 'Kling O3 4K is an agency-tier option. Use it only when the output value clearly justifies the spend.';
   }
-
-  if (estimatedCredits >= 120) {
-    return 'Premium-heavy setup. Consider Fal LTX 2.3 I2V or a shorter duration for faster draft generation.';
+  if (normalized === 'kling_o3_pro_reference' && estimatedCredits >= 149) {
+    return 'Kling O3 Pro is best for higher-value outputs where consistency matters more than cost.';
   }
-  if (estimatedCredits >= 80) {
-    return 'This setup uses a large share of Starter plan credits.';
+  if (estimatedCredits >= 99) {
+    return 'This setup is best for polished final outputs rather than high-volume testing.';
   }
-  if (estimatedCredits >= 50) {
-    return 'Premium setup. Best for polished hero clips rather than high-volume drafts.';
-  }
-
   return null;
 }

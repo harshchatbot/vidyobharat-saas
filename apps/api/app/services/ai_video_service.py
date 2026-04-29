@@ -91,6 +91,7 @@ class ModelRegistryEntry:
     speed_badge: str | None = None
     credit_badge: str | None = None
     resolution_labels: list[str] | None = None
+    supports_native_audio: bool = False
     provider_id: str | None = None
     canonical_model_key: str | None = None
     mode_ids: list[str] | None = None
@@ -124,6 +125,7 @@ class AIVideoCreateService:
             speed_badge=model.get('speedBadge'),
             credit_badge=model.get('creditBadge'),
             resolution_labels=list(model.get('resolutionLabels') or []),
+            supports_native_audio=bool(model.get('supportsNativeAudio', False)),
             provider_id=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).provider if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
             canonical_model_key=(get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).model_key if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else None,
             mode_ids=list((get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))).mode_ids) if (get_model_definition(str(model['key'])) or get_model_definition(str(model.get('legacyKey') or ''))) else [],
@@ -562,6 +564,7 @@ class AIVideoCreateService:
     def generate_with_fal(self, params: dict[str, Any]) -> ProviderResult:
         requested_model = resolve_model_key(str(params.get('modelKey') or '')) or str(params.get('modelKey') or '')
         recipe_metadata = params.get('recipeMetadata') if isinstance(params.get('recipeMetadata'), dict) else {}
+        audio_settings = params.get('audioSettings') if isinstance(params.get('audioSettings'), dict) else {}
         duration_seconds = int(params['durationSeconds'])
         resolution = str(params['resolution'])
         prompt = str(params['script'])
@@ -591,6 +594,20 @@ class AIVideoCreateService:
             },
         )
 
+        normalized_audio_mode = str(params.get('audioMode') or recipe_metadata.get('audio_mode') or '').strip().lower() or 'silent'
+        native_audio_enabled = bool(audio_settings.get('nativeAudioEnabled', recipe_metadata.get('native_audio_enabled', False)))
+        generate_audio: bool | None = None
+        if requested_model == 'seedance_v1_lite_reference':
+            generate_audio = None
+            normalized_audio_mode = 'silent'
+            native_audio_enabled = False
+        elif str(recipe_metadata.get('recipe_id') or '').strip() == 'avatar_product':
+            generate_audio = False
+            normalized_audio_mode = 'silent'
+            native_audio_enabled = False
+        elif requested_model in {'fal_ltx23_i2v', 'kling_o3_reference', 'kling_o3_standard_reference', 'kling_o3_pro_reference', 'kling_o3_4k_reference'}:
+            generate_audio = bool(native_audio_enabled or normalized_audio_mode == 'auto_scene_sound')
+
         video_url, metadata = self.fal.generate(
             model_key=requested_model,
             prompt=prompt,
@@ -599,6 +616,7 @@ class AIVideoCreateService:
             duration_seconds=duration_seconds,
             image_url=params.get('imageUrl'),
             multi_prompt=params.get('multiPrompt'),
+            generate_audio=generate_audio,
             request_context=recipe_metadata,
         )
 
@@ -606,7 +624,7 @@ class AIVideoCreateService:
             provider='fal.ai',
             model_key=requested_model,
             video_url=video_url,
-            metadata={'mode': 'fal-primary', **metadata},
+            metadata={'mode': 'fal-primary', 'audio_mode': normalized_audio_mode, 'generate_audio': generate_audio, **metadata},
         )
 
 
@@ -998,6 +1016,7 @@ class AIVideoCreateService:
         try:
             credit_service = CreditService(None)
             charged_credits = int(getattr(video, 'applied_credits', 0) or 0)
+            pipeline_metadata = dict(getattr(video, 'pipeline_metadata', None) or {})
             estimate_payload = {
                 'modelKey': resolved_model,
                 'resolution': video.resolution,
@@ -1007,7 +1026,13 @@ class AIVideoCreateService:
                 'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
                 'voice': video.voice,
                 'imageUrls': json.loads(video.image_urls or '[]'),
-                'audioSettings': {'sampleRateHz': video.audio_sample_rate_hz or 22050},
+                'audioMode': str(pipeline_metadata.get('audio_mode') or 'silent'),
+                'audioSettings': {
+                    'sampleRateHz': video.audio_sample_rate_hz or 22050,
+                    'nativeAudioEnabled': bool(pipeline_metadata.get('native_audio_enabled', False)),
+                },
+                'recipeId': getattr(video, 'recipe_id', None),
+                'inputs': dict(getattr(video, 'recipe_inputs', None) or {}),
             }
             expected_credits = credit_service.estimate('video_create', estimate_payload).required_credits
             delta = expected_credits - charged_credits
@@ -1106,6 +1131,7 @@ def celery_process_ai_video(video_id: str) -> None:
                 progress_callback=lambda progress: repo.update(video, status=VideoStatus.processing, progress=progress),
             )
         else:
+            pipeline_metadata = dict(getattr(video, 'pipeline_metadata', None) or {})
             payload = {
                 'videoId': video.id,
                 'imageUrl': video.source_image_url,
@@ -1119,9 +1145,13 @@ def celery_process_ai_video(video_id: str) -> None:
                 'captionsEnabled': bool(video.captions_enabled),
                 'narrationEnabled': bool(getattr(video, 'narration_enabled', True)),
                 'captionStyle': video.caption_style,
+                'audioMode': str(pipeline_metadata.get('audio_mode') or 'silent'),
                 'audioSettings': {
                     'sampleRateHz': video.audio_sample_rate_hz or 22050,
+                    'nativeAudioEnabled': bool(pipeline_metadata.get('native_audio_enabled', False)),
                 },
+                'recipeId': getattr(video, 'recipe_id', None),
+                'recipeMetadata': pipeline_metadata,
             }
             logger.info(
                 'voice_requested',
@@ -1257,7 +1287,7 @@ def celery_process_ai_video(video_id: str) -> None:
             progress=100,
             status=VideoStatus.completed,
             error_message=None,
-            external_job_id=result_metadata.get('external_job_id') or result_metadata.get('job_id'),
+            external_job_id=result_metadata.get('external_job_id') or result_metadata.get('job_id') or result_metadata.get('request_id'),
             provider_status=result_metadata.get('status') or result_metadata.get('provider_status'),
             provider_raw_response=result_metadata.get('provider_payload'),
             provider_status_url=result_metadata.get('status_url'),

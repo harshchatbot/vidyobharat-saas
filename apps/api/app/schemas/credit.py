@@ -131,6 +131,7 @@ class EstimateCreditsResponse(BaseModel):
     remainingCredits: int
     sufficient: bool
     premium: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class PricingResponse(BaseModel):
@@ -148,6 +149,11 @@ class VideoEstimatePayload(BaseModel):
     resolution: str
     durationSeconds: int = Field(validation_alias=AliasChoices('durationSeconds'))
     quality: str = 'standard'
+    captionsEnabled: bool = False
+    narrationEnabled: bool = True
+    audioMode: str | None = None
+    imageUrls: list[str] = Field(default_factory=list)
+    audioSettings: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator('model')
     @classmethod
@@ -168,6 +174,15 @@ class VideoEstimatePayload(BaseModel):
     def validate_quality(cls, value: str) -> str:
         if value not in {'standard', 'high'}:
             raise ValueError('Unsupported quality')
+        return value
+
+    @field_validator('audioMode')
+    @classmethod
+    def validate_audio_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in {'silent', 'auto_scene_sound'}:
+            raise ValueError('Unsupported audioMode')
         return value
 
 

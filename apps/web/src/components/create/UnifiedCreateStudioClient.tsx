@@ -35,6 +35,7 @@ import creditEngine from '@/config/creditEngine';
 import { TEMPLATE_OPTIONS } from '@/components/videos/create/constants';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
+import { calculateVideoCredits } from '@/lib/pricingEstimates';
 import type {
   AIVideoModel,
   Avatar,
@@ -52,6 +53,7 @@ import type {
 
 type ComposerMode = 'image' | 'video';
 type ResolvedMode = 'image' | 'video';
+type AudioMode = 'silent' | 'auto_scene_sound';
 type QualityProfile = 'fast_social' | 'creator_quality' | 'affordable' | 'standard' | 'high_quality' | 'premium';
 type RecipeTab = 'all' | 'ads' | 'explainer' | 'inspiration_photos';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
@@ -409,6 +411,7 @@ function buildVideoCreatePayload(input: {
   voice: string;
   captionsEnabled: boolean;
   narrationEnabled: boolean;
+  audioMode?: AudioMode;
   personaId?: string;
   useAvatarForTalkingScenes?: boolean;
 } | {
@@ -423,6 +426,7 @@ function buildVideoCreatePayload(input: {
   durationSeconds: number;
   captionsEnabled: boolean;
   narrationEnabled: boolean;
+  audioMode?: AudioMode;
   language: string;
   voice: string;
   imageUrl?: string | null;
@@ -438,6 +442,7 @@ function buildVideoCreatePayload(input: {
       voice: input.voice,
       captionsEnabled: input.captionsEnabled,
       narrationEnabled: input.narrationEnabled,
+      audioMode: input.audioMode,
       personaId: input.personaId,
       useAvatarForTalkingScenes: input.useAvatarForTalkingScenes,
     };
@@ -460,6 +465,7 @@ function buildVideoCreatePayload(input: {
       volume: 20,
       ducking: true,
       sampleRateHz: 48000,
+      nativeAudioEnabled: input.audioMode === 'auto_scene_sound',
     },
     aspectRatio: input.aspectRatio,
     resolution: input.resolution,
@@ -469,6 +475,7 @@ function buildVideoCreatePayload(input: {
     captionsEnabled: input.captionsEnabled,
     captionStyle: 'classic',
     narrationEnabled: input.narrationEnabled,
+    audioMode: input.audioMode,
   };
 }
 
@@ -701,13 +708,19 @@ function shortVideoModelLabel(model: AIVideoModel) {
 }
 
 function creditPerSecondLabel(modelKey: string, resolutionLabel: string, quality: 'standard' | 'high') {
-  const aliasKey = (creditEngine.videoModelAliases?.[modelKey as keyof typeof creditEngine.videoModelAliases] ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.video.modelMultiplier;
-  const modelMultiplier = creditEngine.video.modelMultiplier?.[aliasKey] ?? 1;
-  const resolutionKey = (resolutionLabel === '4K' ? '2160p' : resolutionLabel === '2K' ? '1440p' : resolutionLabel.toLowerCase()) as keyof typeof creditEngine.video.resolutionMultiplier;
-  const resolutionMultiplier = creditEngine.video.resolutionMultiplier?.[resolutionKey] ?? 1;
-  const qualityMultiplier = creditEngine.video.qualityMultiplier?.[quality] ?? 1;
-  const value = creditEngine.video.baseCredits * modelMultiplier * resolutionMultiplier * qualityMultiplier / creditEngine.video.baseDuration;
-  return value.toFixed(value >= 10 ? 2 : 2);
+  const resolutionKey = resolutionLabel === '4K' ? '2160p' : resolutionLabel === '2K' ? '1440p' : resolutionLabel.toLowerCase();
+  const total = calculateVideoCredits({
+    modelKey,
+    resolution: resolutionKey,
+    durationSeconds: 5,
+    quality,
+    narrationEnabled: false,
+    captionsEnabled: false,
+    audioMode: 'silent',
+    referenceImages: 0,
+  });
+  const value = total / 5;
+  return value.toFixed(2);
 }
 
 function imageCreditsLabel(modelKey: string, resolution: '1024' | '1536') {
@@ -829,16 +842,19 @@ function estimateRecipeCredits(recipe: RecipeCatalog): number | null {
     if (typeof exact === 'number') return exact;
     return 5;
   }
-  const aliasKey = (creditEngine.videoModelAliases?.[String(defaults.model_key ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.videoModelAliases] ?? 'fal_ltx23_i2v') as keyof typeof creditEngine.video.modelMultiplier;
-  const modelMultiplier = creditEngine.video.modelMultiplier?.[aliasKey] ?? 1;
-  const resolutionKey = (defaults.resolution ?? '720p') as keyof typeof creditEngine.video.resolutionMultiplier;
-  const resolutionMultiplier = creditEngine.video.resolutionMultiplier?.[resolutionKey] ?? 1;
-  const qualityKey = (defaults.quality ?? 'standard') as keyof typeof creditEngine.video.qualityMultiplier;
-  const qualityMultiplier = creditEngine.video.qualityMultiplier?.[qualityKey] ?? 1;
-  const durationSeconds = Number(defaults.duration_seconds ?? 5);
-  const base = creditEngine.video.baseCredits * modelMultiplier * resolutionMultiplier * (durationSeconds / creditEngine.video.baseDuration) * qualityMultiplier;
-  const rounded = Math.ceil(base);
-  return rounded + creditEngine.fixedCosts.auto_caption;
+  return calculateVideoCredits({
+    modelKey: String(defaults.model_key ?? 'fal_ltx23_i2v'),
+    resolution: String(defaults.resolution ?? '720p'),
+    durationSeconds: Number(defaults.duration_seconds ?? 5),
+    quality: String(defaults.quality ?? 'standard'),
+    captionsEnabled: false,
+    narrationEnabled: Boolean(defaults.narration_enabled),
+    recipeId: recipe.id,
+    recipeInputs: {
+      quality_profile: defaults.quality,
+      duration_seconds: defaults.duration_seconds,
+    },
+  });
 }
 
 function mapCatalogRecipeToCard(recipe: RecipeCatalog): RecipeCard | null {
@@ -1217,8 +1233,10 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [durationPreference, setDurationPreference] = useState<'auto' | '5' | '10' | '15'>('auto');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const [captionsEnabled] = useState(false);
+  const [audioMode, setAudioMode] = useState<AudioMode>('silent');
   const [loading, setLoading] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
   const [, setVideoLaunch] = useState<VideoLaunchState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<RecipeCatalog[]>([]);
@@ -1275,13 +1293,12 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const avatarSyncKeyRef = useRef<string | null>(null);
   const { show } = useToast();
 
-  const isUgcAdRecipe = useMemo(
-    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'ugc_ad',
-    [activeRecipeSource],
-  );
-
   const isAvatarProductRecipe = useMemo(
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'avatar_product',
+    [activeRecipeSource],
+  );
+  const isTalkingAvatarRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'talking_avatar',
     [activeRecipeSource],
   );
   const visibleQualityProfiles = useMemo(
@@ -1426,7 +1443,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () =>
       recipeSettingsLocked &&
       activeRecipeSource?.kind === 'recipe' &&
-      (activeRecipeSource.recipe.recipe.id === 'ugc_ad' || activeRecipeSource.recipe.recipe.id === 'avatar_product') &&
+      (activeRecipeSource.recipe.recipe.id === 'talking_avatar' || activeRecipeSource.recipe.recipe.id === 'avatar_product') &&
       Boolean(selectedAvatar),
     [activeRecipeSource, recipeSettingsLocked, selectedAvatar],
   );
@@ -1564,7 +1581,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       }));
     }
   }, [isAvatarProductRecipe, selectedLanguage, visibleLanguageOptions]);
-  const isAvatarDrivenRecipe = isUgcAdRecipe || isAvatarProductRecipe;
+  const isAvatarDrivenRecipe = isAvatarProductRecipe || isTalkingAvatarRecipe;
+  const freeformSupportsAutoSceneSound = useMemo(
+    () => Boolean(displayedVideoModel?.supportsNativeAudio) && displayedVideoModel?.key !== 'seedance_v1_lite_reference',
+    [displayedVideoModel],
+  );
+  const showNativeAudioSelector = mode === 'video' && activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe;
+  const showVoiceControls = Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe;
   const avatarProductInlineAnswerPatch = useMemo(
     () => buildAvatarProductInlineAnswerPatch(avatarProductInlineAnswer, avatarProductAssist),
     [avatarProductAssist, avatarProductInlineAnswer],
@@ -1620,6 +1643,16 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setSelectedAvatar(defaultAvatar);
     }
   }, [isAvatarProductRecipe, avatarOptions, selectedAvatar]);
+
+  useEffect(() => {
+    if (isAvatarProductRecipe || !showNativeAudioSelector) {
+      setAudioMode('silent');
+      return;
+    }
+    if (!freeformSupportsAutoSceneSound && audioMode !== 'silent') {
+      setAudioMode('silent');
+    }
+  }, [audioMode, freeformSupportsAutoSceneSound, isAvatarProductRecipe, showNativeAudioSelector]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1952,7 +1985,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     setVideoLaunch(null);
     setAspectRatio((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16');
     setDurationPreference(Number(recipe.recipe.duration_seconds || defaults.duration_seconds || 0) > 10 ? 'auto' : (String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5'));
-    setCaptionsEnabled(Boolean(defaults.captions_enabled ?? true));
+    setAudioMode('silent');
     setVoiceEnabled(Boolean(defaults.narration_enabled ?? true));
     if (defaults.voice) {
       setSelectedVoice(String(defaults.voice));
@@ -2244,8 +2277,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             voice: selectedVoice,
             captionsEnabled,
             narrationEnabled: voiceEnabled,
-            personaId: (recipe.id === 'ugc_ad' || recipe.id === 'avatar_product') ? (selectedAvatar?.personaId || undefined) : undefined,
-            useAvatarForTalkingScenes: (recipe.id === 'ugc_ad' || recipe.id === 'avatar_product') ? Boolean(selectedAvatar?.personaId) : undefined,
+            audioMode: recipe.id === 'avatar_product' ? 'silent' : undefined,
+            personaId: isAvatarDrivenRecipe ? (selectedAvatar?.personaId || undefined) : undefined,
+            useAvatarForTalkingScenes: isAvatarDrivenRecipe ? Boolean(selectedAvatar?.personaId) : undefined,
           },
           userId,
         );
@@ -2298,7 +2332,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             language: selectedLanguage,
             voice: selectedVoice,
             captionsEnabled,
-            narrationEnabled: voiceEnabled,
+            narrationEnabled: false,
+            audioMode,
           }),
           userId,
         );
@@ -2332,7 +2367,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             quality: 'standard',
             durationSeconds: 24,
             captionsEnabled,
-            narrationEnabled: voiceEnabled,
+            narrationEnabled: false,
+            audioMode,
             language: selectedLanguage,
             voice: selectedVoice,
             imageUrl: uploadedComposerAsset?.assetUrl,
@@ -2366,7 +2402,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           resolution: profile.resolution,
           quality: profile.lane === 'premium' ? 'high' : 'standard',
           durationSeconds,
-          narrationEnabled: voiceEnabled,
+          narrationEnabled: false,
           captionsEnabled,
         },
         userId,
@@ -2384,7 +2420,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           quality: profile.lane === 'premium' ? 'high' : 'standard',
           durationSeconds,
           captionsEnabled,
-          narrationEnabled: voiceEnabled,
+          narrationEnabled: false,
+          audioMode,
           language: selectedLanguage,
           voice: selectedVoice,
           imageUrl: uploadedComposerAsset?.assetUrl,
@@ -2422,6 +2459,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         title={`Opening ${navigationOverlayLabel ?? 'workspace'}`}
         description="Preparing the next workspace for you."
         stepLabel="Navigating"
+        accentLabel="Create"
+      />
+      <LoadingOverlay
+        open={uploadingAsset}
+        title="Uploading asset"
+        description="Preparing your image for generation."
+        stepLabel="Upload"
         accentLabel="Create"
       />
 
@@ -3408,20 +3452,58 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           ) : null}
                         </div>
                         <div className="mt-1 border-t border-[hsl(var(--color-border)/0.6)] px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (recipeSettingsLocked) return;
-                              setVoiceEnabled((current) => !current);
-                            }}
-                            disabled={recipeSettingsLocked}
-                            className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
-                              }`}
-                          >
-                            <span>Voice</span>
-                            <span className="text-xs text-muted">{voiceEnabled ? 'On' : 'Off'}</span>
-                          </button>
-                          {voiceEnabled && visibleLanguageOptions.length > 0 ? (
+                          {showNativeAudioSelector ? (
+                            <div className="px-2 py-1">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</p>
+                                <span className="text-[11px] text-muted">
+                                  {freeformSupportsAutoSceneSound ? 'Silent or native scene sound' : 'Silent only'}
+                                </span>
+                              </div>
+                              <div className="mt-2 grid gap-1">
+                                {([
+                                  { key: 'silent', label: 'Silent', helper: 'No narration and no native scene sound.' },
+                                  ...(freeformSupportsAutoSceneSound
+                                    ? [{ key: 'auto_scene_sound', label: 'Auto scene sound', helper: 'Use model-native ambient or scene audio when supported.' }]
+                                    : []),
+                                ] as Array<{ key: AudioMode; label: string; helper: string }>).map((option) => (
+                                  <button
+                                    key={option.key}
+                                    type="button"
+                                    onClick={() => setAudioMode(option.key)}
+                                    className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${
+                                      audioMode === option.key
+                                        ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                        : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                    }`}
+                                  >
+                                    <span>
+                                      <span className="block font-semibold text-inherit">{option.label}</span>
+                                      <span className="mt-0.5 block text-xs text-muted">{option.helper}</span>
+                                    </span>
+                                    {audioMode === option.key ? <Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
+                                  </button>
+                                ))}
+                              </div>
+                              {modelsLoading ? <p className="mt-2 text-xs text-muted">Refreshing model capabilities…</p> : null}
+                            </div>
+                          ) : null}
+                          {showVoiceControls ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (recipeSettingsLocked) return;
+                                setVoiceEnabled((current) => !current);
+                              }}
+                              disabled={recipeSettingsLocked}
+                              className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
+                                }`}
+                            >
+                              <span>Voice</span>
+                              <span className="text-xs text-muted">{voiceEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                          ) : null}
+                          {showVoiceControls && voiceEnabled && visibleLanguageOptions.length > 0 ? (
                             <label className="mt-2 block px-2">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Language</span>
                               <select
@@ -3437,7 +3519,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               </select>
                             </label>
                           ) : null}
-                          {voiceEnabled && avatarGenderFilteredVoiceOptions.length > 0 ? (
+                          {showVoiceControls && voiceEnabled && avatarGenderFilteredVoiceOptions.length > 0 ? (
                             <label className="mt-3 block px-2">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Voice</span>
                               <select
@@ -3454,12 +3536,12 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               </select>
                             </label>
                           ) : null}
-                          {avatarVoiceLocked ? (
+                          {showVoiceControls && avatarVoiceLocked ? (
                             <p className="mt-2 px-2 text-xs leading-5 text-muted">
                               Voice is matched to the selected AI avatar. You can choose a supported language for the same avatar workflow.
                             </p>
                           ) : null}
-                          {voiceEnabled ? (
+                          {showVoiceControls && voiceEnabled ? (
                             <div className="mt-3 px-2">
                               <Button
                                 type="button"
@@ -3479,21 +3561,6 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
                             </div>
                           ) : null}
-                          {!isAvatarProductRecipe ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (recipeSettingsLocked) return;
-                                setCaptionsEnabled((current) => !current);
-                              }}
-                              disabled={recipeSettingsLocked}
-                              className={`flex w-full items-center justify-between rounded-[12px] px-2 py-2 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)] ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''
-                                }`}
-                            >
-                              <span>Captions</span>
-                              <span className="text-xs text-muted">{captionsEnabled ? 'On' : 'Off'}</span>
-                            </button>
-                          ) : null}
                         </div>
                       </div>
                     ) : null}
@@ -3504,11 +3571,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                 <Button
                   type="button"
                   onClick={() => void launchUnifiedFlow()}
-                  disabled={loading}
+                  disabled={loading || uploadingAsset}
                   className="h-12 rounded-full border-0 bg-[linear-gradient(to_right,#818cf8,#a855f7)] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(168,85,247,0.24)] hover:opacity-95"
                 >
                   {loading ? (
                     'Preparing…'
+                  ) : uploadingAsset ? (
+                    'Uploading…'
                   ) : (
                     <span className="inline-flex items-center gap-2">
                       <Play className="h-4 w-4 fill-current" />
@@ -3627,6 +3696,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               const uploadTarget = pendingUploadTarget;
 
               try {
+                setUploadingAsset(true);
                 if (uploadTarget && uploadTarget !== 'composer-asset') {
                   const uploaded = await api.uploadFileDirect({ file, kind: 'recipe_input' }, userId);
 
@@ -3663,6 +3733,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                 setError(message);
                 show({ title: 'Upload failed', message, variant: 'error' });
               } finally {
+                setUploadingAsset(false);
                 setPendingUploadTarget(null);
                 input.value = '';
               }

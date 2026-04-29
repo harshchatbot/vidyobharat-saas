@@ -378,6 +378,86 @@ class _FakeSubmitContextClient:
         return _FakeResponse(200, self.submit_payload)
 
 
+def test_generate_threads_generate_audio_for_supported_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    submitted_payloads: list[dict[str, Any]] = []
+
+    class _Client(_FakeSubmitContextClient):
+        def post(self, url: str, *, headers: dict[str, str], json: dict[str, Any]):
+            submitted_payloads.append(json)
+            return super().post(url, headers=headers, json=json)
+
+    service = FalVideoService()
+    monkeypatch.setattr(
+        fal_video_service_module.httpx,
+        "Client",
+        lambda *args, **kwargs: _Client(
+            submit_payload={
+                "request_id": "req-audio-1",
+                "status_url": "https://queue.fal.run/fal-ai/ltx-2.3/requests/req-audio-1/status",
+            },
+            submit_calls=[],
+        ),
+    )
+    service._poll_status_until_terminal = lambda **kwargs: {  # type: ignore[method-assign]
+        "status": "completed",
+        "request_id": "req-audio-1",
+        "video": {"url": "https://cdn.example.com/generated.mp4"},
+    }
+
+    video_url, metadata = service.generate(
+        model_key="fal_ltx23_i2v",
+        prompt="ambient coffee shop product shot",
+        aspect_ratio="9:16",
+        resolution="1080p",
+        duration_seconds=6,
+        generate_audio=True,
+    )
+
+    assert video_url == "https://cdn.example.com/generated.mp4"
+    assert metadata["request_id"] == "req-audio-1"
+    assert submitted_payloads[0]["generate_audio"] is True
+
+
+def test_generate_omits_generate_audio_for_seedance(monkeypatch: pytest.MonkeyPatch) -> None:
+    submitted_payloads: list[dict[str, Any]] = []
+
+    class _Client(_FakeSubmitContextClient):
+        def post(self, url: str, *, headers: dict[str, str], json: dict[str, Any]):
+            submitted_payloads.append(json)
+            return super().post(url, headers=headers, json=json)
+
+    service = FalVideoService()
+    monkeypatch.setattr(
+        fal_video_service_module.httpx,
+        "Client",
+        lambda *args, **kwargs: _Client(
+            submit_payload={
+                "request_id": "req-seedance-1",
+                "status_url": "https://queue.fal.run/fal-ai/seedance/requests/req-seedance-1/status",
+            },
+            submit_calls=[],
+        ),
+    )
+    service._poll_status_until_terminal = lambda **kwargs: {  # type: ignore[method-assign]
+        "status": "completed",
+        "request_id": "req-seedance-1",
+        "video": {"url": "https://cdn.example.com/seedance.mp4"},
+    }
+
+    video_url, metadata = service.generate(
+        model_key="seedance_v1_lite_reference",
+        prompt="reference-to-video test",
+        aspect_ratio="9:16",
+        resolution="720p",
+        duration_seconds=5,
+        generate_audio=True,
+    )
+
+    assert video_url == "https://cdn.example.com/seedance.mp4"
+    assert metadata["request_id"] == "req-seedance-1"
+    assert "generate_audio" not in submitted_payloads[0]
+
+
 def test_generate_uses_get_response_url_for_same_request_top_level_completion(monkeypatch: pytest.MonkeyPatch) -> None:
     service = FalVideoService()
     submit_payload = {

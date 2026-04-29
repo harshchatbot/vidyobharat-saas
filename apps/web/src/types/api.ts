@@ -471,6 +471,7 @@ export type AIVideoModel = {
   speedBadge?: string;
   creditBadge?: string;
   resolutionLabels?: string[];
+  supportsNativeAudio?: boolean;
   providerId?: string | null;
   canonicalModelKey?: string | null;
   modeIds?: string[];
@@ -604,6 +605,7 @@ export type StandardVideoCreateRequest = {
     volume: number;
     ducking: boolean;
     sampleRateHz: number;
+    nativeAudioEnabled?: boolean;
   };
   aspectRatio: string;
   resolution: string;
@@ -613,6 +615,7 @@ export type StandardVideoCreateRequest = {
   captionsEnabled: boolean;
   captionStyle: string;
   narrationEnabled?: boolean;
+  audioMode?: 'silent' | 'auto_scene_sound';
 };
 
 export type RecipeVideoCreateRequest = {
@@ -623,6 +626,7 @@ export type RecipeVideoCreateRequest = {
   voice?: string;
   captionsEnabled?: boolean;
   narrationEnabled?: boolean;
+  audioMode?: 'silent' | 'auto_scene_sound';
   personaId?: string;
   talkingModePreference?: string;
   useAvatarForTalkingScenes?: boolean;
@@ -775,6 +779,7 @@ export type CreditEstimateResponse = {
   remainingCredits: number;
   sufficient: boolean;
   premium: boolean;
+  metadata?: Record<string, unknown>;
 };
 
 export type CreditTopUpOrderResponse = {

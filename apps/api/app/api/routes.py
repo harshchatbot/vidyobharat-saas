@@ -684,6 +684,7 @@ def estimate_credits(
             remainingCredits=max(wallet.current_credits - estimate.required_credits, 0),
             sufficient=wallet.current_credits >= estimate.required_credits,
             premium=estimate.premium,
+            metadata=dict(estimate.metadata or {}),
         )
     except CreditCapExceededError as exc:
         raise HTTPException(status_code=400, detail='Requested configuration exceeds allowed credit cap') from exc
@@ -1332,6 +1333,7 @@ def list_ai_video_models(user_id: str = Depends(get_user_id)):
             speedBadge=model.speed_badge,
             creditBadge=model.credit_badge,
             resolutionLabels=model.resolution_labels or [],
+            supportsNativeAudio=model.supports_native_audio,
             providerId=model.provider_id,
             canonicalModelKey=model.canonical_model_key,
             modeIds=model.mode_ids or [],
@@ -1354,6 +1356,17 @@ def create_ai_video(
     try:
         recipe = None
         normalized_payload = payload.model_dump()
+        requested_audio_mode = str(payload.audioMode or '').strip() or None
+        normalized_audio_settings = dict(normalized_payload.get('audioSettings') or payload.audioSettings.model_dump())
+        requested_native_audio_enabled = bool(normalized_audio_settings.get('nativeAudioEnabled', False))
+        if requested_audio_mode == 'auto_scene_sound':
+            requested_native_audio_enabled = True
+        elif requested_audio_mode == 'silent':
+            requested_native_audio_enabled = False
+        normalized_audio_settings['nativeAudioEnabled'] = requested_native_audio_enabled
+        normalized_payload['audioSettings'] = normalized_audio_settings
+        if requested_audio_mode:
+            normalized_payload['audioMode'] = requested_audio_mode
         normalized_recipe_inputs: dict[str, object] | None = None
         pipeline_metadata: dict[str, object] | None = None
         if payload.recipeId:
@@ -1368,6 +1381,12 @@ def create_ai_video(
                 normalized_payload['voice'] = str(payload.voice).strip()
             normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
             normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
+            normalized_payload['audioSettings'] = {
+                **dict(normalized_payload.get('audioSettings') or {}),
+                **normalized_audio_settings,
+            }
+            if requested_audio_mode:
+                normalized_payload['audioMode'] = requested_audio_mode
             pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
             if recipe.id == 'avatar_product':
                 pipeline_metadata['pipeline_version'] = 'chitrakala_v1'
@@ -1385,6 +1404,13 @@ def create_ai_video(
                 pipeline_metadata['use_avatar_for_talking_scenes'] = bool(payload.useAvatarForTalkingScenes)
             if recipe.id == 'avatar_product':
                 pipeline_metadata['use_avatar_for_talking_scenes'] = True
+                normalized_payload['audioMode'] = 'silent'
+                normalized_payload['captionsEnabled'] = False
+                normalized_audio_settings['nativeAudioEnabled'] = False
+                normalized_payload['audioSettings'] = {
+                    **dict(normalized_payload.get('audioSettings') or {}),
+                    **normalized_audio_settings,
+                }
         elif should_use_ltx_storyboard_recipe(normalized_payload):
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_ltx_recipe_request(
                 str(payload.script or '').strip()
@@ -1397,6 +1423,12 @@ def create_ai_video(
                 normalized_payload['voice'] = str(payload.voice).strip()
             normalized_payload['captionsEnabled'] = bool(payload.captionsEnabled)
             normalized_payload['narrationEnabled'] = bool(payload.narrationEnabled)
+            normalized_payload['audioSettings'] = {
+                **dict(normalized_payload.get('audioSettings') or {}),
+                **normalized_audio_settings,
+            }
+            if requested_audio_mode:
+                normalized_payload['audioMode'] = requested_audio_mode
             logger.info(
                 'ai_video_create_auto_rerouted_to_ltx_storyboard',
                 extra={
@@ -1500,7 +1532,7 @@ def create_ai_video(
         )
         
 
-        if recipe.id == "avatar_product":
+        if recipe and recipe.id == "avatar_product" and normalized_recipe_inputs is not None:
             requested_model_key = str(normalized_recipe_inputs.get("video_model_key") or "").strip()
 
             if requested_model_key == "kling_o3_standard_reference":
@@ -1512,9 +1544,23 @@ def create_ai_video(
             provider_safe_model_key = "kling_o3_reference"
             normalized_payload["modelKey"] = "kling_o3_reference"
 
+        if provider_safe_model_key == 'seedance_v1_lite_reference':
+            normalized_payload['audioMode'] = 'silent'
+            normalized_audio_settings['nativeAudioEnabled'] = False
+        elif normalized_payload.get('audioMode') == 'auto_scene_sound':
+            normalized_audio_settings['nativeAudioEnabled'] = True
+        elif normalized_payload.get('audioMode') == 'silent':
+            normalized_audio_settings['nativeAudioEnabled'] = False
 
+        pipeline_metadata = dict(pipeline_metadata or {})
+        pipeline_metadata['audio_mode'] = str(normalized_payload.get('audioMode') or 'silent')
+        pipeline_metadata['native_audio_enabled'] = bool(normalized_audio_settings.get('nativeAudioEnabled', False))
+        normalized_payload['audioSettings'] = {
+            **dict(normalized_payload.get('audioSettings') or {}),
+            **normalized_audio_settings,
+        }
         if recipe and recipe.id == 'ugc_ad' and recipe.scene_strategy.render_scenes:
-                    provider_safe_duration_seconds = int(recipe.scene_strategy.render_scenes[0].duration_seconds)
+            provider_safe_duration_seconds = int(recipe.scene_strategy.render_scenes[0].duration_seconds)
 
         service = AIVideoCreateService(None, settings)
         video = service.create_video(
@@ -1737,9 +1783,19 @@ def get_ai_video_status(
             )
             raw = service.repo.collection.document(video_id).get()
             raw_data = raw.to_dict() or {}
+            pipeline_metadata = dict(raw_data.get('pipeline_metadata') or raw_data.get('pipelineMetadata') or {})
+            provider_request_accepted = bool(
+                raw_data.get('external_job_id')
+                or raw_data.get('provider_status_url')
+                or raw_data.get('provider_request_id')
+                or pipeline_metadata.get('status_url')
+                or pipeline_metadata.get('request_id')
+                or pipeline_metadata.get('provider_status_url')
+                or pipeline_metadata.get('provider_request_id')
+            )
             if not bool(raw_data.get('timed_out_refunded', False)):
                 charged_credits = int(raw_data.get('applied_credits') or 0)
-                if charged_credits > 0:
+                if charged_credits > 0 and not provider_request_accepted:
                     credit_service = CreditService()
                     credit_service.top_up_credits(
                         user_id=user_id,
@@ -1754,8 +1810,12 @@ def get_ai_video_status(
                 video,
                 status='timed_out',
                 progress=100,
-                error_message='Generation timed out while waiting for provider completion.',
-                timed_out_refunded=True,
+                error_message=(
+                    'Generation timed out while waiting for provider completion.'
+                    if not provider_request_accepted
+                    else 'Provider accepted the job but status polling timed out. The render may still complete later.'
+                ),
+                timed_out_refunded=not provider_request_accepted,
             )
 
     auto_tags: list[str] = []

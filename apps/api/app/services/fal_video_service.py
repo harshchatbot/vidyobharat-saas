@@ -31,22 +31,23 @@ class FalVideoService:
     _STATUS_POLL_INTERVAL_SECONDS = 12
     _TERMINAL_STATUS_TIMEOUT_SECONDS = 600
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
-        'fal_ltx23_i2v': 1080,
+        'fal_ltx23_i2v': 1800,
         'fal_infinite_talk': 1800,
         'fal_kling_reference_to_video': 1800,
-        'seedance_v1_lite_reference': 1200,
+        'seedance_v1_lite_reference': 1800,
 
         # Kling O3 reference models can queue longer than normal short I2V jobs.
-        'kling_o3_standard_reference': 1800,
-        'kling_o3_pro_reference': 1800,
-        'kling_o3_4k_reference': 2400,
+        'kling_o3_standard_reference': 2400,
+        'kling_o3_reference': 2400,
+        'kling_o3_pro_reference': 2400,
+        'kling_o3_4k_reference': 3600,
 
         # Legacy/fallback Elements routes.
         'kling_v16_standard_elements': 1800,
         'kling_v16_pro_elements': 1800,
 
-        'fal_gemini_flash_tts': 600,
-        'fal_sync_lipsync_v2': 1200,
+        'fal_gemini_flash_tts': 900,
+        'fal_sync_lipsync_v2': 1800,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _STATUS_REQUEST_TIMEOUT = httpx.Timeout(25.0, connect=10.0)
@@ -530,6 +531,9 @@ class FalVideoService:
             'resolution': resolution,
         }
 
+        if generate_audio is not None and self._supports_generate_audio(model_key):
+            payload['generate_audio'] = bool(generate_audio)
+
         if image_url:
             payload['image_url'] = image_url
 
@@ -589,7 +593,12 @@ class FalVideoService:
 
             submit_video_url = self._extract_video_url(data)
             if submit_video_url:
-                return submit_video_url, {'raw': data, 'mode': 'submit_payload'}
+                return submit_video_url, {
+                    'raw': data,
+                    'mode': 'submit_payload',
+                    'request_id': submit_request_id,
+                    'status_url': self._normalize_candidate_url(str(status_url).strip()) if isinstance(status_url, str) and status_url.strip() else None,
+                }
 
             if not status_url:
                 status_url = response_url or data.get('url')
@@ -597,7 +606,7 @@ class FalVideoService:
             if not status_url:
                 video_url = self._extract_video_url(data)
                 if video_url:
-                    return video_url, {'raw': data, 'mode': 'immediate'}
+                    return video_url, {'raw': data, 'mode': 'immediate', 'request_id': submit_request_id}
                 raise RuntimeError('fal response did not include a polling url or video output')
 
             normalized_status_url = self._normalize_candidate_url(str(status_url).strip())
@@ -613,7 +622,12 @@ class FalVideoService:
 
             direct_video_url = self._extract_video_url(terminal_payload)
             if direct_video_url:
-                return direct_video_url, {'raw': terminal_payload, 'mode': 'async'}
+                return direct_video_url, {
+                    'raw': terminal_payload,
+                    'mode': 'async',
+                    'request_id': str(terminal_payload.get('request_id') or submit_request_id or '').strip() or None,
+                    'status_url': normalized_status_url,
+                }
 
             state = self._normalize_state(terminal_payload)
             if state in self._FAILURE_STATES:
@@ -639,7 +653,12 @@ class FalVideoService:
                 )
                 if follow_up_result.status == 'resolved' and follow_up_result.video_url and follow_up_result.payload is not None:
                     followed_url, followed_payload = follow_up_result.video_url, follow_up_result.payload
-                    return followed_url, {'raw': followed_payload, 'mode': 'top_level_status_followup'}
+                    return followed_url, {
+                        'raw': followed_payload,
+                        'mode': 'top_level_status_followup',
+                        'request_id': follow_up_result.request_id,
+                        'status_url': follow_up_result.status_url or normalized_status_url,
+                    }
                 if follow_up_result.status == 'cycle_detected':
                     raise RuntimeError(
                         f'fal follow-up queue lineage cycled without producing a final video asset: {follow_up_result.payload or terminal_payload}'
@@ -670,7 +689,12 @@ class FalVideoService:
             if response_data is not None:
                 video_url = self._extract_video_url(response_data)
                 if video_url:
-                    return video_url, {'raw': response_data, 'mode': 'async_response_url'}
+                    return video_url, {
+                        'raw': response_data,
+                        'mode': 'async_response_url',
+                        'request_id': str(response_data.get('request_id') or terminal_payload.get('request_id') or submit_request_id or '').strip() or None,
+                        'status_url': normalized_status_url,
+                    }
 
                 logger.warning(
                     'fal_response_url_missing_video response_urls=%s response_keys=%s response_state=%s preview=%s',
@@ -708,7 +732,12 @@ class FalVideoService:
                 )
                 if follow_up_result.status == 'resolved' and follow_up_result.video_url and follow_up_result.payload is not None:
                     followed_url, followed_payload = follow_up_result.video_url, follow_up_result.payload
-                    return followed_url, {'raw': followed_payload, 'mode': 'async_response_followup'}
+                    return followed_url, {
+                        'raw': followed_payload,
+                        'mode': 'async_response_followup',
+                        'request_id': follow_up_result.request_id,
+                        'status_url': follow_up_result.status_url or normalized_status_url,
+                    }
                 if follow_up_result.status == 'cycle_detected':
                     raise RuntimeError(
                         f'fal follow-up queue lineage cycled without producing a final video asset: {follow_up_result.payload or follow_up_source}'
@@ -853,6 +882,16 @@ class FalVideoService:
     def _terminal_timeout_for_model(self, requested_model_key: str) -> int:
         normalized = str(requested_model_key or '').strip().lower()
         return int(self._MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS.get(normalized, self._TERMINAL_STATUS_TIMEOUT_SECONDS))
+
+    def _supports_generate_audio(self, requested_model_key: str) -> bool:
+        normalized = str(requested_model_key or '').strip().lower()
+        return normalized in {
+            'fal_ltx23_i2v',
+            'kling_o3_standard_reference',
+            'kling_o3_reference',
+            'kling_o3_pro_reference',
+            'kling_o3_4k_reference',
+        }
 
     def _fetch_infinitetalk_result_payload(
         self,

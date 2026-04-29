@@ -18,6 +18,7 @@ type RawVideoModelConfig = {
   speedBadge: string;
   creditBadge: string;
   resolutionLabels: string[];
+  supportsNativeAudio?: boolean;
   supportedResolutions: string[];
   supportedAspectRatios: string[];
   sizes: Record<string, Record<string, string>>;
@@ -55,5 +56,6 @@ export function buildVideoModelsForApiFallback(): AIVideoModel[] {
     speedBadge: model.speedBadge,
     creditBadge: model.creditBadge,
     resolutionLabels: model.resolutionLabels,
+    supportsNativeAudio: model.supportsNativeAudio ?? false,
   }));
 }

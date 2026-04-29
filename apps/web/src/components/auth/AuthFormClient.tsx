@@ -9,6 +9,7 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { SignInPage, type Testimonial } from '@/components/ui/sign-in';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import {
@@ -50,6 +51,46 @@ export function AuthFormClient({ mode }: Props) {
         ? ['Signing you in', 'Loading dashboard', 'Fetching your creations']
         : ['Creating your account', 'Securing your workspace', 'Preparing your dashboard'],
     [isLogin],
+  );
+  const loginTestimonials = useMemo<Testimonial[]>(
+    () => [
+      {
+        avatarSrc: 'https://randomuser.me/api/portraits/women/57.jpg',
+        name: 'Aarohi Mehta',
+        handle: '@aarohicreates',
+        text: 'From briefs to polished campaigns, everything moves faster inside RangManch AI.',
+      },
+      {
+        avatarSrc: 'https://randomuser.me/api/portraits/men/64.jpg',
+        name: 'Rohan Bedi',
+        handle: '@rohanbuilds',
+        text: 'The workflow feels reliable and clear, especially when juggling video, image, and voice tasks.',
+      },
+      {
+        avatarSrc: 'https://randomuser.me/api/portraits/women/32.jpg',
+        name: 'Ishita Rao',
+        handle: '@ishitagrowth',
+        text: 'We use it daily for faster production without losing quality or brand consistency.',
+      },
+    ],
+    [],
+  );
+  const signupBenefits = useMemo(
+    () => [
+      {
+        title: 'Standard secure signup',
+        body: 'Create your account with email and password, then confirm your email before first login.',
+      },
+      {
+        title: 'Studio-ready workspace',
+        body: 'We provision your dashboard, billing, and creator workspace immediately after verification.',
+      },
+      {
+        title: 'Google sign-in supported',
+        body: 'If you prefer, continue with Google and skip the manual password flow.',
+      },
+    ],
+    [],
   );
 
   useEffect(() => {
@@ -247,6 +288,51 @@ export function AuthFormClient({ mode }: Props) {
         accentLabel={isLogin ? 'Auth in progress' : 'Account setup'}
       />
 
+      {isLogin ? (
+        <div className="bg-bg">
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            <div className="mb-8 flex items-center justify-between">
+              <BrandLogo href="/" variant="mark" size="sm" />
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[hsl(var(--color-muted))] transition-colors hover:text-[hsl(var(--color-accent))]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to home
+              </Link>
+            </div>
+          </div>
+
+          <SignInPage
+            title="Welcome back"
+            description="Sign in with email or Google to continue into RangManch AI."
+            heroImageSrc="/rangmanciai_login.jpg"
+            testimonials={loginTestimonials}
+            error={error}
+            notice={message}
+            submitLabel={submitting ? 'Please wait…' : 'Sign In'}
+            googleLabel="Continue with Google"
+            createAccountLabel="Create Account"
+            resetPasswordLabel="Reset password"
+            emailValue={email}
+            passwordValue={password}
+            submitting={submitting}
+            onEmailChange={setEmail}
+            onPasswordChange={setPassword}
+            onSignIn={handleSubmit}
+            onGoogleSignIn={() => void handleGoogleSignIn()}
+            onResetPassword={() =>
+              setMessage('Password reset is not available in-app yet. Please use Google sign-in or contact support.')
+            }
+            onCreateAccount={() => router.push('/signup')}
+            footer={
+              <p className="text-center text-[11px] text-[hsl(var(--color-muted)/0.6)]">
+                Protected by Firebase Authentication &amp; end-to-end encryption.
+              </p>
+            }
+          />
+        </div>
+      ) : (
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-8 flex items-center justify-between">
           <BrandLogo href="/" variant="mark" size="sm" />
@@ -259,14 +345,18 @@ export function AuthFormClient({ mode }: Props) {
           </Link>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(380px,0.76fr)] lg:items-stretch">
-          <AuthShowcasePanel />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.98fr)_minmax(420px,0.82fr)] lg:items-stretch">
+          <AuthShowcasePanel
+            badge="New account"
+            title="Set up your creator workspace with a clean, standard signup flow."
+            body="We keep the auth path straightforward: account creation, email verification, then studio access. No hidden product changes behind the UI refresh."
+          />
 
-          <div className="rangmanch-floating-hero rounded-[30px] px-5 py-6 sm:px-7 sm:py-7">
+          <div className="rounded-[32px] border border-[hsl(var(--color-border)/0.58)] bg-[linear-gradient(145deg,hsl(var(--color-surface-glass-strong)/0.82),hsl(var(--color-elevated)/0.58))] px-5 py-6 shadow-[var(--shadow-cinematic)] backdrop-blur-xl sm:px-7 sm:py-7">
             <div className="space-y-8">
               <div className="flex flex-col gap-6 border-b border-[hsl(var(--color-border)/0.55)] pb-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-sm">
-                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--color-accent))]">
+                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-accent)/0.25)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--color-accent))]">
                     <Sparkles className="h-3 w-3" />
                     {isLogin ? 'RangManch AI Studio' : 'New account'}
                   </div>
@@ -277,8 +367,8 @@ export function AuthFormClient({ mode }: Props) {
                 </div>
 
                 {!isLogin ? (
-                  <div className="border-t border-[hsl(var(--color-border)/0.55)] pt-4 text-sm text-[hsl(var(--color-muted))] lg:max-w-[240px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                    <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--color-accent)/0.75)]">
+                  <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface)/0.38)] p-4 text-sm text-[hsl(var(--color-muted))] lg:max-w-[252px]">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--color-accent)/0.75)]">
                       Setup steps
                     </div>
                     <ol className="space-y-1 text-xs leading-relaxed">
@@ -324,21 +414,27 @@ export function AuthFormClient({ mode }: Props) {
                   {!isLogin ? (
                     <>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <Input
-                          name="full_name"
-                          type="text"
-                          placeholder="Full name"
-                          value={fullName}
-                          onChange={(event) => setFullName(event.target.value)}
-                          required
-                        />
-                        <Input
-                          name="phone"
-                          type="tel"
-                          placeholder="Phone (optional)"
-                          value={phone}
-                          onChange={(event) => setPhone(event.target.value)}
-                        />
+                        <div className="rounded-[1.1rem] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface-glass)/0.62)] p-1 backdrop-blur-sm">
+                          <Input
+                            name="full_name"
+                            type="text"
+                            placeholder="Full name"
+                            value={fullName}
+                            onChange={(event) => setFullName(event.target.value)}
+                            required
+                            className="border-0 bg-transparent shadow-none focus:ring-0"
+                          />
+                        </div>
+                        <div className="rounded-[1.1rem] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface-glass)/0.62)] p-1 backdrop-blur-sm">
+                          <Input
+                            name="phone"
+                            type="tel"
+                            placeholder="Phone (optional)"
+                            value={phone}
+                            onChange={(event) => setPhone(event.target.value)}
+                            className="border-0 bg-transparent shadow-none focus:ring-0"
+                          />
+                        </div>
                       </div>
                       <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
                         Use your real name so your profile, billing, and workspace settings are initialized correctly.
@@ -346,33 +442,42 @@ export function AuthFormClient({ mode }: Props) {
                     </>
                   ) : null}
 
-                  <Input
-                    name="email"
-                    type="email"
-                    placeholder={isLogin ? 'you@domain.com' : 'Work email'}
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                  />
-                  <Input
-                    name="password"
-                    type="password"
-                    placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                  />
+                  <div className="rounded-[1.1rem] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface-glass)/0.62)] p-1 backdrop-blur-sm">
+                    <Input
+                      name="email"
+                      type="email"
+                      placeholder={isLogin ? 'you@domain.com' : 'Work email'}
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      required
+                      className="border-0 bg-transparent shadow-none focus:ring-0"
+                    />
+                  </div>
+                  <div className="rounded-[1.1rem] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface-glass)/0.62)] p-1 backdrop-blur-sm">
+                    <Input
+                      name="password"
+                      type="password"
+                      placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                      className="border-0 bg-transparent shadow-none focus:ring-0"
+                    />
+                  </div>
 
                   {!isLogin ? (
                     <>
-                      <Input
-                        name="confirm_password"
-                        type="password"
-                        placeholder="Confirm password"
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        required
-                      />
+                      <div className="rounded-[1.1rem] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface-glass)/0.62)] p-1 backdrop-blur-sm">
+                        <Input
+                          name="confirm_password"
+                          type="password"
+                          placeholder="Confirm password"
+                          value={confirmPassword}
+                          onChange={(event) => setConfirmPassword(event.target.value)}
+                          required
+                          className="border-0 bg-transparent shadow-none focus:ring-0"
+                        />
+                      </div>
                       <p className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">
                         Use at least 8 characters. After signup, Firebase will send a verification email before first login.
                       </p>
@@ -382,11 +487,22 @@ export function AuthFormClient({ mode }: Props) {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="mt-1 min-h-11 w-full shadow-soft transition-all duration-150 active:scale-[0.99]"
+                    className="mt-1 min-h-11 w-full rounded-[1.1rem] shadow-soft transition-all duration-150 active:scale-[0.99]"
                   >
                     {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create Account'}
                   </Button>
                 </form>
+
+                {!isLogin ? (
+                  <div className="grid gap-3 rounded-[24px] border border-[hsl(var(--color-border)/0.48)] bg-[hsl(var(--color-surface)/0.34)] p-4 sm:grid-cols-3">
+                    {signupBenefits.map((item) => (
+                      <div key={item.title} className="space-y-1.5">
+                        <div className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.title}</div>
+                        <div className="text-xs leading-relaxed text-[hsl(var(--color-muted))]">{item.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center justify-between border-t border-[hsl(var(--color-border)/0.5)] pt-4">
@@ -408,11 +524,20 @@ export function AuthFormClient({ mode }: Props) {
           Protected by Firebase Authentication &amp; end-to-end encryption.
         </p>
       </div>
+      )}
     </>
   );
 }
 
-function AuthShowcasePanel() {
+function AuthShowcasePanel({
+  badge = 'Creator studio',
+  title = 'Launch products, visuals, and short videos from one studio.',
+  body = 'A focused workspace for creators, businesses, and teams building AI-first campaigns with less production overhead.',
+}: {
+  badge?: string;
+  title?: string;
+  body?: string;
+}) {
   return (
     <div className="order-2 overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.56)] bg-[linear-gradient(145deg,hsl(var(--color-surface)/0.9),hsl(var(--color-elevated)/0.82))] shadow-[var(--shadow-cinematic)] lg:order-1">
       <div className="relative min-h-[280px] sm:min-h-[360px] lg:min-h-full">
@@ -421,14 +546,17 @@ function AuthShowcasePanel() {
         <div className="relative flex h-full flex-col justify-between p-5 sm:p-6 lg:p-8">
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.3)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
-              Creator studio
+              {badge}
             </span>
             <span className="inline-flex rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.24)] px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">
               India-first
             </span>
           </div>
 
-    
+          <div className="max-w-md space-y-3">
+            <h2 className="font-heading text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{title}</h2>
+            <p className="text-sm leading-7 text-white/72">{body}</p>
+          </div>
         </div>
       </div>
     </div>

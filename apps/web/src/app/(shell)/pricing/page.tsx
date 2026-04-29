@@ -8,7 +8,7 @@ import { Coins } from 'lucide-react';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { api } from '@/lib/api';
-import { getBestForCopy, getEstimateAssumptions, getPlanOutputEstimates } from '@/lib/pricingEstimates';
+import { getBestForCopy, getEstimateAssumptions, getPlanOutcomeExamples, getPlanOutcomeRows } from '@/lib/pricingEstimates';
 import type { PricingResponse } from '@/types/api';
 
 function formatMoney(currency: string, amount: number) {
@@ -43,21 +43,6 @@ function formatMoney(currency: string, amount: number) {
   ],
 };
 */}
-
-const featureCopy: Record<string, string[]> = {
-  starter: [
-
-  ],
-  creator: [
-
-  ],
-  growth: [
-
-  ],
-  pro: [
-
-  ],
-};
 
 const pricingFaqs = [
   {
@@ -112,6 +97,8 @@ export default function PricingPage() {
         credits: pricing.creditAllocation[plan],
       }));
   }, [pricing]);
+
+  const outcomeRows = useMemo(() => getPlanOutcomeRows(), []);
 
   const estimateAssumptions = useMemo(() => getEstimateAssumptions(), []);
 
@@ -181,10 +168,10 @@ export default function PricingPage() {
                 </p>
 
                 <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
-                  <p className="text-sm font-semibold text-text">What you can roughly create</p>
+                  <p className="text-sm font-semibold text-text">Activation bonus</p>
                   <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
-                    {getPlanOutputEstimates(40, 3).map((estimate) => (
-                      <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                    {getPlanOutcomeExamples('free').map((example) => (
+                      <p key={example}>{example}</p>
                     ))}
                   </div>
                   <p className="mt-3 text-xs text-muted">Plus a one-time 120-credit activation bonus after your first real workflow win.</p>
@@ -218,7 +205,7 @@ export default function PricingPage() {
               {orderedPlans.map((plan) => {
                 const isPopular = plan.key === 'creator';
                 const isSelected = selectedPlan === plan.key;
-                const outputEstimates = getPlanOutputEstimates(plan.credits, 4);
+                const planExamples = getPlanOutcomeExamples(plan.key).slice(0, 3);
 
                 return (
                   <button
@@ -259,22 +246,13 @@ export default function PricingPage() {
                     </p>
 
                     <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
-                      <p className="text-sm font-semibold text-text">What you can roughly create</p>
+                      <p className="text-sm font-semibold text-text">Approximate outcomes</p>
                       <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
-                        {outputEstimates.map((estimate) => (
-                          <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                        {planExamples.map((example) => (
+                          <p key={example}>{example}</p>
                         ))}
                       </div>
                     </div>
-
-                    <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
-                      {(featureCopy[plan.key] ?? []).map((feature) => (
-                        <li key={feature} className="flex items-start gap-2">
-                          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
 
                     <span
                       className={`mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] px-6 py-3 text-sm font-semibold transition ${
@@ -292,15 +270,12 @@ export default function PricingPage() {
 
             <section className="mt-8 rounded-[28px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.26)] px-5 py-5 sm:px-6">
               <div className="max-w-5xl">
-                <p className="text-sm font-semibold text-text">Estimates based on common setups</p>
+                <p className="text-sm font-semibold text-text">How to read these examples</p>
                 <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
                   {estimateAssumptions.map((item) => (
                     <p key={item}>{item}</p>
                   ))}
                 </div>
-                <p className="mt-4 text-sm text-muted">
-                  Premium models like <span className="font-semibold text-text">Veo 3.1</span> use significantly more credits than images or Kling drafts.
-                </p>
               </div>
             </section>
 
@@ -309,15 +284,15 @@ export default function PricingPage() {
                 <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
                   <p className="text-sm font-semibold text-text">What 40 free credits are best for</p>
                   <div className="mt-3 space-y-2 text-sm text-muted">
-                    {getPlanOutputEstimates(40, 3).map((estimate) => (
-                      <p key={estimate.id}>~{estimate.count} {estimate.label}</p>
+                    {getPlanOutcomeExamples('free').map((example) => (
+                      <p key={example}>{example}</p>
                     ))}
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
                   <p className="text-sm font-semibold text-text">Best way to use the free tier</p>
                   <p className="mt-3 text-sm text-muted">
-                    Start with images, templates, influencer visuals, and fast drafts. Save Sora 2 and Veo 3.1 for the moment you need premium output quality.
+                    Start with images, drafts, and workflow testing. Use paid credits when you need reliable ad output, longer videos, or repeated campaign runs.
                   </p>
                 </div>
               </div>
@@ -326,7 +301,7 @@ export default function PricingPage() {
                 <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
                 <div>
                   <p className="font-semibold text-[hsl(var(--color-text))]">
-                    Usage costs
+                    What costs credits?
                   </p>
                   <p className="text-sm text-[hsl(var(--color-muted))]">
                     Credits are consumed only when premium actions run.
@@ -335,7 +310,12 @@ export default function PricingPage() {
               </div>
 
               <div className="space-y-3 sm:hidden">
-                {pricing.actionCosts.map((item) => (
+                {[
+                  { feature: 'Standard image', cost: 'from 4 credits' },
+                  { feature: 'Normal video 5s', cost: 'from 25 credits' },
+                  { feature: 'Auto scene sound', cost: 'from +15 credits' },
+                  { feature: 'Avatar Product Ad', cost: 'from 49 credits' },
+                ].map((item) => (
                   <div
                     key={item.feature}
                     className="rounded-[20px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-4 py-3"
@@ -351,15 +331,20 @@ export default function PricingPage() {
                   <thead className="bg-[hsl(var(--color-elevated))]">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">
-                        Action
+                        Item
                       </th>
                       <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">
-                        Cost
+                        Credits
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pricing.actionCosts.map((item) => (
+                    {[
+                      { feature: 'Standard image', cost: 'from 4 credits' },
+                      { feature: 'Normal video 5s', cost: 'from 25 credits' },
+                      { feature: 'Auto scene sound', cost: 'from +15 credits' },
+                      { feature: 'Avatar Product Ad', cost: 'from 49 credits' },
+                    ].map((item) => (
                       <tr
                         key={item.feature}
                         className="border-t border-[hsl(var(--color-border))]"
@@ -370,6 +355,33 @@ export default function PricingPage() {
                         <td className="px-4 py-3 text-[hsl(var(--color-muted))]">
                           {item.cost} credits
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-8 overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border)/0.82)]">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-[hsl(var(--color-elevated))]">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Plan</th>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Credits</th>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Affordable 5s Ads</th>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Affordable 10s Ads</th>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Standard 5s Ads</th>
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Standard Images</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outcomeRows.map((row) => (
+                      <tr key={row.plan} className="border-t border-[hsl(var(--color-border))]">
+                        <td className="px-4 py-3 text-[hsl(var(--color-text))]">{row.plan}</td>
+                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.credits}</td>
+                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.affordable5sAds}</td>
+                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.affordable10sAds}</td>
+                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.standard5sAds}</td>
+                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.standardImages}</td>
                       </tr>
                     ))}
                   </tbody>

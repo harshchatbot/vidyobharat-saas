@@ -1,40 +1,8 @@
 import type { CreditEstimateResponse, EstimateBreakdownItem } from '@/types/api';
 import creditEngine from '@/config/creditEngine';
+import { calculateImageCredits, calculateVideoCredits } from '@/lib/pricingEstimates';
 
-const VIDEO_MULTIPLIERS = {
-  baseDuration: creditEngine.video.baseDuration,
-  baseCredits: creditEngine.video.baseCredits,
-  model: creditEngine.video.modelMultiplier,
-  resolution: creditEngine.video.resolutionMultiplier,
-  quality: creditEngine.video.qualityMultiplier,
-  cap: creditEngine.video.maxCreditsCap,
-} as const;
-
-const IMAGE_MULTIPLIERS = {
-  baseCredits: creditEngine.image.baseCredits,
-  resolution: creditEngine.image.resolutionMultiplier,
-  resolutionOverrides: creditEngine.image.resolutionMultiplierOverrides ?? {},
-  modelPricing: creditEngine.image.modelPricing ?? {},
-  model: creditEngine.image.modelMultiplier,
-  cap: creditEngine.image.maxCreditsCap,
-} as const;
-
-const VOICE_MULTIPLIERS = {
-  baseCredits: creditEngine.voice.baseCredits,
-  provider: creditEngine.voice.providerMultiplier,
-  sampleRate: creditEngine.voice.sampleRateMultiplier,
-  cap: creditEngine.voice.maxCreditsCap,
-} as const;
-
-const CREDIT_COSTS = creditEngine.fixedCosts;
-
-const FREE_VOICE_KEYS = new Set(creditEngine.freeVoiceKeys);
-const FREE_IMAGE_MODELS = new Set<string>(creditEngine.freeImageModels as string[]);
-const FREE_IMAGE_RESOLUTIONS = new Set<string>(creditEngine.freeImageResolutions as string[]);
-
-const VIDEO_MODEL_ALIASES = creditEngine.videoModelAliases as Record<string, string>;
-
-const IMAGE_MODEL_TIERS = creditEngine.imageModelTiers as Record<string, 'standard' | 'premium'>;
+const FREE_VOICE_KEYS = new Set(creditEngine.freeVoiceKeys as string[]);
 const IMAGE_MODEL_ALIASES = (creditEngine.imageModelAliases ?? {}) as Record<string, string>;
 
 function item(component: string, value: number, label?: string): EstimateBreakdownItem {
@@ -67,6 +35,7 @@ function buildResponse(
   estimatedCredits: number,
   breakdown: EstimateBreakdownItem[],
   currentCredits: number,
+  metadata?: Record<string, unknown>,
 ): CreditEstimateResponse {
   return {
     estimatedCredits,
@@ -75,6 +44,7 @@ function buildResponse(
     remainingCredits: Math.max(currentCredits - estimatedCredits, 0),
     sufficient: currentCredits >= estimatedCredits,
     premium: estimatedCredits > 0,
+    metadata,
   };
 }
 
@@ -84,17 +54,16 @@ function estimateTtsPreview(payload: Record<string, unknown>, currentCredits: nu
     return buildResponse(0, [item('provider_multiplier', 0, 'Free provider')], currentCredits);
   }
   const sampleRate = normalizeSampleRate(payload);
-  const raw =
-    VOICE_MULTIPLIERS.baseCredits *
-    VOICE_MULTIPLIERS.provider[provider] *
-    VOICE_MULTIPLIERS.sampleRate[sampleRate];
-  const total = Math.min(VOICE_MULTIPLIERS.cap, Math.max(1, Math.ceil(raw)));
+  const voiceBase = Number(creditEngine.voice.baseCredits ?? 0);
+  const providerMul = Number((creditEngine.voice.providerMultiplier as Record<string, number>)[provider] ?? 0);
+  const sampleRateMul = Number((creditEngine.voice.sampleRateMultiplier as Record<string, number>)[sampleRate] ?? 1);
+  const total = Math.min(Number(creditEngine.voice.maxCreditsCap ?? 20), Math.max(1, Math.ceil(voiceBase * providerMul * sampleRateMul)));
   return buildResponse(
     total,
     [
-      item('base', VOICE_MULTIPLIERS.baseCredits, 'Base voice credits'),
-      item('provider_multiplier', VOICE_MULTIPLIERS.provider[provider], `${provider} provider multiplier`),
-      item('sample_rate_multiplier', VOICE_MULTIPLIERS.sampleRate[sampleRate], `${sampleRate} sample rate multiplier`),
+      item('base', voiceBase, 'Base voice credits'),
+      item('provider_multiplier', providerMul, `${provider} provider multiplier`),
+      item('sample_rate_multiplier', sampleRateMul, `${sampleRate} sample rate multiplier`),
     ],
     currentCredits,
   );
@@ -107,101 +76,50 @@ function estimateImageGenerate(payload: Record<string, unknown>, currentCredits:
   const referenceUrls = (payload.reference_urls ?? payload.referenceUrls ?? []) as unknown;
   const hasReferences = Array.isArray(referenceUrls) && referenceUrls.length > 0;
 
-  let total = 0;
+  let total = calculateImageCredits(modelKey, resolution);
   const breakdown: EstimateBreakdownItem[] = [];
-
-  if (!(FREE_IMAGE_MODELS.has(modelKey) && FREE_IMAGE_RESOLUTIONS.has(resolution))) {
-    const explicitPricing = IMAGE_MULTIPLIERS.modelPricing[
-      modelKey as keyof typeof IMAGE_MULTIPLIERS.modelPricing
-    ] as Record<string, number> | undefined;
-    if (explicitPricing) {
-      const exact = explicitPricing[resolution];
-      if (typeof exact !== 'number') {
-        throw new Error(`Unsupported resolution ${resolution} for ${modelKey}`);
-      }
-      total += exact;
-      breakdown.push(item('model_price', exact, `${modelKey} ${resolution} pricing`));
-    } else {
-      const modelTier = IMAGE_MODEL_TIERS[modelKey] ?? 'premium';
-      const overrideResolutionMap = IMAGE_MULTIPLIERS.resolutionOverrides[
-        modelKey as keyof typeof IMAGE_MULTIPLIERS.resolutionOverrides
-      ] as Record<string, number> | undefined;
-      const resolutionMultiplier =
-        overrideResolutionMap?.[resolution] ??
-        IMAGE_MULTIPLIERS.resolution[resolution as keyof typeof IMAGE_MULTIPLIERS.resolution] ??
-        IMAGE_MULTIPLIERS.resolution['1024'];
-      const modelMultiplier = IMAGE_MULTIPLIERS.model[modelTier];
-      const dynamic = Math.min(
-        IMAGE_MULTIPLIERS.cap,
-        Math.max(1, Math.ceil(IMAGE_MULTIPLIERS.baseCredits * resolutionMultiplier * modelMultiplier)),
-      );
-      total += dynamic;
-      breakdown.push(item('base', IMAGE_MULTIPLIERS.baseCredits, 'Base image credits'));
-      breakdown.push(item('resolution_multiplier', resolutionMultiplier, `${resolution} resolution multiplier`));
-      breakdown.push(item('model_multiplier', modelMultiplier, `${modelTier} model multiplier`));
-    }
+  if (total > 0) {
+    breakdown.push(item('model_price', total, `${modelKey} ${resolution} pricing`));
   }
 
   if (hasReferences) {
-    total += CREDIT_COSTS.character_consistency;
-    breakdown.push(item('character_consistency', CREDIT_COSTS.character_consistency, 'Character consistency add-on'));
+    const addOn = Number(creditEngine.fixedCosts.character_consistency ?? 0);
+    total += addOn;
+    breakdown.push(item('character_consistency', addOn, 'Character consistency add-on'));
   }
 
   return buildResponse(total, breakdown, currentCredits);
 }
 
 function estimateVideoCreate(payload: Record<string, unknown>, currentCredits: number): CreditEstimateResponse {
-  const modelKey = String(payload.modelKey ?? payload.selectedModel ?? payload.model ?? '').trim().toLowerCase();
-  const model = VIDEO_MODEL_ALIASES[modelKey] ?? 'fal_ltx23_i2v';
-  const resolution = String(payload.resolution ?? '720p').trim() as '720p' | '1080p';
-  const quality = String(payload.quality ?? 'standard').trim().toLowerCase() as 'standard' | 'high';
-  const durationSeconds = safeInt(payload.durationSeconds, VIDEO_MULTIPLIERS.baseDuration);
-  const captionsEnabled = Boolean(
-    payload.captionsEnabled !== undefined ? payload.captionsEnabled : payload.captions_enabled,
-  );
-  const narrationEnabled = Boolean(
-    payload.narrationEnabled !== undefined ? payload.narrationEnabled : payload.narration_enabled ?? true,
-  );
+  const modelKey = String(payload.modelKey ?? payload.selectedModel ?? payload.model ?? '').trim();
+  const durationSeconds = safeInt(payload.durationSeconds, 10);
   const imageUrlsRaw = (payload.imageUrls ?? payload.image_urls ?? payload.reference_images ?? []) as unknown;
-  const hasReferences = Array.isArray(imageUrlsRaw) && imageUrlsRaw.length > 0;
+  const referenceImages = Array.isArray(imageUrlsRaw) ? imageUrlsRaw.length : 0;
+  const audioSettings = (payload.audioSettings ?? {}) as { nativeAudioEnabled?: boolean };
+  const estimatedCredits = calculateVideoCredits({
+    modelKey,
+    resolution: String(payload.resolution ?? '720p').trim(),
+    durationSeconds,
+    quality: String(payload.quality ?? 'standard').trim(),
+    captionsEnabled: Boolean(payload.captionsEnabled ?? payload.captions_enabled ?? false),
+    narrationEnabled: Boolean(payload.narrationEnabled ?? payload.narration_enabled ?? true),
+    voiceKey: String(payload.voice ?? ''),
+    sampleRateHz: safeInt(payload.sampleRateHz ?? undefined, 22050),
+    referenceImages,
+    audioMode: (payload.audioMode as 'silent' | 'auto_scene_sound' | undefined) ?? undefined,
+    nativeAudioEnabled: Boolean(audioSettings.nativeAudioEnabled),
+    recipeId: String(payload.recipeId ?? payload.recipe_id ?? ''),
+    recipeInputs: (payload.inputs as Record<string, unknown> | undefined) ?? undefined,
+    scriptText: String(payload.script ?? payload.text ?? ''),
+  });
 
-  const videoModelMultipliers = VIDEO_MULTIPLIERS.model as Record<string, number>;
-  const videoBaseRaw =
-    VIDEO_MULTIPLIERS.baseCredits *
-    (videoModelMultipliers[model] ?? 1) *
-    (VIDEO_MULTIPLIERS.resolution[resolution] ?? VIDEO_MULTIPLIERS.resolution['720p']) *
-    Math.max(durationSeconds, 1) /
-    VIDEO_MULTIPLIERS.baseDuration *
-    (VIDEO_MULTIPLIERS.quality[quality] ?? VIDEO_MULTIPLIERS.quality.standard);
-  const videoBase = Math.min(VIDEO_MULTIPLIERS.cap, Math.max(1, Math.ceil(videoBaseRaw)));
-
-  const breakdown: EstimateBreakdownItem[] = [
-    item('base', VIDEO_MULTIPLIERS.baseCredits, 'Base video credits'),
-    item('model_multiplier', videoModelMultipliers[model] ?? 1, `${model} model multiplier`),
-    item('resolution_multiplier', VIDEO_MULTIPLIERS.resolution[resolution] ?? 1, `${resolution} resolution multiplier`),
-    item('duration_factor', Math.max(durationSeconds, 1) / VIDEO_MULTIPLIERS.baseDuration, 'Duration factor'),
-    item('quality_multiplier', VIDEO_MULTIPLIERS.quality[quality] ?? 1, `${quality} quality multiplier`),
-  ];
-
-  let total = videoBase;
-  if (narrationEnabled) {
-    const voiceEstimate = estimateTtsPreview(payload, currentCredits);
-    total += voiceEstimate.estimatedCredits;
-    breakdown.push(...voiceEstimate.breakdown);
-  }
-
-  if (captionsEnabled) {
-    total += CREDIT_COSTS.auto_caption;
-    breakdown.push(item('auto_caption', CREDIT_COSTS.auto_caption, 'Auto captions'));
-  }
-  if (hasReferences) {
-    total += CREDIT_COSTS.character_consistency;
-    breakdown.push(item('character_consistency', CREDIT_COSTS.character_consistency, 'Character consistency add-on'));
-  }
-  total += CREDIT_COSTS.auto_tag;
-  breakdown.push(item('auto_tag', CREDIT_COSTS.auto_tag, 'Auto tagging'));
-
-  return buildResponse(total, breakdown, currentCredits);
+  const breakdown: EstimateBreakdownItem[] = [item('estimated_total', estimatedCredits, 'Estimated credits')];
+  return buildResponse(estimatedCredits, breakdown, currentCredits, {
+    audio_mode: String(payload.audioMode ?? 'silent'),
+    selected_model: modelKey,
+    duration_seconds: durationSeconds,
+  });
 }
 
 export function estimateCreditsLocal(
@@ -214,40 +132,39 @@ export function estimateCreditsLocal(
   if (action === 'video_create') return estimateVideoCreate(payload, currentCredits);
   if (action === 'script_generate') return buildResponse(0, [], currentCredits);
   if (action === 'script_enhance') {
-    const total = CREDIT_COSTS.script_enhance + CREDIT_COSTS.auto_tag;
+    const total = Number(creditEngine.fixedCosts.script_enhance ?? 0) + Number(creditEngine.fixedCosts.auto_tag ?? 0);
     return buildResponse(
       total,
       [
-        item('script_enhance', CREDIT_COSTS.script_enhance, 'Script enhance'),
-        item('auto_tag', CREDIT_COSTS.auto_tag, 'Auto tagging'),
+        item('script_enhance', Number(creditEngine.fixedCosts.script_enhance ?? 0), 'Script enhance'),
+        item('auto_tag', Number(creditEngine.fixedCosts.auto_tag ?? 0), 'Auto tagging'),
       ],
       currentCredits,
     );
   }
   if (action === 'influencer_reference_lock') {
-    return buildResponse(
-      CREDIT_COSTS.influencer_reference_lock,
-      [item('influencer_reference_lock', CREDIT_COSTS.influencer_reference_lock, 'Character identity lock')],
-      currentCredits,
-    );
+    const total = Number(creditEngine.fixedCosts.influencer_reference_lock ?? 0);
+    return buildResponse(total, [item('influencer_reference_lock', total, 'Character identity lock')], currentCredits);
   }
   if (action === 'influencer_content_generate') {
-    const total = CREDIT_COSTS.influencer_content_generate + CREDIT_COSTS.auto_tag;
+    const generateCost = Number(creditEngine.fixedCosts.influencer_content_generate ?? 0);
+    const autoTag = Number(creditEngine.fixedCosts.auto_tag ?? 0);
+    const total = generateCost + autoTag;
     return buildResponse(
       total,
       [
-        item('influencer_content_generate', CREDIT_COSTS.influencer_content_generate, 'Influencer content generation'),
-        item('auto_tag', CREDIT_COSTS.auto_tag, 'Auto tagging'),
+        item('influencer_content_generate', generateCost, 'Influencer content generation'),
+        item('auto_tag', autoTag, 'Auto tagging'),
       ],
       currentCredits,
     );
   }
   if (action === 'influencer_image_generate') {
     const base = estimateImageGenerate(payload, currentCredits);
-    const total = base.estimatedCredits + CREDIT_COSTS.character_consistency;
+    const lockCost = Number(creditEngine.fixedCosts.character_consistency ?? 0);
     return buildResponse(
-      total,
-      [...base.breakdown, item('character_consistency', CREDIT_COSTS.character_consistency, 'Character lock')],
+      base.estimatedCredits + lockCost,
+      [...base.breakdown, item('character_consistency', lockCost, 'Character lock')],
       currentCredits,
     );
   }
