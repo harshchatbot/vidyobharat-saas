@@ -20,6 +20,7 @@ from app.db.repositories.firestore_credit_repository import (
     FirestoreCreditTransaction,
     FirestoreCreditWallet,
 )
+from app.services.model_registry import get_normal_video_family_definition
 from app.services.pricing_service import CheckoutPlanSelection, PricingService
 
 import logging
@@ -134,6 +135,7 @@ class CreditService:
         self.avatar_product_fixed_pricing = self.credit_engine.get('avatarProductFixedPricing', {})
         self.normal_video_fixed_pricing = self.credit_engine.get('normalVideoFixedPricing', {})
         self.video_add_ons = self.credit_engine.get('videoAddOns', {})
+        self.provider_cost_pricing = self.credit_engine.get('providerCostPricing', {})
 
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -542,6 +544,21 @@ class CreditService:
                 duration_key=duration_key,
             )
 
+        model_family = str(payload.get('modelFamily') or payload.get('model_family') or '').strip().lower()
+        generation_mode = str(payload.get('generationMode') or payload.get('generation_mode') or '').strip().lower()
+        if not generation_mode:
+            generation_mode = 'image_to_video' if isinstance(image_urls, list) and len(image_urls) > 0 else 'text_to_video'
+        if model_family:
+            return self._estimate_normal_video_provider_cost_pricing(
+                model_family=model_family,
+                model_key=model_key,
+                generation_mode=generation_mode,
+                resolution=resolution,
+                duration_seconds=duration_seconds,
+                quality=quality,
+                effective_audio_mode=effective_audio_mode,
+            )
+
         normalized_model = self._normalize_video_model(model_key)
         duration_key = self._duration_bucket_str(duration_seconds)
         if normalized_model in self.normal_video_fixed_pricing:
@@ -702,6 +719,145 @@ class CreditService:
                 'applied_add_ons': applied_add_ons,
             },
         )
+
+    def _estimate_normal_video_provider_cost_pricing(
+        self,
+        *,
+        model_family: str,
+        model_key: str,
+        generation_mode: str,
+        resolution: str,
+        duration_seconds: int,
+        quality: str,
+        effective_audio_mode: str,
+    ) -> CreditEstimate:
+        family = get_normal_video_family_definition(model_family)
+        if family is None:
+            raise ValueError(f'Unsupported normal video model family: {model_family}')
+
+        normalized_quality = self._normalize_family_quality(quality)
+        quality_entry = next((entry for entry in family.supported_qualities if str(entry.get('key')) == normalized_quality), None)
+        if quality_entry is None:
+            raise ValueError(f'Unsupported quality for {family.display_name}: {quality}')
+
+        resolved_resolution = str(resolution or quality_entry.get('resolution') or '')
+        supported_resolutions = {str(value) for value in family.supported_resolutions}
+        if resolved_resolution not in supported_resolutions:
+            raise ValueError(f'Unsupported resolution for {family.display_name}: {resolved_resolution}')
+        supported_durations = {int(value) for value in family.supported_durations}
+        if int(duration_seconds) not in supported_durations:
+            raise ValueError(f'Unsupported duration for {family.display_name}: {duration_seconds}')
+        if effective_audio_mode == 'auto_scene_sound' and not family.supports_native_audio:
+            raise ValueError(f'Native audio is not available for {family.display_name}')
+
+        resolved_provider_route = (
+            family.provider_routes_by_generation_mode_and_quality.get(generation_mode, {}).get(normalized_quality)
+            or model_key
+        )
+        provider_cost_usd, pricing_metadata = self._calculate_provider_cost_usd(
+            family=family,
+            quality=normalized_quality,
+            resolution=resolved_resolution,
+            duration_seconds=int(duration_seconds),
+            audio_mode=effective_audio_mode,
+        )
+
+        usd_inr_rate = float(self.provider_cost_pricing.get('usdInrRate', 95) or 95)
+        credit_inr_value = float(self.provider_cost_pricing.get('creditInrValue', 2) or 2)
+        markup_multiplier = float(self.provider_cost_pricing.get('providerCostMarkupMultiplier', 2.0) or 2.0)
+        minimum_margin_credits = int(self.provider_cost_pricing.get('minimumMarginCredits', 5) or 5)
+        infra_buffer = int((self.provider_cost_pricing.get('infraBufferCreditsByDuration') or {}).get(self._duration_bucket_str(duration_seconds), 0) or 0)
+        provider_cost_inr = provider_cost_usd * usd_inr_rate
+        raw_cost_credits = provider_cost_inr / credit_inr_value if credit_inr_value > 0 else 0
+        total = max(minimum_margin_credits, math.ceil(raw_cost_credits * markup_multiplier + infra_buffer))
+
+        return CreditEstimate(
+            required_credits=total,
+            breakdown=[
+                CreditCostItem(
+                    component='normal_video_provider_cost',
+                    label=f'{family.display_name} {normalized_quality.title()} {duration_seconds}s',
+                    value=float(total),
+                )
+            ],
+            premium=total > 0,
+            metadata={
+                'pricing_mode': 'provider_cost_plus_margin',
+                'selected_model_family': family.key,
+                'selected_model': model_key,
+                'resolved_provider_route': resolved_provider_route,
+                'generation_mode': generation_mode,
+                'quality_profile': normalized_quality,
+                'resolution': resolved_resolution,
+                'duration_seconds': int(duration_seconds),
+                'fps': pricing_metadata.get('fps'),
+                'frames': pricing_metadata.get('frames'),
+                'audio_mode': effective_audio_mode,
+                'native_audio_enabled': effective_audio_mode == 'auto_scene_sound',
+                'provider_cost_usd': round(provider_cost_usd, 6),
+                'provider_cost_inr': round(provider_cost_inr, 4),
+                'markup_multiplier': markup_multiplier,
+                'infra_buffer_credits': infra_buffer,
+                'final_credits': total,
+            },
+        )
+
+    def _calculate_provider_cost_usd(
+        self,
+        *,
+        family: Any,
+        quality: str,
+        resolution: str,
+        duration_seconds: int,
+        audio_mode: str,
+    ) -> tuple[float, dict[str, float | int]]:
+        pricing_type = str(getattr(family, 'pricing_type', '') or '')
+        pricing_config = dict(getattr(family, 'pricing_config', {}) or {})
+
+        if pricing_type == 'megapixel':
+            fps = int(pricing_config.get('fps', 24) or 24)
+            width, height = self._dimensions_for_resolution(resolution)
+            frames = fps * int(duration_seconds)
+            megapixels = (width * height * frames) / 1_000_000
+            cost = megapixels * float(pricing_config.get('costPerMegapixelUsd', 0) or 0)
+            return cost, {'fps': fps, 'frames': frames}
+
+        if pricing_type == 'token_base720p5s':
+            fps = int(pricing_config.get('fps', 24) or 24)
+            width, height = self._dimensions_for_resolution(resolution)
+            if resolution == '720p' and int(duration_seconds) == 5:
+                return float(pricing_config.get('base720p5sUsd', 0.18) or 0.18), {'fps': fps, 'frames': fps * int(duration_seconds)}
+            tokens = (height * width * fps * int(duration_seconds)) / 1024
+            cost = (tokens / 1_000_000) * float(pricing_config.get('costPerMillionTokensUsd', 1.8) or 1.8)
+            return cost, {'fps': fps, 'frames': fps * int(duration_seconds)}
+
+        if pricing_type == 'perSecond':
+            rates = dict((pricing_config.get('ratesUsdPerSecond') or {}).get(quality, {}) or {})
+            key = 'audioOn' if audio_mode == 'auto_scene_sound' else 'audioOff'
+            cost = float(rates.get(key, 0) or 0) * int(duration_seconds)
+            return cost, {'fps': 0, 'frames': 0}
+
+        return 0.0, {'fps': 0, 'frames': 0}
+
+    def _normalize_family_quality(self, quality: str) -> str:
+        normalized = str(quality or '').strip().lower()
+        if normalized in {'high', 'high_quality', 'pro'}:
+            return 'high'
+        if normalized in {'premium', 'ultra_premium'}:
+            return 'premium'
+        return 'standard'
+
+    def _dimensions_for_resolution(self, resolution: str) -> tuple[int, int]:
+        normalized = str(resolution or '').strip()
+        matrix = {
+            '480p': (854, 480),
+            '720p': (1280, 720),
+            '1080p': (1920, 1080),
+            '1440p': (2560, 1440),
+            '2160p': (3840, 2160),
+            '4K': (3840, 2160),
+        }
+        return matrix.get(normalized, (1280, 720))
 
     def _normalize_avatar_product_quality(self, value: str) -> str:
         normalized = str(value or '').strip().lower()

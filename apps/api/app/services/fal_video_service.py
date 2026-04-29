@@ -31,15 +31,24 @@ class FalVideoService:
     _STATUS_POLL_INTERVAL_SECONDS = 12
     _TERMINAL_STATUS_TIMEOUT_SECONDS = 600
     _MODEL_TERMINAL_STATUS_TIMEOUT_SECONDS = {
+        'fal_ltx23_t2v': 1800,
         'fal_ltx23_i2v': 1800,
         'fal_infinite_talk': 1800,
         'fal_kling_reference_to_video': 1800,
+        'seedance_v1_lite_t2v': 1800,
+        'seedance_v1_lite_i2v': 1800,
         'seedance_v1_lite_reference': 1800,
 
         # Kling O3 reference models can queue longer than normal short I2V jobs.
+        'kling_o3_standard_t2v': 2400,
+        'kling_o3_standard_i2v': 2400,
         'kling_o3_standard_reference': 2400,
         'kling_o3_reference': 2400,
+        'kling_o3_pro_t2v': 2400,
+        'kling_o3_pro_i2v': 2400,
         'kling_o3_pro_reference': 2400,
+        'kling_o3_4k_t2v': 3600,
+        'kling_o3_4k_i2v': 3600,
         'kling_o3_4k_reference': 3600,
 
         # Legacy/fallback Elements routes.
@@ -524,21 +533,16 @@ class FalVideoService:
 
         resolved_endpoint = self._endpoint_for(model_key)
         endpoint = f'{self.settings.fal_api_base.rstrip("/")}/{resolved_endpoint}'
-        payload: dict[str, Any] = {
-            'prompt': prompt,
-            'aspect_ratio': aspect_ratio,
-            'duration': duration_seconds,
-            'resolution': resolution,
-        }
-
-        if generate_audio is not None and self._supports_generate_audio(model_key):
-            payload['generate_audio'] = bool(generate_audio)
-
-        if image_url:
-            payload['image_url'] = image_url
-
-        if multi_prompt:
-            payload['multi_prompt'] = multi_prompt
+        payload = self._build_video_payload(
+            model_key=model_key,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            duration_seconds=duration_seconds,
+            image_url=image_url,
+            multi_prompt=multi_prompt,
+            generate_audio=generate_audio,
+        )
 
         headers = {
             'Authorization': f'Key {self._effective_fal_api_key}',
@@ -886,12 +890,139 @@ class FalVideoService:
     def _supports_generate_audio(self, requested_model_key: str) -> bool:
         normalized = str(requested_model_key or '').strip().lower()
         return normalized in {
+            'fal_ltx23_t2v',
             'fal_ltx23_i2v',
+            'kling_o3_standard_t2v',
+            'kling_o3_standard_i2v',
             'kling_o3_standard_reference',
             'kling_o3_reference',
+            'kling_o3_pro_t2v',
+            'kling_o3_pro_i2v',
             'kling_o3_pro_reference',
+            'kling_o3_4k_t2v',
+            'kling_o3_4k_i2v',
             'kling_o3_4k_reference',
         }
+
+    def _build_video_payload(
+        self,
+        *,
+        model_key: str,
+        prompt: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration_seconds: int,
+        image_url: str | None,
+        multi_prompt: list[dict[str, Any]] | None,
+        generate_audio: bool | None,
+    ) -> dict[str, Any]:
+        normalized = str(model_key or '').strip().lower()
+        payload: dict[str, Any] = {'prompt': prompt}
+
+        if multi_prompt:
+            payload['multi_prompt'] = multi_prompt
+
+        if normalized in {'fal_ltx23_t2v', 'fal_ltx23_i2v'}:
+            width, height = self._dimensions_for(aspect_ratio=aspect_ratio, resolution=resolution)
+            payload.update(
+                {
+                    'video_size': {'width': width, 'height': height},
+                    'num_frames': int(24 * duration_seconds),
+                    'fps': 24,
+                    'use_multiscale': True,
+                }
+            )
+            if normalized == 'fal_ltx23_i2v':
+                if not image_url:
+                    raise ValueError('fal_ltx23_i2v requires image_url')
+                payload['image_url'] = image_url
+            if generate_audio is not None and self._supports_generate_audio(normalized):
+                payload['generate_audio'] = bool(generate_audio)
+            return payload
+
+        if normalized in {'seedance_v1_lite_t2v', 'seedance_v1_lite_i2v'}:
+            payload.update(
+                {
+                    'aspect_ratio': aspect_ratio,
+                    'resolution': resolution,
+                    'duration': str(duration_seconds),
+                }
+            )
+            if normalized == 'seedance_v1_lite_i2v':
+                if not image_url:
+                    raise ValueError('seedance_v1_lite_i2v requires image_url')
+                payload['image_url'] = image_url
+            return payload
+
+        if normalized in {
+            'kling_o3_standard_t2v',
+            'kling_o3_pro_t2v',
+            'kling_o3_4k_t2v',
+            'kling_o3_standard_i2v',
+            'kling_o3_pro_i2v',
+            'kling_o3_4k_i2v',
+        }:
+            payload.update(
+                {
+                    'aspect_ratio': aspect_ratio,
+                    'duration': str(duration_seconds),
+                }
+            )
+            if normalized.endswith('_i2v'):
+                if not image_url:
+                    raise ValueError(f'{normalized} requires image_url')
+                payload['image_url'] = image_url
+            if generate_audio is not None and self._supports_generate_audio(normalized):
+                payload['generate_audio'] = bool(generate_audio)
+            return payload
+
+        payload.update(
+            {
+                'aspect_ratio': aspect_ratio,
+                'duration': duration_seconds,
+                'resolution': resolution,
+            }
+        )
+        if normalized in {'kling_o3_reference', 'kling_o3_standard_reference', 'kling_o3_pro_reference', 'kling_o3_4k_reference'}:
+            if image_url:
+                payload['image_urls'] = [image_url]
+            if generate_audio is not None and self._supports_generate_audio(normalized):
+                payload['generate_audio'] = bool(generate_audio)
+            return payload
+        if normalized == 'seedance_v1_lite_reference':
+            if not image_url:
+                raise ValueError('seedance_v1_lite_reference requires image_url')
+            payload['reference_image_urls'] = [image_url]
+            return payload
+
+        if generate_audio is not None and self._supports_generate_audio(normalized):
+            payload['generate_audio'] = bool(generate_audio)
+        if image_url:
+            payload['image_url'] = image_url
+        return payload
+
+    def _dimensions_for(self, *, aspect_ratio: str, resolution: str) -> tuple[int, int]:
+        matrix = {
+            ('9:16', '480p'): (480, 854),
+            ('9:16', '720p'): (720, 1280),
+            ('9:16', '1080p'): (1080, 1920),
+            ('9:16', '1440p'): (1440, 2560),
+            ('9:16', '2160p'): (2160, 3840),
+            ('9:16', '4K'): (2160, 3840),
+            ('16:9', '480p'): (854, 480),
+            ('16:9', '720p'): (1280, 720),
+            ('16:9', '1080p'): (1920, 1080),
+            ('16:9', '1440p'): (2560, 1440),
+            ('16:9', '2160p'): (3840, 2160),
+            ('16:9', '4K'): (3840, 2160),
+            ('1:1', '480p'): (480, 480),
+            ('1:1', '720p'): (720, 720),
+            ('1:1', '1080p'): (1080, 1080),
+            ('1:1', '1440p'): (1440, 1440),
+            ('1:1', '2160p'): (2160, 2160),
+            ('1:1', '4K'): (2160, 2160),
+        }
+        return matrix.get((aspect_ratio, resolution), (1280, 720))
 
     def _fetch_infinitetalk_result_payload(
         self,
@@ -1073,8 +1204,17 @@ class FalVideoService:
 
     def _endpoint_for(self, model_key: str) -> str:
         mapping = {
-            'fal_ltx23_i2v': 'fal-ai/ltx-2.3/image-to-video',
+            'fal_ltx23_t2v': 'fal-ai/ltx-2.3-22b/text-to-video',
+            'fal_ltx23_i2v': 'fal-ai/ltx-2.3-22b/image-to-video',
+            'seedance_v1_lite_t2v': 'fal-ai/bytedance/seedance/v1/lite/text-to-video',
+            'seedance_v1_lite_i2v': 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
             'seedance_v1_lite_reference': 'fal-ai/bytedance/seedance/v1/lite/reference-to-video',
+            'kling_o3_standard_t2v': 'fal-ai/kling-video/o3/standard/text-to-video',
+            'kling_o3_standard_i2v': 'fal-ai/kling-video/o3/standard/image-to-video',
+            'kling_o3_pro_t2v': 'fal-ai/kling-video/o3/pro/text-to-video',
+            'kling_o3_pro_i2v': 'fal-ai/kling-video/o3/pro/image-to-video',
+            'kling_o3_4k_t2v': 'fal-ai/kling-video/o3/4k/text-to-video',
+            'kling_o3_4k_i2v': 'fal-ai/kling-video/o3/4k/image-to-video',
 
             # ✅ O3 REFERENCE MODELS — main avatar product route
             'kling_o3_standard_reference': 'fal-ai/kling-video/o3/standard/reference-to-video',

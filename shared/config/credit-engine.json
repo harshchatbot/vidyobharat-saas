@@ -88,6 +88,17 @@
       "minimum": 3
     }
   },
+  "providerCostPricing": {
+    "usdInrRate": 95,
+    "creditInrValue": 2,
+    "providerCostMarkupMultiplier": 2.0,
+    "minimumMarginCredits": 5,
+    "infraBufferCreditsByDuration": {
+      "5": 3,
+      "10": 5,
+      "15": 8
+    }
+  },
   "video": {
     "baseDuration": 15,
     "baseCredits": 10,

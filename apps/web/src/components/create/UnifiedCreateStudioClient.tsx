@@ -30,7 +30,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/Toast';
-import { buildVideoModelsForApiFallback, getVideoModelMap } from '@/config/videoModels';
+import { buildVideoModelsForApiFallback, getNormalVideoFamilyConfigs, getVideoModelMap } from '@/config/videoModels';
 import creditEngine from '@/config/creditEngine';
 import { TEMPLATE_OPTIONS } from '@/components/videos/create/constants';
 import { api } from '@/lib/api';
@@ -61,6 +61,7 @@ type RecentEntryKind = 'recipe' | 'draft';
 type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image';
 type RecipeSourceKind = 'recipe';
 type VideoIntent = 'explainer' | 'cinematic' | 'quick_reel' | 'generic';
+type VideoGenerationMode = 'text_to_video' | 'image_to_video';
 
 
 type RecipeComposerFragment =
@@ -100,7 +101,7 @@ type VideoLaunchState = {
   initialModelKey: string;
   initialAspectRatio: '9:16' | '16:9' | '1:1';
   initialResolution: '720p' | '1080p';
-  initialDurationSeconds: '5' | '10' | '15';
+  initialDurationSeconds: string;
   initialCaptionsEnabled: boolean;
   initialNarrationEnabled: boolean;
 };
@@ -229,6 +230,8 @@ const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: stri
 
 const VIDEO_MODEL_FALLBACK = buildVideoModelsForApiFallback();
 const VIDEO_MODEL_MAP = getVideoModelMap();
+const NORMAL_VIDEO_FAMILIES = getNormalVideoFamilyConfigs();
+const NORMAL_VIDEO_FAMILY_MAP = Object.fromEntries(NORMAL_VIDEO_FAMILIES.map((family) => [family.key, family]));
 const IMAGE_MODEL_FALLBACK: ImageModel[] = [
   {
     key: 'budget_image_model',
@@ -419,10 +422,12 @@ function buildVideoCreatePayload(input: {
   templateLabel: string;
   script: string;
   modelKey: string;
+  modelFamily: string;
+  generationMode: VideoGenerationMode;
   lane: 'creator_pro' | 'premium';
   aspectRatio: '9:16' | '16:9' | '1:1';
-  resolution: '720p' | '1080p';
-  quality: 'standard' | 'high';
+  resolution: '480p' | '720p' | '1080p' | '1440p' | '2160p' | '4K';
+  quality: 'standard' | 'high' | 'premium';
   durationSeconds: number;
   captionsEnabled: boolean;
   narrationEnabled: boolean;
@@ -453,6 +458,8 @@ function buildVideoCreatePayload(input: {
     script: input.script,
     tags: [],
     modelKey: input.modelKey,
+    modelFamily: input.modelFamily,
+    generationMode: input.generationMode,
     modeId: input.lane,
     language: input.language,
     voice: input.voice,
@@ -684,17 +691,79 @@ function getVideoResolutionForModel(modelKey: string, profile: QualityProfile): 
   return '720p';
 }
 
-function getDefaultVideoDurationForModel(modelKey: string): '5' | '10' | '15' {
+function getSupportedVideoDurationOptions(modelKey: string): string[] {
   const presets = VIDEO_MODEL_MAP[modelKey]?.durationPresets ?? [];
-  if (presets.includes(10)) return '10';
-  if (presets.includes(5)) return '5';
-  return '10';
+  const normalized = [...new Set(presets.filter((value) => Number.isFinite(value) && value > 0))].sort((a, b) => a - b);
+  const standardPresets = normalized.filter((value) => value === 5 || value === 10 || value === 15);
+  const finalPresets = standardPresets.length > 0 ? standardPresets : normalized;
+  return finalPresets.map((value) => String(value));
+}
+
+function getDefaultVideoDurationForModel(modelKey: string): string {
+  const presets = getSupportedVideoDurationOptions(modelKey);
+  const configuredDefault = String(VIDEO_MODEL_MAP[modelKey]?.defaultDurationSeconds ?? '').trim();
+  if (configuredDefault && presets.includes(configuredDefault)) return configuredDefault;
+  if (presets.includes('10')) return '10';
+  if (presets.includes('5')) return '5';
+  return presets[0] ?? '10';
+}
+
+function normalizeFamilyQualityKey(profile: QualityProfile): 'standard' | 'high' | 'premium' {
+  if (profile === 'premium') return 'premium';
+  if (profile === 'high_quality') return 'high';
+  return 'standard';
+}
+
+function profileFromFamilyQuality(key: string): QualityProfile {
+  if (key === 'premium') return 'premium';
+  if (key === 'high') return 'high_quality';
+  return 'standard';
+}
+
+function familyForModelKey(modelKey: string): string | null {
+  return (
+    Object.values(NORMAL_VIDEO_FAMILY_MAP).find((family) =>
+      Object.values(family.providerRoutesByGenerationModeAndQuality || {}).some((mapping) =>
+        Object.values(mapping || {}).includes(modelKey),
+      ),
+    )?.key ?? null
+  );
+}
+
+function getVisibleNormalVideoFamilies(models: AIVideoModel[]) {
+  return NORMAL_VIDEO_FAMILIES.filter((family) => {
+    if (family.hidden) return false;
+    if (family.devOnly) return false;
+    const routeKeys = Object.values(family.providerRoutesByGenerationModeAndQuality || {}).flatMap((mapping) => Object.values(mapping || {}));
+    return routeKeys.some((routeKey) => models.some((model) => model.key === routeKey && model.enabled !== false));
+  });
+}
+
+function inferVideoGenerationMode(hasImage: boolean): VideoGenerationMode {
+  return hasImage ? 'image_to_video' : 'text_to_video';
+}
+
+function resolveRouteForFamily(params: {
+  familyKey: string;
+  qualityKey: 'standard' | 'high' | 'premium';
+  generationMode: VideoGenerationMode;
+}): string {
+  const family = NORMAL_VIDEO_FAMILY_MAP[params.familyKey];
+  return family?.providerRoutesByGenerationModeAndQuality?.[params.generationMode]?.[params.qualityKey] ?? '';
+}
+
+function resolutionForFamily(params: {
+  familyKey: string;
+  qualityKey: 'standard' | 'high' | 'premium';
+}): string {
+  const family = NORMAL_VIDEO_FAMILY_MAP[params.familyKey];
+  const qualityEntry = family?.supportedQualities.find((item) => item.key === params.qualityKey);
+  return qualityEntry?.resolution ?? family?.supportedResolutions?.[0] ?? '720p';
 }
 
 function profileForVideoModel(modelKey: string): QualityProfile {
-  if (modelKey === 'seedance_v1_lite_reference') return 'affordable';
-  if (modelKey === 'kling_o3_reference') return 'premium';
-  if (modelKey === 'kling_v16_pro_elements' || modelKey === 'kling_o3_standard_reference') return 'high_quality';
+  if (['kling_o3_4k_t2v', 'kling_o3_4k_i2v', 'kling_o3_4k_reference', 'sora2'].includes(modelKey)) return 'premium';
+  if (['kling_o3_pro_t2v', 'kling_o3_pro_i2v', 'kling_v16_pro_elements', 'kling_o3_standard_reference', 'kling_o3_pro_reference'].includes(modelKey)) return 'high_quality';
   return 'standard';
 }
 
@@ -1231,7 +1300,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [durationPreference, setDurationPreference] = useState<'auto' | '5' | '10' | '15'>('auto');
+  const [durationPreference, setDurationPreference] = useState<string>('auto');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [captionsEnabled] = useState(false);
   const [audioMode, setAudioMode] = useState<AudioMode>('silent');
@@ -1244,7 +1313,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('kling_v16_standard_elements');
+  const [selectedVideoModelKey, setSelectedVideoModelKey] = useState('fal_ltx23_t2v');
+  const [selectedNormalVideoFamilyKey, setSelectedNormalVideoFamilyKey] = useState('ltx_23_22b');
   const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
   const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
@@ -1301,14 +1371,27 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'talking_avatar',
     [activeRecipeSource],
   );
+  const effectiveNormalVideoFamilyKey = useMemo(() => {
+    if (mode === 'video' && activeRecipeSource?.kind !== 'recipe') {
+      const derivedFamilyKey = familyForModelKey(selectedVideoModelKey);
+      if (derivedFamilyKey && NORMAL_VIDEO_FAMILY_MAP[derivedFamilyKey]) {
+        return derivedFamilyKey;
+      }
+    }
+    return selectedNormalVideoFamilyKey;
+  }, [activeRecipeSource, mode, selectedNormalVideoFamilyKey, selectedVideoModelKey]);
   const visibleQualityProfiles = useMemo(
     () =>
       mode === 'image'
         ? QUALITY_PROFILES.filter((item) => item.key === 'fast_social' || item.key === 'creator_quality')
         : isAvatarProductRecipe
           ? QUALITY_PROFILES.filter((item) => item.key === 'affordable' || item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium')
-          : QUALITY_PROFILES.filter((item) => item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium'),
-    [mode, isAvatarProductRecipe],
+          : NORMAL_VIDEO_FAMILY_MAP[effectiveNormalVideoFamilyKey]
+            ? QUALITY_PROFILES.filter((item) =>
+              (NORMAL_VIDEO_FAMILY_MAP[effectiveNormalVideoFamilyKey]?.supportedQualities ?? []).some((quality) => profileFromFamilyQuality(quality.key) === item.key),
+            )
+            : QUALITY_PROFILES.filter((item) => item.key === 'standard' || item.key === 'high_quality' || item.key === 'premium'),
+    [effectiveNormalVideoFamilyKey, mode, isAvatarProductRecipe],
   );
 
   const visibleAvatarProductDurationOptions = useMemo(() => {
@@ -1321,6 +1404,21 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
     return ['5', '10', '15'] as const;
   }, [isAvatarProductRecipe, avatarProductAdvancedControls.quality_profile]);
+  const visibleNormalVideoFamilies = useMemo(
+    () => getVisibleNormalVideoFamilies(videoModels),
+    [videoModels],
+  );
+  const selectedNormalVideoFamily = useMemo(
+    () => NORMAL_VIDEO_FAMILY_MAP[effectiveNormalVideoFamilyKey] ?? visibleNormalVideoFamilies[0] ?? null,
+    [effectiveNormalVideoFamilyKey, visibleNormalVideoFamilies],
+  );
+  const supportedFreeformDurationOptions = useMemo(
+    () =>
+      selectedNormalVideoFamily
+        ? [...selectedNormalVideoFamily.supportedDurations].sort((a, b) => a - b).map((value) => String(value))
+        : getSupportedVideoDurationOptions(selectedVideoModelKey),
+    [selectedNormalVideoFamily, selectedVideoModelKey],
+  );
 
 
 
@@ -1355,6 +1453,22 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     );
   };
 
+  const freeformHasReferenceImage = Boolean(uploadedComposerAsset?.assetUrl);
+  const inferredFreeformGenerationMode = inferVideoGenerationMode(freeformHasReferenceImage);
+  const selectedFreeformQualityKey = normalizeFamilyQualityKey(qualityProfile);
+  const resolvedFreeformModelKey = selectedNormalVideoFamily
+    ? resolveRouteForFamily({
+      familyKey: selectedNormalVideoFamily.key,
+      qualityKey: selectedFreeformQualityKey,
+      generationMode: inferredFreeformGenerationMode,
+    })
+    : selectedVideoModelKey;
+  const resolvedFreeformResolution = selectedNormalVideoFamily
+    ? resolutionForFamily({
+      familyKey: selectedNormalVideoFamily.key,
+      qualityKey: selectedFreeformQualityKey,
+    })
+    : getVideoResolutionForModel(selectedVideoModelKey, qualityProfile);
   const displayedModelKey = mode === 'video' ? selectedVideoModelKey : selectedImageModelKey;
   const displayedVideoModel = useMemo(
     () => videoModels.find((model) => model.key === selectedVideoModelKey) ?? VIDEO_MODEL_FALLBACK.find((model) => model.key === selectedVideoModelKey) ?? videoModels[0] ?? VIDEO_MODEL_FALLBACK[0],
@@ -1374,6 +1488,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     () => imageModels.find((model) => model.key === activeModelPanelKey) ?? IMAGE_MODEL_FALLBACK.find((model) => model.key === activeModelPanelKey) ?? displayedImageModel,
     [activeModelPanelKey, displayedImageModel, imageModels],
   );
+  useEffect(() => {
+    if (mode !== 'video' || activeRecipeSource?.kind === 'recipe') return;
+    if (selectedNormalVideoFamily && resolvedFreeformModelKey && selectedVideoModelKey !== resolvedFreeformModelKey) {
+      setSelectedVideoModelKey(resolvedFreeformModelKey);
+      setModelPanelKey(resolvedFreeformModelKey);
+    }
+  }, [activeRecipeSource, mode, resolvedFreeformModelKey, selectedNormalVideoFamily, selectedVideoModelKey]);
 
   const recipeCards = useMemo(() => sortRecipes(recipes.map(mapCatalogRecipeToCard).filter(Boolean) as RecipeCard[]), [recipes]);
 
@@ -1583,11 +1704,21 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   }, [isAvatarProductRecipe, selectedLanguage, visibleLanguageOptions]);
   const isAvatarDrivenRecipe = isAvatarProductRecipe || isTalkingAvatarRecipe;
   const freeformSupportsAutoSceneSound = useMemo(
-    () => Boolean(displayedVideoModel?.supportsNativeAudio) && displayedVideoModel?.key !== 'seedance_v1_lite_reference',
-    [displayedVideoModel],
+    () => Boolean(selectedNormalVideoFamily?.supportsNativeAudio),
+    [selectedNormalVideoFamily],
   );
   const showNativeAudioSelector = mode === 'video' && activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe;
   const showVoiceControls = Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe;
+  const recipeReferenceImageCount = useMemo(() => {
+    if (!recipeComposer) return 0;
+    const hasImage = recipeComposer.slots.some((slot) => {
+      if (!(slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image')) return false;
+      const slotAsset = recipeSlotAssets[slot.id];
+      const slotValue = String(recipeComposer.values[slot.id] || '').trim();
+      return Boolean(slotAsset?.assetUrl || slotValue);
+    });
+    return hasImage ? 1 : 0;
+  }, [recipeComposer, recipeSlotAssets]);
   const avatarProductInlineAnswerPatch = useMemo(
     () => buildAvatarProductInlineAnswerPatch(avatarProductInlineAnswer, avatarProductAssist),
     [avatarProductAssist, avatarProductInlineAnswer],
@@ -1653,6 +1784,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setAudioMode('silent');
     }
   }, [audioMode, freeformSupportsAutoSceneSound, isAvatarProductRecipe, showNativeAudioSelector]);
+  useEffect(() => {
+    if (mode !== 'video' || activeRecipeSource?.kind === 'recipe') return;
+    if (!supportedFreeformDurationOptions.length) return;
+    if (durationPreference === 'auto' || !supportedFreeformDurationOptions.includes(durationPreference)) {
+      setDurationPreference(getDefaultVideoDurationForModel(selectedVideoModelKey));
+    }
+  }, [activeRecipeSource, durationPreference, mode, selectedVideoModelKey, supportedFreeformDurationOptions]);
   const willAutoRouteToExplainer = useMemo(
     () => shouldAutoUseExplainerRecipe(composerIntent, mode, activeRecipeSource),
     [activeRecipeSource, composerIntent, mode],
@@ -1702,8 +1840,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       if (videoModelResult.status === 'fulfilled' && videoModelResult.value.length > 0) {
         const enabledFirst = [...videoModelResult.value].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
         setVideoModels(enabledFirst);
+        const visibleFamilies = getVisibleNormalVideoFamilies(enabledFirst);
+        const fallbackFamily = visibleFamilies[0]?.key ?? 'ltx_23_22b';
+        setSelectedNormalVideoFamilyKey((current) =>
+          visibleFamilies.some((family) => family.key === current) ? current : fallbackFamily,
+        );
         if (!enabledFirst.some((model) => model.key === selectedVideoModelKey)) {
-          setSelectedVideoModelKey(enabledFirst[0]?.key ?? 'fal_ltx23_i2v');
+          const defaultRoute = resolveRouteForFamily({
+            familyKey: fallbackFamily,
+            qualityKey: 'standard',
+            generationMode: 'text_to_video',
+          });
+          setSelectedVideoModelKey(defaultRoute || enabledFirst[0]?.key || 'fal_ltx23_t2v');
         }
       }
       if (imageModelResult.status === 'fulfilled' && imageModelResult.value.length > 0) {
@@ -2350,17 +2498,22 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       }
 
       const profile = {
-        lane: getVideoModelLane(selectedVideoModelKey),
-        modelKey: selectedVideoModelKey,
-        resolution: getVideoResolutionForModel(selectedVideoModelKey, qualityProfile),
+        lane: selectedFreeformQualityKey === 'premium' ? 'premium' : 'creator_pro' as 'creator_pro' | 'premium',
+        modelKey: resolvedFreeformModelKey || selectedVideoModelKey,
+        modelFamily: selectedNormalVideoFamily?.key || familyForModelKey(selectedVideoModelKey) || '',
+        generationMode: inferredFreeformGenerationMode,
+        resolution: resolvedFreeformResolution as '480p' | '720p' | '1080p' | '1440p' | '2160p' | '4K',
+        quality: selectedFreeformQualityKey,
       };
-      if (selectedVideoModelKey === 'ltx') {
+      if (profile.modelKey === 'ltx') {
         const videoResult = await api.createAIVideo(
           buildVideoCreatePayload({
             type: 'freeform',
             templateLabel: 'LTX Storyboard',
             script: trimmedIdea,
-            modelKey: selectedVideoModelKey,
+            modelKey: profile.modelKey,
+            modelFamily: profile.modelFamily,
+            generationMode: profile.generationMode,
             lane: 'creator_pro',
             aspectRatio,
             resolution: '720p',
@@ -2385,7 +2538,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       }
       const durationSeconds =
         durationPreference === 'auto'
-          ? Number(getDefaultVideoDurationForModel(selectedVideoModelKey))
+          ? Number(getDefaultVideoDurationForModel(profile.modelKey))
           : Number(durationPreference);
       const templateKey = pickVideoTemplateKey(trimmedIdea);
       const templateLabel = TEMPLATE_OPTIONS.find((item) => item.key === templateKey)?.label || 'Story / Scene Reel';
@@ -2396,11 +2549,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           language: 'English',
           tone: 'Creator-first, emotionally engaging, social-ready',
           lane: profile.lane === 'premium' ? 'Premium' : 'Creator Pro',
-          modelKey: selectedVideoModelKey,
-          modelLabel: displayedVideoModel?.label ?? selectedVideoModelKey,
+          modelKey: profile.modelKey,
+          modelLabel: displayedVideoModel?.label ?? profile.modelKey,
           aspectRatio: aspectRatio,
           resolution: profile.resolution,
-          quality: profile.lane === 'premium' ? 'high' : 'standard',
+          quality: profile.quality,
           durationSeconds,
           narrationEnabled: false,
           captionsEnabled,
@@ -2413,11 +2566,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           type: 'freeform',
           templateLabel,
           script: scriptResult.script,
-          modelKey: selectedVideoModelKey,
+          modelKey: profile.modelKey,
+          modelFamily: profile.modelFamily,
+          generationMode: profile.generationMode,
           lane: profile.lane,
           aspectRatio,
           resolution: profile.resolution,
-          quality: profile.lane === 'premium' ? 'high' : 'standard',
+          quality: profile.quality,
           durationSeconds,
           captionsEnabled,
           narrationEnabled: false,
@@ -2447,10 +2602,113 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
 
   const currentProfileLabel = QUALITY_PROFILES.find((item) => item.key === qualityProfile)?.label ?? 'Creator Pro';
-  const currentModelLabel = mode === 'video' ? shortVideoModelLabel(displayedVideoModel) : displayedImageModel?.label ?? 'Image';
-  const currentModelHint = mode === 'video' ? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
-  const selectedVideoResolution = getVideoResolutionForModel(selectedVideoModelKey, qualityProfile);
+  const currentModelLabel = mode === 'video'
+    ? selectedNormalVideoFamily?.displayName ?? shortVideoModelLabel(displayedVideoModel)
+    : displayedImageModel?.label ?? 'Image';
+  const currentModelHint = mode === 'video'
+    ? selectedNormalVideoFamily?.description ?? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
+    : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
+  const selectedVideoResolution = resolvedFreeformResolution;
   const selectedImageResolution: '1024' | '1536' = qualityProfile === 'fast_social' ? '1024' : '1536';
+  const effectiveFreeformDurationSeconds = Number(
+    durationPreference === 'auto'
+      ? (supportedFreeformDurationOptions[0] ?? getDefaultVideoDurationForModel(selectedVideoModelKey))
+      : durationPreference,
+  );
+  const liveVideoEstimateCredits = useMemo(() => {
+    const recipeMode =
+      recipeComposer?.mode ??
+      (activeRecipeSource?.kind === 'recipe' ? activeRecipeSource.recipe.contentType : null);
+    const resolvedMode = resolveComposerMode(mode, recipeMode);
+    if (resolvedMode !== 'video') return null;
+
+    if (recipeComposer && activeRecipeSource?.kind === 'recipe') {
+      const recipe = activeRecipeSource.recipe.recipe;
+      const defaults = recipe.generation_defaults ?? {};
+      const recipePrompt = assembleRecipePrompt(recipeComposer);
+
+      if (recipe.id === 'avatar_product') {
+        const avatarDuration = Number(
+          avatarProductAdvancedControls.duration_seconds || durationPreference || defaults.duration_seconds || 5,
+        );
+        return calculateVideoCredits({
+          modelKey: resolveAvatarProductVideoModelKeyFromQuality(avatarProductAdvancedControls.quality_profile as QualityProfile),
+          resolution: String(defaults.resolution ?? '720p'),
+          durationSeconds: avatarDuration,
+          quality: avatarProductAdvancedControls.quality_profile,
+          captionsEnabled: false,
+          narrationEnabled: true,
+          voiceKey: selectedVoice,
+          sampleRateHz: 48000,
+          referenceImages: recipeReferenceImageCount,
+          audioMode: 'silent',
+          nativeAudioEnabled: false,
+          recipeId: recipe.id,
+          recipeInputs: {
+            quality_profile: avatarProductAdvancedControls.quality_profile,
+            duration_seconds: String(avatarProductAdvancedControls.duration_seconds || avatarDuration),
+          },
+          scriptText: recipePrompt,
+        });
+      }
+
+      const durationSeconds = Number(defaults.duration_seconds ?? recipe.duration_seconds ?? 5);
+      return calculateVideoCredits({
+        modelKey: String(defaults.model_key ?? selectedVideoModelKey),
+        resolution: String(defaults.resolution ?? selectedVideoResolution),
+        durationSeconds,
+        quality: String(defaults.quality ?? 'standard'),
+        captionsEnabled: false,
+        narrationEnabled: Boolean(defaults.narration_enabled),
+        voiceKey: selectedVoice,
+        sampleRateHz: 48000,
+        referenceImages: recipeReferenceImageCount,
+        audioMode: String(defaults.narration_enabled) === 'true' ? 'silent' : undefined,
+        nativeAudioEnabled: false,
+        recipeId: recipe.id,
+        recipeInputs: {
+          quality_profile: String(defaults.quality ?? 'standard'),
+          duration_seconds: String(durationSeconds),
+        },
+        scriptText: recipePrompt,
+      });
+    }
+
+    return calculateVideoCredits({
+      modelKey: resolvedFreeformModelKey || selectedVideoModelKey,
+      modelFamily: selectedNormalVideoFamily?.key,
+      resolution: selectedVideoResolution,
+      durationSeconds: effectiveFreeformDurationSeconds,
+      quality: selectedFreeformQualityKey,
+      captionsEnabled: false,
+      narrationEnabled: false,
+      voiceKey: selectedVoice,
+      sampleRateHz: 48000,
+      referenceImages: uploadedComposerAsset?.assetUrl ? 1 : 0,
+      audioMode,
+      nativeAudioEnabled: audioMode === 'auto_scene_sound',
+      scriptText: idea,
+    });
+  }, [
+    activeRecipeSource,
+    audioMode,
+    avatarProductAdvancedControls.duration_seconds,
+    avatarProductAdvancedControls.quality_profile,
+    durationPreference,
+    effectiveFreeformDurationSeconds,
+    idea,
+    mode,
+    recipeComposer,
+    recipeReferenceImageCount,
+    resolvedFreeformModelKey,
+    selectedVideoModelKey,
+    selectedNormalVideoFamily?.key,
+    selectedFreeformQualityKey,
+    selectedVideoResolution,
+    selectedVoice,
+    supportedFreeformDurationOptions,
+    uploadedComposerAsset?.assetUrl,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -3051,6 +3309,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                       <p className="text-xs text-muted">This stays on the standard freeform video path unless you choose a recipe.</p>
                     </>
                   ) : null}
+                  <p className="text-xs text-muted">
+                    {freeformHasReferenceImage ? 'Animating your uploaded image.' : 'Creating from prompt.'}
+                  </p>
                 </div>
               ) : null}
 
@@ -3079,16 +3340,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             <Upload className="h-4 w-4" /> Upload reference image
                           </button>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            closeMenus?.();
-                            openAvatarPicker();
-                          }}
-                          className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]"
-                        >
-                          <UserRound className="h-4 w-4" /> AI Avatar
-                        </button>
+                        {isAvatarDrivenRecipe ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeMenus?.();
+                              openAvatarPicker();
+                            }}
+                            className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm text-text hover:bg-[hsl(var(--color-bg)/0.7)]"
+                          >
+                            <UserRound className="h-4 w-4" /> AI Avatar
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -3134,7 +3397,25 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         </div>
                         <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_250px]">
                           <div className="space-y-1.5">
-                            {mode === 'video'
+                            {mode === 'video' && !recipeComposer
+                              ? visibleNormalVideoFamilies.map((family) => (
+                                <ModelRow
+                                  key={family.key}
+                                  title={family.displayName}
+                                  badges={family.tags}
+                                  active={effectiveNormalVideoFamilyKey === family.key}
+                                  disabled={false}
+                                  onClick={() => {
+                                    setSelectedNormalVideoFamilyKey(family.key);
+                                    const defaultQuality = family.supportedQualities[0]?.key ?? 'standard';
+                                    setQualityProfile(profileFromFamilyQuality(defaultQuality));
+                                    setDurationPreference(String(family.supportedDurations[0] ?? 5));
+                                    closeMenus();
+                                  }}
+                                  onHover={() => null}
+                                />
+                              ))
+                              : mode === 'video'
                               ? videoModels.map((model) => (
                                 <ModelRow
                                   key={model.key}
@@ -3176,7 +3457,60 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                               ))}
                           </div>
                           <div className="rounded-[20px] border border-white/8 bg-black/25 p-3">
-                            {mode === 'video' && activeVideoModelDetail ? (
+                            {mode === 'video' && !recipeComposer && selectedNormalVideoFamily ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-lg font-semibold text-white">{selectedNormalVideoFamily.displayName}</p>
+                                  <p className="mt-1 text-xs text-white/52">{selectedNormalVideoFamily.description}</p>
+                                </div>
+                                <div className="space-y-2">
+                                  {selectedNormalVideoFamily.supportedQualities.map((qualityOption) => {
+                                    const estimate = calculateVideoCredits({
+                                      modelKey: resolveRouteForFamily({
+                                        familyKey: selectedNormalVideoFamily.key,
+                                        qualityKey: qualityOption.key as 'standard' | 'high' | 'premium',
+                                        generationMode: inferredFreeformGenerationMode,
+                                      }),
+                                      modelFamily: selectedNormalVideoFamily.key,
+                                      resolution: qualityOption.resolution,
+                                      durationSeconds: Number(supportedFreeformDurationOptions[0] ?? 5),
+                                      quality: qualityOption.key,
+                                      narrationEnabled: false,
+                                      captionsEnabled: false,
+                                      audioMode: qualityOption.key === selectedFreeformQualityKey ? audioMode : 'silent',
+                                      nativeAudioEnabled: qualityOption.key === selectedFreeformQualityKey ? audioMode === 'auto_scene_sound' : false,
+                                      referenceImages: freeformHasReferenceImage ? 1 : 0,
+                                    });
+                                    return (
+                                      <button
+                                        key={`${selectedNormalVideoFamily.key}-${qualityOption.key}`}
+                                        type="button"
+                                        onClick={() => {
+                                          setQualityProfile(profileFromFamilyQuality(qualityOption.key));
+                                          closeMenus();
+                                        }}
+                                        className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-left transition ${
+                                          selectedFreeformQualityKey === qualityOption.key
+                                            ? 'border border-white/12 bg-white/[0.09]'
+                                            : 'border border-transparent bg-white/[0.04] hover:bg-white/[0.07]'
+                                        }`}
+                                      >
+                                        <div>
+                                          <p className="text-sm font-semibold text-white">{qualityOption.label}</p>
+                                          <div className="mt-1 flex flex-wrap gap-1.5">
+                                            <ModelCapabilityBadge label={qualityOption.resolution} />
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-sm font-semibold text-white/92">~{estimate} credits</p>
+                                          <p className="text-[11px] text-white/42">/{supportedFreeformDurationOptions[0] ?? '5'}s</p>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : mode === 'video' && activeVideoModelDetail ? (
                               <div className="space-y-3">
                                 <div>
                                   <p className="text-lg font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
@@ -3353,10 +3687,16 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                     if (mode === 'video') {
                                       const modelKey = isAvatarProductRecipe
                                         ? resolveAvatarProductVideoModelKeyFromQuality(option.key)
-                                        : resolveVideoModelKeyFromQuality(option.key);
+                                        : resolveRouteForFamily({
+                                          familyKey: selectedNormalVideoFamily?.key || selectedNormalVideoFamilyKey,
+                                          qualityKey: normalizeFamilyQualityKey(option.key),
+                                          generationMode: inferredFreeformGenerationMode,
+                                        });
 
-                                      setSelectedVideoModelKey(modelKey);
-                                      setModelPanelKey(modelKey);
+                                      if (modelKey) {
+                                        setSelectedVideoModelKey(modelKey);
+                                        setModelPanelKey(modelKey);
+                                      }
 
                                       if (isAvatarProductRecipe) {
                                         setAvatarProductAdvancedControls((current) => ({
@@ -3427,7 +3767,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             </div>
                           ) : (
                             <div className="mt-2 grid gap-1">
-                              {(['auto', '5', '10'] as const).map((option) => (
+                              {supportedFreeformDurationOptions.map((option) => (
                                 <button
                                   key={option}
                                   type="button"
@@ -3439,7 +3779,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                   className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option ? 'bg-[hsl(var(--color-accent)/0.12)] text-text' : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
                                     } ${recipeSettingsLocked ? 'cursor-not-allowed opacity-65' : ''}`}
                                 >
-                                  <span>{option === 'auto' ? 'Auto' : `${option}s`}</span>
+                                  <span>{option}s</span>
                                   {durationPreference === option ? <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" /> : null}
                                 </button>
                               ))}
@@ -3568,23 +3908,30 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={() => void launchUnifiedFlow()}
-                  disabled={loading || uploadingAsset}
-                  className="h-12 rounded-full border-0 bg-[linear-gradient(to_right,#818cf8,#a855f7)] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(168,85,247,0.24)] hover:opacity-95"
-                >
-                  {loading ? (
-                    'Preparing…'
-                  ) : uploadingAsset ? (
-                    'Uploading…'
-                  ) : (
-                    <span className="inline-flex items-center gap-2">
-                      <Play className="h-4 w-4 fill-current" />
-                      Generate
-                    </span>
-                  )}
-                </Button>
+                <div className="flex flex-col items-end gap-2">
+                  {liveVideoEstimateCredits !== null ? (
+                    <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/78">
+                      Estimated: <span className="font-semibold text-white">{liveVideoEstimateCredits} credits</span>
+                    </div>
+                  ) : null}
+                  <Button
+                    type="button"
+                    onClick={() => void launchUnifiedFlow()}
+                    disabled={loading || uploadingAsset}
+                    className="h-12 rounded-full border-0 bg-[linear-gradient(to_right,#818cf8,#a855f7)] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(168,85,247,0.24)] hover:opacity-95"
+                  >
+                    {loading ? (
+                      'Preparing…'
+                    ) : uploadingAsset ? (
+                      'Uploading…'
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <Play className="h-4 w-4 fill-current" />
+                        Generate
+                      </span>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 

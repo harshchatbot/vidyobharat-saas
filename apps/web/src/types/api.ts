@@ -592,6 +592,8 @@ export type StandardVideoCreateRequest = {
   script: string;
   tags: string[];
   modelKey: string;
+  modelFamily?: string;
+  generationMode?: 'text_to_video' | 'image_to_video';
   modeId?: string;
   projectId?: string;
   language: string;
@@ -609,7 +611,7 @@ export type StandardVideoCreateRequest = {
   };
   aspectRatio: string;
   resolution: string;
-  quality: 'standard' | 'high';
+  quality: 'standard' | 'high' | 'premium';
   durationMode: 'auto' | 'custom';
   durationSeconds?: number;
   captionsEnabled: boolean;

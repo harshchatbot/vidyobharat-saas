@@ -410,6 +410,7 @@ def test_generate_threads_generate_audio_for_supported_models(monkeypatch: pytes
         aspect_ratio="9:16",
         resolution="1080p",
         duration_seconds=6,
+        image_url="https://example.com/reference.png",
         generate_audio=True,
     )
 
@@ -450,6 +451,7 @@ def test_generate_omits_generate_audio_for_seedance(monkeypatch: pytest.MonkeyPa
         aspect_ratio="9:16",
         resolution="720p",
         duration_seconds=5,
+        image_url="https://example.com/reference.png",
         generate_audio=True,
     )
 
@@ -511,7 +513,7 @@ def test_generate_uses_get_response_url_for_same_request_top_level_completion(mo
     assert video_url == "https://v3.fal.media/from-top-level-get.mp4"
     assert metadata["mode"] == "async_response_url"
     assert response_fetch_calls == [("GET", "https://queue.fal.run/fal-ai/ltx-2.3/requests/req1")]
-    assert submit_calls == [("POST", "https://queue.fal.run/fal-ai/ltx-2.3/image-to-video")]
+    assert submit_calls == [("POST", "https://queue.fal.run/fal-ai/ltx-2.3-22b/image-to-video")]
 
 
 def test_generate_follows_top_level_descriptor_to_different_request_without_posting_response_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -571,7 +573,7 @@ def test_generate_follows_top_level_descriptor_to_different_request_without_post
 
     assert video_url == "https://v3.fal.media/final-top-level-followup.mp4"
     assert metadata["mode"] == "top_level_status_followup"
-    assert submit_calls == [("POST", "https://queue.fal.run/fal-ai/ltx-2.3/image-to-video")]
+    assert submit_calls == [("POST", "https://queue.fal.run/fal-ai/ltx-2.3-22b/image-to-video")]
 
 
 def test_generate_infinite_talk_waits_for_completed_recipe_scene(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -693,3 +695,74 @@ def test_request_with_timeout_returns_none_for_connect_timeout() -> None:
     )
 
     assert response is None
+
+
+def test_build_video_payload_maps_ltx_text_to_video_fields() -> None:
+    service = FalVideoService()
+
+    payload = service._build_video_payload(
+        model_key='fal_ltx23_t2v',
+        prompt='A creator walks into frame.',
+        aspect_ratio='9:16',
+        resolution='1080p',
+        duration_seconds=5,
+        image_url=None,
+        multi_prompt=None,
+        generate_audio=False,
+    )
+
+    assert payload['video_size'] == {'width': 1080, 'height': 1920}
+    assert payload['num_frames'] == 120
+    assert payload['fps'] == 24
+    assert payload['generate_audio'] is False
+    assert 'image_url' not in payload
+
+
+def test_build_video_payload_maps_seedance_image_to_video_fields() -> None:
+    service = FalVideoService()
+
+    payload = service._build_video_payload(
+        model_key='seedance_v1_lite_i2v',
+        prompt='Animate the uploaded product naturally.',
+        aspect_ratio='9:16',
+        resolution='720p',
+        duration_seconds=5,
+        image_url='https://example.com/product.png',
+        multi_prompt=None,
+        generate_audio=None,
+    )
+
+    assert payload['image_url'] == 'https://example.com/product.png'
+    assert payload['duration'] == '5'
+    assert payload['resolution'] == '720p'
+    assert 'generate_audio' not in payload
+
+
+def test_build_video_payload_maps_kling_text_and_reference_routes() -> None:
+    service = FalVideoService()
+
+    text_payload = service._build_video_payload(
+        model_key='kling_o3_pro_t2v',
+        prompt='A café scene with gentle motion.',
+        aspect_ratio='16:9',
+        resolution='720p',
+        duration_seconds=10,
+        image_url=None,
+        multi_prompt=None,
+        generate_audio=True,
+    )
+    reference_payload = service._build_video_payload(
+        model_key='kling_o3_reference',
+        prompt='Keep the product label stable.',
+        aspect_ratio='9:16',
+        resolution='720p',
+        duration_seconds=5,
+        image_url='https://example.com/reference.png',
+        multi_prompt=None,
+        generate_audio=False,
+    )
+
+    assert text_payload['duration'] == '10'
+    assert text_payload['generate_audio'] is True
+    assert reference_payload['image_urls'] == ['https://example.com/reference.png']
+    assert reference_payload['generate_audio'] is False

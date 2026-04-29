@@ -2,6 +2,30 @@ import type { AIVideoModel } from '@/types/api';
 
 import videoModelsConfig from '../../../../shared/config/video-models.json';
 
+type RawNormalVideoFamilyConfig = {
+  key: string;
+  modelFamily: string;
+  displayName: string;
+  tags: string[];
+  description: string;
+  supportsTextToVideo: boolean;
+  supportsImageToVideo: boolean;
+  supportsNativeAudio: boolean;
+  nativeAudioDefault: boolean;
+  nativeAudioNotes: string;
+  supportedDurations: number[];
+  supportedQualities: Array<{ key: string; label: string; resolution: string }>;
+  supportedResolutions: string[];
+  supportedAspectRatios: string[];
+  requiredInputsByGenerationMode: Record<string, string[]>;
+  providerRoutesByGenerationModeAndQuality: Record<string, Record<string, string>>;
+  payloadMapping: Record<string, unknown>;
+  pricingType: string;
+  pricingConfig: Record<string, unknown>;
+  hidden?: boolean;
+  devOnly?: boolean;
+};
+
 type RawVideoModelConfig = {
   key: string;
   lane: string;
@@ -31,9 +55,18 @@ type RawVideoModelConfig = {
 };
 
 export type VideoModelConfig = RawVideoModelConfig;
+export type NormalVideoFamilyConfig = RawNormalVideoFamilyConfig;
 
 export function getVideoModelConfigs(): VideoModelConfig[] {
   return (videoModelsConfig.models as unknown as RawVideoModelConfig[]).map((item) => ({ ...item }));
+}
+
+export function getNormalVideoFamilyConfigs(): NormalVideoFamilyConfig[] {
+  return (videoModelsConfig.normalVideoFamilies as unknown as RawNormalVideoFamilyConfig[]).map((item) => ({ ...item }));
+}
+
+export function getNormalVideoFamilyMap(): Record<string, NormalVideoFamilyConfig> {
+  return Object.fromEntries(getNormalVideoFamilyConfigs().map((family) => [family.key, family]));
 }
 
 export function getVideoModelMap(): Record<string, VideoModelConfig> {

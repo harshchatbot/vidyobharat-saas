@@ -167,7 +167,16 @@ class AIVideoCreateService:
         self.providers = {
             'sora2': self.generate_with_sora2,
             'ltx': self.generate_with_ltx_self_hosted,
+            'fal_ltx23_t2v': self.generate_with_fal,
             'fal_ltx23_i2v': self.generate_with_fal,
+            'seedance_v1_lite_t2v': self.generate_with_fal,
+            'seedance_v1_lite_i2v': self.generate_with_fal,
+            'kling_o3_standard_t2v': self.generate_with_fal,
+            'kling_o3_standard_i2v': self.generate_with_fal,
+            'kling_o3_pro_t2v': self.generate_with_fal,
+            'kling_o3_pro_i2v': self.generate_with_fal,
+            'kling_o3_4k_t2v': self.generate_with_fal,
+            'kling_o3_4k_i2v': self.generate_with_fal,
             'kling_v16_standard_i2v': self.generate_with_fal,
             'kling_v16_pro_i2v': self.generate_with_fal,
             'kling_o1_reference': self.generate_with_fal,
@@ -183,7 +192,16 @@ class AIVideoCreateService:
 
         self.video_fallbacks: dict[str, list[str]] = {
             'sora2': [],
+            'fal_ltx23_t2v': [],
             'fal_ltx23_i2v': [],
+            'seedance_v1_lite_t2v': ['fal_ltx23_t2v'],
+            'seedance_v1_lite_i2v': ['fal_ltx23_i2v'],
+            'kling_o3_standard_t2v': ['fal_ltx23_t2v'],
+            'kling_o3_standard_i2v': ['fal_ltx23_i2v'],
+            'kling_o3_pro_t2v': ['kling_o3_standard_t2v'],
+            'kling_o3_pro_i2v': ['kling_o3_standard_i2v'],
+            'kling_o3_4k_t2v': ['kling_o3_pro_t2v'],
+            'kling_o3_4k_i2v': ['kling_o3_pro_i2v'],
             'ltx': [],
             'kling_v16_standard_i2v': [],
             'kling_v16_pro_i2v': ['kling_v16_standard_i2v'],
@@ -569,17 +587,17 @@ class AIVideoCreateService:
         resolution = str(params['resolution'])
         prompt = str(params['script'])
 
-        if requested_model == 'fal_ltx23_i2v':
-            if duration_seconds not in {6, 8, 10}:
-                logger.warning('fal_ltx23_i2v_duration_normalized from=%s to=%s', duration_seconds, 6)
-                duration_seconds = 6
+        if requested_model in {'fal_ltx23_t2v', 'fal_ltx23_i2v'}:
+            if duration_seconds not in {5, 10, 15}:
+                logger.warning('%s_duration_normalized from=%s to=%s', requested_model, duration_seconds, 5)
+                duration_seconds = 5
 
             if resolution not in {'1080p', '1440p', '2160p'}:
-                logger.warning('fal_ltx23_i2v_resolution_normalized from=%s to=%s', resolution, '1080p')
+                logger.warning('%s_resolution_normalized from=%s to=%s', requested_model, resolution, '1080p')
                 resolution = '1080p'
 
             if len(prompt) > 4500:
-                logger.warning('fal_ltx23_i2v_prompt_truncated original_length=%s truncated_length=%s', len(prompt), 4500)
+                logger.warning('%s_prompt_truncated original_length=%s truncated_length=%s', requested_model, len(prompt), 4500)
                 prompt = prompt[:4500]
 
         logger.info(
@@ -597,7 +615,7 @@ class AIVideoCreateService:
         normalized_audio_mode = str(params.get('audioMode') or recipe_metadata.get('audio_mode') or '').strip().lower() or 'silent'
         native_audio_enabled = bool(audio_settings.get('nativeAudioEnabled', recipe_metadata.get('native_audio_enabled', False)))
         generate_audio: bool | None = None
-        if requested_model == 'seedance_v1_lite_reference':
+        if requested_model in {'seedance_v1_lite_reference', 'seedance_v1_lite_t2v', 'seedance_v1_lite_i2v'}:
             generate_audio = None
             normalized_audio_mode = 'silent'
             native_audio_enabled = False
@@ -605,7 +623,20 @@ class AIVideoCreateService:
             generate_audio = False
             normalized_audio_mode = 'silent'
             native_audio_enabled = False
-        elif requested_model in {'fal_ltx23_i2v', 'kling_o3_reference', 'kling_o3_standard_reference', 'kling_o3_pro_reference', 'kling_o3_4k_reference'}:
+        elif requested_model in {
+            'fal_ltx23_t2v',
+            'fal_ltx23_i2v',
+            'kling_o3_reference',
+            'kling_o3_standard_reference',
+            'kling_o3_pro_reference',
+            'kling_o3_4k_reference',
+            'kling_o3_standard_t2v',
+            'kling_o3_standard_i2v',
+            'kling_o3_pro_t2v',
+            'kling_o3_pro_i2v',
+            'kling_o3_4k_t2v',
+            'kling_o3_4k_i2v',
+        }:
             generate_audio = bool(native_audio_enabled or normalized_audio_mode == 'auto_scene_sound')
 
         video_url, metadata = self.fal.generate(

@@ -1,7 +1,9 @@
 import creditEngine from '@/config/creditEngine';
+import { getNormalVideoFamilyConfigs } from '@/config/videoModels';
 
 type VideoCostInput = {
   modelKey: string;
+  modelFamily?: string;
   resolution: string;
   durationSeconds: number;
   quality: string;
@@ -42,6 +44,16 @@ const IMAGE_MODEL_PRICING = (creditEngine.image.modelPricing ?? {}) as Record<st
 const AVATAR_PRODUCT_FIXED_PRICING = (creditEngine.avatarProductFixedPricing ?? {}) as Record<string, Record<string, number>>;
 const NORMAL_VIDEO_FIXED_PRICING = (creditEngine.normalVideoFixedPricing ?? {}) as Record<string, Record<string, number>>;
 const VIDEO_ADD_ONS = (creditEngine.videoAddOns ?? {}) as Record<string, unknown>;
+const PROVIDER_COST_PRICING = (creditEngine.providerCostPricing ?? {}) as Record<string, number | Record<string, number>>;
+const NORMAL_VIDEO_FAMILIES = getNormalVideoFamilyConfigs();
+const NORMAL_VIDEO_FAMILY_MAP = Object.fromEntries(NORMAL_VIDEO_FAMILIES.map((family) => [family.key, family]));
+const ROUTE_TO_FAMILY_MAP = Object.fromEntries(
+  NORMAL_VIDEO_FAMILIES.flatMap((family) =>
+    Object.values(family.providerRoutesByGenerationModeAndQuality ?? {}).flatMap((mapping) =>
+      Object.values(mapping ?? {}).map((routeKey) => [routeKey, family.key] as const),
+    ),
+  ),
+) as Record<string, string>;
 
 const BEST_FOR_COPY: Record<string, string> = {
   free: 'Best for testing and first outputs',
@@ -190,6 +202,27 @@ export function calculateVideoCredits(input: VideoCostInput): number {
     return Number(pricing ?? 0);
   }
 
+  const familyKey = String(input.modelFamily || ROUTE_TO_FAMILY_MAP[input.modelKey] || '').trim().toLowerCase();
+  const family = NORMAL_VIDEO_FAMILY_MAP[familyKey];
+  if (family && family.pricingType !== 'legacyFallback') {
+    const normalizedQuality = normalizeAvatarProductQuality(input.quality);
+    const resolution = String(input.resolution || family.supportedQualities.find((item) => item.key === normalizedQuality)?.resolution || '720p');
+    const providerCostUsd = calculateProviderCostUsd({
+      family,
+      durationSeconds: Number(input.durationSeconds) || 5,
+      quality: normalizedQuality,
+      resolution,
+      audioMode,
+    });
+    const usdInrRate = Number(PROVIDER_COST_PRICING.usdInrRate ?? 95);
+    const creditInrValue = Number(PROVIDER_COST_PRICING.creditInrValue ?? 2);
+    const markup = Number(PROVIDER_COST_PRICING.providerCostMarkupMultiplier ?? 2);
+    const minimumMarginCredits = Number(PROVIDER_COST_PRICING.minimumMarginCredits ?? 5);
+    const infraBuffer = Number(((PROVIDER_COST_PRICING.infraBufferCreditsByDuration ?? {}) as Record<string, number>)[duration] ?? 0);
+    const rawCredits = creditInrValue > 0 ? (providerCostUsd * usdInrRate) / creditInrValue : 0;
+    return Math.max(minimumMarginCredits, Math.ceil(rawCredits * markup + infraBuffer));
+  }
+
   const normalizedModel = normalizeVideoModelKey(input.modelKey);
   const base = Number(NORMAL_VIDEO_FIXED_PRICING[normalizedModel]?.[duration] ?? 0);
   if (base <= 0) return 0;
@@ -202,6 +235,50 @@ export function calculateVideoCredits(input: VideoCostInput): number {
   }
   total += getDurationAddOn('infraBuffer', duration);
   return total;
+}
+
+function calculateProviderCostUsd(input: {
+  family: (typeof NORMAL_VIDEO_FAMILIES)[number];
+  durationSeconds: number;
+  quality: string;
+  resolution: string;
+  audioMode: 'silent' | 'auto_scene_sound';
+}): number {
+  const { family, durationSeconds, quality, resolution, audioMode } = input;
+  if (family.pricingType === 'megapixel') {
+    const fps = Number((family.pricingConfig.fps as number | undefined) ?? 24);
+    const { width, height } = dimensionsForResolution(resolution);
+    const frames = fps * durationSeconds;
+    const megapixels = (width * height * frames) / 1_000_000;
+    return megapixels * Number((family.pricingConfig.costPerMegapixelUsd as number | undefined) ?? 0);
+  }
+  if (family.pricingType === 'token_base720p5s') {
+    const fps = Number((family.pricingConfig.fps as number | undefined) ?? 24);
+    const { width, height } = dimensionsForResolution(resolution);
+    if (resolution === '720p' && durationSeconds === 5) {
+      return Number((family.pricingConfig.base720p5sUsd as number | undefined) ?? 0.18);
+    }
+    const tokens = (height * width * fps * durationSeconds) / 1024;
+    return (tokens / 1_000_000) * Number((family.pricingConfig.costPerMillionTokensUsd as number | undefined) ?? 1.8);
+  }
+  if (family.pricingType === 'perSecond') {
+    const rates = ((family.pricingConfig.ratesUsdPerSecond as Record<string, { audioOff: number; audioOn: number }> | undefined) ?? {})[quality] ?? { audioOff: 0, audioOn: 0 };
+    const perSecond = audioMode === 'auto_scene_sound' ? rates.audioOn : rates.audioOff;
+    return Number(perSecond ?? 0) * durationSeconds;
+  }
+  return 0;
+}
+
+function dimensionsForResolution(resolution: string): { width: number; height: number } {
+  const map: Record<string, { width: number; height: number }> = {
+    '480p': { width: 854, height: 480 },
+    '720p': { width: 1280, height: 720 },
+    '1080p': { width: 1920, height: 1080 },
+    '1440p': { width: 2560, height: 1440 },
+    '2160p': { width: 3840, height: 2160 },
+    '4K': { width: 3840, height: 2160 },
+  };
+  return map[resolution] ?? map['720p'];
 }
 
 export function calculateImageCredits(modelKey: string, resolution: string): number {

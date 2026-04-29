@@ -118,6 +118,7 @@ from app.services.ai_video_service import AIVideoCreateService, ProviderError, _
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
+from app.services.model_registry import get_normal_video_family_definition
 from app.services.pricing_service import PricingService
 from app.services.upload_service import UploadService
 from app.services.user_service import UserService
@@ -184,6 +185,91 @@ def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, 
         'narration_enabled': payload.narrationEnabled,
         'caption_style': payload.captionStyle,
         'sample_rate_hz': payload.audioSettings.sampleRateHz,
+    }
+
+
+def _normalize_family_quality(value: str | None) -> str:
+    normalized = str(value or '').strip().lower()
+    if normalized in {'premium', 'ultra_premium'}:
+        return 'premium'
+    if normalized in {'high', 'high_quality', 'pro'}:
+        return 'high'
+    return 'standard'
+
+
+def _resolve_non_recipe_family_request(payload: AIVideoCreateRequest, normalized_payload: dict[str, Any]) -> dict[str, Any]:
+    model_family = str(payload.modelFamily or normalized_payload.get('modelFamily') or '').strip().lower()
+    if not model_family or payload.recipeId:
+        return {}
+
+    family = get_normal_video_family_definition(model_family)
+    if family is None:
+        raise HTTPException(status_code=422, detail=f'Unsupported modelFamily: {model_family}')
+
+    image_urls = list(normalized_payload.get('imageUrls') or payload.imageUrls or [])
+    generation_mode = str(payload.generationMode or normalized_payload.get('generationMode') or '').strip().lower()
+    if generation_mode not in {'text_to_video', 'image_to_video'}:
+        generation_mode = 'image_to_video' if image_urls else 'text_to_video'
+
+    if generation_mode == 'image_to_video' and not family.supports_image_to_video:
+        raise HTTPException(status_code=422, detail=f'{family.display_name} does not support image-to-video')
+    if generation_mode == 'text_to_video' and not family.supports_text_to_video:
+        raise HTTPException(status_code=422, detail=f'{family.display_name} does not support text-to-video')
+    if generation_mode == 'image_to_video' and not image_urls:
+        raise HTTPException(status_code=422, detail='An uploaded image is required for image-to-video')
+
+    quality = _normalize_family_quality(str(normalized_payload.get('quality') or payload.quality or 'standard'))
+    quality_keys = {str(entry.get('key')) for entry in family.supported_qualities}
+    if quality not in quality_keys:
+        raise HTTPException(status_code=422, detail=f'{family.display_name} does not support {quality} quality')
+
+    supported_durations = {int(value) for value in family.supported_durations}
+    duration_seconds = int(normalized_payload.get('durationSeconds') or payload.durationSeconds or 5)
+    if duration_seconds not in supported_durations:
+        raise HTTPException(
+            status_code=422,
+            detail=f'{family.display_name} supports only these durations: {", ".join(str(value) for value in sorted(supported_durations))}s',
+        )
+
+    route_key = family.provider_routes_by_generation_mode_and_quality.get(generation_mode, {}).get(quality)
+    if not route_key:
+        raise HTTPException(status_code=422, detail=f'{family.display_name} does not support {generation_mode} at {quality} quality')
+
+    quality_entry = next((entry for entry in family.supported_qualities if str(entry.get('key')) == quality), None)
+    resolution = str(
+        normalized_payload.get('resolution')
+        or (quality_entry or {}).get('resolution')
+        or (family.supported_resolutions[0] if family.supported_resolutions else '720p')
+    )
+
+    requested_audio_mode = str(normalized_payload.get('audioMode') or payload.audioMode or '').strip().lower() or 'silent'
+    native_audio_enabled = bool((normalized_payload.get('audioSettings') or {}).get('nativeAudioEnabled', payload.audioSettings.nativeAudioEnabled))
+    if requested_audio_mode == 'auto_scene_sound':
+        native_audio_enabled = True
+    if requested_audio_mode == 'silent':
+        native_audio_enabled = False
+    if (requested_audio_mode == 'auto_scene_sound' or native_audio_enabled) and not family.supports_native_audio:
+        raise HTTPException(status_code=422, detail='Auto scene sound is not available for this model')
+
+    return {
+        'modelFamily': family.key,
+        'generationMode': generation_mode,
+        'modelKey': route_key,
+        'quality': quality,
+        'resolution': resolution,
+        'audioMode': 'auto_scene_sound' if native_audio_enabled else 'silent',
+        'audioSettings': {
+            **dict(normalized_payload.get('audioSettings') or payload.audioSettings.model_dump()),
+            'nativeAudioEnabled': bool(native_audio_enabled and family.supports_native_audio),
+        },
+        'pipelineMetadataFamily': {
+            'model_family': family.key,
+            'generation_mode': generation_mode,
+            'quality_profile': quality,
+            'resolved_provider_route': route_key,
+            'native_audio_supported': family.supports_native_audio,
+            'native_audio_notes': family.native_audio_notes,
+        },
     }
 
 REEL_PROMPT_TEMPLATES: dict[str, str] = {
@@ -1461,6 +1547,16 @@ def create_ai_video(
                     'duration_seconds': normalized_payload.get('durationSeconds'),
                 },
             )
+        elif payload.modelFamily:
+            resolved_family_payload = _resolve_non_recipe_family_request(payload, normalized_payload)
+            pipeline_metadata = {
+                **dict(pipeline_metadata or {}),
+                **dict(resolved_family_payload.pop('pipelineMetadataFamily', {}) or {}),
+            }
+            normalized_payload = {
+                **normalized_payload,
+                **resolved_family_payload,
+            }
 
         logger.info(
             'ai_video_create_started',

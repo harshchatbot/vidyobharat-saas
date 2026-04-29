@@ -1,5 +1,502 @@
 {
+  "normalVideoFamilies": [
+    {
+      "key": "ltx_23_22b",
+      "modelFamily": "ltx_23_22b",
+      "displayName": "LTX 2.3",
+      "tags": ["Affordable", "Fast", "Popular"],
+      "description": "Best for affordable tests and quick ideas.",
+      "supportsTextToVideo": true,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": true,
+      "nativeAudioDefault": false,
+      "nativeAudioNotes": "Auto scene sound is available when the selected LTX route accepts native audio.",
+      "supportedDurations": [5, 10, 15],
+      "supportedQualities": [
+        { "key": "standard", "label": "Standard", "resolution": "1080p" },
+        { "key": "high", "label": "High", "resolution": "1440p" },
+        { "key": "premium", "label": "Premium", "resolution": "2160p" }
+      ],
+      "supportedResolutions": ["1080p", "1440p", "2160p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "requiredInputsByGenerationMode": {
+        "text_to_video": [],
+        "image_to_video": ["image_url"]
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "text_to_video": {
+          "standard": "fal_ltx23_t2v",
+          "high": "fal_ltx23_t2v",
+          "premium": "fal_ltx23_t2v"
+        },
+        "image_to_video": {
+          "standard": "fal_ltx23_i2v",
+          "high": "fal_ltx23_i2v",
+          "premium": "fal_ltx23_i2v"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "num_frames",
+        "resolutionStrategy": "video_size",
+        "imageField": "image_url",
+        "fps": 24
+      },
+      "pricingType": "megapixel",
+      "pricingConfig": {
+        "costPerMegapixelUsd": 0.001605,
+        "fps": 24,
+        "resolutionByQuality": {
+          "standard": "1080p",
+          "high": "1440p",
+          "premium": "2160p"
+        }
+      },
+      "hidden": false,
+      "devOnly": false
+    },
+    {
+      "key": "seedance_v1_lite",
+      "modelFamily": "seedance_v1_lite",
+      "displayName": "Seedance Lite",
+      "tags": ["Budget", "Reference-friendly"],
+      "description": "Good for affordable prompt and image videos.",
+      "supportsTextToVideo": true,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": false,
+      "nativeAudioDefault": false,
+      "nativeAudioNotes": "Auto scene sound is not available for this model.",
+      "supportedDurations": [5, 10],
+      "supportedQualities": [
+        { "key": "standard", "label": "Standard", "resolution": "720p" }
+      ],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "requiredInputsByGenerationMode": {
+        "text_to_video": [],
+        "image_to_video": ["image_url"]
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "text_to_video": {
+          "standard": "seedance_v1_lite_t2v"
+        },
+        "image_to_video": {
+          "standard": "seedance_v1_lite_i2v"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "duration",
+        "resolutionStrategy": "resolution",
+        "imageField": "image_url",
+        "fps": 24
+      },
+      "pricingType": "token_base720p5s",
+      "pricingConfig": {
+        "base720p5sUsd": 0.18,
+        "costPerMillionTokensUsd": 1.8,
+        "fps": 24,
+        "resolutionByQuality": {
+          "standard": "720p"
+        }
+      },
+      "hidden": false,
+      "devOnly": false
+    },
+    {
+      "key": "kling_o3",
+      "modelFamily": "kling_o3",
+      "displayName": "Kling O3",
+      "tags": ["Balanced", "Better motion", "Popular"],
+      "description": "Better realism and motion quality.",
+      "supportsTextToVideo": true,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": true,
+      "nativeAudioDefault": false,
+      "nativeAudioNotes": "Best for ambient sound or English/Chinese speech; other languages may translate to English.",
+      "supportedDurations": [5, 10, 15],
+      "supportedQualities": [
+        { "key": "standard", "label": "Standard", "resolution": "720p" },
+        { "key": "high", "label": "High", "resolution": "720p" },
+        { "key": "premium", "label": "Premium", "resolution": "4K" }
+      ],
+      "supportedResolutions": ["720p", "4K"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "requiredInputsByGenerationMode": {
+        "text_to_video": [],
+        "image_to_video": ["image_url"]
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "text_to_video": {
+          "standard": "kling_o3_standard_t2v",
+          "high": "kling_o3_pro_t2v",
+          "premium": "kling_o3_4k_t2v"
+        },
+        "image_to_video": {
+          "standard": "kling_o3_standard_i2v",
+          "high": "kling_o3_pro_i2v",
+          "premium": "kling_o3_4k_i2v"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "duration",
+        "resolutionStrategy": "route_default",
+        "imageField": "image_url"
+      },
+      "pricingType": "perSecond",
+      "pricingConfig": {
+        "resolutionByQuality": {
+          "standard": "720p",
+          "high": "720p",
+          "premium": "4K"
+        },
+        "ratesUsdPerSecond": {
+          "standard": { "audioOff": 0.084, "audioOn": 0.112 },
+          "high": { "audioOff": 0.112, "audioOn": 0.14 },
+          "premium": { "audioOff": 0.42, "audioOn": 0.42 }
+        }
+      },
+      "hidden": false,
+      "devOnly": false
+    },
+    {
+      "key": "sora2",
+      "modelFamily": "sora2",
+      "displayName": "Sora 2",
+      "tags": ["Premium", "Agency", "Experimental"],
+      "description": "Premium cinematic generation for hero content.",
+      "supportsTextToVideo": true,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": false,
+      "nativeAudioDefault": false,
+      "nativeAudioNotes": "Auto scene sound is not available for this model.",
+      "supportedDurations": [4, 8, 12],
+      "supportedQualities": [
+        { "key": "premium", "label": "Premium", "resolution": "720p" }
+      ],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9"],
+      "requiredInputsByGenerationMode": {
+        "text_to_video": [],
+        "image_to_video": []
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "text_to_video": {
+          "premium": "sora2"
+        },
+        "image_to_video": {
+          "premium": "sora2"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "duration",
+        "resolutionStrategy": "resolution"
+      },
+      "pricingType": "legacyFallback",
+      "pricingConfig": {},
+      "hidden": false,
+      "devOnly": false
+    }
+  ],
   "models": [
+    {
+      "key": "fal_ltx23_t2v",
+      "lane": "creator_pro",
+      "label": "LTX 2.3 T2V",
+      "fullLabel": "LTX 2.3 22B Text to Video",
+      "description": "Affordable text-to-video route for fast concept clips.",
+      "frontendHint": "Internal route key for LTX family text-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/ltx-2.3-22b/text-to-video",
+      "tier": "affordable",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Affordable",
+      "speedBadge": "Fast",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["1080p", "1440p", "2160p"],
+      "supportedResolutions": ["1080p", "1440p", "2160p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "1080p": "1080x1920", "1440p": "1440x2560", "2160p": "2160x3840" },
+        "16:9": { "1080p": "1920x1080", "1440p": "2560x1440", "2160p": "3840x2160" },
+        "1:1": { "1080p": "1080x1080", "1440p": "1440x1440", "2160p": "2160x2160" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "LTX 2.3 supports prompt-led clips at 1080p, 1440p, and 2160p."
+    },
+    {
+      "key": "fal_ltx23_i2v",
+      "lane": "creator_pro",
+      "label": "LTX 2.3 I2V",
+      "fullLabel": "LTX 2.3 22B Image to Video",
+      "description": "Affordable image-to-video route for quick seeded motion tests.",
+      "frontendHint": "Internal route key for LTX family image-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/ltx-2.3-22b/image-to-video",
+      "tier": "affordable",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Affordable",
+      "speedBadge": "Fast",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["1080p", "1440p", "2160p"],
+      "supportedResolutions": ["1080p", "1440p", "2160p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "1080p": "1080x1920", "1440p": "1440x2560", "2160p": "2160x3840" },
+        "16:9": { "1080p": "1920x1080", "1440p": "2560x1440", "2160p": "3840x2160" },
+        "1:1": { "1080p": "1080x1080", "1440p": "1440x1440", "2160p": "2160x2160" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "LTX 2.3 supports seeded clips from one uploaded image."
+    },
+    {
+      "key": "seedance_v1_lite_t2v",
+      "lane": "creator_pro",
+      "label": "Seedance Lite T2V",
+      "fullLabel": "Seedance v1 Lite Text to Video",
+      "description": "Affordable prompt-to-video route for Seedance Lite.",
+      "frontendHint": "Internal route key for Seedance Lite text-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+      "tier": "affordable",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Affordable",
+      "speedBadge": "Fast",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": false,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Seedance Lite supports affordable prompt-led 5s and 10s clips."
+    },
+    {
+      "key": "seedance_v1_lite_i2v",
+      "lane": "creator_pro",
+      "label": "Seedance Lite I2V",
+      "fullLabel": "Seedance v1 Lite Image to Video",
+      "description": "Affordable image-to-video route for Seedance Lite.",
+      "frontendHint": "Internal route key for Seedance Lite image-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/bytedance/seedance/v1/lite/image-to-video",
+      "tier": "affordable",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Affordable",
+      "speedBadge": "Fast",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": false,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Seedance Lite supports affordable seeded 5s and 10s clips."
+    },
+    {
+      "key": "kling_o3_standard_t2v",
+      "lane": "premium",
+      "label": "Kling O3 Standard T2V",
+      "fullLabel": "Kling O3 Standard Text to Video",
+      "description": "Kling O3 standard prompt-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 standard text-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/standard/text-to-video",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Balanced motion",
+      "speedBadge": "Balanced speed",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 Standard supports prompt-led clips with optional native audio."
+    },
+    {
+      "key": "kling_o3_standard_i2v",
+      "lane": "premium",
+      "label": "Kling O3 Standard I2V",
+      "fullLabel": "Kling O3 Standard Image to Video",
+      "description": "Kling O3 standard image-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 standard image-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/standard/image-to-video",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Balanced motion",
+      "speedBadge": "Balanced speed",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 Standard animates one uploaded image with optional native audio."
+    },
+    {
+      "key": "kling_o3_pro_t2v",
+      "lane": "premium",
+      "label": "Kling O3 Pro T2V",
+      "fullLabel": "Kling O3 Pro Text to Video",
+      "description": "Kling O3 Pro prompt-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 Pro text-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/pro/text-to-video",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Better motion",
+      "speedBadge": "Slower render",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 Pro supports stronger motion and cleaner realism."
+    },
+    {
+      "key": "kling_o3_pro_i2v",
+      "lane": "premium",
+      "label": "Kling O3 Pro I2V",
+      "fullLabel": "Kling O3 Pro Image to Video",
+      "description": "Kling O3 Pro image-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 Pro image-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/pro/image-to-video",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Better motion",
+      "speedBadge": "Slower render",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 Pro animates one uploaded image with stronger realism."
+    },
+    {
+      "key": "kling_o3_4k_t2v",
+      "lane": "premium",
+      "label": "Kling O3 4K T2V",
+      "fullLabel": "Kling O3 4K Text to Video",
+      "description": "Kling O3 4K prompt-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 4K text-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/4k/text-to-video",
+      "tier": "ultra_premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "4K agency quality",
+      "speedBadge": "Slow render",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["4K"],
+      "supportedResolutions": ["4K"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "4K": "2160x3840" },
+        "16:9": { "4K": "3840x2160" },
+        "1:1": { "4K": "2160x2160" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 4K is the premium one-shot 4K path."
+    },
+    {
+      "key": "kling_o3_4k_i2v",
+      "lane": "premium",
+      "label": "Kling O3 4K I2V",
+      "fullLabel": "Kling O3 4K Image to Video",
+      "description": "Kling O3 4K image-to-video route.",
+      "frontendHint": "Internal route key for Kling O3 4K image-to-video.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/o3/4k/image-to-video",
+      "tier": "ultra_premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "4K agency quality",
+      "speedBadge": "Slow render",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["4K"],
+      "supportedResolutions": ["4K"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "4K": "2160x3840" },
+        "16:9": { "4K": "3840x2160" },
+        "1:1": { "4K": "2160x2160" }
+      },
+      "durationPresets": [5, 10, 15],
+      "defaultDurationSeconds": 5,
+      "durationHelperText": "Kling O3 4K animates one uploaded image at native 4K."
+    },
     {
       "key": "kling_o3_reference",
       "lane": "premium",
@@ -20,10 +517,11 @@
       "supportsNativeAudio": true,
       "resolutionLabels": ["720p"],
       "supportedResolutions": ["720p"],
-      "supportedAspectRatios": ["9:16", "16:9"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
       "sizes": {
         "9:16": { "720p": "720x1280" },
-        "16:9": { "720p": "1280x720" }
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
       },
       "durationPresets": [5, 10, 15],
       "defaultDurationSeconds": 10,
@@ -49,10 +547,11 @@
       "supportsNativeAudio": true,
       "resolutionLabels": ["720p"],
       "supportedResolutions": ["720p"],
-      "supportedAspectRatios": ["9:16", "16:9"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
       "sizes": {
         "9:16": { "720p": "720x1280" },
-        "16:9": { "720p": "1280x720" }
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
       },
       "durationPresets": [5, 10, 15],
       "defaultDurationSeconds": 10,
@@ -78,10 +577,11 @@
       "supportsNativeAudio": true,
       "resolutionLabels": ["720p"],
       "supportedResolutions": ["720p"],
-      "supportedAspectRatios": ["9:16", "16:9"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
       "sizes": {
         "9:16": { "720p": "720x1280" },
-        "16:9": { "720p": "1280x720" }
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
       },
       "durationPresets": [5, 10, 15],
       "defaultDurationSeconds": 10,
@@ -107,12 +607,13 @@
       "supportsNativeAudio": true,
       "resolutionLabels": ["4K"],
       "supportedResolutions": ["4K"],
-      "supportedAspectRatios": ["9:16", "16:9"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
       "sizes": {
         "9:16": { "4K": "2160x3840" },
-        "16:9": { "4K": "3840x2160" }
+        "16:9": { "4K": "3840x2160" },
+        "1:1": { "4K": "2160x2160" }
       },
-      "durationPresets": [5, 10],
+      "durationPresets": [5, 10, 15],
       "defaultDurationSeconds": 10,
       "durationHelperText": "Agency-only 4K route. Avoid exposing this to normal users until credits/pricing are locked."
     },
@@ -173,36 +674,6 @@
       "durationPresets": [5, 10],
       "defaultDurationSeconds": 5,
       "durationHelperText": "Legacy fallback only. Use O3 Pro Reference for higher-quality avatar product ads."
-    },
-    {
-      "key": "fal_ltx23_i2v",
-      "lane": "internal",
-      "label": "LTX 2.3 I2V",
-      "fullLabel": "Low-Cost Image to Video (LTX 2.3)",
-      "description": "Best for low-cost image-seeded testing and practical avatar/product video iterations.",
-      "frontendHint": "Use this for affordable image-to-video testing, avatar product experiments, and seeded drafts.",
-      "apiAdapter": "generate_with_fal",
-      "providerModel": "fal-ai/ltx-2.3/image-to-video",
-      "tier": "testing",
-      "enabled": true,
-      "featured": false,
-      "internalOnly": true,
-      "featureGate": null,
-      "qualityBadge": "Low-cost seeded video",
-      "speedBadge": "Balanced speed",
-      "creditBadge": "Testing credits",
-      "supportsNativeAudio": true,
-      "resolutionLabels": ["1080p"],
-      "supportedResolutions": ["1080p"],
-      "supportedAspectRatios": ["9:16", "16:9"],
-      "sizes": {
-        "9:16": { "720p": "720x1280" },
-        "16:9": { "720p": "1280x720" }
-      },
-      "durationPresets": [6, 8],
-      "defaultDurationSeconds": 6,
-      "seededDurationSeconds": 8,
-      "durationHelperText": "LTX 2.3 image-to-video is currently limited to short seeded clips."
     },
     {
       "key": "sora2",
@@ -276,6 +747,7 @@
       "qualityBadge": "Affordable",
       "speedBadge": "Fast",
       "creditBadge": "Low credits",
+      "supportsNativeAudio": false,
       "resolutionLabels": ["720p", "480p"],
       "supportedResolutions": ["720p", "480p"],
       "supportedAspectRatios": ["9:16", "16:9", "1:1"],

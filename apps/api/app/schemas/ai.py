@@ -87,6 +87,7 @@ class AIVideoCreateRequest(BaseModel):
     script: str | None = Field(default=None, min_length=1, max_length=6000)
     tags: list[str] = Field(default_factory=list)
     modelKey: str | None = Field(default=None, min_length=2, max_length=64)
+    modelFamily: str | None = Field(default=None, min_length=2, max_length=64)
     modeId: str | None = Field(default=None, max_length=80)
     projectId: str | None = Field(default=None, max_length=64)
     language: str | None = Field(default=None, min_length=2, max_length=40)
@@ -103,6 +104,7 @@ class AIVideoCreateRequest(BaseModel):
     captionStyle: str = Field(default='classic', max_length=40)
     narrationEnabled: bool = True
     audioMode: str | None = Field(default=None, max_length=40)
+    generationMode: str | None = Field(default=None, max_length=40)
     recipeId: str | None = Field(default=None, max_length=120)
     inputs: dict[str, str | list[str]] = Field(default_factory=dict)
     personaId: str | None = Field(default=None, max_length=120)
@@ -114,7 +116,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_aspect_ratio(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'9:16', '16:9'}:
+        if value not in {'9:16', '16:9', '1:1'}:
             raise ValueError('Unsupported aspectRatio')
         return value
 
@@ -123,7 +125,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_resolution(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'720p'}:
+        if value not in {'480p', '720p', '1080p', '1440p', '2160p', '4K'}:
             raise ValueError('Unsupported resolution')
         return value
 
@@ -151,6 +153,14 @@ class AIVideoCreateRequest(BaseModel):
         if value not in {'silent', 'auto_scene_sound'}:
             raise ValueError('Unsupported audioMode')
         return value
+
+    @field_validator('generationMode')
+    @classmethod
+    def validate_generation_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in {'text_to_video', 'image_to_video'}:
+            raise ValueError('Unsupported generationMode')
         return value
 
     @field_validator('modelKey')
@@ -172,7 +182,7 @@ class AIVideoCreateRequest(BaseModel):
         required_fields = {
             'template': self.template,
             'script': self.script,
-            'modelKey': self.modelKey,
+            'modelKey': self.modelKey or self.modelFamily,
             'language': self.language,
             'aspectRatio': self.aspectRatio,
             'resolution': self.resolution,

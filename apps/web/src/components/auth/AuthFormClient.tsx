@@ -56,15 +56,15 @@ export function AuthFormClient({ mode }: Props) {
     () => [
       {
         avatarSrc: 'https://randomuser.me/api/portraits/women/57.jpg',
-        name: 'Aarohi Mehta',
-        handle: '@aarohicreates',
-        text: 'From briefs to polished campaigns, everything moves faster inside RangManch AI.',
+        name: 'Rohini Mehta',
+        handle: '@rohinicreates',
+        text: 'From product photos to publish-ready AI ads, everything moves faster inside RangManch AI.',
       },
       {
         avatarSrc: 'https://randomuser.me/api/portraits/men/64.jpg',
-        name: 'Rohan Bedi',
-        handle: '@rohanbuilds',
-        text: 'The workflow feels reliable and clear, especially when juggling video, image, and voice tasks.',
+        name: 'Vikas Singh',
+        handle: '@vikasbuilds',
+        text: 'RangManch AI keeps the creation flow clear and reliable, whether you are making product ads, short videos, images, or voice-led content.',
       },
       {
         avatarSrc: 'https://randomuser.me/api/portraits/women/32.jpg',
