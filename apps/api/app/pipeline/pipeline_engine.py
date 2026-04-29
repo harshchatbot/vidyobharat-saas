@@ -32,6 +32,10 @@ from app.pipeline.scene_planner import (
 from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, LTX_BENCHMARK_RECIPE_IDS, LTX_FREEFORM_RECIPE_IDS, LTX_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.audio_analysis_service import AudioAnalysisService
 from app.services.avatar_service import AvatarService, build_avatar_master_prompt
+from app.services.avatar_product_tts_catalog import (
+    resolve_avatar_product_gemini_language,
+    resolve_avatar_product_gemini_voice,
+)
 from app.services.audio_service import RecipeAudioService
 from app.services.emotion_service import build_behavior_timeline
 from app.services.hf_qwen_enhancer_service import HFQwenEnhancerInput, HFQwenEnhancerResult, HFQwenEnhancerService
@@ -2883,11 +2887,24 @@ def run_recipe_pipeline(
                 },
             )
 
-        logger.info("chitrakala_gemini_tts_started", extra={"video_id": video_id})
+        resolved_gemini_voice = resolve_avatar_product_gemini_voice(
+            voice_key=str((selected_persona or {}).get("default_voice_id") or effective_voice or "").strip() or None,
+            gender=(selected_persona or {}).get("gender"),
+        )
+        resolved_gemini_language = resolve_avatar_product_gemini_language(effective_language)
+
+        logger.info(
+            "chitrakala_gemini_tts_started",
+            extra={
+                "video_id": video_id,
+                "resolved_gemini_voice": resolved_gemini_voice,
+                "resolved_gemini_language": resolved_gemini_language,
+            },
+        )
         audio_url, tts_meta = fal_service.generate_gemini_flash_tts(
             text=narration_script or "",
-            voice="Kore",
-            language_code="Hindi" if str(effective_language or "").lower().startswith("hi") or "hindi" in str(effective_language or "").lower() else "English (India)",
+            voice=resolved_gemini_voice,
+            language_code=resolved_gemini_language,
         )
 
         logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})
@@ -2910,6 +2927,8 @@ def run_recipe_pipeline(
             avatar_product_affordable_lane=resolved_video_model_key == "seedance_v1_lite_reference",
             avatar_product_seedance_prompt=seedance_prompt,
             avatar_product_tts_audio_url=audio_url,
+            avatar_product_tts_voice=resolved_gemini_voice,
+            avatar_product_tts_language=resolved_gemini_language,
             avatar_product_lipsync_video_url=final_video_url,
             avatar_product_kling_meta=kling_meta,
             avatar_product_tts_meta=tts_meta,

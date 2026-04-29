@@ -288,7 +288,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
                 <div className="flex items-center justify-between">
                   <BrandLogo href="/create" variant="full" size="md" priority="sidebar" />
-                  <NotificationBell />
+                  <NotificationBell userId={userId} />
                 </div>
                 <div className="mt-7 space-y-1.5">
                   {[
@@ -333,17 +333,17 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 </div>
 
                 <div className="mt-auto space-y-3">
-                  <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-accent)/0.18),hsl(var(--color-surface)/0.9))] p-4 shadow-soft">
+                  {/*<div className="overflow-hidden rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-accent)/0.18),hsl(var(--color-surface)/0.9))] p-4 shadow-soft">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent-contrast)/0.78)]">Share to earn</p>
                     <p className="mt-2 text-2xl font-heading font-extrabold tracking-tight text-text">Earn credits by sharing videos</p>
                     <Button variant="secondary" className="mt-4 w-full rounded-full border-white/10 bg-white/10 text-white hover:bg-white/15">
                       Earn now
                     </Button>
                   </div>
-
+                    */}
                   <SidebarCreditsCard />
 
-                  <button
+                {/*  <button
                     type="button"
                     className="flex w-full items-center gap-3 rounded-[18px] border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.82)] px-3 py-3 text-left text-text transition hover:shadow-[var(--shadow-soft)]"
                   >
@@ -354,7 +354,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       <span className="block text-sm font-semibold">Discord</span>
                       <span className="block text-xs text-muted">Creator community</span>
                     </span>
-                  </button>
+                  </button> */}
                 </div>
               </div>
             ) : (
@@ -515,7 +515,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="hidden md:block">
                   <CreditChip />
                 </div>
-                <NotificationBell />
+                <NotificationBell userId={userId} />
                 <div className="hidden md:block">
                   <ToggleTheme />
                 </div>
@@ -580,7 +580,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 md:hidden">
                       <div className="flex items-center justify-between gap-3">
                         <CreditChip onNavigate={navigateWithinApp} />
-                        <NotificationBell />
+                        <NotificationBell userId={userId} />
                         <ToggleTheme />
                       </div>
                     </div>

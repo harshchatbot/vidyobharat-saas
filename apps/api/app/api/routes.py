@@ -117,6 +117,10 @@ from app.services.template_management_service import TemplateManagementService
 from app.services.ai_video_service import AIVideoCreateService, ProviderError, _launch_local_video_job
 from app.services.asset_search_service import AssetSearchService
 from app.services.asset_tagging_service import AssetTaggingService
+from app.services.avatar_product_tts_catalog import (
+    list_avatar_product_gemini_languages,
+    list_avatar_product_gemini_voices,
+)
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
 from app.services.model_registry import get_normal_video_family_definition
 from app.services.pricing_service import PricingService
@@ -156,6 +160,30 @@ from app.providers.firebase import get_firestore_client
 router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+class NotificationMetadataResponse(BaseModel):
+    output_url: str | None = None
+    thumbnail_url: str | None = None
+    selected_model: str | None = None
+    provider: str | None = None
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    user_id: str
+    type: str
+    title: str
+    message: str
+    video_id: str | None = None
+    recipe_id: str | None = None
+    read: bool = False
+    created_at: datetime
+    metadata: NotificationMetadataResponse = Field(default_factory=NotificationMetadataResponse)
+
+
+class NotificationReadRequest(BaseModel):
+    ids: list[str] = Field(default_factory=list)
 
 
 def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, object]:
@@ -3159,6 +3187,103 @@ def list_videos(
     return [_to_video_response(video, db, preloaded_tags=tag_map) for video in videos]
 
 
+@router.get('/notifications', response_model=list[NotificationResponse])
+def list_notifications(
+    limit: int | None = 20,
+    user_id: str = Depends(get_user_id),
+):
+    firestore_client = get_firestore_client()
+    bounded_limit = max(1, min(limit or 20, 50))
+    items: list[NotificationResponse] = []
+    rows = []
+    try:
+        query = (
+            firestore_client.collection('notifications')
+            .where('user_id', '==', user_id)
+            .order_by('created_at', direction=firestore.Query.DESCENDING)
+            .limit(bounded_limit)
+        )
+        rows = list(query.stream())
+    except Exception:
+        fallback_query = firestore_client.collection('notifications').where('user_id', '==', user_id).limit(bounded_limit)
+        rows = sorted(
+            list(fallback_query.stream()),
+            key=lambda row: (row.to_dict() or {}).get('created_at') or datetime.min,
+            reverse=True,
+        )[:bounded_limit]
+
+    for row in rows:
+        data = row.to_dict() or {}
+        created_at = data.get('created_at')
+        if not isinstance(created_at, datetime):
+            created_at = datetime.utcnow()
+        metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
+        items.append(
+            NotificationResponse(
+                id=row.id,
+                user_id=str(data.get('user_id') or user_id),
+                type=str(data.get('type') or 'notification'),
+                title=str(data.get('title') or 'Notification'),
+                message=str(data.get('message') or ''),
+                video_id=str(data.get('video_id')) if data.get('video_id') else None,
+                recipe_id=str(data.get('recipe_id')) if data.get('recipe_id') else None,
+                read=bool(data.get('read')),
+                created_at=created_at,
+                metadata=NotificationMetadataResponse(
+                    output_url=str(metadata.get('output_url')) if metadata.get('output_url') else None,
+                    thumbnail_url=str(metadata.get('thumbnail_url')) if metadata.get('thumbnail_url') else None,
+                    selected_model=str(metadata.get('selected_model')) if metadata.get('selected_model') else None,
+                    provider=str(metadata.get('provider')) if metadata.get('provider') else None,
+                ),
+            )
+        )
+    return items
+
+
+@router.post('/notifications/read')
+def mark_notifications_read(
+    payload: NotificationReadRequest,
+    user_id: str = Depends(get_user_id),
+):
+    firestore_client = get_firestore_client()
+    updated = 0
+    ids = [value.strip() for value in payload.ids if isinstance(value, str) and value.strip()]
+
+    if ids:
+        for notification_id in ids:
+            doc_ref = firestore_client.collection('notifications').document(notification_id)
+            snapshot = doc_ref.get()
+            if not snapshot.exists:
+                continue
+            data = snapshot.to_dict() or {}
+            if str(data.get('user_id') or '') != user_id:
+                continue
+            if bool(data.get('read')):
+                continue
+            doc_ref.set({'read': True}, merge=True)
+            updated += 1
+    else:
+        try:
+            rows = list(
+                firestore_client.collection('notifications')
+                .where('user_id', '==', user_id)
+                .where('read', '==', False)
+                .limit(50)
+                .stream()
+            )
+        except Exception:
+            rows = [
+                row
+                for row in firestore_client.collection('notifications').where('user_id', '==', user_id).limit(50).stream()
+                if not bool((row.to_dict() or {}).get('read'))
+            ]
+        for row in rows:
+            row.reference.set({'read': True}, merge=True)
+            updated += 1
+
+    return {'updated': updated}
+
+
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])
 def list_music_tracks() -> list[MusicTrackResponse]:
     labels = {
@@ -3203,6 +3328,30 @@ def get_tts_catalog(_: str = Depends(get_user_id)) -> TTSCatalogResponse:
                 description=item.description,
             )
             for item in list_tts_voices()
+        ],
+    )
+
+
+@router.get('/api/recipes/avatar-product/tts-catalog', response_model=TTSCatalogResponse)
+def get_avatar_product_tts_catalog(_: str = Depends(get_user_id)) -> TTSCatalogResponse:
+    return TTSCatalogResponse(
+        provider='gemini_flash_tts',
+        model='fal-ai/gemini-3.1-flash-tts',
+        languages=[
+            TTSLanguageOptionResponse(code=item.code, label=item.label, native_label=item.native_label)
+            for item in list_avatar_product_gemini_languages()
+        ],
+        voices=[
+            TTSVoiceOptionResponse(
+                key=item.key,
+                label=item.label,
+                tone=item.tone,
+                gender=item.gender,
+                provider_voice=item.key,
+                supported_language_codes=[],
+                description=item.description,
+            )
+            for item in list_avatar_product_gemini_voices()
         ],
     )
 

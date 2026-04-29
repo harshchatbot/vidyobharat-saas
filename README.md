@@ -105,6 +105,7 @@ Useful docs:
 
 - [Soft beta launch checklist](docs/soft-beta-launch-checklist.md)
 - [30-day beta GTM plan](docs/gtm-plan.md)
+- [Add a public UGC AI avatar](docs/add-public-ugc-avatar.md)
 
 ## Run API + Worker + Redis
 
@@ -149,6 +150,14 @@ Frontend:
 4. Open editor and click `Generate`
 5. Watch render progress auto-update
 6. Open final video URL when status becomes `completed`
+
+## Avatar Management
+
+To add a new **shared public UGC AI avatar** for avatar-led ads and talking-avatar flows, use the documented Firestore reference-image flow here:
+
+- [Add a public UGC AI avatar](docs/add-public-ugc-avatar.md)
+
+This guide is for avatars available to all users through `/api/avatars/library`, not for the private user-owned actor upload flow.
 
 ## Notes
 

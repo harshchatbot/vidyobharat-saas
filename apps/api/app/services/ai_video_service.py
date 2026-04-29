@@ -1353,7 +1353,12 @@ def celery_process_ai_video(video_id: str) -> None:
                 or "Your video generation has completed."
             ).strip()
 
-            repo.collection.document(video_id).reference._client.collection("notifications").add({
+
+
+            video_doc_ref = repo.collection.document(video_id)
+            firestore_client = video_doc_ref._client
+
+            firestore_client.collection("notifications").add({
                 "user_id": video.user_id,
                 "type": "video_completed",
                 "title": title,
@@ -1369,6 +1374,7 @@ def celery_process_ai_video(video_id: str) -> None:
                     "provider": result.provider,
                 },
             })
+
 
             logger.info(
                 "video_completion_notification_created",
@@ -1391,16 +1397,6 @@ def celery_process_ai_video(video_id: str) -> None:
         )
 
 
-        
-        logger.info(
-            'local_video_completed',
-            extra={
-                'render_id': video.id,
-                'provider': result.provider,
-                'model_key': video.selected_model,
-                'output_url_present': bool(stored_video_url),
-            },
-        )
         refreshed = repo.get_by_id(video_id)
         if refreshed:
             if service.tagging.repo is not None:
@@ -1543,6 +1539,7 @@ def _should_refund_failed_video(*, exc: Exception, raw_data: dict[str, Any]) -> 
         return True, "force_refund_on_failure"
 
     return True, None
+
 
 
 def _extract_openai_output_url(payload: dict[str, Any]) -> str | None:

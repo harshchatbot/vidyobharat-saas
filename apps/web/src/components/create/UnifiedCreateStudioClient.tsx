@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import {
   Box,
   Check,
   ChevronDown,
   LayoutTemplate,
+  LoaderCircle,
   Lock,
   Play,
   Plus,
@@ -45,6 +46,7 @@ import type {
   ImageModel,
   InspirationImage,
   RecipeCatalog,
+  TTSCatalogResponse,
   TTSLanguageOption,
   TTSVoiceOption,
   VideoCreateRequest,
@@ -105,6 +107,8 @@ type VideoLaunchState = {
   initialCaptionsEnabled: boolean;
   initialNarrationEnabled: boolean;
 };
+
+type AspectRatio = '9:16' | '16:9' | '1:1';
 
 type RecipeCard = {
   id: string;
@@ -275,7 +279,11 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
   },
 ];
 
-const ASPECT_OPTIONS: Array<'9:16' | '16:9' | '1:1'> = ['9:16', '16:9', '1:1'];
+const ASPECT_OPTIONS: AspectRatio[] = ['9:16', '16:9', '1:1'];
+
+function normalizeAspectRatio(value: string | null | undefined): AspectRatio {
+  return value === '16:9' || value === '1:1' || value === '9:16' ? value : '9:16';
+}
 const RECENT_STORAGE_KEY = 'rangmanch:create-hub:recent:v1';
 const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = {
   product_category: '',
@@ -663,9 +671,9 @@ function resolveVideoModelKeyFromQuality(profile: QualityProfile): string {
 
 function resolveAvatarProductVideoModelKeyFromQuality(profile: QualityProfile): string {
   if (profile === 'affordable') return 'seedance_v1_lite_reference';
-  if (profile === 'premium') return 'kling_o3_reference';
-  if (profile === 'high_quality') return 'kling_o3_standard_reference';
-  return 'kling_o3_reference';
+  if (profile === 'premium') return 'kling_o3_4k_reference';
+  if (profile === 'high_quality') return 'kling_o3_pro_reference';
+  return 'kling_o3_standard_reference';
 }
 
 
@@ -878,6 +886,76 @@ function resolveAvatarPreferredVoice(avatar: AvatarSelection): string | null {
   return null;
 }
 
+const AVATAR_PRODUCT_GEMINI_VOICE_MAP: Record<string, string> = {
+  Priya: 'Kore',
+  Shubh: 'Puck',
+};
+
+const AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP: Record<string, string> = {
+  'en-IN': 'English (India)',
+  English: 'English (India)',
+  'English (India)': 'English (India)',
+  'hi-IN': 'Hindi (India)',
+  'hi-IN-x-hinglish': 'Hindi (India)',
+  Hindi: 'Hindi (India)',
+  'Hindi (India)': 'Hindi (India)',
+  'mr-IN': 'Marathi (India)',
+  Marathi: 'Marathi (India)',
+  'Marathi (India)': 'Marathi (India)',
+  'ta-IN': 'Tamil (India)',
+  Tamil: 'Tamil (India)',
+  'Tamil (India)': 'Tamil (India)',
+  'te-IN': 'Telugu (India)',
+  Telugu: 'Telugu (India)',
+  'Telugu (India)': 'Telugu (India)',
+  'gu-IN': 'Gujarati (India)',
+  Gujarati: 'Gujarati (India)',
+  'Gujarati (India)': 'Gujarati (India)',
+  'kn-IN': 'Kannada (India)',
+  Kannada: 'Kannada (India)',
+  'Kannada (India)': 'Kannada (India)',
+  'ml-IN': 'Malayalam (India)',
+  Malayalam: 'Malayalam (India)',
+  'Malayalam (India)': 'Malayalam (India)',
+  'od-IN': 'Odia (India)',
+  Odia: 'Odia (India)',
+  'Odia (India)': 'Odia (India)',
+  'pa-IN': 'Punjabi (India)',
+  Punjabi: 'Punjabi (India)',
+  'Punjabi (India)': 'Punjabi (India)',
+  'bn-IN': 'Bangla (Bangladesh)',
+  Bangla: 'Bangla (Bangladesh)',
+  'Bangla (Bangladesh)': 'Bangla (Bangladesh)',
+};
+
+function resolveAvatarProductPreferredVoice(avatar: AvatarSelection): string {
+  const explicitVoice = String(avatar.preferredVoice || '').trim();
+  if (explicitVoice && Object.values(AVATAR_PRODUCT_GEMINI_VOICE_MAP).includes(explicitVoice)) {
+    return explicitVoice;
+  }
+  if (explicitVoice && AVATAR_PRODUCT_GEMINI_VOICE_MAP[explicitVoice]) {
+    return AVATAR_PRODUCT_GEMINI_VOICE_MAP[explicitVoice];
+  }
+  const normalizedGender = String(avatar.genderPresentation || '').trim().toLowerCase();
+  if (normalizedGender.startsWith('m')) return 'Puck';
+  return 'Kore';
+}
+
+function resolveAvatarProductPreferredLanguage(avatar: AvatarSelection): string {
+  const explicitLanguage = String(avatar.preferredLanguage || '').trim();
+  if (explicitLanguage && Object.values(AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP).includes(explicitLanguage)) {
+    return explicitLanguage;
+  }
+  if (explicitLanguage && AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[explicitLanguage]) {
+    return AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[explicitLanguage];
+  }
+  const firstTag = (avatar.languageTags || []).find((tag) => typeof tag === 'string' && tag.trim().length > 0);
+  if (firstTag && AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[firstTag.trim()]) {
+    return AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[firstTag.trim()];
+  }
+  return 'English (India)';
+}
+
 function resolveAvatarPreferredLanguage(avatar: AvatarSelection): string | null {
   const explicitLanguage = String(avatar.preferredLanguage || '').trim();
   if (explicitLanguage) return explicitLanguage;
@@ -892,12 +970,16 @@ function getSupportedLanguagesForAvatarProduct(
   const avatarLanguageTags = selectedAvatar?.languageTags || [];
 
   if (avatarLanguageTags.length > 0) {
-    const allowedCodes = new Set(avatarLanguageTags);
+    const allowedCodes = new Set(
+      avatarLanguageTags
+        .map((tag) => AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[String(tag).trim()] || null)
+        .filter(Boolean),
+    );
     const filtered = languageOptions.filter((option) => allowedCodes.has(option.code));
     if (filtered.length > 0) return filtered;
   }
 
-  const v1AllowedCodes = new Set(['en-IN', 'hi-IN']);
+  const v1AllowedCodes = new Set(['English (India)', 'Hindi (India)']);
   return languageOptions.filter((option) => v1AllowedCodes.has(option.code));
 }
 
@@ -1123,28 +1205,33 @@ function InlineUploadSlot({
   slot,
   value,
   previewUrl,
+  loading = false,
   onClick,
 }: {
   slot: RecipeComposerSlot;
   value: string;
   previewUrl?: string | null;
+  loading?: boolean;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={loading}
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${value
         ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] text-text'
         : 'border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.62)] text-muted hover:border-[hsl(var(--color-accent)/0.35)] hover:text-text'
-        } dark:bg-white/[0.06] dark:text-white`}
+        } ${loading ? 'cursor-wait opacity-80' : ''} dark:bg-white/[0.06] dark:text-white`}
     >
-      {previewUrl ? (
+      {loading ? (
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+      ) : previewUrl ? (
         <img src={previewUrl} alt={value || slot.label} className="h-6 w-6 rounded-full object-cover" />
       ) : (
         <Upload className="h-3.5 w-3.5" />
       )}
-      {value || slot.placeholder}
+      {loading ? 'Uploading image…' : (value || slot.placeholder)}
     </button>
   );
 }
@@ -1293,13 +1380,20 @@ function getFriendlyErrorMessage(error: unknown) {
   return message;
 }
 
-export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
+export function UnifiedCreateStudioClient({
+  userId,
+  initialDefaultAspectRatio,
+}: {
+  userId: string;
+  initialDefaultAspectRatio?: string | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
+  const defaultAspectRatio = normalizeAspectRatio(initialDefaultAspectRatio);
   const [idea, setIdea] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
-  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(defaultAspectRatio);
   const [durationPreference, setDurationPreference] = useState<string>('auto');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [captionsEnabled] = useState(false);
@@ -1329,6 +1423,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
   const [recipeComposer, setRecipeComposer] = useState<RecipeComposerState | null>(null);
   const [recipeSlotAssets, setRecipeSlotAssets] = useState<Record<string, SlotAssetState>>({});
+  const [activeUploadSlotId, setActiveUploadSlotId] = useState<string | null>(null);
   const [pendingUploadTarget, setPendingUploadTarget] = useState<'composer-asset' | string | null>(null);
   const [assetPicker, setAssetPicker] = useState<AssetPickerState | null>(null);
   const [activeRecipeSource, setActiveRecipeSource] = useState<ActiveRecipeSource>(null);
@@ -1336,6 +1431,8 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const [imageResultOpen, setImageResultOpen] = useState(false);
   const [voiceOptions, setVoiceOptions] = useState<TTSVoiceOption[]>([]);
   const [languageOptions, setLanguageOptions] = useState<TTSLanguageOption[]>([]);
+  const [avatarProductVoiceOptions, setAvatarProductVoiceOptions] = useState<TTSVoiceOption[]>([]);
+  const [avatarProductLanguageOptions, setAvatarProductLanguageOptions] = useState<TTSLanguageOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState('Shubh');
   const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
@@ -1361,6 +1458,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const avatarSyncKeyRef = useRef<string | null>(null);
+  const hasLoadedVoiceCatalogRef = useRef(false);
+  const hasLoadedAvatarProductVoiceCatalogRef = useRef(false);
+  const hasLoadedAvatarLibraryRef = useRef(false);
+  const hasLoadedInspirationPhotosRef = useRef(false);
+  const secondaryDeferredFetchScheduledRef = useRef(false);
   const { show } = useToast();
 
   const isAvatarProductRecipe = useMemo(
@@ -1496,7 +1598,15 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }
   }, [activeRecipeSource, mode, resolvedFreeformModelKey, selectedNormalVideoFamily, selectedVideoModelKey]);
 
-  const recipeCards = useMemo(() => sortRecipes(recipes.map(mapCatalogRecipeToCard).filter(Boolean) as RecipeCard[]), [recipes]);
+  const recipeCards = useMemo(
+    () =>
+      sortRecipes(
+        recipes
+          .map(mapCatalogRecipeToCard)
+          .filter((item): item is RecipeCard => item !== null && item.id !== 'ugc_ad'),
+      ),
+    [recipes],
+  );
 
   const filteredRecipes = useMemo(() => {
     return recipeCards.filter((item) => recipeMatchesTab(item, recipeTab)).slice(0, 12);
@@ -1553,18 +1663,28 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }
   };
   const selectedLanguageLabel = useMemo(
-    () => languageOptions.find((option) => option.code === selectedLanguage)?.label ?? selectedLanguage,
-    [languageOptions, selectedLanguage],
+    () =>
+      (isAvatarProductRecipe ? avatarProductLanguageOptions : languageOptions).find((option) => option.code === selectedLanguage)?.label
+      ?? selectedLanguage,
+    [avatarProductLanguageOptions, isAvatarProductRecipe, languageOptions, selectedLanguage],
   );
   const recipeSettingsLocked = useMemo(
     () => activeRecipeSource?.kind === 'recipe' && Boolean(recipeComposer),
     [activeRecipeSource, recipeComposer],
   );
+  const effectiveVoiceOptions = useMemo(
+    () => (isAvatarProductRecipe ? avatarProductVoiceOptions : voiceOptions),
+    [avatarProductVoiceOptions, isAvatarProductRecipe, voiceOptions],
+  );
+  const effectiveLanguageOptions = useMemo(
+    () => (isAvatarProductRecipe ? avatarProductLanguageOptions : languageOptions),
+    [avatarProductLanguageOptions, isAvatarProductRecipe, languageOptions],
+  );
   const avatarVoiceLocked = useMemo(
     () =>
       recipeSettingsLocked &&
       activeRecipeSource?.kind === 'recipe' &&
-      (activeRecipeSource.recipe.recipe.id === 'talking_avatar' || activeRecipeSource.recipe.recipe.id === 'avatar_product') &&
+      activeRecipeSource.recipe.recipe.id === 'talking_avatar' &&
       Boolean(selectedAvatar),
     [activeRecipeSource, recipeSettingsLocked, selectedAvatar],
   );
@@ -1592,7 +1712,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Preset avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags),
-      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected voice',
+      voiceInfo: isAvatarProductRecipe
+        ? `${resolveAvatarProductPreferredVoice({
+          personaId: avatar.id,
+          name: avatar.name,
+          source: 'preset',
+          sourceLabel: 'Preset',
+          genderPresentation: avatar.gender || null,
+          preferredVoice: avatar.recommended_voice || null,
+          preferredLanguage: avatar.language_tags?.[0] || null,
+          languageTags: avatar.language_tags || [],
+        })} recommended`
+        : avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected voice',
       previewVideoUrl: avatar.preview_video_url || null,
       description:
         avatar.description ||
@@ -1612,7 +1743,18 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Saved avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags) || selectedLanguageLabel || null,
-      voiceInfo: avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected voice'),
+      voiceInfo: isAvatarProductRecipe
+        ? `${resolveAvatarProductPreferredVoice({
+          personaId: avatar.id,
+          name: avatar.name,
+          source: 'saved',
+          sourceLabel: 'Saved',
+          genderPresentation: avatar.gender || null,
+          preferredVoice: avatar.recommended_voice || null,
+          preferredLanguage: avatar.language_tags?.[0] || null,
+          languageTags: avatar.language_tags || [],
+        })} recommended`
+        : avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected voice'),
       previewVideoUrl: avatar.preview_video_url || null,
       description:
         avatar.description ||
@@ -1620,7 +1762,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }));
 
     return [...presetItems, ...savedItems];
-  }, [presetAvatars, savedAvatars, selectedLanguageLabel, selectedVoice]);
+  }, [isAvatarProductRecipe, presetAvatars, savedAvatars, selectedLanguageLabel, selectedVoice]);
 
 
   const activeAvatarPreview = useMemo(
@@ -1645,6 +1787,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   }, [avatarOptions, isAvatarPickerOpen, selectedAvatar]);
 
   const openAvatarPicker = () => {
+    void loadAvatarLibrary();
     setAvatarPreviewPersonaId(selectedAvatar?.personaId ?? avatarOptions[0]?.personaId ?? null);
     setIsAvatarPickerOpen(true);
   };
@@ -1664,13 +1807,23 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
     setSelectedAvatar(avatar);
     if (isAvatarDrivenRecipe && avatar) {
-      const preferredVoice = resolveAvatarPreferredVoice(avatar);
+      const preferredVoice = isAvatarProductRecipe
+        ? resolveAvatarProductPreferredVoice(avatar)
+        : resolveAvatarPreferredVoice(avatar);
       if (preferredVoice && avatarGenderFilteredVoiceOptions.some((option) => option.key === preferredVoice)) {
         setSelectedVoice(preferredVoice);
       }
-      const preferredLanguage = resolveAvatarPreferredLanguage(avatar);
-      if (preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)) {
+      const preferredLanguage = isAvatarProductRecipe
+        ? resolveAvatarProductPreferredLanguage(avatar)
+        : resolveAvatarPreferredLanguage(avatar);
+      if (preferredLanguage && effectiveLanguageOptions.some((option) => option.code === preferredLanguage)) {
         setSelectedLanguage(preferredLanguage);
+        if (isAvatarProductRecipe) {
+          setAvatarProductAdvancedControls((current) => ({
+            ...current,
+            language: preferredLanguage,
+          }));
+        }
       }
     }
     setIsAvatarPickerOpen(false);
@@ -1681,9 +1834,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
   const visibleLanguageOptions = useMemo(
     () =>
       isAvatarProductRecipe
-        ? getSupportedLanguagesForAvatarProduct(languageOptions, selectedAvatar)
-        : languageOptions,
-    [isAvatarProductRecipe, languageOptions, selectedAvatar],
+        ? getSupportedLanguagesForAvatarProduct(effectiveLanguageOptions, selectedAvatar)
+        : effectiveLanguageOptions,
+    [effectiveLanguageOptions, isAvatarProductRecipe, selectedAvatar],
   );
   useEffect(() => {
     if (!isAvatarProductRecipe) return;
@@ -1692,7 +1845,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     const isCurrentSupported = visibleLanguageOptions.some((option) => option.code === selectedLanguage);
     if (!isCurrentSupported) {
       const fallbackLanguage =
-        visibleLanguageOptions.find((option) => option.code === 'en-IN') ||
+        visibleLanguageOptions.find((option) => option.code === 'English (India)') ||
         visibleLanguageOptions[0];
 
       setSelectedLanguage(fallbackLanguage.code);
@@ -1724,34 +1877,47 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     [avatarProductAssist, avatarProductInlineAnswer],
   );
   const avatarGenderFilteredVoiceOptions = useMemo(() => {
+    if (isAvatarProductRecipe) {
+      return effectiveVoiceOptions;
+    }
     const avatarGender = String(selectedAvatar?.genderPresentation || '').trim().toLowerCase();
     const isCustomAvatar = Boolean(selectedAvatar?.isCustomAvatar);
     if (!isCustomAvatar || !isAvatarDrivenRecipe || (avatarGender !== 'female' && avatarGender !== 'male')) {
-      return voiceOptions;
+      return effectiveVoiceOptions;
     }
-    return voiceOptions.filter((option) => option.gender.toLowerCase() === avatarGender);
-  }, [isAvatarDrivenRecipe, selectedAvatar, voiceOptions]);
+    return effectiveVoiceOptions.filter((option) => option.gender.toLowerCase() === avatarGender);
+  }, [effectiveVoiceOptions, isAvatarDrivenRecipe, isAvatarProductRecipe, selectedAvatar]);
   useEffect(() => {
     if (!isAvatarDrivenRecipe || !selectedAvatar) {
       avatarSyncKeyRef.current = null;
       return;
     }
 
-    const syncKey = `${selectedAvatar.personaId}:${voiceOptions.length}:${languageOptions.length}`;
+    const syncKey = `${selectedAvatar.personaId}:${effectiveVoiceOptions.length}:${effectiveLanguageOptions.length}:${isAvatarProductRecipe ? 'avatar_product' : 'legacy'}`;
     if (avatarSyncKeyRef.current === syncKey) return;
 
-    const preferredVoice = resolveAvatarPreferredVoice(selectedAvatar);
+    const preferredVoice = isAvatarProductRecipe
+      ? resolveAvatarProductPreferredVoice(selectedAvatar)
+      : resolveAvatarPreferredVoice(selectedAvatar);
     if (preferredVoice && avatarGenderFilteredVoiceOptions.some((option) => option.key === preferredVoice)) {
       setSelectedVoice(preferredVoice);
     } else if (avatarGenderFilteredVoiceOptions[0]?.key) {
       setSelectedVoice(avatarGenderFilteredVoiceOptions[0].key);
     }
-    const preferredLanguage = resolveAvatarPreferredLanguage(selectedAvatar);
-    if (preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)) {
+    const preferredLanguage = isAvatarProductRecipe
+      ? resolveAvatarProductPreferredLanguage(selectedAvatar)
+      : resolveAvatarPreferredLanguage(selectedAvatar);
+    if (preferredLanguage && effectiveLanguageOptions.some((option) => option.code === preferredLanguage)) {
       setSelectedLanguage(preferredLanguage);
+      if (isAvatarProductRecipe) {
+        setAvatarProductAdvancedControls((current) => ({
+          ...current,
+          language: preferredLanguage,
+        }));
+      }
     }
     avatarSyncKeyRef.current = syncKey;
-  }, [avatarGenderFilteredVoiceOptions, isAvatarDrivenRecipe, languageOptions, selectedAvatar, voiceOptions]);
+  }, [avatarGenderFilteredVoiceOptions, effectiveLanguageOptions, effectiveVoiceOptions.length, isAvatarDrivenRecipe, isAvatarProductRecipe, selectedAvatar]);
   useEffect(() => {
     if (!isAvatarProductRecipe) {
       setAvatarProductAssist(null);
@@ -1819,19 +1985,111 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }
   }, [recentEntries]);
 
+  const applyVoiceCatalog = useCallback((catalog: TTSCatalogResponse, options?: { preserveSelection?: boolean }) => {
+    setVoiceOptions(catalog.voices);
+    setLanguageOptions(catalog.languages);
+    if (options?.preserveSelection) {
+      return;
+    }
+    const preferredVoice = catalog.voices.find((voice) => voice.key === 'Shubh') ?? catalog.voices[0];
+    const preferredLanguage = catalog.languages.find((language) => language.code === 'en-IN') ?? catalog.languages[0];
+    if (preferredVoice) {
+      setSelectedVoice(preferredVoice.key);
+    }
+    if (preferredLanguage) {
+      setSelectedLanguage(preferredLanguage.code);
+    }
+  }, []);
+
+  const applyAvatarProductVoiceCatalog = useCallback((catalog: TTSCatalogResponse) => {
+    setAvatarProductVoiceOptions(catalog.voices);
+    setAvatarProductLanguageOptions(catalog.languages);
+
+    if (!catalog.voices.some((voice) => voice.key === selectedVoice)) {
+      const fallbackVoice = catalog.voices.find((voice) => voice.key === 'Kore') ?? catalog.voices[0];
+      if (fallbackVoice) {
+        setSelectedVoice(fallbackVoice.key);
+      }
+    }
+
+    if (!catalog.languages.some((language) => language.code === selectedLanguage)) {
+      const fallbackLanguage = catalog.languages.find((language) => language.code === 'English (India)') ?? catalog.languages[0];
+      if (fallbackLanguage) {
+        setSelectedLanguage(fallbackLanguage.code);
+        setAvatarProductAdvancedControls((current) => ({
+          ...current,
+          language: fallbackLanguage.code,
+        }));
+      }
+    }
+  }, [selectedLanguage, selectedVoice]);
+
+  const applyAvatarLibrary = useCallback((library: AvatarLibraryResponse) => {
+    const compatibleAvatars = (
+      library.avatars?.length
+        ? library.avatars
+        : [...(library.preset_avatars || []), ...(library.user_avatars || [])]
+    ).filter(isAvatarProductCompatibleAvatar);
+
+    const publicAvatars = compatibleAvatars.filter((avatar) =>
+      avatar.scope === 'public' ||
+      avatar.avatar_type === 'system' ||
+      avatar.provider === 'reference_image'
+    );
+
+    const privateAvatars = compatibleAvatars.filter((avatar) =>
+      avatar.scope !== 'public' &&
+      avatar.avatar_type !== 'system' &&
+      avatar.provider !== 'reference_image'
+    );
+
+    setPresetAvatars(publicAvatars);
+    setSavedAvatars(privateAvatars);
+    setAvatarLoadError(null);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info('avatar_picker_loaded', {
+        public_actor_count: publicAvatars.length,
+        saved_avatar_count: privateAvatars.length,
+        total_count: compatibleAvatars.length,
+        avatar_ids: compatibleAvatars.map((avatar) => avatar.id),
+      });
+    }
+  }, []);
+
+  const loadAvatarLibrary = useCallback(async () => {
+    if (hasLoadedAvatarLibraryRef.current || isAvatarLoading) return;
+
+    setIsAvatarLoading(true);
+    try {
+      const library = await api.listAvatarLibrary(userId);
+      hasLoadedAvatarLibraryRef.current = true;
+      applyAvatarLibrary(library);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not load avatars.';
+      setAvatarLoadError(message);
+      setPresetAvatars([]);
+      setSavedAvatars([]);
+      show({
+        title: 'Avatar library unavailable',
+        message: 'Avatars could not be loaded for this picker.',
+        variant: 'error',
+        durationMs: 5200,
+      });
+    } finally {
+      setIsAvatarLoading(false);
+    }
+  }, [applyAvatarLibrary, isAvatarLoading, show, userId]);
+
   useEffect(() => {
     let cancelled = false;
     setLoadingRecipes(true);
     setModelsLoading(true);
-    setIsAvatarLoading(true);
     void Promise.allSettled([
       api.listRecipes(userId, { type: 'video', active: true }),
       api.listAIVideoModels(userId),
       api.listImageModels(userId),
-      api.listPublicImageInspiration({ limit: 12 }),
-      api.getTtsCatalog(userId),
-      api.listAvatarLibrary(userId),
-    ]).then(([recipeResult, videoModelResult, imageModelResult, inspirationResult, ttsResult, avatarLibraryResult]) => {
+    ]).then(([recipeResult, videoModelResult, imageModelResult]) => {
       if (cancelled) return;
 
       if (recipeResult.status === 'fulfilled') {
@@ -1860,91 +2118,110 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
           setSelectedImageModelKey(imageModelResult.value[0]?.key ?? 'gpt_image_1_5');
         }
       }
-      if (inspirationResult.status === 'fulfilled') {
-        setInspirationPhotos(inspirationResult.value.filter((item) => Boolean(item.image_url)));
-      }
-      if (ttsResult.status === 'fulfilled') {
-        setVoiceOptions(ttsResult.value.voices);
-        setLanguageOptions(ttsResult.value.languages);
-        const preferredVoice = ttsResult.value.voices.find((voice) => voice.key === 'Shubh') ?? ttsResult.value.voices[0];
-        const preferredLanguage = ttsResult.value.languages.find((language) => language.code === 'en-IN') ?? ttsResult.value.languages[0];
-        if (preferredVoice) {
-          setSelectedVoice(preferredVoice.key);
-        }
-        if (preferredLanguage) {
-          setSelectedLanguage(preferredLanguage.code);
-        }
-      }
-
-
-      if (avatarLibraryResult.status === 'fulfilled') {
-        const library: AvatarLibraryResponse = avatarLibraryResult.value;
-
-        const compatibleAvatars = (
-          library.avatars?.length
-            ? library.avatars
-            : [...(library.preset_avatars || []), ...(library.user_avatars || [])]
-        ).filter(isAvatarProductCompatibleAvatar);
-
-        const publicAvatars = compatibleAvatars.filter((avatar) =>
-          avatar.scope === 'public' ||
-          avatar.avatar_type === 'system' ||
-          avatar.provider === 'reference_image'
-        );
-
-        const privateAvatars = compatibleAvatars.filter((avatar) =>
-          avatar.scope !== 'public' &&
-          avatar.avatar_type !== 'system' &&
-          avatar.provider !== 'reference_image'
-        );
-
-        setPresetAvatars(publicAvatars);
-        setSavedAvatars(privateAvatars);
-        setAvatarLoadError(null);
-
-        if (process.env.NODE_ENV === 'development') {
-          console.info('avatar_picker_loaded', {
-            public_actor_count: publicAvatars.length,
-            saved_avatar_count: privateAvatars.length,
-            total_count: compatibleAvatars.length,
-            avatar_ids: compatibleAvatars.map((avatar) => avatar.id),
-          });
-        }
-      } else {
-        const message = avatarLibraryResult.reason instanceof Error
-          ? avatarLibraryResult.reason.message
-          : 'Could not load avatars.';
-
-        setAvatarLoadError(message);
-        setPresetAvatars([]);
-        setSavedAvatars([]);
-
-        show({
-          title: 'Avatar library unavailable',
-          message: 'Avatars could not be loaded for this picker.',
-          variant: 'error',
-          durationMs: 5200,
-        });
-      }
-
-
-
-      setIsAvatarLoading(false);
       setLoadingRecipes(false);
       setModelsLoading(false);
-      setLoadingInspirationPhotos(false);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [selectedImageModelKey, selectedVideoModelKey, userId]);
+
+  useEffect(() => {
+    if (secondaryDeferredFetchScheduledRef.current) return;
+    if (loadingRecipes || modelsLoading) return;
+    secondaryDeferredFetchScheduledRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      if (!hasLoadedInspirationPhotosRef.current) {
+        setLoadingInspirationPhotos(true);
+        void api.listPublicImageInspiration({ limit: 12 })
+          .then((items) => {
+            hasLoadedInspirationPhotosRef.current = true;
+            setInspirationPhotos(items.filter((item) => Boolean(item.image_url)));
+          })
+          .catch(() => {
+            // inspiration is supportive, not required for create-page usability
+          })
+          .finally(() => setLoadingInspirationPhotos(false));
+      }
+
+      if (!hasLoadedVoiceCatalogRef.current) {
+        void api.getTtsCatalog(userId)
+          .then((catalog) => {
+            hasLoadedVoiceCatalogRef.current = true;
+            applyVoiceCatalog(catalog, { preserveSelection: isAvatarProductRecipe });
+          })
+          .catch(() => {
+            // keep fallback voice/language defaults
+          });
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [applyVoiceCatalog, isAvatarProductRecipe, loadingRecipes, modelsLoading, userId]);
+
+  useEffect(() => {
+    if (!showVoiceControls && !isAvatarDrivenRecipe) return;
+    if (hasLoadedVoiceCatalogRef.current) return;
+
+    let cancelled = false;
+    void api.getTtsCatalog(userId)
+      .then((catalog) => {
+        if (cancelled) return;
+        hasLoadedVoiceCatalogRef.current = true;
+        applyVoiceCatalog(catalog, { preserveSelection: isAvatarProductRecipe });
+      })
+      .catch(() => {
+        // keep fallback voice/language defaults
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyVoiceCatalog, isAvatarDrivenRecipe, isAvatarProductRecipe, showVoiceControls, userId]);
+
+  useEffect(() => {
+    if (!isAvatarProductRecipe) return;
+    if (hasLoadedAvatarProductVoiceCatalogRef.current) return;
+
+    let cancelled = false;
+    void api.getAvatarProductTtsCatalog(userId)
+      .then((catalog) => {
+        if (cancelled) return;
+        hasLoadedAvatarProductVoiceCatalogRef.current = true;
+        applyAvatarProductVoiceCatalog(catalog);
+      })
+      .catch(() => {
+        // keep safe fallback defaults until recipe-scoped catalog is available
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyAvatarProductVoiceCatalog, isAvatarProductRecipe, userId]);
+
+  useEffect(() => {
+    if (!isAvatarDrivenRecipe && !isAvatarPickerOpen) return;
+    if (hasLoadedAvatarLibraryRef.current || isAvatarLoading) return;
+
+    let cancelled = false;
+    setIsAvatarLoading(true);
+    void loadAvatarLibrary().finally(() => {
+      if (cancelled) return;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAvatarDrivenRecipe, isAvatarPickerOpen, loadAvatarLibrary]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent | PointerEvent | TouchEvent) => {
-      if (!composerRef.current?.contains(event.target as Node)) {
-        closeMenus();
-      }
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('[data-composer-menu="true"]')) return;
+      closeMenus();
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -2131,7 +2408,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       setModelPanelKey(selectedVideoModelKey);
     }
     setVideoLaunch(null);
-    setAspectRatio((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16');
+    setAspectRatio(
+      normalizeAspectRatio(
+        (defaults.aspect_ratio as AspectRatio | undefined) ||
+        (recipe.aspectRatio as AspectRatio | undefined) ||
+        defaultAspectRatio,
+      ),
+    );
     setDurationPreference(Number(recipe.recipe.duration_seconds || defaults.duration_seconds || 0) > 10 ? 'auto' : (String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5'));
     setAudioMode('silent');
     setVoiceEnabled(Boolean(defaults.narration_enabled ?? true));
@@ -2140,9 +2423,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
     }
     if (defaults.language) {
       const matchingLanguage =
-        languageOptions.find((option) => option.code === defaults.language) ??
-        languageOptions.find((option) => option.label === defaults.language) ??
-        languageOptions.find((option) => option.label.toLowerCase().includes(String(defaults.language).toLowerCase()));
+        effectiveLanguageOptions.find((option) => option.code === defaults.language) ??
+        effectiveLanguageOptions.find((option) => option.label === defaults.language) ??
+        effectiveLanguageOptions.find((option) => option.label.toLowerCase().includes(String(defaults.language).toLowerCase()));
       setSelectedLanguage(matchingLanguage?.code ?? String(defaults.language));
     }
     setQualityProfile(
@@ -2153,6 +2436,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         : 'creator_quality',
     );
     if (recipe.id === 'avatar_product') {
+      void loadAvatarLibrary();
       const defaultQuality: QualityProfile = 'affordable';
       const defaultModelKey = resolveAvatarProductVideoModelKeyFromQuality(defaultQuality);
       const defaultAvatar =
@@ -2160,16 +2444,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
         avatarOptions[0] ||
         null;
 
+      setSelectedVideoModelKey(defaultModelKey);
+      setModelPanelKey(defaultModelKey);
+      setQualityProfile(defaultQuality);
+
       if (defaultAvatar) {
         setSelectedAvatar(defaultAvatar);
-        setSelectedVoice(resolveAvatarPreferredVoice(defaultAvatar) || 'Priya');
+        setSelectedVoice(resolveAvatarProductPreferredVoice(defaultAvatar));
       }
 
-      const preferredLanguage = defaultAvatar ? resolveAvatarPreferredLanguage(defaultAvatar) : null;
+      const preferredLanguage = defaultAvatar ? resolveAvatarProductPreferredLanguage(defaultAvatar) : null;
       const defaultLanguage =
-        preferredLanguage && languageOptions.some((option) => option.code === preferredLanguage)
+        preferredLanguage && effectiveLanguageOptions.some((option) => option.code === preferredLanguage)
           ? preferredLanguage
-          : 'en-IN';
+          : 'English (India)';
 
       setSelectedLanguage(defaultLanguage);
 
@@ -2191,7 +2479,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       title: recipe.title,
       prompt: recipe.description,
       mode: 'video',
-      aspectRatio: ((defaults.aspect_ratio as '9:16' | '16:9' | '1:1') || (recipe.aspectRatio as '9:16' | '16:9' | '1:1') || '9:16'),
+      aspectRatio: normalizeAspectRatio(
+        (defaults.aspect_ratio as AspectRatio | undefined) ||
+        (recipe.aspectRatio as AspectRatio | undefined) ||
+        defaultAspectRatio,
+      ),
       qualityProfile: nextMode === 'video' ? (defaults.quality === 'high' ? 'high_quality' : 'standard') : 'creator_quality',
       recipeId: recipe.id,
       createdAt: Date.now(),
@@ -2222,7 +2514,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
       title: item.title,
       prompt: item.prompt,
       mode: 'image',
-      aspectRatio: '9:16',
+      aspectRatio: defaultAspectRatio,
       qualityProfile: profileForImageModel(selectedImageModelKey),
       createdAt: Date.now(),
     });
@@ -2603,10 +2895,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
   const currentProfileLabel = QUALITY_PROFILES.find((item) => item.key === qualityProfile)?.label ?? 'Creator Pro';
   const currentModelLabel = mode === 'video'
-    ? selectedNormalVideoFamily?.displayName ?? shortVideoModelLabel(displayedVideoModel)
+    ? activeRecipeSource?.kind === 'recipe'
+      ? shortVideoModelLabel(displayedVideoModel)
+      : selectedNormalVideoFamily?.displayName ?? shortVideoModelLabel(displayedVideoModel)
     : displayedImageModel?.label ?? 'Image';
   const currentModelHint = mode === 'video'
-    ? selectedNormalVideoFamily?.description ?? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
+    ? activeRecipeSource?.kind === 'recipe'
+      ? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
+      : selectedNormalVideoFamily?.description ?? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
     : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
   const selectedVideoResolution = resolvedFreeformResolution;
   const selectedImageResolution: '1024' | '1536' = qualityProfile === 'fast_social' ? '1024' : '1536';
@@ -2756,9 +3052,11 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_340px]">
                 <div className="space-y-5">
-                  {avatarLoadError && !isAvatarProductRecipe ? (
+                  {avatarLoadError ? (
                     <div className="rounded-[16px] border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                      Public actors could not be loaded just now. Saved avatars are still available as fallback.
+                      {isAvatarProductRecipe
+                        ? 'Avatar Product could not load the avatar library just now. Please retry in a moment.'
+                        : 'Public actors could not be loaded just now. Saved avatars are still available as fallback.'}
                     </div>
                   ) : null}
                   {[
@@ -2840,7 +3138,9 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
 
                   {avatarOptions.length === 0 ? (
                     <div className="rounded-[20px] border border-dashed border-[hsl(var(--color-border)/0.74)] p-6 text-sm text-muted">
-                      No avatars found yet. Create one to use a repeatable talking persona in your UGC ad flow.
+                      {isAvatarProductRecipe
+                        ? 'No avatars are available yet for Avatar Product. Seed or add a public avatar first, then reopen this picker.'
+                        : 'No avatars found yet. Create one to use a repeatable talking persona in your UGC ad flow.'}
                     </div>
                   ) : null}
                 </div>
@@ -3037,6 +3337,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                             slot={slot}
                             value={value}
                             previewUrl={recipeSlotAssets[slot.id]?.previewUrl}
+                            loading={activeUploadSlotId === slot.id}
                             onClick={(event) => openSlotAssetPicker(slot, event)}
                           />
                         );
@@ -3321,12 +3622,13 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     <button
                       type="button"
                       onClick={() => setOpenMenu((current) => (current === 'assets' ? null : 'assets'))}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
+                      data-composer-menu="true"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:bg-white/[0.08] hover:text-white"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
                     {openMenu === 'assets' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[250px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div data-composer-menu="true" className="fixed inset-x-3 top-[86px] z-50 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl sm:absolute sm:left-0 sm:right-auto sm:top-[calc(100%+10px)] sm:min-w-[250px]">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Assets</p>
                           <p className="mt-1 text-xs text-muted">
@@ -3363,19 +3665,20 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                         if (recipeSettingsLocked) return;
                         setOpenMenu((current) => (current === 'model' ? null : 'model'));
                       }}
+                      data-composer-menu="true"
                       disabled={recipeSettingsLocked}
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${recipeSettingsLocked
+                      className={`inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${recipeSettingsLocked
                         ? 'cursor-not-allowed border-white/6 bg-white/[0.03] text-white/38'
                         : 'border-white/10 bg-white/[0.04] text-white/74 hover:bg-white/[0.08] hover:text-white'
                         }`}
                     >
                       <Box className="h-4 w-4 text-white/60" />
-                      {currentModelLabel}
+                      <span className="max-w-[120px] truncate sm:max-w-[180px]">{currentModelLabel}</span>
                       {recipeSettingsLocked ? <Lock className="h-3.5 w-3.5 text-white/40" /> : null}
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'model' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 w-[min(92vw,760px)] rounded-[24px] border border-white/10 bg-[rgba(27,25,34,0.96)] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-[22px]">
+                      <div data-composer-menu="true" className="fixed inset-x-3 top-[86px] z-50 max-h-[75vh] overflow-y-auto rounded-[24px] border border-white/10 bg-[rgba(27,25,34,0.96)] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-[22px] sm:absolute sm:left-0 sm:right-auto sm:top-[calc(100%+10px)] sm:max-h-[min(78vh,720px)] sm:w-[min(92vw,760px)] sm:overflow-visible">
                         <div className="px-2 pb-2">
                           <p className="text-[12px] font-semibold text-white/92">Model</p>
                         </div>
@@ -3601,14 +3904,15 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     <button
                       type="button"
                       onClick={() => setOpenMenu((current) => (current === 'aspect' ? null : 'aspect'))}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
+                      data-composer-menu="true"
+                      className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:bg-white/[0.08] hover:text-white"
                     >
                       <RectangleHorizontal className="h-4 w-4 text-white/60" />
                       {aspectRatio}
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'aspect' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[220px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div data-composer-menu="true" className="fixed inset-x-3 top-[86px] z-50 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl sm:absolute sm:left-0 sm:right-auto sm:top-[calc(100%+10px)] sm:min-w-[220px]">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Format</p>
                           <p className="mt-1 text-xs text-muted">Pick the output frame that best fits your social placement.</p>
@@ -3632,14 +3936,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     <button
                       type="button"
                       onClick={openAvatarPicker}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
+                      className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:bg-white/[0.08] hover:text-white"
                     >
                       {selectedAvatar?.imageUrl ? (
                         <img src={selectedAvatar.imageUrl} alt={selectedAvatar.name} className="h-5 w-5 rounded-full object-cover" />
                       ) : (
                         <UserRound className="h-4 w-4 text-white/60" />
                       )}
-                      {selectedAvatar ? selectedAvatar.name : 'Select AI Avatar'}
+                      <span className="max-w-[120px] truncate sm:max-w-[180px]">{selectedAvatar ? selectedAvatar.name : 'Select AI Avatar'}</span>
                       {isAvatarProductRecipe ? <Lock className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
                     </button>
                   ) : null}
@@ -3648,13 +3952,14 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                     <button
                       type="button"
                       onClick={() => setOpenMenu((current) => (current === 'more' ? null : 'more'))}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:text-white hover:bg-white/[0.08]"
+                      data-composer-menu="true"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/74 transition hover:bg-white/[0.08] hover:text-white"
                     >
                       <EllipsisIcon />
                       More
                     </button>
                     {openMenu === 'more' ? (
-                      <div className="absolute left-0 top-[calc(100%+10px)] z-50 min-w-[280px] rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl">
+                      <div data-composer-menu="true" className="fixed inset-x-3 top-[86px] z-50 max-h-[75vh] overflow-y-auto rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.99),hsl(var(--color-elevated)/0.98))] p-2.5 shadow-hard backdrop-blur-xl sm:absolute sm:left-0 sm:right-auto sm:top-[calc(100%+10px)] sm:min-w-[280px] sm:max-h-[min(78vh,720px)]">
                         <div className="px-3 pb-2">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">More</p>
                           <p className="mt-1 text-xs text-muted">
@@ -3706,6 +4011,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                         }));
                                       }
                                     }
+                                    closeMenus();
                                   }}
                                   disabled={disabled}
                                   className={`flex items-start justify-between rounded-[12px] px-2 py-2 text-left text-sm ${qualityProfile === option.key
@@ -3752,6 +4058,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                                         duration_seconds: option,
                                       }));
                                     }
+                                    closeMenus();
                                   }}
                                   className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option
                                     ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
@@ -3883,22 +4190,30 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                           ) : null}
                           {showVoiceControls && voiceEnabled ? (
                             <div className="mt-3 px-2">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                className="h-9 w-full rounded-[12px]"
-                                onClick={() => void previewComposerVoice()}
-                                disabled={voicePreviewing || !selectedVoice || !composerVoicePreviewText}
-                              >
-                                {voicePreviewing ? 'Previewing…' : 'Preview voice'}
-                              </Button>
-                              <p className="mt-2 text-xs leading-5 text-muted">
-                                {composerVoicePreviewText
-                                  ? 'Preview reads a short cleaned version of your current prompt with the selected Sarvam voice.'
-                                  : 'Add a prompt to preview this voice.'}
-                              </p>
-                              {voicePreviewMessage ? <p className="mt-2 text-xs text-muted">{voicePreviewMessage}</p> : null}
-                              {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
+                              {isAvatarProductRecipe ? (
+                                <p className="rounded-[12px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.48)] px-3 py-2 text-xs leading-5 text-muted">
+                                  Avatar Product final speech uses Gemini Flash TTS during generation. Voice preview is hidden here so the picker stays aligned with the real render pipeline.
+                                </p>
+                              ) : (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="h-9 w-full rounded-[12px]"
+                                    onClick={() => void previewComposerVoice()}
+                                    disabled={voicePreviewing || !selectedVoice || !composerVoicePreviewText}
+                                  >
+                                    {voicePreviewing ? 'Previewing…' : 'Preview voice'}
+                                  </Button>
+                                  <p className="mt-2 text-xs leading-5 text-muted">
+                                    {composerVoicePreviewText
+                                      ? 'Preview reads a short cleaned version of your current prompt with the selected Sarvam voice.'
+                                      : 'Add a prompt to preview this voice.'}
+                                  </p>
+                                  {voicePreviewMessage ? <p className="mt-2 text-xs text-muted">{voicePreviewMessage}</p> : null}
+                                  {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
+                                </>
+                              )}
                             </div>
                           ) : null}
                         </div>
@@ -4045,6 +4360,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
               try {
                 setUploadingAsset(true);
                 if (uploadTarget && uploadTarget !== 'composer-asset') {
+                  setActiveUploadSlotId(uploadTarget);
                   const uploaded = await api.uploadFileDirect({ file, kind: 'recipe_input' }, userId);
 
                   applySlotAsset(uploadTarget, {
@@ -4081,6 +4397,7 @@ export function UnifiedCreateStudioClient({ userId }: { userId: string }) {
                 show({ title: 'Upload failed', message, variant: 'error' });
               } finally {
                 setUploadingAsset(false);
+                setActiveUploadSlotId(null);
                 setPendingUploadTarget(null);
                 input.value = '';
               }

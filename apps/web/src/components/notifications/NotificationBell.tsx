@@ -1,57 +1,107 @@
 'use client';
 
+import Link from 'next/link';
 import { Bell } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-type NotificationItem = {
-  id: string;
-  title: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
+import { api } from '@/lib/api';
+import type { AppNotification } from '@/types/api';
+
+type NotificationBellProps = {
+  userId: string | null;
 };
 
-export function NotificationBell() {
-  const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+const POLL_INTERVAL_MS = 15_000;
 
-  const unreadCount = items.filter((item) => !item.read).length;
+function relativeTime(value: string) {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffMin = Math.max(1, Math.floor(diffMs / 60000));
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
+export function NotificationBell({ userId }: NotificationBellProps) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const firstLoadRef = useRef(true);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
 
   useEffect(() => {
     audioRef.current = new Audio('/sounds/notification.mp3');
   }, []);
 
-  function addVideoReadyNotification(renderId: string) {
-    const exists = items.some((item) => item.id === renderId);
-    if (exists) return;
-
-    setItems((prev) => [
-      {
-        id: renderId,
-        title: 'Your video is ready 🎬',
-        message: 'Your Chitrakala product ad has finished generating.',
-        read: false,
-        createdAt: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
-
-    audioRef.current?.play().catch(() => {});
-  }
-
-  // Temporary test hook. Remove after real render listener is wired.
   useEffect(() => {
-    (window as any).__addVideoReadyNotification = addVideoReadyNotification;
-  }, [items]);
+    if (!userId) return;
+
+    let cancelled = false;
+
+    const loadNotifications = async () => {
+      try {
+        const nextItems = await api.listNotifications(userId, 20);
+        if (cancelled) return;
+
+        const previousIds = seenIdsRef.current;
+        const newUnread = nextItems.some((item) => !item.read && !previousIds.has(item.id));
+        setItems(nextItems);
+        seenIdsRef.current = new Set(nextItems.map((item) => item.id));
+
+        if (!firstLoadRef.current && newUnread) {
+          audioRef.current?.play().catch(() => {});
+          window.dispatchEvent(new CustomEvent('rangmanch:video-completed'));
+        }
+        firstLoadRef.current = false;
+      } catch {
+        // keep bell silent on transient notification fetch failures
+      }
+    };
+
+    void loadNotifications();
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void loadNotifications();
+    }, POLL_INTERVAL_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadNotifications();
+    };
+
+    window.addEventListener('focus', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [userId]);
+
+  if (!userId) return null;
 
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => {
-          setOpen((value) => !value);
-          setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+          const nextOpen = !open;
+          setOpen(nextOpen);
+          if (nextOpen && unreadCount > 0) {
+            void api.markNotificationsRead(userId)
+              .then(() => {
+                setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+              })
+              .catch(() => {
+                // keep UI usable even if read sync fails
+              });
+          }
         }}
         className={`relative rounded-full border border-border bg-bg px-3 py-2 shadow-sm transition hover:bg-muted ${
           unreadCount > 0 ? 'animate-pulse' : ''
@@ -77,8 +127,24 @@ export function NotificationBell() {
             <div className="space-y-2">
               {items.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border p-3">
-                  <div className="text-sm font-semibold">{item.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{item.message}</div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{item.title}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.message}</div>
+                    </div>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(item.created_at)}</span>
+                  </div>
+                  {item.video_id ? (
+                    <div className="mt-2">
+                      <Link
+                        href={`/videos/${item.video_id}`}
+                        className="text-xs font-medium text-[hsl(var(--color-accent))] hover:underline"
+                        onClick={() => setOpen(false)}
+                      >
+                        Open video
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

@@ -16,6 +16,9 @@ import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import type { GeneratedImage, ProjectDetail, Video as VideoAsset } from '@/types/api';
 
+const INITIAL_OUTPUT_BATCH = 12;
+const OUTPUT_BATCH_STEP = 12;
+
 function formatRelativeTime(value?: string | null) {
   if (!value) return 'Just now';
   const ts = new Date(value).getTime();
@@ -103,6 +106,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
   const [selectedProjectImage, setSelectedProjectImage] = useState<GeneratedImage | null>(null);
   const [publishingImageId, setPublishingImageId] = useState<string | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [visibleOutputCount, setVisibleOutputCount] = useState(INITIAL_OUTPUT_BATCH);
   const saveFingerprint = useRef(`${project.script}`);
 
   useEffect(() => {
@@ -184,6 +188,15 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [assetFilter, imageItems, selectedModeFilter, selectedTemplateFilter, videoItems]);
+
+  useEffect(() => {
+    setVisibleOutputCount(INITIAL_OUTPUT_BATCH);
+  }, [assetFilter, outputs.length, selectedModeFilter, selectedTemplateFilter]);
+
+  const visibleOutputs = useMemo(
+    () => outputs.slice(0, visibleOutputCount),
+    [outputs, visibleOutputCount],
+  );
 
   const toggleProjectImagePublish = async (image: GeneratedImage) => {
     setPublishingImageId(image.id);
@@ -392,14 +405,14 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
               </Button>
             ))}
           </div>
-          <Dropdown value={selectedTemplateFilter} onChange={(event) => setSelectedTemplateFilter(event.target.value)} className="sm:max-w-xs">
+          <Dropdown value={selectedTemplateFilter} onChange={(event) => setSelectedTemplateFilter(event.target.value)} className="w-full sm:max-w-xs">
             {templateFilterOptions.map((value) => (
               <option key={value} value={value}>
                 {value === 'all' ? 'All templates' : value}
               </option>
             ))}
           </Dropdown>
-          <Dropdown value={selectedModeFilter} onChange={(event) => setSelectedModeFilter(event.target.value)} className="sm:max-w-xs">
+          <Dropdown value={selectedModeFilter} onChange={(event) => setSelectedModeFilter(event.target.value)} className="w-full sm:max-w-xs">
             {modeFilterOptions.map((value) => (
               <option key={value} value={value}>
                 {value === 'all' ? 'All modes / models' : value}
@@ -415,7 +428,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {outputs.map((item) => (
+            {visibleOutputs.map((item) => (
               <MediaPosterCard
                 key={`${item.kind}-${item.id}`}
                 preview={item.preview}
@@ -435,6 +448,13 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
             ))}
           </div>
         )}
+        {outputs.length > visibleOutputs.length ? (
+          <div className="flex justify-center">
+            <Button variant="secondary" onClick={() => setVisibleOutputCount((current) => current + OUTPUT_BATCH_STEP)}>
+              Load more outputs
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {selectedProjectImage ? (

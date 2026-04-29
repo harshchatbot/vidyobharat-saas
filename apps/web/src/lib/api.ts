@@ -7,6 +7,7 @@ import type {
   AssetProjectAssignmentResponse,
   AssetTagFacet,
   AIVideoStatusResponse,
+  AppNotification,
   AvatarProductAssistRequest,
   AvatarProductAssistResponse,
   MusicTrack,
@@ -662,6 +663,18 @@ export const api = {
   getTtsCatalog(userId: string) {
     return request<TTSCatalogResponse>('/tts/catalog', {}, { userId, cache: 'no-store' });
   },
+  listNotifications(userId: string, limit = 20) {
+    return request<AppNotification[]>(`/notifications?limit=${limit}`, {}, { userId, cache: 'no-store', timeoutMs: 20_000 });
+  },
+  markNotificationsRead(userId: string, ids: string[] = []) {
+    return request<{ updated: number }>('/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }, { userId, cache: 'no-store', timeoutMs: 20_000 });
+  },
+  getAvatarProductTtsCatalog(userId: string) {
+    return request<TTSCatalogResponse>('/api/recipes/avatar-product/tts-catalog', {}, { userId, cache: 'no-store' });
+  },
   previewTts(payload: TTSPreviewRequest, userId: string) {
     return request<TTSPreviewResponse>('/tts/preview', {
       method: 'POST',
@@ -768,7 +781,11 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
   listAIVideoModels(userId: string) {
-    return request<AIVideoModel[]>('/api/video/models', {}, { userId, cache: 'no-store' });
+    const path = '/api/video/models';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 60_000, () =>
+      request<AIVideoModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 20_000 }),
+    );
   },
   createAIVideo(payload: VideoCreateRequest, userId: string) {
     return request<VideoCreateResponse>('/api/ai/video/create', {
@@ -795,7 +812,11 @@ export const api = {
     }, { userId, cache: 'no-store', timeoutMs: 35_000 });
   },
   listImageModels(userId: string) {
-    return request<ImageModel[]>('/ai/image/models', {}, { userId, cache: 'no-store', timeoutMs: 20_000 });
+    const path = '/ai/image/models';
+    const cacheKey = makeCacheKey(path, userId);
+    return cachedRequest(cacheKey, 60_000, () =>
+      request<ImageModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 20_000 }),
+    );
   },
   listGeneratedImages(userId: string, limit?: number) {
     const path = limit ? `/ai/images?limit=${limit}` : '/ai/images';
@@ -815,7 +836,10 @@ export const api = {
   listPublicImageInspiration(options?: number | InspirationListOptions) {
     const normalized = typeof options === 'number' ? { limit: options } : options;
     const path = `/public/images/inspiration${buildInspirationQuery(normalized)}`;
-    return request<InspirationImage[]>(path, {}, { cache: 'no-store', timeoutMs: 35_000 });
+    const cacheKey = makeCacheKey(path, undefined);
+    return cachedRequest(cacheKey, 15_000, () =>
+      request<InspirationImage[]>(path, {}, { cache: 'no-store', timeoutMs: 15_000 }),
+    );
   },
   listVideoInspiration(userId: string, options?: number | InspirationListOptions) {
     const normalized = typeof options === 'number' ? { limit: options } : options;

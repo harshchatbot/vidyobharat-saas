@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clapperboard, Languages, Mic2, Search, Sparkles } from 'lucide-react';
 
@@ -20,6 +20,10 @@ type Props = {
 
 type FilterKey = 'all' | 'images' | 'videos' | 'drafts';
 type SortKey = 'recent' | 'title' | 'outputs';
+
+const INITIAL_PROJECT_BATCH = 10;
+const PROJECT_BATCH_STEP = 10;
+const PROJECT_REFRESH_STALE_MS = 20_000;
 
 function formatRelativeTime(value: string) {
   const created = new Date(value).getTime();
@@ -87,6 +91,9 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sortBy, setSortBy] = useState<SortKey>('recent');
   const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_PROJECT_BATCH);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastLoadedAt, setLastLoadedAt] = useState(initialProjects.length > 0 ? Date.now() : 0);
 
   const filteredProjects = useMemo(() => {
     const next = projects
@@ -101,6 +108,47 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
 
     return next;
   }, [filter, projects, query, sortBy]);
+
+  const refreshProjects = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const nextProjects = await api.listProjects(userId);
+      setProjects(nextProjects);
+      setLastLoadedAt(Date.now());
+    } finally {
+      setRefreshing(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    setProjects(initialProjects);
+    if (initialProjects.length > 0) {
+      setLastLoadedAt(Date.now());
+    }
+  }, [initialProjects]);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_PROJECT_BATCH);
+  }, [filter, query, sortBy, projects.length]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadedAt < PROJECT_REFRESH_STALE_MS) return;
+      void refreshProjects();
+    };
+    window.addEventListener('focus', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [lastLoadedAt, refreshProjects]);
+
+  const visibleProjects = useMemo(
+    () => filteredProjects.slice(0, visibleCount),
+    [filteredProjects, visibleCount],
+  );
 
   const createProject = async () => {
     if (!title.trim()) return;
@@ -178,12 +226,17 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
 
         <div className="space-y-4">
           <div className="space-y-3 border-b border-[hsl(var(--color-border)/0.5)] pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Library</p>
                 <h2 className="mt-1 font-heading text-xl font-extrabold tracking-tight text-text">All projects</h2>
               </div>
-              <p className="text-sm text-muted">{filteredProjects.length} of {projects.length} shown</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted">{filteredProjects.length} of {projects.length} shown</p>
+                <Button variant="secondary" className="h-10 px-3" onClick={() => void refreshProjects()} disabled={refreshing}>
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -230,7 +283,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredProjects.map((project) => {
+              {visibleProjects.map((project) => {
                 const scriptSummary = summarizeScript(project.script);
                 return (
                   <article
@@ -292,6 +345,13 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
               })}
             </div>
           )}
+          {filteredProjects.length > visibleProjects.length ? (
+            <div className="flex justify-center pt-2">
+              <Button variant="secondary" onClick={() => setVisibleCount((current) => current + PROJECT_BATCH_STEP)}>
+                Load more projects
+              </Button>
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

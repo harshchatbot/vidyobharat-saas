@@ -119,7 +119,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
             {userId && (
               <>
-                <NotificationBell />
+                <NotificationBell userId={userId} />
                 <Link
                   href="/dashboard"
                   className="ml-2 inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
@@ -144,7 +144,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
           </nav>
 
           <div className="flex items-center gap-2 lg:hidden">
-          {userId && <NotificationBell />}
+          {userId && <NotificationBell userId={userId} />}
             <ToggleTheme />
             <button
               type="button"

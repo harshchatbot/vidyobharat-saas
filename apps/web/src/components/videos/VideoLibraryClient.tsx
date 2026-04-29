@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clapperboard, ExternalLink, ImageIcon, LoaderCircle, Search, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -21,6 +21,10 @@ type Props = {
 };
 
 type MediaFilterKey = 'all' | 'videos' | 'images';
+
+const INITIAL_LIBRARY_BATCH = 12;
+const LIBRARY_BATCH_STEP = 12;
+const LIBRARY_REFRESH_STALE_MS = 20_000;
 
 function toAbsoluteUrl(url: string | null) {
   if (!url) return null;
@@ -49,39 +53,80 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_LIBRARY_BATCH);
+  const [lastLoadedAt, setLastLoadedAt] = useState(
+    initialVideos.length > 0 || initialImages.length > 0 ? Date.now() : 0,
+  );
 
   useEffect(() => {
     setVideos(initialVideos);
+    if (initialVideos.length > 0) {
+      setLastLoadedAt(Date.now());
+    }
   }, [initialVideos]);
 
   useEffect(() => {
     setImages(initialImages);
+    if (initialImages.length > 0) {
+      setLastLoadedAt(Date.now());
+    }
   }, [initialImages]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshLibrary = useCallback(async () => {
     setRefreshing(true);
-    void Promise.all([api.listVideos(userId, 50, 45_000), api.listGeneratedImages(userId, 50)])
-      .then(([nextVideos, nextImages]) => {
-        if (cancelled) return;
-        setVideos(nextVideos);
-        setImages(nextImages);
-        setLoadError(null);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : 'Could not refresh your video library right now.';
-        setLoadError(message);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setRefreshing(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const [nextVideos, nextImages] = await Promise.all([
+        api.listVideos(userId, 50, 45_000),
+        api.listGeneratedImages(userId, 50),
+      ]);
+      setVideos(nextVideos);
+      setImages(nextImages);
+      setLoadError(null);
+      setLastLoadedAt(Date.now());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not refresh your video library right now.';
+      setLoadError(message);
+    } finally {
+      setRefreshing(false);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    if (initialVideos.length > 0 || initialImages.length > 0) return;
+    void refreshLibrary();
+  }, [initialImages.length, initialVideos.length, refreshLibrary]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadedAt < LIBRARY_REFRESH_STALE_MS) return;
+      void refreshLibrary();
+    };
+    window.addEventListener('focus', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [lastLoadedAt, refreshLibrary]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (refreshing) return;
+      void refreshLibrary();
+    }, LIBRARY_REFRESH_STALE_MS);
+
+    const onVideoCompleted = () => {
+      void refreshLibrary();
+    };
+
+    window.addEventListener('rangmanch:video-completed', onVideoCompleted);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('rangmanch:video-completed', onVideoCompleted);
+    };
+  }, [refreshLibrary, refreshing]);
 
   const filteredVideos = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -122,6 +167,19 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
       return haystack.includes(trimmed);
     });
   }, [images, mediaFilter, query]);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_LIBRARY_BATCH);
+  }, [images.length, mediaFilter, query, videos.length]);
+
+  const visibleImages = useMemo(
+    () => filteredImages.slice(0, mediaFilter === 'all' ? visibleCount : Math.max(visibleCount, filteredImages.length)),
+    [filteredImages, mediaFilter, visibleCount],
+  );
+  const visibleVideos = useMemo(
+    () => filteredVideos.slice(0, mediaFilter === 'all' ? visibleCount : Math.max(visibleCount, filteredVideos.length)),
+    [filteredVideos, mediaFilter, visibleCount],
+  );
 
   const togglePublish = async (image: GeneratedImage) => {
     setPublishingId(image.id);
@@ -191,13 +249,16 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
             <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-muted">Library</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text sm:text-[2rem]">Your generation library</h1>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Link href="/create">
-              <Button className="rounded-full px-4">Create new</Button>
+              <Button className="w-full rounded-full px-4 sm:w-auto">Create new</Button>
             </Link>
             <Link href="/projects">
-              <Button variant="secondary" className="rounded-full px-4">Open Projects</Button>
+              <Button variant="secondary" className="w-full rounded-full px-4 sm:w-auto">Open Projects</Button>
             </Link>
+            <Button variant="secondary" className="w-full rounded-full px-4 sm:w-auto" onClick={() => void refreshLibrary()} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
           </div>
         </div>
 
@@ -266,7 +327,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredImages.map((image) => {
+          {visibleImages.map((image) => {
             const preview = toAbsoluteUrl(image.thumbnail_url || image.image_url) || image.image_url;
             return (
               <button
@@ -309,7 +370,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
               </button>
             );
           })}
-          {filteredVideos.map((video) => {
+          {visibleVideos.map((video) => {
             const poster = toAbsoluteUrl(video.thumbnail_url);
             const output = toAbsoluteUrl(video.output_url);
             return (
@@ -371,6 +432,16 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
           })}
         </div>
       )}
+
+      {((mediaFilter === 'images' && filteredImages.length > visibleImages.length) ||
+        (mediaFilter === 'videos' && filteredVideos.length > visibleVideos.length) ||
+        (mediaFilter === 'all' && (filteredImages.length > visibleImages.length || filteredVideos.length > visibleVideos.length))) ? (
+        <div className="flex justify-center">
+          <Button variant="secondary" onClick={() => setVisibleCount((current) => current + LIBRARY_BATCH_STEP)}>
+            Load more
+          </Button>
+        </div>
+      ) : null}
 
       {selectedImage ? (
         <ImageDetailModal

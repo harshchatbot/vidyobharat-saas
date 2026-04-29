@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink, ImageIcon, LoaderCircle, Search, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -17,6 +17,10 @@ type Props = {
   userId: string;
   initialImages: GeneratedImage[];
 };
+
+const INITIAL_IMAGE_BATCH = 12;
+const IMAGE_BATCH_STEP = 12;
+const IMAGE_REFRESH_STALE_MS = 20_000;
 
 function relativeTime(value: string) {
   const diffMs = Date.now() - new Date(value).getTime();
@@ -42,35 +46,49 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_IMAGE_BATCH);
+  const [lastLoadedAt, setLastLoadedAt] = useState(initialImages.length > 0 ? Date.now() : 0);
 
   useEffect(() => {
     setImages(initialImages);
+    if (initialImages.length > 0) {
+      setLastLoadedAt(Date.now());
+    }
   }, [initialImages]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshImages = useCallback(async () => {
     setRefreshing(true);
-    void api
-      .listGeneratedImages(userId, 50)
-      .then((nextImages) => {
-        if (cancelled) return;
-        setImages(nextImages);
-        setLoadError(null);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : 'Could not refresh your image library right now.';
-        setLoadError(message);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setRefreshing(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const nextImages = await api.listGeneratedImages(userId, 50);
+      setImages(nextImages);
+      setLoadError(null);
+      setLastLoadedAt(Date.now());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not refresh your image library right now.';
+      setLoadError(message);
+    } finally {
+      setRefreshing(false);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    if (initialImages.length > 0) return;
+    void refreshImages();
+  }, [initialImages.length, refreshImages]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadedAt < IMAGE_REFRESH_STALE_MS) return;
+      void refreshImages();
+    };
+    window.addEventListener('focus', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [lastLoadedAt, refreshImages]);
 
   const filteredImages = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -90,6 +108,15 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
       return haystack.includes(trimmed);
     });
   }, [images, query]);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_IMAGE_BATCH);
+  }, [query, images.length]);
+
+  const visibleImages = useMemo(
+    () => filteredImages.slice(0, visibleCount),
+    [filteredImages, visibleCount],
+  );
 
   const togglePublish = async (image: GeneratedImage) => {
     setPublishingId(image.id);
@@ -160,13 +187,16 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
             <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-text sm:text-4xl">Your image library</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted">Every generated image in one place. Reopen results, revisit prompts, and download finals without dropping back into the old studio flow.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Link href="/create">
-              <Button className="rounded-full px-4">Back to Create</Button>
+              <Button className="w-full rounded-full px-4 sm:w-auto">Back to Create</Button>
             </Link>
             <Link href="/videos">
-              <Button variant="secondary" className="rounded-full px-4">Open videos</Button>
+              <Button variant="secondary" className="w-full rounded-full px-4 sm:w-auto">Open videos</Button>
             </Link>
+            <Button variant="secondary" className="w-full rounded-full px-4 sm:w-auto" onClick={() => void refreshImages()} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
           </div>
         </div>
 
@@ -213,7 +243,7 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredImages.map((image) => {
+          {visibleImages.map((image) => {
             const preview = toAbsolute(image.thumbnail_url || image.image_url) || image.image_url;
             return (
               <button
@@ -255,6 +285,14 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
           })}
         </div>
       )}
+
+      {filteredImages.length > visibleCount ? (
+        <div className="flex justify-center">
+          <Button variant="secondary" onClick={() => setVisibleCount((current) => current + IMAGE_BATCH_STEP)}>
+            Load more images
+          </Button>
+        </div>
+      ) : null}
 
       {selectedImage ? (
         <ImageDetailModal
