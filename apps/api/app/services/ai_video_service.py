@@ -26,6 +26,7 @@ from app.recipes.recipe_registry import STITCHED_VIDEO_RECIPE_IDS
 from app.services.asset_tagging_service import AssetTaggingService
 from app.services.credit_service import CreditService
 from app.services.fal_video_service import FalVideoService
+from app.services.firestore_sync_service import FirestoreSyncService
 from app.services.generation_router import resolve_generation_route
 from app.services.video.ltx_service import LtxService
 from app.services.model_registry import get_model_definition, resolve_model_key
@@ -161,6 +162,7 @@ class AIVideoCreateService:
         self.project_repo = ProjectRepository(db)
         self.pipeline = VideoPipelineService()
         self.tagging = AssetTaggingService(db)
+        self.sync = FirestoreSyncService()
         self.fal = FalVideoService()
         self.ltx = LtxService(settings)
 
@@ -384,6 +386,11 @@ class AIVideoCreateService:
                 logger.info('video_tagging_repo_unavailable', extra={'video_id': video.id})
         except Exception as exc:  # noqa: BLE001
             logger.exception('video_tagging_failed', extra={'video_id': video.id, 'error': str(exc)})
+        try:
+            auto_tags, user_tags = self.tagging.list_tags(video.id, 'video')
+            self.sync.sync_video(video, auto_tags=auto_tags, user_tags=user_tags)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('ai_video_initial_sync_failed', extra={'video_id': video.id, 'error': str(exc)})
         try:
             async_result = celery_process_ai_video.apply_async(args=[video.id])
             logger.info(
@@ -1125,6 +1132,7 @@ def celery_process_ai_video(video_id: str) -> None:
     service = AIVideoCreateService(None, settings)
     repo = VideoRepository(None)
     storage = build_storage_provider(settings)
+    sync = FirestoreSyncService()
     logger.info(
         'ai_video_worker_task_received',
         extra={'render_id': video_id, 'task_name': 'process_ai_video'},
@@ -1403,6 +1411,11 @@ def celery_process_ai_video(video_id: str) -> None:
                 service.tagging.auto_tag_video(refreshed)
             else:
                 logger.info('video_auto_tag_repo_unavailable', extra={'render_id': video_id})
+            try:
+                auto_tags, user_tags = service.tagging.list_tags(refreshed.id, 'video')
+                sync.sync_video(refreshed, auto_tags=auto_tags, user_tags=user_tags)
+            except Exception:
+                logger.exception('ai_video_completion_sync_failed', extra={'render_id': video_id})
     except Exception as exc:
         if 'recipe_id' in locals() and recipe_id:
             logger.exception('recipe_pipeline_failed', extra={'render_id': video_id, 'recipe_id': recipe_id})
@@ -1418,13 +1431,18 @@ def celery_process_ai_video(video_id: str) -> None:
             failure_status = _classify_video_failure_status(exc)
             error_text = str(exc)[:255]
             failure_detail = str(exc)
-            repo.update(
+            failed_video = repo.update(
                 target,
                 status=failure_status,
                 progress=100,
                 error_message=error_text,
                 stderr_tail=failure_detail[:1000],
             )
+            try:
+                auto_tags, user_tags = service.tagging.list_tags(failed_video.id, 'video')
+                sync.sync_video(failed_video, auto_tags=auto_tags, user_tags=user_tags)
+            except Exception:
+                logger.exception('ai_video_failure_sync_failed', extra={'render_id': video_id})
             try:
                 charged_credits = int(raw_data.get('applied_credits') or 0)
                 already_refunded = bool(raw_data.get('failed_refunded', False))

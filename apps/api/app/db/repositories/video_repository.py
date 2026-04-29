@@ -55,21 +55,22 @@ class VideoRepository:
                 except Exception:
                     continue
 
-            # Fast path: all current AI video jobs are written to the root `videos`
-            # collection. Only fall back to the legacy collection-group scan if the
-            # root query returns nothing, which keeps `/videos` responsive.
-            if not by_id:
-                group_query = self.firestore.collection_group('videos').where('userId', '==', user_id).limit(bounded_limit)
-                for row in group_query.stream():
-                    data = row.to_dict() or {}
-                    data.setdefault('id', data.get('id') or row.id)
-                    if data.get('deleted_at') or data.get('deletedAt'):
-                        continue
-                    try:
-                        model = self._to_model(data)
+            # Always merge the user-scoped compatibility collection as well.
+            # Some older flows and sync paths write there, and keeping both merged
+            # avoids library gaps when one store is fresher than the other.
+            group_query = self.firestore.collection_group('videos').where('userId', '==', user_id).limit(bounded_limit)
+            for row in group_query.stream():
+                data = row.to_dict() or {}
+                data.setdefault('id', data.get('id') or row.id)
+                if data.get('deleted_at') or data.get('deletedAt'):
+                    continue
+                try:
+                    model = self._to_model(data)
+                    existing = by_id.get(model.id)
+                    if existing is None or getattr(model, 'updated_at', None) >= getattr(existing, 'updated_at', None):
                         by_id[model.id] = model
-                    except Exception:
-                        continue
+                except Exception:
+                    continue
             items = list(by_id.values())
         except Exception:
             for data in self._stream_video_docs():
