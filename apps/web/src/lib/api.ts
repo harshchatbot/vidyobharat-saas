@@ -565,11 +565,11 @@ export const api = {
       return result;
     });
   },
-  listProjects(userId: string, revalidateSeconds = 10) {
+  listProjects(userId: string, revalidateSeconds = 10, timeoutMs = 45_000) {
     const path = '/projects';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, revalidateSeconds * 1000, () =>
-      request<Project[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+      request<Project[]>(path, {}, { userId, cache: 'no-store', timeoutMs }),
     );
   },
   getProject(projectId: string, userId: string, cache: RequestCache = 'default') {

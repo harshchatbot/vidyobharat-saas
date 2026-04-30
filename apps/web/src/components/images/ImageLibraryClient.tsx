@@ -32,6 +32,14 @@ function relativeTime(value: string) {
   return `${diffDay}d ago`;
 }
 
+function formatStableTimestamp(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 function toAbsolute(url?: string | null) {
   if (!url) return null;
   return url.startsWith('http') ? url : `${API_URL}${url}`;
@@ -48,6 +56,11 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_IMAGE_BATCH);
   const [lastLoadedAt, setLastLoadedAt] = useState(initialImages.length > 0 ? Date.now() : 0);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     setImages(initialImages);
@@ -178,6 +191,9 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
     }
   };
 
+  const formatTimestamp = (value: string) =>
+    hasMounted ? relativeTime(value) : formatStableTimestamp(value);
+
   return (
     <div className="space-y-6">
       <div className="rangmanch-studio-panel rounded-[28px] px-5 py-6 sm:px-6">
@@ -273,7 +289,7 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
                   </div>
 
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-muted">{relativeTime(image.created_at)}</span>
+                    <span className="text-xs text-muted">{formatTimestamp(image.created_at)}</span>
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--color-accent))]">
                       Open details
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -301,7 +317,7 @@ export function ImageLibraryClient({ userId, initialImages }: Props) {
           imageUrl={toAbsolute(selectedImage.image_url) || selectedImage.image_url}
           imageAlt={selectedImage.prompt || 'Library image'}
           title="Library image"
-          subtitle={`Created ${relativeTime(selectedImage.created_at)}`}
+          subtitle={`Created ${formatTimestamp(selectedImage.created_at)}`}
           prompt={selectedImage.prompt}
           imageAspectRatio={selectedImage.aspect_ratio}
           badges={

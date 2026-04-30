@@ -1475,10 +1475,17 @@ export function UnifiedCreateStudioClient({
   );
   const effectiveNormalVideoFamilyKey = useMemo(() => {
     if (mode === 'video' && activeRecipeSource?.kind !== 'recipe') {
+      if (NORMAL_VIDEO_FAMILY_MAP[selectedNormalVideoFamilyKey]) {
+        return selectedNormalVideoFamilyKey;
+      }
       const derivedFamilyKey = familyForModelKey(selectedVideoModelKey);
       if (derivedFamilyKey && NORMAL_VIDEO_FAMILY_MAP[derivedFamilyKey]) {
         return derivedFamilyKey;
       }
+    }
+    const derivedFamilyKey = familyForModelKey(selectedVideoModelKey);
+    if (derivedFamilyKey && NORMAL_VIDEO_FAMILY_MAP[derivedFamilyKey]) {
+      return derivedFamilyKey;
     }
     return selectedNormalVideoFamilyKey;
   }, [activeRecipeSource, mode, selectedNormalVideoFamilyKey, selectedVideoModelKey]);
@@ -1603,7 +1610,7 @@ export function UnifiedCreateStudioClient({
       sortRecipes(
         recipes
           .map(mapCatalogRecipeToCard)
-          .filter((item): item is RecipeCard => item !== null && item.id !== 'ugc_ad'),
+          .filter((item): item is RecipeCard => item !== null && item.id !== 'ugc_ad' && item.id !== 'deep_dive_explainer'),
       ),
     [recipes],
   );
@@ -3713,9 +3720,8 @@ export function UnifiedCreateStudioClient({
                                     const defaultQuality = family.supportedQualities[0]?.key ?? 'standard';
                                     setQualityProfile(profileFromFamilyQuality(defaultQuality));
                                     setDurationPreference(String(family.supportedDurations[0] ?? 5));
-                                    closeMenus();
                                   }}
-                                  onHover={() => null}
+                                  onHover={() => setSelectedNormalVideoFamilyKey(family.key)}
                                 />
                               ))
                               : mode === 'video'

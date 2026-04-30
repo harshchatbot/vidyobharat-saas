@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 export default async function ProjectsPage() {
   const userId = await getUserIdFromCookie();
-  const projects = userId ? await api.listProjects(userId, 0) : [];
+  const projects = userId ? await api.listProjects(userId, 0, 45_000).catch(() => []) : [];
 
   return (
     <div className="space-y-6">

@@ -36,6 +36,14 @@ function formatRelativeTime(value: string) {
   return `${diffMonths}mo ago`;
 }
 
+function formatStableTimestamp(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 function resolveProjectTimestamp(project: Project) {
   return project.last_activity_at || project.updated_at || project.created_at;
 }
@@ -94,6 +102,11 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_PROJECT_BATCH);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(initialProjects.length > 0 ? Date.now() : 0);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const filteredProjects = useMemo(() => {
     const next = projects
@@ -126,6 +139,11 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
       setLastLoadedAt(Date.now());
     }
   }, [initialProjects]);
+
+  useEffect(() => {
+    if (initialProjects.length > 0) return;
+    void refreshProjects();
+  }, [initialProjects.length, refreshProjects]);
 
   useEffect(() => {
     setVisibleCount(INITIAL_PROJECT_BATCH);
@@ -178,6 +196,9 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
     setOpeningProjectId(projectId);
     router.push(`/projects/${projectId}`);
   };
+
+  const formatProjectTimestamp = (value: string) =>
+    hasMounted ? formatRelativeTime(value) : formatStableTimestamp(value);
 
   return (
     <div className="rangmanch-page-stack">
@@ -292,7 +313,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                   >
                     <div className="min-w-0 space-y-3">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <span>Updated {formatRelativeTime(resolveProjectTimestamp(project))}</span>
+                        <span>Updated {formatProjectTimestamp(resolveProjectTimestamp(project))}</span>
                         <span>•</span>
                         <span>{project.language}</span>
                         <span>•</span>

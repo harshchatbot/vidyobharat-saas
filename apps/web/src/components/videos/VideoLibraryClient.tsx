@@ -42,6 +42,14 @@ function relativeTime(value: string) {
   return `${diffDay}d ago`;
 }
 
+function formatStableTimestamp(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export function VideoLibraryClient({ userId, initialVideos, initialImages }: Props) {
   const { show } = useToast();
   const [videos, setVideos] = useState(initialVideos);
@@ -57,6 +65,11 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
   const [lastLoadedAt, setLastLoadedAt] = useState(
     initialVideos.length > 0 || initialImages.length > 0 ? Date.now() : 0,
   );
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     setVideos(initialVideos);
@@ -241,6 +254,9 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
     }
   };
 
+  const formatTimestamp = (value: string) =>
+    hasMounted ? relativeTime(value) : formatStableTimestamp(value);
+
   return (
     <div className="space-y-6">
       <div className="rangmanch-studio-panel rounded-[var(--radius-xl)] px-5 py-6 sm:px-6">
@@ -360,7 +376,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted">
-                    <span>{relativeTime(image.created_at)}</span>
+                    <span>{formatTimestamp(image.created_at)}</span>
                     <span className="inline-flex items-center gap-1">
                       <ExternalLink className="h-3.5 w-3.5" />
                       Open details
@@ -423,7 +439,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted">
-                    <span>{relativeTime(video.created_at)}</span>
+                    <span>{formatTimestamp(video.created_at)}</span>
                     <span>{video.project_id ? 'In project' : 'Open workspace'}</span>
                   </div>
                 </div>
@@ -450,7 +466,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
           imageUrl={toAbsoluteUrl(selectedImage.image_url) || selectedImage.image_url}
           imageAlt={selectedImage.prompt || 'Library image'}
           title="Library image"
-          subtitle={`Created ${relativeTime(selectedImage.created_at)}`}
+          subtitle={`Created ${formatTimestamp(selectedImage.created_at)}`}
           prompt={selectedImage.prompt}
           imageAspectRatio={selectedImage.aspect_ratio}
           badges={

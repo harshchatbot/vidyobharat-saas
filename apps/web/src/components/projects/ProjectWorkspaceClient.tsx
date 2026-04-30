@@ -29,6 +29,15 @@ function formatRelativeTime(value?: string | null) {
   return `${Math.floor(diffDays / 30)}mo ago`;
 }
 
+function formatStableTimestamp(value?: string | null) {
+  if (!value) return 'Just now';
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 function toAbsolute(url?: string | null) {
   if (!url) return null;
   return url.startsWith('http') ? url : `${API_URL}${url}`;
@@ -107,7 +116,12 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
   const [publishingImageId, setPublishingImageId] = useState<string | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [visibleOutputCount, setVisibleOutputCount] = useState(INITIAL_OUTPUT_BATCH);
+  const [hasMounted, setHasMounted] = useState(false);
   const saveFingerprint = useRef(`${project.script}`);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     if (script === saveFingerprint.current) return;
@@ -148,6 +162,8 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
     renderCount: detail.renders.length,
   };
   const latestActivity = project.last_activity_at || project.updated_at || project.created_at;
+  const formatTimestamp = (value?: string | null) =>
+    hasMounted ? formatRelativeTime(value) : formatStableTimestamp(value);
   const templateFilterOptions = useMemo(() => {
     const values = new Set<string>();
     for (const item of imageItems) {
@@ -274,7 +290,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
               <div className="min-w-0">
                 <h1 className="truncate font-heading text-2xl font-extrabold tracking-tight text-text sm:text-3xl">{project.title}</h1>
                 <p className="mt-1 text-sm text-muted">
-                  {summary.imageCount + summary.videoCount} outputs in this folder • Updated {formatRelativeTime(latestActivity)}
+                  {summary.imageCount + summary.videoCount} outputs in this folder • Updated {formatTimestamp(latestActivity)}
                 </p>
               </div>
             </div>
@@ -443,7 +459,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
                     ))}
                   </div>
                 }
-                footer={<p className="text-[11px] text-muted">Updated {formatRelativeTime(item.createdAt)}</p>}
+                footer={<p className="text-[11px] text-muted">Updated {formatTimestamp(item.createdAt)}</p>}
               />
             ))}
           </div>
@@ -464,7 +480,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
           imageUrl={toAbsolute(selectedProjectImage.image_url) || selectedProjectImage.image_url}
           imageAlt={selectedProjectImage.prompt || 'Project image'}
           title="Project image"
-          subtitle={`Created ${formatRelativeTime(selectedProjectImage.created_at)}`}
+          subtitle={`Created ${formatTimestamp(selectedProjectImage.created_at)}`}
           prompt={selectedProjectImage.prompt}
           imageAspectRatio={selectedProjectImage.aspect_ratio}
           badges={

@@ -23,9 +23,18 @@ function relativeTime(value: string) {
   return `${diffDay}d ago`;
 }
 
+function formatStableTimestamp(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export function NotificationBell({ userId }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<AppNotification[]>([]);
+  const [hasMounted, setHasMounted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const firstLoadRef = useRef(true);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -34,6 +43,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
 
   useEffect(() => {
     audioRef.current = new Audio('/sounds/notification.mp3');
+    setHasMounted(true);
   }, []);
 
   useEffect(() => {
@@ -132,7 +142,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                       <div className="text-sm font-semibold">{item.title}</div>
                       <div className="mt-1 text-xs text-muted-foreground">{item.message}</div>
                     </div>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(item.created_at)}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {hasMounted ? relativeTime(item.created_at) : formatStableTimestamp(item.created_at)}
+                    </span>
                   </div>
                   {item.video_id ? (
                     <div className="mt-2">
