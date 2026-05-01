@@ -136,6 +136,7 @@ class CreditService:
         self.normal_video_fixed_pricing = self.credit_engine.get('normalVideoFixedPricing', {})
         self.video_add_ons = self.credit_engine.get('videoAddOns', {})
         self.provider_cost_pricing = self.credit_engine.get('providerCostPricing', {})
+        self.pixverse_reference_pricing = self.credit_engine.get('pixverseReferencePricing', {})
 
     def ensure_wallet(self, user_id: str) -> FirestoreCreditWallet:
         wallet = self.repo.get_wallet(user_id)
@@ -543,6 +544,32 @@ class CreditService:
                 quality_profile=quality_profile,
                 duration_key=duration_key,
             )
+        if recipe_id in {'anime_lofi_reel', 'reference_video_generator_advanced'}:
+            recipe_inputs = inputs or {}
+            quality_profile = str(
+                recipe_inputs.get('quality_profile')
+                or recipe_inputs.get('quality')
+                or quality
+                or 'standard'
+            ).strip().lower()
+            duration_value = (
+                recipe_inputs.get('duration_seconds')
+                or payload.get('durationSeconds')
+                or duration_seconds
+            )
+            audio_value = str(
+                recipe_inputs.get('audio_mode')
+                or payload.get('audioMode')
+                or effective_audio_mode
+                or 'silent'
+            ).strip().lower()
+            return self._estimate_pixverse_reference_video(
+                recipe_id=recipe_id,
+                quality_profile=quality_profile,
+                duration_seconds=int(duration_value or 5),
+                effective_audio_mode='auto_scene_sound' if audio_value == 'auto_scene_sound' else 'silent',
+                image_urls=image_urls,
+            )
 
         model_family = str(payload.get('modelFamily') or payload.get('model_family') or '').strip().lower()
         generation_mode = str(payload.get('generationMode') or payload.get('generation_mode') or '').strip().lower()
@@ -625,6 +652,69 @@ class CreditService:
                 'duration_seconds': int(duration_key),
                 'audio_mode': 'silent',
                 'applied_add_ons': [],
+            },
+        )
+
+    def _estimate_pixverse_reference_video(
+        self,
+        *,
+        recipe_id: str,
+        quality_profile: str,
+        duration_seconds: int,
+        effective_audio_mode: str,
+        image_urls: Any,
+    ) -> CreditEstimate:
+        pricing = dict(self.pixverse_reference_pricing or {})
+        resolution_by_quality = dict(pricing.get('resolutionByQuality') or {})
+        normalized_quality = self._normalize_family_quality(quality_profile)
+        resolution = str(resolution_by_quality.get(normalized_quality) or '')
+        if resolution not in {'360p', '540p', '720p'}:
+            raise ValueError(f'Unsupported PixVerse quality profile: {quality_profile}')
+        if int(duration_seconds) not in {5, 10}:
+            raise ValueError('PixVerse reference video supports only 5s or 10s')
+
+        rates = dict((pricing.get('ratesUsdPerSecond') or {}).get(resolution, {}) or {})
+        rate_key = 'audioOn' if effective_audio_mode == 'auto_scene_sound' else 'audioOff'
+        provider_cost_usd = float(rates.get(rate_key, 0) or 0) * int(duration_seconds)
+        usd_inr_rate = float(pricing.get('usdInrRate', 95) or 95)
+        credit_inr_value = float(pricing.get('creditInrValue', 2) or 2)
+        markup_multiplier = float(pricing.get('markupMultiplier', 2.0) or 2.0)
+        minimum_margin_credits = int(pricing.get('minimumMarginCredits', 5) or 5)
+        infra_buffer = int((pricing.get('infraBufferCreditsByDuration') or {}).get(str(duration_seconds), 0) or 0)
+        provider_cost_inr = provider_cost_usd * usd_inr_rate
+        raw_cost_credits = provider_cost_inr / credit_inr_value if credit_inr_value > 0 else 0
+        total = max(minimum_margin_credits, math.ceil(raw_cost_credits * markup_multiplier + infra_buffer))
+
+        return CreditEstimate(
+            required_credits=total,
+            breakdown=[
+                CreditCostItem(
+                    component='pixverse_reference_video',
+                    label=f'PixVerse {resolution} {duration_seconds}s',
+                    value=float(total),
+                )
+            ],
+            premium=total > 0,
+            metadata={
+                'pricing_mode': 'provider_cost_plus_margin',
+                'selected_model_family': 'pixverse_c1_reference',
+                'selected_model': 'pixverse_c1_reference',
+                'resolved_provider_route': 'fal-ai/pixverse/c1/reference-to-video',
+                'generation_mode': 'image_to_video',
+                'quality_profile': normalized_quality,
+                'resolution': resolution,
+                'duration_seconds': int(duration_seconds),
+                'fps': 0,
+                'frames': 0,
+                'audio_mode': effective_audio_mode,
+                'native_audio_enabled': effective_audio_mode == 'auto_scene_sound',
+                'provider_cost_usd': round(provider_cost_usd, 6),
+                'provider_cost_inr': round(provider_cost_inr, 4),
+                'markup_multiplier': markup_multiplier,
+                'infra_buffer_credits': infra_buffer,
+                'final_credits': total,
+                'image_reference_count': len(image_urls) if isinstance(image_urls, list) else 0,
+                'recipe_id': recipe_id,
             },
         )
 
@@ -850,6 +940,8 @@ class CreditService:
     def _dimensions_for_resolution(self, resolution: str) -> tuple[int, int]:
         normalized = str(resolution or '').strip()
         matrix = {
+            '360p': (640, 360),
+            '540p': (960, 540),
             '480p': (854, 480),
             '720p': (1280, 720),
             '1080p': (1920, 1080),

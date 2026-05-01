@@ -57,6 +57,7 @@ class FalVideoService:
 
         'fal_gemini_flash_tts': 900,
         'fal_sync_lipsync_v2': 1800,
+        'pixverse_c1_reference': 2400,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _STATUS_REQUEST_TIMEOUT = httpx.Timeout(25.0, connect=10.0)
@@ -523,6 +524,7 @@ class FalVideoService:
         resolution: str,
         duration_seconds: int,
         image_url: str | None = None,
+        image_references: list[dict[str, Any]] | None = None,
         multi_prompt: list[dict[str, Any]] | None = None,
         shot_type: str | None = None,
         generate_audio: bool | None = None,
@@ -540,6 +542,7 @@ class FalVideoService:
             resolution=resolution,
             duration_seconds=duration_seconds,
             image_url=image_url,
+            image_references=image_references,
             multi_prompt=multi_prompt,
             generate_audio=generate_audio,
         )
@@ -560,6 +563,7 @@ class FalVideoService:
                     'resolution': resolution,
                     'duration_seconds': duration_seconds,
                     'has_image_seed': bool(image_url),
+                    'image_reference_count': len(image_references or []),
                     'has_multi_prompt': bool(multi_prompt),
                     'shot_type': payload.get('shot_type'),
                     'generate_audio': payload.get('generate_audio'),
@@ -902,6 +906,7 @@ class FalVideoService:
             'kling_o3_4k_t2v',
             'kling_o3_4k_i2v',
             'kling_o3_4k_reference',
+            'pixverse_c1_reference',
         }
 
     def _build_video_payload(
@@ -913,6 +918,7 @@ class FalVideoService:
         resolution: str,
         duration_seconds: int,
         image_url: str | None,
+        image_references: list[dict[str, Any]] | None,
         multi_prompt: list[dict[str, Any]] | None,
         generate_audio: bool | None,
     ) -> dict[str, Any]:
@@ -952,6 +958,34 @@ class FalVideoService:
                 if not image_url:
                     raise ValueError('seedance_v1_lite_i2v requires image_url')
                 payload['image_url'] = image_url
+            return payload
+
+        if normalized == 'pixverse_c1_reference':
+            if duration_seconds not in {5, 10}:
+                raise ValueError('pixverse_c1_reference supports only 5s or 10s durations')
+            if resolution not in {'360p', '540p', '720p'}:
+                raise ValueError('pixverse_c1_reference supports only 360p, 540p, or 720p resolution')
+            cleaned_references = [
+                {
+                    'ref_name': str(item.get('ref_name') or '').strip(),
+                    'type': str(item.get('type') or 'subject').strip(),
+                    'image_url': str(item.get('image_url') or '').strip(),
+                }
+                for item in (image_references or [])
+                if str(item.get('ref_name') or '').strip() and str(item.get('image_url') or '').strip()
+            ]
+            if not cleaned_references:
+                raise ValueError('pixverse_c1_reference requires image_references')
+            payload.update(
+                {
+                    'aspect_ratio': aspect_ratio,
+                    'resolution': resolution,
+                    'duration': duration_seconds,
+                    'image_references': cleaned_references[:2],
+                }
+            )
+            if generate_audio is not None:
+                payload['generate_audio_switch'] = bool(generate_audio)
             return payload
 
         if normalized in {
@@ -1209,6 +1243,7 @@ class FalVideoService:
             'seedance_v1_lite_t2v': 'fal-ai/bytedance/seedance/v1/lite/text-to-video',
             'seedance_v1_lite_i2v': 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
             'seedance_v1_lite_reference': 'fal-ai/bytedance/seedance/v1/lite/reference-to-video',
+            'pixverse_c1_reference': 'fal-ai/pixverse/c1/reference-to-video',
             'kling_o3_standard_t2v': 'fal-ai/kling-video/o3/standard/text-to-video',
             'kling_o3_standard_i2v': 'fal-ai/kling-video/o3/standard/image-to-video',
             'kling_o3_pro_t2v': 'fal-ai/kling-video/o3/pro/text-to-video',

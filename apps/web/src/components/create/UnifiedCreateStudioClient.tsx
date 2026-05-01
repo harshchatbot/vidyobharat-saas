@@ -1473,6 +1473,15 @@ export function UnifiedCreateStudioClient({
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'talking_avatar',
     [activeRecipeSource],
   );
+  const isPixverseAnimeRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'anime_lofi_reel',
+    [activeRecipeSource],
+  );
+  const isPixverseAdvancedRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'reference_video_generator_advanced',
+    [activeRecipeSource],
+  );
+  const isPixverseRecipe = isPixverseAnimeRecipe || isPixverseAdvancedRecipe;
   const effectiveNormalVideoFamilyKey = useMemo(() => {
     if (mode === 'video' && activeRecipeSource?.kind !== 'recipe') {
       if (NORMAL_VIDEO_FAMILY_MAP[selectedNormalVideoFamilyKey]) {
@@ -1867,8 +1876,15 @@ export function UnifiedCreateStudioClient({
     () => Boolean(selectedNormalVideoFamily?.supportsNativeAudio),
     [selectedNormalVideoFamily],
   );
-  const showNativeAudioSelector = mode === 'video' && activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe;
-  const showVoiceControls = Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe;
+  const currentSupportsAutoSceneSound = useMemo(() => {
+    if (isPixverseRecipe) return true;
+    if (activeRecipeSource?.kind === 'recipe') {
+      return Boolean(displayedVideoModel?.supportsNativeAudio);
+    }
+    return freeformSupportsAutoSceneSound;
+  }, [activeRecipeSource, displayedVideoModel, freeformSupportsAutoSceneSound, isPixverseRecipe]);
+  const showNativeAudioSelector = mode === 'video' && ((activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe) || isPixverseRecipe);
+  const showVoiceControls = (Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe) && !isPixverseRecipe;
   const recipeReferenceImageCount = useMemo(() => {
     if (!recipeComposer) return 0;
     const hasImage = recipeComposer.slots.some((slot) => {
@@ -2642,6 +2658,20 @@ export function UnifiedCreateStudioClient({
         const recipe = activeRecipeSource.recipe.recipe;
         const inputs: Record<string, string | string[]> = {};
         let imageValue = '';
+        for (const slot of recipeComposer.slots) {
+          const slotAsset = recipeSlotAssets[slot.id];
+          const rawValue =
+            slot.kind === 'upload' || slot.kind === 'reference-image'
+              ? (slotAsset?.assetUrl || recipeComposer.values[slot.id] || '')
+              : (recipeComposer.values[slot.id] || '');
+          const normalizedValue = String(rawValue || '').trim();
+          if (slot.required && !normalizedValue) {
+            throw new Error(`${slot.label} is required before we can run this recipe.`);
+          }
+          if (normalizedValue) {
+            inputs[slot.id] = normalizedValue;
+          }
+        }
         if (recipe.input?.image) {
           const imageSlot = recipeComposer.slots.find((slot) => slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image');
           const imageAsset = imageSlot ? recipeSlotAssets[imageSlot.id] : null;
@@ -2723,8 +2753,8 @@ export function UnifiedCreateStudioClient({
             language: selectedLanguage,
             voice: selectedVoice,
             captionsEnabled,
-            narrationEnabled: voiceEnabled,
-            audioMode: recipe.id === 'avatar_product' ? 'silent' : undefined,
+            narrationEnabled: isPixverseRecipe ? false : voiceEnabled,
+            audioMode: recipe.id === 'avatar_product' ? 'silent' : (isPixverseRecipe ? audioMode : undefined),
             personaId: isAvatarDrivenRecipe ? (selectedAvatar?.personaId || undefined) : undefined,
             useAvatarForTalkingScenes: isAvatarDrivenRecipe ? Boolean(selectedAvatar?.personaId) : undefined,
           },
@@ -2955,6 +2985,41 @@ export function UnifiedCreateStudioClient({
         });
       }
 
+      if (recipe.id === 'anime_lofi_reel' || recipe.id === 'reference_video_generator_advanced') {
+        const recipeInputs = recipeComposer.slots.reduce<Record<string, string>>((acc, slot) => {
+          const slotAsset = recipeSlotAssets[slot.id];
+          const rawValue =
+            slot.kind === 'upload' || slot.kind === 'reference-image'
+              ? (slotAsset?.assetUrl || recipeComposer.values[slot.id] || '')
+              : (recipeComposer.values[slot.id] || '');
+          const normalizedValue = String(rawValue || '').trim();
+          if (normalizedValue) {
+            acc[slot.id] = normalizedValue;
+          }
+          return acc;
+        }, {});
+        recipeInputs.audio_mode = audioMode;
+        const quality = String(recipeInputs.quality_profile || defaults.quality || 'standard');
+        const durationSeconds = Number(recipeInputs.duration_seconds || defaults.duration_seconds || recipe.duration_seconds || 5);
+        return calculateVideoCredits({
+          modelKey: 'pixverse_c1_reference',
+          resolution: quality === 'premium' ? '720p' : quality === 'high' ? '540p' : '360p',
+          durationSeconds,
+          quality,
+          captionsEnabled: false,
+          narrationEnabled: false,
+          audioMode,
+          nativeAudioEnabled: audioMode === 'auto_scene_sound',
+          referenceImages:
+            recipe.id === 'reference_video_generator_advanced'
+              ? [recipeInputs.subject_image, recipeInputs.background_image].filter(Boolean).length
+              : (recipeInputs.character_image ? 1 : 0),
+          recipeId: recipe.id,
+          recipeInputs,
+          scriptText: recipePrompt,
+        });
+      }
+
       const durationSeconds = Number(defaults.duration_seconds ?? recipe.duration_seconds ?? 5);
       return calculateVideoCredits({
         modelKey: String(defaults.model_key ?? selectedVideoModelKey),
@@ -3003,6 +3068,7 @@ export function UnifiedCreateStudioClient({
     mode,
     recipeComposer,
     recipeReferenceImageCount,
+    recipeSlotAssets,
     resolvedFreeformModelKey,
     selectedVideoModelKey,
     selectedNormalVideoFamily?.key,
@@ -3374,6 +3440,9 @@ export function UnifiedCreateStudioClient({
                     })}
                   </div>
                   <p className="text-xs text-muted">Start with the empty slots. Generate stays ready on the right, and you can still refine settings below.</p>
+                  {isPixverseAdvancedRecipe ? (
+                    <p className="text-xs text-muted">Best results with 1–2 references and simple motion. Use `@subject` in the prompt, and `@background` only if you upload the second reference.</p>
+                  ) : null}
                   {isAvatarProductRecipe ? (
                     <div className="space-y-3 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.56)] p-4 dark:border-white/10 dark:bg-white/[0.04]">
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4110,13 +4179,13 @@ export function UnifiedCreateStudioClient({
                               <div className="flex items-center justify-between">
                                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Audio</p>
                                 <span className="text-[11px] text-muted">
-                                  {freeformSupportsAutoSceneSound ? 'Silent or native scene sound' : 'Silent only'}
+                                  {currentSupportsAutoSceneSound ? 'Silent or native scene sound' : 'Silent only'}
                                 </span>
                               </div>
                               <div className="mt-2 grid gap-1">
                                 {([
                                   { key: 'silent', label: 'Silent', helper: 'No narration and no native scene sound.' },
-                                  ...(freeformSupportsAutoSceneSound
+                                  ...(currentSupportsAutoSceneSound
                                     ? [{ key: 'auto_scene_sound', label: 'Auto scene sound', helper: 'Use model-native ambient or scene audio when supported.' }]
                                     : []),
                                 ] as Array<{ key: AudioMode; label: string; helper: string }>).map((option) => (

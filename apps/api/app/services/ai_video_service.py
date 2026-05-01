@@ -171,6 +171,7 @@ class AIVideoCreateService:
             'ltx': self.generate_with_ltx_self_hosted,
             'fal_ltx23_t2v': self.generate_with_fal,
             'fal_ltx23_i2v': self.generate_with_fal,
+            'pixverse_c1_reference': self.generate_with_fal,
             'seedance_v1_lite_t2v': self.generate_with_fal,
             'seedance_v1_lite_i2v': self.generate_with_fal,
             'kling_o3_standard_t2v': self.generate_with_fal,
@@ -214,6 +215,7 @@ class AIVideoCreateService:
             'kling_o3_reference': ['kling_v16_pro_i2v', 'kling_v16_standard_i2v'],
             'kling_o3_standard_reference': ['kling_o3_reference', 'kling_v16_standard_i2v'],
             'kling_o3_pro_reference': ['kling_o3_reference', 'kling_v16_pro_i2v'],
+            'pixverse_c1_reference': [],
         }
 
     def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:
@@ -593,6 +595,9 @@ class AIVideoCreateService:
         duration_seconds = int(params['durationSeconds'])
         resolution = str(params['resolution'])
         prompt = str(params['script'])
+        image_references = params.get('imageReferences')
+        if not isinstance(image_references, list):
+            image_references = recipe_metadata.get('image_references') if isinstance(recipe_metadata.get('image_references'), list) else []
 
         if requested_model in {'fal_ltx23_t2v', 'fal_ltx23_i2v'}:
             if duration_seconds not in {5, 10, 15}:
@@ -633,6 +638,7 @@ class AIVideoCreateService:
         elif requested_model in {
             'fal_ltx23_t2v',
             'fal_ltx23_i2v',
+            'pixverse_c1_reference',
             'kling_o3_reference',
             'kling_o3_standard_reference',
             'kling_o3_pro_reference',
@@ -645,18 +651,58 @@ class AIVideoCreateService:
             'kling_o3_4k_i2v',
         }:
             generate_audio = bool(native_audio_enabled or normalized_audio_mode == 'auto_scene_sound')
-
-        video_url, metadata = self.fal.generate(
-            model_key=requested_model,
-            prompt=prompt,
-            aspect_ratio=params['aspectRatio'],
-            resolution=resolution,
-            duration_seconds=duration_seconds,
-            image_url=params.get('imageUrl'),
-            multi_prompt=params.get('multiPrompt'),
-            generate_audio=generate_audio,
-            request_context=recipe_metadata,
-        )
+        image_url = params.get('imageUrl')
+        metadata: dict[str, Any]
+        try:
+            video_url, metadata = self.fal.generate(
+                model_key=requested_model,
+                prompt=prompt,
+                aspect_ratio=params['aspectRatio'],
+                resolution=resolution,
+                duration_seconds=duration_seconds,
+                image_url=image_url,
+                image_references=image_references,
+                multi_prompt=params.get('multiPrompt'),
+                generate_audio=generate_audio,
+                request_context=recipe_metadata,
+            )
+        except Exception as exc:
+            if requested_model == 'pixverse_c1_reference' and len(image_references) > 1:
+                fallback_references = [
+                    item for item in image_references
+                    if str((item or {}).get('type') or '').strip().lower() == 'subject'
+                ] or image_references[:1]
+                logger.warning(
+                    'pixverse_reference_retry_with_subject_only',
+                    extra={
+                        'render_id': params.get('videoId'),
+                        'reference_count_before': len(image_references),
+                        'reference_count_after': len(fallback_references),
+                        'error': str(exc),
+                    },
+                )
+                video_url, metadata = self.fal.generate(
+                    model_key=requested_model,
+                    prompt=prompt,
+                    aspect_ratio=params['aspectRatio'],
+                    resolution=resolution,
+                    duration_seconds=duration_seconds,
+                    image_url=image_url,
+                    image_references=fallback_references,
+                    multi_prompt=params.get('multiPrompt'),
+                    generate_audio=generate_audio,
+                    request_context={
+                        **dict(recipe_metadata or {}),
+                        'pixverse_retry_mode': 'subject_only',
+                    },
+                )
+                metadata = {
+                    **metadata,
+                    'pixverse_retry_mode': 'subject_only',
+                    'pixverse_retry_count': 1,
+                }
+            else:
+                raise
 
         return ProviderResult(
             provider='fal.ai',
@@ -1153,7 +1199,7 @@ def celery_process_ai_video(video_id: str) -> None:
         raw_snapshot = repo.collection.document(video_id).get()
         raw_data = raw_snapshot.to_dict() or {}
         recipe_id = str(raw_data.get('recipe_id') or raw_data.get('recipeId') or '').strip() or None
-        if recipe_id:
+        if recipe_id and recipe_id in STITCHED_VIDEO_RECIPE_IDS:
             from app.pipeline.pipeline_engine import run_recipe_pipeline
 
             recipe_inputs = raw_data.get('recipe_inputs') or raw_data.get('recipeInputs') or {}
@@ -1174,6 +1220,7 @@ def celery_process_ai_video(video_id: str) -> None:
             payload = {
                 'videoId': video.id,
                 'imageUrl': video.source_image_url,
+                'imageReferences': list(pipeline_metadata.get('image_references') or []),
                 'script': video.script,
                 'language': video.language,
                 'modelKey': video.selected_model,

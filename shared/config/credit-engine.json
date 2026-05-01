@@ -99,6 +99,29 @@
       "15": 8
     }
   },
+  "pixverseReferencePricing": {
+    "usdInrRate": 95,
+    "creditInrValue": 2,
+    "markupMultiplier": 2.0,
+    "minimumMarginCredits": 5,
+    "maxDurationSeconds": 10,
+    "maxResolution": "720p",
+    "maxRetries": 2,
+    "infraBufferCreditsByDuration": {
+      "5": 3,
+      "10": 5
+    },
+    "resolutionByQuality": {
+      "standard": "360p",
+      "high": "540p",
+      "premium": "720p"
+    },
+    "ratesUsdPerSecond": {
+      "360p": { "audioOff": 0.03, "audioOn": 0.04 },
+      "540p": { "audioOff": 0.04, "audioOn": 0.05 },
+      "720p": { "audioOff": 0.05, "audioOn": 0.065 }
+    }
+  },
   "video": {
     "baseDuration": 15,
     "baseCredits": 10,
@@ -213,7 +236,9 @@
     "seedance_v1_lite_reference": "seedance_v1_lite_reference",
     "seedance_lite_reference": "seedance_v1_lite_reference",
     "seedance_v1_lite": "seedance_v1_lite_reference",
-    "fal-ai/bytedance/seedance/v1/lite/reference-to-video": "seedance_v1_lite_reference"
+    "fal-ai/bytedance/seedance/v1/lite/reference-to-video": "seedance_v1_lite_reference",
+    "pixverse_c1_reference": "pixverse_c1_reference",
+    "fal-ai/pixverse/c1/reference-to-video": "pixverse_c1_reference"
   },
   "imageModelTiers": {
     "budget_image_model": "standard",

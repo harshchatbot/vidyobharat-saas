@@ -277,3 +277,67 @@ def test_kling_per_second_audio_on_costs_more() -> None:
     assert silent.required_credits == 112
     assert auto_sound.required_credits == 138
     assert auto_sound.required_credits > silent.required_credits
+
+
+def test_pixverse_anime_recipe_provider_cost_pricing_without_audio() -> None:
+    service = CreditService(None)
+
+    estimate = service.estimate(
+        'video_create',
+        {
+            'recipeId': 'anime_lofi_reel',
+            'durationSeconds': 5,
+            'audioMode': 'silent',
+            'inputs': {
+                'quality_profile': 'standard',
+                'duration_seconds': '5',
+                'character_image': 'https://example.com/character.png',
+                'audio_mode': 'silent',
+            },
+        },
+    )
+
+    assert estimate.required_credits == 18
+    assert estimate.metadata['pricing_mode'] == 'provider_cost_plus_margin'
+    assert estimate.metadata['selected_model'] == 'pixverse_c1_reference'
+    assert estimate.metadata['resolution'] == '360p'
+    assert estimate.metadata['provider_cost_usd'] == 0.15
+
+
+def test_pixverse_advanced_recipe_audio_costs_more() -> None:
+    service = CreditService(None)
+
+    silent = service.estimate(
+        'video_create',
+        {
+            'recipeId': 'reference_video_generator_advanced',
+            'durationSeconds': 10,
+            'audioMode': 'silent',
+            'inputs': {
+                'quality_profile': 'premium',
+                'duration_seconds': '10',
+                'subject_image': 'https://example.com/subject.png',
+                'custom_prompt': '@subject floats through a glowing skyline.',
+                'audio_mode': 'silent',
+            },
+        },
+    )
+    audio_on = service.estimate(
+        'video_create',
+        {
+            'recipeId': 'reference_video_generator_advanced',
+            'durationSeconds': 10,
+            'audioMode': 'auto_scene_sound',
+            'inputs': {
+                'quality_profile': 'premium',
+                'duration_seconds': '10',
+                'subject_image': 'https://example.com/subject.png',
+                'custom_prompt': '@subject floats through a glowing skyline.',
+                'audio_mode': 'auto_scene_sound',
+            },
+        },
+    )
+
+    assert silent.required_credits == 53
+    assert audio_on.required_credits == 67
+    assert audio_on.required_credits > silent.required_credits

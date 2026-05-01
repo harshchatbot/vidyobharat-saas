@@ -1677,6 +1677,8 @@ def create_ai_video(
             normalized_audio_settings['nativeAudioEnabled'] = False
 
         pipeline_metadata = dict(pipeline_metadata or {})
+        if isinstance(normalized_payload.get('imageReferences'), list):
+            pipeline_metadata['image_references'] = list(normalized_payload.get('imageReferences') or [])
         pipeline_metadata['audio_mode'] = str(normalized_payload.get('audioMode') or 'silent')
         pipeline_metadata['native_audio_enabled'] = bool(normalized_audio_settings.get('nativeAudioEnabled', False))
         normalized_payload['audioSettings'] = {

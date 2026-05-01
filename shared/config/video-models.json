@@ -759,6 +759,36 @@
       "durationPresets": [5, 6, 10],
       "defaultDurationSeconds": 5,
       "durationHelperText": "Affordable 5s/10s reference video route using avatar + product images."
+    },
+    {
+      "key": "pixverse_c1_reference",
+      "lane": "internal",
+      "label": "PixVerse C1 Reference",
+      "fullLabel": "PixVerse C1 Reference to Video",
+      "description": "Reference-to-video route for guided anime reels and advanced controlled reference generation.",
+      "frontendHint": "Internal recipe-only PixVerse route for anime and reference-led premium reels.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/pixverse/c1/reference-to-video",
+      "tier": "premium",
+      "enabled": true,
+      "featured": false,
+      "internalOnly": true,
+      "featureGate": null,
+      "qualityBadge": "Premium",
+      "speedBadge": "Reference-led",
+      "creditBadge": "Usage-based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["360p", "540p", "720p"],
+      "supportedResolutions": ["360p", "540p", "720p"],
+      "supportedAspectRatios": ["9:16"],
+      "sizes": {
+        "9:16": { "360p": "360x640", "540p": "540x960", "720p": "720x1280" }
+      },
+      "durationPresets": [5, 10],
+      "defaultDurationSeconds": 5,
+      "minDurationSeconds": 5,
+      "maxDurationSeconds": 10,
+      "durationHelperText": "Recipe-only PixVerse C1 route for 5s and 10s reference videos up to 720p."
     }
   ]
 }

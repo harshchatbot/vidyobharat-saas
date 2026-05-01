@@ -707,6 +707,7 @@ def test_build_video_payload_maps_ltx_text_to_video_fields() -> None:
         resolution='1080p',
         duration_seconds=5,
         image_url=None,
+        image_references=None,
         multi_prompt=None,
         generate_audio=False,
     )
@@ -728,6 +729,7 @@ def test_build_video_payload_maps_seedance_image_to_video_fields() -> None:
         resolution='720p',
         duration_seconds=5,
         image_url='https://example.com/product.png',
+        image_references=None,
         multi_prompt=None,
         generate_audio=None,
     )
@@ -748,6 +750,7 @@ def test_build_video_payload_maps_kling_text_and_reference_routes() -> None:
         resolution='720p',
         duration_seconds=10,
         image_url=None,
+        image_references=None,
         multi_prompt=None,
         generate_audio=True,
     )
@@ -758,6 +761,7 @@ def test_build_video_payload_maps_kling_text_and_reference_routes() -> None:
         resolution='720p',
         duration_seconds=5,
         image_url='https://example.com/reference.png',
+        image_references=None,
         multi_prompt=None,
         generate_audio=False,
     )
@@ -766,3 +770,47 @@ def test_build_video_payload_maps_kling_text_and_reference_routes() -> None:
     assert text_payload['generate_audio'] is True
     assert reference_payload['image_urls'] == ['https://example.com/reference.png']
     assert reference_payload['generate_audio'] is False
+
+
+def test_build_video_payload_maps_pixverse_reference_fields() -> None:
+    service = FalVideoService()
+
+    payload = service._build_video_payload(
+        model_key='pixverse_c1_reference',
+        prompt='@character rides through a coastal road.',
+        aspect_ratio='9:16',
+        resolution='540p',
+        duration_seconds=10,
+        image_url=None,
+        image_references=[
+            {
+                'ref_name': 'character',
+                'type': 'subject',
+                'image_url': 'https://example.com/character.png',
+            },
+            {
+                'ref_name': 'background',
+                'type': 'background',
+                'image_url': 'https://example.com/background.png',
+            },
+        ],
+        multi_prompt=None,
+        generate_audio=True,
+    )
+
+    assert payload['aspect_ratio'] == '9:16'
+    assert payload['resolution'] == '540p'
+    assert payload['duration'] == 10
+    assert payload['image_references'] == [
+        {
+            'ref_name': 'character',
+            'type': 'subject',
+            'image_url': 'https://example.com/character.png',
+        },
+        {
+            'ref_name': 'background',
+            'type': 'background',
+            'image_url': 'https://example.com/background.png',
+        },
+    ]
+    assert payload['generate_audio_switch'] is True

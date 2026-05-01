@@ -215,6 +215,82 @@ def _ltx_freeform_scene_strategy() -> RecipeSceneStrategy:
         )
     )
 
+
+PIXVERSE_ANIME_MOTION_MAP: dict[str, str] = {
+    'ride': 'rides a skateboard downhill',
+    'walk': 'walks slowly forward',
+    'run': 'runs forward with dynamic motion',
+    'fly': 'flies smoothly through the air',
+    'stand': 'stands calmly with subtle motion',
+}
+
+PIXVERSE_ANIME_SCENE_MAP: dict[str, str] = {
+    'coastal': 'coastal road with ocean, waves, seaside houses, electric poles, palm trees',
+    'mountains': 'mountain road with hills, trees, mist, winding paths',
+    'city': 'urban street with buildings, traffic lights, cars',
+    'grassland': 'open grass fields with wide sky and natural landscape',
+    'fantasy': 'fantasy environment with glowing elements, magical atmosphere',
+}
+
+PIXVERSE_ANIME_VIBE_MAP: dict[str, str] = {
+    'lofi': 'warm sunlight, soft clouds, lofi calm vibe, hand-painted anime style',
+    'cinematic': 'dramatic lighting, cinematic depth, high contrast',
+    'dreamy': 'soft glow, pastel tones, dreamy atmosphere',
+}
+
+PIXVERSE_QUALITY_TO_RESOLUTION: dict[str, str] = {
+    'standard': '360p',
+    'high': '540p',
+    'premium': '720p',
+}
+
+PIXVERSE_ALLOWED_DURATIONS = {'5', '10'}
+PIXVERSE_ALLOWED_QUALITIES = frozenset(PIXVERSE_QUALITY_TO_RESOLUTION.keys())
+PIXVERSE_ALLOWED_AUDIO_MODES = {'silent', 'auto_scene_sound'}
+
+
+def build_pixverse_anime_lofi_prompt(*, motion: str, scene: str, vibe: str) -> str:
+    motion_phrase = PIXVERSE_ANIME_MOTION_MAP[motion]
+    scene_description = PIXVERSE_ANIME_SCENE_MAP[scene]
+    vibe_description = PIXVERSE_ANIME_VIBE_MAP[vibe]
+    return (
+        f'@character {motion_phrase} on a {scene_description}. '
+        'Camera follows from behind at a slightly elevated angle, tracking smoothly. '
+        'Stable body posture, clear interaction with environment. '
+        f'{vibe_description}. '
+        'Maintain exact character identity, no distortion.'
+    )
+
+
+def _normalize_pixverse_audio_mode(value: Any) -> str:
+    normalized = str(value or '').strip().lower() or 'silent'
+    if normalized not in PIXVERSE_ALLOWED_AUDIO_MODES:
+        raise ValueError('PixVerse audio mode must be silent or auto_scene_sound')
+    return normalized
+
+
+def _extract_prompt_refs(prompt: str) -> set[str]:
+    return {match.group(1).strip().lower() for match in re.finditer(r'@([a-zA-Z0-9_]+)', prompt or '') if match.group(1).strip()}
+
+
+def _build_pixverse_image_references(*, subject_image: str, background_image: str | None = None) -> list[dict[str, str]]:
+    references = [
+        {
+            'ref_name': 'subject',
+            'type': 'subject',
+            'image_url': subject_image,
+        }
+    ]
+    if background_image:
+        references.append(
+            {
+                'ref_name': 'background',
+                'type': 'background',
+                'image_url': background_image,
+            }
+        )
+    return references
+
 RECIPES: dict[str, RecipeConfig] = {
     'spongebob_challenge': RecipeConfig(
         id='spongebob_challenge',
@@ -631,6 +707,165 @@ RECIPES: dict[str, RecipeConfig] = {
             'supports_product_image': True,
         },
     ),
+    'anime_lofi_reel': RecipeConfig(
+        id='anime_lofi_reel',
+        type='video',
+        duration_seconds=5,
+        input=RecipeInputConfig(image=False, text=False),
+        config=RecipeContentConfig(
+            style='anime_lofi_reference_reel',
+            tone='guided_anime_motion_prompt_builder',
+            structure=('character', 'motion', 'scene', 'vibe'),
+            scene_guidance='Guided anime reference-to-video reel using a character image and structured motion/scene/vibe controls.',
+            seed_prompt='Create a cinematic anime-style reel from the supplied character image.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='pixverse_c1_reference',
+            aspect_ratio='9:16',
+            resolution='360p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Kore',
+            language='English (India)',
+            caption_style='classic',
+        ),
+        scene_strategy=_story_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='Anime Lofi Reel',
+            slug='anime-lofi-reel',
+            description='Create cinematic anime-style reels from your character image.',
+            short_label='Anime',
+            preview_video_url=_sample_video('anime_lofi_reel.mp4'),
+            preview_image_url=_sample_video('anime_lofi_reel.mp4'),
+            active=True,
+            featured=True,
+            trending=False,
+            order=26,
+            tags=('all', 'ads', 'anime', 'reference', 'pixverse'),
+            composer=RecipeComposerConfig(
+                recipe_label='Anime Lofi Reel',
+                mode='video',
+                starter_copy='Upload one character image, then choose the motion, scene, vibe, duration, and quality. Prompting stays fully guided here.',
+                fragments=(
+                    RecipeComposerFragment(type='slot', slot_id='character_image'),
+                    RecipeComposerFragment(type='text', value=' in a '),
+                    RecipeComposerFragment(type='slot', slot_id='vibe'),
+                    RecipeComposerFragment(type='text', value=' anime reel where the character '),
+                    RecipeComposerFragment(type='slot', slot_id='motion'),
+                    RecipeComposerFragment(type='text', value=' through a '),
+                    RecipeComposerFragment(type='slot', slot_id='scene'),
+                    RecipeComposerFragment(type='text', value='.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='character_image',
+                        kind='reference-image',
+                        label='Upload character image',
+                        placeholder='Upload character image',
+                        required=True,
+                        submit_target='image',
+                    ),
+                    RecipeComposerSlot(id='motion', kind='select', label='Motion', placeholder='Choose motion', required=True, options=('ride', 'walk', 'run', 'fly', 'stand')),
+                    RecipeComposerSlot(id='scene', kind='select', label='Scene', placeholder='Choose scene', required=True, options=('coastal', 'mountains', 'city', 'grassland', 'fantasy')),
+                    RecipeComposerSlot(id='vibe', kind='select', label='Vibe', placeholder='Choose vibe', required=True, options=('lofi', 'cinematic', 'dreamy')),
+                    RecipeComposerSlot(id='duration_seconds', kind='select', label='Duration', placeholder='Choose duration', required=True, options=('5', '10')),
+                    RecipeComposerSlot(id='quality_profile', kind='select', label='Quality', placeholder='Choose quality', required=True, options=('standard', 'high', 'premium')),
+                ),
+            ),
+        ),
+        reference_strategy='pixverse_character',
+        metadata={
+            'starter_badge': 'Anime',
+            'version': 1,
+            'pixverse_mode': 'recipe',
+        },
+    ),
+   ''' 'reference_video_generator_advanced': RecipeConfig(
+        id='reference_video_generator_advanced',
+        type='video',
+        duration_seconds=5,
+        input=RecipeInputConfig(image=False, text=False),
+        config=RecipeContentConfig(
+            style='pixverse_reference_advanced',
+            tone='advanced_reference_video_control',
+            structure=('references', 'custom_prompt', 'duration', 'quality'),
+            scene_guidance='Advanced reference-to-video flow with up to two references and direct prompt control.',
+            seed_prompt='Generate a PixVerse reference video from the supplied references and custom prompt.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='pixverse_c1_reference',
+            aspect_ratio='9:16',
+            resolution='360p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Kore',
+            language='English (India)',
+            caption_style='classic',
+        ),
+        scene_strategy=_story_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='Reference Video Generator (Advanced)',
+            slug='reference-video-generator-advanced',
+            description='Use 1–2 reference images with your own prompt for controlled PixVerse reference video generation.',
+            short_label='Advanced',
+            preview_video_url=_sample_video('hindi-festival-9x16.mp4'),
+            preview_image_url=_sample_video('earth.png'),
+            active=True,
+            featured=False,
+            trending=False,
+            order=27,
+            tags=('all', 'ads', 'reference', 'advanced', 'pixverse'),
+            composer=RecipeComposerConfig(
+                recipe_label='Reference Video Generator (Advanced)',
+                mode='video',
+                starter_copy='Use @subject in your prompt, and @background only if you upload a second reference. Best results come from 1–2 references and simple motion.',
+                fragments=(
+                    RecipeComposerFragment(type='slot', slot_id='subject_image'),
+                    RecipeComposerFragment(type='text', value=' with optional '),
+                    RecipeComposerFragment(type='slot', slot_id='background_image'),
+                    RecipeComposerFragment(type='text', value=' to create '),
+                    RecipeComposerFragment(type='slot', slot_id='custom_prompt'),
+                    RecipeComposerFragment(type='text', value='.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='subject_image',
+                        kind='reference-image',
+                        label='Upload subject reference',
+                        placeholder='Upload subject reference',
+                        required=True,
+                        submit_target='image',
+                    ),
+                    RecipeComposerSlot(
+                        id='background_image',
+                        kind='reference-image',
+                        label='Optional background reference',
+                        placeholder='Upload background reference',
+                        required=False,
+                        submit_target='image',
+                    ),
+                    RecipeComposerSlot(
+                        id='custom_prompt',
+                        kind='text',
+                        label='Custom prompt',
+                        placeholder='Example: @subject walks through a neon alley while @background anchors the environment.',
+                        required=True,
+                    ),
+                    RecipeComposerSlot(id='duration_seconds', kind='select', label='Duration', placeholder='Choose duration', required=True, options=('5', '10')),
+                    RecipeComposerSlot(id='quality_profile', kind='select', label='Quality', placeholder='Choose quality', required=True, options=('standard', 'high', 'premium')),
+                ),
+            ),
+        ),
+        reference_strategy='pixverse_advanced',
+        metadata={
+            'starter_badge': 'Advanced',
+            'version': 1,
+            'pixverse_mode': 'advanced',
+            'warning': 'Best results with 1–2 references and simple motion.',
+        },
+    ), '''
     'ltx_cinematic_montage_v1': RecipeConfig(
         id='ltx_cinematic_montage_v1',
         type='video',
@@ -966,7 +1201,7 @@ RECIPES: dict[str, RecipeConfig] = {
     ),
 }
 
-SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product'})
+SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product', 'anime_lofi_reel', 'reference_video_generator_advanced'})
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
 UGC_AD_RECIPE_IDS = frozenset({'ugc_ad', 'avatar_product'})
 LTX_BENCHMARK_RECIPE_IDS = frozenset({'ltx_cinematic_montage_v1'})
@@ -1127,6 +1362,84 @@ def recipe_catalog_item(recipe: RecipeConfig) -> dict[str, Any]:
 
 def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(inputs or {})
+    if recipe.id == 'anime_lofi_reel':
+        character_image = str(normalized.get('character_image') or '').strip()
+        motion = str(normalized.get('motion') or '').strip().lower()
+        scene = str(normalized.get('scene') or '').strip().lower()
+        vibe = str(normalized.get('vibe') or '').strip().lower()
+        duration_seconds = str(normalized.get('duration_seconds') or '').strip()
+        quality_profile = str(normalized.get('quality_profile') or '').strip().lower() or 'standard'
+        audio_mode = _normalize_pixverse_audio_mode(normalized.get('audio_mode'))
+
+        if not character_image:
+            raise ValueError('anime_lofi_reel requires inputs.character_image')
+        if motion not in PIXVERSE_ANIME_MOTION_MAP:
+            raise ValueError('anime_lofi_reel motion must be one of: ride, walk, run, fly, stand')
+        if scene not in PIXVERSE_ANIME_SCENE_MAP:
+            raise ValueError('anime_lofi_reel scene must be one of: coastal, mountains, city, grassland, fantasy')
+        if vibe not in PIXVERSE_ANIME_VIBE_MAP:
+            raise ValueError('anime_lofi_reel vibe must be one of: lofi, cinematic, dreamy')
+        if duration_seconds not in PIXVERSE_ALLOWED_DURATIONS:
+            raise ValueError('anime_lofi_reel duration_seconds must be 5 or 10')
+        if quality_profile not in PIXVERSE_ALLOWED_QUALITIES:
+            raise ValueError('anime_lofi_reel quality_profile must be standard, high, or premium')
+
+        normalized.update(
+            {
+                'character_image': character_image,
+                'motion': motion,
+                'scene': scene,
+                'vibe': vibe,
+                'duration_seconds': duration_seconds,
+                'quality_profile': quality_profile,
+                'audio_mode': audio_mode,
+            }
+        )
+        return normalized
+
+    if recipe.id == 'reference_video_generator_advanced':
+        subject_image = str(normalized.get('subject_image') or '').strip()
+        background_image = str(normalized.get('background_image') or '').strip()
+        custom_prompt = str(normalized.get('custom_prompt') or '').strip()
+        duration_seconds = str(normalized.get('duration_seconds') or '').strip()
+        quality_profile = str(normalized.get('quality_profile') or '').strip().lower() or 'standard'
+        audio_mode = _normalize_pixverse_audio_mode(normalized.get('audio_mode'))
+
+        if not subject_image:
+            raise ValueError('reference_video_generator_advanced requires inputs.subject_image')
+        if not custom_prompt:
+            raise ValueError('reference_video_generator_advanced requires inputs.custom_prompt')
+        if duration_seconds not in PIXVERSE_ALLOWED_DURATIONS:
+            raise ValueError('reference_video_generator_advanced duration_seconds must be 5 or 10')
+        if quality_profile not in PIXVERSE_ALLOWED_QUALITIES:
+            raise ValueError('reference_video_generator_advanced quality_profile must be standard, high, or premium')
+
+        image_references = _build_pixverse_image_references(
+            subject_image=subject_image,
+            background_image=background_image or None,
+        )
+        prompt_refs = _extract_prompt_refs(custom_prompt)
+        expected_refs = {item['ref_name'] for item in image_references}
+        if 'subject' not in prompt_refs:
+            raise ValueError('reference_video_generator_advanced custom_prompt must include @subject')
+        if not prompt_refs.issubset(expected_refs):
+            raise ValueError('reference_video_generator_advanced custom_prompt contains @ref_name values that do not match uploaded references')
+        if not expected_refs.issubset(prompt_refs):
+            missing = ', '.join(f'@{value}' for value in sorted(expected_refs - prompt_refs))
+            raise ValueError(f'reference_video_generator_advanced custom_prompt must include {missing}')
+
+        normalized.update(
+            {
+                'subject_image': subject_image,
+                'background_image': background_image,
+                'custom_prompt': custom_prompt,
+                'duration_seconds': duration_seconds,
+                'quality_profile': quality_profile,
+                'audio_mode': audio_mode,
+            }
+        )
+        return normalized
+
     if recipe.input.image:
         image_value = normalized.get('image')
         if isinstance(image_value, list):
@@ -1145,6 +1458,96 @@ def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) 
 def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     defaults = recipe.generation_defaults
+
+    if recipe.id == 'anime_lofi_reel':
+        quality_profile = str(normalized_inputs['quality_profile'])
+        duration_seconds = int(str(normalized_inputs['duration_seconds']))
+        generated_prompt = build_pixverse_anime_lofi_prompt(
+            motion=str(normalized_inputs['motion']),
+            scene=str(normalized_inputs['scene']),
+            vibe=str(normalized_inputs['vibe']),
+        )
+        resolution = PIXVERSE_QUALITY_TO_RESOLUTION[quality_profile]
+        character_image = str(normalized_inputs['character_image']).strip()
+        image_references = [
+            {
+                'ref_name': 'character',
+                'type': 'subject',
+                'image_url': character_image,
+            }
+        ]
+        audio_mode = str(normalized_inputs.get('audio_mode') or 'silent')
+        return {
+            'template': recipe.catalog.title,
+            'templateId': recipe.id,
+            'script': generated_prompt,
+            'tags': [recipe.id, *list(recipe.catalog.tags)],
+            'modelKey': 'pixverse_c1_reference',
+            'modeId': None,
+            'projectId': None,
+            'language': defaults.language,
+            'aspectRatio': '9:16',
+            'resolution': resolution,
+            'quality': quality_profile,
+            'durationMode': 'fixed',
+            'durationSeconds': duration_seconds,
+            'voice': defaults.voice,
+            'imageUrls': [character_image],
+            'imageReferences': image_references,
+            'music': {'type': 'none', 'url': None},
+            'audioSettings': {
+                'volume': 20,
+                'ducking': True,
+                'sampleRateHz': 48000,
+                'nativeAudioEnabled': audio_mode == 'auto_scene_sound',
+            },
+            'audioMode': audio_mode,
+            'captionsEnabled': False,
+            'captionStyle': defaults.caption_style,
+            'narrationEnabled': False,
+        }
+
+    if recipe.id == 'reference_video_generator_advanced':
+        quality_profile = str(normalized_inputs['quality_profile'])
+        duration_seconds = int(str(normalized_inputs['duration_seconds']))
+        resolution = PIXVERSE_QUALITY_TO_RESOLUTION[quality_profile]
+        subject_image = str(normalized_inputs['subject_image']).strip()
+        background_image = str(normalized_inputs.get('background_image') or '').strip()
+        custom_prompt = str(normalized_inputs['custom_prompt']).strip()
+        audio_mode = str(normalized_inputs.get('audio_mode') or 'silent')
+        image_references = _build_pixverse_image_references(
+            subject_image=subject_image,
+            background_image=background_image or None,
+        )
+        return {
+            'template': recipe.catalog.title,
+            'templateId': recipe.id,
+            'script': custom_prompt,
+            'tags': [recipe.id, *list(recipe.catalog.tags)],
+            'modelKey': 'pixverse_c1_reference',
+            'modeId': None,
+            'projectId': None,
+            'language': defaults.language,
+            'aspectRatio': '9:16',
+            'resolution': resolution,
+            'quality': quality_profile,
+            'durationMode': 'fixed',
+            'durationSeconds': duration_seconds,
+            'voice': defaults.voice,
+            'imageUrls': [item['image_url'] for item in image_references],
+            'imageReferences': image_references,
+            'music': {'type': 'none', 'url': None},
+            'audioSettings': {
+                'volume': 20,
+                'ducking': True,
+                'sampleRateHz': 48000,
+                'nativeAudioEnabled': audio_mode == 'auto_scene_sound',
+            },
+            'audioMode': audio_mode,
+            'captionsEnabled': False,
+            'captionStyle': defaults.caption_style,
+            'narrationEnabled': False,
+        }
 
     requested_model_key = str(
         normalized_inputs.get('video_model_key')
@@ -1204,6 +1607,25 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
 
 def recipe_pipeline_metadata(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
+    if recipe.id in {'anime_lofi_reel', 'reference_video_generator_advanced'}:
+        return {
+            'recipe_id': recipe.id,
+            'recipe_type': recipe.type,
+            'duration_seconds': int(str(normalized_inputs.get('duration_seconds') or recipe.duration_seconds)),
+            'reference_strategy': recipe.reference_strategy,
+            'config': asdict(recipe.config),
+            'generation_defaults': asdict(recipe.generation_defaults),
+            'catalog': recipe_catalog_item(recipe),
+            'inputs': normalized_inputs,
+            'metadata': {
+                **dict(recipe.metadata or {}),
+                'pixverse_mode': 'advanced' if recipe.id == 'reference_video_generator_advanced' else 'recipe',
+                'quality_profile': str(normalized_inputs.get('quality_profile') or 'standard'),
+                'resolution': PIXVERSE_QUALITY_TO_RESOLUTION[str(normalized_inputs.get('quality_profile') or 'standard')],
+                'audio_mode': str(normalized_inputs.get('audio_mode') or 'silent'),
+                'max_retries': 2,
+            },
+        }
     return {
         'recipe_id': recipe.id,
         'recipe_type': recipe.type,

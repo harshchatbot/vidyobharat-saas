@@ -45,6 +45,7 @@ const AVATAR_PRODUCT_FIXED_PRICING = (creditEngine.avatarProductFixedPricing ?? 
 const NORMAL_VIDEO_FIXED_PRICING = (creditEngine.normalVideoFixedPricing ?? {}) as Record<string, Record<string, number>>;
 const VIDEO_ADD_ONS = (creditEngine.videoAddOns ?? {}) as Record<string, unknown>;
 const PROVIDER_COST_PRICING = (creditEngine.providerCostPricing ?? {}) as Record<string, number | Record<string, number>>;
+const PIXVERSE_REFERENCE_PRICING = (creditEngine.pixverseReferencePricing ?? {}) as Record<string, unknown>;
 const NORMAL_VIDEO_FAMILIES = getNormalVideoFamilyConfigs();
 const NORMAL_VIDEO_FAMILY_MAP = Object.fromEntries(NORMAL_VIDEO_FAMILIES.map((family) => [family.key, family]));
 const ROUTE_TO_FAMILY_MAP = Object.fromEntries(
@@ -201,6 +202,24 @@ export function calculateVideoCredits(input: VideoCostInput): number {
     const pricing = AVATAR_PRODUCT_FIXED_PRICING[quality]?.[duration];
     return Number(pricing ?? 0);
   }
+  if (input.recipeId === 'anime_lofi_reel' || input.recipeId === 'reference_video_generator_advanced') {
+    const recipeInputs = input.recipeInputs ?? {};
+    const quality = normalizeAvatarProductQuality(
+      String(recipeInputs.quality_profile ?? recipeInputs.quality ?? input.quality ?? 'standard'),
+    );
+    const resolutionByQuality = (PIXVERSE_REFERENCE_PRICING.resolutionByQuality ?? {}) as Record<string, string>;
+    const resolution = String(resolutionByQuality[quality] ?? '360p');
+    const ratesUsdPerSecond = (PIXVERSE_REFERENCE_PRICING.ratesUsdPerSecond ?? {}) as Record<string, { audioOff: number; audioOn: number }>;
+    const rates = ratesUsdPerSecond[resolution] ?? { audioOff: 0, audioOn: 0 };
+    const providerCostUsd = (audioMode === 'auto_scene_sound' ? Number(rates.audioOn ?? 0) : Number(rates.audioOff ?? 0)) * (Number(input.durationSeconds) || 5);
+    const usdInrRate = Number(PIXVERSE_REFERENCE_PRICING.usdInrRate ?? 95);
+    const creditInrValue = Number(PIXVERSE_REFERENCE_PRICING.creditInrValue ?? 2);
+    const markup = Number(PIXVERSE_REFERENCE_PRICING.markupMultiplier ?? 2);
+    const minimumMarginCredits = Number(PIXVERSE_REFERENCE_PRICING.minimumMarginCredits ?? 5);
+    const infraBuffer = Number(((PIXVERSE_REFERENCE_PRICING.infraBufferCreditsByDuration ?? {}) as Record<string, number>)[duration] ?? 0);
+    const rawCredits = creditInrValue > 0 ? (providerCostUsd * usdInrRate) / creditInrValue : 0;
+    return Math.max(minimumMarginCredits, Math.ceil(rawCredits * markup + infraBuffer));
+  }
 
   const familyKey = String(input.modelFamily || ROUTE_TO_FAMILY_MAP[input.modelKey] || '').trim().toLowerCase();
   const family = NORMAL_VIDEO_FAMILY_MAP[familyKey];
@@ -271,6 +290,8 @@ function calculateProviderCostUsd(input: {
 
 function dimensionsForResolution(resolution: string): { width: number; height: number } {
   const map: Record<string, { width: number; height: number }> = {
+    '360p': { width: 640, height: 360 },
+    '540p': { width: 960, height: 540 },
     '480p': { width: 854, height: 480 },
     '720p': { width: 1280, height: 720 },
     '1080p': { width: 1920, height: 1080 },
