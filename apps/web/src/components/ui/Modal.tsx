@@ -8,7 +8,8 @@ export function Modal({
   open,
   onClose,
   children,
-}: PropsWithChildren<{ open: boolean; onClose: () => void }>) {
+  size = 'xl',
+}: PropsWithChildren<{ open: boolean; onClose: () => void; size?: 'md' | 'lg' | 'xl' }>) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -38,11 +39,18 @@ export function Modal({
 
   if (!open || !mounted) return null;
 
+  const widthClass =
+    size === 'md'
+      ? 'max-w-[min(96vw,860px)]'
+      : size === 'lg'
+        ? 'max-w-[min(96vw,980px)]'
+        : 'max-w-[min(96vw,1180px)]';
+
   return createPortal(
     <div className="fixed inset-0 z-[160] bg-text/40 backdrop-blur-sm" onClick={onClose}>
       <div className="flex h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-2 sm:p-4 lg:p-6">
         <div
-          className="relative w-full max-w-[min(96vw,1180px)] max-h-[92dvh] overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:rounded-[32px]"
+          className={`relative w-full ${widthClass} max-h-[92dvh] overflow-hidden rounded-[20px] border border-border bg-surface shadow-hard sm:rounded-[32px]`}
           onClick={(e) => e.stopPropagation()}
         >
           <button

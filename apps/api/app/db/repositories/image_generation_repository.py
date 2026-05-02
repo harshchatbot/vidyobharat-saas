@@ -211,6 +211,14 @@ class ImageGenerationRepository:
             updated_at=utcnow(),
         )
 
+    def clear_project_assignment(self, generation: ImageGeneration) -> ImageGeneration:
+        return self.update(
+            generation,
+            project_id=None,
+            projectId=None,
+            updated_at=utcnow(),
+        )
+
     def _serialize(self, fields: dict) -> dict:
         return {
             **fields,

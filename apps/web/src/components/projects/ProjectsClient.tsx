@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clapperboard, Languages, Mic2, Search, Sparkles } from 'lucide-react';
+import { Clapperboard, Languages, Mic2, Search, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -99,6 +99,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sortBy, setSortBy] = useState<SortKey>('recent');
   const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_PROJECT_BATCH);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(initialProjects.length > 0 ? Date.now() : 0);
@@ -197,6 +198,21 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
     router.push(`/projects/${projectId}`);
   };
 
+  const deleteProject = async (project: Project) => {
+    if (deletingProjectId) return;
+    if (!window.confirm(`Delete "${project.title}"? The project folder will be removed, but generated assets will remain in your library.`)) {
+      return;
+    }
+    setDeletingProjectId(project.id);
+    try {
+      await api.deleteProject(project.id, userId);
+      setProjects((prev) => prev.filter((item) => item.id !== project.id));
+      setLastLoadedAt(Date.now());
+    } finally {
+      setDeletingProjectId(null);
+    }
+  };
+
   const formatProjectTimestamp = (value: string) =>
     hasMounted ? formatRelativeTime(value) : formatStableTimestamp(value);
 
@@ -207,6 +223,13 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
         title="Opening project"
         description="Loading your brief, outputs, and workspace context."
         stepLabel="Preparing folder view"
+        accentLabel="Projects"
+      />
+      <LoadingOverlay
+        open={Boolean(deletingProjectId)}
+        title="Deleting project"
+        description="Removing the project folder and detaching its outputs from this workspace."
+        stepLabel="Cleaning up project records"
         accentLabel="Projects"
       />
 
@@ -359,6 +382,15 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
                         className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text"
                       >
                         Continue
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteProject(project)}
+                        disabled={deletingProjectId === project.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[hsl(var(--color-danger)/0.28)] px-3 py-2 text-sm font-semibold text-[hsl(var(--color-danger))] disabled:opacity-60"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deletingProjectId === project.id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </article>

@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Clapperboard, Filter, FolderOpen, ImageIcon, Languages, Mic2, Sparkles, Video } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { MediaPosterCard } from '@/components/ui/MediaPosterCard';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Textarea } from '@/components/ui/Textarea';
@@ -104,6 +106,7 @@ function mapVideoOutput(item: VideoAsset): UnifiedOutput {
 }
 
 export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDetail; userId: string }) {
+  const router = useRouter();
   const { project } = detail;
   const { show } = useToast();
   const [script, setScript] = useState(project.script);
@@ -115,6 +118,7 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
   const [selectedProjectImage, setSelectedProjectImage] = useState<GeneratedImage | null>(null);
   const [publishingImageId, setPublishingImageId] = useState<string | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [visibleOutputCount, setVisibleOutputCount] = useState(INITIAL_OUTPUT_BATCH);
   const [hasMounted, setHasMounted] = useState(false);
   const saveFingerprint = useRef(`${project.script}`);
@@ -274,8 +278,31 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
     }
   };
 
+  const deleteCurrentProject = async () => {
+    if (deletingProject) return;
+    if (!window.confirm(`Delete "${project.title}"? The project folder will be removed, but your generated assets will remain in the library.`)) {
+      return;
+    }
+    setDeletingProject(true);
+    try {
+      await api.deleteProject(project.id, userId);
+      router.replace('/projects');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete project.';
+      show({ title: 'Delete failed', message, variant: 'error' });
+      setDeletingProject(false);
+    }
+  };
+
   return (
     <div className="space-y-5 sm:space-y-6">
+      <LoadingOverlay
+        open={deletingProject}
+        title="Deleting project"
+        description="Removing the project folder and keeping your generated assets available in the library."
+        stepLabel="Cleaning up workspace"
+        accentLabel="Projects"
+      />
       <section className="rounded-[28px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.34)] px-5 py-5 shadow-[var(--shadow-soft)] sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -309,6 +336,9 @@ export function ProjectWorkspaceClient({ detail, userId }: { detail: ProjectDeta
                 <Clapperboard className="h-4 w-4" />
               </Button>
             </Link>
+            <Button variant="secondary" className="gap-2 text-[hsl(var(--color-danger))]" onClick={() => void deleteCurrentProject()}>
+              Delete project
+            </Button>
           </div>
         </div>
 

@@ -39,6 +39,23 @@ class ProjectService:
             return project
         return self.project_repo.update(project, **updates)
 
+    def delete_project(self, project_id: str, user_id: str) -> bool:
+        project = self.project_repo.get_by_id(project_id)
+        if not project:
+            return False
+        if project.user_id != user_id:
+            raise PermissionError('Project does not belong to this user')
+
+        for image in self.image_repo.list_by_project(project_id, limit=200):
+            if image.user_id == user_id:
+                self.image_repo.clear_project_assignment(image)
+        for video in self.video_repo.list_by_project(project_id, limit=200):
+            if video.user_id == user_id:
+                self.video_repo.clear_project_assignment(video)
+
+        self.project_repo.delete(project_id)
+        return True
+
     def list_project_renders(self, project_id: str):
         return self.render_repo.latest_by_project(project_id)
 

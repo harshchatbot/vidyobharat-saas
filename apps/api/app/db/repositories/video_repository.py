@@ -219,6 +219,13 @@ class VideoRepository:
             projectId=project_id,
         )
 
+    def clear_project_assignment(self, video: Video) -> Video:
+        return self.update(
+            video,
+            project_id=None,
+            projectId=None,
+        )
+
     def set_progress(self, video_id: str, progress: int, status: VideoStatus) -> Video | None:
         video = self.get_by_id(video_id)
         if not video:

@@ -3005,6 +3005,22 @@ def update_project(
     return project
 
 
+@router.delete('/projects/{project_id}', response_model=UploadDeleteResponse)
+def delete_project(
+    project_id: str,
+    user_id: str = Depends(get_user_id),
+):
+    service = ProjectService(None)
+    try:
+        deleted = service.delete_project(project_id, user_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail='Project not found')
+    logger.info('project_deleted', extra={'request_id': get_request_id(), 'user_id': user_id, 'project_id': project_id})
+    return UploadDeleteResponse(asset_id=project_id, deleted=True)
+
+
 @router.post('/projects/{project_id}/assets', response_model=ProjectAssetResponse, status_code=status.HTTP_201_CREATED)
 def create_project_asset(
     project_id: str,

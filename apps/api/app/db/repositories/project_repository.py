@@ -53,6 +53,9 @@ class ProjectRepository:
         data.pop('_sa_instance_state', None)
         return self._to_model(data)
 
+    def delete(self, project_id: str) -> None:
+        self.collection.document(project_id).delete()
+
     def touch_generation(
         self,
         project_id: str,

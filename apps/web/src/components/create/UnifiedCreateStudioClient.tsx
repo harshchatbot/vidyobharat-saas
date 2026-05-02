@@ -24,6 +24,7 @@ import {
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -4611,22 +4612,28 @@ export function UnifiedCreateStudioClient({
         />
       ) : null}
 
-      <Modal open={Boolean(selectedRecipe)} onClose={() => setSelectedRecipe(null)}>
+      <Modal open={Boolean(selectedRecipe)} onClose={() => setSelectedRecipe(null)} size="md">
         {selectedRecipe ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
-              {selectedRecipe.previewVideoUrl ? (
-                <video
-                  src={selectedRecipe.previewVideoUrl}
-                  poster={selectedRecipe.previewUrl}
-                  controls
-                  className="w-full bg-black object-contain"
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
+                <img
+                  src={selectedRecipe.previewUrl}
+                  alt={selectedRecipe.title}
+                  className="w-full object-cover"
                   style={{ aspectRatio: aspectRatioToCss(selectedRecipe.aspectRatio) }}
-                  preload="metadata"
                 />
-              ) : (
-                <img src={selectedRecipe.previewUrl} alt={selectedRecipe.title} className="w-full object-cover" style={{ aspectRatio: aspectRatioToCss(selectedRecipe.aspectRatio) }} />
-              )}
+              </div>
+              {selectedRecipe.previewVideoUrl ? (
+                <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.82)] p-2">
+                  <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Preview motion</p>
+                  <LandingVideo
+                    src={selectedRecipe.previewVideoUrl}
+                    poster={selectedRecipe.previewUrl}
+                    className="w-full rounded-[18px] bg-black object-cover"
+                  />
+                </div>
+              ) : null}
             </div>
             <div className="flex h-full flex-col rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.82)] p-5">
               <div className="space-y-4">

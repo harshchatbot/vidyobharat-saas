@@ -3,7 +3,12 @@ import {
   ArrowRight,
   BadgeIndianRupee,
   Check,
+  Film,
   Heart,
+  ImagePlus,
+  IndianRupee,
+  Layers3,
+  Sparkles,
   UploadCloud,
   UserRound,
   Video,
@@ -11,50 +16,67 @@ import {
 
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { LandingVideo } from '@/components/landing/LandingVideo';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import { AnimatedMarqueeHero } from '@/components/ui/hero-3';
 import { LampContainer } from '@/components/ui/lamp';
 import { heroMedia } from '@/config/heroMedia';
 
-
-
 const steps = [
   {
     title: 'Upload your product',
-    body: 'Add a product photo and tell RangManch what you are selling.',
+    body: 'Add a product photo, product angle, and a few basic campaign details. RangManch takes it from there.',
     icon: <UploadCloud className="h-5 w-5" />,
   },
   {
     title: 'Choose an AI avatar',
-    body: 'Pick a presenter and budget lane that fits your campaign.',
+    body: 'Pick a presenter and a quality lane from affordable to premium, based on your budget and output target.',
     icon: <UserRound className="h-5 w-5" />,
   },
   {
     title: 'Generate your ad',
-    body: 'Get a short UGC-style product video ready for social media.',
+    body: 'Publish-ready UGC-style ads, guided anime reels, or freeform videos and images from one studio.',
     icon: <Video className="h-5 w-5" />,
+  },
+];
+
+const offerHighlights = [
+  {
+    title: 'Quick UGC ads at low cost',
+    body: 'Avatar Product is built for predictable, fast output. Upload product image, choose AI avatar, fill the basics, and generate.',
+    icon: <IndianRupee className="h-5 w-5" />,
+  },
+  {
+    title: 'Guided anime lofi reels',
+    body: 'Upload a character image, choose motion, vibe, and scenery, and let the guided recipe create the final anime-style reel.',
+    icon: <Film className="h-5 w-5" />,
+  },
+  {
+    title: 'Freeform creation when you want it',
+    body: 'Recipes are for speed and predictable outcomes. Freeform video and image generation are there when you want to push your own creativity.',
+    icon: <Layers3 className="h-5 w-5" />,
   },
 ];
 
 const useCases = [
   {
-    title: 'Small businesses',
-    body: 'Create product ads without hiring a model, studio, editor, and voice artist every time.',
+    title: 'AI avatar product ads',
+    body: 'Create short, sharp UGC ads without hiring a model, studio, editor, and voice artist for every product iteration.',
   },
   {
-    title: 'Creators',
-    body: 'Turn ideas into reels, explainers, thumbnails, and social visuals faster.',
+    title: 'Anime lofi reels',
+    body: 'Turn a single character image into a beautiful motion-led anime reel with guided choices instead of prompt complexity.',
   },
   {
-    title: 'Agencies & freelancers',
-    body: 'Test multiple ad directions for clients without increasing production cost.',
+    title: 'Creators, agencies, and local brands',
+    body: 'Move faster on ads, launches, social content, explainers, and experiments while keeping cost under control.',
   },
 ];
 
 const creditExamples = [
+  ['Monthly free credits', '40 every month'],
+  ['New user activation bonus', '120 one-time credits'],
   ['Affordable 5s avatar ad', '49 credits'],
-  ['Normal 5s video', 'from 25 credits'],
-  ['Standard image', 'from 4 credits'],
 ];
 
 function Header() {
@@ -155,10 +177,10 @@ function ProductScrollPreview() {
           <div className="mx-auto max-w-3xl space-y-4 px-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">How RangManch helps</p>
             <h2 className="font-heading text-[2.2rem] font-extrabold tracking-tight text-text sm:text-[3.5rem] sm:leading-[1.02]">
-              From product photo to AI ad, without a production team.
+              From one product photo to a finished UGC ad, without a production team.
             </h2>
             <p className="mx-auto max-w-2xl text-sm leading-7 text-muted sm:text-base">
-              RangManch turns the hard parts of ad creation into a simple guided flow for Indian creators, small businesses, marketers, and freelancers.
+              The live recipe flow is simple: choose AI avatar, upload product image, provide a few basics, and generate high-quality ads at a fraction of traditional production cost.
             </p>
           </div>
         }
@@ -180,10 +202,10 @@ function MissionSection() {
       </div>
       <div className="space-y-5 text-sm leading-7 text-muted sm:text-base">
         <p>
-          Most small teams cannot afford repeated shoots, editors, models, voice artists, and agency timelines. RangManch AI exists to make quality content creation accessible, faster, and more affordable.
+          Most small teams cannot afford repeated shoots, editors, models, voice artists, and agency timelines. RangManch AI exists to make quality content creation accessible, faster, and dramatically more affordable.
         </p>
         <p>
-          We are building an India-first creator platform where anyone can create product ads, social visuals, short videos, and educational content without understanding complex AI models.
+          We are building an India-first creator platform where anyone can create avatar-led product ads, anime reels, social visuals, short videos, and educational content without understanding complex AI models.
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
           {['Built for creators', 'Useful for local businesses', 'Simple credit pricing', 'Made in India'].map((item) => (
@@ -192,6 +214,95 @@ function MissionSection() {
             </span>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function OfferSection() {
+  return (
+    <section className="space-y-8">
+      <div className="max-w-3xl">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">What you can do today</p>
+        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+          Two guided recipes for speed, plus freeform creation when you want full control.
+        </h2>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {offerHighlights.map((item) => (
+          <div key={item.title} className="rounded-[28px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.45)] p-5 shadow-[var(--shadow-soft)]">
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg-soft)/0.8)] text-[hsl(var(--color-accent))]">
+              {item.icon}
+            </div>
+            <p className="mt-5 text-xl font-heading font-extrabold text-text">{item.title}</p>
+            <p className="mt-3 text-sm leading-7 text-muted">{item.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecipeShowcaseSection() {
+  return (
+    <section className="space-y-8">
+      <div className="max-w-3xl">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Guided recipes</p>
+        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+          The two fastest ways to see RangManch working for you.
+        </h2>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+          <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+            <div className="border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
+              <LandingVideo
+                src="/hero/ugc_avtaar_product_ad.mp4"
+                poster="/hero/ugc_avtaar_product_ad.mp4"
+                className="aspect-[9/16] h-full w-full object-cover"
+              />
+            </div>
+            <div className="p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Avatar Product</p>
+              <h3 className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-text">Quick UGC ads with AI avatars</h3>
+              <p className="mt-3 text-sm leading-7 text-muted">
+                Select an AI avatar, upload product image, provide a few basic inputs, click generate, and get a polished UGC-style product ad.
+              </p>
+              <div className="mt-5 space-y-2 text-sm text-muted">
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> Affordable to premium quality lanes</div>
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> Product image + avatar + a few campaign basics</div>
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> Built for fast, repeatable ad output</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+          <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+            <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
+            <div className="mt-5 overflow-hidden rounded-[20px] border border-[hsl(var(--color-border)/0.65)]">
+                <LandingVideo
+                  src="/videos/samples/anime_lofi_reel.mp4"
+                  poster="/videos/samples/anime_lofi_reel.mp4"
+                  className="aspect-[9/16] w-full object-cover"
+                />
+              </div>
+              <div className="absolute inset-x-3 bottom-3 rounded-[16px] border border-white/12 bg-black/45 px-3 py-2 text-xs font-medium text-white/90 backdrop-blur">
+                Upload character {'->'} choose motion, vibe, scene {'->'} generate reel
+              </div>
+            </div>
+            <div className="p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Anime Lofi Reel</p>
+              <h3 className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-text">Beautiful anime reels without prompt complexity</h3>
+              <p className="mt-3 text-sm leading-7 text-muted">
+                Upload the anime character, choose the motion, vibe, and scenery, and RangManch builds the reel prompt for you automatically.
+              </p>
+              
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   );
@@ -231,7 +342,7 @@ function UseCasesSection() {
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Who it helps</p>
         <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
-          Built for people who need content, not complexity.
+          Built for people who need content, speed, and better unit economics.
         </h2>
       </div>
 
@@ -250,18 +361,28 @@ function UseCasesSection() {
 
 function PricingTeaser() {
   return (
-    <section className="grid gap-6 rounded-[34px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(34,29,40,0.72),rgba(16,14,21,0.95))] p-6 sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10">
+    <section className="grid gap-6 rounded-[34px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(34,29,40,0.86),rgba(16,14,21,0.98))] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.28)] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Simple credits</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
-          Start small. Scale when content starts working.
+        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-white sm:text-[3rem] sm:leading-[1.04]">
+          Start free, test fast, and scale only when content starts working.
         </h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-muted sm:text-base">
-          Use credits across images, normal videos, and Avatar Product Ads. Higher quality and longer videos use more credits.
+        <p className="mt-4 max-w-xl text-sm leading-7 text-slate-200 sm:text-base">
+          Every user gets 40 free credits every month, plus a one-time 120 credit activation bonus. Use credits across images, normal videos, anime reels, and Avatar Product Ads.
         </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-3 py-1.5 text-sm font-semibold text-white">
+            <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            40 monthly free credits
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-3 py-1.5 text-sm font-semibold text-white">
+            <ImagePlus className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            120 activation credits one time
+          </span>
+        </div>
         <Link
           href="/pricing"
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/[0.10] bg-white/[0.04] px-5 py-3 text-sm font-semibold text-text transition hover:bg-white/[0.07]"
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
         >
           View plans
           <ArrowRight className="h-4 w-4" />
@@ -270,12 +391,12 @@ function PricingTeaser() {
 
       <div className="space-y-3">
         {creditExamples.map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-black/[0.18] px-4 py-3">
-            <span className="text-sm text-muted">{label}</span>
-            <span className="text-sm font-bold text-text">{value}</span>
+          <div key={label} className="flex items-center justify-between rounded-2xl border border-white/[0.10] bg-white/[0.06] px-4 py-3">
+            <span className="text-sm text-slate-200">{label}</span>
+            <span className="text-sm font-bold text-white">{value}</span>
           </div>
         ))}
-        <p className="px-1 text-xs leading-5 text-muted/80">Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
+        <p className="px-1 text-xs leading-5 text-slate-300/90">Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
       </div>
     </section>
   );
@@ -292,11 +413,11 @@ function FinalCta() {
           </p>
 
           <h2 className="mt-4 bg-gradient-to-br from-slate-100 to-slate-400 bg-clip-text font-heading text-[2.2rem] font-extrabold tracking-tight text-transparent sm:text-[3.4rem] sm:leading-[1.02]">
-            Create your first AI product ad today.
+            Start with a guided recipe, then create as freely as you want.
           </h2>
 
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-            Upload a product photo, choose an AI avatar, and let RangManch help you create content that looks ready to publish.
+            Build low-cost AI avatar ads, beautiful anime lofi reels, and freeform videos or images from the same studio. RangManch is designed to help you publish faster, not learn model jargon.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -324,27 +445,34 @@ function FinalCta() {
 export function PublicStudioLanding() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,hsl(var(--color-hero-glow)/0.08),transparent_26%),linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-bg))_42%,hsl(260_16%_6%)_100%)] text-text">
-      <div className="mx-auto w-full max-w-[1180px] px-4 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
         <Header />
+      </div>
 
+      <section className="w-full overflow-hidden">
+        <AnimatedMarqueeHero
+          tagline="40 free monthly credits + 120 activation credits for new users"
+          title={
+            <>
+              Generate avatar ads,
+              <br />
+              anime reels, and social videos fast.
+            </>
+          }
+          description="RangManch helps creators, brands, and small teams create quick UGC ads with AI avatars, guided anime lofi reels, and freeform videos or images without dealing with complicated model settings."
+          ctaText="Start free with credits"
+          images={[]}
+          mediaItems={heroMedia}
+          className="rounded-none border-0 bg-transparent shadow-none"
+          ctaHref="/signup"
+        />
+      </section>
+
+      <div className="mx-auto w-full max-w-[1180px] px-4 pb-10 sm:px-6 lg:px-8">
         <main className="space-y-16 pb-8 sm:space-y-20">
-          <AnimatedMarqueeHero
-            tagline="Made in India for avatar ads, short videos, and creator launches"
-            title={
-              <>
-                Turn product ideas
-                <br />
-                into publish-ready ads.
-              </>
-            }
-            description="RangManch helps creators, brands, and small teams generate AI avatar product ads, multilingual shorts, and campaign-ready visuals using the same studio workflow."
-            ctaText="Start free"
-            images={[]}
-            mediaItems={heroMedia}
-            className="overflow-hidden rounded-[40px] border border-white/[0.06] bg-white/[0.015]"
-            ctaHref="/signup"
-          />
           <ProductScrollPreview />
+          <OfferSection />
+          <RecipeShowcaseSection />
           <MissionSection />
           <StepsSection />
           <UseCasesSection />

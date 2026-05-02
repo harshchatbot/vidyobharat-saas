@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { LoaderCircle, LogOut } from 'lucide-react';
 import { useState } from 'react';
 
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { clearLocalAuthState, clearServerSession } from '@/lib/logout-client';
 
 type LogoutButtonProps = {
@@ -30,24 +31,33 @@ export function LogoutButton({
     setPending(true);
     onBeforeNavigate?.();
     clearLocalAuthState();
-    void clearServerSession();
+    await clearServerSession();
     router.replace('/login');
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleLogout}
-      disabled={pending}
-      className={className}
-      aria-busy={pending}
-    >
-      {pending ? (
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-      ) : icon === 'logout' ? (
-        <LogOut className="h-4 w-4" />
-      ) : null}
-      {pending ? pendingLabel : label}
-    </button>
+    <>
+      <LoadingOverlay
+        open={pending}
+        title="Logging you out"
+        description="Clearing your session and taking you back to the sign-in screen."
+        stepLabel="Ending current session"
+        accentLabel="Account"
+      />
+      <button
+        type="button"
+        onClick={handleLogout}
+        disabled={pending}
+        className={className}
+        aria-busy={pending}
+      >
+        {pending ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : icon === 'logout' ? (
+          <LogOut className="h-4 w-4" />
+        ) : null}
+        {pending ? pendingLabel : label}
+      </button>
+    </>
   );
 }

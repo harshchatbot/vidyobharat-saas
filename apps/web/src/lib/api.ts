@@ -594,6 +594,14 @@ export const api = {
       return result;
     });
   },
+  deleteProject(projectId: string, userId: string) {
+    return request<{ asset_id: string; deleted: boolean }>(`/projects/${projectId}`, {
+      method: 'DELETE',
+    }, { userId, cache: 'no-store', timeoutMs: 25_000 }).then((result) => {
+      invalidateUserCache(userId, ['/projects', `/projects/${projectId}`]);
+      return result;
+    });
+  },
   addProjectAsset(projectId: string, payload: { filename: string; kind: string }, userId: string) {
     return request<ProjectAsset>(`/projects/${projectId}/assets`, {
       method: 'POST',
