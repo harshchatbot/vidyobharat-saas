@@ -4616,17 +4616,10 @@ export function UnifiedCreateStudioClient({
         {selectedRecipe ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-3">
-              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.75)]">
-                <img
-                  src={selectedRecipe.previewUrl}
-                  alt={selectedRecipe.title}
-                  className="w-full object-cover"
-                  style={{ aspectRatio: aspectRatioToCss(selectedRecipe.aspectRatio) }}
-                />
-              </div>
+
               {selectedRecipe.previewVideoUrl ? (
                 <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.82)] p-2">
-                  <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Preview motion</p>
+                  <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Preview</p>
                   <LandingVideo
                     src={selectedRecipe.previewVideoUrl}
                     poster={selectedRecipe.previewUrl}
