@@ -43,7 +43,7 @@ export function AuthFormClient({ mode }: Props) {
   const isLogin = mode === 'login';
   const title = isLogin ? 'Welcome back' : 'Create your account';
   const subtitle = isLogin
-    ? 'Sign in with email or Google to continue into RangManch AI.'
+    ? 'Sign in with Google or use your verified email account to continue into RangManch AI.'
     : 'Create your account, verify your email, and get into the studio with a standard secure signup flow.';
   const authStages = useMemo(
     () =>
@@ -149,6 +149,11 @@ export function AuthFormClient({ mode }: Props) {
       }
 
       const user = await getUserForIdToken(session.idToken);
+      if (isLogin && !user.emailVerified) {
+        setMessage(`Verify your email before signing in. We already sent a confirmation email to ${email.trim()}.`);
+        setAwaitingConfirmation(true);
+        throw new Error('Verify your email before signing in.');
+      }
       const profile = getProfileFields(user);
       await persistAppSession({
         accessToken: session.idToken,
@@ -305,7 +310,7 @@ export function AuthFormClient({ mode }: Props) {
 
           <SignInPage
             title="Welcome back"
-            description="Sign in with email or Google to continue into RangManch AI."
+            description="Sign in with Google or use your verified email account to continue into RangManch AI."
             heroImageSrc="/rangmanciai_login.jpg"
             testimonials={loginTestimonials}
             error={error}

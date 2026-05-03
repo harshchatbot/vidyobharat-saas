@@ -781,7 +781,7 @@ RECIPES: dict[str, RecipeConfig] = {
             'pixverse_mode': 'recipe',
         },
     ),
-   ''' 'reference_video_generator_advanced': RecipeConfig(
+    'reference_video_generator_advanced': RecipeConfig(
         id='reference_video_generator_advanced',
         type='video',
         duration_seconds=5,
@@ -865,7 +865,7 @@ RECIPES: dict[str, RecipeConfig] = {
             'pixverse_mode': 'advanced',
             'warning': 'Best results with 1–2 references and simple motion.',
         },
-    ), '''
+    ),
     'ltx_cinematic_montage_v1': RecipeConfig(
         id='ltx_cinematic_montage_v1',
         type='video',

@@ -128,6 +128,7 @@ type CacheEntry<T> = {
 
 const responseCache = new Map<string, CacheEntry<unknown>>();
 const inFlightCache = new Map<string, Promise<unknown>>();
+const SESSION_CACHE_PREFIX = 'rangmanch:api-cache:';
 
 function makeCacheKey(path: string, userId: string | undefined, payload?: unknown): string {
   const payloadKey = payload ? JSON.stringify(payload) : '';
@@ -140,6 +141,13 @@ function invalidateUserCache(userId: string, pathIncludes: string[] = []): void 
     if (!key.startsWith(prefix)) continue;
     if (pathIncludes.length > 0 && !pathIncludes.some((part) => key.includes(part))) continue;
     responseCache.delete(key);
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(`${SESSION_CACHE_PREFIX}${key}`);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
+    }
   }
   for (const key of inFlightCache.keys()) {
     if (!key.startsWith(prefix)) continue;
@@ -152,6 +160,9 @@ async function cachedRequest<T>(
   key: string,
   ttlMs: number,
   fetcher: () => Promise<T>,
+  options?: {
+    persistToSession?: boolean;
+  },
 ): Promise<T> {
   if (ttlMs <= 0) {
     return fetcher();
@@ -161,6 +172,21 @@ async function cachedRequest<T>(
   if (cached && cached.expiresAt > now) {
     return cached.value as T;
   }
+  if (options?.persistToSession && typeof window !== 'undefined') {
+    try {
+      const raw = window.sessionStorage.getItem(`${SESSION_CACHE_PREFIX}${key}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CacheEntry<T>;
+        if (parsed?.expiresAt > now) {
+          responseCache.set(key, parsed as CacheEntry<unknown>);
+          return parsed.value;
+        }
+        window.sessionStorage.removeItem(`${SESSION_CACHE_PREFIX}${key}`);
+      }
+    } catch {
+      // Ignore unavailable or malformed session cache entries.
+    }
+  }
 
   const inFlight = inFlightCache.get(key);
   if (inFlight) {
@@ -169,10 +195,18 @@ async function cachedRequest<T>(
 
   const requestPromise = fetcher()
     .then((result) => {
-      responseCache.set(key, {
+      const entry: CacheEntry<T> = {
         expiresAt: Date.now() + ttlMs,
         value: result,
-      });
+      };
+      responseCache.set(key, entry as CacheEntry<unknown>);
+      if (options?.persistToSession && typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(`${SESSION_CACHE_PREFIX}${key}`, JSON.stringify(entry));
+        } catch {
+          // Ignore session storage failures in strict/private contexts.
+        }
+      }
       return result;
     })
     .finally(() => {
@@ -495,8 +529,9 @@ export const api = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     const path = `/api/recipes${suffix}`;
     const cacheKey = makeCacheKey(path, userId);
-    return cachedRequest(cacheKey, 60_000, () =>
-      request<RecipeCatalog[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+    return cachedRequest(cacheKey, 5 * 60_000, () =>
+      request<RecipeCatalog[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 45_000 }),
+      { persistToSession: true },
     );
   },
   getTemplate(templateId: string, userId: string) {
@@ -791,8 +826,9 @@ export const api = {
   listAIVideoModels(userId: string) {
     const path = '/api/video/models';
     const cacheKey = makeCacheKey(path, userId);
-    return cachedRequest(cacheKey, 60_000, () =>
-      request<AIVideoModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 20_000 }),
+    return cachedRequest(cacheKey, 5 * 60_000, () =>
+      request<AIVideoModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+      { persistToSession: true },
     );
   },
   createAIVideo(payload: VideoCreateRequest, userId: string) {
@@ -808,10 +844,10 @@ export const api = {
     return request<AvatarProductAssistResponse>('/api/recipes/avatar-product/assist', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store', timeoutMs: 25_000 });
+    }, { userId, cache: 'no-store', timeoutMs: 45_000 });
   },
   getAIVideoStatus(videoId: string, userId: string) {
-    return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store', timeoutMs: 25_000 });
+    return request<AIVideoStatusResponse>(`/api/ai/video/status/${videoId}`, {}, { userId, cache: 'no-store', timeoutMs: 60_000 });
   },
   videoStudioChat(payload: VideoStudioChatRequest, userId: string) {
     return request<VideoStudioChatResponse>('/api/ai/video/studio-chat', {
@@ -822,8 +858,9 @@ export const api = {
   listImageModels(userId: string) {
     const path = '/ai/image/models';
     const cacheKey = makeCacheKey(path, userId);
-    return cachedRequest(cacheKey, 60_000, () =>
-      request<ImageModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 20_000 }),
+    return cachedRequest(cacheKey, 5 * 60_000, () =>
+      request<ImageModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+      { persistToSession: true },
     );
   },
   listGeneratedImages(userId: string, limit?: number) {

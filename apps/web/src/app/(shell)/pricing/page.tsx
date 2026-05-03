@@ -67,7 +67,7 @@ export default function PricingPage() {
   const router = useRouter();
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<string>('creator');
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;

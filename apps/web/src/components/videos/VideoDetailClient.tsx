@@ -930,7 +930,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                     </div>
                     <div className="rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Export</p>
-                      <p className="mt-2 text-base font-semibold text-text">{video.captions_enabled ? 'Captions on' : 'Captions off'}</p>
+                      <p className="mt-2 text-base font-semibold text-text">Final output</p>
                       <p className="mt-1 text-xs text-muted">{createdSummary}</p>
                     </div>
                   </div>
@@ -1195,9 +1195,6 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                       <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1 text-xs text-text">
                         <span>Read-only</span>
                       </div>
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1 text-xs text-text">
-                        <span>{video.captions_enabled ? 'Caption on' : 'Caption off'}</span>
-                      </div>
                     </div>
                   </div>
 
@@ -1210,7 +1207,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                             {translatingScript ? <SoftPill>Translating…</SoftPill> : null}
                           </div>
                         ) : null}
-                        <p className="whitespace-pre-wrap text-sm leading-7 text-text">{displayedNarrationScript}</p>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-7 text-text [overflow-wrap:anywhere]">{displayedNarrationScript}</p>
                       </div>
                     ) : (
                       <div className="flex h-full min-h-[180px] items-center justify-center text-sm text-muted">No audio script yet</div>
@@ -1243,13 +1240,12 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                 ) : null}
 
                 <div className="ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <SoftPill>{narrationSourceLabel}</SoftPill>
-                      {video.narration_enabled ? <SoftPill>Narration on</SoftPill> : <SoftPill>Narration off</SoftPill>}
-                      {video.captions_enabled ? <SoftPill>Captions on</SoftPill> : <SoftPill>Captions off</SoftPill>}
-                    </div>
-                    <p className="text-sm leading-6 text-text">{displayedNarrationScript || 'Prepare a social-first video from my prompt.'}</p>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SoftPill>{narrationSourceLabel}</SoftPill>
+                        {video.narration_enabled ? <SoftPill>Narration on</SoftPill> : <SoftPill>Narration off</SoftPill>}
+                      </div>
+                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{displayedNarrationScript || 'Prepare a social-first video from my prompt.'}</p>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <SoftPill>AI video</SoftPill>
@@ -1274,7 +1270,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                           ) : null}
                         </div>
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-text">{event.detail}</p>
+                      <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{event.detail}</p>
                     </div>
                   ))
                   : (
@@ -1283,7 +1279,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                         <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
                         {stage.label}
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-text">{stage.detail}</p>
+                      <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{stage.detail}</p>
                     </div>
                   )}
 
@@ -1293,7 +1289,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                       <Spinner />
                       AI is working
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-text">
+                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
                       {sortedPipelineEvents.length > 0
                         ? 'Still generating. The copilot will keep appending pipeline updates here as the render moves through scenes, audio, and final export.'
                         : `${stage.label}. ${stage.detail}`}
@@ -1306,8 +1302,8 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                     <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--color-success))]" />
                     Workspace loaded
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-text">{createdSummary}</p>
-                </div>
+                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{createdSummary}</p>
+                  </div>
 
                 <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
                   <p className="text-sm font-semibold text-text">Todos</p>
@@ -1435,7 +1431,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                       : 'max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3'
                       }`}
                   >
-                    <p className="text-sm leading-6 text-text">{message.text}</p>
+                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{message.text}</p>
                   </div>
                 ))}
 
@@ -1445,7 +1441,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                       <Music4 className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
                       Updated BGM
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-text">
+                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
                       {selectedTrack?.name || 'Background music attached'} is ready for the final mix at {Math.round(video.music_volume * 100)}%
                       volume.
                     </p>
@@ -1454,7 +1450,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
                 {video.status === 'completed' ? (
                   <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                    <p className="text-sm leading-6 text-text">
+                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
                       Your video is ready. The final export is available with the selected aspect ratio, music settings, and playback controls.
                     </p>
                   </div>

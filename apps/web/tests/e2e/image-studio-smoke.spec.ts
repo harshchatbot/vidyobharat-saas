@@ -261,7 +261,7 @@ test.describe('Image studio smoke', () => {
 
     await page.goto('/images', { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByRole('heading', { level: 1, name: /generate images in one focused workspace/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /image workspace/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /browse templates/i }).first()).toBeVisible();
     await expect(page.getByText(/^create image$/i)).toBeVisible();
     await expect(page.getByText(/^template$/i)).toBeVisible();

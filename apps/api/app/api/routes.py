@@ -1892,9 +1892,38 @@ def get_ai_video_status(
                         'ai_video_queue_stall_recovery_failed',
                         extra={'request_id': get_request_id(), 'render_id': video_id},
                     )
+        raw = service.repo.collection.document(video_id).get()
+        raw_data = raw.to_dict() or {}
+        pipeline_metadata = dict(raw_data.get('pipeline_metadata') or raw_data.get('pipelineMetadata') or {})
+        provider_request_accepted = bool(
+            raw_data.get('external_job_id')
+            or raw_data.get('provider_status_url')
+            or raw_data.get('provider_request_id')
+            or pipeline_metadata.get('status_url')
+            or pipeline_metadata.get('request_id')
+            or pipeline_metadata.get('provider_status_url')
+            or pipeline_metadata.get('provider_request_id')
+        )
+        selected_model_key = str(raw_data.get('selected_model') or getattr(video, 'selected_model', '') or '').strip()
+        provider_backed_stale_seconds = MAX_PROCESSING_STALE_SECONDS
+        if provider_request_accepted:
+            if selected_model_key == 'sora2':
+                provider_backed_stale_seconds = max(
+                    MAX_PROCESSING_STALE_SECONDS,
+                    int(getattr(settings, 'openai_video_timeout_seconds', 1200) or 1200) + 300,
+                )
+            else:
+                try:
+                    provider_backed_stale_seconds = max(
+                        MAX_PROCESSING_STALE_SECONDS,
+                        int(service.fal._terminal_timeout_for_model(selected_model_key)) + 300,
+                    )
+                except Exception:
+                    provider_backed_stale_seconds = max(MAX_PROCESSING_STALE_SECONDS, 45 * 60)
+
         should_timeout = (
-            (status_value == 'draft' and draft_age_seconds > MAX_DRAFT_AGE_SECONDS)
-            or (status_value == 'processing' and processing_stale_seconds > MAX_PROCESSING_STALE_SECONDS)
+            (status_value == 'draft' and draft_age_seconds > MAX_DRAFT_AGE_SECONDS and not provider_request_accepted)
+            or (status_value == 'processing' and processing_stale_seconds > provider_backed_stale_seconds)
         )
         if should_timeout:
             logger.warning(
@@ -1905,19 +1934,9 @@ def get_ai_video_status(
                     'status': status_value,
                     'draft_age_seconds': draft_age_seconds,
                     'processing_stale_seconds': processing_stale_seconds,
+                    'provider_request_accepted': provider_request_accepted,
+                    'provider_backed_stale_seconds': provider_backed_stale_seconds,
                 },
-            )
-            raw = service.repo.collection.document(video_id).get()
-            raw_data = raw.to_dict() or {}
-            pipeline_metadata = dict(raw_data.get('pipeline_metadata') or raw_data.get('pipelineMetadata') or {})
-            provider_request_accepted = bool(
-                raw_data.get('external_job_id')
-                or raw_data.get('provider_status_url')
-                or raw_data.get('provider_request_id')
-                or pipeline_metadata.get('status_url')
-                or pipeline_metadata.get('request_id')
-                or pipeline_metadata.get('provider_status_url')
-                or pipeline_metadata.get('provider_request_id')
             )
             if not bool(raw_data.get('timed_out_refunded', False)):
                 charged_credits = int(raw_data.get('applied_credits') or 0)

@@ -1620,7 +1620,7 @@ export function UnifiedCreateStudioClient({
       sortRecipes(
         recipes
           .map(mapCatalogRecipeToCard)
-          .filter((item): item is RecipeCard => item !== null && item.id !== 'ugc_ad' && item.id !== 'deep_dive_explainer'),
+          .filter((item): item is RecipeCard => item !== null && item.id !== 'ugc_ad' && item.id !== 'deep_dive_explainer' && item.id !== 'reference_video_generator_advanced'),
       ),
     [recipes],
   );
@@ -2127,20 +2127,24 @@ export function UnifiedCreateStudioClient({
         setSelectedNormalVideoFamilyKey((current) =>
           visibleFamilies.some((family) => family.key === current) ? current : fallbackFamily,
         );
-        if (!enabledFirst.some((model) => model.key === selectedVideoModelKey)) {
-          const defaultRoute = resolveRouteForFamily({
-            familyKey: fallbackFamily,
-            qualityKey: 'standard',
-            generationMode: 'text_to_video',
-          });
-          setSelectedVideoModelKey(defaultRoute || enabledFirst[0]?.key || 'fal_ltx23_t2v');
-        }
+        const defaultRoute = resolveRouteForFamily({
+          familyKey: fallbackFamily,
+          qualityKey: 'standard',
+          generationMode: 'text_to_video',
+        });
+        setSelectedVideoModelKey((current) =>
+          enabledFirst.some((model) => model.key === current)
+            ? current
+            : (defaultRoute || enabledFirst[0]?.key || 'fal_ltx23_t2v'),
+        );
       }
       if (imageModelResult.status === 'fulfilled' && imageModelResult.value.length > 0) {
         setImageModels(imageModelResult.value);
-        if (!imageModelResult.value.some((model) => model.key === selectedImageModelKey)) {
-          setSelectedImageModelKey(imageModelResult.value[0]?.key ?? 'gpt_image_1_5');
-        }
+        setSelectedImageModelKey((current) =>
+          imageModelResult.value.some((model) => model.key === current)
+            ? current
+            : (imageModelResult.value[0]?.key || 'gpt_image_1_5'),
+        );
       }
       setLoadingRecipes(false);
       setModelsLoading(false);
@@ -2149,7 +2153,7 @@ export function UnifiedCreateStudioClient({
     return () => {
       cancelled = true;
     };
-  }, [selectedImageModelKey, selectedVideoModelKey, userId]);
+  }, [userId]);
 
   useEffect(() => {
     if (secondaryDeferredFetchScheduledRef.current) return;
@@ -2389,7 +2393,7 @@ export function UnifiedCreateStudioClient({
   };
 
   const openSlotAssetPicker = (slot: RecipeComposerSlot, event: ReactMouseEvent<HTMLButtonElement>) => {
-    if (isAvatarProductRecipe && (slot.kind === 'upload' || slot.kind === 'reference-image')) {
+    if (slot.kind === 'upload' || slot.kind === 'reference-image') {
       event.preventDefault();
       openUploadPickerForTarget(slot.id);
       return;
@@ -4043,7 +4047,7 @@ export function UnifiedCreateStudioClient({
                               ? 'Tune quality and duration. Voice is matched to the selected avatar.'
                               : recipeSettingsLocked
                                 ? 'Recipe mode keeps settings locked to the workflow defaults.'
-                                : 'Tune clip length, narration, and captions without leaving the composer.'}
+                                : 'Tune clip length, audio, and quality without leaving the composer.'}
                           </p>
                         </div>
                         <div className="rounded-[14px] px-3 py-2">
