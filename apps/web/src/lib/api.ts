@@ -904,7 +904,8 @@ export const api = {
     const path = `/public/images/inspiration${buildInspirationQuery(normalized)}`;
     const cacheKey = makeCacheKey(path, undefined);
     return cachedRequest(cacheKey, 10_000, () =>
-      request<InspirationImage[]>(path, {}, { cache: 'no-store', timeoutMs: 15_000 }),
+      request<InspirationImage[]>(path, {}, { cache: 'force-cache', timeoutMs: 15_000 }),
+      { persistToSession: true },
     );
   },
   listVideoInspiration(userId: string, options?: number | InspirationListOptions) {
@@ -918,7 +919,11 @@ export const api = {
   listPublicVideoInspiration(options?: number | InspirationListOptions) {
     const normalized = typeof options === 'number' ? { limit: options } : options;
     const path = `/public/videos/inspiration${buildInspirationQuery(normalized)}`;
-    return request<InspirationVideo[]>(path, {}, { cache: 'no-store', timeoutMs: 35_000 });
+    const cacheKey = makeCacheKey(path, undefined);
+    return cachedRequest(cacheKey, 10_000, () =>
+      request<InspirationVideo[]>(path, {}, { cache: 'force-cache', timeoutMs: 35_000 }),
+      { persistToSession: true },
+    );
   },
   publishInspiration(contentType: 'image' | 'video', assetId: string, publish: boolean, userId: string) {
     return request<InspirationPublishResponse>('/inspiration/publish', {

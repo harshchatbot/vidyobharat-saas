@@ -38,6 +38,7 @@ import { TEMPLATE_OPTIONS } from '@/components/videos/create/constants';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
 import { calculateVideoCredits } from '@/lib/pricingEstimates';
+import { isVideoInspiration, sortPublicInspiration, type PublicInspirationItem } from '@/lib/inspiration';
 import type {
   AIVideoModel,
   Avatar,
@@ -46,6 +47,7 @@ import type {
   GeneratedImage,
   ImageModel,
   InspirationImage,
+  InspirationVideo,
   RecipeCatalog,
   TTSCatalogResponse,
   TTSLanguageOption,
@@ -59,6 +61,7 @@ type ResolvedMode = 'image' | 'video';
 type AudioMode = 'silent' | 'auto_scene_sound';
 type QualityProfile = 'fast_social' | 'creator_quality' | 'affordable' | 'standard' | 'high_quality' | 'premium';
 type RecipeTab = 'all' | 'ads' | 'explainer' | 'inspiration_photos';
+type InspirationTabFilter = 'all' | 'image' | 'video';
 type OpenMenu = 'assets' | 'model' | 'aspect' | 'more' | null;
 type RecentEntryKind = 'recipe' | 'draft';
 type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image';
@@ -133,11 +136,12 @@ type InspirationPhotoCard = {
   prompt: string;
   aspectRatio: string;
   previewUrl: string;
+  previewVideoUrl: string | null;
   creatorName: string;
   modelKey: string;
   createdAt: string;
   badge: string | null;
-  raw: InspirationImage;
+  raw: PublicInspirationItem;
 };
 
 type RecentEntry = {
@@ -329,7 +333,7 @@ const RECIPE_TABS: Array<{ key: RecipeTab; label: string; icon?: typeof LayoutTe
   { key: 'all', label: 'All' },
   { key: 'ads', label: 'Ads' },
   { key: 'explainer', label: 'Explainer' },
-  { key: 'inspiration_photos', label: 'Inspiration photos' },
+  { key: 'inspiration_photos', label: 'Inspiration' },
 ];
 
 const GENERIC_VIDEO_RECIPE: Omit<RecipeComposerConfig, 'recipeId' | 'recipeLabel'> = {
@@ -1074,17 +1078,22 @@ function mapCatalogRecipeToCard(recipe: RecipeCatalog): RecipeCard | null {
   };
 }
 
-function mapInspirationToCard(item: InspirationImage): InspirationPhotoCard {
+function mapInspirationToCard(item: PublicInspirationItem): InspirationPhotoCard {
+  const videoPreview = isVideoInspiration(item) ? (toAbsoluteUrl(item.video_url) || item.video_url) : null;
+  const imagePreview = isVideoInspiration(item)
+    ? (toAbsoluteUrl(item.thumbnail_url) || videoPreview || '')
+    : (toAbsoluteUrl(item.image_url) || item.image_url);
   return {
     id: item.id,
     title: item.title,
     prompt: item.prompt,
     aspectRatio: item.aspect_ratio || '9:16',
-    previewUrl: toAbsoluteUrl(item.image_url) || item.image_url,
+    previewUrl: imagePreview,
+    previewVideoUrl: videoPreview,
     creatorName: item.creator_name,
     modelKey: item.model_key,
     createdAt: item.created_at,
-    badge: 'Published',
+    badge: isVideoInspiration(item) ? 'Published video' : 'Published image',
     raw: item,
   };
 }
@@ -1451,6 +1460,7 @@ export function UnifiedCreateStudioClient({
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<RecipeCatalog[]>([]);
   const [inspirationPhotos, setInspirationPhotos] = useState<InspirationImage[]>([]);
+  const [inspirationVideos, setInspirationVideos] = useState<InspirationVideo[]>([]);
   const [videoModels, setVideoModels] = useState<AIVideoModel[]>(VIDEO_MODEL_FALLBACK);
   const [imageModels, setImageModels] = useState<ImageModel[]>(IMAGE_MODEL_FALLBACK);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -1459,8 +1469,9 @@ export function UnifiedCreateStudioClient({
   const [selectedImageModelKey, setSelectedImageModelKey] = useState('gpt_image_1_5');
   const [modelPanelKey, setModelPanelKey] = useState<string | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
-  const [loadingInspirationPhotos, setLoadingInspirationPhotos] = useState(true);
+  const [loadingInspirationPhotos, setLoadingInspirationPhotos] = useState(false);
   const [recipeTab, setRecipeTab] = useState<RecipeTab>('all');
+  const [inspirationTabFilter, setInspirationTabFilter] = useState<InspirationTabFilter>('all');
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeCard | null>(null);
   const [selectedInspirationPhoto, setSelectedInspirationPhoto] = useState<InspirationPhotoCard | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
@@ -1679,9 +1690,21 @@ export function UnifiedCreateStudioClient({
   const filteredRecipes = useMemo(() => {
     return recipeCards.filter((item) => recipeMatchesTab(item, recipeTab)).slice(0, 12);
   }, [recipeCards, recipeTab]);
+
+  const inspirationItems = useMemo(() => {
+    const merged: PublicInspirationItem[] = [...inspirationVideos, ...inspirationPhotos];
+    const filtered =
+      inspirationTabFilter === 'image'
+        ? merged.filter((item) => !isVideoInspiration(item))
+        : inspirationTabFilter === 'video'
+          ? merged.filter((item) => isVideoInspiration(item))
+          : merged;
+    return sortPublicInspiration(filtered, 'newest').slice(0, 12);
+  }, [inspirationPhotos, inspirationTabFilter, inspirationVideos]);
+
   const inspirationPhotoCards = useMemo(
-    () => inspirationPhotos.map(mapInspirationToCard).slice(0, 12),
-    [inspirationPhotos],
+    () => inspirationItems.map(mapInspirationToCard),
+    [inspirationItems],
   );
   const composerVoicePreviewText = useMemo(
     () => buildComposerVoicePreviewText(recipeComposer ? assembleRecipePrompt(recipeComposer) : idea),
@@ -2268,15 +2291,28 @@ export function UnifiedCreateStudioClient({
 
     let cancelled = false;
     setLoadingInspirationPhotos(true);
-    void api.listPublicImageInspiration({ limit: 12, sort: 'newest' })
-      .then((items) => {
+    void Promise.allSettled([
+      api.listPublicImageInspiration({ limit: 12, sort: 'newest' }),
+      api.listPublicVideoInspiration({ limit: 12, sort: 'newest' }),
+    ])
+      .then(([imageResult, videoResult]) => {
         if (cancelled) return;
         hasLoadedInspirationPhotosRef.current = true;
-        setInspirationPhotos(items.filter((item) => Boolean(item.image_url)));
+        setInspirationPhotos(
+          imageResult.status === 'fulfilled'
+            ? imageResult.value.filter((item) => Boolean(item.image_url))
+            : [],
+        );
+        setInspirationVideos(
+          videoResult.status === 'fulfilled'
+            ? videoResult.value.filter((item) => Boolean(item.video_url))
+            : [],
+        );
       })
       .catch(() => {
         if (cancelled) return;
         setInspirationPhotos([]);
+        setInspirationVideos([]);
       })
       .finally(() => {
         if (cancelled) return;
@@ -4656,35 +4692,60 @@ export function UnifiedCreateStudioClient({
         </div>
 
         {recipeTab === 'inspiration_photos' ? (
-          loadingInspirationPhotos ? (
-            <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div
-                  key={`inspiration-skeleton-${index}`}
-                  className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
-                    }`}
-                />
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['all', 'All'],
+                ['image', 'Images'],
+                ['video', 'Videos'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setInspirationTabFilter(value)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${inspirationTabFilter === value ? 'border border-[hsl(var(--color-accent)/0.34)] bg-[hsl(var(--color-accent)/0.18)] text-text' : 'border border-[hsl(var(--color-border)/0.74)] bg-[hsl(var(--color-surface)/0.72)] text-muted hover:text-text'}`}
+                >
+                  {label}
+                </button>
               ))}
             </div>
-          ) : inspirationPhotoCards.length === 0 ? (
-            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.52)] px-6 py-10 text-center">
-              <p className="text-sm font-semibold text-text">No inspiration photos yet</p>
-              <p className="mt-2 text-sm text-muted">Published approved images will appear here once you open this tab.</p>
-            </div>
-          ) : (
-            <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
-              {inspirationPhotoCards.map((item) => (
-                <ComposerPoster
-                  key={item.id}
-                  title={item.title}
-                  previewUrl={item.previewUrl}
-                  onClick={() => setSelectedInspirationPhoto(item)}
-                  badge={item.badge}
-                  ctaLabel="Use this style"
-                />
-              ))}
-            </div>
-          )
+            {loadingInspirationPhotos ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Loading inspiration
+                </div>
+                <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <div
+                      key={`inspiration-skeleton-${index}`}
+                      className={`mb-4 break-inside-avoid animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.55)] ${index % 4 === 0 ? 'h-[340px]' : index % 4 === 1 ? 'h-[460px]' : index % 4 === 2 ? 'h-[390px]' : 'h-[520px]'
+                        }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : inspirationPhotoCards.length === 0 ? (
+              <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.52)] px-6 py-10 text-center">
+                <p className="text-sm font-semibold text-text">No inspiration yet</p>
+                <p className="mt-2 text-sm text-muted">Published approved images and videos will appear here once you open this tab.</p>
+              </div>
+            ) : (
+              <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
+                {inspirationPhotoCards.map((item) => (
+                  <ComposerPoster
+                    key={item.id}
+                    title={item.title}
+                    previewUrl={item.previewUrl}
+                    previewVideoUrl={item.previewVideoUrl}
+                    onClick={() => setSelectedInspirationPhoto(item)}
+                    badge={item.badge}
+                    ctaLabel={isVideoInspiration(item.raw) ? 'View inspiration' : 'Use this style'}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : loadingRecipes ? (
           <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
             {Array.from({ length: 8 }).map((_, index) => (
@@ -4807,27 +4868,51 @@ export function UnifiedCreateStudioClient({
       </Modal>
 
       {selectedInspirationPhoto ? (
-        <ImageDetailModal
-          open={Boolean(selectedInspirationPhoto)}
-          onClose={() => setSelectedInspirationPhoto(null)}
-          imageUrl={selectedInspirationPhoto.previewUrl}
-          imageAlt={selectedInspirationPhoto.title}
-          title={selectedInspirationPhoto.title}
-          prompt={selectedInspirationPhoto.prompt}
-          imageAspectRatio={aspectRatioToCss(selectedInspirationPhoto.aspectRatio)}
-          badges={
-            <>
-              {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
-              <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
-              <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
-            </>
-          }
-          actions={
-            <Button type="button" onClick={() => applyInspirationPhotoToComposer(selectedInspirationPhoto)} className="w-full rounded-[16px] py-3 text-sm font-semibold sm:w-auto">
-              Use this style
-            </Button>
-          }
-        />
+        isVideoInspiration(selectedInspirationPhoto.raw) ? (
+          <Modal open={Boolean(selectedInspirationPhoto)} onClose={() => setSelectedInspirationPhoto(null)}>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="overflow-hidden rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg)/0.88)] p-2">
+                <LandingVideo
+                  src={selectedInspirationPhoto.previewVideoUrl ?? selectedInspirationPhoto.previewUrl}
+                  poster={selectedInspirationPhoto.previewUrl}
+                  className="w-full rounded-[18px] bg-black object-cover"
+                />
+              </div>
+              <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.78)] p-5">
+                <div className="flex flex-wrap gap-2">
+                  {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
+                  <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
+                  <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
+                </div>
+                <h3 className="mt-4 font-heading text-2xl font-extrabold tracking-tight text-text">{selectedInspirationPhoto.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">{selectedInspirationPhoto.prompt}</p>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-muted">Browse-only inspiration video</p>
+              </div>
+            </div>
+          </Modal>
+        ) : (
+          <ImageDetailModal
+            open={Boolean(selectedInspirationPhoto)}
+            onClose={() => setSelectedInspirationPhoto(null)}
+            imageUrl={selectedInspirationPhoto.previewUrl}
+            imageAlt={selectedInspirationPhoto.title}
+            title={selectedInspirationPhoto.title}
+            prompt={selectedInspirationPhoto.prompt}
+            imageAspectRatio={aspectRatioToCss(selectedInspirationPhoto.aspectRatio)}
+            badges={
+              <>
+                {selectedInspirationPhoto.badge ? <Badge variant="outline">{selectedInspirationPhoto.badge}</Badge> : null}
+                <Badge variant="outline">{selectedInspirationPhoto.creatorName}</Badge>
+                <Badge variant="outline">{selectedInspirationPhoto.modelKey}</Badge>
+              </>
+            }
+            actions={
+              <Button type="button" onClick={() => applyInspirationPhotoToComposer(selectedInspirationPhoto)} className="w-full rounded-[16px] py-3 text-sm font-semibold sm:w-auto">
+                Use this style
+              </Button>
+            }
+          />
+        )
       ) : null}
 
     </div>

@@ -89,6 +89,12 @@ function Header() {
           <Link href="/create" className="transition hover:text-text">
             Create
           </Link>
+          <Link href="/images" className="transition hover:text-text">
+            Images
+          </Link>
+          <Link href="/videos" className="transition hover:text-text">
+            Videos
+          </Link>
           <Link href="/pricing" className="transition hover:text-text">
             Pricing
           </Link>
