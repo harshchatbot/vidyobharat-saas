@@ -10,7 +10,7 @@
       "supportsImageToVideo": true,
       "supportsNativeAudio": true,
       "nativeAudioDefault": false,
-      "nativeAudioNotes": "Auto scene sound is available when the selected LTX route accepts native audio.",
+      "nativeAudioNotes": "Auto scene sound is available. Current Fal LTX 2.3 billing uses one per-megapixel rate, so enabling audio does not increase the credit estimate.",
       "supportedDurations": [5, 10, 15],
       "supportedQualities": [
         { "key": "standard", "label": "Standard", "resolution": "1080p" },
@@ -43,7 +43,7 @@
       },
       "pricingType": "megapixel",
       "pricingConfig": {
-        "costPerMegapixelUsd": 0.001605,
+        "costPerMegapixelUsd": 0.001205,
         "fps": 24,
         "resolutionByQuality": {
           "standard": "1080p",

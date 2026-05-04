@@ -214,10 +214,47 @@ def test_ltx_megapixel_pricing_uses_provider_cost_plus_margin() -> None:
         },
     )
 
-    assert estimate.required_credits == 41
+    assert estimate.required_credits == 32
     assert estimate.metadata['pricing_mode'] == 'provider_cost_plus_margin'
     assert estimate.metadata['selected_model_family'] == 'ltx_23_22b'
     assert estimate.metadata['frames'] == 120
+
+
+def test_ltx_native_audio_does_not_change_pricing_under_current_fal_megapixel_rate() -> None:
+    service = CreditService(None)
+
+    silent = service.estimate(
+        'video_create',
+        {
+            'modelFamily': 'ltx_23_22b',
+            'modelKey': 'fal_ltx23_t2v',
+            'resolution': '1080p',
+            'durationSeconds': 5,
+            'quality': 'standard',
+            'audioMode': 'silent',
+            'captionsEnabled': False,
+            'narrationEnabled': False,
+            'imageUrls': [],
+        },
+    )
+    with_audio = service.estimate(
+        'video_create',
+        {
+            'modelFamily': 'ltx_23_22b',
+            'modelKey': 'fal_ltx23_t2v',
+            'resolution': '1080p',
+            'durationSeconds': 5,
+            'quality': 'standard',
+            'audioMode': 'auto_scene_sound',
+            'captionsEnabled': False,
+            'narrationEnabled': False,
+            'imageUrls': [],
+        },
+    )
+
+    assert silent.required_credits == 32
+    assert with_audio.required_credits == 32
+    assert with_audio.metadata['audio_mode'] == 'auto_scene_sound'
 
 
 def test_seedance_token_base_pricing_uses_provider_cost_plus_margin() -> None:

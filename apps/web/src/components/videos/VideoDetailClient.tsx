@@ -31,7 +31,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { API_URL } from '@/lib/env';
-import type { MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, VideoStudioChatMessage } from '@/types/api';
+import type { AIVideoStatusResponse, MusicTrack, TTSLanguageOption, TTSVoiceOption, Video, VideoStudioChatMessage } from '@/types/api';
 
 type Props = {
   userId: string;
@@ -172,6 +172,41 @@ function safelyCloseAudioContext(audioContext: AudioContext | null | undefined) 
   void audioContext.close().catch(() => undefined);
 }
 
+function mergeVideoWithStatus(video: Video, status: AIVideoStatusResponse): Video {
+  const normalizedStatus: Video['status'] =
+    status.status === 'success'
+      ? 'completed'
+      : status.status === 'timed_out'
+        ? 'timed_out'
+        : status.status === 'provider_failed'
+          ? 'provider_failed'
+          : status.status === 'failed'
+            ? 'failed'
+            : status.status === 'queued'
+              ? 'draft'
+              : 'processing';
+
+  return {
+    ...video,
+    status: normalizedStatus,
+    progress: typeof status.progress === 'number' ? status.progress : video.progress,
+    output_url: status.videoUrl ?? video.output_url,
+    thumbnail_url: status.thumbnailUrl ?? video.thumbnail_url,
+    error_message: status.errorMessage ?? video.error_message,
+    selected_model: status.modelKey ?? video.selected_model,
+    provider_name: status.provider ?? status.modelLabel ?? video.provider_name,
+    resolution: status.resolution || video.resolution,
+    aspect_ratio: status.aspectRatio || video.aspect_ratio,
+    duration_seconds: status.durationSeconds ?? video.duration_seconds,
+    auto_tags: Array.isArray(status.tags) ? status.tags : video.auto_tags,
+    tts_provider: status.ttsProvider ?? video.tts_provider,
+    tts_resolved_voice: status.ttsResolvedVoice ?? video.tts_resolved_voice,
+    tts_provider_message: status.ttsProviderMessage ?? video.tts_provider_message,
+    tts_fallback_used: typeof status.ttsFallbackUsed === 'boolean' ? status.ttsFallbackUsed : video.tts_fallback_used,
+    pipeline_metadata: (status.pipelineMetadata as Video['pipeline_metadata'] | null | undefined) ?? video.pipeline_metadata,
+  };
+}
+
 async function decodeWaveformFromUrl(sourceUrl: string, audioContext: AudioContext) {
   const response = await fetch(sourceUrl);
   if (!response.ok) {
@@ -205,6 +240,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusRefreshWarning, setStatusRefreshWarning] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [assetTab, setAssetTab] = useState<AssetTab>('visual');
   const [sharing, setSharing] = useState(false);
@@ -230,7 +266,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const { show } = useToast();
   const terminalToastRef = useRef<string | null>(null);
 
-  const load = async () => {
+  const loadBase = async () => {
     try {
       const [current, musicTracks] = await Promise.all([
         api.getVideo(videoId, userId),
@@ -249,6 +285,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
         })
         .catch(() => null);
       setError(null);
+      setStatusRefreshWarning(null);
     } catch {
       setError('Unable to load video status.');
     } finally {
@@ -256,9 +293,26 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     }
   };
 
+  const refreshStatus = async () => {
+    const currentVideo = video;
+    if (!currentVideo) return;
+    try {
+      const status = await api.getAIVideoStatus(videoId, userId);
+      setVideo((previous) => (previous ? mergeVideoWithStatus(previous, status) : previous));
+      setStatusRefreshWarning(null);
+    } catch {
+      setStatusRefreshWarning('Status refresh delayed. We’ll retry automatically.');
+    }
+  };
+
   useEffect(() => {
-    void load();
+    void loadBase();
   }, [videoId, userId]);
+
+  useEffect(() => {
+    if (!video) return;
+    void refreshStatus();
+  }, [video?.id]);
 
   useEffect(() => {
     if (!video) return;
@@ -267,7 +321,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     }
 
     const interval = setInterval(() => {
-      void load();
+      void refreshStatus();
     }, 3000);
 
     return () => clearInterval(interval);
@@ -699,7 +753,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
         `Voice updated to ${selectedVoiceOption.label}. I queued a fresh render pass so narration, captions, and the final mix can rebuild with the new voice.`,
       );
       setVoicePreviewMessage(`Rerender queued · ${response.status}`);
-      await load();
+      await loadBase();
     } catch (error) {
       show({
         title: 'Could not rerender',
@@ -825,6 +879,11 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             </Button>
           </div>
         </div>
+        {statusRefreshWarning ? (
+          <div className="mt-3 rounded-[14px] border border-[hsl(var(--color-accent)/0.24)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2 text-xs font-medium text-[hsl(var(--color-accent))]">
+            {statusRefreshWarning}
+          </div>
+        ) : null}
       </div>
 
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-6 pt-4 lg:px-6">
