@@ -18,11 +18,12 @@ SUPPORTED_VIDEO_MODELS = {
     for model in load_shared_json('shared/config/video-models.json').get('models', [])
     if model.get('key')
 }
+VIDEO_FREEFORM_PROMPT_MAX_CHARS = 2000
 
 
 class ReelScriptRequest(BaseModel):
     templateId: str = Field(min_length=3, max_length=64)
-    topic: str = Field(min_length=2, max_length=300)
+    topic: str = Field(min_length=2, max_length=VIDEO_FREEFORM_PROMPT_MAX_CHARS)
     tone: str = Field(min_length=2, max_length=80)
     language: str = Field(min_length=2, max_length=40)
 
@@ -267,7 +268,7 @@ class AvatarProductAssistResponse(BaseModel):
 
 class ScriptGenerateRequest(BaseModel):
     template: str = Field(min_length=2, max_length=80)
-    topic: str = Field(min_length=2, max_length=300)
+    topic: str = Field(min_length=2, max_length=VIDEO_FREEFORM_PROMPT_MAX_CHARS)
     language: str = Field(min_length=2, max_length=40)
     tone: str | None = Field(default=None, max_length=80)
     lane: str | None = Field(default=None, max_length=40)

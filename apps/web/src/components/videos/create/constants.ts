@@ -35,7 +35,7 @@ export const TEMPLATE_OPTIONS: TemplateOption[] = [
     description: 'Build your own flow without a preset structure.',
     icon: WandSparkles,
     scriptHint: 'Write your own script. If you click Generate Script with existing text, it will be enhanced into narrator + scene blocks + camera/mood cues + CTA.',
-    topicHint: 'Describe your video idea (optional if script is already written)',
+    topicHint: 'Describe your video prompt or creative brief (optional if script is already written)',
   },
   {
     key: 'music-video',

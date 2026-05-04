@@ -119,11 +119,11 @@ const HELP_SECTIONS: HelpSection[] = [
       },
       {
         question: 'How do I use templates?',
-        answer: 'Pick a template, change the topic if needed, and generate. You do not need to fill every field because the defaults already work well.',
+        answer: 'Pick a template, adjust the prompt or creative brief if needed, and generate. You do not need to fill every field because the defaults already work well.',
       },
       {
         question: 'What do the template fields mean?',
-        answer: 'Topic is what the video is about. Tone controls how it feels. Audience is optional context for who it is for. Format controls the structure, like story, top 5, or before-after.',
+        answer: 'Prompt or creative brief is what the video is about and how you want it framed. Tone controls how it feels. Audience is optional context for who it is for. Format controls the structure, like story, top 5, or before-after.',
       },
     ],
   },

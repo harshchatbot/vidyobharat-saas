@@ -23,6 +23,7 @@ const TEMPLATE_OPTIONS = [
 
 const TONE_OPTIONS = ['Cinematic', 'Dramatic', 'Educational', 'Inspirational', 'Bold'];
 const LANGUAGE_OPTIONS = ['English', 'Hinglish', 'Hindi'];
+const REEL_PROMPT_MAX_CHARS = 2000;
 
 type Props = {
   userId: string;
@@ -40,7 +41,7 @@ export function CreateTemplateScriptClient({ userId }: Props) {
 
   const generate = async () => {
     if (!topic.trim()) {
-      setError('Please enter a topic.');
+      setError('Please enter a prompt.');
       return;
     }
     setLoading(true);
@@ -98,12 +99,17 @@ export function CreateTemplateScriptClient({ userId }: Props) {
 
         <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
           <div>
-            <p className="mb-1 text-sm font-semibold text-text">Topic</p>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-text">Prompt</p>
+              <span className={`text-xs ${topic.length > REEL_PROMPT_MAX_CHARS * 0.92 ? 'text-amber-300' : 'text-muted'}`}>
+                {topic.length}/{REEL_PROMPT_MAX_CHARS}
+              </span>
+            </div>
             <Input
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
-              placeholder="e.g. Rise and fall of the Mughal empire"
-              maxLength={300}
+              placeholder="e.g. Rise and fall of the Mughal empire, told as a dramatic first-person battlefield reel with emotional hooks"
+              maxLength={REEL_PROMPT_MAX_CHARS}
             />
           </div>
           <div>

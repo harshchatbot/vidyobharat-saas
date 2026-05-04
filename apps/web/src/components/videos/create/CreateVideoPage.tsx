@@ -3449,7 +3449,7 @@ export function CreateVideoPage({
               <div className="rounded-[16px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.24)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-text">Start with topic. Everything else is optional.</p>
+                    <p className="text-sm font-semibold text-text">Start with a prompt. Everything else is optional.</p>
                     <p className="mt-1 text-sm text-muted">Templates are ready-made formats. Recommended settings already applied. You can refine this later.</p>
                   </div>
                   {templateFlowEstimate ? (
@@ -3620,7 +3620,7 @@ export function CreateVideoPage({
                 ) : null}
                 <div className="mt-4 space-y-3">
                   <div className="rounded-[18px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.72)] px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Topic title</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Prompt title</p>
                     <p className="mt-2 text-sm font-semibold text-text">
                       {templateFlowPreview?.title || activeTemplateFlow.topic_hint || activeTemplateFlow.title || activeTemplateFlow.name}
                     </p>

@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { ScriptQualityPanel } from './ScriptQualityPanel';
 import type { ScriptQualityReport } from './scriptQuality';
 
+const VIDEO_PROMPT_MAX_CHARS = 2000;
+
 export function ScriptEditor({
   topic,
   onTopicChange,
@@ -62,12 +64,17 @@ export function ScriptEditor({
     <div className="space-y-4">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Video idea</span>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Video prompt</span>
+            <span className={`text-xs ${topic.length > VIDEO_PROMPT_MAX_CHARS * 0.92 ? 'text-amber-300' : 'text-muted'}`}>
+              {topic.length}/{VIDEO_PROMPT_MAX_CHARS}
+            </span>
+          </div>
           <Input
             value={topic}
             onChange={(event) => onTopicChange(event.target.value)}
             placeholder={topicPlaceholder}
-            maxLength={300}
+            maxLength={VIDEO_PROMPT_MAX_CHARS}
             className="bg-[hsl(var(--color-surface)/0.22)]"
           />
         </label>

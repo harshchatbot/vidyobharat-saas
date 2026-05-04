@@ -227,6 +227,7 @@ const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2
   { key: 'image', label: 'Image', icon: Sparkles },
   { key: 'video', label: 'Video', icon: Video },
 ];
+const COMPOSER_PROMPT_MAX_CHARS = 2000;
 
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
@@ -1420,8 +1421,8 @@ function getFriendlyErrorMessage(error: unknown) {
     if (Array.isArray(parsed) && parsed.length > 0) {
       const first = parsed[0];
 
-      if (first?.type === 'string_too_long' && Array.isArray(first?.loc) && first.loc.includes('topic')) {
-        const max = first?.ctx?.max_length ?? 300;
+      if (first?.type === 'string_too_long' && Array.isArray(first?.loc) && (first.loc.includes('topic') || first.loc.includes('prompt'))) {
+        const max = first?.ctx?.max_length ?? COMPOSER_PROMPT_MAX_CHARS;
         return `Prompt is too long. Please keep it under ${max} characters.`;
       }
 
@@ -2760,7 +2761,11 @@ export function UnifiedCreateStudioClient({
     const recipePrompt = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
     const trimmedIdea = recipePrompt.trim();
     if (!trimmedIdea) {
-      setError('Add one idea first so we can prepare the right creation flow.');
+      setError('Add a prompt first so we can prepare the right creation flow.');
+      return;
+    }
+    if (!recipeComposer && trimmedIdea.length > COMPOSER_PROMPT_MAX_CHARS) {
+      setError(`Prompt is too long. Please keep it under ${COMPOSER_PROMPT_MAX_CHARS} characters.`);
       return;
     }
 
@@ -3821,10 +3826,19 @@ export function UnifiedCreateStudioClient({
                   rows={4}
                   value={idea}
                   onChange={(event) => setIdea(event.target.value)}
+                  maxLength={COMPOSER_PROMPT_MAX_CHARS}
                   placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
                   className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-[hsl(var(--color-text))] shadow-none ring-0 outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/35 sm:min-h-[104px] sm:text-lg"
                 />
               )}
+
+              {!recipeComposer ? (
+                <div className="mt-2 flex items-center justify-end">
+                  <p className={`text-xs ${idea.length > COMPOSER_PROMPT_MAX_CHARS * 0.92 ? 'text-amber-300' : 'text-muted'}`}>
+                    {idea.length}/{COMPOSER_PROMPT_MAX_CHARS}
+                  </p>
+                </div>
+              ) : null}
 
               {mode === 'video' && idea.trim() && !recipeComposer ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">

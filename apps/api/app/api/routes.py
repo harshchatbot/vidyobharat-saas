@@ -1231,7 +1231,7 @@ def generate_script_v2(
         '- Make the outro feel natural with a held frame or ease-out, not a hard cut.\n'
         '- End with a clear CTA.\n'
         f'- Target roughly {lower_words}-{upper_words} spoken words for the full script.\n'
-        f'Topic: {payload.topic}\n'
+        f'Creative prompt: {payload.topic}\n'
         f'Language: {payload.language}\n'
         f'{context_block}\n'
     )
