@@ -156,6 +156,27 @@ function invalidateUserCache(userId: string, pathIncludes: string[] = []): void 
   }
 }
 
+function invalidateAnonCache(pathIncludes: string[] = []): void {
+  const prefix = 'anon::';
+  for (const key of responseCache.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    if (pathIncludes.length > 0 && !pathIncludes.some((part) => key.includes(part))) continue;
+    responseCache.delete(key);
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(`${SESSION_CACHE_PREFIX}${key}`);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
+    }
+  }
+  for (const key of inFlightCache.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    if (pathIncludes.length > 0 && !pathIncludes.some((part) => key.includes(part))) continue;
+    inFlightCache.delete(key);
+  }
+}
+
 async function cachedRequest<T>(
   key: string,
   ttlMs: number,
@@ -827,7 +848,7 @@ export const api = {
     const path = '/api/video/models';
     const cacheKey = makeCacheKey(path, userId);
     return cachedRequest(cacheKey, 5 * 60_000, () =>
-      request<AIVideoModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
+      request<AIVideoModel[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 45_000 }),
       { persistToSession: true },
     );
   },
@@ -882,7 +903,7 @@ export const api = {
     const normalized = typeof options === 'number' ? { limit: options } : options;
     const path = `/public/images/inspiration${buildInspirationQuery(normalized)}`;
     const cacheKey = makeCacheKey(path, undefined);
-    return cachedRequest(cacheKey, 15_000, () =>
+    return cachedRequest(cacheKey, 10_000, () =>
       request<InspirationImage[]>(path, {}, { cache: 'no-store', timeoutMs: 15_000 }),
     );
   },
@@ -909,6 +930,7 @@ export const api = {
       }),
     }, { userId, cache: 'no-store' }).then((result) => {
       invalidateUserCache(userId, ['/assets/search', '/assets/tags', '/api/videos/inspiration', '/ai/images/inspiration']);
+      invalidateAnonCache(['/public/images/inspiration', '/public/videos/inspiration']);
       return result;
     });
   },

@@ -19,6 +19,23 @@ class UserService:
             raise LookupError('User not found')
         return user
 
+    def bootstrap_auth_user(
+        self,
+        user_id: str,
+        *,
+        email: str | None = None,
+        display_name: str | None = None,
+        avatar_url: str | None = None,
+    ) -> User:
+        user = self.repo.get_or_create_auth_user(
+            user_id=user_id,
+            email=email,
+            display_name=display_name,
+            avatar_url=avatar_url,
+        )
+        self.sync.sync_user(user)
+        return user
+
     def update_profile(self, user_id: str, **fields) -> User:
         user = self.get_user(user_id)
         updated = self.repo.update(user, **fields)

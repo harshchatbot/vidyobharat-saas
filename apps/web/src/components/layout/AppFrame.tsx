@@ -83,17 +83,22 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   const [desktopNavOpen, setDesktopNavOpen] = useState<null | 'create' | 'billing' | 'more'>(null);
   const [mobileNavTapLocked, setMobileNavTapLocked] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [clientLoggedOut, setClientLoggedOut] = useState(false);
   const [projectsNavPending, setProjectsNavPending] = useState(false);
   const [routeTransitionLabel, setRouteTransitionLabel] = useState<string | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavRef = useRef<HTMLDivElement | null>(null);
-  const inApp = Boolean(userId) && isAppRoute(pathname);
+  const effectiveUserId = clientLoggedOut ? null : userId;
+  const effectiveAccountLabel = clientLoggedOut ? null : accountLabel;
+  const effectiveAccountEmail = clientLoggedOut ? null : accountEmail;
+  const effectiveAccountAvatar = clientLoggedOut ? null : accountAvatar;
+  const inApp = Boolean(effectiveUserId) && isAppRoute(pathname);
   const immersiveStudioRoute = pathname.startsWith('/videos/');
   const pageTitle = getPageTitle(pathname);
-  const displayName = accountLabel ?? 'User';
+  const displayName = effectiveAccountLabel ?? 'User';
   const useExpandedAppShell = inApp;
-  const resolvedAvatar = accountAvatar
-    ? (accountAvatar.startsWith('http://') || accountAvatar.startsWith('https://') ? accountAvatar : `${API_URL}${accountAvatar}`)
+  const resolvedAvatar = effectiveAccountAvatar
+    ? (effectiveAccountAvatar.startsWith('http://') || effectiveAccountAvatar.startsWith('https://') ? effectiveAccountAvatar : `${API_URL}${effectiveAccountAvatar}`)
     : null;
 
   useEffect(() => {
@@ -154,6 +159,26 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       '/help',
     ].forEach((href) => router.prefetch(href));
   }, [inApp, router]);
+
+  useEffect(() => {
+    setClientLoggedOut(false);
+  }, [userId]);
+
+  useEffect(() => {
+    const onLoggedOut = () => {
+      setClientLoggedOut(true);
+      setAccountMenuOpen(false);
+      setDesktopNavOpen(null);
+      setMobileNavOpen(false);
+      setMobileNavTapLocked(false);
+      setProjectsNavPending(false);
+      setRouteTransitionLabel(null);
+    };
+    window.addEventListener('rangmanch:logged-out', onLoggedOut);
+    return () => {
+      window.removeEventListener('rangmanch:logged-out', onLoggedOut);
+    };
+  }, []);
 
   const navigateWithinApp = (href: string, label?: string) => {
     const isAlreadyOnTarget = pathname === href || pathname.startsWith(`${href}/`);
@@ -268,7 +293,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     ] as const;
 
     return (
-      <CreditProvider userId={userId}>
+      <CreditProvider userId={effectiveUserId}>
       <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${immersiveStudioRoute ? '' : useExpandedAppShell ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
         <div className={`pointer-events-none fixed inset-x-0 top-0 z-[110] transition-opacity duration-200 ${isPending ? 'opacity-100' : 'opacity-0'}`}>
           <div className="h-[2px] w-full overflow-hidden bg-[hsl(var(--color-border)/0.3)]">
@@ -288,7 +313,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[var(--radius-xl)] border border-[hsl(var(--color-border-soft)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-bg)/0.92))] px-4 py-5 shadow-soft">
                 <div className="flex items-center justify-between">
                   <BrandLogo href="/create" variant="full" size="md" priority="sidebar" />
-                  <NotificationBell userId={userId} />
                 </div>
                 <div className="mt-7 space-y-1.5">
                   {[
@@ -515,7 +539,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 <div className="hidden md:block">
                   <CreditChip />
                 </div>
-                <NotificationBell userId={userId} />
+                <NotificationBell userId={effectiveUserId} />
                 <div className="hidden md:block">
                   <ToggleTheme />
                 </div>
@@ -539,7 +563,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         {displayName}
                       </span>
                       <span className="block max-w-[180px] truncate text-left text-[11px] text-muted">
-                        {accountEmail ?? 'No email set'}
+                        {effectiveAccountEmail ?? 'No email set'}
                       </span>
                     </span>
                     <ChevronDown className="hidden h-4 w-4 text-muted md:block" />
@@ -557,12 +581,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         )}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-text">{displayName}</p>
-                          <p className="truncate text-xs text-muted">{accountEmail ?? 'No email set'}</p>
+                          <p className="truncate text-xs text-muted">{effectiveAccountEmail ?? 'No email set'}</p>
                         </div>
                       </div>
                       <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--color-border))] px-2 py-0.5 text-[10px] text-muted">
                         <Mail className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{accountEmail ?? 'No email set'}</span>
+                        <span className="truncate">{effectiveAccountEmail ?? 'No email set'}</span>
                       </div>
                     </div>
                     <Link href="/profile" onClick={(event) => {
@@ -580,7 +604,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     <div className="mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-2 md:hidden">
                       <div className="flex items-center justify-between gap-3">
                         <CreditChip onNavigate={navigateWithinApp} />
-                        <NotificationBell userId={userId} />
                         <ToggleTheme />
                       </div>
                     </div>
@@ -718,15 +741,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   }
 
   if (pathname === '/') {
-    return <CreditProvider userId={userId}>{children}</CreditProvider>;
+    return <CreditProvider userId={effectiveUserId}>{children}</CreditProvider>;
   }
 
   return (
-    <CreditProvider userId={userId}>
+    <CreditProvider userId={effectiveUserId}>
       <div className="min-h-screen bg-[hsl(var(--color-bg))]">
         <header className="sticky top-0 z-50 px-4 pt-3 sm:px-6 sm:pt-4">
           <div className="mx-auto max-w-[1500px]">
-            <TopNav userId={userId} accountLabel={accountLabel} accountEmail={accountEmail} />
+            <TopNav userId={effectiveUserId} accountLabel={effectiveAccountLabel} accountEmail={effectiveAccountEmail} />
           </div>
         </header>
         <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">{children}</main>
@@ -736,6 +759,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 }
 
 function SidebarCreditsCard() {
+  const router = useRouter();
   const { wallet, loading } = useCredits();
 
   return (
@@ -748,7 +772,16 @@ function SidebarCreditsCard() {
           </p>
           <p className="text-xs text-muted">{loading ? 'Loading…' : 'credits left'}</p>
         </div>
-        <Button className="rounded-full px-4 py-2 text-xs font-semibold">Upgrade</Button>
+        <Button
+          type="button"
+          className="rounded-full px-4 py-2 text-xs font-semibold"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('rangmanch:navigation-start'));
+            router.push('/billing');
+          }}
+        >
+          Upgrade
+        </Button>
       </div>
     </div>
   );

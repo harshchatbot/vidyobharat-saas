@@ -337,11 +337,11 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         medium='video',
         provider='fal',
         provider_model_key='fal-ai/pixverse/c1/reference-to-video',
-        mode_ids=('recipe', 'advanced'),
+        mode_ids=('premium',),
         billing_unit='per_second',
         quality_tier='premium',
         cost_profile='pixverse_c1_reference',
-        user_facing_description='Reference-to-video route for guided anime reels and advanced reference generation.',
+        user_facing_description='Reference-to-video route for anime reels and freeform stylized reference generation.',
         default_duration_seconds=5,
         aliases=(
             'fal-ai/pixverse/c1/reference-to-video',

@@ -1,4 +1,4 @@
-import { FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID } from '@/lib/env';
+import { API_URL, FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID } from '@/lib/env';
 
 export type FirebaseAuthSession = {
   idToken: string;
@@ -237,6 +237,25 @@ export async function persistAppSession(payload: {
     } catch {
       // Ignore storage errors in strict/private browsing contexts.
     }
+  }
+
+  const bootstrapResponse = await fetch(`${API_URL}/me/bootstrap`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${payload.accessToken}`,
+      'X-User-ID': payload.userId,
+    },
+    body: JSON.stringify({
+      display_name: payload.name,
+      email: payload.email,
+      avatar_url: payload.avatarUrl,
+    }),
+  });
+
+  if (!bootstrapResponse.ok) {
+    const body = await bootstrapResponse.text();
+    throw new Error(body || 'Failed to initialize user profile');
   }
 }
 

@@ -617,6 +617,11 @@ export type StandardVideoCreateRequest = {
   language: string;
   voice: string;
   imageUrls: string[];
+  imageReferences?: Array<{
+    ref_name: string;
+    type: string;
+    image_url: string;
+  }>;
   music: {
     type: 'library' | 'upload' | 'none';
     url: string | null;

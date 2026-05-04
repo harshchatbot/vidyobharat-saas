@@ -47,7 +47,27 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    const handleLoggedOut = () => {
+      setOpen(false);
+      setItems([]);
+      firstLoadRef.current = true;
+      seenIdsRef.current = new Set();
+    };
+
+    window.addEventListener('rangmanch:logged-out', handleLoggedOut);
+    return () => {
+      window.removeEventListener('rangmanch:logged-out', handleLoggedOut);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setOpen(false);
+      setItems([]);
+      firstLoadRef.current = true;
+      seenIdsRef.current = new Set();
+      return;
+    }
 
     let cancelled = false;
 

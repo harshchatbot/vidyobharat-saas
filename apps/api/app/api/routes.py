@@ -103,7 +103,7 @@ from app.schemas.project import (
 )
 from app.schemas.render import CreateRenderRequest, RenderResponse
 from app.schemas.upload import UploadDeleteResponse, UploadSignRequest, UploadSignResponse
-from app.schemas.user import UserAvatarUploadResponse, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
+from app.schemas.user import UserAvatarUploadResponse, UserBootstrapRequest, UserProfileResponse, UserProfileUpdateRequest, UserSettingsResponse, UserSettingsUpdateRequest
 from app.schemas.video import InspirationVideoResponse, MusicTrackResponse, VideoCreateResponse, VideoResponse, VideoRetryRequest, VideoRetryResponse
 from app.schemas.tts import TTSCatalogResponse, TTSLanguageOptionResponse, TTSPreviewRequest, TTSPreviewResponse, TTSVoiceOptionResponse
 from app.services.auth_service import AuthService
@@ -132,9 +132,12 @@ from app.services.llm.qwen_service import QwenService
 from app.services.video_studio_ai_service import VideoStudioAIService
 from app.services.avatar_product_workflow_service import AvatarProductWorkflowService
 from app.recipes.recipe_registry import (
+    AnimeLofiPromptPackage,
+    AnimeLofiQwenExpansion,
     build_ltx_recipe_request,
     build_explainer_recipe_request,
     build_normalized_video_payload,
+    build_pixverse_anime_lofi_prompt_package,
     detect_video_intent_from_payload,
     get_recipe,
     list_recipes,
@@ -216,6 +219,73 @@ def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, 
     }
 
 
+def _maybe_build_anime_lofi_prompt_package(
+    *,
+    normalized_inputs: dict[str, Any],
+) -> tuple[AnimeLofiPromptPackage, dict[str, Any]]:
+    motion = str(normalized_inputs.get('motion') or '').strip().lower()
+    scene = str(normalized_inputs.get('scene') or '').strip().lower()
+    vibe = str(normalized_inputs.get('vibe') or '').strip().lower()
+    fallback_reason = 'curated_only'
+    qwen_provider: str | None = None
+    expansion: AnimeLofiQwenExpansion | None = None
+
+    try:
+        qwen_service = QwenService(settings)
+        qwen_provider = qwen_service.provider_name()
+        additional_rules = ''
+        if motion == 'fly':
+            additional_rules = (
+                '\nFly-specific rules:\n'
+                '- Emphasize altitude, open air, skyline, horizon, or airborne atmosphere\n'
+                '- Do not focus on roads, trails, or terrain-travel details\n'
+                '- Prefer aerial texture over ground texture'
+            )
+        expansion_response = qwen_service.complete_structured(
+            task_type='anime_lofi_prompt_expansion',
+            schema_model=AnimeLofiQwenExpansion,
+            system_prompt=(
+                'You expand anime reference-to-video prompts with short descriptive details only. '
+                'Do not change the requested motion, scene class, subject identity, or reference token. '
+                'Return concise production-safe phrases for environment flavor, atmosphere flavor, and camera texture.'
+            ),
+            user_prompt=(
+                f'Motion: {motion}\n'
+                f'Scene: {scene}\n'
+                f'Vibe: {vibe}\n'
+                'Return three short fields:\n'
+                '- environment_flavor: small environment details only\n'
+                '- atmosphere_flavor: light mood details only\n'
+                '- camera_texture: subtle camera feel only\n'
+                'Rules:\n'
+                '- Do not mention @character\n'
+                '- Do not add new actions\n'
+                '- Do not contradict the motion\n'
+                '- Keep each field short and concrete'
+                f'{additional_rules}'
+            ),
+            temperature=0.35,
+        )
+        expansion = AnimeLofiQwenExpansion.model_validate(expansion_response)
+        fallback_reason = 'qwen_enhanced'
+    except Exception:
+        logger.exception(
+            'anime_lofi_qwen_expansion_failed',
+            extra={'motion': motion, 'scene': scene, 'vibe': vibe},
+        )
+
+    prompt_package = build_pixverse_anime_lofi_prompt_package(
+        motion=motion,
+        scene=scene,
+        vibe=vibe,
+        expansion=expansion,
+    )
+    return prompt_package, {
+        'qwen_provider': qwen_provider,
+        'anime_prompt_fallback_mode': fallback_reason,
+    }
+
+
 def _normalize_family_quality(value: str | None) -> str:
     normalized = str(value or '').strip().lower()
     if normalized in {'premium', 'ultra_premium'}:
@@ -279,6 +349,22 @@ def _resolve_non_recipe_family_request(payload: AIVideoCreateRequest, normalized
     if (requested_audio_mode == 'auto_scene_sound' or native_audio_enabled) and not family.supports_native_audio:
         raise HTTPException(status_code=422, detail='Auto scene sound is not available for this model')
 
+    next_script = str(normalized_payload.get('script') or payload.script or '').strip()
+    next_image_references = list(normalized_payload.get('imageReferences') or payload.imageReferences or [])
+    if route_key == 'pixverse_c1_reference':
+        if not next_image_references:
+            primary_image_url = str(image_urls[0] or '').strip() if image_urls else ''
+            if primary_image_url:
+                next_image_references = [
+                    {
+                        'ref_name': 'subject',
+                        'type': 'subject',
+                        'image_url': primary_image_url,
+                    }
+                ]
+        if '@subject' not in next_script.lower():
+            next_script = f'@subject {next_script}'.strip()
+
     return {
         'modelFamily': family.key,
         'generationMode': generation_mode,
@@ -290,6 +376,8 @@ def _resolve_non_recipe_family_request(payload: AIVideoCreateRequest, normalized
             **dict(normalized_payload.get('audioSettings') or payload.audioSettings.model_dump()),
             'nativeAudioEnabled': bool(native_audio_enabled and family.supports_native_audio),
         },
+        'script': next_script,
+        'imageReferences': next_image_references,
         'pipelineMetadataFamily': {
             'model_family': family.key,
             'generation_mode': generation_mode,
@@ -297,6 +385,7 @@ def _resolve_non_recipe_family_request(payload: AIVideoCreateRequest, normalized
             'resolved_provider_route': route_key,
             'native_audio_supported': family.supports_native_audio,
             'native_audio_notes': family.native_audio_notes,
+            'image_reference_count': len(next_image_references),
         },
     }
 
@@ -1007,6 +1096,21 @@ def get_my_profile(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.post('/me/bootstrap', response_model=UserProfileResponse)
+def bootstrap_my_profile(
+    payload: UserBootstrapRequest,
+    user_id: str = Depends(get_user_id),
+):
+    service = UserService(None)
+    user = service.bootstrap_auth_user(
+        user_id,
+        display_name=payload.display_name.strip() if payload.display_name else None,
+        email=payload.email.strip() if payload.email else None,
+        avatar_url=payload.avatar_url.strip() if payload.avatar_url else None,
+    )
+    return _to_user_profile_response(user)
+
+
 @router.put('/me/profile', response_model=UserProfileResponse)
 def update_my_profile(
     payload: UserProfileUpdateRequest,
@@ -1486,7 +1590,17 @@ def create_ai_video(
         if payload.recipeId:
             recipe = get_recipe(payload.recipeId)
             normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
-            normalized_payload = build_normalized_video_payload(recipe, normalized_recipe_inputs)
+            anime_prompt_package: AnimeLofiPromptPackage | None = None
+            anime_prompt_runtime_metadata: dict[str, Any] = {}
+            if recipe.id == 'anime_lofi_reel':
+                anime_prompt_package, anime_prompt_runtime_metadata = _maybe_build_anime_lofi_prompt_package(
+                    normalized_inputs=normalized_recipe_inputs,
+                )
+            normalized_payload = build_normalized_video_payload(
+                recipe,
+                normalized_recipe_inputs,
+                anime_prompt_package=anime_prompt_package,
+            )
             if payload.aspectRatio:
                 normalized_payload['aspectRatio'] = str(payload.aspectRatio).strip()
             if payload.language:
@@ -1501,7 +1615,13 @@ def create_ai_video(
             }
             if requested_audio_mode:
                 normalized_payload['audioMode'] = requested_audio_mode
-            pipeline_metadata = recipe_pipeline_metadata(recipe, normalized_recipe_inputs)
+            pipeline_metadata = recipe_pipeline_metadata(
+                recipe,
+                normalized_recipe_inputs,
+                anime_prompt_package=anime_prompt_package,
+            )
+            if anime_prompt_runtime_metadata:
+                pipeline_metadata.setdefault('metadata', {}).update(anime_prompt_runtime_metadata)
             if recipe.id == 'avatar_product':
                 pipeline_metadata['pipeline_version'] = 'chitrakala_v1'
                 pipeline_metadata['avatar_name'] = str(settings.chitrakala_avatar_name or 'Chitrakala').strip() or 'Chitrakala'

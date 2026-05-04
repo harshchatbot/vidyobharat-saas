@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 import re
 from typing import Any
 import random
+from pydantic import BaseModel, Field
 
 
 @dataclass(frozen=True)
@@ -216,26 +217,144 @@ def _ltx_freeform_scene_strategy() -> RecipeSceneStrategy:
     )
 
 
-PIXVERSE_ANIME_MOTION_MAP: dict[str, str] = {
-    'ride': 'rides a skateboard downhill',
-    'walk': 'walks slowly forward',
-    'run': 'runs forward with dynamic motion',
-    'fly': 'flies smoothly through the air',
-    'stand': 'stands calmly with subtle motion',
+PIXVERSE_ANIME_MOTION_MAP: dict[str, tuple[str, ...]] = {
+    'ride': (
+        'rides a skateboard downhill',
+        'skates forward downhill with smooth control',
+        'glides downhill on a skateboard with confident motion',
+    ),
+    'walk': (
+        'walks slowly forward',
+        'walks ahead with a gentle steady pace',
+        'moves forward on foot with calm measured steps',
+    ),
+    'run': (
+        'runs forward with dynamic motion',
+        'sprints ahead with strong forward momentum',
+        'runs through the scene with energetic motion',
+    ),
+    'fly': (
+        'flies smoothly through the air',
+        'glides forward through open air with graceful motion',
+        'soars through the air with smooth controlled movement',
+    ),
+    'stand': (
+        'stands calmly with subtle motion',
+        'holds a calm standing pose with restrained movement',
+        'stands in place with subtle natural motion',
+    ),
 }
 
-PIXVERSE_ANIME_SCENE_MAP: dict[str, str] = {
-    'coastal': 'coastal road with ocean, waves, seaside houses, electric poles, palm trees',
-    'mountains': 'mountain road with hills, trees, mist, winding paths',
-    'city': 'urban street with buildings, traffic lights, cars',
-    'grassland': 'open grass fields with wide sky and natural landscape',
-    'fantasy': 'fantasy environment with glowing elements, magical atmosphere',
+PIXVERSE_ANIME_SCENE_MAP: dict[str, dict[str, str]] = {
+    'ride': {
+        'coastal': 'a coastal road with ocean waves, seaside houses, electric poles, and palm trees',
+        'mountains': 'a mountain road with hills, trees, mist, and winding paths',
+        'city': 'an urban street with buildings, traffic lights, and passing cars',
+        'grassland': 'a narrow path through open grass fields under a wide sky',
+        'fantasy': 'a glowing fantasy pathway with magical elements and a surreal atmosphere',
+    },
+    'walk': {
+        'coastal': 'a seaside promenade with ocean breeze, calm waves, and coastal houses',
+        'mountains': 'a quiet mountain path with hills, trees, mist, and scenic bends',
+        'city': 'a calm urban street with storefronts, traffic lights, and passing city motion',
+        'grassland': 'open grass fields with a wide sky and gentle natural depth',
+        'fantasy': 'a dreamy fantasy landscape with glowing details and magical ambience',
+    },
+    'run': {
+        'coastal': 'a fast-moving seaside path with ocean spray, palm trees, and coastal depth',
+        'mountains': 'a winding mountain trail with hills, trees, mist, and layered terrain',
+        'city': 'a lively urban street with buildings, traffic lights, and dynamic city energy',
+        'grassland': 'expansive grass fields with open terrain and strong forward depth',
+        'fantasy': 'a vivid fantasy world with glowing structures and magical motion trails',
+    },
+    'fly': {
+        'coastal': 'the open coastal air above the shoreline, rolling waves, rooftops below, electric poles, and palm trees',
+        'mountains': 'high mountain air above layered ridgelines, drifting mist, tall pines, and distant peaks',
+        'city': 'the open city skyline above rooftops, distant streets below, lights, and vertical urban depth',
+        'grassland': 'the broad open sky above vast grass fields, distant terrain below, and a wide horizon line',
+        'fantasy': 'an elevated magical sky with floating glow, suspended fantasy elements, and surreal open-air depth',
+    },
+    'stand': {
+        'coastal': 'a coastal overlook with ocean, waves, seaside houses, and palm trees',
+        'mountains': 'a mountain viewpoint with hills, trees, mist, and scenic depth',
+        'city': 'an urban spot with buildings, traffic lights, and subtle city movement',
+        'grassland': 'open grass fields with a wide sky and peaceful natural atmosphere',
+        'fantasy': 'a glowing fantasy setting with magical details and ambient motion',
+    },
 }
 
-PIXVERSE_ANIME_VIBE_MAP: dict[str, str] = {
-    'lofi': 'warm sunlight, soft clouds, lofi calm vibe, hand-painted anime style',
-    'cinematic': 'dramatic lighting, cinematic depth, high contrast',
-    'dreamy': 'soft glow, pastel tones, dreamy atmosphere',
+PIXVERSE_ANIME_VIBE_MAP: dict[str, tuple[str, ...]] = {
+    'lofi': (
+        'warm sunlight, soft clouds, lofi calm vibe, hand-painted anime style',
+        'golden light, airy clouds, mellow lofi energy, hand-painted anime style',
+        'gentle daylight, soft cloud texture, calm lofi atmosphere, hand-painted anime style',
+    ),
+    'cinematic': (
+        'dramatic lighting, cinematic depth, high contrast',
+        'rich contrast, dramatic light shaping, cinematic visual depth',
+        'bold lighting separation, premium cinematic depth, confident contrast',
+    ),
+    'dreamy': (
+        'soft glow, pastel tones, dreamy atmosphere',
+        'pastel light, gentle bloom, and a dreamy floating atmosphere',
+        'soft radiant glow, airy pastel color, dreamy visual mood',
+    ),
+}
+
+PIXVERSE_ANIME_CAMERA_MAP: dict[str, tuple[str, ...]] = {
+    'ride': (
+        'Camera follows from behind with a slightly elevated angle, tracking with smooth forward momentum.',
+        'Camera tracks from a rear three-quarter angle with steady travel motion and controlled downhill flow.',
+        'Camera follows from behind with a premium gliding track that keeps the skateboard motion readable.',
+    ),
+    'walk': (
+        'Camera follows gently from behind at a relaxed elevated angle, drifting smoothly with the character.',
+        'Camera tracks at a soft rear angle with calm movement and gentle forward continuity.',
+        'Camera follows with a light elevated drift, keeping the walking pace natural and composed.',
+    ),
+    'run': (
+        'Camera tracks closely from behind with energetic forward motion and stronger speed emphasis.',
+        'Camera follows from behind with tighter framing and dynamic forward tracking.',
+        'Camera tracks with confident pace from the rear, emphasizing speed while keeping the subject clear.',
+    ),
+    'fly': (
+        'Camera glides behind and slightly below, tracking smoothly through open air with gentle aerial motion and visible altitude.',
+        'Camera follows through the air from a soft rear angle, holding a graceful airborne trajectory above the environment below.',
+        'Camera drifts behind the character in open sky, maintaining elegant aerial tracking, clear lift, and strong horizon separation.',
+    ),
+    'stand': (
+        'Camera holds a stable cinematic frame with subtle drift and soft environmental parallax.',
+        'Camera stays mostly locked with a restrained cinematic float and light parallax.',
+        'Camera keeps a composed hero frame with only subtle ambient drift in the scene.',
+    ),
+}
+
+PIXVERSE_ANIME_INTERACTION_MAP: dict[str, tuple[str, ...]] = {
+    'ride': (
+        'Stable body posture, clear contact with the board, and natural interaction with the path.',
+        'Keep the stance balanced, the skateboard readable, and the path interaction believable.',
+        'Maintain strong posture, clean board control, and natural response to the downhill route.',
+    ),
+    'walk': (
+        'Stable body posture, natural foot placement, and clear interaction with the environment.',
+        'Keep the gait natural, posture steady, and contact with the ground believable.',
+        'Maintain calm balance, readable steps, and grounded interaction with the surroundings.',
+    ),
+    'run': (
+        'Stable body posture, clear forward energy, and natural interaction with the terrain.',
+        'Keep the sprint posture readable, momentum strong, and ground interaction believable.',
+        'Maintain energetic running form with clean forward drive and stable anatomy.',
+    ),
+    'fly': (
+        'Stable body posture, balanced airborne movement, clear separation from the environment below, and no implied ground contact.',
+        'Maintain controlled airborne balance, clean silhouette, obvious lift away from the ground, and believable suspended posture.',
+        'Keep the flying posture graceful, stable, clearly suspended in open space, and fully detached from the terrain beneath.',
+    ),
+    'stand': (
+        'Stable body posture, subtle motion in hair and clothing, and clear environmental presence.',
+        'Keep the pose composed and grounded while the environment carries gentle ambient movement.',
+        'Maintain a calm hero stance with small natural motion in hair, fabric, and atmosphere.',
+    ),
 }
 
 PIXVERSE_QUALITY_TO_RESOLUTION: dict[str, str] = {
@@ -247,19 +366,192 @@ PIXVERSE_QUALITY_TO_RESOLUTION: dict[str, str] = {
 PIXVERSE_ALLOWED_DURATIONS = {'5', '10'}
 PIXVERSE_ALLOWED_QUALITIES = frozenset(PIXVERSE_QUALITY_TO_RESOLUTION.keys())
 PIXVERSE_ALLOWED_AUDIO_MODES = {'silent', 'auto_scene_sound'}
+PIXVERSE_ALLOWED_SCENES = frozenset(next(iter(PIXVERSE_ANIME_SCENE_MAP.values())).keys())
+
+
+class AnimeLofiQwenExpansion(BaseModel):
+    environment_flavor: str = Field(default='', max_length=180)
+    atmosphere_flavor: str = Field(default='', max_length=180)
+    camera_texture: str = Field(default='', max_length=180)
+
+
+@dataclass(frozen=True)
+class AnimeLofiPromptPackage:
+    prompt: str
+    metadata: dict[str, Any]
+
+
+PIXVERSE_ANIME_SCENE_DETAIL_VARIANTS: dict[str, tuple[str, ...]] = {
+    'coastal': (
+        'sunlit reflections across the water and soft motion in the palm trees',
+        'a breezy shoreline mood with layered depth from rooftops to the sea',
+        'clean coastal openness with distant waves and bright airy spacing',
+    ),
+    'mountains': (
+        'misty depth between the ridgelines with soft layered distance',
+        'cool mountain air, scenic elevation, and gentle haze across the hills',
+        'clear terrain separation with atmospheric depth through the landscape',
+    ),
+    'city': (
+        'subtle urban glow, layered street depth, and believable background motion',
+        'clean city perspective with signs, lights, and soft movement around the subject',
+        'structured urban depth with readable buildings and grounded visual rhythm',
+    ),
+    'grassland': (
+        'open airy space with natural depth and soft movement across the field',
+        'broad horizon lines with gentle wind and layered environmental openness',
+        'peaceful natural spacing with clean foreground-to-background separation',
+    ),
+    'fantasy': (
+        'luminous magical particles and soft surreal depth in the environment',
+        'glowing fantasy accents with layered mystical atmosphere',
+        'dreamlike environmental depth with subtle magical motion in the background',
+    ),
+}
+
+PIXVERSE_ANIME_CAMERA_TEXTURE_VARIANTS: dict[str, tuple[str, ...]] = {
+    'ride': (
+        'Keep the motion readable and cinematic without shaking the frame.',
+        'Maintain smooth travel energy with clean tracking and no abrupt camera swings.',
+    ),
+    'walk': (
+        'Keep the pacing gentle and visually readable with calm camera movement.',
+        'Let the frame breathe with smooth motion and soft, natural continuity.',
+    ),
+    'run': (
+        'Keep the speed energetic but readable, with strong forward momentum and clean framing.',
+        'Emphasize motion intensity without breaking the silhouette or environment clarity.',
+    ),
+    'fly': (
+        'Preserve a floating, weightless feeling with elegant aerial continuity and clean altitude drift.',
+        'Keep the airborne motion graceful and stable with clear open-space separation and visible lift above the scene.',
+    ),
+    'stand': (
+        'Let the image feel alive through subtle ambient motion rather than travel.',
+        'Keep the frame composed and premium with very restrained movement.',
+    ),
+}
+
+PIXVERSE_ANIME_FLY_SCENE_DETAIL_VARIANTS: dict[str, tuple[str, ...]] = {
+    'coastal': (
+        'wide shoreline spacing, sea breeze, and layered depth from bright water to rooftops below',
+        'open air above the coast with gentle altitude, distant surf, and soft palm movement beneath',
+        'clean airborne coastal depth with sunlight on the sea and visible separation above the shoreline',
+    ),
+    'mountains': (
+        'mist layers drifting between ridgelines with strong altitude and deep sky separation',
+        'open alpine air, distant peaks, and visible height above the mountain landscape below',
+        'broad mountain sky depth with soft haze, elevated perspective, and clear spacing above the terrain',
+    ),
+    'city': (
+        'layered rooftop depth, distant streets below, and clean skyline spacing around the character',
+        'open urban air above the city grid with visible height and soft light across the rooftops',
+        'clear skyline separation with vertical city depth and the ground kept far below the subject',
+    ),
+    'grassland': (
+        'broad horizon depth, open wind, and strong separation above the fields below',
+        'wide sky openness with distant terrain beneath and clean elevated spacing around the character',
+        'airy natural depth with visible altitude above the grassland and a long horizon line',
+    ),
+    'fantasy': (
+        'floating magical depth with suspended glow, airy currents, and layered open sky',
+        'elevated fantasy atmosphere with drifting luminous particles and clear airborne spacing',
+        'surreal sky depth with magical air currents and a visibly suspended environment below',
+    ),
+}
+
+
+def _clean_anime_lofi_expansion_text(value: str) -> str:
+    return re.sub(r'\s+', ' ', str(value or '').strip()).strip(' .')
+
+
+def _compose_sentence_parts(*parts: str) -> str:
+    normalized = [_clean_anime_lofi_expansion_text(part) for part in parts if _clean_anime_lofi_expansion_text(part)]
+    if not normalized:
+        return ''
+    return ', '.join(normalized)
+
+
+def build_pixverse_anime_lofi_prompt_package(
+    *,
+    motion: str,
+    scene: str,
+    vibe: str,
+    expansion: AnimeLofiQwenExpansion | None = None,
+    randomizer: random.Random | None = None,
+) -> AnimeLofiPromptPackage:
+    chooser = randomizer or random
+    motion_phrase = chooser.choice(PIXVERSE_ANIME_MOTION_MAP[motion])
+    scene_phrase = PIXVERSE_ANIME_SCENE_MAP[motion][scene]
+    camera_phrase = chooser.choice(PIXVERSE_ANIME_CAMERA_MAP[motion])
+    interaction_phrase = chooser.choice(PIXVERSE_ANIME_INTERACTION_MAP[motion])
+    scene_detail_variants = (
+        PIXVERSE_ANIME_FLY_SCENE_DETAIL_VARIANTS[scene]
+        if motion == 'fly'
+        else PIXVERSE_ANIME_SCENE_DETAIL_VARIANTS[scene]
+    )
+    scene_detail_phrase = chooser.choice(scene_detail_variants)
+    camera_texture_phrase = chooser.choice(PIXVERSE_ANIME_CAMERA_TEXTURE_VARIANTS[motion])
+    vibe_phrase = chooser.choice(PIXVERSE_ANIME_VIBE_MAP[vibe])
+
+    qwen_environment_flavor = _clean_anime_lofi_expansion_text(expansion.environment_flavor) if expansion else ''
+    qwen_atmosphere_flavor = _clean_anime_lofi_expansion_text(expansion.atmosphere_flavor) if expansion else ''
+    qwen_camera_texture = _clean_anime_lofi_expansion_text(expansion.camera_texture) if expansion else ''
+
+    environment_sentence = _compose_sentence_parts(
+        scene_detail_phrase,
+        qwen_environment_flavor,
+        qwen_atmosphere_flavor,
+    )
+    camera_texture_sentence = _compose_sentence_parts(
+        camera_texture_phrase,
+        qwen_camera_texture,
+    )
+
+    prompt_parts = [
+        f'@character {motion_phrase} through {scene_phrase}.',
+        camera_phrase,
+        interaction_phrase,
+    ]
+    if environment_sentence:
+        prompt_parts.append(f'{environment_sentence}.')
+    if camera_texture_sentence:
+        prompt_parts.append(f'{camera_texture_sentence}.')
+    prompt_parts.append(f'{vibe_phrase}.')
+    prompt_parts.append('Maintain exact character identity, no distortion.')
+
+    return AnimeLofiPromptPackage(
+        prompt=' '.join(part.strip() for part in prompt_parts if part.strip()),
+        metadata={
+            'motion': motion,
+            'scene': scene,
+            'vibe': vibe,
+            'selected_motion_phrase': motion_phrase,
+            'selected_scene_phrase': scene_phrase,
+            'selected_camera_phrase': camera_phrase,
+            'selected_interaction_phrase': interaction_phrase,
+            'selected_scene_detail_phrase': scene_detail_phrase,
+            'selected_camera_texture_phrase': camera_texture_phrase,
+            'selected_vibe_phrase': vibe_phrase,
+            'qwen_expansion_used': bool(expansion and any([
+                qwen_environment_flavor,
+                qwen_atmosphere_flavor,
+                qwen_camera_texture,
+            ])),
+            'qwen_environment_flavor': qwen_environment_flavor,
+            'qwen_atmosphere_flavor': qwen_atmosphere_flavor,
+            'qwen_camera_texture': qwen_camera_texture,
+        },
+    )
 
 
 def build_pixverse_anime_lofi_prompt(*, motion: str, scene: str, vibe: str) -> str:
-    motion_phrase = PIXVERSE_ANIME_MOTION_MAP[motion]
-    scene_description = PIXVERSE_ANIME_SCENE_MAP[scene]
-    vibe_description = PIXVERSE_ANIME_VIBE_MAP[vibe]
-    return (
-        f'@character {motion_phrase} on a {scene_description}. '
-        'Camera follows from behind at a slightly elevated angle, tracking smoothly. '
-        'Stable body posture, clear interaction with environment. '
-        f'{vibe_description}. '
-        'Maintain exact character identity, no distortion.'
-    )
+    return build_pixverse_anime_lofi_prompt_package(
+        motion=motion,
+        scene=scene,
+        vibe=vibe,
+        randomizer=random.Random(0),
+    ).prompt
 
 
 def _normalize_pixverse_audio_mode(value: Any) -> str:
@@ -1375,7 +1667,7 @@ def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) 
             raise ValueError('anime_lofi_reel requires inputs.character_image')
         if motion not in PIXVERSE_ANIME_MOTION_MAP:
             raise ValueError('anime_lofi_reel motion must be one of: ride, walk, run, fly, stand')
-        if scene not in PIXVERSE_ANIME_SCENE_MAP:
+        if scene not in PIXVERSE_ALLOWED_SCENES:
             raise ValueError('anime_lofi_reel scene must be one of: coastal, mountains, city, grassland, fantasy')
         if vibe not in PIXVERSE_ANIME_VIBE_MAP:
             raise ValueError('anime_lofi_reel vibe must be one of: lofi, cinematic, dreamy')
@@ -1455,14 +1747,19 @@ def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) 
     return normalized
 
 
-def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
+def build_normalized_video_payload(
+    recipe: RecipeConfig,
+    inputs: dict[str, Any] | None,
+    *,
+    anime_prompt_package: AnimeLofiPromptPackage | None = None,
+) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     defaults = recipe.generation_defaults
 
     if recipe.id == 'anime_lofi_reel':
         quality_profile = str(normalized_inputs['quality_profile'])
         duration_seconds = int(str(normalized_inputs['duration_seconds']))
-        generated_prompt = build_pixverse_anime_lofi_prompt(
+        prompt_package = anime_prompt_package or build_pixverse_anime_lofi_prompt_package(
             motion=str(normalized_inputs['motion']),
             scene=str(normalized_inputs['scene']),
             vibe=str(normalized_inputs['vibe']),
@@ -1480,7 +1777,7 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
         return {
             'template': recipe.catalog.title,
             'templateId': recipe.id,
-            'script': generated_prompt,
+            'script': prompt_package.prompt,
             'tags': [recipe.id, *list(recipe.catalog.tags)],
             'modelKey': 'pixverse_c1_reference',
             'modeId': None,
@@ -1605,9 +1902,24 @@ def build_normalized_video_payload(recipe: RecipeConfig, inputs: dict[str, Any] 
     }
 
 
-def recipe_pipeline_metadata(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
+def recipe_pipeline_metadata(
+    recipe: RecipeConfig,
+    inputs: dict[str, Any] | None,
+    *,
+    anime_prompt_package: AnimeLofiPromptPackage | None = None,
+) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     if recipe.id in {'anime_lofi_reel', 'reference_video_generator_advanced'}:
+        pixverse_metadata = {
+            **dict(recipe.metadata or {}),
+            'pixverse_mode': 'advanced' if recipe.id == 'reference_video_generator_advanced' else 'recipe',
+            'quality_profile': str(normalized_inputs.get('quality_profile') or 'standard'),
+            'resolution': PIXVERSE_QUALITY_TO_RESOLUTION[str(normalized_inputs.get('quality_profile') or 'standard')],
+            'audio_mode': str(normalized_inputs.get('audio_mode') or 'silent'),
+            'max_retries': 2,
+        }
+        if recipe.id == 'anime_lofi_reel' and anime_prompt_package:
+            pixverse_metadata['anime_prompt_package'] = dict(anime_prompt_package.metadata)
         return {
             'recipe_id': recipe.id,
             'recipe_type': recipe.type,
@@ -1617,14 +1929,7 @@ def recipe_pipeline_metadata(recipe: RecipeConfig, inputs: dict[str, Any] | None
             'generation_defaults': asdict(recipe.generation_defaults),
             'catalog': recipe_catalog_item(recipe),
             'inputs': normalized_inputs,
-            'metadata': {
-                **dict(recipe.metadata or {}),
-                'pixverse_mode': 'advanced' if recipe.id == 'reference_video_generator_advanced' else 'recipe',
-                'quality_profile': str(normalized_inputs.get('quality_profile') or 'standard'),
-                'resolution': PIXVERSE_QUALITY_TO_RESOLUTION[str(normalized_inputs.get('quality_profile') or 'standard')],
-                'audio_mode': str(normalized_inputs.get('audio_mode') or 'silent'),
-                'max_retries': 2,
-            },
+            'metadata': pixverse_metadata,
         }
     return {
         'recipe_id': recipe.id,

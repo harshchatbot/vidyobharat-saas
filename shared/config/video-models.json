@@ -194,6 +194,52 @@
       "pricingConfig": {},
       "hidden": false,
       "devOnly": false
+    },
+    {
+      "key": "pixverse_c1_reference",
+      "modelFamily": "pixverse_c1_reference",
+      "displayName": "PixVerse C1",
+      "tags": ["Reference", "Anime", "Premium"],
+      "description": "Reference-led freeform video for anime, stylized motion, and character-based reels.",
+      "supportsTextToVideo": false,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": true,
+      "nativeAudioDefault": false,
+      "nativeAudioNotes": "Auto scene sound is available and increases the credit estimate.",
+      "supportedDurations": [5, 10],
+      "supportedQualities": [
+        { "key": "standard", "label": "Standard", "resolution": "360p" },
+        { "key": "high", "label": "High", "resolution": "540p" },
+        { "key": "premium", "label": "Premium", "resolution": "720p" }
+      ],
+      "supportedResolutions": ["360p", "540p", "720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "requiredInputsByGenerationMode": {
+        "text_to_video": ["image_url"],
+        "image_to_video": ["image_url"]
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "image_to_video": {
+          "standard": "pixverse_c1_reference",
+          "high": "pixverse_c1_reference",
+          "premium": "pixverse_c1_reference"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "duration",
+        "resolutionStrategy": "resolution",
+        "imageField": "image_references"
+      },
+      "pricingType": "perSecond",
+      "pricingConfig": {
+        "ratesUsdPerSecond": {
+          "standard": { "audioOff": 0.03, "audioOn": 0.04 },
+          "high": { "audioOff": 0.04, "audioOn": 0.05 },
+          "premium": { "audioOff": 0.05, "audioOn": 0.065 }
+        }
+      },
+      "hidden": false,
+      "devOnly": false
     }
   ],
   "models": [
@@ -762,17 +808,17 @@
     },
     {
       "key": "pixverse_c1_reference",
-      "lane": "internal",
+      "lane": "premium",
       "label": "PixVerse C1 Reference",
       "fullLabel": "PixVerse C1 Reference to Video",
-      "description": "Reference-to-video route for guided anime reels and advanced controlled reference generation.",
-      "frontendHint": "Internal recipe-only PixVerse route for anime and reference-led premium reels.",
+      "description": "Reference-to-video route for anime reels, stylized prompts, and freeform character-led motion.",
+      "frontendHint": "Upload one reference image, write your prompt, and PixVerse will animate the subject with your chosen motion and style.",
       "apiAdapter": "generate_with_fal",
       "providerModel": "fal-ai/pixverse/c1/reference-to-video",
       "tier": "premium",
       "enabled": true,
       "featured": false,
-      "internalOnly": true,
+      "internalOnly": false,
       "featureGate": null,
       "qualityBadge": "Premium",
       "speedBadge": "Reference-led",
@@ -780,15 +826,17 @@
       "supportsNativeAudio": true,
       "resolutionLabels": ["360p", "540p", "720p"],
       "supportedResolutions": ["360p", "540p", "720p"],
-      "supportedAspectRatios": ["9:16"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
       "sizes": {
-        "9:16": { "360p": "360x640", "540p": "540x960", "720p": "720x1280" }
+        "9:16": { "360p": "360x640", "540p": "540x960", "720p": "720x1280" },
+        "16:9": { "360p": "640x360", "540p": "960x540", "720p": "1280x720" },
+        "1:1": { "360p": "360x360", "540p": "540x540", "720p": "720x720" }
       },
       "durationPresets": [5, 10],
       "defaultDurationSeconds": 5,
       "minDurationSeconds": 5,
       "maxDurationSeconds": 10,
-      "durationHelperText": "Recipe-only PixVerse C1 route for 5s and 10s reference videos up to 720p."
+      "durationHelperText": "PixVerse C1 supports 5s and 10s reference-led videos up to 720p."
     }
   ]
 }

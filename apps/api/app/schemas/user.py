@@ -34,6 +34,12 @@ class UserProfileUpdateRequest(BaseModel):
     timezone: str | None = Field(default=None, max_length=64)
 
 
+class UserBootstrapRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=120)
+    email: str | None = Field(default=None, max_length=255)
+    avatar_url: str | None = Field(default=None, max_length=2048)
+
+
 class UserSettingsResponse(BaseModel):
     id: str
     default_language: str | None = None

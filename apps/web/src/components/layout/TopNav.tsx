@@ -37,12 +37,20 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [clientLoggedOut, setClientLoggedOut] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const initials = getInitials(accountLabel);
+  const effectiveUserId = clientLoggedOut ? null : userId;
+  const effectiveAccountLabel = clientLoggedOut ? null : accountLabel;
+  const effectiveAccountEmail = clientLoggedOut ? null : accountEmail;
+  const initials = getInitials(effectiveAccountLabel);
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setClientLoggedOut(false);
+  }, [userId]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -66,6 +74,17 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
     window.addEventListener('rangmanch:navigation-start', onNavigationStart);
     return () => {
       window.removeEventListener('rangmanch:navigation-start', onNavigationStart);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onLoggedOut = () => {
+      setOpen(false);
+      setClientLoggedOut(true);
+    };
+    window.addEventListener('rangmanch:logged-out', onLoggedOut);
+    return () => {
+      window.removeEventListener('rangmanch:logged-out', onLoggedOut);
     };
   }, []);
 
@@ -108,7 +127,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
               </Link>
             ))}
 
-            {!userId && (
+            {!effectiveUserId && (
               <>
                 <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-text))]">
                   Sign in
@@ -117,19 +136,18 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
               </>
             )}
 
-            {userId && (
+            {effectiveUserId && (
               <>
-                <NotificationBell userId={userId} />
                 <Link
                   href="/dashboard"
                   className="ml-2 inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
-                  title={userId}
+                  title={effectiveUserId}
                 >
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
                     {initials}
                   </span>
                   <span className="max-w-[180px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
-                    {accountEmail ?? accountLabel ?? 'Account'}
+                    {effectiveAccountEmail ?? effectiveAccountLabel ?? 'Account'}
                   </span>
                 </Link>
                 <LogoutButton
@@ -140,21 +158,22 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
               </>
             )}
 
-            <ToggleTheme />
           </nav>
 
-          <div className="flex items-center gap-2 lg:hidden">
-          {userId && <NotificationBell userId={userId} />}
+          <div className="flex items-center gap-2">
+            {effectiveUserId && <NotificationBell userId={effectiveUserId} />}
             <ToggleTheme />
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
-              aria-expanded={open}
-              aria-label="Toggle menu"
-            >
-              Menu
-            </button>
+            <div className="lg:hidden">
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
+                aria-expanded={open}
+                aria-label="Toggle menu"
+              >
+                Menu
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -167,7 +186,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
             </Link>
           ))}
 
-          {!userId && (
+          {!effectiveUserId && (
             <div className="mt-1 flex gap-2">
               <Link href="/login" className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
                 Sign in <ArrowRight className="h-4 w-4" />
@@ -175,10 +194,10 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
             </div>
           )}
 
-          {userId && (
+          {effectiveUserId && (
             <div className="mt-1 flex gap-2">
               <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
-                {accountEmail ?? 'Account'}
+                {effectiveAccountEmail ?? 'Account'}
               </Link>
               <LogoutButton
                 className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))] disabled:opacity-70"

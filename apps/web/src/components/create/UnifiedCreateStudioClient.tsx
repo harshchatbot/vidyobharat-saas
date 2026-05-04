@@ -414,6 +414,13 @@ function pickExplainerRecipeId(prompt: string) {
   return 'deep_dive_explainer';
 }
 
+function buildPixverseFreeformPrompt(prompt: string) {
+  const normalized = prompt.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '@subject';
+  if (/@subject\b/i.test(normalized)) return normalized;
+  return `@subject ${normalized}`;
+}
+
 function buildVideoCreatePayload(input: {
   type: 'recipe';
   recipeId: string;
@@ -435,7 +442,7 @@ function buildVideoCreatePayload(input: {
   generationMode: VideoGenerationMode;
   lane: 'creator_pro' | 'premium';
   aspectRatio: '9:16' | '16:9' | '1:1';
-  resolution: '480p' | '720p' | '1080p' | '1440p' | '2160p' | '4K';
+  resolution: '360p' | '480p' | '540p' | '720p' | '1080p' | '1440p' | '2160p' | '4K';
   quality: 'standard' | 'high' | 'premium';
   durationSeconds: number;
   captionsEnabled: boolean;
@@ -444,6 +451,11 @@ function buildVideoCreatePayload(input: {
   language: string;
   voice: string;
   imageUrl?: string | null;
+  imageReferences?: Array<{
+    ref_name: string;
+    type: string;
+    image_url: string;
+  }>;
 }): VideoCreateRequest {
   if (input.type === 'recipe') {
     return {
@@ -464,7 +476,7 @@ function buildVideoCreatePayload(input: {
 
   return {
     template: input.templateLabel,
-    script: input.script,
+    script: input.modelFamily === 'pixverse_c1_reference' ? buildPixverseFreeformPrompt(input.script) : input.script,
     tags: [],
     modelKey: input.modelKey,
     modelFamily: input.modelFamily,
@@ -473,6 +485,7 @@ function buildVideoCreatePayload(input: {
     language: input.language,
     voice: input.voice,
     imageUrls: input.imageUrl ? [input.imageUrl] : [],
+    imageReferences: input.imageReferences,
     music: {
       type: 'none',
       url: null,
@@ -746,6 +759,22 @@ function getVisibleNormalVideoFamilies(models: AIVideoModel[]) {
     const routeKeys = Object.values(family.providerRoutesByGenerationModeAndQuality || {}).flatMap((mapping) => Object.values(mapping || {}));
     return routeKeys.some((routeKey) => models.some((model) => model.key === routeKey && model.enabled !== false));
   });
+}
+
+function mergeVideoModelCatalog(apiModels: AIVideoModel[]) {
+  const fallbackByKey = new Map(VIDEO_MODEL_FALLBACK.map((model) => [model.key, model]));
+  const merged = new Map<string, AIVideoModel>();
+
+  VIDEO_MODEL_FALLBACK.forEach((model) => {
+    merged.set(model.key, { ...model });
+  });
+
+  apiModels.forEach((model) => {
+    const fallback = fallbackByKey.get(model.key);
+    merged.set(model.key, fallback ? { ...fallback, ...model } : model);
+  });
+
+  return Array.from(merged.values());
 }
 
 function inferVideoGenerationMode(hasImage: boolean): VideoGenerationMode {
@@ -1089,6 +1118,23 @@ function buildRecipeComposerState(config: RecipeComposerConfig, seed?: Partial<R
       acc[slot.id] = seed?.[slot.id] ?? '';
       return acc;
     }, {}),
+  };
+}
+
+function seedRecipeComposerDefaults(recipe: RecipeCard, composerState: RecipeComposerState): RecipeComposerState {
+  const defaults = recipe.recipe.generation_defaults ?? {};
+  const nextValues = { ...composerState.values };
+
+  if ('duration_seconds' in nextValues && !String(nextValues.duration_seconds || '').trim()) {
+    nextValues.duration_seconds = String(defaults.duration_seconds ?? recipe.recipe.duration_seconds ?? 5);
+  }
+  if ('quality_profile' in nextValues && !String(nextValues.quality_profile || '').trim()) {
+    nextValues.quality_profile = String(defaults.quality ?? 'standard');
+  }
+
+  return {
+    ...composerState,
+    values: nextValues,
   };
 }
 
@@ -1531,6 +1577,10 @@ export function UnifiedCreateStudioClient({
     () => NORMAL_VIDEO_FAMILY_MAP[effectiveNormalVideoFamilyKey] ?? visibleNormalVideoFamilies[0] ?? null,
     [effectiveNormalVideoFamilyKey, visibleNormalVideoFamilies],
   );
+  const isPixverseFreeformFamily = useMemo(
+    () => mode === 'video' && activeRecipeSource?.kind !== 'recipe' && selectedNormalVideoFamily?.key === 'pixverse_c1_reference',
+    [activeRecipeSource, mode, selectedNormalVideoFamily?.key],
+  );
   const supportedFreeformDurationOptions = useMemo(
     () =>
       selectedNormalVideoFamily
@@ -1538,6 +1588,7 @@ export function UnifiedCreateStudioClient({
         : getSupportedVideoDurationOptions(selectedVideoModelKey),
     [selectedNormalVideoFamily, selectedVideoModelKey],
   );
+  const initialCatalogLoading = loadingRecipes || modelsLoading;
 
 
 
@@ -1663,6 +1714,32 @@ export function UnifiedCreateStudioClient({
           }
           : current,
       );
+      if (hasLoadedInspirationPhotosRef.current) {
+        if (result.is_public_inspiration && result.moderation_status === 'approved') {
+          const publishedImage: InspirationImage = {
+            id: image.id,
+            creator_name: 'You',
+            model_key: image.model_key,
+            title: (image.prompt || 'Generated image').split('.')[0]?.slice(0, 72) || 'Generated image',
+            prompt: image.prompt,
+            image_url: image.image_url,
+            aspect_ratio: image.aspect_ratio,
+            resolution: image.resolution,
+            created_at: new Date().toISOString(),
+            reference_urls: image.reference_urls,
+            tags: [...image.auto_tags, ...image.user_tags].slice(0, 8),
+            like_count: result.like_count,
+            liked_by_user: false,
+            moderation_status: result.moderation_status,
+          };
+          setInspirationPhotos((current) => [
+            publishedImage,
+            ...current.filter((item) => item.id !== image.id),
+          ].slice(0, 12));
+        } else if (!result.is_public_inspiration) {
+          setInspirationPhotos((current) => current.filter((item) => item.id !== image.id));
+        }
+      }
       show({
         title: result.is_public_inspiration ? 'Published to inspiration' : 'Removed from inspiration',
         message: result.is_public_inspiration
@@ -2120,7 +2197,8 @@ export function UnifiedCreateStudioClient({
         setRecipes(recipeResult.value);
       }
       if (videoModelResult.status === 'fulfilled' && videoModelResult.value.length > 0) {
-        const enabledFirst = [...videoModelResult.value].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
+        const mergedCatalog = mergeVideoModelCatalog(videoModelResult.value);
+        const enabledFirst = [...mergedCatalog].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
         setVideoModels(enabledFirst);
         const visibleFamilies = getVisibleNormalVideoFamilies(enabledFirst);
         const fallbackFamily = visibleFamilies[0]?.key ?? 'ltx_23_22b';
@@ -2136,6 +2214,14 @@ export function UnifiedCreateStudioClient({
           enabledFirst.some((model) => model.key === current)
             ? current
             : (defaultRoute || enabledFirst[0]?.key || 'fal_ltx23_t2v'),
+        );
+      } else {
+        const fallbackCatalog = [...VIDEO_MODEL_FALLBACK].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
+        setVideoModels(fallbackCatalog);
+        const visibleFamilies = getVisibleNormalVideoFamilies(fallbackCatalog);
+        const fallbackFamily = visibleFamilies[0]?.key ?? 'ltx_23_22b';
+        setSelectedNormalVideoFamilyKey((current) =>
+          visibleFamilies.some((family) => family.key === current) ? current : fallbackFamily,
         );
       }
       if (imageModelResult.status === 'fulfilled' && imageModelResult.value.length > 0) {
@@ -2161,19 +2247,6 @@ export function UnifiedCreateStudioClient({
     secondaryDeferredFetchScheduledRef.current = true;
 
     const timer = window.setTimeout(() => {
-      if (!hasLoadedInspirationPhotosRef.current) {
-        setLoadingInspirationPhotos(true);
-        void api.listPublicImageInspiration({ limit: 12 })
-          .then((items) => {
-            hasLoadedInspirationPhotosRef.current = true;
-            setInspirationPhotos(items.filter((item) => Boolean(item.image_url)));
-          })
-          .catch(() => {
-            // inspiration is supportive, not required for create-page usability
-          })
-          .finally(() => setLoadingInspirationPhotos(false));
-      }
-
       if (!hasLoadedVoiceCatalogRef.current) {
         void api.getTtsCatalog(userId)
           .then((catalog) => {
@@ -2188,6 +2261,32 @@ export function UnifiedCreateStudioClient({
 
     return () => window.clearTimeout(timer);
   }, [applyVoiceCatalog, isAvatarProductRecipe, loadingRecipes, modelsLoading, userId]);
+
+  useEffect(() => {
+    if (recipeTab !== 'inspiration_photos') return;
+    if (hasLoadedInspirationPhotosRef.current || loadingInspirationPhotos) return;
+
+    let cancelled = false;
+    setLoadingInspirationPhotos(true);
+    void api.listPublicImageInspiration({ limit: 12, sort: 'newest' })
+      .then((items) => {
+        if (cancelled) return;
+        hasLoadedInspirationPhotosRef.current = true;
+        setInspirationPhotos(items.filter((item) => Boolean(item.image_url)));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInspirationPhotos([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingInspirationPhotos(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingInspirationPhotos, recipeTab]);
 
   useEffect(() => {
     if (!showVoiceControls && !isAvatarDrivenRecipe) return;
@@ -2415,7 +2514,7 @@ export function UnifiedCreateStudioClient({
   const applyRecipeToComposer = (recipe: RecipeCard) => {
     const defaults = recipe.recipe.generation_defaults ?? {};
     const nextMode: ComposerMode = (recipe.recipe.type === 'image' ? 'image' : 'video');
-    const composerState = resolveRecipeComposer(recipe);
+    const composerState = seedRecipeComposerDefaults(recipe, resolveRecipeComposer(recipe));
     const recipeModelKey = String(defaults.model_key || '').trim();
     setRecipeComposer(composerState);
     setRecipeSlotAssets({});
@@ -2802,6 +2901,12 @@ export function UnifiedCreateStudioClient({
         return;
       }
 
+      if (isPixverseFreeformFamily && !uploadedComposerAsset?.assetUrl) {
+        setError('Upload one reference image first. PixVerse freeform needs a subject image before it can animate your prompt.');
+        setLoading(false);
+        return;
+      }
+
       const detectedIntent = detectVideoIntent(trimmedIdea);
       if (shouldAutoUseExplainerRecipe(detectedIntent, nextMode, activeRecipeSource)) {
         const explainerRecipeId = pickExplainerRecipeId(trimmedIdea);
@@ -2836,7 +2941,7 @@ export function UnifiedCreateStudioClient({
         modelKey: resolvedFreeformModelKey || selectedVideoModelKey,
         modelFamily: selectedNormalVideoFamily?.key || familyForModelKey(selectedVideoModelKey) || '',
         generationMode: inferredFreeformGenerationMode,
-        resolution: resolvedFreeformResolution as '480p' | '720p' | '1080p' | '1440p' | '2160p' | '4K',
+        resolution: resolvedFreeformResolution as '360p' | '480p' | '540p' | '720p' | '1080p' | '1440p' | '2160p' | '4K',
         quality: selectedFreeformQualityKey,
       };
       if (profile.modelKey === 'ltx') {
@@ -2914,6 +3019,10 @@ export function UnifiedCreateStudioClient({
           language: selectedLanguage,
           voice: selectedVoice,
           imageUrl: uploadedComposerAsset?.assetUrl,
+          imageReferences:
+            profile.modelFamily === 'pixverse_c1_reference' && uploadedComposerAsset?.assetUrl
+              ? [{ ref_name: 'subject', type: 'subject', image_url: uploadedComposerAsset.assetUrl }]
+              : undefined,
         }),
         userId,
       );
@@ -3098,6 +3207,13 @@ export function UnifiedCreateStudioClient({
         title="Uploading asset"
         description="Preparing your image for generation."
         stepLabel="Upload"
+        accentLabel="Create"
+      />
+      <LoadingOverlay
+        open={initialCatalogLoading}
+        title="Loading create studio"
+        description="Fetching recipes, models, and defaults for your workspace."
+        stepLabel="Preparing"
         accentLabel="Create"
       />
 
@@ -3845,6 +3961,9 @@ export function UnifiedCreateStudioClient({
                                 <div>
                                   <p className="text-lg font-semibold text-white">{selectedNormalVideoFamily.displayName}</p>
                                   <p className="mt-1 text-xs text-white/52">{selectedNormalVideoFamily.description}</p>
+                                  {selectedNormalVideoFamily.key === 'pixverse_c1_reference' ? (
+                                    <p className="mt-2 text-[11px] text-white/48">Requires one uploaded reference image. Your freeform prompt stays in control.</p>
+                                  ) : null}
                                 </div>
                                 <div className="space-y-2">
                                   {selectedNormalVideoFamily.supportedQualities.map((qualityOption) => {
@@ -4024,7 +4143,7 @@ export function UnifiedCreateStudioClient({
                         <UserRound className="h-4 w-4 text-white/60" />
                       )}
                       <span className="max-w-[120px] truncate sm:max-w-[180px]">{selectedAvatar ? selectedAvatar.name : 'Select AI Avatar'}</span>
-                      {isAvatarProductRecipe ? <Lock className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+                            {isAvatarProductRecipe ? <Lock className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
                     </button>
                   ) : null}
 
@@ -4053,13 +4172,13 @@ export function UnifiedCreateStudioClient({
                         <div className="rounded-[14px] px-3 py-2">
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Quality</p>
-                            {recipeSettingsLocked && !isAvatarProductRecipe ? (
+                            {recipeSettingsLocked && !isAvatarProductRecipe && !isPixverseRecipe ? (
                               <span className="text-[11px] text-muted">Recipe controlled</span>
                             ) : null}
                           </div>
                           <div className="mt-2 grid gap-1">
                             {visibleQualityProfiles.map((option) => {
-                              const disabled = recipeSettingsLocked && !isAvatarProductRecipe;
+                              const disabled = recipeSettingsLocked && !isAvatarProductRecipe && !isPixverseRecipe;
                               return (
                                 <button
                                   key={option.key}
@@ -4089,6 +4208,8 @@ export function UnifiedCreateStudioClient({
                                           video_model_key: modelKey,
                                           quality_profile: option.key,
                                         }));
+                                      } else if (isPixverseRecipe) {
+                                        updateRecipeSlotValue('quality_profile', normalizeFamilyQualityKey(option.key));
                                       }
                                     }
                                     closeMenus();
@@ -4118,6 +4239,8 @@ export function UnifiedCreateStudioClient({
                                   ? avatarProductAdvancedControls.quality_profile === 'affordable'
                                     ? '5s / 10s · affordable'
                                     : `${durationPreference === '15' ? '15s' : durationPreference === '10' ? '10s' : '5s'} · selectable`
+                                  : isPixverseRecipe
+                                    ? `${durationPreference === '10' ? '10s' : '5s'} · selectable`
                                   : isRecipeLongForm
                                     ? 'Auto · recipe controlled'
                                     : 'Recipe controlled'}
@@ -4138,6 +4261,29 @@ export function UnifiedCreateStudioClient({
                                         duration_seconds: option,
                                       }));
                                     }
+                                    closeMenus();
+                                  }}
+                                  className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option
+                                    ? 'bg-[hsl(var(--color-accent)/0.12)] text-text'
+                                    : 'text-muted hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text'
+                                    }`}
+                                >
+                                  <span>{option}s</span>
+                                  {durationPreference === option ? (
+                                    <Check className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          ) : recipeSettingsLocked && isPixverseRecipe ? (
+                            <div className="mt-2 grid gap-1">
+                              {(['5', '10'] as const).map((option) => (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    setDurationPreference(option);
+                                    updateRecipeSlotValue('duration_seconds', option);
                                     closeMenus();
                                   }}
                                   className={`flex items-center justify-between rounded-[12px] px-2 py-2 text-sm ${durationPreference === option
@@ -4519,6 +4665,11 @@ export function UnifiedCreateStudioClient({
                     }`}
                 />
               ))}
+            </div>
+          ) : inspirationPhotoCards.length === 0 ? (
+            <div className="rounded-[24px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.52)] px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-text">No inspiration photos yet</p>
+              <p className="mt-2 text-sm text-muted">Published approved images will appear here once you open this tab.</p>
             </div>
           ) : (
             <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">

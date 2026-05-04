@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.shared_config import load_shared_json
@@ -98,6 +100,7 @@ class AIVideoCreateRequest(BaseModel):
     durationSeconds: int | None = Field(default=None, ge=3, le=300)
     voice: str | None = Field(default=None, min_length=1, max_length=120)
     imageUrls: list[str] = Field(default_factory=list)
+    imageReferences: list[dict[str, Any]] = Field(default_factory=list)
     music: VideoMusicSettings = Field(default_factory=VideoMusicSettings)
     audioSettings: VideoAudioSettings = Field(default_factory=VideoAudioSettings)
     captionsEnabled: bool = False
@@ -125,7 +128,7 @@ class AIVideoCreateRequest(BaseModel):
     def validate_resolution(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if value not in {'480p', '720p', '1080p', '1440p', '2160p', '4K'}:
+        if value not in {'360p', '480p', '540p', '720p', '1080p', '1440p', '2160p', '4K'}:
             raise ValueError('Unsupported resolution')
         return value
 

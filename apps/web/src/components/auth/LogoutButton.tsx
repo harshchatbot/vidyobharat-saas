@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { LoaderCircle, LogOut } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,7 +21,6 @@ export function LogoutButton({
   icon = 'logout',
   onBeforeNavigate,
 }: LogoutButtonProps) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   const handleLogout = async () => {
@@ -32,7 +30,7 @@ export function LogoutButton({
     onBeforeNavigate?.();
     clearLocalAuthState();
     await clearServerSession();
-    router.replace('/login');
+    window.location.replace('/login');
   };
 
   return (
