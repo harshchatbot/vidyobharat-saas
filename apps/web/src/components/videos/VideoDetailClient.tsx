@@ -126,12 +126,48 @@ function getStageTodos(video: Video) {
   ];
 }
 
+function pillToneClass(value: React.ReactNode) {
+  if (value === 'Text to Video') {
+    return 'border border-sky-400/30 bg-sky-500/10 text-sky-700 dark:text-sky-100';
+  }
+  if (value === 'Image to Video') {
+    return 'border border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100';
+  }
+  if (value === 'Reference to Video') {
+    return 'border border-amber-400/35 bg-amber-500/12 text-amber-700 dark:text-amber-100';
+  }
+  return 'bg-[hsl(var(--color-bg-soft))] text-muted';
+}
+
 function SoftPill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-[hsl(var(--color-bg-soft))] px-2.5 py-1 text-[11px] text-muted">
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] ${pillToneClass(children)}`}>
       {children}
     </span>
   );
+}
+
+function inferGenerationType(video: Video) {
+  const selectedModel = String(video.selected_model || '').toLowerCase();
+  const providerName = String(video.provider_name || '').toLowerCase();
+  const recipeId = String(video.recipe_id || '').toLowerCase();
+  const hasSourceImage = Boolean(video.source_image_url || video.image_urls?.length || video.reference_images?.length);
+
+  if (
+    selectedModel.includes('reference')
+    || providerName.includes('reference')
+    || recipeId.includes('reference')
+    || recipeId === 'anime_lofi_reel'
+    || recipeId === 'avatar_product'
+  ) {
+    return 'Reference to Video';
+  }
+
+  if (hasSourceImage) {
+    return 'Image to Video';
+  }
+
+  return 'Text to Video';
 }
 
 function formatEventStamp(value?: string) {
@@ -819,6 +855,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   }
 
   const currentVideo: Video = video;
+  const generationTypeLabel = inferGenerationType(currentVideo);
 
   return (
     <div className="flex min-h-screen flex-col bg-[hsl(var(--color-bg))] font-sans text-[13px] text-text">
@@ -909,6 +946,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                     <SoftPill>{currentVideo.aspect_ratio}</SoftPill>
                     <SoftPill>{currentVideo.resolution}</SoftPill>
                     {currentVideo.duration_seconds ? <SoftPill>{formatLongDuration(currentVideo.duration_seconds)}</SoftPill> : null}
+                    <SoftPill>{generationTypeLabel}</SoftPill>
                     <SoftPill>{currentVideo.selected_model || 'No model selected'}</SoftPill>
                   </div>
                 </div>
@@ -1026,6 +1064,9 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Model path</p>
                           <p className="mt-1 text-sm font-medium text-text">{video.selected_model || 'Provider-managed'}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <SoftPill>{generationTypeLabel}</SoftPill>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1088,6 +1129,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
                             <p className="mt-1 text-sm font-semibold text-text">{video.template || video.template_id}</p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <SoftPill>{currentVideo.aspect_ratio}</SoftPill>
+                              <SoftPill>{generationTypeLabel}</SoftPill>
                               <SoftPill>{video.selected_model || 'Selected model'}</SoftPill>
                             </div>
                           </div>

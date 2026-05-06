@@ -1356,12 +1356,54 @@ function ComposerPoster({
   );
 }
 
+function capabilityBadgeTone(label: string) {
+  if (label === 'Text to Video') {
+    return 'border border-sky-400/30 bg-sky-500/14 text-sky-100';
+  }
+  if (label === 'Image to Video') {
+    return 'border border-emerald-400/30 bg-emerald-500/14 text-emerald-100';
+  }
+  if (label === 'Reference to Video') {
+    return 'border border-amber-300/30 bg-amber-500/14 text-amber-100';
+  }
+  if (label === 'Native audio available') {
+    return 'border border-fuchsia-400/25 bg-fuchsia-500/12 text-fuchsia-100';
+  }
+  if (label === 'Native audio') {
+    return 'border border-fuchsia-400/25 bg-fuchsia-500/12 text-fuchsia-100';
+  }
+  return 'bg-black/30 text-white/78';
+}
+
 function ModelCapabilityBadge({ label }: { label: string }) {
   return (
-    <span className="rounded-full bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/78">
+    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${capabilityBadgeTone(label)}`}>
       {label}
     </span>
   );
+}
+
+function isReferenceVideoFamily(family: ReturnType<typeof getNormalVideoFamilyConfigs>[number]) {
+  if (family.key.includes('reference')) return true;
+  const requiredTextInputs = family.requiredInputsByGenerationMode?.text_to_video ?? [];
+  const requiredImageInputs = family.requiredInputsByGenerationMode?.image_to_video ?? [];
+  return !family.supportsTextToVideo && family.supportsImageToVideo && (requiredTextInputs.includes('image_url') || requiredImageInputs.includes('image_url'));
+}
+
+function getAvailableGenerationBadgesForFamily(family: ReturnType<typeof getNormalVideoFamilyConfigs>[number]) {
+  if (isReferenceVideoFamily(family)) return ['Reference to Video'];
+  const badges: string[] = [];
+  if (family.supportsTextToVideo) badges.push('Text to Video');
+  if (family.supportsImageToVideo) badges.push('Image to Video');
+  return badges;
+}
+
+function getSelectedGenerationBadgeForFamily(
+  family: ReturnType<typeof getNormalVideoFamilyConfigs>[number],
+  generationMode: VideoGenerationMode,
+) {
+  if (isReferenceVideoFamily(family)) return 'Reference to Video';
+  return generationMode === 'image_to_video' ? 'Image to Video' : 'Text to Video';
 }
 
 function ModelRow({
@@ -3096,6 +3138,9 @@ export function UnifiedCreateStudioClient({
       ? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
       : selectedNormalVideoFamily?.description ?? displayedVideoModel?.qualityBadge ?? displayedVideoModel?.frontendHint
     : displayedImageModel?.badge ?? displayedImageModel?.frontend_hint;
+  const selectedGenerationBadge = mode === 'video' && !recipeComposer && selectedNormalVideoFamily
+    ? getSelectedGenerationBadgeForFamily(selectedNormalVideoFamily, inferredFreeformGenerationMode)
+    : null;
   const selectedVideoResolution = resolvedFreeformResolution;
   const selectedImageResolution: '1024' | '1536' = qualityProfile === 'fast_social' ? '1024' : '1536';
   const effectiveFreeformDurationSeconds = Number(
@@ -3828,7 +3873,7 @@ export function UnifiedCreateStudioClient({
                   onChange={(event) => setIdea(event.target.value)}
                   maxLength={COMPOSER_PROMPT_MAX_CHARS}
                   placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
-                  className="min-h-[96px] rounded-[18px] border-0 bg-transparent px-0.5 py-0.5 text-base leading-7 text-[hsl(var(--color-text))] shadow-none ring-0 outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1.1rem] placeholder:leading-8 focus:border-0 focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/35 sm:min-h-[104px] sm:text-lg"
+                  className="min-h-[104px] rounded-[20px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.58)] px-4 py-3 text-base font-medium leading-7 text-[hsl(var(--color-text))] shadow-none outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1rem] placeholder:leading-7 focus:border-[hsl(var(--color-accent)/0.5)] focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/55 sm:min-h-[112px] sm:text-lg"
                 />
               )}
 
@@ -3859,6 +3904,20 @@ export function UnifiedCreateStudioClient({
                   ) : null}
                   <p className="text-xs text-muted">
                     {freeformHasReferenceImage ? 'Animating your uploaded image.' : 'Creating from prompt.'}
+                  </p>
+                </div>
+              ) : null}
+
+              {mode === 'video' && !recipeComposer && selectedGenerationBadge ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <ModelCapabilityBadge label={selectedGenerationBadge} />
+                  {selectedNormalVideoFamily?.supportsNativeAudio ? <ModelCapabilityBadge label="Native audio available" /> : null}
+                  <p className="text-xs text-muted">
+                    {selectedGenerationBadge === 'Reference to Video'
+                      ? 'This model animates an uploaded reference image instead of starting from text alone.'
+                      : selectedGenerationBadge === 'Image to Video'
+                        ? 'This model switches to image-led animation when you upload a reference image.'
+                        : 'This model can generate directly from your written prompt.'}
                   </p>
                 </div>
               ) : null}
@@ -3952,7 +4011,7 @@ export function UnifiedCreateStudioClient({
                                 <ModelRow
                                   key={family.key}
                                   title={family.displayName}
-                                  badges={family.tags}
+                                  badges={[...getAvailableGenerationBadgesForFamily(family), ...family.tags]}
                                   active={effectiveNormalVideoFamilyKey === family.key}
                                   disabled={false}
                                   onClick={() => {
@@ -3972,7 +4031,7 @@ export function UnifiedCreateStudioClient({
                                   badges={[
                                     ...(model.resolutionLabels ?? []),
                                     ...(model.key === 'sora2' ? ['Premium'] : []),
-                                    ...(model.key === 'fal_ltx23_i2v' ? ['Image to Video'] : []),
+                                    ...((model.key === 'fal_ltx23_i2v' || model.key === 'seedance_v1_lite_i2v') ? ['Image to Video'] : []),
                                   ]}
                                   active={selectedVideoModelKey === model.key}
                                   disabled={model.enabled === false}
@@ -4011,6 +4070,10 @@ export function UnifiedCreateStudioClient({
                                 <div>
                                   <p className="text-lg font-semibold text-white">{selectedNormalVideoFamily.displayName}</p>
                                   <p className="mt-1 text-xs text-white/52">{selectedNormalVideoFamily.description}</p>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    <ModelCapabilityBadge label={getSelectedGenerationBadgeForFamily(selectedNormalVideoFamily, inferredFreeformGenerationMode)} />
+                                    {selectedNormalVideoFamily.supportsNativeAudio ? <ModelCapabilityBadge label="Native audio" /> : null}
+                                  </div>
                                   {selectedNormalVideoFamily.key === 'pixverse_c1_reference' ? (
                                     <p className="mt-2 text-[11px] text-white/48">Requires one uploaded reference image. Your freeform prompt stays in control.</p>
                                   ) : null}
@@ -4090,7 +4153,7 @@ export function UnifiedCreateStudioClient({
                                         <div className="mt-1 flex flex-wrap gap-1.5">
                                           <ModelCapabilityBadge label={label} />
                                           {activeVideoModelDetail.key === 'sora2' ? <ModelCapabilityBadge label="Premium" /> : null}
-                                          {activeVideoModelDetail.key === 'fal_ltx23_i2v' ? <ModelCapabilityBadge label="Image to Video" /> : null}
+                                          {(activeVideoModelDetail.key === 'fal_ltx23_i2v' || activeVideoModelDetail.key === 'seedance_v1_lite_i2v') ? <ModelCapabilityBadge label="Image to Video" /> : null}
                                         </div>
                                       </div>
                                       <div className="text-right">

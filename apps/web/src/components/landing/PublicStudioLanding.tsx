@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 import {
   ArrowRight,
   BadgeIndianRupee,
@@ -8,15 +11,18 @@ import {
   ImagePlus,
   IndianRupee,
   Layers3,
+  Menu,
   Sparkles,
   UploadCloud,
   UserRound,
   Video,
+  X,
 } from 'lucide-react';
 
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LandingVideo } from '@/components/landing/LandingVideo';
+import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import { AnimatedMarqueeHero } from '@/components/ui/hero-3';
 import { LampContainer } from '@/components/ui/lamp';
@@ -80,30 +86,33 @@ const creditExamples = [
 ];
 
 function Header() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navItems = [
+    { href: '/create', label: 'Create' },
+    { href: '/images', label: 'Images' },
+    { href: '/videos', label: 'Videos' },
+    { href: '/pricing', label: 'Pricing' },
+    { href: '/learning', label: 'Learn' },
+  ];
+
   return (
     <header className="sticky top-0 z-30 -mx-4 border-b border-white/[0.06] bg-[hsl(var(--color-bg)/0.74)] px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-4">
         <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
 
         <nav className="hidden items-center gap-7 text-sm font-medium text-muted lg:flex">
-          <Link href="/create" className="transition hover:text-text">
-            Create
-          </Link>
-          <Link href="/images" className="transition hover:text-text">
-            Images
-          </Link>
-          <Link href="/videos" className="transition hover:text-text">
-            Videos
-          </Link>
-          <Link href="/pricing" className="transition hover:text-text">
-            Pricing
-          </Link>
-          <Link href="/learning" className="transition hover:text-text">
-            Learn
-          </Link>
+          {navItems.map((item) => (
+            <Link key={item.href} href={item.href} className="transition hover:text-text">
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:inline-flex">
+            <ToggleTheme />
+          </div>
           <Link href="/login" className="hidden rounded-full px-4 py-2 text-sm font-medium text-muted transition hover:text-text sm:inline-flex">
             Sign in
           </Link>
@@ -114,8 +123,66 @@ function Header() {
             Start free
             <ArrowRight className="h-4 w-4" />
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--color-border)/0.72)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.72),hsl(var(--color-elevated)/0.68))] text-text shadow-[var(--shadow-soft)] lg:hidden"
+            aria-expanded={mobileMenuOpen}
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
+      {mobileMenuOpen ? (
+        <div className="mx-auto max-w-[1180px] border-t border-[hsl(var(--color-border)/0.45)] py-4 lg:hidden">
+          <div className="overflow-hidden rounded-[26px] border border-[hsl(var(--color-border)/0.55)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-elevated)/0.82))] p-3 shadow-[var(--shadow-float)] backdrop-blur-xl">
+            <div className="rounded-[20px] border border-[hsl(var(--color-border)/0.38)] bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.12),transparent_42%),hsl(var(--color-bg-soft)/0.5)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Explore RangManch</p>
+              <p className="mt-1 text-sm leading-6 text-muted">Jump into create, browse public galleries, check pricing, or switch your theme.</p>
+            </div>
+            <div className="mt-3 grid gap-2">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="group rounded-[18px] border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-surface)/0.62)] px-4 py-3.5 text-sm font-medium text-text shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-[hsl(var(--color-accent)/0.34)] hover:bg-[hsl(var(--color-surface)/0.84)]"
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span>{item.label}</span>
+                  <ArrowRight className="h-4 w-4 text-muted transition group-hover:text-[hsl(var(--color-accent))]" />
+                </span>
+              </Link>
+            ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] border border-[hsl(var(--color-border)/0.45)] bg-[hsl(var(--color-surface)/0.5)] px-4 py-3 sm:hidden">
+              <div>
+                <p className="text-sm font-semibold text-text">Theme</p>
+                <p className="mt-0.5 text-xs text-muted">Switch light or dark mode</p>
+              </div>
+              <ToggleTheme />
+            </div>
+            <div className="mt-3 grid gap-2 sm:hidden">
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-[18px] border border-[hsl(var(--color-border)/0.5)] bg-[hsl(var(--color-surface)/0.62)] px-4 py-3.5 text-center text-sm font-medium text-text shadow-[var(--shadow-soft)]"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                onClick={() => setMobileMenuOpen(false)}
+                className="inline-flex items-center justify-center gap-2 rounded-[18px] bg-[hsl(var(--color-accent))] px-4 py-3.5 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent)/0.22)]"
+              >
+                Start free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
