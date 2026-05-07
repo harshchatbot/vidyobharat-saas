@@ -2,14 +2,40 @@ import type { Metadata } from 'next';
 
 import { ThemeBoot } from '@/components/ui/ThemeBoot';
 import { ToastProvider } from '@/components/ui/Toast';
+import { getSiteUrl } from '@/lib/seo';
 
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'RangManch AI',
-  description: 'Hybrid text-to-video SaaS for India-first creators',
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: 'RangManch AI',
+    template: '%s | RangManch AI',
+  },
+  description: 'AI video generation and AI image generation platform for India-first creators, brands, educators, and marketers.',
+  applicationName: 'RangManch AI',
+  keywords: [
+    'AI video generation',
+    'AI image generation',
+    'AI video platform India',
+    'India-first AI creator platform',
+    'anime lofi reel generator',
+    'UGC ad generator',
+  ],
   icons: {
     icon: '/brand/logo-mark-light.svg',
+  },
+  openGraph: {
+    type: 'website',
+    url: getSiteUrl(),
+    siteName: 'RangManch AI',
+    title: 'RangManch AI',
+    description: 'AI video generation and AI image generation platform for India-first creators, brands, educators, and marketers.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RangManch AI',
+    description: 'AI video generation and AI image generation platform for India-first creators, brands, educators, and marketers.',
   },
 };
 

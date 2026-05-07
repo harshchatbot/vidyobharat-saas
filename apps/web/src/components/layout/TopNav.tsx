@@ -12,13 +12,13 @@ import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 const navLinks = [
-  { href: '/platform', label: 'Platform' },
-  { href: '/use-cases', label: 'Use cases' },
-  { href: '/learning', label: 'Learning' },
+  { href: '/create', label: 'Create' },
+  { href: '/images', label: 'Images' },
+  { href: '/videos', label: 'Videos' },
   { href: '/pricing', label: 'Pricing' },
-  { href: '/company', label: 'Company' },
+  { href: '/learning', label: 'Learn' },
 ];
-const compactNavLinks = navLinks.slice(0, 4);
+const compactNavLinks = navLinks;
 
 type TopNavProps = {
   userId: string | null;

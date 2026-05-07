@@ -1,5 +1,21 @@
+import type { Metadata } from 'next';
 import { BookOpen, Lightbulb, Mic, BarChart } from "lucide-react";
 import { PublicPageTemplate } from "@/components/landing/PublicPageTemplate";
+import { buildMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  title: 'Learn AI Video Creation, Prompting, and Creator Workflows',
+  description:
+    'Learn practical AI video creation, prompting, voice, testing, and production workflows for creators, marketers, educators, and brands.',
+  path: '/learning',
+  keywords: [
+    'AI video learning',
+    'AI prompting guide',
+    'AI video workflows',
+    'creator education',
+    'AI video tutorials India',
+  ],
+});
 
 export default function LearningPage() {
   return (
