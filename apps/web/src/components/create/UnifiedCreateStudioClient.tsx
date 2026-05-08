@@ -86,7 +86,7 @@ type RecipeComposerSlot = {
   options?: string[];
   sampleLabel?: string;
   samplePreviewUrl?: string | null;
-  submitTarget?: 'image' | 'text' | string;
+  submitTarget?: 'image' | 'video' | 'text' | string;
 };
 
 type RecipeComposerConfig = {
@@ -171,6 +171,12 @@ type SlotAssetState = {
   label: string;
   previewUrl: string | null;
   assetUrl: string | null;
+  mediaKind?: 'image' | 'video';
+  analysis?: {
+    durationSeconds: number;
+    billedDurationSeconds: number;
+    hasAudio: boolean;
+  } | null;
   source: 'upload' | 'sample' | 'avatar' | 'ai-generate';
 };
 
@@ -1427,15 +1433,18 @@ function InlineUploadSlot({
   slot,
   value,
   previewUrl,
+  mediaKind,
   loading = false,
   onClick,
 }: {
   slot: RecipeComposerSlot;
   value: string;
   previewUrl?: string | null;
+  mediaKind?: 'image' | 'video';
   loading?: boolean;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
+  const isVideo = mediaKind === 'video' || slot.submitTarget === 'video';
   return (
     <button
       type="button"
@@ -1448,12 +1457,14 @@ function InlineUploadSlot({
     >
       {loading ? (
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-      ) : previewUrl ? (
+      ) : previewUrl && !isVideo ? (
         <img src={previewUrl} alt={value || slot.label} className="h-6 w-6 rounded-full object-cover" />
+      ) : isVideo ? (
+        <Video className="h-3.5 w-3.5" />
       ) : (
         <Upload className="h-3.5 w-3.5" />
       )}
-      {loading ? 'Uploading image…' : (value || slot.placeholder)}
+      {loading ? (isVideo ? 'Uploading video…' : 'Uploading image…') : (value || slot.placeholder)}
     </button>
   );
 }
@@ -1740,6 +1751,11 @@ export function UnifiedCreateStudioClient({
   }, [composerPromptMode, jsonComposerText, mode, recipeComposer]);
   const activeFreeformComposerValue = composerPromptMode === 'json' ? jsonComposerText : idea;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingRecipeUploadSlot = useMemo(
+    () => (pendingUploadTarget && pendingUploadTarget !== 'composer-asset' ? recipeComposer?.slots.find((slot) => slot.id === pendingUploadTarget) ?? null : null),
+    [pendingUploadTarget, recipeComposer],
+  );
+  const fileInputAccept = pendingRecipeUploadSlot?.submitTarget === 'video' ? 'video/*' : 'image/*';
   const avatarSyncKeyRef = useRef<string | null>(null);
   const hasLoadedVoiceCatalogRef = useRef(false);
   const hasLoadedAvatarProductVoiceCatalogRef = useRef(false);
@@ -1763,6 +1779,19 @@ export function UnifiedCreateStudioClient({
   const isPixverseAdvancedRecipe = useMemo(
     () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'reference_video_generator_advanced',
     [activeRecipeSource],
+  );
+  const isMakeAnythingDanceRecipe = useMemo(
+    () => activeRecipeSource?.kind === 'recipe' && activeRecipeSource.recipe.recipe.id === 'make_anything_dance',
+    [activeRecipeSource],
+  );
+  const makeAnythingDanceVideoAsset = useMemo(
+    () => (isMakeAnythingDanceRecipe ? recipeSlotAssets.dance_video ?? null : null),
+    [isMakeAnythingDanceRecipe, recipeSlotAssets],
+  );
+  const makeAnythingDanceAnalysis = makeAnythingDanceVideoAsset?.analysis ?? null;
+  const visibleAspectOptions = useMemo(
+    () => (isMakeAnythingDanceRecipe ? (['9:16'] as const) : ASPECT_OPTIONS),
+    [isMakeAnythingDanceRecipe],
   );
   const isPixverseRecipe = isPixverseAnimeRecipe || isPixverseAdvancedRecipe;
   const effectiveNormalVideoFamilyKey = useMemo(() => {
@@ -2215,12 +2244,12 @@ export function UnifiedCreateStudioClient({
     }
     return freeformSupportsAutoSceneSound;
   }, [activeRecipeSource, displayedVideoModel, freeformSupportsAutoSceneSound, isPixverseRecipe]);
-  const showNativeAudioSelector = mode === 'video' && ((activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe) || isPixverseRecipe);
-  const showVoiceControls = (Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe) && !isPixverseRecipe;
+  const showNativeAudioSelector = mode === 'video' && !isMakeAnythingDanceRecipe && ((activeRecipeSource?.kind !== 'recipe' && !isAvatarDrivenRecipe) || isPixverseRecipe);
+  const showVoiceControls = (Boolean(activeRecipeSource?.kind === 'recipe') || isAvatarDrivenRecipe) && !isPixverseRecipe && !isMakeAnythingDanceRecipe;
   const recipeReferenceImageCount = useMemo(() => {
     if (!recipeComposer) return 0;
     const hasImage = recipeComposer.slots.some((slot) => {
-      if (!(slot.submitTarget === 'image' || slot.kind === 'upload' || slot.kind === 'reference-image')) return false;
+      if (!(slot.submitTarget === 'image' || slot.kind === 'reference-image')) return false;
       const slotAsset = recipeSlotAssets[slot.id];
       const slotValue = String(recipeComposer.values[slot.id] || '').trim();
       return Boolean(slotAsset?.assetUrl || slotValue);
@@ -2783,6 +2812,7 @@ export function UnifiedCreateStudioClient({
   const applyRecipeToComposer = (recipe: RecipeCard) => {
     const defaults = recipe.recipe.generation_defaults ?? {};
     const nextMode: ComposerMode = (recipe.recipe.type === 'image' ? 'image' : 'video');
+    const isMakeAnythingDance = recipe.id === 'make_anything_dance';
     const composerState = seedRecipeComposerDefaults(recipe, resolveRecipeComposer(recipe));
     const recipeModelKey = String(defaults.model_key || '').trim();
     setRecipeComposer(composerState);
@@ -2805,11 +2835,13 @@ export function UnifiedCreateStudioClient({
     }
     setVideoLaunch(null);
     setAspectRatio(
-      normalizeAspectRatio(
-        (defaults.aspect_ratio as AspectRatio | undefined) ||
-        (recipe.aspectRatio as AspectRatio | undefined) ||
-        defaultAspectRatio,
-      ),
+      isMakeAnythingDance
+        ? '9:16'
+        : normalizeAspectRatio(
+          (defaults.aspect_ratio as AspectRatio | undefined) ||
+          (recipe.aspectRatio as AspectRatio | undefined) ||
+          defaultAspectRatio,
+        ),
     );
     setDurationPreference(Number(recipe.recipe.duration_seconds || defaults.duration_seconds || 0) > 10 ? 'auto' : (String(defaults.duration_seconds ?? 5) === '10' ? '10' : '5'));
     setAudioMode('silent');
@@ -2825,12 +2857,18 @@ export function UnifiedCreateStudioClient({
       setSelectedLanguage(matchingLanguage?.code ?? String(defaults.language));
     }
     setQualityProfile(
-      nextMode === 'video'
+      isMakeAnythingDance
+        ? 'standard'
+        : nextMode === 'video'
         ? defaults.quality === 'high'
           ? 'high_quality'
           : 'standard'
         : 'creator_quality',
     );
+    if (isMakeAnythingDance) {
+      setSelectedVideoModelKey('kling_v26_standard_motion_control');
+      setModelPanelKey('kling_v26_standard_motion_control');
+    }
     if (recipe.id === 'avatar_product') {
       void loadAvatarLibrary();
       const safeRecipeModelKey = isAllowedAvatarProductModelKey(recipeModelKey) ? recipeModelKey : 'seedance_v1_lite_reference';
@@ -3096,6 +3134,21 @@ export function UnifiedCreateStudioClient({
               inlineAnswerPatch: avatarProductInlineAnswerPatch,
             }),
           );
+        }
+        if (recipe.id === 'make_anything_dance') {
+          const danceAnalysis = recipeSlotAssets.dance_video?.analysis ?? null;
+          const keepOriginalSoundValue = String(inputs.keep_original_sound || recipeComposer.values.keep_original_sound || 'on').trim().toLowerCase();
+          if (!danceAnalysis) {
+            throw new Error('Upload a dance video first so we can detect its timing and audio.');
+          }
+          inputs.character_image = String(inputs.character_image || '').trim();
+          inputs.dance_video = String(inputs.dance_video || '').trim();
+          inputs.duration_seconds = String(danceAnalysis.billedDurationSeconds);
+          inputs.has_audio = danceAnalysis.hasAudio ? 'true' : 'false';
+          inputs.keep_original_sound = keepOriginalSoundValue === 'off' ? 'false' : 'true';
+          inputs.aspect_ratio = aspectRatio;
+          inputs.character_description = String(inputs.character_description || recipeComposer.values.character_description || 'uploaded character').trim() || 'uploaded character';
+          inputs.user_prompt = trimmedIdea;
         }
 
         if (recipe.id === 'avatar_product') {
@@ -3408,6 +3461,35 @@ export function UnifiedCreateStudioClient({
         });
       }
 
+      if (recipe.id === 'make_anything_dance') {
+        const detectedDuration = makeAnythingDanceAnalysis?.billedDurationSeconds ?? 0;
+        if (!detectedDuration) {
+          return null;
+        }
+        const keepOriginalSound = String(recipeComposer.values.keep_original_sound || 'on').trim().toLowerCase() !== 'off';
+        const hasAudio = Boolean(makeAnythingDanceAnalysis?.hasAudio);
+        return calculateVideoCredits({
+          modelKey: 'kling_v26_standard_motion_control',
+          modelFamily: 'motion_control',
+          resolution: String(defaults.resolution ?? '720p'),
+          durationSeconds: detectedDuration,
+          quality: 'standard',
+          captionsEnabled: false,
+          narrationEnabled: false,
+          audioMode: keepOriginalSound && hasAudio ? 'auto_scene_sound' : 'silent',
+          nativeAudioEnabled: keepOriginalSound && hasAudio,
+          referenceImages: 1,
+          recipeId: recipe.id,
+          recipeInputs: {
+            duration_seconds: String(detectedDuration),
+            has_audio: hasAudio ? 'true' : 'false',
+            keep_original_sound: keepOriginalSound ? 'true' : 'false',
+            aspect_ratio: aspectRatio,
+          },
+          scriptText: recipePrompt,
+        });
+      }
+
       if (recipe.id === 'anime_lofi_reel' || recipe.id === 'reference_video_generator_advanced') {
         const recipeInputs = recipeComposer.slots.reduce<Record<string, string>>((acc, slot) => {
           const slotAsset = recipeSlotAssets[slot.id];
@@ -3493,9 +3575,12 @@ export function UnifiedCreateStudioClient({
     recipeReferenceImageCount,
     recipeSlotAssets,
     resolvedFreeformModelKey,
+    makeAnythingDanceAnalysis?.billedDurationSeconds,
+    makeAnythingDanceAnalysis?.hasAudio,
     selectedVideoModelKey,
     selectedNormalVideoFamily?.key,
     selectedFreeformQualityKey,
+    aspectRatio,
     selectedVideoResolution,
     selectedVoice,
     supportedFreeformDurationOptions,
@@ -3514,7 +3599,7 @@ export function UnifiedCreateStudioClient({
       <LoadingOverlay
         open={uploadingAsset}
         title="Uploading asset"
-        description="Preparing your image for generation."
+        description={fileInputAccept.startsWith('video') ? 'Preparing your dance video for analysis and generation.' : 'Preparing your image for generation.'}
         stepLabel="Upload"
         accentLabel="Create"
       />
@@ -3858,6 +3943,7 @@ export function UnifiedCreateStudioClient({
                             slot={slot}
                             value={value}
                             previewUrl={recipeSlotAssets[slot.id]?.previewUrl}
+                            mediaKind={recipeSlotAssets[slot.id]?.mediaKind}
                             loading={activeUploadSlotId === slot.id}
                             onClick={(event) => openSlotAssetPicker(slot, event)}
                           />
@@ -3888,6 +3974,34 @@ export function UnifiedCreateStudioClient({
                     })}
                   </div>
                   <p className="text-xs text-muted">Start with the empty slots. Generate stays ready on the right, and you can still refine settings below.</p>
+                  {isMakeAnythingDanceRecipe ? (
+                    <div className="space-y-2 rounded-[20px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.56)] p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                      <div>
+                        <p className="text-sm font-semibold text-text">Best results</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">
+                          Use a clear character image and a dance video with one clearly visible dancer. Full-body dance videos work best.
+                        </p>
+                      </div>
+                      <div className="grid gap-2 text-xs text-muted sm:grid-cols-3">
+                        <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.45)] px-3 py-2.5">
+                          <p className="font-semibold text-text">Detected length</p>
+                          <p className="mt-1">{makeAnythingDanceAnalysis ? `${makeAnythingDanceAnalysis.durationSeconds.toFixed(1)}s` : 'Waiting for dance video'}</p>
+                        </div>
+                        <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.45)] px-3 py-2.5">
+                          <p className="font-semibold text-text">Original audio</p>
+                          <p className="mt-1">
+                            {makeAnythingDanceAnalysis
+                              ? (makeAnythingDanceAnalysis.hasAudio ? 'Detected in uploaded dance clip' : 'No audio detected')
+                              : 'We will check after upload'}
+                          </p>
+                        </div>
+                        <div className="rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-bg)/0.45)] px-3 py-2.5">
+                          <p className="font-semibold text-text">Estimated credits</p>
+                          <p className="mt-1">{liveVideoEstimateCredits !== null ? `${liveVideoEstimateCredits} credits` : 'Upload dance video first'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   {isPixverseAdvancedRecipe ? (
                     <p className="text-xs text-muted">Best results with 1–2 references and simple motion. Use `@subject` in the prompt, and `@background` only if you upload the second reference.</p>
                   ) : null}
@@ -4247,6 +4361,7 @@ export function UnifiedCreateStudioClient({
                     ) : null}
                   </div>
 
+                  {!isMakeAnythingDanceRecipe ? (
                   <div className="relative">
                     <button
                       type="button"
@@ -4424,7 +4539,7 @@ export function UnifiedCreateStudioClient({
                                   })}
                                 </div>
                               </div>
-                            ) : mode === 'video' && activeVideoModelDetail ? (
+                            ) : mode === 'video' && activeVideoModelDetail && !isMakeAnythingDanceRecipe ? (
                               <div className="space-y-3">
                                 <div>
                                   <p className="text-lg font-semibold text-white">{shortVideoModelLabel(activeVideoModelDetail)}</p>
@@ -4510,7 +4625,9 @@ export function UnifiedCreateStudioClient({
                       </div>
                     ) : null}
                   </div>
+                  ) : null}
 
+                  {!isMakeAnythingDanceRecipe ? (
                   <div className="relative">
                     <button
                       type="button"
@@ -4528,7 +4645,7 @@ export function UnifiedCreateStudioClient({
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Format</p>
                           <p className="mt-1 text-xs text-muted">Pick the output frame that best fits your social placement.</p>
                         </div>
-                        {ASPECT_OPTIONS.map((option) => (
+                        {visibleAspectOptions.map((option) => (
                           <button
                             key={option}
                             type="button"
@@ -4542,6 +4659,7 @@ export function UnifiedCreateStudioClient({
                       </div>
                     ) : null}
                   </div>
+                  ) : null}
 
                   {isAvatarDrivenRecipe ? (
                     <button
@@ -4559,6 +4677,7 @@ export function UnifiedCreateStudioClient({
                     </button>
                   ) : null}
 
+                  {!isMakeAnythingDanceRecipe ? (
                   <div className="relative">
                     <button
                       type="button"
@@ -4645,7 +4764,13 @@ export function UnifiedCreateStudioClient({
                         <div className="rounded-[14px] px-3 py-2">
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Duration</p>
-                            {recipeSettingsLocked ? (
+                            {isMakeAnythingDanceRecipe ? (
+                              <span className="text-[11px] text-muted">
+                                {makeAnythingDanceAnalysis
+                                  ? `${makeAnythingDanceAnalysis.durationSeconds.toFixed(1)}s detected`
+                                  : 'Auto-detected from dance video'}
+                              </span>
+                            ) : recipeSettingsLocked ? (
                               <span className="text-[11px] text-muted">
                                 {isAvatarProductRecipe
                                   ? avatarProductAdvancedControls.quality_profile === 'affordable'
@@ -4659,7 +4784,20 @@ export function UnifiedCreateStudioClient({
                               </span>
                             ) : null}
                           </div>
-                          {recipeSettingsLocked && isAvatarProductRecipe ? (
+                          {isMakeAnythingDanceRecipe ? (
+                            <div className="mt-2 rounded-[14px] border border-[hsl(var(--color-border)/0.65)] bg-[hsl(var(--color-surface)/0.62)] px-3 py-2.5 text-xs leading-5 text-muted">
+                              {makeAnythingDanceAnalysis ? (
+                                <>
+                                  <p className="font-semibold text-text">Detected dance length: {makeAnythingDanceAnalysis.durationSeconds.toFixed(1)}s</p>
+                                  <p className="mt-1">
+                                    Billing follows the uploaded dance clip length. {makeAnythingDanceAnalysis.hasAudio ? 'Original audio is available for reuse.' : 'No original audio was detected in this clip.'}
+                                  </p>
+                                </>
+                              ) : (
+                                <p>Upload the dance video first. We will auto-detect clip length and audio, then use that timing for generation and credits.</p>
+                              )}
+                            </div>
+                          ) : recipeSettingsLocked && isAvatarProductRecipe ? (
                             <div className="mt-2 grid gap-1">
                               {visibleAvatarProductDurationOptions.map((option) => (
                                 <button
@@ -4882,6 +5020,7 @@ export function UnifiedCreateStudioClient({
                       </div>
                     ) : null}
                   </div>
+                  ) : null}
 
                 </div>
 
@@ -5010,7 +5149,7 @@ export function UnifiedCreateStudioClient({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={fileInputAccept}
             className="hidden"
             onChange={async (event) => {
               const input = event.currentTarget;
@@ -5024,17 +5163,32 @@ export function UnifiedCreateStudioClient({
                 if (uploadTarget && uploadTarget !== 'composer-asset') {
                   setActiveUploadSlotId(uploadTarget);
                   const uploaded = await api.uploadFileDirect({ file, kind: 'recipe_input' }, userId);
+                  const slot = recipeComposer?.slots.find((item) => item.id === uploadTarget);
+                  const isVideoUpload = slot?.submitTarget === 'video';
+                  let analysis: SlotAssetState['analysis'] = null;
+                  if (isVideoUpload) {
+                    const inspected = await api.analyzeMakeAnythingDanceVideo(uploaded.public_url, userId);
+                    analysis = {
+                      durationSeconds: Number(inspected.duration_seconds),
+                      billedDurationSeconds: Number(inspected.billed_duration_seconds),
+                      hasAudio: Boolean(inspected.has_audio),
+                    };
+                  }
 
                   applySlotAsset(uploadTarget, {
                     label: file.name,
-                    previewUrl: uploaded.public_url,
+                    previewUrl: isVideoUpload ? null : uploaded.public_url,
                     assetUrl: uploaded.public_url,
+                    mediaKind: isVideoUpload ? 'video' : 'image',
+                    analysis,
                     source: 'upload',
                   });
 
                   show({
-                    title: 'Image attached',
-                    message: 'Your recipe input is ready to use.',
+                    title: isVideoUpload ? 'Dance video attached' : 'Image attached',
+                    message: isVideoUpload && analysis
+                      ? `Detected dance length: ${analysis.durationSeconds.toFixed(1)}s${analysis.hasAudio ? ' · original audio found' : ' · no original audio detected'}.`
+                      : 'Your recipe input is ready to use.',
                     variant: 'success',
                   });
                 } else {
@@ -5044,6 +5198,8 @@ export function UnifiedCreateStudioClient({
                     label: file.name,
                     previewUrl: uploaded.public_url,
                     assetUrl: uploaded.public_url,
+                    mediaKind: 'image',
+                    analysis: null,
                     source: 'upload',
                   });
                   setAssetPicker(null);
@@ -5054,7 +5210,7 @@ export function UnifiedCreateStudioClient({
                   });
                 }
               } catch (uploadError) {
-                const message = getFriendlyErrorMessage(uploadError) || 'Could not upload that image.';
+                const message = getFriendlyErrorMessage(uploadError) || `Could not upload that ${fileInputAccept.startsWith('video') ? 'video' : 'image'}.`;
                 setError(message);
                 show({ title: 'Upload failed', message, variant: 'error' });
               } finally {

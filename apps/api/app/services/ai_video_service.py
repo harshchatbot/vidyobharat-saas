@@ -189,6 +189,7 @@ class AIVideoCreateService:
             'kling_o3_standard_reference': self.generate_with_fal,
             'kling_o3_pro_reference': self.generate_with_fal,
             'seedance_v1_lite_reference': self.generate_with_fal,
+            'kling_v26_standard_motion_control': self.generate_with_fal,
         }
 
         self.model_router = SmartModelRouter()
@@ -216,6 +217,7 @@ class AIVideoCreateService:
             'kling_o3_standard_reference': ['kling_o3_reference', 'kling_v16_standard_i2v'],
             'kling_o3_pro_reference': ['kling_o3_reference', 'kling_v16_pro_i2v'],
             'pixverse_c1_reference': [],
+            'kling_v26_standard_motion_control': [],
         }
 
     def list_models(self, *, include_internal: bool = False) -> list[ModelRegistryEntry]:

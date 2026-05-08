@@ -177,7 +177,14 @@ export type RecipeComposerSlot = {
   options?: string[];
   sample_label?: string | null;
   sample_preview_url?: string | null;
-  submit_target?: 'image' | 'text' | string | null;
+  submit_target?: 'image' | 'video' | 'text' | string | null;
+};
+
+export type MotionReferenceVideoAnalysisResponse = {
+  duration_seconds: number;
+  billed_duration_seconds: number;
+  has_audio: boolean;
+  max_duration_seconds: number;
 };
 
 export type RecipeComposer = {

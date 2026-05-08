@@ -58,6 +58,7 @@ class FalVideoService:
         'fal_gemini_flash_tts': 900,
         'fal_sync_lipsync_v2': 1800,
         'pixverse_c1_reference': 2400,
+        'kling_v26_standard_motion_control': 3600,
     }
     _FOLLOW_UP_REQUEST_TIMEOUT_SECONDS = 180
     _STATUS_REQUEST_TIMEOUT = httpx.Timeout(25.0, connect=10.0)
@@ -207,6 +208,46 @@ class FalVideoService:
             payload=payload,
             model_key='seedance_v1_lite_reference',
             log_prefix='chitrakala_seedance_lite',
+            extract_kind='video',
+        )
+
+    def generate_kling_motion_control_video(
+        self,
+        *,
+        prompt: str,
+        image_url: str,
+        video_url: str,
+        aspect_ratio: str = '9:16',
+        character_orientation: str = 'video',
+        keep_original_sound: bool = True,
+    ) -> tuple[str, dict[str, Any]]:
+        if not self._effective_fal_api_key:
+            raise RuntimeError('FAL_API_KEY is not configured for Kling motion control generation')
+
+        endpoint = self._endpoint_for('kling_v26_standard_motion_control')
+        payload: dict[str, Any] = {
+            'prompt': prompt,
+            'image_url': image_url,
+            'video_url': video_url,
+            'aspect_ratio': aspect_ratio,
+            'character_orientation': character_orientation,
+            'keep_original_sound': bool(keep_original_sound),
+        }
+        logger.info(
+            'kling_motion_control_payload_debug',
+            extra={
+                'endpoint': endpoint,
+                'aspect_ratio': aspect_ratio,
+                'character_orientation': character_orientation,
+                'keep_original_sound': bool(keep_original_sound),
+                'payload_keys': list(payload.keys()),
+            },
+        )
+        return self._submit_fal_media_job(
+            endpoint=endpoint,
+            payload=payload,
+            model_key='kling_v26_standard_motion_control',
+            log_prefix='kling_motion_control',
             extract_kind='video',
         )
 
@@ -1244,6 +1285,7 @@ class FalVideoService:
             'seedance_v1_lite_i2v': 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
             'seedance_v1_lite_reference': 'fal-ai/bytedance/seedance/v1/lite/reference-to-video',
             'pixverse_c1_reference': 'fal-ai/pixverse/c1/reference-to-video',
+            'kling_v26_standard_motion_control': 'fal-ai/kling-video/v2.6/standard/motion-control',
             'kling_o3_standard_t2v': 'fal-ai/kling-video/o3/standard/text-to-video',
             'kling_o3_standard_i2v': 'fal-ai/kling-video/o3/standard/image-to-video',
             'kling_o3_pro_t2v': 'fal-ai/kling-video/o3/pro/text-to-video',

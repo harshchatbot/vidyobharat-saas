@@ -240,6 +240,46 @@
       },
       "hidden": false,
       "devOnly": false
+    },
+    {
+      "key": "motion_control",
+      "modelFamily": "motion_control",
+      "displayName": "Kling Motion Control",
+      "tags": ["Viral", "Dance", "Reference-driven"],
+      "description": "Replace the dancer with your character using an uploaded dance video as the choreography source.",
+      "supportsTextToVideo": false,
+      "supportsImageToVideo": true,
+      "supportsNativeAudio": true,
+      "nativeAudioDefault": true,
+      "nativeAudioNotes": "Original audio from the uploaded dance video can be preserved when available.",
+      "supportedDurations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
+      "supportedQualities": [
+        { "key": "standard", "label": "Standard", "resolution": "720p" }
+      ],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "requiredInputsByGenerationMode": {
+        "image_to_video": ["image_url", "video_url"]
+      },
+      "providerRoutesByGenerationModeAndQuality": {
+        "image_to_video": {
+          "standard": "kling_v26_standard_motion_control"
+        }
+      },
+      "payloadMapping": {
+        "durationStrategy": "reference_video",
+        "resolutionStrategy": "route_default",
+        "imageField": "image_url",
+        "videoField": "video_url"
+      },
+      "pricingType": "perSecond",
+      "pricingConfig": {
+        "ratesUsdPerSecond": {
+          "standard": { "audioOff": 0.07, "audioOn": 0.07 }
+        }
+      },
+      "hidden": false,
+      "devOnly": false
     }
   ],
   "models": [
@@ -837,6 +877,38 @@
       "minDurationSeconds": 5,
       "maxDurationSeconds": 10,
       "durationHelperText": "PixVerse C1 supports 5s and 10s reference-led videos up to 720p."
+    },
+    {
+      "key": "kling_v26_standard_motion_control",
+      "lane": "premium",
+      "label": "Kling Motion Control",
+      "fullLabel": "Kling 2.6 Standard Motion Control",
+      "description": "Reference-driven dance generation that transfers movement from an uploaded dance video onto your character image.",
+      "frontendHint": "Best for Make Anything Dance. Upload a clear character image and a full-body dance video with one visible dancer.",
+      "apiAdapter": "generate_with_fal",
+      "providerModel": "fal-ai/kling-video/v2.6/standard/motion-control",
+      "tier": "premium",
+      "enabled": true,
+      "featured": true,
+      "internalOnly": false,
+      "featureGate": null,
+      "qualityBadge": "Viral dance",
+      "speedBadge": "Reference-led",
+      "creditBadge": "Duration based",
+      "supportsNativeAudio": true,
+      "resolutionLabels": ["720p"],
+      "supportedResolutions": ["720p"],
+      "supportedAspectRatios": ["9:16", "16:9", "1:1"],
+      "sizes": {
+        "9:16": { "720p": "720x1280" },
+        "16:9": { "720p": "1280x720" },
+        "1:1": { "720p": "720x720" }
+      },
+      "durationPresets": [5, 10, 15, 20, 30, 40],
+      "defaultDurationSeconds": 10,
+      "minDurationSeconds": 1,
+      "maxDurationSeconds": 40,
+      "durationHelperText": "Duration is auto-detected from the uploaded dance video, up to 40 seconds."
     }
   ]
 }

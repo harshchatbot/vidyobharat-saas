@@ -125,6 +125,7 @@ from app.services.avatar_product_tts_catalog import (
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
 from app.services.fal_video_service import FalVideoService
 from app.services.model_registry import get_normal_video_family_definition
+from app.services.motion_control_media_service import MAX_MOTION_CONTROL_DURATION_SECONDS, MotionControlMediaService
 from app.services.pricing_service import PricingService
 from app.services.upload_service import UploadService
 from app.services.user_service import UserService
@@ -190,6 +191,10 @@ class NotificationResponse(BaseModel):
 
 class NotificationReadRequest(BaseModel):
     ids: list[str] = Field(default_factory=list)
+
+
+class NotificationClearResponse(BaseModel):
+    deleted: int
 
 
 def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, object]:
@@ -1544,6 +1549,29 @@ async def autofill_avatar_product(payload: dict[str, Any]):
 
 
 
+
+@router.post('/api/recipes/make-anything-dance/analyze', include_in_schema=False)
+def analyze_make_anything_dance_video(
+    payload: dict[str, Any],
+    _: str = Depends(get_user_id),
+):
+    video_url = str(payload.get('video_url') or payload.get('videoUrl') or '').strip()
+    if not video_url:
+        raise HTTPException(status_code=422, detail='video_url is required')
+    media_service = MotionControlMediaService()
+    try:
+        analysis = media_service.analyze_reference_video(video_url)
+        media_service.validate_supported_duration(analysis)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        'duration_seconds': analysis.duration_seconds,
+        'billed_duration_seconds': analysis.billed_duration_seconds,
+        'has_audio': analysis.has_audio,
+        'max_duration_seconds': int(MAX_MOTION_CONTROL_DURATION_SECONDS),
+    }
+
+
 @router.get('/ai/video/models', response_model=list[AIVideoModelResponse])
 @router.get('/api/ai/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
 @router.get('/api/video/models', response_model=list[AIVideoModelResponse], include_in_schema=False)
@@ -1677,6 +1705,17 @@ def create_ai_video(
                 normalized_payload['audioMode'] = 'silent'
                 normalized_payload['captionsEnabled'] = False
                 normalized_audio_settings['nativeAudioEnabled'] = False
+                normalized_payload['audioSettings'] = {
+                    **dict(normalized_payload.get('audioSettings') or {}),
+                    **normalized_audio_settings,
+                }
+            elif recipe.id == 'make_anything_dance':
+                has_audio = bool(normalized_recipe_inputs.get('has_audio'))
+                keep_original_sound = bool(normalized_recipe_inputs.get('keep_original_sound')) and has_audio
+                normalized_payload['captionsEnabled'] = False
+                normalized_payload['narrationEnabled'] = False
+                normalized_payload['audioMode'] = 'auto_scene_sound' if keep_original_sound else 'silent'
+                normalized_audio_settings['nativeAudioEnabled'] = keep_original_sound
                 normalized_payload['audioSettings'] = {
                     **dict(normalized_payload.get('audioSettings') or {}),
                     **normalized_audio_settings,
@@ -3485,6 +3524,33 @@ def mark_notifications_read(
             updated += 1
 
     return {'updated': updated}
+
+
+@router.post('/notifications/clear', response_model=NotificationClearResponse)
+def clear_notifications(
+    user_id: str = Depends(get_user_id),
+):
+    firestore_client = get_firestore_client()
+    deleted = 0
+    try:
+        rows = list(
+            firestore_client.collection('notifications')
+            .where('user_id', '==', user_id)
+            .limit(100)
+            .stream()
+        )
+    except Exception:
+        rows = list(
+            firestore_client.collection('notifications')
+            .where('user_id', '==', user_id)
+            .stream()
+        )
+
+    for row in rows:
+        row.reference.delete()
+        deleted += 1
+
+    return {'deleted': deleted}
 
 
 @router.get('/music-tracks', response_model=list[MusicTrackResponse])

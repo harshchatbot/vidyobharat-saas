@@ -11,6 +11,7 @@ import type {
   AvatarProductAssistRequest,
   AvatarProductAssistResponse,
   MusicTrack,
+  MotionReferenceVideoAnalysisResponse,
   Project,
   ProjectAsset,
   ProjectDetail,
@@ -714,6 +715,12 @@ export const api = {
       body,
     }, { userId, cache: 'no-store' });
   },
+  analyzeMakeAnythingDanceVideo(videoUrl: string, userId: string) {
+    return request<MotionReferenceVideoAnalysisResponse>('/api/recipes/make-anything-dance/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ video_url: videoUrl }),
+    }, { userId, cache: 'no-store', timeoutMs: 45_000 });
+  },
   deleteUpload(assetId: string, userId: string) {
     return request<{ asset_id: string; deleted: boolean }>(`/uploads/${assetId}`, {
       method: 'DELETE',
@@ -739,6 +746,11 @@ export const api = {
     return request<{ updated: number }>('/notifications/read', {
       method: 'POST',
       body: JSON.stringify({ ids }),
+    }, { userId, cache: 'no-store', timeoutMs: 20_000 });
+  },
+  clearNotifications(userId: string) {
+    return request<{ deleted: number }>('/notifications/clear', {
+      method: 'POST',
     }, { userId, cache: 'no-store', timeoutMs: 20_000 });
   },
   getAvatarProductTtsCatalog(userId: string) {

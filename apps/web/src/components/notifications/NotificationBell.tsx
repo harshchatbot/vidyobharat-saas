@@ -35,6 +35,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const firstLoadRef = useRef(true);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -148,13 +149,42 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 rounded-2xl border border-border bg-bg p-3 shadow-xl">
-          <div className="mb-2 font-semibold">Notifications</div>
+        <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-border bg-bg shadow-xl">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-3">
+            <div className="font-semibold">Notifications</div>
+            {items.length > 0 ? (
+              <button
+                type="button"
+                className="text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isClearing}
+                onClick={() => {
+                  setIsClearing(true);
+                  void api.clearNotifications(userId)
+                    .then(() => {
+                      setItems([]);
+                      setOpen(false);
+                      seenIdsRef.current = new Set();
+                    })
+                    .catch(() => {
+                      // keep drawer usable on transient clear failures
+                    })
+                    .finally(() => {
+                      setIsClearing(false);
+                    });
+                }}
+              >
+                {isClearing ? 'Clearing…' : 'Clear all'}
+              </button>
+            ) : null}
+          </div>
 
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notifications yet.</p>
+            <div className="px-3 py-4">
+              <p className="text-sm text-muted-foreground">No notifications yet.</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="max-h-[min(70vh,28rem)] overflow-y-auto px-3 py-3">
+              <div className="space-y-2">
               {items.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -179,6 +209,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   ) : null}
                 </div>
               ))}
+              </div>
             </div>
           )}
         </div>

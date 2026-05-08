@@ -298,7 +298,7 @@ function OfferSection() {
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">What you can do today</p>
         <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
-          Two guided recipes for speed, plus freeform creation when you want full control.
+          Three guided recipes for speed, plus freeform creation when you want full control.
         </h2>
       </div>
 
@@ -323,11 +323,11 @@ function RecipeShowcaseSection() {
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Guided recipes</p>
         <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
-          The two fastest ways to see RangManch working for you.
+          Three fast ways to see RangManch working for you.
         </h2>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-3">
         <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
@@ -372,7 +372,33 @@ function RecipeShowcaseSection() {
               <p className="mt-3 text-sm leading-7 text-muted">
                 Upload the anime character, choose the motion, vibe, and scenery, and RangManch builds the reel prompt for you automatically.
               </p>
-              
+            </div>
+          </div>
+        </article>
+
+        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+          <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+            <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
+              <LandingVideo
+                src="/videos/samples/panda_dancing.mp4"
+                poster="/videos/samples/panda_dancing.mp4"
+                className="aspect-[9/16] h-full w-full object-cover"
+              />
+              <div className="absolute inset-x-3 bottom-3 rounded-[16px] border border-white/12 bg-black/45 px-3 py-2 text-xs font-medium text-white/90 backdrop-blur">
+                Character image + dance video = viral reel
+              </div>
+            </div>
+            <div className="p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Make Anything Dance</p>
+              <h3 className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-text">Turn any character into a viral reel</h3>
+              <p className="mt-3 text-sm leading-7 text-muted">
+                Upload one clear character image and one dance clip, and RangManch transfers the choreography into a playful vertical dance reel.
+              </p>
+              <div className="mt-5 space-y-2 text-sm text-muted">
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> Choreography follows the uploaded dance reference</div>
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> 9:16 social-first output by default</div>
+                <div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-[hsl(var(--color-accent))]" /> Great for memes, mascots, anime edits, and pets</div>
+              </div>
             </div>
           </div>
         </article>

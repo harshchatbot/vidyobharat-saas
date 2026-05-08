@@ -187,6 +187,18 @@ def _avatar_product_scene_strategy() -> RecipeSceneStrategy:
     )
 
 
+def _motion_control_scene_strategy() -> RecipeSceneStrategy:
+    return RecipeSceneStrategy(
+        render_scenes=(
+            RenderSceneConfig(
+                scene_id='scene_1_motion_transfer',
+                beat_names=('reference_transfer', 'dance_motion', 'ending'),
+                duration_seconds=10,
+            ),
+        )
+    )
+
+
 def _ltx_cinematic_montage_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
@@ -357,6 +369,41 @@ PIXVERSE_ALLOWED_DURATIONS = {'5', '10'}
 PIXVERSE_ALLOWED_QUALITIES = frozenset(PIXVERSE_QUALITY_TO_RESOLUTION.keys())
 PIXVERSE_ALLOWED_AUDIO_MODES = {'silent', 'auto_scene_sound'}
 PIXVERSE_ALLOWED_SCENES = frozenset(next(iter(PIXVERSE_ANIME_SCENE_MAP.values())).keys())
+MOTION_CONTROL_DANCE_STYLE_OPTIONS = {
+    'bollywood': 'Bollywood',
+    'hip-hop': 'Hip-Hop',
+    'hip hop': 'Hip-Hop',
+    'funny': 'Funny',
+    'anime': 'Anime',
+    'cinematic': 'Cinematic',
+    'cute': 'Cute',
+    'chaotic': 'Chaotic',
+}
+MOTION_CONTROL_CHARACTER_ENERGY_OPTIONS = {
+    'playful': 'Playful',
+    'cute': 'Cute',
+    'epic': 'Epic',
+    'funny': 'Funny',
+    'aggressive': 'Aggressive',
+    'elegant': 'Elegant',
+    'goofy': 'Goofy',
+}
+MOTION_CONTROL_VISUAL_STYLE_OPTIONS = {
+    'realistic': 'Realistic',
+    'anime': 'Anime',
+    '3d cartoon': '3D Cartoon',
+    '3d_cartoon': '3D Cartoon',
+    'cinematic': 'Cinematic',
+    'meme style': 'Meme Style',
+    'meme_style': 'Meme Style',
+}
+MOTION_CONTROL_FIDELITY_OPTIONS = {
+    'strict': 'Strict',
+    'balanced': 'Balanced',
+    'stylized': 'Stylized',
+}
+MOTION_CONTROL_ORIENTATION_OPTIONS = frozenset({'video', 'image'})
+MOTION_CONTROL_ALLOWED_ASPECT_RATIOS = frozenset({'9:16', '16:9', '1:1'})
 AVATAR_PRODUCT_MODEL_TO_RESOLUTION: dict[str, str] = {
     'fal_ltx23_i2v': '1080p',
     'seedance_v1_lite_reference': '720p',
@@ -999,6 +1046,89 @@ RECIPES: dict[str, RecipeConfig] = {
             'supports_product_image': True,
         },
     ),
+    'make_anything_dance': RecipeConfig(
+        id='make_anything_dance',
+        type='video',
+        duration_seconds=10,
+        input=RecipeInputConfig(image=False, text=False),
+        config=RecipeContentConfig(
+            style='reference_driven_motion_control_dance',
+            tone='playful_social_first_viral',
+            structure=('character_image', 'dance_video', 'keep_original_sound'),
+            scene_guidance=(
+                'Reference-driven motion transfer. The uploaded dance video controls choreography, rhythm, timing, and pacing. '
+                'The system should primarily preserve character identity, body structure, choreography timing, and smooth full-body readability.'
+            ),
+            seed_prompt='Turn the uploaded character into a viral dance reel using the uploaded dance video as the choreography source.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='kling_v26_standard_motion_control',
+            aspect_ratio='9:16',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Kore',
+            language='English (India)',
+            caption_style='classic',
+        ),
+        scene_strategy=_motion_control_scene_strategy(),
+        catalog=RecipeCatalogConfig(
+            title='Make Anything Dance',
+            slug='make-anything-dance',
+            description='Upload a character image and a dance video. Your character performs the same moves.',
+            short_label='Dance',
+            preview_video_url=_sample_video('panda_dancing.mp4'),
+            preview_image_url=_sample_video('panda_dancing.mp4'),
+            active=True,
+            featured=True,
+            trending=True,
+            order=25,
+            tags=('all', 'trending', 'dance', 'motion_control', 'viral', 'reference', 'fun'),
+            composer=RecipeComposerConfig(
+                recipe_label='Make Anything Dance',
+                mode='video',
+                starter_copy='Best results: Use a clear character image and a dance video with one clearly visible dancer. Full-body dance videos work best.',
+                fragments=(
+                    RecipeComposerFragment(type='text', value='Make '),
+                    RecipeComposerFragment(type='slot', slot_id='character_image'),
+                    RecipeComposerFragment(type='text', value=' dance using '),
+                    RecipeComposerFragment(type='slot', slot_id='dance_video'),
+                    RecipeComposerFragment(type='text', value=' and keep original audio '),
+                    RecipeComposerFragment(type='slot', slot_id='keep_original_sound'),
+                    RecipeComposerFragment(type='text', value='.'),
+                ),
+                slots=(
+                    RecipeComposerSlot(
+                        id='character_image',
+                        kind='reference-image',
+                        label='Upload character image',
+                        placeholder='Upload character image',
+                        required=True,
+                        submit_target='image',
+                    ),
+                    RecipeComposerSlot(
+                        id='dance_video',
+                        kind='upload',
+                        label='Upload dance video',
+                        placeholder='Upload dance video',
+                        required=True,
+                        submit_target='video',
+                    ),
+                    RecipeComposerSlot(id='keep_original_sound', kind='select', label='Keep original audio', placeholder='Keep original audio?', required=True, options=('on', 'off')),
+                ),
+            ),
+        ),
+        reference_strategy='passthrough',
+        metadata={
+            'starter_badge': 'Viral',
+            'version': 1,
+            'recipe_family': 'motion_control_dance',
+            'recipe_version': 'v1',
+            'generation_mode': 'reference_driven',
+            'max_duration_seconds': 40,
+        },
+    ),
     'anime_lofi_reel': RecipeConfig(
         id='anime_lofi_reel',
         type='video',
@@ -1493,7 +1623,7 @@ RECIPES: dict[str, RecipeConfig] = {
     ),
 }
 
-SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product', 'anime_lofi_reel', 'reference_video_generator_advanced'})
+SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product', 'make_anything_dance', 'anime_lofi_reel', 'reference_video_generator_advanced'})
 EXPLAINER_RECIPE_IDS = frozenset({'time_echo_explainer', 'deep_dive_explainer'})
 UGC_AD_RECIPE_IDS = frozenset({'ugc_ad', 'avatar_product'})
 LTX_BENCHMARK_RECIPE_IDS = frozenset({'ltx_cinematic_montage_v1'})
@@ -1652,8 +1782,66 @@ def recipe_catalog_item(recipe: RecipeConfig) -> dict[str, Any]:
     }
 
 
+def _normalize_motion_control_choice(value: Any, allowed: dict[str, str], *, field_name: str) -> str:
+    normalized = str(value or '').strip()
+    key = normalized.lower()
+    if key not in allowed:
+        raise ValueError(
+            f"make_anything_dance {field_name} must be one of: {', '.join(sorted(set(allowed.values())))}"
+        )
+    return allowed[key]
+
+
+def _normalize_bool_input(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or '').strip().lower()
+    if not normalized:
+        return default
+    return normalized in {'1', 'true', 'yes', 'on', 'keep', 'enabled'}
+
+
 def validate_recipe_inputs(recipe: RecipeConfig, inputs: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(inputs or {})
+    if recipe.id == 'make_anything_dance':
+        character_image = str(normalized.get('character_image') or '').strip()
+        dance_video = str(normalized.get('dance_video') or '').strip()
+        keep_original_sound = _normalize_bool_input(normalized.get('keep_original_sound'), default=True)
+        aspect_ratio = '9:16'
+        duration_seconds_raw = normalized.get('duration_seconds') or normalized.get('durationSeconds') or recipe.duration_seconds
+        duration_seconds = int(float(duration_seconds_raw or recipe.duration_seconds))
+        has_audio = _normalize_bool_input(normalized.get('has_audio'), default=False)
+        character_description = str(normalized.get('character_description') or '').strip()
+        user_prompt = str(normalized.get('user_prompt') or recipe.config.seed_prompt or '').strip()
+
+        if not character_image:
+            raise ValueError('make_anything_dance requires inputs.character_image')
+        if not dance_video:
+            raise ValueError('make_anything_dance requires inputs.dance_video')
+        if duration_seconds <= 0:
+            raise ValueError('make_anything_dance duration_seconds must be greater than 0')
+        if duration_seconds > 40:
+            raise ValueError('Dance videos longer than 40 seconds are not supported yet.')
+
+        normalized.update(
+            {
+                'character_image': character_image,
+                'dance_video': dance_video,
+                'dance_style': 'Funny',
+                'character_energy': 'Playful',
+                'visual_style': 'Realistic',
+                'motion_fidelity': 'Strict',
+                'character_orientation': 'video',
+                'keep_original_sound': keep_original_sound,
+                'aspect_ratio': aspect_ratio,
+                'duration_seconds': duration_seconds,
+                'has_audio': has_audio,
+                'character_description': character_description,
+                'user_prompt': user_prompt,
+            }
+        )
+        return normalized
+
     if recipe.id == 'anime_lofi_reel':
         character_image = str(normalized.get('character_image') or '').strip()
         motion = str(normalized.get('motion') or '').strip().lower()
@@ -1755,6 +1943,41 @@ def build_normalized_video_payload(
 ) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
     defaults = recipe.generation_defaults
+
+    if recipe.id == 'make_anything_dance':
+        duration_seconds = int(normalized_inputs.get('duration_seconds') or recipe.duration_seconds or 10)
+        keep_original_sound = bool(normalized_inputs.get('keep_original_sound'))
+        has_audio = bool(normalized_inputs.get('has_audio'))
+        return {
+            'template': recipe.catalog.title,
+            'templateId': recipe.id,
+            'script': str(normalized_inputs.get('user_prompt') or recipe.config.seed_prompt or 'Make the uploaded character perform the uploaded dance video.').strip(),
+            'tags': [recipe.id, *list(recipe.catalog.tags)],
+            'modelKey': 'kling_v26_standard_motion_control',
+            'modelFamily': 'motion_control',
+            'generationMode': 'image_to_video',
+            'modeId': None,
+            'projectId': None,
+            'language': defaults.language,
+            'aspectRatio': '9:16',
+            'resolution': defaults.resolution,
+            'quality': defaults.quality,
+            'durationMode': 'custom',
+            'durationSeconds': duration_seconds,
+            'voice': defaults.voice,
+            'imageUrls': [str(normalized_inputs['character_image']).strip()],
+            'music': {'type': 'none', 'url': None},
+            'audioSettings': {
+                'volume': 20,
+                'ducking': True,
+                'sampleRateHz': 48000,
+                'nativeAudioEnabled': keep_original_sound and has_audio,
+            },
+            'audioMode': 'auto_scene_sound' if keep_original_sound and has_audio else 'silent',
+            'captionsEnabled': False,
+            'captionStyle': defaults.caption_style,
+            'narrationEnabled': False,
+        }
 
     if recipe.id == 'anime_lofi_reel':
         quality_profile = str(normalized_inputs['quality_profile'])
@@ -1912,6 +2135,28 @@ def recipe_pipeline_metadata(
     anime_prompt_package: AnimeLofiPromptPackage | None = None,
 ) -> dict[str, Any]:
     normalized_inputs = validate_recipe_inputs(recipe, inputs)
+    if recipe.id == 'make_anything_dance':
+        duration_seconds = int(normalized_inputs.get('duration_seconds') or recipe.duration_seconds or 10)
+        return {
+            'recipe_id': recipe.id,
+            'recipe_type': recipe.type,
+            'duration_seconds': duration_seconds,
+            'reference_strategy': recipe.reference_strategy,
+            'config': asdict(recipe.config),
+            'generation_defaults': asdict(recipe.generation_defaults),
+            'catalog': recipe_catalog_item(recipe),
+            'inputs': normalized_inputs,
+            'metadata': {
+                **dict(recipe.metadata or {}),
+                'recipe_family': 'motion_control_dance',
+                'recipe_version': 'v1',
+                'generation_mode': 'reference_driven',
+                'keep_original_sound': bool(normalized_inputs.get('keep_original_sound')),
+                'motion_reference_video_duration': duration_seconds,
+                'detected_audio': bool(normalized_inputs.get('has_audio')),
+                'aspect_ratio': str(normalized_inputs.get('aspect_ratio') or recipe.generation_defaults.aspect_ratio),
+            },
+        }
     if recipe.id in {'anime_lofi_reel', 'reference_video_generator_advanced'}:
         pixverse_metadata = {
             **dict(recipe.metadata or {}),

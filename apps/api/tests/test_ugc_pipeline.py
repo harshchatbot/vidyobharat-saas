@@ -6,6 +6,7 @@ from app.pipeline.pipeline_engine import (
     _avatar_product_enhancer_metadata,
     _avatar_product_hero_reveal_guidance,
     _avatar_product_short_label,
+    _build_avatar_product_duration_diagnostics,
     _build_avatar_product_seedance_lite_prompt,
     _build_avatar_product_single_shot_kling_prompt,
     _build_avatar_product_timeboxed_script,
@@ -154,6 +155,23 @@ def test_avatar_product_quality_rewrite_timeboxes_short_hindi_script() -> None:
     assert is_timebounded is True
     assert "वॉल क्लॉक" in rewritten
     assert "आज ही देखिए" in rewritten
+
+
+def test_avatar_product_duration_diagnostics_computes_drift() -> None:
+    diagnostics = _build_avatar_product_duration_diagnostics(
+        requested_duration_seconds=5,
+        base_video_duration_seconds=5.2,
+        tts_audio_duration_seconds=4.8,
+        final_lipsync_duration_seconds=6.56,
+        resolved_video_model_key="kling_o3_standard_reference",
+    )
+
+    assert diagnostics["requested_duration_seconds"] == 5
+    assert diagnostics["base_video_duration_seconds"] == 5.2
+    assert diagnostics["tts_audio_duration_seconds"] == 4.8
+    assert diagnostics["final_lipsync_duration_seconds"] == 6.56
+    assert diagnostics["duration_drift_seconds"] == 1.56
+    assert diagnostics["resolved_video_model_key"] == "kling_o3_standard_reference"
 
 
 def test_apply_avatar_product_enhancer_to_scenes_maps_scene_fields() -> None:

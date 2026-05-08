@@ -28,12 +28,11 @@ export function LoadingOverlay({
   }, []);
 
   if (!open) return null;
-  if (!mounted) return null;
   const normalizedProgress = typeof progress === 'number'
     ? Math.max(0, Math.min(100, Math.round(progress)))
     : null;
 
-  return createPortal(
+  const overlay = (
     <div className="fixed inset-0 z-[90] flex min-h-[100dvh] items-start justify-center overflow-y-auto bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.84),hsl(var(--color-bg)/0.72))] px-4 py-4 backdrop-blur-xl sm:items-center sm:px-6 sm:py-6">
       <div
         aria-busy="true"
@@ -66,7 +65,12 @@ export function LoadingOverlay({
         </div>
         {normalizedProgress !== null ? <p className="mt-2 text-center text-[11px] text-muted">{normalizedProgress}% complete</p> : null}
       </div>
-    </div>,
-    document.body,
+    </div>
   );
+
+  if (!mounted) {
+    return overlay;
+  }
+
+  return createPortal(overlay, document.body);
 }

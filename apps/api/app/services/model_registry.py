@@ -348,6 +348,23 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         ),
     ),
 
+    'kling_v26_standard_motion_control': GenerationModelDefinition(
+        model_key='kling_v26_standard_motion_control',
+        display_name='Kling 2.6 Motion Control',
+        medium='video',
+        provider='fal',
+        provider_model_key='fal-ai/kling-video/v2.6/standard/motion-control',
+        mode_ids=('premium',),
+        billing_unit='per_second',
+        quality_tier='standard',
+        cost_profile='kling_v26_standard_motion_control',
+        user_facing_description='Reference-driven dance and motion-transfer route for viral reels.',
+        default_duration_seconds=10,
+        aliases=(
+            'fal-ai/kling-video/v2.6/standard/motion-control',
+        ),
+    ),
+
 }
 
 

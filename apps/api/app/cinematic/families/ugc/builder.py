@@ -22,12 +22,51 @@ def build_ugc_avatar_product_spec(
 ) -> CinematicSpec:
     category = (product_category_hint or '').strip().lower()
     category_tokens = [token for token in category.replace('/', ' ').replace('-', ' ').split() if token]
+    narrated_run = bool((narration_script or '').strip())
     lighting = _pick_lighting(product_category_hint=category, lighting_style=lighting_style)
     motion_bundle = build_ugc_motion_bundle(product_category_hint=category)
     creator_behavior = pick_creator_behavior(product_category_hint=category, creator_energy=creator_energy)
     must_do, must_avoid, negative_prompt = build_ugc_constraints(product_category_hint=category)
     opening_action, product_interaction, hero_reveal, ending_action = _category_actions(category)
     camera = pick_ugc_camera_style(product_category_hint=category, camera_style=camera_style)
+    product_face_spacing_strategy = _product_face_spacing_strategy(category, narrated_run=narrated_run)
+    if narrated_run:
+        opening_action, product_interaction, hero_reveal, ending_action = _tighten_actions_for_narrated_speech(
+            category=category,
+            opening_action=opening_action,
+            product_interaction=product_interaction,
+            hero_reveal=hero_reveal,
+            ending_action=ending_action,
+        )
+        must_do = list(must_do) + [
+            'keep lips fully visible throughout spoken sections',
+            'keep the product below the mouth and chin line during speech',
+            'hold the product at chest-to-shoulder height beside the face, never covering the lower face',
+            'keep the face near-frontal with only restrained natural head movement while speaking',
+        ]
+        must_avoid = list(must_avoid) + [
+            'no profile turns during speech',
+            'no product, hand, or prop crossing the mouth or chin zone',
+            'no prolonged downward gaze at the product while speaking',
+            'no sudden camera sway or aggressive gesture bursts during spoken sections',
+        ]
+        motion_bundle = {
+            **motion_bundle,
+            'camera_motion': (
+                'minimal handheld drift only, stable chest-up talking-head framing, no sudden sway during speech'
+            ),
+            'motion_intensity': (
+                'restrained creator movement with minimal head turns and steady mouth visibility during speech'
+            ),
+            'lipsync_safety': (
+                'face near-frontal and fully readable, lips unobstructed, product held lower beside the face for reliable lip sync'
+            ),
+        }
+        negative_prompt = (
+            f'{negative_prompt}, profile turns during speech, product near lips, product crossing chin, obstructed mouth'
+            if negative_prompt
+            else 'profile turns during speech, product near lips, product crossing chin, obstructed mouth'
+        )
 
     return CinematicSpec(
         recipe_family='ugc_avatar_product',
@@ -73,6 +112,8 @@ def build_ugc_avatar_product_spec(
         metadata={
             'cinematic_framework': 'STAR-C',
             'narration_script': (narration_script or '').strip(),
+            'speaking_frame_safety_enabled': narrated_run,
+            'product_face_spacing_strategy': product_face_spacing_strategy,
             'hero_reveal_window': 'between second 1 and second 3',
             'product_category_hint': product_category_hint,
             'creator_energy': creator_behavior,
@@ -136,3 +177,43 @@ def _category_actions(category: str) -> tuple[str, str, str, str]:
         'Do one clean hero reveal between second 1 and second 3, then keep the product steady.',
         'End with the face frontal and the product still clearly visible.',
     )
+
+
+def _tighten_actions_for_narrated_speech(
+    *,
+    category: str,
+    opening_action: str,
+    product_interaction: str,
+    hero_reveal: str,
+    ending_action: str,
+) -> tuple[str, str, str, str]:
+    if any(token in category for token in {'beauty', 'skincare', 'cosmetic', 'jewellery', 'jewelry', 'luxury'}):
+        return (
+            'Open with the product already visible beside the face but clearly below the mouth line in a calm frontal talking-head pose.',
+            'Bring the product slightly closer once, then return it lower beside the face without blocking the lips or chin.',
+            'Do one clean hero reveal close to camera, then lower the product back to a lip-sync-safe hold beside the face.',
+            'End in a stable frontal frame with the product readable beside the face and the mouth fully visible.',
+        )
+    if any(token in category for token in {'clothing', 'kurti', 'apparel', 'fashion', 'garment'}):
+        return (
+            'Open with the garment visible in a wider lower hold so the face stays fully readable in a frontal frame.',
+            'Adjust or unfold the garment once below the chin line with slow controlled movement and stable framing.',
+            'Do one clean hero reveal of the garment between second 1 and second 3, then keep it lower and wider while speaking.',
+            'End with the garment clearly readable and the face still near-frontal with full lip visibility.',
+        )
+    return (
+        'Open with the product already visible beside the face at chest-to-shoulder height, clearly below the mouth line, in a steady frontal frame.',
+        'Present the product once with calm controlled movement while keeping the mouth and chin fully unobstructed.',
+        'Do one clean hero reveal between second 1 and second 3, then hold the product lower beside the face for the rest of the spoken line.',
+        'End on a steady creator presentation with both face and product in frame and the lips fully visible.',
+    )
+
+
+def _product_face_spacing_strategy(category: str, narrated_run: bool) -> str:
+    if not narrated_run:
+        return 'standard_recipe_framing'
+    if any(token in category for token in {'beauty', 'skincare', 'cosmetic', 'jewellery', 'jewelry', 'luxury'}):
+        return 'close_but_below_mouthline'
+    if any(token in category for token in {'clothing', 'kurti', 'apparel', 'fashion', 'garment'}):
+        return 'wide_lower_hold_full_face_visible'
+    return 'lower_beside_face_chest_to_shoulder_zone'

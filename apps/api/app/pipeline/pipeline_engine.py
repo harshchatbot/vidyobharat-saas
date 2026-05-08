@@ -5,11 +5,13 @@ import json
 import logging
 import mimetypes
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 from app.core.config import get_settings
+from app.cinematic.families.motion_control.builder import build_motion_control_dance_spec
 from app.cinematic.families.ugc.builder import build_ugc_avatar_product_spec
 from app.cinematic.orchestrator.compile_prompt import compile_cinematic_prompt
 from app.db.firestore_utils import utcnow
@@ -44,6 +46,7 @@ from app.services.avatar_product_tts_catalog import (
     resolve_avatar_product_gemini_voice,
 )
 from app.services.audio_service import RecipeAudioService
+from app.services.credit_service import CreditService
 from app.services.emotion_service import build_behavior_timeline
 from app.services.hf_qwen_enhancer_service import HFQwenEnhancerInput, HFQwenEnhancerResult, HFQwenEnhancerService
 from app.services.avatar_product_workflow_service import AvatarProductWorkflowService
@@ -51,6 +54,7 @@ from app.services.influencer_service import InfluencerService
 from app.services.image_generation_service import ImageGenerationService
 from app.services.llm.base import ScriptPlan
 from app.services.llm.qwen_service import QwenService
+from app.services.motion_control_media_service import MotionControlMediaService
 from app.services.timing_sync_service import TimingSyncService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
 from app.services.video_pipeline import VideoPipelineService
@@ -136,6 +140,69 @@ def _persist_final_video(
         },
         merge=True,
     )
+
+
+def _resolve_probe_input(url_or_path: str) -> str | None:
+    normalized = str(url_or_path or "").strip()
+    if not normalized:
+        return None
+    if normalized.startswith("/static/"):
+        candidate = Path("data") / normalized.replace("/static/", "", 1)
+        return str(candidate) if candidate.exists() else None
+    path = Path(normalized)
+    if path.exists():
+        return str(path)
+    return normalized
+
+
+def _probe_media_duration_seconds(url_or_path: str) -> float | None:
+    probe_target = _resolve_probe_input(url_or_path)
+    if not probe_target:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                probe_target,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        value = float((result.stdout or "").strip() or "0")
+        return round(max(0.0, value), 3)
+    except Exception:
+        logger.warning("avatar_product_duration_probe_failed", extra={"probe_target": probe_target})
+        return None
+
+
+def _build_avatar_product_duration_diagnostics(
+    *,
+    requested_duration_seconds: int,
+    base_video_duration_seconds: float | None,
+    tts_audio_duration_seconds: float | None,
+    final_lipsync_duration_seconds: float | None,
+    resolved_video_model_key: str,
+) -> dict[str, Any]:
+    duration_drift_seconds = (
+        round(float(final_lipsync_duration_seconds) - float(requested_duration_seconds), 3)
+        if final_lipsync_duration_seconds is not None
+        else None
+    )
+    return {
+        "requested_duration_seconds": int(requested_duration_seconds),
+        "base_video_duration_seconds": base_video_duration_seconds,
+        "tts_audio_duration_seconds": tts_audio_duration_seconds,
+        "final_lipsync_duration_seconds": final_lipsync_duration_seconds,
+        "duration_drift_seconds": duration_drift_seconds,
+        "resolved_video_model_key": resolved_video_model_key,
+    }
 
 
 def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
@@ -3074,7 +3141,127 @@ def run_recipe_pipeline(
     ugc_talking_timing_maps: list[dict[str, Any]] = []
     ugc_talking_audio_tracks: list[dict[str, Any]] = []
 
-    
+    if recipe.id == "make_anything_dance":
+        from app.services.fal_video_service import FalVideoService
+
+        fal_service = FalVideoService()
+        motion_media = MotionControlMediaService()
+        character_image_url = str(normalized_inputs.get("character_image") or "").strip()
+        dance_video_url = str(normalized_inputs.get("dance_video") or "").strip()
+        if not character_image_url:
+            raise RuntimeError("Make Anything Dance requires an uploaded character image.")
+        if not dance_video_url:
+            raise RuntimeError("Make Anything Dance requires an uploaded dance video.")
+
+        analysis = motion_media.analyze_reference_video(dance_video_url)
+        motion_media.validate_supported_duration(analysis)
+        keep_original_sound_requested = bool(normalized_inputs.get("keep_original_sound"))
+        keep_original_sound = keep_original_sound_requested and analysis.has_audio
+        resolved_aspect_ratio = str(normalized_inputs.get("aspect_ratio") or effective_aspect_ratio or "9:16").strip() or "9:16"
+
+        cinematic_spec = build_motion_control_dance_spec(
+            character_description=str(normalized_inputs.get("character_description") or "").strip() or "uploaded character",
+            user_prompt=str(normalized_inputs.get("user_prompt") or "").strip(),
+            dance_style=str(normalized_inputs.get("dance_style") or "Funny"),
+            character_energy=str(normalized_inputs.get("character_energy") or "Playful"),
+            visual_style=str(normalized_inputs.get("visual_style") or "Realistic"),
+            motion_fidelity=str(normalized_inputs.get("motion_fidelity") or "Balanced"),
+            character_orientation=str(normalized_inputs.get("character_orientation") or "video"),
+            keep_original_sound=keep_original_sound,
+            duration_seconds=int(analysis.billed_duration_seconds),
+            aspect_ratio=resolved_aspect_ratio,
+            has_audio=analysis.has_audio,
+        )
+        cinematic_compiled_prompt, cinematic_compiler_metadata = compile_cinematic_prompt(
+            family="motion_control_dance",
+            model_key="kling_v26_standard_motion_control",
+            spec=cinematic_spec,
+        )
+        estimated_provider_cost_usd = round(float(analysis.billed_duration_seconds) * 0.07, 6)
+        estimated_credit_charge = CreditService().estimate(
+            "video_create",
+            {
+                "recipeId": recipe.id,
+                "modelKey": "kling_v26_standard_motion_control",
+                "modelFamily": "motion_control",
+                "durationSeconds": int(analysis.billed_duration_seconds),
+                "quality": "standard",
+                "resolution": "720p",
+                "audioMode": "auto_scene_sound" if keep_original_sound else "silent",
+                "audioSettings": {"nativeAudioEnabled": keep_original_sound},
+                "inputs": dict(normalized_inputs),
+            },
+        ).required_credits
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            recipe_family="motion_control_dance",
+            recipe_version="v1",
+            cinematic_framework="STAR-C",
+            cinematic_spec=cinematic_spec.to_dict(),
+            cinematic_compiler_metadata=cinematic_compiler_metadata,
+            cinematic_compiled_prompt=cinematic_compiled_prompt,
+            motion_reference_video_duration=analysis.duration_seconds,
+            detected_audio=analysis.has_audio,
+            estimated_provider_cost_usd=estimated_provider_cost_usd,
+            estimated_credit_charge=estimated_credit_charge,
+            aspect_ratio=resolved_aspect_ratio,
+            keep_original_sound=keep_original_sound,
+            generation_mode="reference_driven",
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="motion_control_ready",
+            title="Dance motion prepared",
+            detail="Character image, dance video timing, and motion-control prompt are ready for generation.",
+        )
+        final_video_url, provider_meta = fal_service.generate_kling_motion_control_video(
+            prompt=cinematic_compiled_prompt,
+            image_url=character_image_url,
+            video_url=dance_video_url,
+            aspect_ratio=resolved_aspect_ratio,
+            character_orientation=str(normalized_inputs.get("character_orientation") or "video"),
+            keep_original_sound=keep_original_sound,
+        )
+        generated_output_duration = _probe_media_duration_seconds(final_video_url)
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            generated_output_duration=generated_output_duration,
+            motion_control_provider_meta=provider_meta,
+        )
+        _persist_final_video(
+            video_id=video_id,
+            user_id=user_id,
+            video_url=final_video_url,
+            metadata={
+                "recipe_id": recipe.id,
+                "pipeline_version": "make_anything_dance_v1",
+                "render_mode": "reference_driven_motion_control",
+                "final_video_url": final_video_url,
+            },
+        )
+        _append_pipeline_event(
+            video_id=video_id,
+            kind="motion_control_completed",
+            title="Dance reel ready",
+            detail="Your character has been animated using the uploaded dance reference.",
+        )
+        return RecipePipelineResult(
+            provider="fal",
+            model_key="kling_v26_standard_motion_control",
+            video_url=final_video_url,
+            metadata={
+                "recipe_id": recipe.id,
+                "recipe_family": "motion_control_dance",
+                "recipe_version": "v1",
+                "generation_mode": "reference_driven",
+                "motion_reference_video_duration": analysis.duration_seconds,
+                "generated_output_duration": generated_output_duration,
+                "detected_audio": analysis.has_audio,
+                "keep_original_sound": keep_original_sound,
+                "estimated_provider_cost_usd": estimated_provider_cost_usd,
+                "estimated_credit_charge": estimated_credit_charge,
+            },
+        )
 
     if recipe.id == "avatar_product":
         from app.services.fal_video_service import FalVideoService
@@ -3229,6 +3416,8 @@ def run_recipe_pipeline(
         cinematic_spec = None
         cinematic_compiler_metadata: dict[str, Any] | None = None
         cinematic_compiled_prompt: str | None = None
+        speaking_frame_safety_enabled = False
+        product_face_spacing_strategy = "standard_recipe_framing"
         cinematic_architecture_enabled = bool(get_settings().use_new_cinematic_architecture) or str(
             normalized_inputs.get("cinematic_architecture_version")
             or initial_pipeline_metadata.get("cinematic_architecture_version")
@@ -3247,6 +3436,10 @@ def run_recipe_pipeline(
                 model_key=resolved_video_model_key,
                 spec=cinematic_spec,
             )
+            speaking_frame_safety_enabled = bool(cinematic_spec.metadata.get("speaking_frame_safety_enabled"))
+            product_face_spacing_strategy = str(
+                cinematic_spec.metadata.get("product_face_spacing_strategy") or "standard_recipe_framing"
+            )
             _merge_pipeline_metadata(
                 video_id=video_id,
                 cinematic_architecture_enabled=True,
@@ -3256,6 +3449,8 @@ def run_recipe_pipeline(
                 cinematic_spec=cinematic_spec.to_dict(),
                 cinematic_compiler_metadata=cinematic_compiler_metadata,
                 cinematic_compiled_prompt=cinematic_compiled_prompt,
+                avatar_product_speaking_frame_safety_enabled=speaking_frame_safety_enabled,
+                avatar_product_product_face_spacing_strategy=product_face_spacing_strategy,
             )
 
         if resolved_video_model_key == "seedance_v1_lite_reference":
@@ -3316,6 +3511,8 @@ def run_recipe_pipeline(
                 duration=kling_duration,
                 model_key=resolved_video_model_key,
             )
+
+        base_video_duration_seconds = _probe_media_duration_seconds(kling_video_url)
 
         resolved_gemini_voice = resolve_avatar_product_gemini_voice(
             voice_key=str((selected_persona or {}).get("default_voice_id") or effective_voice or "").strip() or None,
@@ -3406,6 +3603,7 @@ def run_recipe_pipeline(
                 "No English unless the original product or brand name requires it."
             )
         )
+        tts_audio_duration_seconds = _probe_media_duration_seconds(audio_url)
 
         logger.info(
             "avatar_product_lipsync_inputs",
@@ -3419,6 +3617,8 @@ def run_recipe_pipeline(
                 "script_word_count": len((narration_script or "").split()),
                 "script_char_count": len(narration_script or ""),
                 "requested_duration": requested_duration,
+                "base_video_duration_seconds": base_video_duration_seconds,
+                "tts_audio_duration_seconds": tts_audio_duration_seconds,
             },
         )
 
@@ -3428,12 +3628,28 @@ def run_recipe_pipeline(
             video_url=kling_video_url,
             audio_url=audio_url,
         )
+        final_lipsync_duration_seconds = _probe_media_duration_seconds(final_video_url)
+        duration_diagnostics = _build_avatar_product_duration_diagnostics(
+            requested_duration_seconds=requested_duration,
+            base_video_duration_seconds=base_video_duration_seconds,
+            tts_audio_duration_seconds=tts_audio_duration_seconds,
+            final_lipsync_duration_seconds=final_lipsync_duration_seconds,
+            resolved_video_model_key=resolved_video_model_key,
+        )
+        duration_drift_seconds = duration_diagnostics["duration_drift_seconds"]
+        if duration_drift_seconds is not None and abs(duration_drift_seconds) >= 0.75:
+            logger.warning(
+                "avatar_product_duration_drift_detected",
+                extra={"video_id": video_id, **duration_diagnostics},
+            )
 
         _merge_pipeline_metadata(
             video_id=video_id,
             pipeline_version="avatar_product_single_shot_v1",
             avatar_product_single_output=True,
             cinematic_architecture_enabled=cinematic_architecture_enabled,
+            avatar_product_speaking_frame_safety_enabled=speaking_frame_safety_enabled,
+            avatar_product_product_face_spacing_strategy=product_face_spacing_strategy,
             avatar_product_product_category_hint=product_category_hint,
             avatar_product_ugc_variant=ugc_variant,
             avatar_product_category_preservation_rules=category_preservation_rules,
@@ -3441,12 +3657,17 @@ def run_recipe_pipeline(
             avatar_product_kling_prompt=kling_prompt,
             avatar_product_kling_video_url=kling_video_url,
             avatar_product_base_video_model=resolved_video_model_key,
+            avatar_product_requested_duration_seconds=requested_duration,
+            avatar_product_base_video_duration_seconds=base_video_duration_seconds,
             avatar_product_affordable_lane=resolved_video_model_key == "seedance_v1_lite_reference",
             avatar_product_seedance_prompt=seedance_prompt,
             avatar_product_tts_audio_url=audio_url,
             avatar_product_tts_voice=resolved_gemini_voice,
             avatar_product_tts_language=resolved_gemini_language,
+            avatar_product_tts_audio_duration_seconds=tts_audio_duration_seconds,
             avatar_product_lipsync_video_url=final_video_url,
+            avatar_product_final_lipsync_duration_seconds=final_lipsync_duration_seconds,
+            avatar_product_duration_drift_seconds=duration_drift_seconds,
             avatar_product_lipsync_inputs={
                 "base_video_url": kling_video_url,
                 "audio_url": audio_url,
@@ -3456,6 +3677,7 @@ def run_recipe_pipeline(
                 "script_word_count": len((narration_script or "").split()),
                 "script_char_count": len(narration_script or ""),
                 "requested_duration": requested_duration,
+                **duration_diagnostics,
             },
             avatar_product_kling_meta=kling_meta,
             avatar_product_tts_meta=tts_meta,

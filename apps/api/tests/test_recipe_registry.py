@@ -218,6 +218,87 @@ def test_anime_lofi_reel_builds_pixverse_payload() -> None:
     assert 'through an elevated magical sky with floating glow, suspended fantasy elements, and surreal open-air depth' in payload['script']
 
 
+def test_make_anything_dance_exists_and_defaults_to_vertical_motion_control() -> None:
+    recipe = RECIPES['make_anything_dance']
+
+    assert recipe.catalog.title == 'Make Anything Dance'
+    assert recipe.generation_defaults.model_key == 'kling_v26_standard_motion_control'
+    assert recipe.generation_defaults.aspect_ratio == '9:16'
+    assert recipe.catalog.preview_video_url.endswith('panda_dancing.mp4')
+    assert [slot.id for slot in recipe.catalog.composer.slots] == ['character_image', 'dance_video', 'keep_original_sound']
+
+
+def test_make_anything_dance_requires_both_reference_inputs() -> None:
+    recipe = RECIPES['make_anything_dance']
+
+    with pytest.raises(ValueError, match='make_anything_dance requires inputs.character_image'):
+        validate_recipe_inputs(
+            recipe,
+            {
+                'dance_video': 'https://example.com/dance.mp4',
+                'duration_seconds': '8',
+            },
+        )
+
+    with pytest.raises(ValueError, match='make_anything_dance requires inputs.dance_video'):
+        validate_recipe_inputs(
+            recipe,
+            {
+                'character_image': 'https://example.com/character.png',
+                'duration_seconds': '8',
+            },
+        )
+
+
+def test_make_anything_dance_rejects_videos_longer_than_40_seconds() -> None:
+    recipe = RECIPES['make_anything_dance']
+
+    with pytest.raises(ValueError, match='Dance videos longer than 40 seconds are not supported yet.'):
+        validate_recipe_inputs(
+            recipe,
+            {
+                'character_image': 'https://example.com/character.png',
+                'dance_video': 'https://example.com/dance.mp4',
+                'duration_seconds': '41',
+                'dance_style': 'Funny',
+                'character_energy': 'Playful',
+                'visual_style': 'Realistic',
+                'motion_fidelity': 'Balanced',
+                'character_orientation': 'video',
+                'keep_original_sound': 'true',
+                'aspect_ratio': '9:16',
+            },
+        )
+
+
+def test_make_anything_dance_builds_duration_driven_payload() -> None:
+    recipe = RECIPES['make_anything_dance']
+
+    payload = build_normalized_video_payload(
+        recipe,
+        {
+            'character_image': 'https://example.com/character.png',
+            'dance_video': 'https://example.com/dance.mp4',
+            'duration_seconds': '19',
+            'has_audio': 'true',
+            'keep_original_sound': 'true',
+            'dance_style': 'Funny',
+            'character_energy': 'Playful',
+            'visual_style': 'Realistic',
+            'motion_fidelity': 'Balanced',
+            'character_orientation': 'video',
+            'aspect_ratio': '9:16',
+        },
+    )
+
+    assert payload['modelKey'] == 'kling_v26_standard_motion_control'
+    assert payload['modelFamily'] == 'motion_control'
+    assert payload['durationSeconds'] == 19
+    assert payload['audioMode'] == 'auto_scene_sound'
+    assert payload['audioSettings']['nativeAudioEnabled'] is True
+    assert payload['aspectRatio'] == '9:16'
+
+
 def test_reference_video_generator_advanced_requires_prompt_refs() -> None:
     recipe = RECIPES['reference_video_generator_advanced']
 

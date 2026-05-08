@@ -7,6 +7,8 @@ KLING_COMPILER_VERSION = '1.0.0'
 
 
 def compile_kling_prompt(spec: CinematicSpec) -> tuple[str, dict[str, object]]:
+    speaking_frame_safety_enabled = bool(spec.metadata.get('speaking_frame_safety_enabled'))
+    product_face_spacing_strategy = str(spec.metadata.get('product_face_spacing_strategy') or 'standard_recipe_framing')
     prompt = (
         'Scene:\n'
         f'- Location: {spec.scene.location}\n'
@@ -36,7 +38,9 @@ def compile_kling_prompt(spec: CinematicSpec) -> tuple[str, dict[str, object]]:
         f'- Lighting: {spec.rendering.lighting}\n'
         f'- Visual style: {spec.rendering.visual_style}\n'
         f'- Motion intensity: {spec.rendering.motion_intensity}\n'
-        f'- Lip-sync safety: {spec.rendering.lipsync_safety or "keep face stable"}\n\n'
+        f'- Lip-sync safety: {spec.rendering.lipsync_safety or "keep face stable"}\n'
+        f'- Speaking-frame safety enabled: {"yes" if speaking_frame_safety_enabled else "no"}\n'
+        f'- Product/face spacing strategy: {product_face_spacing_strategy}\n\n'
         'Constraints:\n'
         f'- Must do: {"; ".join(spec.constraints.must_do) or "none"}\n'
         f'- Must avoid: {"; ".join(spec.constraints.must_avoid) or "none"}\n'
@@ -46,4 +50,6 @@ def compile_kling_prompt(spec: CinematicSpec) -> tuple[str, dict[str, object]]:
         'compiler_name': 'kling_compiler',
         'compiler_version': KLING_COMPILER_VERSION,
         'prompt_style': 'structured_cinematic_ugc',
+        'speaking_frame_safety_enabled': speaking_frame_safety_enabled,
+        'product_face_spacing_strategy': product_face_spacing_strategy,
     }

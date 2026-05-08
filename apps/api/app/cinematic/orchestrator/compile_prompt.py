@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.cinematic.compilers.kling_compiler import compile_kling_prompt
+from app.cinematic.compilers.kling_motion_control_compiler import compile_kling_motion_control_prompt
 from app.cinematic.compilers.ltx_compiler import compile_ltx_prompt
 from app.cinematic.compilers.seedance_compiler import compile_seedance_prompt
 from app.cinematic.schemas.cinematic_spec import CinematicSpec
@@ -15,8 +16,9 @@ KLING_MODEL_KEYS = {
 
 
 def compile_cinematic_prompt(*, family: str, model_key: str, spec: CinematicSpec) -> tuple[str, dict[str, object]]:
-    _ = family
-    if model_key == 'seedance_v1_lite_reference':
+    if family == 'motion_control_dance' and model_key == 'kling_v26_standard_motion_control':
+        prompt, compiler_metadata = compile_kling_motion_control_prompt(spec)
+    elif model_key == 'seedance_v1_lite_reference':
         prompt, compiler_metadata = compile_seedance_prompt(spec)
     elif model_key in KLING_MODEL_KEYS:
         prompt, compiler_metadata = compile_kling_prompt(spec)
