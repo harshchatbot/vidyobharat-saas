@@ -15,6 +15,244 @@ from app.services.tts import list_tts_voices
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class AvatarReferenceImageVariant:
+    id: str
+    url: str
+    tags: list[str]
+
+
+@dataclass(frozen=True)
+class AvatarReferenceSelection:
+    selected_url: str | None
+    selected_id: str | None
+    selected_tags: list[str]
+    reason: str
+    candidate_count: int
+    fallback_mode: str
+
+
+_REFERENCE_TAG_DEFAULTS: dict[str, tuple[str, ...]] = {
+    'front': ('front', 'neutral', 'talking'),
+    'smile': ('smile', 'friendly', 'beauty'),
+    'desk': ('desk', 'office', 'ai'),
+    'selfie': ('selfie', 'creator', 'friendly'),
+    'left': ('left', 'profile', 'angle'),
+    'right': ('right', 'profile', 'angle'),
+    'closeup': ('closeup', 'front', 'luxury'),
+}
+
+_REFERENCE_HEURISTIC_GROUPS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (('skincare', 'beauty', 'cosmetic', 'cosmetics', 'makeup'), ('smile', 'beauty', 'friendly'), 'beauty_match'),
+    (('ai', 'saas', 'software', 'office'), ('desk', 'office', 'ai'), 'office_match'),
+    (('jewellery', 'jewelry', 'luxury'), ('front', 'closeup'), 'luxury_match'),
+)
+
+
+def _filename_variant_tags(variant_id: str) -> list[str]:
+    normalized = str(variant_id or '').strip().lower()
+    defaults = list(_REFERENCE_TAG_DEFAULTS.get(normalized, ()))
+    if normalized and normalized not in defaults:
+        defaults.append(normalized)
+    return defaults
+
+
+def _coerce_reference_variants(raw_variants: Any) -> list[AvatarReferenceImageVariant]:
+    normalized: list[AvatarReferenceImageVariant] = []
+    seen_urls: set[str] = set()
+    for item in list(raw_variants or []):
+        if isinstance(item, str):
+            url = item.strip()
+            if not url or url in seen_urls:
+                continue
+            variant_id = Path(url).stem.strip().lower() or 'reference'
+            normalized.append(
+                AvatarReferenceImageVariant(
+                    id=variant_id,
+                    url=url,
+                    tags=_filename_variant_tags(variant_id),
+                )
+            )
+            seen_urls.add(url)
+            continue
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get('url') or item.get('image_url') or '').strip()
+        if not url or url in seen_urls:
+            continue
+        variant_id = str(item.get('id') or Path(url).stem).strip().lower() or 'reference'
+        tags = [str(tag).strip().lower() for tag in list(item.get('tags') or []) if str(tag).strip()]
+        if not tags:
+            tags = _filename_variant_tags(variant_id)
+        normalized.append(
+            AvatarReferenceImageVariant(
+                id=variant_id,
+                url=url,
+                tags=list(dict.fromkeys(tags)),
+            )
+        )
+        seen_urls.add(url)
+    return normalized
+
+
+def _filesystem_reference_variants(*, avatar_id: str, base_url: str) -> list[AvatarReferenceImageVariant]:
+    normalized_id = str(avatar_id or '').strip()
+    if not normalized_id:
+        return []
+    root = Path('data/uploads/avatars') / normalized_id
+    if not root.exists() or not root.is_dir():
+        return []
+    variants: list[AvatarReferenceImageVariant] = []
+    for path in sorted(root.iterdir()):
+        if not path.is_file() or path.suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'}:
+            continue
+        variant_id = path.stem.strip().lower()
+        relative_url = f"{base_url.rstrip('/')}/uploads/avatars/{normalized_id}/{path.name}"
+        variants.append(
+            AvatarReferenceImageVariant(
+                id=variant_id or 'reference',
+                url=relative_url,
+                tags=_filename_variant_tags(variant_id),
+            )
+        )
+    return variants
+
+
+def _merge_reference_variants(
+    *,
+    avatar_id: str,
+    base_url: str,
+    primary_image: str | None,
+    raw_reference_images: Any,
+    fallback_reference_image_url: str | None = None,
+) -> tuple[str | None, list[str], list[AvatarReferenceImageVariant]]:
+    variants = _coerce_reference_variants(raw_reference_images)
+    if fallback_reference_image_url:
+        fallback_url = str(fallback_reference_image_url).strip()
+        if fallback_url and all(item.url != fallback_url for item in variants):
+            fallback_id = Path(fallback_url).stem.strip().lower() or 'reference'
+            variants.insert(
+                0,
+                AvatarReferenceImageVariant(
+                    id=fallback_id,
+                    url=fallback_url,
+                    tags=_filename_variant_tags(fallback_id),
+                ),
+            )
+    fs_variants = _filesystem_reference_variants(avatar_id=avatar_id, base_url=base_url)
+    existing_urls = {item.url for item in variants}
+    variants.extend(item for item in fs_variants if item.url not in existing_urls)
+
+    ordered_urls: list[str] = []
+    selected_primary = str(primary_image or '').strip() or None
+    if selected_primary:
+        ordered_urls.append(selected_primary)
+    for item in variants:
+        if item.url and item.url not in ordered_urls:
+            ordered_urls.append(item.url)
+    if not selected_primary and ordered_urls:
+        selected_primary = ordered_urls[0]
+    return selected_primary, ordered_urls, variants
+
+
+def resolve_avatar_reference_variants(
+    *,
+    avatar_id: str,
+    base_url: str,
+    primary_image: str | None,
+    raw_reference_images: Any,
+    fallback_reference_image_url: str | None = None,
+) -> tuple[str | None, list[str], list[AvatarReferenceImageVariant]]:
+    return _merge_reference_variants(
+        avatar_id=avatar_id,
+        base_url=base_url,
+        primary_image=primary_image,
+        raw_reference_images=raw_reference_images,
+        fallback_reference_image_url=fallback_reference_image_url,
+    )
+
+
+def selectBestAvatarReferenceImage(
+    *,
+    avatar: dict[str, Any],
+    recipe_id: str,
+    product_category: str | None = None,
+    scene_type: str | None = None,
+    prompt_text: str | None = None,
+) -> AvatarReferenceSelection:
+    del recipe_id, scene_type
+    variants = _coerce_reference_variants(avatar.get('reference_image_variants') or [])
+    primary_image = str(avatar.get('primary_image') or '').strip()
+    reference_images = [str(item).strip() for item in list(avatar.get('reference_images') or []) if str(item).strip()]
+
+    if not variants:
+        selected_url = primary_image or (reference_images[0] if reference_images else None)
+        return AvatarReferenceSelection(
+            selected_url=selected_url,
+            selected_id=Path(selected_url).stem.strip().lower() if selected_url else None,
+            selected_tags=[],
+            reason='legacy_single_image_fallback',
+            candidate_count=len(reference_images) or (1 if selected_url else 0),
+            fallback_mode='legacy',
+        )
+
+    haystack = ' '.join(
+        part.strip().lower()
+        for part in [str(product_category or ''), str(prompt_text or '')]
+        if part and part.strip()
+    )
+
+    def score_variant(variant: AvatarReferenceImageVariant) -> tuple[int, int, int, int]:
+        tag_set = {tag.lower() for tag in variant.tags}
+        heuristic_score = 0
+        match_priority = 0
+        for keywords, preferred_tags, _reason in _REFERENCE_HEURISTIC_GROUPS:
+            if any(keyword in haystack for keyword in keywords):
+                heuristic_score = max(
+                    heuristic_score,
+                    sum(10 for tag in preferred_tags if tag in tag_set),
+                )
+                if heuristic_score:
+                    match_priority = 1
+        safe_fallback_score = sum(4 for tag in ('front', 'neutral', 'talking') if tag in tag_set)
+        primary_bonus = 3 if primary_image and variant.url == primary_image else 0
+        return (match_priority, heuristic_score, safe_fallback_score, primary_bonus)
+
+    ranked = sorted(
+        variants,
+        key=lambda item: (
+            score_variant(item)[0],
+            score_variant(item)[1],
+            score_variant(item)[2],
+            score_variant(item)[3],
+            -len(item.tags),
+            item.id,
+        ),
+        reverse=True,
+    )
+    selected = ranked[0]
+
+    reason = 'generic_safe_fallback'
+    fallback_mode = 'structured'
+    for keywords, preferred_tags, heuristic_reason in _REFERENCE_HEURISTIC_GROUPS:
+        if any(keyword in haystack for keyword in keywords) and any(tag in {value.lower() for value in selected.tags} for tag in preferred_tags):
+            reason = heuristic_reason
+            break
+    else:
+        if primary_image and selected.url == primary_image:
+            reason = 'primary_image_fallback'
+            fallback_mode = 'primary'
+
+    return AvatarReferenceSelection(
+        selected_url=selected.url,
+        selected_id=selected.id,
+        selected_tags=selected.tags,
+        reason=reason,
+        candidate_count=len(variants),
+        fallback_mode=fallback_mode,
+    )
+
+
 def build_avatar_master_prompt(
     *,
     gender: str | None,
@@ -79,6 +317,7 @@ class ActorRecord:
     tags: list[str]
     category: str | None
     reference_images: list[str]
+    reference_image_variants: list[AvatarReferenceImageVariant]
     primary_image: str | None
     preview_video_url: str | None
     prompt_template: str | None
@@ -100,6 +339,7 @@ class CustomAvatarRecord:
     name: str
     reference_image_url: str
     reference_images: list[str]
+    reference_image_variants: list[AvatarReferenceImageVariant]
     gender: str | None = None
     primary_image: str | None = None
     preferred_voice: str | None = None
@@ -118,6 +358,7 @@ class CustomAvatarRecord:
 class AvatarService:
     def __init__(self) -> None:
         self.settings = get_settings()
+        public_base = self.settings.public_asset_base_url.rstrip('/')
         self._preset_records = [
             ActorRecord(
                 id='av-priya',
@@ -130,6 +371,13 @@ class AvatarService:
                 tags=['ugc', 'indian', 'female', 'studio'],
                 category='ugc_influencer',
                 reference_images=['https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80'],
+                reference_image_variants=_filesystem_reference_variants(avatar_id='av-priya', base_url=public_base) or [
+                    AvatarReferenceImageVariant(
+                        id='front',
+                        url='https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80',
+                        tags=['front', 'neutral', 'talking'],
+                    )
+                ],
                 primary_image='https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80',
                 preview_video_url=None,
                 prompt_template='Indian female creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
@@ -157,6 +405,13 @@ class AvatarService:
                 tags=['ugc', 'indian', 'male', 'corporate'],
                 category='ugc_influencer',
                 reference_images=['https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=1200&q=80'],
+                reference_image_variants=_filesystem_reference_variants(avatar_id='av-arjun', base_url=public_base) or [
+                    AvatarReferenceImageVariant(
+                        id='front',
+                        url='https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=1200&q=80',
+                        tags=['front', 'neutral', 'talking'],
+                    )
+                ],
                 primary_image='https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=1200&q=80',
                 preview_video_url=None,
                 prompt_template='Indian male creator speaking naturally to camera, selfie-style, direct eye contact, realistic expression',
@@ -275,6 +530,10 @@ class AvatarService:
             'name': record.name,
             'thumbnail_url': record.thumbnail_url,
             'reference_images': record.reference_images,
+            'reference_image_variants': [
+                {'id': item.id, 'url': item.url, 'tags': item.tags}
+                for item in record.reference_image_variants
+            ],
             'primary_image': record.primary_image,
             'preview_video_url': record.preview_video_url,
             'tags': record.tags,
@@ -413,11 +672,14 @@ class AvatarService:
         if str(data.get('user_id') or '').strip() != normalized_user_id:
             return None
 
-        reference_images = self._normalize_reference_images(
-            data.get('reference_images') or [data.get('reference_image_url')] if data.get('reference_image_url') else []
+        primary_image, reference_images, reference_image_variants = _merge_reference_variants(
+            avatar_id=normalized_id,
+            base_url=self.settings.public_asset_base_url,
+            primary_image=str(data.get('primary_image') or '').strip() or None,
+            raw_reference_images=data.get('reference_images'),
+            fallback_reference_image_url=str(data.get('reference_image_url') or '').strip() or None,
         )
         reference_image_url = str(data.get('reference_image_url') or '').strip() or (reference_images[0] if reference_images else '')
-        primary_image = str(data.get('primary_image') or '').strip() or reference_image_url or (reference_images[0] if reference_images else None)
         if not primary_image:
             return None
 
@@ -439,6 +701,7 @@ class AvatarService:
             name=str(data.get('name') or 'Custom Avatar').strip(),
             reference_image_url=reference_image_url,
             reference_images=reference_images or [primary_image],
+            reference_image_variants=reference_image_variants,
             primary_image=primary_image,
             preferred_voice=preferred_voice,
             voice_profile=self._normalize_voice_profile(
@@ -525,16 +788,20 @@ class AvatarService:
             for item in list(data.get('language_support') or data.get('supported_languages') or data.get('language_tags') or [])
             if str(item).strip()
         ]
-        reference_images = self._normalize_reference_images(
-            data.get('reference_images')
-            or ([data.get('reference_image_url')] if data.get('reference_image_url') else [])
-            or ([data.get('avatar_image_url')] if data.get('avatar_image_url') else [])
-        )
-        primary_image = (
-            str(data.get('primary_image') or '').strip()
-            or str(data.get('reference_image_url') or '').strip()
-            or str(data.get('avatar_image_url') or '').strip()
-            or (reference_images[0] if reference_images else None)
+        primary_image, reference_images, reference_image_variants = _merge_reference_variants(
+            avatar_id=actor_id,
+            base_url=self.settings.public_asset_base_url,
+            primary_image=str(data.get('primary_image') or '').strip() or None,
+            raw_reference_images=(
+                data.get('reference_images')
+                or ([data.get('reference_image_url')] if data.get('reference_image_url') else [])
+                or ([data.get('avatar_image_url')] if data.get('avatar_image_url') else [])
+            ),
+            fallback_reference_image_url=(
+                str(data.get('reference_image_url') or '').strip()
+                or str(data.get('avatar_image_url') or '').strip()
+                or None
+            ),
         )
         style = str(data.get('style') or data.get('category') or 'actor').strip()
         normalized_gender = str(data.get('gender') or '').strip() or None
@@ -558,6 +825,7 @@ class AvatarService:
             tags=[str(tag).strip() for tag in list(data.get('tags') or []) if str(tag).strip()],
             category=str(data.get('category') or '').strip() or None,
             reference_images=reference_images,
+            reference_image_variants=reference_image_variants,
             primary_image=primary_image,
             preview_video_url=str(data.get('preview_video_url') or '').strip() or None,
             prompt_template=str(data.get('prompt_template') or '').strip() or None,
@@ -598,6 +866,10 @@ class AvatarService:
             tags=record.tags,
             category=record.category,
             reference_images=record.reference_images,
+            reference_image_variants=[
+                {'id': item.id, 'url': item.url, 'tags': item.tags}
+                for item in record.reference_image_variants
+            ],
             primary_image=record.primary_image,
             preview_video_url=record.preview_video_url,
             prompt_template=record.prompt_template,
@@ -627,11 +899,13 @@ class AvatarService:
                 if str(data.get('provider') or '').strip().lower() == 'heygen':
                     continue
 
-                reference_images = self._normalize_reference_images(
-                    data.get('reference_images') or ([data.get('reference_image_url')] if data.get('reference_image_url') else [])
+                primary_image, reference_images, reference_image_variants = _merge_reference_variants(
+                    avatar_id=str(data.get('id') or snap.id),
+                    base_url=self.settings.public_asset_base_url,
+                    primary_image=str(data.get('primary_image') or '').strip() or None,
+                    raw_reference_images=data.get('reference_images'),
+                    fallback_reference_image_url=str(data.get('reference_image_url') or '').strip() or None,
                 )
-                reference_image_url = str(data.get('reference_image_url') or '').strip() or (reference_images[0] if reference_images else '')
-                primary_image = str(data.get('primary_image') or '').strip() or reference_image_url or (reference_images[0] if reference_images else None)
                 if not primary_image:
                     continue
                 normalized_gender = str(data.get('gender') or '').strip() or None
@@ -662,6 +936,10 @@ class AvatarService:
                         tags=[str(item).strip() for item in list(data.get('tags') or []) if str(item).strip()] or ['custom', 'ugc'],
                         category=str(data.get('category') or 'custom_avatar').strip() or 'custom_avatar',
                         reference_images=reference_images or [primary_image],
+                        reference_image_variants=[
+                            {'id': item.id, 'url': item.url, 'tags': item.tags}
+                            for item in reference_image_variants
+                        ],
                         primary_image=primary_image,
                         preview_video_url=str(data.get('preview_video_url') or data.get('last_preview_video_url') or '').strip() or None,
                         prompt_template=str(data.get('prompt_template') or '').strip() or None,

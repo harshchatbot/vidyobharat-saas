@@ -81,6 +81,35 @@ def test_category_specific_follow_up_is_used_after_tier1_is_complete() -> None:
     )
 
 
+def test_home_decor_prompt_extracts_better_category_audience_and_benefit() -> None:
+    service = AvatarProductWorkflowService()
+
+    result = service.assess(
+        message="Create an avatar product ad for a lightweight wooden wall clock using WhatsApp image.",
+        image_urls=["https://example.com/clock.png"],
+        avatar_id="riya_01",
+    )
+
+    assert result.fields.product_category == "home_kitchen"
+    assert "home decor" in result.fields.target_audience.lower()
+    assert "easy to hang" in result.fields.main_benefit.lower()
+
+
+def test_frontend_home_decor_category_alias_maps_to_backend_taxonomy() -> None:
+    service = AvatarProductWorkflowService()
+
+    result = service.assess(
+        message="Create an avatar product ad for a lightweight wooden wall clock.",
+        image_urls=["https://example.com/clock.png"],
+        avatar_id="riya_01",
+        advanced_controls={
+            "product_category": "home_decor",
+        },
+    )
+
+    assert result.fields.product_category == "home_kitchen"
+
+
 def test_script_mode_fields_support_exact_script_lock() -> None:
     service = AvatarProductWorkflowService()
 

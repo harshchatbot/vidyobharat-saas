@@ -41,3 +41,34 @@ export const FIREBASE_STORAGE_BUCKET = envFirebaseStorageBucket || '';
 export const FIREBASE_MESSAGING_SENDER_ID = envFirebaseMessagingSenderId || '';
 export const FIREBASE_MEASUREMENT_ID = envFirebaseMeasurementId || '';
 export const GOOGLE_CLIENT_ID = envGoogleClientId || '';
+
+function isLoopbackHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function normalizeLocalApiUrl(rawUrl: string) {
+  if (typeof window === 'undefined') return rawUrl;
+
+  try {
+    const parsed = new URL(rawUrl);
+    const browserHost = window.location.hostname;
+    if (!isLoopbackHostname(parsed.hostname) || !isLoopbackHostname(browserHost)) {
+      return rawUrl;
+    }
+    if (parsed.hostname === browserHost) {
+      return rawUrl;
+    }
+    parsed.hostname = browserHost;
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return rawUrl;
+  }
+}
+
+export function getApiUrl() {
+  return normalizeLocalApiUrl(API_URL);
+}
+
+export function getApiFallbackUrl() {
+  return normalizeLocalApiUrl(API_FALLBACK_URL);
+}

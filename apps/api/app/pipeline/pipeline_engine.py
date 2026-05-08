@@ -31,7 +31,12 @@ from app.pipeline.scene_planner import (
 )
 from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, LTX_BENCHMARK_RECIPE_IDS, LTX_FREEFORM_RECIPE_IDS, LTX_RECIPE_IDS, UGC_AD_RECIPE_IDS, get_recipe, validate_recipe_inputs
 from app.services.audio_analysis_service import AudioAnalysisService
-from app.services.avatar_service import AvatarService, build_avatar_master_prompt
+from app.services.avatar_service import (
+    AvatarService,
+    build_avatar_master_prompt,
+    resolve_avatar_reference_variants,
+    selectBestAvatarReferenceImage,
+)
 from app.services.avatar_product_tts_catalog import (
     resolve_avatar_product_gemini_language,
     resolve_avatar_product_gemini_voice,
@@ -169,6 +174,30 @@ def _compact_spoken_line(text: str, *, fallback: str) -> str:
         return cleaned
     shortened = cleaned[:140].rsplit(' ', 1)[0].strip()
     return shortened or cleaned[:140].strip()
+
+
+def _translate_avatar_product_narration_if_needed(
+    script: str,
+    *,
+    target_language: str | None,
+) -> tuple[str, bool]:
+    normalized_script = re.sub(r"\s+", " ", str(script or "").strip())
+    resolved_target_language = str(target_language or "").strip()
+    if not normalized_script or not resolved_target_language or resolved_target_language == "English (India)":
+        return normalized_script, False
+
+    translated = QwenService(get_settings()).complete_text(
+        task_type="translate",
+        system_prompt=(
+            "Translate the provided text accurately into the requested target language. "
+            "If the text is already in the target language, return it unchanged. "
+            "Return only the translated text. Keep product names and brand names unchanged where appropriate."
+        ),
+        user_prompt=f"Target language: {resolved_target_language}\n\nText:\n{normalized_script}",
+        temperature=0.2,
+    )
+    cleaned = re.sub(r"\s+", " ", str(translated or "").strip())
+    return (cleaned or normalized_script), bool(cleaned and cleaned != normalized_script)
 
 
 
@@ -348,9 +377,19 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
         return None
 
     settings = get_settings()
+    avatar_service = AvatarService()
     chitrakala_persona_id = str(settings.chitrakala_persona_id or '').strip()
-    if normalized_id == chitrakala_persona_id:
+    actor = avatar_service.get_actor_record(normalized_id, user_id=user_id)
+    if normalized_id == chitrakala_persona_id and not actor:
         image_url = str(settings.chitrakala_avatar_image_url or '').strip()
+        primary_image, reference_images, reference_image_variants = resolve_avatar_reference_variants(
+            avatar_id=chitrakala_persona_id,
+            base_url=settings.public_asset_base_url,
+            primary_image=image_url or None,
+            raw_reference_images=[image_url] if image_url else [],
+            fallback_reference_image_url=image_url or None,
+        )
+        image_url = primary_image or image_url
         thumbnail_url = str(settings.chitrakala_avatar_thumbnail_url or image_url).strip() or image_url
         if not image_url:
             return None
@@ -370,7 +409,11 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
                 or 'friendly Indian creator named Chitrakala speaking naturally to camera, subtle head movement, persuasive calm expression, minimal movement'
             ),
             "negative_prompt": str(settings.chitrakala_avatar_negative_prompt or '').strip() or None,
-            "reference_images": [image_url],
+            "reference_images": reference_images or [image_url],
+            "reference_image_variants": [
+                {'id': item.id, 'url': item.url, 'tags': item.tags}
+                for item in reference_image_variants
+            ],
             "voice_profile": None,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": None,
@@ -385,8 +428,6 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "supports_avatar_video_generation": True,
         }
 
-    avatar_service = AvatarService()
-    actor = avatar_service.get_actor_record(normalized_id, user_id=user_id)
     if actor:
         default_voice = voice_override or actor.recommended_voice or ("Priya" if "female" in actor.style.lower() else "Shubh")
         reference_image = actor.primary_image or (actor.reference_images[0] if actor.reference_images else actor.thumbnail_url)
@@ -407,6 +448,10 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             ),
             "negative_prompt": actor.negative_prompt,
             "reference_images": actor.reference_images,
+            "reference_image_variants": [
+                {'id': item.id, 'url': item.url, 'tags': item.tags}
+                for item in actor.reference_image_variants
+            ],
             "voice_profile": actor.voice_profile,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": actor.preview_video_url,
@@ -433,6 +478,16 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
                 f"friendly Indian creator named {avatar.name} speaking naturally to camera, "
                 "subtle head movement, natural blinking, calm confident expression, minimal movement"
             ),
+            "reference_images": list(getattr(avatar, "reference_images", []) or []),
+            "reference_image_variants": [
+                {
+                    'id': str(item.get('id') or ''),
+                    'url': str(item.get('url') or ''),
+                    'tags': [str(tag) for tag in list(item.get('tags') or []) if str(tag)],
+                }
+                for item in list(getattr(avatar, "reference_image_variants", []) or [])
+                if str(item.get('url') or '').strip()
+            ],
             "voice_profile": None,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": None,
@@ -471,6 +526,7 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
             "default_voice_id": inferred_voice,
             "language_preference": language_override or "en-IN",
             "default_behavior_prompt": persona.system_prompt_template or ", ".join(part for part in behavior_parts if part),
+            "reference_images": [persona.reference_image_url] if persona.reference_image_url else [],
             "voice_profile": None,
             "default_camera_style": "selfie_medium_close",
             "preview_video_url": None,
@@ -507,6 +563,11 @@ def _resolve_ugc_persona(*, persona_id: str | None, user_id: str, voice_override
         "default_camera_style": "selfie_medium_close",
         "preview_video_url": custom_avatar.preview_video_url,
         "negative_prompt": custom_avatar.negative_prompt,
+        "reference_images": custom_avatar.reference_images,
+        "reference_image_variants": [
+            {'id': item.id, 'url': item.url, 'tags': item.tags}
+            for item in custom_avatar.reference_image_variants
+        ],
         **_persona_provider_fields(custom_avatar.raw, default_provider='fal'),
     }
 
@@ -750,7 +811,7 @@ def _repair_avatar_product_narration_for_category(
     if not found_terms:
         return text, [], False
 
-    safe_product_name = product_name.strip() or "this kurti"
+    safe_product_name = product_name.strip() or "this product"
 
     repaired = (
         f"{safe_product_name} is soft, breathable, and perfect for everyday wear. "
@@ -759,6 +820,33 @@ def _repair_avatar_product_narration_for_category(
     )
 
     return repaired, found_terms, True
+
+
+def _is_avatar_product_clothing_category(category: str) -> bool:
+    normalized = str(category or "").strip().lower()
+    return any(word in normalized for word in ["clothing", "apparel", "fashion", "kurti", "dress", "top", "shirt", "saree", "lehenga"])
+
+
+def _avatar_product_hero_reveal_guidance(product_category_hint: str) -> str:
+    if _is_avatar_product_clothing_category(product_category_hint):
+        return (
+            "TIMED HERO PRODUCT REVEAL:\n"
+            "- Between second 1 and second 3, the creator must complete a clear hero reveal of the product.\n"
+            "- Start with the garment folded or partly held at chest level, then unfold/open it with both hands toward the camera.\n"
+            "- By second 3, the full front side of the garment must be clearly visible: neckline, button placket, sleeves, color, motifs/print, and fabric texture.\n"
+            "- After the reveal, hold the product steady and front-facing for at least 2 seconds.\n"
+            "- Keep the creator's face visible above or beside the garment; do not let the garment fully cover the face.\n"
+            "- Avoid random waving, casual dangling, or hiding the product."
+        )
+
+    return (
+        "TIMED HERO PRODUCT REVEAL:\n"
+        "- The product must be visible from the first frame and remain clearly readable while the creator speaks.\n"
+        "- Between second 1 and second 3, the creator must complete one clean hero reveal by lifting, angling, or bringing the product closer to camera.\n"
+        "- After the reveal, keep the product steady, front-facing, and unobstructed for at least 2 seconds.\n"
+        "- Keep the creator's face visible and unobstructed while the product stays in hand.\n"
+        "- Avoid random waving, fast swings, hiding the product, or letting it leave the frame."
+    )
 
 
 
@@ -1547,7 +1635,7 @@ def _pick_avatar_product_ugc_variant(*, video_id: str, product_category_hint: st
         variants = [
             {
                 "setting": "cozy home decor shelf corner with soft daylight",
-                "wardrobe": "earthy beige, rust, olive, or cream casual kurti/top, cozy handmade creator style",
+                "wardrobe": "earthy beige, rust, olive, or cream casual top, cozy handmade creator style",
                 "camera": "medium close-up creator framing, handmade item held near camera",
                 "movement": "slow product tilt, relaxed smile, stable hand grip",
             },
@@ -1616,6 +1704,8 @@ def _build_avatar_product_single_shot_kling_prompt(
         product_category_hint=product_category_hint,
     )
 
+    hero_reveal_guidance = _avatar_product_hero_reveal_guidance(product_category_hint)
+
     prompt = f"""
         Image 1 is ONLY the creator identity reference for {avatar_name}. Use it for face, identity, hairstyle, age, skin tone, and expression only. Ignore any product, bottle, jewellery, accessory, or object visible in Image 1.
 
@@ -1623,13 +1713,7 @@ def _build_avatar_product_single_shot_kling_prompt(
 
         The product must be visible from the first frame/first second and stay clearly visible with the creator throughout the video.
 
-        TIMED HERO PRODUCT REVEAL:
-        - Between second 1 and second 3, the creator must complete a clear hero reveal of the product.
-        - For clothing/kurti products, start with the garment folded or partly held at chest level, then unfold/open it with both hands toward the camera.
-        - By second 3, the full front side of the kurti must be clearly visible: neckline, button placket, sleeves, color, motifs/print, and fabric texture.
-        - After the reveal, hold the product steady and front-facing for at least 2 seconds.
-        - Keep the creator's face visible above or beside the garment; do not let the kurti fully cover the face.
-        - Avoid random waving, casual dangling, or hiding the product.
+        {hero_reveal_guidance}
 
         The product must remain only in the creator's hand. Do not show the creator wearing the product or wearing any matching version of the product. Keep it as a handheld showcase item only.
 
@@ -1667,11 +1751,11 @@ def _build_avatar_product_seedance_lite_prompt(
     )
 
     speaking_motion = (
-        "The creator is looking directly into the lens and speaking energetically to the camera. "
+        "The creator is looking directly into the lens and speaking naturally to the camera. "
         "Her mouth is moving clearly and continuously with natural speech-like motion as she presents the product. "
-        "She is nodding and smiling while talking, with natural facial expressions. "
+        "Use subtle expressions, light nods, and minimal head movement so the face stays stable and readable. "
         "Keep mouth movement realistic and not exaggerated. "
-        "Keep the face visible and readable for later lip-sync replacement. "
+        "Keep the face visible, frontal, and easy to track for later lip-sync replacement. "
     )
 
     if any(word in category for word in ["sneaker", "shoe", "shoes", "footwear", "sandal"]):
@@ -1703,6 +1787,7 @@ def _build_avatar_product_seedance_lite_prompt(
         product_motion = (
             "The creator holds the product steadily in the foreground and presents it clearly to the camera. "
             "The product remains visible from the first second and stays visible while she speaks. "
+            "Between second 1 and second 3, she completes one clean hero reveal by lifting, tilting, or bringing the product closer to camera, then holds it steady. "
         )
 
     script_context = (
@@ -2196,6 +2281,26 @@ def run_recipe_pipeline(
                 topic=topic,
                 avatar_product_brief=avatar_product_brief or AvatarProductBrief(),
             )
+            if recipe.id == "avatar_product":
+                requested_duration_seconds = int(
+                    normalized_inputs.get("duration_seconds")
+                    or normalized_inputs.get("durationSeconds")
+                    or normalized_payload.get("durationSeconds")
+                    or recipe.duration_seconds
+                    or 5
+                )
+
+                if requested_duration_seconds not in {5, 10}:
+                    requested_duration_seconds = 5
+
+                scenes = [
+                    {
+                        **scene,
+                        "duration_seconds": requested_duration_seconds,
+                        "talking_duration_hint_seconds": requested_duration_seconds,
+                    }
+                    for scene in scenes
+                ]
         else:
             scenes = build_ugc_ad_scene_plan(
                 recipe=recipe,
@@ -2739,21 +2844,62 @@ def run_recipe_pipeline(
         fal_service = FalVideoService()
 
         product_name = avatar_product_brief.product_name if avatar_product_brief else (topic or "the product")
-        avatar_image_url = str((selected_persona or {}).get("image_url") or "").strip()
+        product_category_hint = product_category_hint or _avatar_product_category_hint(
+            normalized_inputs=normalized_inputs,
+            avatar_product_brief=avatar_product_brief,
+        )
+        avatar_reference_selection = selectBestAvatarReferenceImage(
+            avatar=selected_persona or {},
+            recipe_id=recipe.id,
+            product_category=product_category_hint,
+            scene_type="single_shot_avatar_product",
+            prompt_text=narration_script or topic,
+        )
+        avatar_image_url = str(
+            avatar_reference_selection.selected_url
+            or (selected_persona or {}).get("image_url")
+            or ""
+        ).strip()
         product_image_url = str(reference or "").strip()
         avatar_name = str((selected_persona or {}).get("name") or "the selected avatar").strip()
+
+        if selected_persona and avatar_image_url:
+            selected_persona = {
+                **selected_persona,
+                "image_url": avatar_image_url,
+            }
+
+        logger.info(
+            "avatar_product_reference_image_selected",
+            extra={
+                "video_id": video_id,
+                "recipe_id": recipe.id,
+                "avatar_id": (selected_persona or {}).get("persona_id"),
+                "product_category_hint": product_category_hint,
+                "selected_reference_image_id": avatar_reference_selection.selected_id,
+                "selected_reference_image_tags": avatar_reference_selection.selected_tags,
+                "selected_reference_image_url": avatar_image_url or None,
+                "candidate_count": avatar_reference_selection.candidate_count,
+                "selection_reason": avatar_reference_selection.reason,
+                "fallback_mode": avatar_reference_selection.fallback_mode,
+            },
+        )
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            selected_persona=selected_persona or {},
+            avatar_product_selected_reference_image_id=avatar_reference_selection.selected_id,
+            avatar_product_selected_reference_image_url=avatar_image_url or None,
+            avatar_product_selected_reference_image_tags=avatar_reference_selection.selected_tags,
+            avatar_product_reference_image_candidate_count=avatar_reference_selection.candidate_count,
+            avatar_product_reference_image_selection_reason=avatar_reference_selection.reason,
+            avatar_product_reference_image_selection_fallback_mode=avatar_reference_selection.fallback_mode,
+        )
 
         if not avatar_image_url:
             raise RuntimeError("Avatar Product requires a selected avatar image for single-shot generation.")
 
         if not product_image_url:
             raise RuntimeError("Avatar Product requires an uploaded product image for single-shot generation.")
-
-
-        product_category_hint = product_category_hint or _avatar_product_category_hint(
-            normalized_inputs=normalized_inputs,
-            avatar_product_brief=avatar_product_brief,
-        )
 
         kling_prompt, ugc_variant, category_preservation_rules = _build_avatar_product_single_shot_kling_prompt(
             avatar_name=avatar_name,
@@ -2866,12 +3012,39 @@ def run_recipe_pipeline(
                 model_key=resolved_video_model_key,
             )
 
-        original_narration_script_for_tts = str(narration_script or "").strip()
+        resolved_gemini_voice = resolve_avatar_product_gemini_voice(
+            voice_key=str((selected_persona or {}).get("default_voice_id") or effective_voice or "").strip() or None,
+            gender=(selected_persona or {}).get("gender"),
+        )
+        resolved_gemini_language = resolve_avatar_product_gemini_language(effective_language)
+
+        translated_narration_script, translation_applied = _translate_avatar_product_narration_if_needed(
+            narration_script or "",
+            target_language=resolved_gemini_language,
+        )
+        if translation_applied:
+            logger.info(
+                "avatar_product_tts_script_translated",
+                extra={
+                    "video_id": video_id,
+                    "requested_language": effective_language,
+                    "resolved_gemini_language": resolved_gemini_language,
+                    "translated_script": translated_narration_script[:260],
+                },
+            )
+            _merge_pipeline_metadata(
+                video_id=video_id,
+                avatar_product_tts_translation_applied=True,
+                avatar_product_tts_translated_language=resolved_gemini_language,
+                avatar_product_tts_translated_script=translated_narration_script,
+            )
+
+        original_narration_script_for_tts = str(translated_narration_script or "").strip()
 
         narration_script = _cap_spoken_script_for_duration(
-            narration_script or "",
+            translated_narration_script or "",
             duration_seconds=requested_duration,
-            language=effective_language,
+            language=resolved_gemini_language,
         )
 
         if narration_script != original_narration_script_for_tts:
@@ -2887,12 +3060,6 @@ def run_recipe_pipeline(
                 },
             )
 
-        resolved_gemini_voice = resolve_avatar_product_gemini_voice(
-            voice_key=str((selected_persona or {}).get("default_voice_id") or effective_voice or "").strip() or None,
-            gender=(selected_persona or {}).get("gender"),
-        )
-        resolved_gemini_language = resolve_avatar_product_gemini_language(effective_language)
-
         logger.info(
             "chitrakala_gemini_tts_started",
             extra={
@@ -2905,6 +3072,11 @@ def run_recipe_pipeline(
             text=narration_script or "",
             voice=resolved_gemini_voice,
             language_code=resolved_gemini_language,
+            style_instructions=(
+                f"Speak entirely in {resolved_gemini_language}. "
+                "Warm Indian creator voice, natural talking-head product ad delivery, "
+                "clear pacing, friendly confidence, no English unless the original product or brand name requires it."
+            ),
         )
 
         logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})

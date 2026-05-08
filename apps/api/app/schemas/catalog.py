@@ -3,6 +3,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class AvatarReferenceImageVariantResponse(BaseModel):
+    id: str
+    url: str
+    tags: list[str] = Field(default_factory=list)
+
+
 class AvatarResponse(BaseModel):
     id: str
     name: str
@@ -20,6 +26,7 @@ class AvatarResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
     category: str | None = None
     reference_images: list[str] = Field(default_factory=list)
+    reference_image_variants: list[AvatarReferenceImageVariantResponse] = Field(default_factory=list)
     primary_image: str | None = None
     preview_video_url: str | None = None
     prompt_template: str | None = None

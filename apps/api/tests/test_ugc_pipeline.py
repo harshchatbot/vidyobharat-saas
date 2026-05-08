@@ -4,18 +4,24 @@ from app.pipeline.pipeline_engine import (
     _apply_avatar_product_enhancer_to_scenes,
     _apply_chitrakala_v1_scene_strategy,
     _avatar_product_enhancer_metadata,
+    _avatar_product_hero_reveal_guidance,
+    _build_avatar_product_seedance_lite_prompt,
+    _build_avatar_product_single_shot_kling_prompt,
     _build_chitrakala_showcase_prompt,
     _compose_avatar_product_narration_script,
     _extract_ugc_talking_excerpt,
     _is_chitrakala_showcase_scene,
+    _resolve_ugc_persona,
     _resolve_requested_avatar_id,
     _split_chitrakala_manual_script,
+    _translate_avatar_product_narration_if_needed,
     clean_ugc_script,
     generate_ugc_raw_script,
 )
 from app.pipeline.scene_planner import AvatarProductBrief, build_avatar_product_scene_plan, build_ugc_ad_scene_plan
 from app.recipes.recipe_registry import get_recipe
 from app.services.hf_qwen_enhancer_service import HFQwenEnhancerInput, HFQwenEnhancerResult
+from app.services.avatar_service import ActorRecord, AvatarReferenceImageVariant
 
 
 def test_clean_ugc_script_removes_labels_and_bullets() -> None:
@@ -219,6 +225,133 @@ def test_resolve_requested_avatar_id_falls_back_to_legacy_avatar_id() -> None:
     )
 
     assert requested_avatar_id == "legacy_avatar"
+
+
+def test_translate_avatar_product_narration_if_needed_skips_english() -> None:
+    translated, applied = _translate_avatar_product_narration_if_needed(
+        "This wall clock is lightweight and easy to hang.",
+        target_language="English (India)",
+    )
+
+    assert translated == "This wall clock is lightweight and easy to hang."
+    assert applied is False
+
+
+def test_translate_avatar_product_narration_if_needed_uses_qwen_for_non_english(monkeypatch) -> None:
+    class FakeQwenService:
+        def __init__(self, _settings) -> None:
+            pass
+
+        def complete_text(self, **_kwargs):
+            return "यह वॉल क्लॉक हल्की है और आसानी से लग जाती है।"
+
+    monkeypatch.setattr("app.pipeline.pipeline_engine.QwenService", FakeQwenService)
+
+    translated, applied = _translate_avatar_product_narration_if_needed(
+        "This wall clock is lightweight and easy to hang.",
+        target_language="Hindi (India)",
+    )
+
+    assert translated == "यह वॉल क्लॉक हल्की है और आसानी से लग जाती है।"
+    assert applied is True
+
+
+def test_avatar_product_hero_reveal_guidance_for_non_clothing_avoids_garment_instructions() -> None:
+    guidance = _avatar_product_hero_reveal_guidance("home_kitchen")
+
+    assert "garment" not in guidance.lower()
+    assert "kurti" not in guidance.lower()
+    assert "bringing the product closer to camera" in guidance
+
+
+def test_build_avatar_product_single_shot_kling_prompt_keeps_wall_clock_out_of_kurti_flow() -> None:
+    prompt, _variant, _rules = _build_avatar_product_single_shot_kling_prompt(
+        avatar_name="Chitrakala",
+        product_name="wooden wall clock",
+        product_category_hint="home_kitchen",
+        narration_script="यह वॉल क्लॉक हल्की है और आसानी से लग जाती है।",
+        video_id="qa-wall-clock",
+    )
+
+    lowered = prompt.lower()
+    assert "kurti" not in lowered
+    assert "garment" not in lowered
+    assert "bringing the product closer to camera" in lowered
+
+
+def test_build_avatar_product_seedance_lite_prompt_keeps_non_clothing_prompt_lipsync_friendly() -> None:
+    prompt = _build_avatar_product_seedance_lite_prompt(
+        base_prompt="Avatar product ad",
+        product_category_hint="home_kitchen",
+        narration_script="यह वॉल क्लॉक हल्की है और आसानी से लग जाती है।",
+    )
+
+    lowered = prompt.lower()
+    assert "minimal head movement" in lowered
+    assert "keep the face visible, frontal, and easy to track for later lip-sync replacement" in lowered
+    assert "kurti" not in lowered
+    assert "garment" not in lowered
+
+
+def test_resolve_ugc_persona_prefers_actor_record_over_chitrakala_config(monkeypatch) -> None:
+    actor = ActorRecord(
+        id="av-chitrakala",
+        name="Chitrakala",
+        scope="public",
+        style="creator",
+        gender="female",
+        language_tags=["Hindi (India)", "English (India)"],
+        thumbnail_url="https://example.com/thumb.png",
+        tags=["ugc"],
+        category="ugc_influencer",
+        reference_images=["https://example.com/chitrakala-front.png"],
+        reference_image_variants=[
+            AvatarReferenceImageVariant(
+                id="front",
+                url="https://example.com/chitrakala-front.png",
+                tags=["front", "neutral", "talking"],
+            )
+        ],
+        primary_image="https://example.com/chitrakala-front.png",
+        preview_video_url=None,
+        prompt_template=None,
+        negative_prompt=None,
+        recommended_voice="Priya",
+        voice_profile=None,
+        status="ready",
+    )
+
+    class FakeAvatarService:
+        def get_actor_record(self, actor_id: str, user_id: str | None = None):
+            return actor if actor_id == "av-chitrakala" else None
+
+        def get_avatar(self, _avatar_id: str, user_id: str | None = None):
+            return None
+
+        def get_custom_avatar(self, _avatar_id: str, user_id: str):
+            return None
+
+    class FakeSettings:
+        chitrakala_persona_id = "av-chitrakala"
+        chitrakala_avatar_image_url = "https://example.com/wrong-config-image.png"
+        chitrakala_avatar_thumbnail_url = "https://example.com/wrong-config-thumb.png"
+        chitrakala_avatar_name = "Chitrakala"
+        chitrakala_voice = "Priya"
+        chitrakala_language = "en-IN"
+
+    monkeypatch.setattr("app.pipeline.pipeline_engine.AvatarService", FakeAvatarService)
+    monkeypatch.setattr("app.pipeline.pipeline_engine.get_settings", lambda: FakeSettings())
+
+    resolved = _resolve_ugc_persona(
+        persona_id="av-chitrakala",
+        user_id="qa-user",
+        voice_override=None,
+        language_override="Hindi (India)",
+    )
+
+    assert resolved is not None
+    assert resolved["image_url"] == "https://example.com/chitrakala-front.png"
+    assert resolved["persona_source"] == "actor_library"
 
 
 def test_resolve_requested_avatar_id_returns_none_when_missing() -> None:

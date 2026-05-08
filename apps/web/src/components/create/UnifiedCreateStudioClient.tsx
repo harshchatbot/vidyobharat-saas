@@ -299,7 +299,7 @@ const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = 
   duration_seconds: '10',
   brand_tone: 'creator_casual',
   cta_preference: '',
-  language: 'English',
+  language: 'Hindi (India)',
   must_show_elements: '',
   must_avoid_elements: '',
   compliance_notes: '',
@@ -314,6 +314,20 @@ const DEFAULT_AVATAR_PRODUCT_ADVANCED_CONTROLS: AvatarProductAdvancedControls = 
 
   video_model_key: 'seedance_v1_lite_reference',
   quality_profile: 'affordable',
+};
+
+const AVATAR_PRODUCT_CATEGORY_BACKEND_MAP: Record<string, string> = {
+  clothing: 'fashion_footwear',
+  footwear: 'fashion_footwear',
+  bags_accessories: 'fashion_footwear',
+  jewellery: 'fashion_footwear',
+  beauty_skincare: 'skincare_beauty',
+  food_beverage: 'food_snacks',
+  electronics: 'electronics_gadgets',
+  home_decor: 'home_kitchen',
+  fitness_wellness: 'health_wellness',
+  kids_toys: 'baby_kids',
+  other: 'generic_ecommerce',
 };
 
 const AVATAR_PRODUCT_CATEGORY_OPTIONS = [
@@ -514,8 +528,10 @@ function buildVideoCreatePayload(input: {
 }
 
 function serializeAvatarProductAdvancedControls(controls: AvatarProductAdvancedControls): Record<string, string | string[] | boolean | number> {
+  const normalizedCategory = normalizeAvatarProductCategoryValue(controls.product_category);
   return {
     ...controls,
+    product_category: normalizedCategory,
     must_show_elements: controls.must_show_elements,
     must_avoid_elements: controls.must_avoid_elements,
     claims_to_avoid: controls.claims_to_avoid,
@@ -545,6 +561,13 @@ function buildAvatarProductRecipeInputs(params: {
     if (normalized) inputs[key] = normalized;
   });
   Object.entries(advancedControls).forEach(([key, value]) => {
+    if (key === 'product_category') {
+      const normalizedCategory = normalizeAvatarProductCategoryValue(String(value ?? ''));
+      if (normalizedCategory) {
+        inputs[key] = normalizedCategory;
+      }
+      return;
+    }
     if (typeof value === 'boolean') {
       inputs[key] = value ? 'true' : 'false';
       return;
@@ -615,6 +638,36 @@ function normalizeAvatarProductCategory(value: string) {
     product_category: normalized,
     product_subcategory: normalized,
   };
+}
+
+function normalizeAvatarProductCategoryValue(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return '';
+  return AVATAR_PRODUCT_CATEGORY_BACKEND_MAP[normalized] ?? normalized;
+}
+
+function isEnglishLanguageSelection(value: string | null | undefined) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'en-in' || normalized === 'english' || normalized === 'english (india)';
+}
+
+function profileForAvatarProductModelKey(modelKey: string): QualityProfile {
+  if (modelKey === 'seedance_v1_lite_reference') return 'affordable';
+  if (modelKey === 'kling_o3_4k_reference') return 'premium';
+  if (modelKey === 'kling_o3_pro_reference' || modelKey === 'kling_v16_pro_elements') return 'high_quality';
+  return 'standard';
+}
+
+function isAllowedAvatarProductModelKey(modelKey: string) {
+  return new Set([
+    'seedance_v1_lite_reference',
+    'kling_o3_standard_reference',
+    'kling_o3_pro_reference',
+    'kling_o3_4k_reference',
+    'kling_v16_standard_elements',
+    'kling_v16_pro_elements',
+    'kling_o3_reference',
+  ]).has(modelKey);
 }
 
 
@@ -978,17 +1031,45 @@ function resolveAvatarProductPreferredVoice(avatar: AvatarSelection): string {
 
 function resolveAvatarProductPreferredLanguage(avatar: AvatarSelection): string {
   const explicitLanguage = String(avatar.preferredLanguage || '').trim();
+  const normalizedGender = String(avatar.genderPresentation || '').trim().toLowerCase();
+  const supportsHindi =
+    explicitLanguage === 'Hindi (India)'
+    || (avatar.languageTags || []).some((tag) => {
+      const normalized = String(tag || '').trim();
+      return normalized === 'hi-IN' || AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[normalized] === 'Hindi (India)';
+    });
+  if (normalizedGender.startsWith('f') && supportsHindi) {
+    return 'Hindi (India)';
+  }
   if (explicitLanguage && Object.values(AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP).includes(explicitLanguage)) {
     return explicitLanguage;
   }
   if (explicitLanguage && AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[explicitLanguage]) {
     return AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[explicitLanguage];
   }
+  const hindiTag = (avatar.languageTags || []).find((tag) => {
+    const normalized = String(tag || '').trim();
+    return normalized === 'hi-IN' || AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[normalized] === 'Hindi (India)';
+  });
+  if (hindiTag) {
+    return 'Hindi (India)';
+  }
   const firstTag = (avatar.languageTags || []).find((tag) => typeof tag === 'string' && tag.trim().length > 0);
   if (firstTag && AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[firstTag.trim()]) {
     return AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[firstTag.trim()];
   }
-  return 'English (India)';
+  return 'Hindi (India)';
+}
+
+function preferredAvatarProductLanguageLabel(languageTags: string[] | null | undefined): string | null {
+  const normalizedTags = (languageTags || [])
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean);
+  if (normalizedTags.some((tag) => tag === 'hi-IN' || AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[tag] === 'Hindi (India)')) {
+    return 'Hindi (India)';
+  }
+  const firstSupported = normalizedTags.find((tag) => AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[tag]);
+  return firstSupported ? AVATAR_PRODUCT_GEMINI_LANGUAGE_MAP[firstSupported] : null;
 }
 
 function resolveAvatarPreferredLanguage(avatar: AvatarSelection): string | null {
@@ -1832,6 +1913,7 @@ export function UnifiedCreateStudioClient({
     () => activeRecipeSource?.kind === 'recipe' && Boolean(recipeComposer),
     [activeRecipeSource, recipeComposer],
   );
+  const avatarProductModelUnlocked = recipeSettingsLocked && isAvatarProductRecipe;
   const effectiveVoiceOptions = useMemo(
     () => (isAvatarProductRecipe ? avatarProductVoiceOptions : voiceOptions),
     [avatarProductVoiceOptions, isAvatarProductRecipe, voiceOptions],
@@ -1867,7 +1949,7 @@ export function UnifiedCreateStudioClient({
       sourceLabel: 'Preset' as const,
       isCustomAvatar: avatar.category === 'custom_avatar',
       genderPresentation: avatar.gender || null,
-      preferredLanguage: avatar.language_tags?.[0] || null,
+      preferredLanguage: preferredAvatarProductLanguageLabel(avatar.language_tags),
       preferredVoice: avatar.recommended_voice || null,
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Preset avatar',
@@ -1880,7 +1962,7 @@ export function UnifiedCreateStudioClient({
           sourceLabel: 'Preset',
           genderPresentation: avatar.gender || null,
           preferredVoice: avatar.recommended_voice || null,
-          preferredLanguage: avatar.language_tags?.[0] || null,
+          preferredLanguage: preferredAvatarProductLanguageLabel(avatar.language_tags),
           languageTags: avatar.language_tags || [],
         })} recommended`
         : avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : 'Uses your selected voice',
@@ -1899,7 +1981,7 @@ export function UnifiedCreateStudioClient({
       isCustomAvatar: avatar.category === 'custom_avatar',
       genderPresentation: avatar.gender || null,
       preferredVoice: avatar.recommended_voice || null,
-      preferredLanguage: avatar.language_tags?.[0] || null,
+      preferredLanguage: preferredAvatarProductLanguageLabel(avatar.language_tags),
       languageTags: avatar.language_tags || [],
       styleLabel: avatar.avatar_type || avatar.category || avatar.style || 'Saved avatar',
       languageInfo: summarizeLanguageTags(avatar.language_tags) || selectedLanguageLabel || null,
@@ -1911,7 +1993,7 @@ export function UnifiedCreateStudioClient({
           sourceLabel: 'Saved',
           genderPresentation: avatar.gender || null,
           preferredVoice: avatar.recommended_voice || null,
-          preferredLanguage: avatar.language_tags?.[0] || null,
+          preferredLanguage: preferredAvatarProductLanguageLabel(avatar.language_tags),
           languageTags: avatar.language_tags || [],
         })} recommended`
         : avatar.recommended_voice ? `${avatar.recommended_voice} recommended` : (selectedVoice ? `${selectedVoice} voice selected` : 'Uses your selected voice'),
@@ -2180,7 +2262,9 @@ export function UnifiedCreateStudioClient({
     }
 
     if (!catalog.languages.some((language) => language.code === selectedLanguage)) {
-      const fallbackLanguage = catalog.languages.find((language) => language.code === 'English (India)') ?? catalog.languages[0];
+      const fallbackLanguage = catalog.languages.find((language) => language.code === 'Hindi (India)')
+        ?? catalog.languages.find((language) => language.code === 'English (India)')
+        ?? catalog.languages[0];
       if (fallbackLanguage) {
         setSelectedLanguage(fallbackLanguage.code);
         setAvatarProductAdvancedControls((current) => ({
@@ -2462,7 +2546,7 @@ export function UnifiedCreateStudioClient({
     setVoicePreviewMessage(null);
     try {
       let previewText = composerVoicePreviewText;
-      if (selectedLanguage !== 'en-IN') {
+      if (!isEnglishLanguageSelection(selectedLanguage)) {
         const translation = await api.translateScriptText(
           {
             text: composerVoicePreviewText,
@@ -2643,8 +2727,9 @@ export function UnifiedCreateStudioClient({
     );
     if (recipe.id === 'avatar_product') {
       void loadAvatarLibrary();
-      const defaultQuality: QualityProfile = 'affordable';
-      const defaultModelKey = resolveAvatarProductVideoModelKeyFromQuality(defaultQuality);
+      const safeRecipeModelKey = isAllowedAvatarProductModelKey(recipeModelKey) ? recipeModelKey : 'seedance_v1_lite_reference';
+      const defaultQuality: QualityProfile = profileForAvatarProductModelKey(safeRecipeModelKey);
+      const defaultModelKey = safeRecipeModelKey || resolveAvatarProductVideoModelKeyFromQuality(defaultQuality);
       const defaultAvatar =
         avatarOptions.find((item) => item.personaId === 'av-chitrakala') ||
         avatarOptions[0] ||
@@ -2663,13 +2748,13 @@ export function UnifiedCreateStudioClient({
       const defaultLanguage =
         preferredLanguage && effectiveLanguageOptions.some((option) => option.code === preferredLanguage)
           ? preferredLanguage
-          : 'English (India)';
+          : 'Hindi (India)';
 
       setSelectedLanguage(defaultLanguage);
 
       setAvatarProductAdvancedControls((current) => ({
         ...current,
-        duration_seconds: '10',
+        duration_seconds: String(recipe.recipe.duration_seconds || defaults.duration_seconds || 5),
         video_model_key: defaultModelKey,
         quality_profile: defaultQuality,
         language: defaultLanguage,
@@ -2812,9 +2897,15 @@ export function UnifiedCreateStudioClient({
     }
 
     if (recipeComposer) {
-      const missingRequired = recipeComposer.slots.find(
-        (slot) => slot.required && !(recipeComposer.values[slot.id] || '').trim(),
-      );
+      const missingRequired = recipeComposer.slots.find((slot) => {
+        if (!slot.required) return false;
+        const slotAsset = recipeSlotAssets[slot.id];
+        const rawValue =
+          slot.kind === 'upload' || slot.kind === 'reference-image'
+            ? (slotAsset?.assetUrl || recipeComposer.values[slot.id] || '')
+            : (recipeComposer.values[slot.id] || '');
+        return !String(rawValue || '').trim();
+      });
       if (missingRequired) {
         setError(`Fill ${missingRequired.label.toLowerCase()} first so we can prepare the right creation flow.`);
         return;
@@ -3164,8 +3255,12 @@ export function UnifiedCreateStudioClient({
         const avatarDuration = Number(
           avatarProductAdvancedControls.duration_seconds || durationPreference || defaults.duration_seconds || 5,
         );
+        const avatarModelKey = String(
+          avatarProductAdvancedControls.video_model_key
+          || resolveAvatarProductVideoModelKeyFromQuality(avatarProductAdvancedControls.quality_profile as QualityProfile),
+        );
         return calculateVideoCredits({
-          modelKey: resolveAvatarProductVideoModelKeyFromQuality(avatarProductAdvancedControls.quality_profile as QualityProfile),
+          modelKey: avatarModelKey,
           resolution: String(defaults.resolution ?? '720p'),
           durationSeconds: avatarDuration,
           quality: avatarProductAdvancedControls.quality_profile,
@@ -3968,19 +4063,19 @@ export function UnifiedCreateStudioClient({
                     <button
                       type="button"
                       onClick={() => {
-                        if (recipeSettingsLocked) return;
+                        if (recipeSettingsLocked && !avatarProductModelUnlocked) return;
                         setOpenMenu((current) => (current === 'model' ? null : 'model'));
                       }}
                       data-composer-menu="true"
-                      disabled={recipeSettingsLocked}
-                      className={`inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${recipeSettingsLocked
+                      disabled={recipeSettingsLocked && !avatarProductModelUnlocked}
+                      className={`inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${recipeSettingsLocked && !avatarProductModelUnlocked
                         ? 'cursor-not-allowed border-white/6 bg-white/[0.03] text-white/38'
                         : 'border-white/10 bg-white/[0.04] text-white/74 hover:bg-white/[0.08] hover:text-white'
                         }`}
                     >
                       <Box className="h-4 w-4 text-white/60" />
                       <span className="max-w-[120px] truncate sm:max-w-[180px]">{currentModelLabel}</span>
-                      {recipeSettingsLocked ? <Lock className="h-3.5 w-3.5 text-white/40" /> : null}
+                      {recipeSettingsLocked && !avatarProductModelUnlocked ? <Lock className="h-3.5 w-3.5 text-white/40" /> : null}
                       <ChevronDown className="h-4 w-4 text-muted" />
                     </button>
                     {openMenu === 'model' ? (
@@ -4024,7 +4119,9 @@ export function UnifiedCreateStudioClient({
                                 />
                               ))
                               : mode === 'video'
-                              ? videoModels.map((model) => (
+                              ? videoModels
+                                .filter((model) => !isAvatarProductRecipe || isAllowedAvatarProductModelKey(model.key))
+                                .map((model) => (
                                 <ModelRow
                                   key={model.key}
                                   title={shortVideoModelLabel(model)}
@@ -4038,8 +4135,22 @@ export function UnifiedCreateStudioClient({
                                   onClick={() => {
                                     setSelectedVideoModelKey(model.key);
                                     setModelPanelKey(model.key);
-                                    setQualityProfile(profileForVideoModel(model.key));
-                                    setDurationPreference(getDefaultVideoDurationForModel(model.key));
+                                    const nextQuality = isAvatarProductRecipe
+                                      ? profileForAvatarProductModelKey(model.key)
+                                      : profileForVideoModel(model.key);
+                                    const nextDuration = isAvatarProductRecipe
+                                      ? (model.key === 'seedance_v1_lite_reference' ? '10' : String(avatarProductAdvancedControls.duration_seconds || '5'))
+                                      : getDefaultVideoDurationForModel(model.key);
+                                    setQualityProfile(nextQuality);
+                                    setDurationPreference(nextDuration);
+                                    if (isAvatarProductRecipe) {
+                                      setAvatarProductAdvancedControls((current) => ({
+                                        ...current,
+                                        video_model_key: model.key,
+                                        quality_profile: nextQuality,
+                                        duration_seconds: nextDuration,
+                                      }));
+                                    }
                                     closeMenus();
                                   }}
                                   onHover={() => setModelPanelKey(model.key)}
@@ -4276,7 +4387,7 @@ export function UnifiedCreateStudioClient({
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">More</p>
                           <p className="mt-1 text-xs text-muted">
                             {isAvatarProductRecipe
-                              ? 'Tune quality and duration. Voice is matched to the selected avatar.'
+                              ? 'Choose from recipe-safe models, then tune quality and duration. Voice is matched to the selected avatar.'
                               : recipeSettingsLocked
                                 ? 'Recipe mode keeps settings locked to the workflow defaults.'
                                 : 'Tune clip length, audio, and quality without leaving the composer.'}
@@ -4494,7 +4605,16 @@ export function UnifiedCreateStudioClient({
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Language</span>
                               <select
                                 value={selectedLanguage}
-                                onChange={(event) => setSelectedLanguage(event.target.value)}
+                                onChange={(event) => {
+                                  const nextLanguage = event.target.value;
+                                  setSelectedLanguage(nextLanguage);
+                                  if (isAvatarProductRecipe) {
+                                    setAvatarProductAdvancedControls((current) => ({
+                                      ...current,
+                                      language: nextLanguage,
+                                    }));
+                                  }
+                                }}
                                 className="w-full rounded-[12px] border border-[hsl(var(--color-border)/0.7)] bg-[hsl(var(--color-surface)/0.72)] px-3 py-2 text-sm text-text outline-none transition focus:border-[hsl(var(--color-accent)/0.5)]"
                               >
                                 {visibleLanguageOptions.map((option) => (
@@ -4530,9 +4650,24 @@ export function UnifiedCreateStudioClient({
                           {showVoiceControls && voiceEnabled ? (
                             <div className="mt-3 px-2">
                               {isAvatarProductRecipe ? (
-                                <p className="rounded-[12px] border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.48)] px-3 py-2 text-xs leading-5 text-muted">
-                                  Avatar Product final speech uses Gemini Flash TTS during generation. Voice preview is hidden here so the picker stays aligned with the real render pipeline.
-                                </p>
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="h-9 w-full rounded-[12px]"
+                                    onClick={() => void previewComposerVoice()}
+                                    disabled={voicePreviewing || !selectedVoice || !composerVoicePreviewText}
+                                  >
+                                    {voicePreviewing ? 'Previewing…' : 'Preview voice'}
+                                  </Button>
+                                  <p className="mt-2 text-xs leading-5 text-muted">
+                                    {composerVoicePreviewText
+                                      ? 'Preview uses Gemini Flash TTS with the selected avatar-product language and voice.'
+                                      : 'Add a prompt to preview this voice.'}
+                                  </p>
+                                  {voicePreviewMessage ? <p className="mt-2 text-xs text-muted">{voicePreviewMessage}</p> : null}
+                                  {voicePreviewUrl ? <audio className="mt-3 w-full" controls src={voicePreviewUrl} /> : null}
+                                </>
                               ) : (
                                 <>
                                   <Button

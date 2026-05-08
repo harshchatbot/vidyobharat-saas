@@ -120,8 +120,10 @@ from app.services.asset_tagging_service import AssetTaggingService
 from app.services.avatar_product_tts_catalog import (
     list_avatar_product_gemini_languages,
     list_avatar_product_gemini_voices,
+    resolve_avatar_product_gemini_language,
 )
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
+from app.services.fal_video_service import FalVideoService
 from app.services.model_registry import get_normal_video_family_definition
 from app.services.pricing_service import PricingService
 from app.services.upload_service import UploadService
@@ -1627,8 +1629,10 @@ def create_ai_video(
                 pipeline_metadata['avatar_name'] = str(settings.chitrakala_avatar_name or 'Chitrakala').strip() or 'Chitrakala'
                 if settings.chitrakala_avatar_image_url:
                     pipeline_metadata['avatar_image_url'] = str(settings.chitrakala_avatar_image_url).strip()
-                pipeline_metadata['persona_id'] = str(settings.chitrakala_persona_id or '').strip() or (
-                    str(payload.personaId).strip() if payload.personaId else None
+                pipeline_metadata['persona_id'] = (
+                    str(payload.personaId).strip()
+                    if payload.personaId and str(payload.personaId).strip()
+                    else str(settings.chitrakala_persona_id or '').strip() or None
                 )
             if payload.personaId and recipe.id != 'avatar_product':
                 pipeline_metadata['persona_id'] = str(payload.personaId).strip()
@@ -3519,6 +3523,43 @@ def generate_tts_preview(
     user_id: str = Depends(get_user_id),
 ) -> TTSPreviewResponse:
     preview_text = payload.text.strip()[:PREVIEW_MAX_CHARS]
+    gemini_voice_keys = {item.key for item in list_avatar_product_gemini_voices()}
+    gemini_language_codes = {item.code for item in list_avatar_product_gemini_languages()}
+    is_avatar_product_gemini_preview = payload.voice in gemini_voice_keys or payload.language in gemini_language_codes
+
+    if is_avatar_product_gemini_preview:
+        try:
+            assert_preview_rate_limit(user_id)
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=429,
+                detail=f'{exc} Limit: {PREVIEW_MAX_REQUESTS_PER_WINDOW} previews every {PREVIEW_WINDOW_SECONDS // 60} minutes.',
+            ) from exc
+        try:
+            preview_url, _meta = FalVideoService().generate_gemini_flash_tts(
+                text=preview_text,
+                voice=payload.voice,
+                language_code=resolve_avatar_product_gemini_language(payload.language),
+                style_instructions=(
+                    f"Speak entirely in {resolve_avatar_product_gemini_language(payload.language)}. "
+                    "Warm Indian creator voice, natural product-ad delivery, clear pacing, friendly confidence."
+                ),
+            )
+        except RuntimeError as exc:
+            logger.exception('avatar_product_tts_preview_generation_failed')
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        return TTSPreviewResponse(
+            preview_url=preview_url,
+            provider='Gemini Flash TTS',
+            resolved_voice=payload.voice,
+            cached=False,
+            preview_limit=f'{PREVIEW_MAX_REQUESTS_PER_WINDOW} uncached previews / {PREVIEW_WINDOW_SECONDS // 60} min · {PREVIEW_MAX_CHARS} chars max',
+            provider_message='Avatar Product preview uses Gemini Flash TTS.',
+            applied_credits=0,
+            remaining_credits=None,
+        )
+
     credit_service = CreditService()
     wallet = credit_service.ensure_wallet(user_id)
     try:

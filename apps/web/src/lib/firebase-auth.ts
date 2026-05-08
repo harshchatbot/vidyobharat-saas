@@ -1,4 +1,4 @@
-import { API_URL, FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID } from '@/lib/env';
+import { FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID, getApiUrl } from '@/lib/env';
 
 export type FirebaseAuthSession = {
   idToken: string;
@@ -239,7 +239,7 @@ export async function persistAppSession(payload: {
     }
   }
 
-  const bootstrapResponse = await fetch(`${API_URL}/me/bootstrap`, {
+  const bootstrapResponse = await fetch(`${getApiUrl()}/me/bootstrap`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -1175,11 +1175,122 @@ def build_avatar_product_scene_plan(
     must_show = ", ".join(avatar_product_brief.must_show_elements or [])
     must_avoid = ", ".join(avatar_product_brief.must_avoid_elements or [])
 
+    if len(base_scenes) == 1:
+        scene = base_scenes[0]
+
+        planned_scene = {
+            **scene,
+            "stage_name": "single_shot",
+            "stage_label": "Single Shot",
+            "scene_type": "avatar_product_single_shot",
+            "stage_goal": "create one continuous avatar-led product ad with hook, product reveal, benefit, and CTA in the same shot",
+            "topic_focus": (
+                f"{avatar_name} presents {product_name} for {target_audience}, "
+                f"showing {key_promise} with a natural CTA: {cta}"
+            ),
+            "visual_objective": (
+                f"Create one continuous creator-style UGC shot where {avatar_name} stays visible, "
+                f"{product_name} is clearly shown from the first second, and the ad feels like a real social product recommendation."
+            ),
+            "transition_intent": "No scene transition. Keep one continuous shot from opening hook to product reveal to CTA.",
+            "transition_from_previous": "Start naturally with the selected avatar and uploaded product already visible.",
+            "transition_to_next": "No next scene. End with a stable product-visible creator recommendation.",
+            "ugc_ad_family": "avatar_product_ad",
+            "ugc_ad_subtopic": product_category,
+            "ugc_mode": "avatar_product",
+            "ugc_style": "creator_casual",
+            "client_brief_mode": False,
+            "single_creator_mode": True,
+            "creator_anchor": "same selected avatar throughout one continuous shot",
+            "continuity_subject_role": "avatar_spokesperson",
+            "continuity_subject_label": avatar_name,
+            "continuity_anchor": "same selected avatar, same uploaded product, same creator environment, one continuous shot",
+            "must_preserve_subject_identity": True,
+            "must_avoid_new_spokesperson": True,
+            "school_testimonial_mode": False,
+            "business_name": "",
+            "business_category": product_category,
+            "city": "",
+            "locality": "",
+            "target_audience": target_audience,
+            "main_service_or_product": product_name,
+            "main_pain_point": pain_point,
+            "key_promise": key_promise,
+            "trust_factor": "",
+            "offer": "",
+            "cta": cta,
+            "platform": platform,
+            "campaign_objective": campaign_objective,
+            "brand_tone": brand_tone,
+            "category_specific_details": category_specific_details,
+            "must_show_elements": list(avatar_product_brief.must_show_elements or []),
+            "must_avoid_elements": list(avatar_product_brief.must_avoid_elements or []),
+            "compliance_notes": avatar_product_brief.compliance_notes,
+            "claims_to_avoid": list(avatar_product_brief.claims_to_avoid or []),
+            "script_mode": avatar_product_brief.script_mode,
+            "provided_script": avatar_product_brief.provided_script,
+            "strict_script_lock": avatar_product_brief.strict_script_lock,
+            "tone": "creator_confident_friendly",
+            "ad_goal": "purchase",
+            "brief_location_context": "",
+            "brief_service_context": product_name,
+            "avoid_motifs": [
+                "changing to a different spokesperson",
+                "product hidden for too long",
+                "glossy TV-commercial polish",
+                "random stock-footage drift",
+                "introducing a new face",
+                "scene cuts",
+                "b-roll montage",
+            ],
+            "shot_scale": "medium",
+            "talking_mode": "lip_sync_required",
+            "render_lane": "talking_avatar",
+            "persona_required": True,
+            "use_locked_persona": True,
+            "talking_duration_hint_seconds": min(10, max(5, int(scene.get("duration_seconds") or 5))),
+            "subject_description": (
+                f"the same avatar {avatar_name} speaking naturally to camera while holding and presenting {product_name}"
+            ),
+            "environment_description": "a realistic indoor Indian creator-style environment with clean product visibility",
+            "camera_framing": "medium close-up or chest-up vertical phone-shot framing with avatar face and product visible together",
+            "motion_intent": "natural speaking motion, subtle smile, small head nod, one clean product reveal, then stable product hold",
+            "ending_hold_instruction": "last 1.5 seconds visually stable, same avatar and product still visible, no abrupt cut",
+            "shot_archetype": "avatar_product_single_shot",
+            "subtopic_visual_anchor": f"{product_name} visible with the same avatar in one continuous product recommendation shot",
+            "extra_avoid_guidance": "avoid identity drift, avoid product replacement, avoid scene cuts, avoid b-roll, avoid new people",
+            "indian_context_note": (
+                "Prefer Indian creator styling, Indian indoor home or creator-room context, and realistic Indian social-media ad aesthetics."
+            ),
+            "sora_negative_guidance": (
+                "avoid changing the face; avoid introducing a second spokesperson; avoid weak product visibility; "
+                "avoid glossy TV-commercial polish; avoid unreadable text in frame; avoid swapping the uploaded product; "
+                "avoid b-roll, montage cuts, or scene changes"
+            ),
+            "continuity_guidance": (
+                f"Preserve the same avatar identity and the same {product_name} throughout one continuous shot."
+            ),
+            "anti_repetition_note": "Single-shot recipe: do not create multiple visual scenes or stage changes.",
+            "qa_flags": [
+                flag
+                for flag in [
+                    "must_show_elements_present" if must_show else "",
+                    "must_avoid_elements_present" if must_avoid else "",
+                    "strict_script_lock" if avatar_product_brief.strict_script_lock else "",
+                    "single_shot_avatar_product",
+                ]
+                if flag
+            ],
+        }
+
+        return [planned_scene]
+
     stage_blueprint = (
         ("hook", "Hook", "avatar_hook", "open with the avatar introducing the product quickly"),
         ("showcase", "Showcase", "product_showcase", "show the avatar naturally presenting or using the product"),
         ("cta", "CTA", "avatar_cta", "close with the same avatar giving a clear recommendation and CTA"),
     )
+    
 
     planned: list[dict[str, Any]] = []
 
@@ -1334,8 +1445,7 @@ def build_avatar_product_scene_plan(
             "continuity_guidance": f"Preserve the same avatar identity and the same {product_name} across all scenes, and keep the avatar visibly present on screen in each scene.",
             "anti_repetition_note": (
                 "Keep the product story moving forward while preserving the same avatar and same product continuity."
-            ),
-            "qa_flags": [],
+            )
         }
 
         planned.append(planned_scene)

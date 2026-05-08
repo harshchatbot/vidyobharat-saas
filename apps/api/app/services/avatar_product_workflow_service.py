@@ -8,6 +8,19 @@ from app.core.shared_config import load_shared_json
 
 
 ALLOWED_SCRIPT_MODES = {"auto_generate", "improve_draft", "use_exact_script"}
+CATEGORY_ALIASES = {
+    "clothing": "fashion_footwear",
+    "footwear": "fashion_footwear",
+    "bags_accessories": "fashion_footwear",
+    "jewellery": "fashion_footwear",
+    "beauty_skincare": "skincare_beauty",
+    "food_beverage": "food_snacks",
+    "electronics": "electronics_gadgets",
+    "home_decor": "home_kitchen",
+    "fitness_wellness": "health_wellness",
+    "kids_toys": "baby_kids",
+    "other": "generic_ecommerce",
+}
 
 
 @dataclass(frozen=True)
@@ -94,6 +107,7 @@ class AvatarProductWorkflowService:
         explicit_category = self._clean_text(
             merged_source.get("product_category") or merged_source.get("productCategory") or merged_source.get("category")
         )
+        explicit_category = CATEGORY_ALIASES.get(explicit_category, explicit_category)
         detected_category, detected_subcategory, confidence = self.detect_category(
             message=message,
             explicit_category=explicit_category,
@@ -237,6 +251,7 @@ class AvatarProductWorkflowService:
         explicit_category: str | None = None,
         explicit_subcategory: str | None = None,
     ) -> tuple[str, str, str]:
+        explicit_category = CATEGORY_ALIASES.get(explicit_category or "", explicit_category or "")
         if explicit_category and explicit_category in self.categories:
             return explicit_category, explicit_subcategory or "", "high"
 
@@ -258,6 +273,8 @@ class AvatarProductWorkflowService:
                 best_category = str(category_key)
                 best_subcategory = category_subcategory
 
+        if best_score == 0 and self._looks_like_home_decor(haystack):
+            return "home_kitchen", "home_decor", "medium"
         confidence = "high" if best_score >= 2 else "low"
         if best_score == 0:
             return self.default_category, "", "low"
@@ -408,11 +425,22 @@ class AvatarProductWorkflowService:
         for pattern in patterns:
             match = re.search(pattern, lowered, flags=re.IGNORECASE)
             if match:
-                return match.group(1).strip(" .")
+                candidate = match.group(1).strip(" .")
+                if not self._looks_like_product_phrase(candidate):
+                    return candidate
+        lowered_message = lowered.lower()
+        if "wall clock" in lowered_message or "clock" in lowered_message:
+            return "home decor shoppers, gift buyers, and apartment owners"
+        if "serum" in lowered_message or "skincare" in lowered_message or "beauty" in lowered_message:
+            return "working women and skincare shoppers"
+        if "software" in lowered_message or "saas" in lowered_message or "app" in lowered_message:
+            return "founders, marketers, and software buyers"
         return ""
 
     def _extract_main_benefit(self, message: str, category: str) -> str:
         lowered = str(message or "").lower()
+        if "wall clock" in lowered or "clock" in lowered:
+            return "lightweight design that is easy to hang and style"
         benefit_keywords = (
             "refreshment",
             "hydration",
@@ -432,6 +460,8 @@ class AvatarProductWorkflowService:
                 return benefit
         if category == "beverage":
             return "refreshment"
+        if category == "home_kitchen":
+            return "practical everyday usefulness"
         return ""
 
     def _extract_problem(self, message: str) -> str:
@@ -464,6 +494,26 @@ class AvatarProductWorkflowService:
             if lifestyle in lowered:
                 return lifestyle
         return ""
+
+    def _looks_like_product_phrase(self, value: str) -> bool:
+        normalized = value.lower()
+        product_markers = (
+            "wall clock",
+            "clock",
+            "serum",
+            "bottle",
+            "charger",
+            "speaker",
+            "shoes",
+            "sneakers",
+            "product",
+            "wooden",
+            "lightweight",
+        )
+        return any(marker in normalized for marker in product_markers)
+
+    def _looks_like_home_decor(self, haystack: str) -> bool:
+        return any(token in haystack for token in ("wall clock", "clock", "decor", "wooden wall"))
 
     def _normalize_script_mode(self, value: Any) -> str:
         normalized = self._clean_text(value) or "auto_generate"
@@ -512,10 +562,31 @@ class AvatarProductWorkflowService:
 
         # 🔥 Simple V1 logic (no Qwen yet — safe & fast)
         product_name = self._extract_product_name(text) or text
+        detected_category, _subcategory, _confidence = self.detect_category(message=text)
+        if "wall clock" in text.lower() or "clock" in text.lower():
+            return {
+                "product_name": product_name,
+                "product_category": "home_kitchen",
+                "target_audience": "home decor shoppers, gift buyers, and apartment owners",
+                "main_benefit": "lightweight design that is easy to hang and style",
+                "desired_feeling": "stylish",
+                "must_show_elements": [
+                    "clock face",
+                    "wood texture",
+                    "wall placement context",
+                ],
+                "must_avoid_elements": [
+                    "distorted clock hands",
+                    "warped circular shape",
+                    "cluttered background",
+                ],
+                "brand_tone": "creator_casual",
+                "cta_preference": "Shop now",
+            }
 
         return {
             "product_name": product_name,
-            "product_category": "fashion_accessories" if "bag" in text.lower() else "generic_ecommerce",
+            "product_category": "fashion_footwear" if "bag" in text.lower() else detected_category,
             "target_audience": "women looking for stylish and unique accessories",
             "main_benefit": "adds a stylish handmade touch to everyday outfits",
             "desired_feeling": "stylish",

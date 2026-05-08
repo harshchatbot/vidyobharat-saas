@@ -64,6 +64,11 @@ export type Avatar = {
   tags?: string[];
   category?: string | null;
   reference_images?: string[];
+  reference_image_variants?: Array<{
+    id: string;
+    url: string;
+    tags: string[];
+  }>;
   primary_image?: string | null;
   preview_video_url?: string | null;
   prompt_template?: string | null;

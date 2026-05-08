@@ -1,4 +1,4 @@
-import { API_FALLBACK_URL, API_URL } from '@/lib/env';
+import { getApiFallbackUrl, getApiUrl } from '@/lib/env';
 import type {
   Avatar,
   AvatarLibraryResponse,
@@ -87,6 +87,11 @@ export type ActorDetailResponse = {
   name: string;
   thumbnail_url: string;
   reference_images: string[];
+  reference_image_variants?: Array<{
+    id: string;
+    url: string;
+    tags: string[];
+  }>;
   primary_image?: string | null;
   preview_video_url?: string | null;
   tags: string[];
@@ -286,7 +291,7 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     headers.set('X-User-ID', options.userId);
   }
 
-  const baseCandidates = [API_URL, API_FALLBACK_URL].filter(Boolean);
+  const baseCandidates = [getApiUrl(), getApiFallbackUrl()].filter(Boolean);
   const tried: string[] = [];
   let response: Response | null = null;
   let lastNetworkError: unknown = null;
@@ -743,7 +748,7 @@ export const api = {
     return request<TTSPreviewResponse>('/tts/preview', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store', timeoutMs: 35_000 });
+    }, { userId, cache: 'no-store', timeoutMs: 30_000 });
   },
   createVideo(payload: FormData, userId: string) {
     return request<{ id: string; status: string }>('/videos', {
@@ -759,7 +764,7 @@ export const api = {
     image_url?: string;
     advanced_controls?: Record<string, unknown>;
   }) => {
-    const res = await fetch(`${API_URL}/api/recipes/avatar-product/autofill`, {
+    const res = await fetch(`${getApiUrl()}/api/recipes/avatar-product/autofill`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

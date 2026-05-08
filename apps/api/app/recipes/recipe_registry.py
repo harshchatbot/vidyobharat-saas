@@ -179,18 +179,8 @@ def _avatar_product_scene_strategy() -> RecipeSceneStrategy:
     return RecipeSceneStrategy(
         render_scenes=(
             RenderSceneConfig(
-                scene_id='scene_1_hook',
-                beat_names=('hook', 'product_intro'),
-                duration_seconds=5,
-            ),
-            RenderSceneConfig(
-                scene_id='scene_2_showcase',
-                beat_names=('demo', 'benefit'),
-                duration_seconds=5,
-            ),
-            RenderSceneConfig(
-                scene_id='scene_3_cta',
-                beat_names=('proof', 'cta', 'ending'),
+                scene_id='scene_1_single_shot',
+                beat_names=('hook', 'product_showcase', 'benefit', 'cta'),
                 duration_seconds=5,
             ),
         )
@@ -917,7 +907,7 @@ RECIPES: dict[str, RecipeConfig] = {
             style='avatar_led_product_ugc',
             tone='conversational_creator_style_product_promo',
             music='light_modern_creator_bed',
-            structure=('hook', 'product_intro', 'demo', 'benefit', 'proof', 'cta', 'ending'),
+            structure=('single_shot_hook', 'product_reveal', 'benefit', 'cta'),
             reference_prompt=(
                 'Use the uploaded product image as the primary product reference. '
                 'Create a vertical avatar-led product ad where the product remains recognisable and naturally visible. '
@@ -925,22 +915,22 @@ RECIPES: dict[str, RecipeConfig] = {
                 'Do not replace the product with a different unrelated object.'
             ),
             scene_guidance=(
-                'Create a vertical mobile-first avatar product ad with strong visual consistency across all scenes. '
-                'Keep the same spokesperson identity throughout, maintain realistic indoor lighting, natural creator-style framing, '
-                'clear product visibility, smooth scene progression, and a clean CTA ending. '
-                'Avoid TV-commercial polish, abrupt cuts, stock-footage drift, or delayed product reveal.'
+                'Create one continuous vertical mobile-first avatar product ad, not a multi-scene montage. '
+                'Keep the same spokesperson identity and the exact uploaded product visible in one continuous shot. '
+                'The creator should naturally present the product, complete one clear hero reveal, and close with a soft recommendation. '
+                'Avoid cuts, b-roll, scene changes, stock-footage drift, delayed product reveal, or TV-commercial polish.'
             ),
-            seed_prompt='Create a 5 to 10 second avatar-led product ad using the uploaded product image and supplied product brief.',
+            seed_prompt='Create a 5 to 10 second single-shot avatar-led product ad using the uploaded product image and product brief.',
         ),
         generation_defaults=RecipeGenerationDefaults(
-            model_key='kling_v16_standard_i2v',
+            model_key='seedance_v1_lite_reference',
             aspect_ratio='9:16',
             resolution='720p',
-            quality='standard',
+            quality='affordable',
             captions_enabled=False,
             narration_enabled=True,
-            voice='Shubh',
-            language='English',
+            voice='Kore',
+            language='Hindi (India)',
             caption_style='classic',
         ),
         scene_strategy=_avatar_product_scene_strategy(),
