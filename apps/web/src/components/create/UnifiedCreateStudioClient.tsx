@@ -661,6 +661,7 @@ function profileForAvatarProductModelKey(modelKey: string): QualityProfile {
 function isAllowedAvatarProductModelKey(modelKey: string) {
   return new Set([
     'seedance_v1_lite_reference',
+    'fal_ltx23_i2v',
     'kling_o3_standard_reference',
     'kling_o3_pro_reference',
     'kling_o3_4k_reference',

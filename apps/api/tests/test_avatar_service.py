@@ -258,6 +258,28 @@ def test_select_best_avatar_reference_image_prefers_office_variant_for_saas() ->
     assert selection.reason == 'office_match'
 
 
+def test_select_best_avatar_reference_image_infers_tags_from_descriptive_filename() -> None:
+    selection = selectBestAvatarReferenceImage(
+        avatar={
+            'primary_image': 'https://example.com/avatar_chitrakala_front1.png',
+            'reference_images': [
+                'https://example.com/avatar_chitrakala_front1.png',
+                'https://example.com/avatar_chitrakala_desk5.png',
+            ],
+            'reference_image_variants': [
+                'https://example.com/avatar_chitrakala_front1.png',
+                'https://example.com/avatar_chitrakala_desk5.png',
+            ],
+        },
+        recipe_id='avatar_product',
+        product_category='AI SaaS',
+        prompt_text='A creator explains software benefits from a calm office setup.',
+    )
+
+    assert selection.selected_id == 'avatar_chitrakala_desk5'
+    assert selection.reason == 'office_match'
+
+
 def test_select_best_avatar_reference_image_falls_back_to_primary_for_generic_prompt() -> None:
     selection = selectBestAvatarReferenceImage(
         avatar={

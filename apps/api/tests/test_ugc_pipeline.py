@@ -11,6 +11,7 @@ from app.pipeline.pipeline_engine import (
     _compose_avatar_product_narration_script,
     _extract_ugc_talking_excerpt,
     _is_chitrakala_showcase_scene,
+    _polish_avatar_product_script_for_duration,
     _resolve_ugc_persona,
     _resolve_requested_avatar_id,
     _split_chitrakala_manual_script,
@@ -202,7 +203,7 @@ def test_avatar_product_scene_plan_routes_all_scenes_to_talking_avatar() -> None
         ),
     )
 
-    assert [scene["stage_name"] for scene in scenes] == ["hook", "showcase", "cta"]
+    assert [scene["stage_name"] for scene in scenes] == ["single_shot"]
     assert all(scene["render_lane"] == "talking_avatar" for scene in scenes)
     assert all(scene["talking_mode"] == "lip_sync_required" for scene in scenes)
     assert all(scene["persona_required"] is True for scene in scenes)
@@ -288,9 +289,20 @@ def test_build_avatar_product_seedance_lite_prompt_keeps_non_clothing_prompt_lip
 
     lowered = prompt.lower()
     assert "minimal head movement" in lowered
-    assert "keep the face visible, frontal, and easy to track for later lip-sync replacement" in lowered
+    assert "keep the face frontal, stable, and clearly visible for later lip-sync" in lowered
     assert "kurti" not in lowered
     assert "garment" not in lowered
+    assert "keep both the creator face and the product visible together for most of the shot" in lowered
+
+
+def test_polish_avatar_product_script_for_five_seconds_keeps_clean_close() -> None:
+    polished = _polish_avatar_product_script_for_duration(
+        "यह वॉल क्लॉक हल्की है। इसे लगाना आसान है। अभी देखिए।",
+        duration_seconds=5,
+        language="Hindi (India)",
+    )
+
+    assert polished == "यह वॉल क्लॉक हल्की है। अभी देखिए।"
 
 
 def test_resolve_ugc_persona_prefers_actor_record_over_chitrakala_config(monkeypatch) -> None:

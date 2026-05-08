@@ -217,18 +217,18 @@ def _cap_spoken_script_for_duration(
     # Hindi generally needs fewer words for clean lip-sync in short ads.
     if "hi" in language_normalized or "hindi" in language_normalized:
         max_words = {
-            5: 12,
-            10: 22,
-            15: 32,
-            30: 58,
-        }.get(duration, max(12, int(duration * 2.2)))
+            5: 10,
+            10: 18,
+            15: 28,
+            30: 52,
+        }.get(duration, max(10, int(duration * 1.9)))
     else:
         max_words = {
-            5: 14,
-            10: 26,
-            15: 38,
-            30: 65,
-        }.get(duration, max(14, int(duration * 2.6)))
+            5: 12,
+            10: 22,
+            15: 34,
+            30: 60,
+        }.get(duration, max(12, int(duration * 2.2)))
 
     words = cleaned.split()
     if len(words) <= max_words:
@@ -239,6 +239,44 @@ def _cap_spoken_script_for_duration(
     if shortened and shortened[-1] not in ".!?।":
         shortened += "।" if ("hi" in language_normalized or "hindi" in language_normalized) else "."
     return shortened
+
+
+def _polish_avatar_product_script_for_duration(
+    script: str,
+    *,
+    duration_seconds: int,
+    language: str | None = None,
+) -> str:
+    cleaned = re.sub(r"\s+", " ", str(script or "").strip())
+    if not cleaned:
+        return ""
+
+    duration = max(5, min(int(duration_seconds or 5), 30))
+    language_normalized = str(language or "").strip().lower()
+    is_hindi = "hi" in language_normalized or "hindi" in language_normalized
+    sentence_pattern = r"(?<=[.!?।])\s+"
+    sentences = [segment.strip() for segment in re.split(sentence_pattern, cleaned) if segment.strip()]
+
+    if duration <= 5 and len(sentences) >= 2:
+        opener = sentences[0]
+        closer = sentences[-1]
+        if opener == closer and len(sentences) > 1:
+            closer = sentences[1]
+        if is_hindi:
+            if not re.search(r"(देखिए|आज|अभी|ज़रूर|चुनाव|पसंद)", closer):
+                closer = "आज ही ज़रूर देखिए।"
+            elif closer[-1] not in ".!?।":
+                closer += "।"
+        else:
+            if not re.search(r"(today|now|check|shop|try|explore)", closer, flags=re.IGNORECASE):
+                closer = "Check it out today."
+            elif closer[-1] not in ".!?":
+                closer += "."
+        return f"{opener} {closer}".strip()
+
+    if cleaned[-1] not in ".!?।":
+        cleaned += "।" if is_hindi else "."
+    return cleaned
 
 
 def _split_chitrakala_manual_script(
@@ -856,29 +894,62 @@ def _apply_avatar_product_enhancer_to_scenes(
     enhancer_result: HFQwenEnhancerResult,
 ) -> list[dict[str, Any]]:
     updated_scenes: list[dict[str, Any]] = []
+
     for scene in scenes:
         updated = dict(scene)
-        stage_name = str(updated.get("stage_name") or "").strip()
+        stage_name = str(updated.get("stage_name") or "").strip().lower()
+
         updated["enhancer_voice_tone"] = enhancer_result.voice_tone
         updated["enhancer_notes"] = list(enhancer_result.notes or [])
-        if stage_name == "hook":
+
+        if stage_name == "single_shot":
+            full_script = _compose_avatar_product_narration_script(enhancer_result)
+
+            updated["spoken_line"] = full_script
+            updated["showcase_visual_prompt"] = enhancer_result.showcase_visual_prompt
+            updated["visual_objective"] = enhancer_result.showcase_visual_prompt or updated.get("visual_objective")
+            updated["topic_focus"] = full_script or updated.get("topic_focus")
+
+            notes = [str(note).strip() for note in enhancer_result.notes if str(note).strip()]
+            if notes:
+                existing = str(updated.get("anti_repetition_note") or "").strip()
+                updated["anti_repetition_note"] = " ".join(
+                    part for part in [existing, *notes] if part
+                ).strip()
+
+                avoid_guidance = str(updated.get("extra_avoid_guidance") or "").strip()
+                updated["extra_avoid_guidance"] = " ".join(
+                    part for part in [avoid_guidance, *notes] if part
+                ).strip()
+
+        elif stage_name == "hook":
             updated["spoken_line"] = enhancer_result.hook_line
             updated["topic_focus"] = enhancer_result.hook_line or updated.get("topic_focus")
+
         elif stage_name == "showcase":
             updated["spoken_line"] = enhancer_result.showcase_line
             updated["showcase_visual_prompt"] = enhancer_result.showcase_visual_prompt
             updated["visual_objective"] = enhancer_result.showcase_visual_prompt or updated.get("visual_objective")
             updated["topic_focus"] = enhancer_result.showcase_line or updated.get("topic_focus")
+
             notes = [str(note).strip() for note in enhancer_result.notes if str(note).strip()]
             if notes:
                 existing = str(updated.get("anti_repetition_note") or "").strip()
-                updated["anti_repetition_note"] = " ".join(part for part in [existing, *notes] if part).strip()
+                updated["anti_repetition_note"] = " ".join(
+                    part for part in [existing, *notes] if part
+                ).strip()
+
                 avoid_guidance = str(updated.get("extra_avoid_guidance") or "").strip()
-                updated["extra_avoid_guidance"] = " ".join(part for part in [avoid_guidance, *notes] if part).strip()
+                updated["extra_avoid_guidance"] = " ".join(
+                    part for part in [avoid_guidance, *notes] if part
+                ).strip()
+
         elif stage_name == "cta":
             updated["spoken_line"] = enhancer_result.cta_line
             updated["topic_focus"] = enhancer_result.cta_line or updated.get("topic_focus")
+
         updated_scenes.append(updated)
+
     return updated_scenes
 
 
@@ -1717,6 +1788,12 @@ def _build_avatar_product_single_shot_kling_prompt(
 
         The product must remain only in the creator's hand. Do not show the creator wearing the product or wearing any matching version of the product. Keep it as a handheld showcase item only.
 
+        Balance and framing:
+        Keep equal attention on the creator face and the product in the same frame.
+        The creator face should stay readable while the product stays clearly visible near face or chest level.
+        Do not let the product dominate the entire frame for too long, and do not let the face dominate while the product becomes tiny or blurry.
+        In the final second, hold both face and product steady in the same composition for a clean resolved ending.
+
         Scene variation:
         Setting: {ugc_variant["setting"]}.
         Wardrobe: {ugc_variant["wardrobe"]}.
@@ -1725,8 +1802,11 @@ def _build_avatar_product_single_shot_kling_prompt(
 
         Style: Indian creator-style UGC, realistic indoor creator setup, soft natural lighting, stable handheld phone-shot feel, natural skin texture, no glossy TV commercial look, no scene cuts, no b-roll, no extra characters. Same creator identity and hairstyle must remain unchanged; only outfit color/style and room setup may vary to match the product category.
 
-        Spoken script:
-        {str(narration_script or "").strip()}
+        Performance intent:
+        The creator appears to be speaking naturally to camera while presenting the product.
+        Keep mouth movement subtle, face stable, and expression realistic for later lip-sync.
+        Do not add captions, subtitles, or on-screen text.
+        Script meaning: {_extract_ugc_talking_excerpt(str(narration_script or ""), max_sentences=2, max_chars=180)}
 
         Avoid: identity drift, face mutation, extra people, extra fingers, warped hands, distorted grip, blurry product, product changing into another object, serum bottle, skincare bottle, cosmetic tube, unrelated packaging, wrong jewellery type, fake unreadable text, mirror flip, plastic skin, exaggerated AI glow.
         """.strip()
@@ -1751,11 +1831,12 @@ def _build_avatar_product_seedance_lite_prompt(
     )
 
     speaking_motion = (
-        "The creator is looking directly into the lens and speaking naturally to the camera. "
-        "Her mouth is moving clearly and continuously with natural speech-like motion as she presents the product. "
-        "Use subtle expressions, light nods, and minimal head movement so the face stays stable and readable. "
-        "Keep mouth movement realistic and not exaggerated. "
-        "Keep the face visible, frontal, and easy to track for later lip-sync replacement. "
+        "The creator looks directly into the lens as if speaking naturally to camera while presenting the product. "
+        "Keep the face frontal, stable, and clearly visible for later lip-sync. "
+        "Use only very subtle mouth movement, natural blinking, a soft smile, and minimal head movement. "
+        "Do not exaggerate mouth shapes, do not turn the face sideways, and do not let hands or product cover the mouth. "
+        "Maintain a clean chest-up or medium close-up framing where the lips, jawline, and face remain easy to track. "
+        "Keep both the creator face and the product visible together for most of the shot, with a stable final one-second hold."
     )
 
     if any(word in category for word in ["sneaker", "shoe", "shoes", "footwear", "sandal"]):
@@ -1788,6 +1869,7 @@ def _build_avatar_product_seedance_lite_prompt(
             "The creator holds the product steadily in the foreground and presents it clearly to the camera. "
             "The product remains visible from the first second and stays visible while she speaks. "
             "Between second 1 and second 3, she completes one clean hero reveal by lifting, tilting, or bringing the product closer to camera, then holds it steady. "
+            "After the reveal, keep the face and product equally readable in the same frame and avoid pushing into an extreme product-only close-up. "
         )
 
     script_context = (
@@ -2281,26 +2363,28 @@ def run_recipe_pipeline(
                 topic=topic,
                 avatar_product_brief=avatar_product_brief or AvatarProductBrief(),
             )
-            if recipe.id == "avatar_product":
-                requested_duration_seconds = int(
-                    normalized_inputs.get("duration_seconds")
-                    or normalized_inputs.get("durationSeconds")
-                    or normalized_payload.get("durationSeconds")
-                    or recipe.duration_seconds
-                    or 5
-                )
 
-                if requested_duration_seconds not in {5, 10}:
-                    requested_duration_seconds = 5
+            requested_duration_seconds = int(
+                normalized_inputs.get("duration_seconds")
+                or normalized_inputs.get("durationSeconds")
+                or (avatar_product_brief.duration_seconds if avatar_product_brief else None)
+                or initial_pipeline_metadata.get("duration_seconds")
+                or initial_pipeline_metadata.get("durationSeconds")
+                or recipe.duration_seconds
+                or 5
+            )
 
-                scenes = [
-                    {
-                        **scene,
-                        "duration_seconds": requested_duration_seconds,
-                        "talking_duration_hint_seconds": requested_duration_seconds,
-                    }
-                    for scene in scenes
-                ]
+            if requested_duration_seconds not in {5, 10}:
+                requested_duration_seconds = 5
+
+            scenes = [
+                {
+                    **scene,
+                    "duration_seconds": requested_duration_seconds,
+                    "talking_duration_hint_seconds": requested_duration_seconds,
+                }
+                for scene in scenes
+            ]
         else:
             scenes = build_ugc_ad_scene_plan(
                 recipe=recipe,
@@ -2376,33 +2460,43 @@ def run_recipe_pipeline(
                     product_name=avatar_product_brief.product_name or topic or 'the product',
                     cta=avatar_product_brief.cta or 'Shop now',
                 )
-                scenes = [
-                    {
-                        **scene,
-                        'spoken_line': split_lines['hook_line'] if str(scene.get('stage_name') or '').strip().lower() == 'hook'
-                        else split_lines['showcase_line'] if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
-                        else split_lines['cta_line'],
-                        'showcase_visual_prompt': (
-                            _build_chitrakala_showcase_prompt(
-                                product_name=avatar_product_brief.product_name or topic or 'the product',
-                                showcase_visual_prompt=scene.get('showcase_visual_prompt'),
-                                must_show_elements=list(scene.get('must_show_elements') or []),
-                            )
-                            if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
-                            else scene.get('showcase_visual_prompt')
-                        ),
-                    }
-                    for scene in scenes
-                ]
-                narration_script = ' '.join(
-                    line for line in [
-                        split_lines['hook_line'],
-                        split_lines['showcase_line'],
-                        split_lines['cta_line'],
+
+                full_manual_script = " ".join(
+                    line
+                    for line in [
+                        split_lines["hook_line"],
+                        split_lines["showcase_line"],
+                        split_lines["cta_line"],
                     ]
                     if line
                 ).strip()
 
+                scenes = [
+                    {
+                        **scene,
+                        "spoken_line": (
+                            full_manual_script
+                            if str(scene.get("stage_name") or "").strip().lower() == "single_shot"
+                            else split_lines["hook_line"]
+                            if str(scene.get("stage_name") or "").strip().lower() == "hook"
+                            else split_lines["showcase_line"]
+                            if str(scene.get("stage_name") or "").strip().lower() == "showcase"
+                            else split_lines["cta_line"]
+                        ),
+                        "showcase_visual_prompt": (
+                            _build_chitrakala_showcase_prompt(
+                                product_name=avatar_product_brief.product_name or topic or "the product",
+                                showcase_visual_prompt=scene.get("showcase_visual_prompt"),
+                                must_show_elements=list(scene.get("must_show_elements") or []),
+                            )
+                            if str(scene.get("stage_name") or "").strip().lower() in {"showcase", "single_shot"}
+                            else scene.get("showcase_visual_prompt")
+                        ),
+                    }
+                    for scene in scenes
+                ]
+
+                narration_script = full_manual_script
 
                 narration_script, forbidden_terms_found, script_repaired = _repair_avatar_product_narration_for_category(
                     narration_script,
@@ -2428,13 +2522,13 @@ def run_recipe_pipeline(
                     'hook_line': split_lines['hook_line'],
                     'showcase_line': split_lines['showcase_line'],
                     'cta_line': split_lines['cta_line'],
-                    'showcase_visual_prompt': next(
+                    "showcase_visual_prompt": next(
                         (
-                            str(scene.get('showcase_visual_prompt') or '').strip()
+                            str(scene.get("showcase_visual_prompt") or "").strip()
                             for scene in scenes
-                            if str(scene.get('stage_name') or '').strip().lower() == 'showcase'
+                            if str(scene.get("stage_name") or "").strip().lower() in {"showcase", "single_shot"}
                         ),
-                        '',
+                        "",
                     ),
                 }
                 logger.info(
@@ -2556,6 +2650,7 @@ def run_recipe_pipeline(
             requires_locked_persona = any(bool(scene.get("persona_required")) for scene in scenes)
             strict_avatar_recipe = recipe.id == "avatar_product" and requires_locked_persona
 
+
             if recipe.id == "avatar_product" and avatar_product_brief:
                 product_category_hint_for_repair = _avatar_product_category_hint(
                     normalized_inputs=normalized_inputs,
@@ -2568,17 +2663,19 @@ def run_recipe_pipeline(
                     product_name=avatar_product_brief.product_name or topic or "this product",
                 )
 
-            logger.info(
-                "avatar_product_script_category_validation",
-                extra={
-                    "video_id": video_id,
-                    "product_category_hint": product_category_hint_for_repair,
-                    "forbidden_terms_found": forbidden_terms_found,
-                    "script_repaired": script_repaired,
-                    "source": "post_fallback_or_final_script",
-                    "narration_script": narration_script[:220],
-                },
-            )
+                logger.info(
+                    "avatar_product_script_category_validation",
+                    extra={
+                        "video_id": video_id,
+                        "product_category_hint": product_category_hint_for_repair,
+                        "forbidden_terms_found": forbidden_terms_found,
+                        "script_repaired": script_repaired,
+                        "source": "post_fallback_or_final_script",
+                        "narration_script": (narration_script or "")[:220],
+                    },
+                )
+
+
 
             if strict_avatar_recipe and not selected_persona:
                 _merge_pipeline_metadata(
@@ -2942,6 +3039,7 @@ def run_recipe_pipeline(
 
         allowed_avatar_product_models = {
             "seedance_v1_lite_reference",
+            "fal_ltx23_i2v",
             "kling_o3_standard_reference",
             "kling_o3_pro_reference",
             "kling_o3_4k_reference",
@@ -3003,6 +3101,28 @@ def run_recipe_pipeline(
                 duration=kling_duration,
                 camera_fixed=False,
             )
+        elif resolved_video_model_key == "fal_ltx23_i2v":
+            ltx_prompt = _build_avatar_product_seedance_lite_prompt(
+                base_prompt=kling_prompt,
+                product_category_hint=product_category_hint,
+                narration_script=narration_script or "",
+            )
+            kling_video_url, kling_meta = fal_service.generate(
+                model_key="fal_ltx23_i2v",
+                prompt=ltx_prompt,
+                aspect_ratio="9:16",
+                resolution="1080p",
+                duration_seconds=requested_duration,
+                image_url=avatar_image_url,
+                generate_audio=False,
+                request_context={
+                    "recipe_id": recipe.id,
+                    "video_id": video_id,
+                    "avatar_product_model_lane": "ltx_experimental",
+                    "avatar_product_source_avatar_image_url": avatar_image_url,
+                    "avatar_product_source_product_image_url": product_image_url,
+                },
+            )
         else:
             kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
                 prompt=kling_prompt,
@@ -3046,6 +3166,11 @@ def run_recipe_pipeline(
             duration_seconds=requested_duration,
             language=resolved_gemini_language,
         )
+        narration_script = _polish_avatar_product_script_for_duration(
+            narration_script,
+            duration_seconds=requested_duration,
+            language=resolved_gemini_language,
+        )
 
         if narration_script != original_narration_script_for_tts:
             logger.info(
@@ -3074,12 +3199,30 @@ def run_recipe_pipeline(
             language_code=resolved_gemini_language,
             style_instructions=(
                 f"Speak entirely in {resolved_gemini_language}. "
-                "Warm Indian creator voice, natural talking-head product ad delivery, "
-                "clear pacing, friendly confidence, no English unless the original product or brand name requires it."
-            ),
+                "Warm Indian creator voice, natural talking-head product ad delivery. "
+                "Use clear, slightly slower pacing suitable for lip-sync. "
+                "Avoid rushing words, avoid dramatic pauses, and keep delivery friendly and confident. "
+                "No English unless the original product or brand name requires it."
+            )
+        )
+
+        logger.info(
+            "avatar_product_lipsync_inputs",
+            extra={
+                "video_id": video_id,
+                "base_video_url": kling_video_url,
+                "audio_url": audio_url,
+                "resolved_video_model_key": resolved_video_model_key,
+                "resolved_gemini_voice": resolved_gemini_voice,
+                "resolved_gemini_language": resolved_gemini_language,
+                "script_word_count": len((narration_script or "").split()),
+                "script_char_count": len(narration_script or ""),
+                "requested_duration": requested_duration,
+            },
         )
 
         logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})
+
         final_video_url, lipsync_meta = fal_service.generate_sync_lipsync_v2(
             video_url=kling_video_url,
             audio_url=audio_url,
@@ -3102,6 +3245,16 @@ def run_recipe_pipeline(
             avatar_product_tts_voice=resolved_gemini_voice,
             avatar_product_tts_language=resolved_gemini_language,
             avatar_product_lipsync_video_url=final_video_url,
+            avatar_product_lipsync_inputs={
+                "base_video_url": kling_video_url,
+                "audio_url": audio_url,
+                "resolved_video_model_key": resolved_video_model_key,
+                "resolved_gemini_voice": resolved_gemini_voice,
+                "resolved_gemini_language": resolved_gemini_language,
+                "script_word_count": len((narration_script or "").split()),
+                "script_char_count": len(narration_script or ""),
+                "requested_duration": requested_duration,
+            },
             avatar_product_kling_meta=kling_meta,
             avatar_product_tts_meta=tts_meta,
             avatar_product_lipsync_meta=lipsync_meta,

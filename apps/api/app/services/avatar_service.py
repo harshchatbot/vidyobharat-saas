@@ -52,6 +52,13 @@ _REFERENCE_HEURISTIC_GROUPS: tuple[tuple[tuple[str, ...], tuple[str, ...], str],
 def _filename_variant_tags(variant_id: str) -> list[str]:
     normalized = str(variant_id or '').strip().lower()
     defaults = list(_REFERENCE_TAG_DEFAULTS.get(normalized, ()))
+    for token, token_tags in _REFERENCE_TAG_DEFAULTS.items():
+        if token and token in normalized:
+            for tag in token_tags:
+                if tag not in defaults:
+                    defaults.append(tag)
+            if token not in defaults:
+                defaults.append(token)
     if normalized and normalized not in defaults:
         defaults.append(normalized)
     return defaults

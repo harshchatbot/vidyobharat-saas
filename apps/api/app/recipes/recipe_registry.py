@@ -357,6 +357,16 @@ PIXVERSE_ALLOWED_DURATIONS = {'5', '10'}
 PIXVERSE_ALLOWED_QUALITIES = frozenset(PIXVERSE_QUALITY_TO_RESOLUTION.keys())
 PIXVERSE_ALLOWED_AUDIO_MODES = {'silent', 'auto_scene_sound'}
 PIXVERSE_ALLOWED_SCENES = frozenset(next(iter(PIXVERSE_ANIME_SCENE_MAP.values())).keys())
+AVATAR_PRODUCT_MODEL_TO_RESOLUTION: dict[str, str] = {
+    'fal_ltx23_i2v': '1080p',
+    'seedance_v1_lite_reference': '720p',
+    'kling_o3_reference': '720p',
+    'kling_o3_standard_reference': '720p',
+    'kling_o3_pro_reference': '720p',
+    'kling_o3_4k_reference': '1080p',
+    'kling_v16_standard_elements': '720p',
+    'kling_v16_pro_elements': '720p',
+}
 
 
 class AnimeLofiQwenExpansion(BaseModel):
@@ -898,7 +908,7 @@ RECIPES: dict[str, RecipeConfig] = {
             ),
         },
     ),
-        'avatar_product': RecipeConfig(
+    'avatar_product': RecipeConfig(
         id='avatar_product',
         type='video',
         duration_seconds=5,
@@ -1860,6 +1870,9 @@ def build_normalized_video_payload(
         image_urls.append(str(normalized_inputs['image']))
 
     script = str(normalized_inputs.get('text') or recipe.config.seed_prompt or f'Run the {recipe.id} recipe pipeline.').strip()
+    resolved_resolution = defaults.resolution
+    if recipe.id == 'avatar_product':
+        resolved_resolution = AVATAR_PRODUCT_MODEL_TO_RESOLUTION.get(resolved_model_key, resolved_resolution)
 
     return {
         'template': recipe.catalog.title,
@@ -1871,7 +1884,7 @@ def build_normalized_video_payload(
         'projectId': None,
         'language': defaults.language,
         'aspectRatio': defaults.aspect_ratio,
-        'resolution': defaults.resolution,
+        'resolution': resolved_resolution,
         'quality': resolved_quality,
         'durationMode': 'custom',
         'durationSeconds': duration_seconds,
