@@ -185,6 +185,8 @@ def _translate_avatar_product_narration_if_needed(
     resolved_target_language = str(target_language or "").strip()
     if not normalized_script or not resolved_target_language or resolved_target_language == "English (India)":
         return normalized_script, False
+    if resolved_target_language == "Hindi (India)" and re.search(r"[\u0900-\u097F]", normalized_script):
+        return normalized_script, False
 
     translated = QwenService(get_settings()).complete_text(
         task_type="translate",
@@ -277,6 +279,143 @@ def _polish_avatar_product_script_for_duration(
     if cleaned[-1] not in ".!?।":
         cleaned += "।" if is_hindi else "."
     return cleaned
+
+
+def _normalize_avatar_product_name_candidate(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(value or "").strip())
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"^(?:a|an|the)\s+", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.split(r"\s+(?:with|that|which|featuring|including|using)\s+", cleaned, maxsplit=1, flags=re.IGNORECASE)[0].strip(" ,.-")
+    return cleaned
+
+
+def _avatar_product_short_label(
+    *,
+    avatar_product_brief: AvatarProductBrief | None,
+    language: str | None,
+) -> str:
+    is_hindi = "hi" in str(language or "").lower() or "hindi" in str(language or "").lower()
+    product_name = _normalize_avatar_product_name_candidate(getattr(avatar_product_brief, "product_name", "") or "")
+    haystack = " ".join(
+        part
+        for part in [
+            product_name,
+            getattr(avatar_product_brief, "product_category", "") or "",
+            getattr(avatar_product_brief, "product_subcategory", "") or "",
+            getattr(avatar_product_brief, "category_specific_details", "") or "",
+        ]
+        if str(part or "").strip()
+    ).lower()
+
+    if "wall clock" in haystack or re.search(r"\bclock\b", haystack):
+        return "वुडन वॉल क्लॉक" if is_hindi else "wooden wall clock"
+    if "serum" in haystack or "skincare" in haystack:
+        return "सीरम" if is_hindi else "serum"
+    if "saas" in haystack or "software" in haystack or re.search(r"\bapp\b", haystack):
+        return "AI टूल" if is_hindi else "AI tool"
+    if "kurti" in haystack or "dress" in haystack or "apparel" in haystack:
+        return "आउटफिट" if is_hindi else "outfit"
+    if product_name:
+        return product_name
+    return "यह प्रोडक्ट" if is_hindi else "this product"
+
+
+def _avatar_product_short_benefit_phrase(
+    *,
+    avatar_product_brief: AvatarProductBrief | None,
+    language: str | None,
+) -> str:
+    is_hindi = "hi" in str(language or "").lower() or "hindi" in str(language or "").lower()
+    key_promise = str(getattr(avatar_product_brief, "key_promise", "") or "").strip()
+    category = str(getattr(avatar_product_brief, "product_category", "") or "").lower()
+    product_name = str(getattr(avatar_product_brief, "product_name", "") or "").lower()
+    haystack = " ".join(
+        part for part in [key_promise, category, product_name, str(getattr(avatar_product_brief, "category_specific_details", "") or "")]
+        if part
+    ).lower()
+
+    if "wall clock" in haystack or re.search(r"\bclock\b", haystack):
+        return "हल्की है और लगाना आसान है" if is_hindi else "is lightweight and easy to hang"
+    if "serum" in haystack or "skincare" in haystack:
+        return "स्किन को हेल्दी ग्लो देती है" if is_hindi else "gives skin a healthy glow"
+    if "saas" in haystack or "software" in haystack or re.search(r"\bapp\b", haystack):
+        return "काम को आसान और तेज बनाता है" if is_hindi else "makes work simpler and faster"
+    if "kurti" in haystack or "dress" in haystack or "apparel" in haystack:
+        return "आरामदायक है और आसानी से स्टाइल होती है" if is_hindi else "feels comfortable and styles easily"
+
+    normalized = _normalize_avatar_product_name_candidate(key_promise)
+    if normalized:
+        return normalized
+    return "आपके रोज़मर्रा के काम को आसान बनाती है" if is_hindi else "makes everyday use easier"
+
+
+def _avatar_product_short_cta(
+    *,
+    avatar_product_brief: AvatarProductBrief | None,
+    language: str | None,
+) -> str:
+    is_hindi = "hi" in str(language or "").lower() or "hindi" in str(language or "").lower()
+    raw = str(
+        getattr(avatar_product_brief, "cta_preference", "") or getattr(avatar_product_brief, "cta", "") or ""
+    ).strip()
+    if raw:
+        if raw[-1] not in ".!?।":
+            raw += "।" if is_hindi else "."
+        return raw
+    return "आज ही देखिए।" if is_hindi else "Check it out today."
+
+
+def _build_avatar_product_timeboxed_script(
+    *,
+    avatar_product_brief: AvatarProductBrief | None,
+    duration_seconds: int,
+    language: str | None,
+) -> str:
+    is_hindi = "hi" in str(language or "").lower() or "hindi" in str(language or "").lower()
+    product_label = _avatar_product_short_label(
+        avatar_product_brief=avatar_product_brief,
+        language=language,
+    )
+    benefit = _avatar_product_short_benefit_phrase(
+        avatar_product_brief=avatar_product_brief,
+        language=language,
+    )
+    cta = _avatar_product_short_cta(
+        avatar_product_brief=avatar_product_brief,
+        language=language,
+    )
+
+    if duration_seconds <= 5:
+        if is_hindi:
+            return f"ये {product_label} {benefit}। {cta}".strip()
+        return f"This {product_label} {benefit}. {cta}".strip()
+
+    if is_hindi:
+        return f"ये {product_label} {benefit} और रोज़मर्रा में काम आता है। {cta}".strip()
+    return f"This {product_label} {benefit} and fits naturally into everyday use. {cta}".strip()
+
+
+def _rewrite_avatar_product_script_for_quality(
+    script: str,
+    *,
+    avatar_product_brief: AvatarProductBrief | None,
+    duration_seconds: int,
+    language: str | None,
+) -> tuple[str, bool]:
+    """Return a higher-quality brief-grounded script and whether it is already time-bounded."""
+    cleaned = re.sub(r"\s+", " ", str(script or "").strip())
+    if not avatar_product_brief:
+        return cleaned, False
+
+    if duration_seconds <= 5:
+        return _build_avatar_product_timeboxed_script(
+            avatar_product_brief=avatar_product_brief,
+            duration_seconds=duration_seconds,
+            language=language,
+        ), True
+
+    return cleaned, False
 
 
 def _split_chitrakala_manual_script(
@@ -3138,6 +3277,13 @@ def run_recipe_pipeline(
         )
         resolved_gemini_language = resolve_avatar_product_gemini_language(effective_language)
 
+        narration_script, script_is_timebounded = _rewrite_avatar_product_script_for_quality(
+            narration_script or "",
+            avatar_product_brief=avatar_product_brief,
+            duration_seconds=requested_duration,
+            language=resolved_gemini_language,
+        )
+
         translated_narration_script, translation_applied = _translate_avatar_product_narration_if_needed(
             narration_script or "",
             target_language=resolved_gemini_language,
@@ -3161,15 +3307,24 @@ def run_recipe_pipeline(
 
         original_narration_script_for_tts = str(translated_narration_script or "").strip()
 
-        narration_script = _cap_spoken_script_for_duration(
-            translated_narration_script or "",
-            duration_seconds=requested_duration,
-            language=resolved_gemini_language,
-        )
-        narration_script = _polish_avatar_product_script_for_duration(
-            narration_script,
-            duration_seconds=requested_duration,
-            language=resolved_gemini_language,
+        if script_is_timebounded:
+            narration_script = original_narration_script_for_tts
+        else:
+            narration_script = _cap_spoken_script_for_duration(
+                translated_narration_script or "",
+                duration_seconds=requested_duration,
+                language=resolved_gemini_language,
+            )
+            narration_script = _polish_avatar_product_script_for_duration(
+                narration_script,
+                duration_seconds=requested_duration,
+                language=resolved_gemini_language,
+            )
+
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            narration_script=narration_script,
+            avatar_product_final_tts_script=narration_script,
         )
 
         if narration_script != original_narration_script_for_tts:

@@ -397,7 +397,16 @@ class AvatarProductWorkflowService:
         for pattern in patterns:
             match = re.search(pattern, cleaned, flags=re.IGNORECASE)
             if match:
-                return match.group(1).strip(" .")
+                candidate = match.group(1).strip(" .")
+                candidate = re.split(
+                    r"\s+(?:with|featuring|that|which|offering|including)\s+",
+                    candidate,
+                    maxsplit=1,
+                    flags=re.IGNORECASE,
+                )[0].strip(" ,.-")
+                if "wall clock" in candidate.lower() or re.search(r"\bclock\b", candidate.lower()):
+                    return "wooden wall clock" if "wooden" in candidate.lower() else "wall clock"
+                return candidate
         return ""
 
     def _extract_brand_name(self, message: str) -> str:

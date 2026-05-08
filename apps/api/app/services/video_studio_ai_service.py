@@ -50,6 +50,14 @@ class VideoStudioAIService:
             },
         )
 
+        direct_reply = self._direct_metadata_reply(context=context, user_message=message)
+        if direct_reply:
+            return {
+                "reply": direct_reply,
+                "provider": provider_name,
+                "model": model_name,
+            }
+
         # Cheap off-topic guard before model call
         if not is_studio_ai_question_relevant(message):
             blocked_reply = (
@@ -152,6 +160,53 @@ class VideoStudioAIService:
             "provider": provider_name,
             "model": model_name,
         }
+
+    def _direct_metadata_reply(self, *, context: dict[str, Any], user_message: str) -> str | None:
+        message = str(user_message or "").strip().lower()
+        if not message:
+            return None
+
+        if (
+            ("model" in message or "which model" in message or "what model" in message)
+            and any(token in message for token in {"video", "render", "used", "last"})
+        ):
+            provider = context.get("provider_name") or "the configured provider"
+            return (
+                f"For this currently opened video, the model was {context.get('selected_model') or 'not available'} "
+                f"using {provider}."
+            )
+
+        if "duration" in message or "how long" in message:
+            duration = context.get("duration_seconds")
+            if duration:
+                return f"This video is {duration} seconds long."
+            return "The duration is not available for this render yet."
+
+        if "resolution" in message or "quality" in message or "aspect ratio" in message or "format" in message:
+            return (
+                f"This render is {context.get('aspect_ratio') or 'n/a'} at {context.get('resolution') or 'n/a'}, "
+                f"with quality set to {context.get('quality') or 'n/a'}."
+            )
+
+        if "voice" in message or "language" in message or "narration" in message:
+            reply_parts: list[str] = []
+            if context.get("language"):
+                reply_parts.append(f"Language: {context['language']}")
+            if context.get("voice"):
+                reply_parts.append(f"Requested voice: {context['voice']}")
+            if context.get("tts_resolved_voice"):
+                reply_parts.append(f"Resolved TTS voice: {context['tts_resolved_voice']}")
+            if context.get("script"):
+                reply_parts.append(f"Narration script: {context['script']}")
+            return " ".join(reply_parts) if reply_parts else "Voice and narration details are not available yet."
+
+        if "script" in message and any(token in message for token in {"what", "which", "show", "used"}):
+            script = str(context.get("script") or "").strip()
+            if script:
+                return f'The narration script used for this render was: "{script}"'
+            return "This render does not have a narration script recorded."
+
+        return None
 
     def _build_context(self, video: Video) -> dict[str, Any]:
         metadata = dict(getattr(video, "pipeline_metadata", {}) or {})

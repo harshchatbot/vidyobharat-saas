@@ -5,13 +5,16 @@ from app.pipeline.pipeline_engine import (
     _apply_chitrakala_v1_scene_strategy,
     _avatar_product_enhancer_metadata,
     _avatar_product_hero_reveal_guidance,
+    _avatar_product_short_label,
     _build_avatar_product_seedance_lite_prompt,
     _build_avatar_product_single_shot_kling_prompt,
+    _build_avatar_product_timeboxed_script,
     _build_chitrakala_showcase_prompt,
     _compose_avatar_product_narration_script,
     _extract_ugc_talking_excerpt,
     _is_chitrakala_showcase_scene,
     _polish_avatar_product_script_for_duration,
+    _rewrite_avatar_product_script_for_quality,
     _resolve_ugc_persona,
     _resolve_requested_avatar_id,
     _split_chitrakala_manual_script,
@@ -103,6 +106,54 @@ def test_avatar_product_narration_script_uses_enhancer_lines() -> None:
         "This one is ready in under a minute. "
         "Worth trying if breakfast gets skipped."
     )
+
+
+def test_avatar_product_short_label_handles_wall_clock() -> None:
+    brief = AvatarProductBrief(
+        product_name="a lightweight wooden wall clock with warm home decor appeal",
+        product_category="home_kitchen",
+    )
+
+    assert _avatar_product_short_label(avatar_product_brief=brief, language="Hindi (India)") == "वुडन वॉल क्लॉक"
+
+
+def test_avatar_product_timeboxed_script_stays_relevant_for_hindi_wall_clock() -> None:
+    brief = AvatarProductBrief(
+        product_name="wooden wall clock",
+        product_category="home_kitchen",
+        key_promise="lightweight design that is easy to hang and style",
+        cta_preference="आज ही देखिए",
+    )
+
+    script = _build_avatar_product_timeboxed_script(
+        avatar_product_brief=brief,
+        duration_seconds=5,
+        language="Hindi (India)",
+    )
+
+    assert "वॉल क्लॉक" in script
+    assert "लगाना आसान" in script
+    assert "आज ही देखिए" in script
+
+
+def test_avatar_product_quality_rewrite_timeboxes_short_hindi_script() -> None:
+    brief = AvatarProductBrief(
+        product_name="wooden wall clock",
+        product_category="home_kitchen",
+        key_promise="lightweight design that is easy to hang and style",
+        cta_preference="आज ही देखिए",
+    )
+
+    rewritten, is_timebounded = _rewrite_avatar_product_script_for_quality(
+        "It is small and easy to install. Check it out today.",
+        avatar_product_brief=brief,
+        duration_seconds=5,
+        language="Hindi (India)",
+    )
+
+    assert is_timebounded is True
+    assert "वॉल क्लॉक" in rewritten
+    assert "आज ही देखिए" in rewritten
 
 
 def test_apply_avatar_product_enhancer_to_scenes_maps_scene_fields() -> None:
