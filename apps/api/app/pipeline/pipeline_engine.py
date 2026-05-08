@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.core.config import get_settings
+from app.cinematic.families.ugc.builder import build_ugc_avatar_product_spec
+from app.cinematic.orchestrator.compile_prompt import compile_cinematic_prompt
 from app.db.firestore_utils import utcnow
 from app.db.repositories.video_repository import VideoRepository
 from app.pipeline.prompt_builder import build_scene_prompt
@@ -3224,12 +3226,47 @@ def run_recipe_pipeline(
         )
 
         seedance_prompt = None
+        cinematic_spec = None
+        cinematic_compiler_metadata: dict[str, Any] | None = None
+        cinematic_compiled_prompt: str | None = None
+        cinematic_architecture_enabled = bool(get_settings().use_new_cinematic_architecture) or str(
+            normalized_inputs.get("cinematic_architecture_version")
+            or initial_pipeline_metadata.get("cinematic_architecture_version")
+            or ""
+        ).strip().lower() == "v2"
+        if cinematic_architecture_enabled:
+            cinematic_spec = build_ugc_avatar_product_spec(
+                avatar_name=avatar_name,
+                product_name=product_name,
+                product_category_hint=product_category_hint,
+                narration_script=narration_script,
+                duration_seconds=requested_duration,
+            )
+            cinematic_compiled_prompt, cinematic_compiler_metadata = compile_cinematic_prompt(
+                family="ugc_avatar_product",
+                model_key=resolved_video_model_key,
+                spec=cinematic_spec,
+            )
+            _merge_pipeline_metadata(
+                video_id=video_id,
+                cinematic_architecture_enabled=True,
+                cinematic_framework="STAR-C",
+                recipe_family="ugc_avatar_product",
+                recipe_version="v2",
+                cinematic_spec=cinematic_spec.to_dict(),
+                cinematic_compiler_metadata=cinematic_compiler_metadata,
+                cinematic_compiled_prompt=cinematic_compiled_prompt,
+            )
 
         if resolved_video_model_key == "seedance_v1_lite_reference":
-            seedance_prompt = _build_avatar_product_seedance_lite_prompt(
-                base_prompt=kling_prompt,
-                product_category_hint=product_category_hint,
-                narration_script=narration_script or "",
+            seedance_prompt = (
+                cinematic_compiled_prompt
+                if cinematic_architecture_enabled and cinematic_compiled_prompt
+                else _build_avatar_product_seedance_lite_prompt(
+                    base_prompt=kling_prompt,
+                    product_category_hint=product_category_hint,
+                    narration_script=narration_script or "",
+                )
             )
 
             kling_video_url, kling_meta = fal_service.generate_seedance_lite_reference_video(
@@ -3241,10 +3278,14 @@ def run_recipe_pipeline(
                 camera_fixed=False,
             )
         elif resolved_video_model_key == "fal_ltx23_i2v":
-            ltx_prompt = _build_avatar_product_seedance_lite_prompt(
-                base_prompt=kling_prompt,
-                product_category_hint=product_category_hint,
-                narration_script=narration_script or "",
+            ltx_prompt = (
+                cinematic_compiled_prompt
+                if cinematic_architecture_enabled and cinematic_compiled_prompt
+                else _build_avatar_product_seedance_lite_prompt(
+                    base_prompt=kling_prompt,
+                    product_category_hint=product_category_hint,
+                    narration_script=narration_script or "",
+                )
             )
             kling_video_url, kling_meta = fal_service.generate(
                 model_key="fal_ltx23_i2v",
@@ -3263,8 +3304,13 @@ def run_recipe_pipeline(
                 },
             )
         else:
+            provider_prompt = (
+                cinematic_compiled_prompt
+                if cinematic_architecture_enabled and cinematic_compiled_prompt
+                else kling_prompt
+            )
             kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
-                prompt=kling_prompt,
+                prompt=provider_prompt,
                 image_urls=[url for url in [avatar_image_url, product_image_url] if url],
                 aspect_ratio="9:16",
                 duration=kling_duration,
@@ -3387,6 +3433,7 @@ def run_recipe_pipeline(
             video_id=video_id,
             pipeline_version="avatar_product_single_shot_v1",
             avatar_product_single_output=True,
+            cinematic_architecture_enabled=cinematic_architecture_enabled,
             avatar_product_product_category_hint=product_category_hint,
             avatar_product_ugc_variant=ugc_variant,
             avatar_product_category_preservation_rules=category_preservation_rules,
@@ -3418,6 +3465,16 @@ def run_recipe_pipeline(
                 "message": "Your avatar product ad is ready.",
             },
         )
+        if cinematic_architecture_enabled and cinematic_spec and cinematic_compiler_metadata and cinematic_compiled_prompt:
+            _merge_pipeline_metadata(
+                video_id=video_id,
+                cinematic_framework="STAR-C",
+                recipe_family="ugc_avatar_product",
+                recipe_version="v2",
+                cinematic_spec=cinematic_spec.to_dict(),
+                cinematic_compiler_metadata=cinematic_compiler_metadata,
+                cinematic_compiled_prompt=cinematic_compiled_prompt,
+            )
 
         _persist_final_video(
             video_id=video_id,

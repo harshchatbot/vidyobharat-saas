@@ -122,6 +122,7 @@ class Settings(BaseSettings):
     ltx_mock_malformed_status: bool = False
     ltx_mock_queue_seconds: int = 2
     ltx_mock_processing_seconds: int = 3
+    use_new_cinematic_architecture: bool = False
     chitrakala_persona_id: str = 'av-chitrakala'
     chitrakala_avatar_name: str = 'Chitrakala'
     chitrakala_avatar_image_url: str | None = None

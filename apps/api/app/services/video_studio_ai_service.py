@@ -206,6 +206,38 @@ class VideoStudioAIService:
                 return f'The narration script used for this render was: "{script}"'
             return "This render does not have a narration script recorded."
 
+        if ("shot" in message or "shots" in message) and any(token in message for token in {"how many", "count", "parsed"}):
+            shot_count = context.get("structured_prompt_shot_count")
+            if shot_count:
+                return f"This render used JSON mode with {shot_count} parsed shot{'s' if shot_count != 1 else ''}."
+            return "This render does not have structured JSON shot metadata recorded."
+
+        if "camera" in message or "lens" in message or "effect" in message:
+            extracted = context.get("structured_prompt_extracted") or {}
+            if isinstance(extracted, dict) and any(extracted.values()):
+                parts: list[str] = []
+                camera_movements = extracted.get("camera_movements") or []
+                lenses = extracted.get("lenses") or []
+                effects = extracted.get("effects") or []
+                if camera_movements:
+                    parts.append(f"Camera movement: {camera_movements[0]}")
+                if lenses:
+                    parts.append(f"Lens: {lenses[0]}")
+                if effects:
+                    parts.append(f"Effects: {effects[0]}")
+                if parts:
+                    return " ".join(parts)
+
+        if any(token in message for token in {"json", "structured prompt", "structured json"}):
+            shape = str(context.get("structured_prompt_shape") or "").strip()
+            if shape:
+                return (
+                    f"This render used JSON mode in {shape} format with "
+                    f"{context.get('structured_prompt_shot_count') or 0} parsed shot"
+                    f"{'' if context.get('structured_prompt_shot_count') == 1 else 's'}."
+                )
+            return "This render does not have structured JSON metadata recorded."
+
         return None
 
     def _build_context(self, video: Video) -> dict[str, Any]:
@@ -282,6 +314,12 @@ class VideoStudioAIService:
             "thumbnail_url": str(getattr(video, "thumbnail_url", "") or ""),
             "script": str(metadata.get("narration_script") or getattr(video, "script", "") or "").strip(),
             "narration_source_type": str(metadata.get("narration_source_type") or ""),
+            "structured_prompt_mode": str(metadata.get("structured_prompt_mode") or ""),
+            "structured_prompt_shape": str(metadata.get("structured_prompt_shape") or ""),
+            "structured_prompt_shot_count": int(metadata.get("structured_prompt_shot_count") or 0),
+            "structured_prompt_summary": str(metadata.get("structured_prompt_summary") or ""),
+            "structured_prompt_assets": list(metadata.get("structured_prompt_assets") or []),
+            "structured_prompt_extracted": metadata.get("structured_prompt_extracted") if isinstance(metadata.get("structured_prompt_extracted"), dict) else {},
             "todos": self._todos_for(video),
             "events": events[-8:],
             "planner_watchouts": self._planner_watchouts(metadata),
@@ -343,6 +381,18 @@ class VideoStudioAIService:
             if value not in ("", None, [], {})
         ) or "- No resolved persona metadata."
 
+        structured_assets_lines = "\n".join(
+            f"- {asset.get('kind')}: {asset.get('url')}"
+            for asset in context["structured_prompt_assets"][:6]
+            if isinstance(asset, dict) and asset.get("url")
+        ) or "- No structured prompt assets."
+        structured_extracted = context["structured_prompt_extracted"] if isinstance(context["structured_prompt_extracted"], dict) else {}
+        structured_detail_lines = "\n".join(
+            f"- {key}: {', '.join(value) if isinstance(value, list) else value}"
+            for key, value in structured_extracted.items()
+            if value
+        ) or "- No extracted structured prompt details."
+
         return (
             f"Render title: {context['title']}\n"
             f"Render id: {context['video_id']}\n"
@@ -380,6 +430,12 @@ class VideoStudioAIService:
             f"Error message: {context['error_message'] or 'None'}\n"
             f"Narration source type: {context['narration_source_type'] or 'n/a'}\n"
             f"Narration script:\n{context['script'] or 'None'}\n"
+            f"Structured prompt mode: {context['structured_prompt_mode'] or 'n/a'}\n"
+            f"Structured prompt shape: {context['structured_prompt_shape'] or 'n/a'}\n"
+            f"Structured prompt shot count: {context['structured_prompt_shot_count'] or 0}\n"
+            f"Structured prompt summary: {context['structured_prompt_summary'] or 'n/a'}\n"
+            f"Structured prompt assets:\n{structured_assets_lines}\n"
+            f"Structured prompt extracted details:\n{structured_detail_lines}\n"
             f"Resolved persona:\n{persona_lines}\n"
             f"Enhancer summary:\n{enhancer_lines}\n"
             f"Recipe metadata summary:\n{recipe_lines}\n"

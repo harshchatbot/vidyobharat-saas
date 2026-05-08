@@ -88,6 +88,8 @@ class AIVideoCreateRequest(BaseModel):
     template: str | None = Field(default=None, min_length=2, max_length=80)
     templateId: str | None = Field(default=None, max_length=120)
     script: str | None = Field(default=None, min_length=1, max_length=6000)
+    promptMode: str | None = Field(default=None, max_length=20)
+    structuredPrompt: dict[str, Any] | list[dict[str, Any]] | None = None
     tags: list[str] = Field(default_factory=list)
     modelKey: str | None = Field(default=None, min_length=2, max_length=64)
     modelFamily: str | None = Field(default=None, min_length=2, max_length=64)
@@ -167,6 +169,15 @@ class AIVideoCreateRequest(BaseModel):
             raise ValueError('Unsupported generationMode')
         return value
 
+    @field_validator('promptMode')
+    @classmethod
+    def validate_prompt_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in {'prompt', 'json'}:
+            raise ValueError('Unsupported promptMode')
+        return value
+
     @field_validator('modelKey')
     @classmethod
     def validate_selected_model(cls, value: str | None) -> str | None:
@@ -183,9 +194,11 @@ class AIVideoCreateRequest(BaseModel):
             validate_recipe_inputs(recipe, self.inputs)
             return self
 
+        if self.promptMode == 'json' and self.structuredPrompt in (None, {}, []):
+            raise ValueError('structuredPrompt is required when promptMode is json')
+
         required_fields = {
             'template': self.template,
-            'script': self.script,
             'modelKey': self.modelKey or self.modelFamily,
             'language': self.language,
             'aspectRatio': self.aspectRatio,
@@ -193,6 +206,8 @@ class AIVideoCreateRequest(BaseModel):
             'durationMode': self.durationMode,
             'voice': self.voice,
         }
+        if self.promptMode != 'json':
+            required_fields['script'] = self.script
         missing = [key for key, value in required_fields.items() if value in (None, '')]
         if missing:
             raise ValueError(f'Missing required fields for standard video create: {", ".join(missing)}')

@@ -177,3 +177,41 @@ def test_video_studio_ai_service_answers_duration_question_directly() -> None:
 
     assert '5 seconds' in result['reply']
     assert fake_client.calls == []
+
+
+def test_video_studio_ai_service_answers_structured_prompt_questions_directly() -> None:
+    fake_client = _FakeHFClient()
+    service = VideoStudioAIService(Settings(_env_file=None), hf_client=fake_client)
+
+    video = _build_video(
+        pipeline_metadata={
+            'recipe_id': 'freeform',
+            'pipeline_mode': 'standard',
+            'structured_prompt_mode': 'json',
+            'structured_prompt_shape': 'array',
+            'structured_prompt_shot_count': 3,
+            'structured_prompt_summary': 'Structured JSON prompt with 3 shots.',
+            'structured_prompt_extracted': {
+                'camera_movements': ['360-degree barrel roll'],
+                'lenses': ['22mm wide-angle prime'],
+                'effects': ['Solar wind diffraction spikes'],
+                'audio_intents': [],
+            },
+        },
+    )
+
+    shot_result = service.reply(
+        video=video,
+        message='How many shots were parsed from the JSON?',
+        chat_history=[],
+    )
+    assert '3 parsed shots' in shot_result['reply']
+
+    detail_result = service.reply(
+        video=video,
+        message='What camera movement and lens did this JSON use?',
+        chat_history=[],
+    )
+    assert '360-degree barrel roll' in detail_result['reply']
+    assert '22mm wide-angle prime' in detail_result['reply']
+    assert fake_client.calls == []

@@ -160,6 +160,7 @@ from app.services.tts import (
     list_tts_languages,
     list_tts_voices,
 )
+from app.services.structured_video_prompt_service import normalize_structured_video_prompt
 from app.providers.firebase import get_firestore_client
 
 router = APIRouter()
@@ -197,10 +198,22 @@ def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, 
             'recipe_id': payload.recipeId,
             'inputs': sorted(list((payload.inputs or {}).keys())),
         }
+    structured_shape = None
+    structured_shot_count = 0
+    if isinstance(payload.structuredPrompt, list):
+        structured_shape = 'array'
+        structured_shot_count = len(payload.structuredPrompt)
+    elif isinstance(payload.structuredPrompt, dict):
+        structured_shape = 'object'
+        nested_shots = payload.structuredPrompt.get('shots')
+        structured_shot_count = len(nested_shots) if isinstance(nested_shots, list) and nested_shots else 1
     return {
         'template': payload.template,
         'template_id': payload.templateId,
         'project_id': payload.projectId,
+        'prompt_mode': payload.promptMode or 'prompt',
+        'structured_prompt_shape': structured_shape,
+        'structured_prompt_shot_count': structured_shot_count,
         'mode_id': payload.modeId,
         'model_key': payload.modelKey,
         'language': payload.language,
@@ -1589,6 +1602,25 @@ def create_ai_video(
             normalized_payload['audioMode'] = requested_audio_mode
         normalized_recipe_inputs: dict[str, object] | None = None
         pipeline_metadata: dict[str, object] | None = None
+        if not payload.recipeId and payload.promptMode == 'json':
+            try:
+                structured_prompt = normalize_structured_video_prompt(payload.structuredPrompt)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            normalized_payload['script'] = structured_prompt['provider_safe_prompt']
+            normalized_payload['tags'] = list(dict.fromkeys(list(normalized_payload.get('tags') or []) + ['json_mode']))
+            if not normalized_payload.get('imageUrls') and structured_prompt['reference_image_urls']:
+                normalized_payload['imageUrls'] = structured_prompt['reference_image_urls'][:4]
+            pipeline_metadata = {
+                **dict(pipeline_metadata or {}),
+                'structured_prompt_mode': 'json',
+                'structured_prompt_shape': structured_prompt['shape'],
+                'structured_prompt_shot_count': structured_prompt['shot_count'],
+                'structured_prompt_raw': payload.structuredPrompt,
+                'structured_prompt_summary': structured_prompt['summary'],
+                'structured_prompt_assets': structured_prompt['assets'],
+                'structured_prompt_extracted': structured_prompt['extracted'],
+            }
         if payload.recipeId:
             recipe = get_recipe(payload.recipeId)
             normalized_recipe_inputs = validate_recipe_inputs(recipe, payload.inputs)
@@ -1650,9 +1682,14 @@ def create_ai_video(
                     **normalized_audio_settings,
                 }
         elif should_use_ltx_storyboard_recipe(normalized_payload):
+            existing_pipeline_metadata = dict(pipeline_metadata or {})
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_ltx_recipe_request(
-                str(payload.script or '').strip()
+                str(normalized_payload.get('script') or payload.script or '').strip()
             )
+            pipeline_metadata = {
+                **existing_pipeline_metadata,
+                **dict(pipeline_metadata or {}),
+            }
             if payload.aspectRatio:
                 normalized_payload['aspectRatio'] = str(payload.aspectRatio).strip()
             if payload.language:
@@ -1677,9 +1714,14 @@ def create_ai_video(
                 },
             )
         elif maybe_should_use_explainer_recipe(normalized_payload):
+            existing_pipeline_metadata = dict(pipeline_metadata or {})
             recipe, normalized_recipe_inputs, normalized_payload, pipeline_metadata = build_explainer_recipe_request(
-                str(payload.script or '').strip()
+                str(normalized_payload.get('script') or payload.script or '').strip()
             )
+            pipeline_metadata = {
+                **existing_pipeline_metadata,
+                **dict(pipeline_metadata or {}),
+            }
             logger.info(
                 'ai_video_create_auto_rerouted_to_recipe',
                 extra={

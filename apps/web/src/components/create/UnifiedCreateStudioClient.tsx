@@ -68,6 +68,9 @@ type RecipeSlotKind = 'text' | 'upload' | 'avatar' | 'select' | 'reference-image
 type RecipeSourceKind = 'recipe';
 type VideoIntent = 'explainer' | 'cinematic' | 'quick_reel' | 'generic';
 type VideoGenerationMode = 'text_to_video' | 'image_to_video';
+type ComposerPromptMode = 'prompt' | 'json';
+type StructuredPromptShape = 'object' | 'array';
+type StructuredPromptValue = Record<string, unknown> | Array<Record<string, unknown>>;
 
 
 type RecipeComposerFragment =
@@ -113,6 +116,14 @@ type VideoLaunchState = {
 };
 
 type AspectRatio = '9:16' | '16:9' | '1:1';
+
+type ParsedStructuredPrompt = {
+  raw: StructuredPromptValue;
+  shape: StructuredPromptShape;
+  shotCount: number;
+  assetCount: number;
+  summary: string;
+};
 
 type RecipeCard = {
   id: string;
@@ -228,6 +239,20 @@ const MODE_OPTIONS: Array<{ key: ComposerMode; label: string; icon: typeof Wand2
   { key: 'video', label: 'Video', icon: Video },
 ];
 const COMPOSER_PROMPT_MAX_CHARS = 2000;
+const COMPOSER_JSON_EXAMPLE = `{
+  "shot": {
+    "composition": "POV time-freeze with hands moving through frozen environment",
+    "lens": "ultra-wide cinematic lens with subtle distortion",
+    "camera_movement": "slow walk, precise hand movements, sudden time release burst"
+  },
+  "subject": {
+    "description": "person moving while everything else is frozen mid-action"
+  },
+  "scene": {
+    "location": "busy city street",
+    "environment": "people frozen mid-motion, objects suspended in air"
+  }
+}`;
 
 const QUALITY_PROFILES: Array<{ key: QualityProfile; label: string; helper: string }> = [
   { key: 'fast_social', label: 'Fast Social', helper: 'Best for quick image concepts and fast iterations' },
@@ -284,6 +309,58 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
     canonical_model_key: 'gemini_flash_image',
   },
 ];
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function countStructuredPromptAssets(node: unknown): number {
+  if (Array.isArray(node)) return node.reduce((total, item) => total + countStructuredPromptAssets(item), 0);
+  if (!isPlainObject(node)) return 0;
+  return Object.entries(node).reduce((total, [key, value]) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.startsWith('https://') && /(?:image|video|asset|url|reference)/i.test(key)) {
+        return total + 1;
+      }
+      return total;
+    }
+    return total + countStructuredPromptAssets(value);
+  }, 0);
+}
+
+function parseStructuredPromptInput(raw: string): ParsedStructuredPrompt | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const parsed = JSON.parse(trimmed) as unknown;
+
+  if (Array.isArray(parsed)) {
+    if (!parsed.length) throw new Error('JSON shot array cannot be empty.');
+    if (!parsed.every((item) => isPlainObject(item))) {
+      throw new Error('JSON shot arrays must contain only objects.');
+    }
+    return {
+      raw: parsed as Array<Record<string, unknown>>,
+      shape: 'array',
+      shotCount: parsed.length,
+      assetCount: countStructuredPromptAssets(parsed),
+      summary: `Structured JSON detected · ${parsed.length} shot${parsed.length === 1 ? '' : 's'} parsed`,
+    };
+  }
+
+  if (isPlainObject(parsed)) {
+    const nestedShots = Array.isArray(parsed.shots) ? parsed.shots.filter((item) => isPlainObject(item)).length : 0;
+    return {
+      raw: parsed,
+      shape: 'object',
+      shotCount: nestedShots || 1,
+      assetCount: countStructuredPromptAssets(parsed),
+      summary: `Structured JSON detected · ${nestedShots || 1} shot${nestedShots === 1 || nestedShots === 0 ? '' : 's'} parsed`,
+    };
+  }
+
+  throw new Error('JSON mode expects either one object or an array of shot objects.');
+}
 
 const ASPECT_OPTIONS: AspectRatio[] = ['9:16', '16:9', '1:1'];
 
@@ -455,11 +532,13 @@ function buildVideoCreatePayload(input: {
 } | {
   type: 'freeform';
   templateLabel: string;
-  script: string;
+  script?: string;
   modelKey: string;
   modelFamily: string;
   generationMode: VideoGenerationMode;
   lane: 'creator_pro' | 'premium';
+  promptMode?: ComposerPromptMode;
+  structuredPrompt?: StructuredPromptValue;
   aspectRatio: '9:16' | '16:9' | '1:1';
   resolution: '360p' | '480p' | '540p' | '720p' | '1080p' | '1440p' | '2160p' | '4K';
   quality: 'standard' | 'high' | 'premium';
@@ -495,7 +574,11 @@ function buildVideoCreatePayload(input: {
 
   return {
     template: input.templateLabel,
-    script: input.modelFamily === 'pixverse_c1_reference' ? buildPixverseFreeformPrompt(input.script) : input.script,
+    script: input.script
+      ? (input.modelFamily === 'pixverse_c1_reference' ? buildPixverseFreeformPrompt(input.script) : input.script)
+      : undefined,
+    promptMode: input.promptMode ?? 'prompt',
+    structuredPrompt: input.structuredPrompt,
     tags: [],
     modelKey: input.modelKey,
     modelFamily: input.modelFamily,
@@ -1572,6 +1655,8 @@ export function UnifiedCreateStudioClient({
   const pathname = usePathname();
   const defaultAspectRatio = normalizeAspectRatio(initialDefaultAspectRatio);
   const [idea, setIdea] = useState('');
+  const [composerPromptMode, setComposerPromptMode] = useState<ComposerPromptMode>('prompt');
+  const [jsonComposerText, setJsonComposerText] = useState('');
   const [mode, setMode] = useState<ComposerMode>('video');
   const [qualityProfile, setQualityProfile] = useState<QualityProfile>('standard');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(defaultAspectRatio);
@@ -1639,6 +1724,21 @@ export function UnifiedCreateStudioClient({
   const [isAvatarLoading, setIsAvatarLoading] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const structuredPromptParse = useMemo(() => {
+    if (composerPromptMode !== 'json' || recipeComposer || mode !== 'video') return null;
+    try {
+      return {
+        parsed: parseStructuredPromptInput(jsonComposerText),
+        error: null as string | null,
+      };
+    } catch (error) {
+      return {
+        parsed: null,
+        error: error instanceof Error ? error.message : 'Invalid JSON input.',
+      };
+    }
+  }, [composerPromptMode, jsonComposerText, mode, recipeComposer]);
+  const activeFreeformComposerValue = composerPromptMode === 'json' ? jsonComposerText : idea;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const avatarSyncKeyRef = useRef<string | null>(null);
   const hasLoadedVoiceCatalogRef = useRef(false);
@@ -1831,10 +1931,15 @@ export function UnifiedCreateStudioClient({
     () => inspirationItems.map(mapInspirationToCard),
     [inspirationItems],
   );
-  const composerVoicePreviewText = useMemo(
-    () => buildComposerVoicePreviewText(recipeComposer ? assembleRecipePrompt(recipeComposer) : idea),
-    [idea, recipeComposer],
-  );
+  const composerVoicePreviewText = useMemo(() => {
+    if (recipeComposer) {
+      return buildComposerVoicePreviewText(assembleRecipePrompt(recipeComposer));
+    }
+    if (composerPromptMode === 'json') {
+      return buildComposerVoicePreviewText(structuredPromptParse?.parsed?.summary || 'Structured cinematic video prompt');
+    }
+    return buildComposerVoicePreviewText(idea);
+  }, [composerPromptMode, idea, recipeComposer, structuredPromptParse]);
 
   useEffect(() => {
     setNavigationOverlayLabel(null);
@@ -2886,15 +2991,26 @@ export function UnifiedCreateStudioClient({
 
 
   const launchUnifiedFlow = async () => {
-    const recipePrompt = recipeComposer ? assembleRecipePrompt(recipeComposer) : idea;
+    const recipePrompt = recipeComposer ? assembleRecipePrompt(recipeComposer) : activeFreeformComposerValue;
     const trimmedIdea = recipePrompt.trim();
+    const structuredPromptPayload = composerPromptMode === 'json' ? structuredPromptParse?.parsed ?? null : null;
     if (!trimmedIdea) {
-      setError('Add a prompt first so we can prepare the right creation flow.');
+      setError(composerPromptMode === 'json' ? 'Paste structured JSON first so we can prepare the right creation flow.' : 'Add a prompt first so we can prepare the right creation flow.');
       return;
     }
-    if (!recipeComposer && trimmedIdea.length > COMPOSER_PROMPT_MAX_CHARS) {
+    if (!recipeComposer && composerPromptMode !== 'json' && trimmedIdea.length > COMPOSER_PROMPT_MAX_CHARS) {
       setError(`Prompt is too long. Please keep it under ${COMPOSER_PROMPT_MAX_CHARS} characters.`);
       return;
+    }
+    if (!recipeComposer && mode === 'video' && composerPromptMode === 'json') {
+      if (structuredPromptParse?.error) {
+        setError(structuredPromptParse.error);
+        return;
+      }
+      if (!structuredPromptPayload) {
+        setError('Paste valid JSON first. JSON mode accepts either one object or an array of shot objects.');
+        return;
+      }
     }
 
     if (recipeComposer) {
@@ -2915,7 +3031,11 @@ export function UnifiedCreateStudioClient({
     setLoading(true);
     setError(null);
     closeMenus();
-    setIdea(trimmedIdea);
+    if (composerPromptMode === 'json') {
+      setJsonComposerText(trimmedIdea);
+    } else {
+      setIdea(trimmedIdea);
+    }
 
     try {
       const recipeMode =
@@ -3082,8 +3202,8 @@ export function UnifiedCreateStudioClient({
         return;
       }
 
-      const detectedIntent = detectVideoIntent(trimmedIdea);
-      if (shouldAutoUseExplainerRecipe(detectedIntent, nextMode, activeRecipeSource)) {
+      const detectedIntent = composerPromptMode === 'json' ? 'generic' : detectVideoIntent(trimmedIdea);
+      if (composerPromptMode !== 'json' && shouldAutoUseExplainerRecipe(detectedIntent, nextMode, activeRecipeSource)) {
         const explainerRecipeId = pickExplainerRecipeId(trimmedIdea);
         const videoResult = await api.createAIVideo(
           buildVideoCreatePayload({
@@ -3124,11 +3244,13 @@ export function UnifiedCreateStudioClient({
           buildVideoCreatePayload({
             type: 'freeform',
             templateLabel: 'LTX Storyboard',
-            script: trimmedIdea,
+            script: composerPromptMode === 'json' ? undefined : trimmedIdea,
             modelKey: profile.modelKey,
             modelFamily: profile.modelFamily,
             generationMode: profile.generationMode,
             lane: 'creator_pro',
+            promptMode: composerPromptMode,
+            structuredPrompt: structuredPromptPayload?.raw,
             aspectRatio,
             resolution: '720p',
             quality: 'standard',
@@ -3154,36 +3276,41 @@ export function UnifiedCreateStudioClient({
         durationPreference === 'auto'
           ? Number(getDefaultVideoDurationForModel(profile.modelKey))
           : Number(durationPreference);
-      const templateKey = pickVideoTemplateKey(trimmedIdea);
-      const templateLabel = TEMPLATE_OPTIONS.find((item) => item.key === templateKey)?.label || 'Story / Scene Reel';
-      const scriptResult = await api.generateScriptV2(
-        {
-          template: templateLabel,
-          topic: trimmedIdea,
-          language: 'English',
-          tone: 'Creator-first, emotionally engaging, social-ready',
-          lane: profile.lane === 'premium' ? 'Premium' : 'Creator Pro',
-          modelKey: profile.modelKey,
-          modelLabel: displayedVideoModel?.label ?? profile.modelKey,
-          aspectRatio: aspectRatio,
-          resolution: profile.resolution,
-          quality: profile.quality,
-          durationSeconds,
-          narrationEnabled: false,
-          captionsEnabled,
-        },
-        userId,
+      const templateKey = pickVideoTemplateKey(
+        composerPromptMode === 'json' ? structuredPromptPayload?.summary || 'Structured JSON cinematic brief' : trimmedIdea,
       );
-
+      const templateLabel = TEMPLATE_OPTIONS.find((item) => item.key === templateKey)?.label || 'Story / Scene Reel';
       const videoResult = await api.createAIVideo(
         buildVideoCreatePayload({
           type: 'freeform',
           templateLabel,
-          script: scriptResult.script,
+          script:
+            composerPromptMode === 'json'
+              ? undefined
+              : (await api.generateScriptV2(
+                {
+                  template: templateLabel,
+                  topic: trimmedIdea,
+                  language: 'English',
+                  tone: 'Creator-first, emotionally engaging, social-ready',
+                  lane: profile.lane === 'premium' ? 'Premium' : 'Creator Pro',
+                  modelKey: profile.modelKey,
+                  modelLabel: displayedVideoModel?.label ?? profile.modelKey,
+                  aspectRatio: aspectRatio,
+                  resolution: profile.resolution,
+                  quality: profile.quality,
+                  durationSeconds,
+                  narrationEnabled: false,
+                  captionsEnabled,
+                },
+                userId,
+              )).script,
           modelKey: profile.modelKey,
           modelFamily: profile.modelFamily,
           generationMode: profile.generationMode,
           lane: profile.lane,
+          promptMode: composerPromptMode,
+          structuredPrompt: structuredPromptPayload?.raw,
           aspectRatio,
           resolution: profile.resolution,
           quality: profile.quality,
@@ -3683,6 +3810,24 @@ export function UnifiedCreateStudioClient({
                     </button>
                   ) : null}
                 </div>
+                {mode === 'video' && !recipeComposer ? (
+                  <div className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.62)] p-1 dark:border-white/12 dark:bg-white/5">
+                    {(['prompt', 'json'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setComposerPromptMode(option)}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
+                          composerPromptMode === option
+                            ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-foreground))]'
+                            : 'text-muted hover:text-text'
+                        }`}
+                      >
+                        {option === 'prompt' ? 'Prompt' : 'JSON'}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {recipeComposer ? (
@@ -3962,28 +4107,70 @@ export function UnifiedCreateStudioClient({
                   ) : null}
                 </div>
               ) : (
-                <Textarea
-                  ref={textareaRef}
-                  rows={4}
-                  value={idea}
-                  onChange={(event) => setIdea(event.target.value)}
-                  maxLength={COMPOSER_PROMPT_MAX_CHARS}
-                  placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
-                  className="min-h-[104px] rounded-[20px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.58)] px-4 py-3 text-base font-medium leading-7 text-[hsl(var(--color-text))] shadow-none outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1rem] placeholder:leading-7 focus:border-[hsl(var(--color-accent)/0.5)] focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/55 sm:min-h-[112px] sm:text-lg"
-                />
+                composerPromptMode === 'json' && mode === 'video' ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      ref={textareaRef}
+                      rows={10}
+                      value={jsonComposerText}
+                      onChange={(event) => setJsonComposerText(event.target.value)}
+                      placeholder={COMPOSER_JSON_EXAMPLE}
+                      className="min-h-[220px] rounded-[20px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.58)] px-4 py-3 font-mono text-[0.95rem] leading-7 text-[hsl(var(--color-text))] shadow-none outline-none placeholder:text-[hsl(var(--color-muted))] focus:border-[hsl(var(--color-accent)/0.5)] focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/45"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-muted">
+                        Paste one structured object or a JSON array of shot objects. Public asset links must use `https://`.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {structuredPromptParse?.parsed ? (
+                          <>
+                            <Badge variant="outline">Structured JSON detected</Badge>
+                            <Badge variant="outline">{structuredPromptParse.parsed.shotCount} shot{structuredPromptParse.parsed.shotCount === 1 ? '' : 's'}</Badge>
+                            <Badge variant="outline">{structuredPromptParse.parsed.shape}</Badge>
+                            {structuredPromptParse.parsed.assetCount ? <Badge variant="outline">{structuredPromptParse.parsed.assetCount} asset{structuredPromptParse.parsed.assetCount === 1 ? '' : 's'}</Badge> : null}
+                          </>
+                        ) : null}
+                        {structuredPromptParse?.error ? (
+                          <span className="text-xs text-[hsl(var(--color-danger))]">{structuredPromptParse.error}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Textarea
+                    ref={textareaRef}
+                    rows={4}
+                    value={idea}
+                    onChange={(event) => setIdea(event.target.value)}
+                    maxLength={COMPOSER_PROMPT_MAX_CHARS}
+                    placeholder={'Create a motivational reel about consistency\nGenerate a premium product image for Instagram\nCreate a story-based reel about a struggling creator'}
+                    className="min-h-[104px] rounded-[20px] border border-[hsl(var(--color-border)/0.55)] bg-[hsl(var(--color-surface)/0.58)] px-4 py-3 text-base font-medium leading-7 text-[hsl(var(--color-text))] shadow-none outline-none placeholder:text-[hsl(var(--color-muted))] placeholder:text-[1rem] placeholder:leading-7 focus:border-[hsl(var(--color-accent)/0.5)] focus:ring-0 focus-visible:ring-0 dark:text-white dark:placeholder:text-white/55 sm:min-h-[112px] sm:text-lg"
+                  />
+                )
               )}
 
               {!recipeComposer ? (
                 <div className="mt-2 flex items-center justify-end">
-                  <p className={`text-xs ${idea.length > COMPOSER_PROMPT_MAX_CHARS * 0.92 ? 'text-amber-300' : 'text-muted'}`}>
-                    {idea.length}/{COMPOSER_PROMPT_MAX_CHARS}
-                  </p>
+                  {composerPromptMode === 'json' && mode === 'video' ? (
+                    <p className="text-xs text-muted">{jsonComposerText.length} characters</p>
+                  ) : (
+                    <p className={`text-xs ${idea.length > COMPOSER_PROMPT_MAX_CHARS * 0.92 ? 'text-amber-300' : 'text-muted'}`}>
+                      {idea.length}/{COMPOSER_PROMPT_MAX_CHARS}
+                    </p>
+                  )}
                 </div>
               ) : null}
 
-              {mode === 'video' && idea.trim() && !recipeComposer ? (
+              {mode === 'video' && activeFreeformComposerValue.trim() && !recipeComposer ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {willAutoRouteToExplainer ? (
+                  {composerPromptMode === 'json' && structuredPromptParse?.parsed ? (
+                    <>
+                      <Badge variant="outline">JSON mode active</Badge>
+                      <p className="text-xs text-muted">
+                        We’ll preserve your camera, lens, VFX, environment, and audio intent as structured prompt metadata.
+                      </p>
+                    </>
+                  ) : willAutoRouteToExplainer ? (
                     <>
                       <Badge variant="outline">Detected as: Deep explainer</Badge>
                       <p className="text-xs text-muted">

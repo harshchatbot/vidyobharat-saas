@@ -1,0 +1,6 @@
+NO_SUBTITLES = 'no subtitles, captions, or text overlays'
+NO_PRODUCT_MUTATION = 'do not mutate the product shape, finish, branding, or category'
+MAINTAIN_IDENTITY = 'maintain the avatar identity from Reference Image 1 across the full shot'
+LIPSYNC_SAFE_FACE_VISIBILITY = 'keep the face frontal, unobstructed, and readable for later lip sync'
+NO_EXTRA_PEOPLE = 'no extra people or additional faces in frame'
+NO_WARPED_HANDS = 'avoid warped hands, fused fingers, or broken hand anatomy'

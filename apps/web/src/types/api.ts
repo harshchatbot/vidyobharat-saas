@@ -612,7 +612,9 @@ export type UserSettingsUpdateRequest = {
 export type StandardVideoCreateRequest = {
   template: string;
   templateId?: string;
-  script: string;
+  script?: string;
+  promptMode?: 'prompt' | 'json';
+  structuredPrompt?: Record<string, unknown> | Array<Record<string, unknown>>;
   tags: string[];
   modelKey: string;
   modelFamily?: string;
