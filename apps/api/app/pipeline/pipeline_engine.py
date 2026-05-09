@@ -223,6 +223,34 @@ def _avatar_product_prompt_profile(prompt: str) -> dict[str, int]:
     }
 
 
+_AVATAR_POSE_CONSTRAINTS_BLOCK = (
+    "Keep the product below chin level at all times. "
+    "Mouth and jaw must remain fully visible throughout. "
+    "Never raise the product above chest height. "
+    "Hands stay at chest level or below."
+)
+
+
+def enforce_avatar_pose_constraints(prompt: str) -> str:
+    """
+    Centralized safety constraint for avatar_product base video generation.
+
+    Idempotent: if a prior compiler already included the same constraint intent,
+    we avoid appending duplicate instructions.
+    """
+
+    normalized = str(prompt or "").strip()
+    if not normalized:
+        return _AVATAR_POSE_CONSTRAINTS_BLOCK
+
+    lowered = normalized.lower()
+    # Idempotency check: the exact canonical phrase is enough; we keep it simple and deterministic.
+    if "keep the product below chin level" in lowered and "mouth and jaw must remain fully visible" in lowered:
+        return normalized
+
+    return f"{normalized}\n\nPose constraints:\n{_AVATAR_POSE_CONSTRAINTS_BLOCK}"
+
+
 def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
     repo = VideoRepository(None)
     snapshot = repo.collection.document(video_id).get()
@@ -3627,6 +3655,19 @@ def run_recipe_pipeline(
                 prompt_profile = _avatar_product_prompt_profile(provider_prompt)
                 logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": resolved_video_model_key, **prompt_profile})
                 _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
+
+            if provider_prompt:
+                constrained_prompt = enforce_avatar_pose_constraints(provider_prompt)
+                if constrained_prompt != provider_prompt:
+                    logger.info(
+                        "avatar_product_kling_pose_constraints_applied",
+                        extra={
+                            "video_id": video_id,
+                            "recipe_id": recipe.id,
+                            "model_key": resolved_video_model_key,
+                        },
+                    )
+                provider_prompt = constrained_prompt
             kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
                 prompt=provider_prompt,
                 image_urls=[url for url in [avatar_image_url, product_image_url] if url],
