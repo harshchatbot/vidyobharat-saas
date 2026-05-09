@@ -133,6 +133,7 @@ from app.services.video_service import VideoService
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 from app.services.llm.qwen_service import QwenService
 from app.services.video_studio_ai_service import VideoStudioAIService
+from app.services.avatar_product_cost_service import AvatarProductCostService
 from app.services.avatar_product_workflow_service import AvatarProductWorkflowService
 from app.recipes.recipe_registry import (
     AnimeLofiPromptPackage,
@@ -1081,6 +1082,79 @@ async def razorpay_topup_webhook(
         'userId': wallet.user_id,
         'currentCredits': wallet.current_credits,
     }
+
+
+
+@router.post("/api/avatar-product/estimate-cost")
+async def estimate_avatar_product_cost(
+    duration_seconds: int = Query(15),
+    script_length: int = Query(100),
+    model_key: str = Query("seedance"),  # ltx-2.3, seedance, kling-standard, kling-4k
+    include_lipsync: bool = Query(True),
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """
+    Endpoint: POST /api/avatar-product/estimate-cost
+    
+    Query params:
+    - duration_seconds: 5-60 (default 15)
+    - script_length: character count (default 100)
+    - model_key: 'seedance', 'ltx-2.3', 'kling-standard', 'kling-4k' (default seedance)
+    - include_lipsync: true/false (default true)
+    
+    Returns:
+    {
+        "model_key": "seedance",
+        "duration_seconds": 15,
+        "total_cost_usd": 0.57,
+        "credits_needed": 57,
+        "breakdown": {
+            "video_cost_usd": 0.54,
+            "tts_cost_usd": 0.015,
+            "lipsync_cost_usd": 0.015
+        },
+        "user_credits_available": 500
+    }
+    """
+    
+    cost_service = AvatarProductCostService()
+    
+    # Get user's current credits
+    credit_service = CreditService()
+    user_credits = credit_service.get_user_credit_balance(user_id)
+    
+    # Calculate cost based on model
+    if model_key == 'ltx-2.3':
+        cost = cost_service.estimate_ltx_2_3_cost(
+            duration_seconds, script_length, include_lipsync
+        )
+    elif model_key == 'seedance':
+        cost = cost_service.estimate_seedance_cost(
+            duration_seconds, script_length, include_lipsync
+        )
+    elif model_key.startswith('kling'):
+        quality = 'standard' if 'standard' in model_key else '4k'
+        cost = cost_service.estimate_kling_cost(
+            duration_seconds, script_length, include_lipsync, quality
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown model: {model_key}")
+    
+    return {
+        'model_key': cost.model_key,
+        'duration_seconds': cost.duration_seconds,
+        'total_cost_usd': cost.total_cost_usd,
+        'credits_needed': cost.credits_needed,
+        'breakdown': {
+            'video_cost_usd': cost.base_cost_usd,
+            'tts_cost_usd': cost.tts_cost_usd,
+            'lipsync_cost_usd': cost.lipsync_cost_usd,
+        },
+        'user_credits_available': user_credits,
+        'can_generate': user_credits >= cost.credits_needed,
+    }
+
+
 
 
 @router.get('/api/pricing', response_model=PricingResponse)

@@ -1,11 +1,37 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from app.cinematic.core.lighting_grammar import CLEAN_BEAUTY_LIGHTING, COZY_HOME, SOFT_DAYLIGHT, WARM_LUXURY
+from app.cinematic.compilers.kling_compiler import compile_kling_prompt
+from app.cinematic.compilers.ltx_compiler import compile_ltx_prompt
+from app.cinematic.compilers.seedance_compiler import compile_seedance_prompt
 from app.cinematic.families.ugc.behavior_rules import pick_creator_behavior
 from app.cinematic.families.ugc.camera_rules import pick_ugc_camera_style
 from app.cinematic.families.ugc.constraints import build_ugc_constraints
 from app.cinematic.families.ugc.motion_rules import build_ugc_motion_bundle
 from app.cinematic.schemas.cinematic_spec import ActionSpec, CinematicSpec, ConstraintSpec, RenderingSpec, SceneSpec, TalentSpec
+
+_KLING_MODEL_KEYS = frozenset({
+    'kling_o3_standard_reference',
+    'kling_o3_pro_reference',
+    'kling_o3_4k_reference',
+    'kling_o3_reference',
+    'kling-standard',
+    'kling-4k',
+})
+
+
+def select_compiler_for_model(model_key: str) -> Callable[[CinematicSpec], tuple[str, dict]]:
+    """Return the right prompt compiler for a video model key."""
+    key = (model_key or '').strip().lower()
+    if 'ltx' in key:
+        return compile_ltx_prompt
+    if 'seedance' in key:
+        return compile_seedance_prompt
+    if 'kling' in key or model_key in _KLING_MODEL_KEYS:
+        return compile_kling_prompt
+    return compile_seedance_prompt
 
 
 def build_ugc_avatar_product_spec(

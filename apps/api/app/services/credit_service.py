@@ -238,6 +238,11 @@ class CreditService:
         total, _ = self._calculate_voice_credits_with_breakdown(provider=provider, sample_rate=sample_rate)
         return total
 
+    def get_user_credit_balance(self, user_id: str) -> int:
+        """Return current credit balance for a user, creating the wallet if needed."""
+        wallet = self.ensure_wallet(user_id)
+        return wallet.current_credits
+
     def estimate_for_user(self, user_id: str, action: str, payload: dict[str, Any]) -> tuple[FirestoreCreditWallet, CreditEstimate]:
         wallet = self.ensure_wallet(user_id)
         estimate = self.estimate(action, payload)
@@ -435,6 +440,19 @@ class CreditService:
         )
         result = CreditDeductionResult(wallet=wallet, transaction=transaction, already_processed=already_processed)
         assert result is not None
+        if feature_key in ('video_create', 'avatar_product') and amount > 0:
+            logger.info(
+                'avatar_product_cost_tracked',
+                extra={
+                    'user_id': user_id,
+                    'feature_key': feature_key,
+                    'credits_deducted': amount,
+                    'balance_after': wallet.current_credits,
+                    'video_model': metadata.get('video_model') or metadata.get('modelKey') or metadata.get('model_key'),
+                    'recipe_id': metadata.get('recipeId') or metadata.get('recipe_id'),
+                    'already_processed': already_processed,
+                },
+            )
         return result
 
     def list_history(self, user_id: str, limit: int = 100) -> list[FirestoreCreditTransaction]:

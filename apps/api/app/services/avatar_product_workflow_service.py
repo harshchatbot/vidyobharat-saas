@@ -45,6 +45,10 @@ class AvatarProductWorkflowFields:
     avatar_id: str = ""
     avatar_style: str = ""
     voice_style: str = ""
+    video_model: str = "seedance"  # ← ADD THIS
+    video_quality: str = "standard"  # ← ADD THIS (for kling: standard or 4k)
+    estimated_cost_usd: float = 0.0  # ← ADD THIS
+    credits_needed: int = 0  # ← ADD THIS
     cta_preference: str = ""
     tagline: str = ""
     offer_text: str = ""
@@ -178,10 +182,35 @@ class AvatarProductWorkflowService:
         if script_mode == "use_exact_script" and provided_script:
             strict_script_lock = True
 
+        # Determine video model (default to seedance for avatars)
+        video_model = self._first_nonempty(
+            merged_source.get("video_model"),
+            merged_source.get("videoModel"),
+            "seedance",  # Default for avatar product
+        )
+        video_quality = self._first_nonempty(
+            merged_source.get("video_quality"),
+            merged_source.get("videoQuality"),
+            "standard",
+        )
+
+        # Calculate estimated cost
+        from app.services.avatar_product_cost_service import AvatarProductCostService
+        cost_service = AvatarProductCostService()
+        cost_estimate = cost_service.estimate_all_models(
+            duration_seconds=int(merged_source.get("duration_seconds") or 15),
+            script_length=len(provided_script or ""),
+            include_lipsync=True,
+        ).get(video_model, cost_service.estimate_seedance_cost(15))    
+
         fields = AvatarProductWorkflowFields(
             recipe_id="avatar_product",
             product_name=product_name,
             brand_name=brand_name,
+            video_model=video_model,  # ← ADD
+            video_quality=video_quality,  # ← ADD
+            estimated_cost_usd=cost_estimate.total_cost_usd,  # ← ADD
+            credits_needed=cost_estimate.credits_needed,  # ← ADD
             product_category=detected_category,
             product_subcategory=detected_subcategory,
             campaign_objective=campaign_objective,
