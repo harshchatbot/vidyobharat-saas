@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pytest tests/test_avatar_product_workflow_service.py tests/test_credit_service.py -v --tb=short)",
+      "Bash(venv/bin/python -m pytest tests/test_avatar_product_workflow_service.py tests/test_credit_service.py -v --tb=short)"
+    ]
+  }
+}
