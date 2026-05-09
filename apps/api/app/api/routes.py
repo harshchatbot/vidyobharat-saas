@@ -4,7 +4,7 @@ import hashlib
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
