@@ -2,3 +2,7 @@ FRIENDLY_CREATOR = 'friendly Indian creator energy, warm, conversational, and be
 LUXURY_CREATOR = 'polished premium creator delivery with calm confidence and deliberate presentation'
 CALM_EXPLAINER = 'calm explainer presence with clear steady presentation'
 EXCITED_REVIEW = 'excited review energy with authentic enthusiasm and controlled gestures'
+UGC_SPEECH_SAFE_BEHAVIOR = (
+    'natural creator recommendation delivery with subtle smile, short conversational pauses, '
+    'gentle gestures, relaxed pacing, and believable micro-expressions'
+)

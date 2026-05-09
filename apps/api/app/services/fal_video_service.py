@@ -374,6 +374,7 @@ class FalVideoService:
                 response_data, _ = self._fetch_completed_response_payload(
                     client=client,
                     headers=headers,
+                    model_key=model_key,
                     status_url=self._normalize_candidate_url(str(status_url).strip()),
                     submit_response_url=data.get('response_url') if isinstance(data.get('response_url'), str) else None,
                     completed_payload=terminal_payload,
@@ -386,6 +387,30 @@ class FalVideoService:
                     media_url = self._extract_audio_url(response_data) if extract_kind == 'audio' else self._extract_video_url(response_data)
                     if media_url:
                         return media_url, {'raw': response_data, 'mode': 'async_response_url', 'request_id': request_id}
+                    response_state = self._normalize_state(response_data)
+                    if response_state in self._ACTIVE_STATES:
+                        follow_status_url = (
+                            response_data.get('status_url')
+                            or response_data.get('response_url')
+                            or response_data.get('url')
+                        )
+                        if isinstance(follow_status_url, str) and follow_status_url.strip():
+                            follow_terminal_payload = self._poll_status_until_terminal(
+                                client=client,
+                                headers=headers,
+                                status_url=self._normalize_candidate_url(follow_status_url.strip()),
+                                requested_model_key=model_key,
+                                resolved_endpoint=endpoint,
+                            )
+                            follow_media_url = self._extract_audio_url(follow_terminal_payload) if extract_kind == 'audio' else self._extract_video_url(follow_terminal_payload)
+                            if follow_media_url:
+                                return follow_media_url, {'raw': follow_terminal_payload, 'mode': 'async_followup_status', 'request_id': request_id}
+                            follow_state = self._normalize_state(follow_terminal_payload)
+                            if follow_state in self._FAILURE_STATES:
+                                raise RuntimeError(f'fal {model_key} follow-up request failed: {follow_terminal_payload}')
+                            raise RuntimeError(
+                                f'fal {model_key} follow-up request ended without {extract_kind} url: {follow_terminal_payload}'
+                            )
 
                 raise RuntimeError(f'fal {model_key} completed without {extract_kind} url: {response_data or terminal_payload}')
         
@@ -727,6 +752,7 @@ class FalVideoService:
             response_data, tried_response_urls = self._fetch_completed_response_payload(
                 client=client,
                 headers=headers,
+                model_key=model_key,
                 status_url=normalized_status_url,
                 submit_response_url=response_url if isinstance(response_url, str) else None,
                 completed_payload=terminal_payload,
@@ -1177,6 +1203,7 @@ class FalVideoService:
         *,
         client: httpx.Client,
         headers: dict[str, str],
+        model_key: str,
         status_url: str,
         submit_response_url: str | None,
         completed_payload: dict[str, Any],
@@ -1234,6 +1261,10 @@ class FalVideoService:
                 continue
 
             if response_payload.status_code >= 400:
+                self._raise_if_fal_file_download_error(
+                    response=response_payload,
+                    model_hint=model_key,
+                )
                 logger.warning(
                     'fal_response_url_fetch_failed response_url=%s status_code=%s body=%s',
                     response_url,
@@ -1257,6 +1288,31 @@ class FalVideoService:
             return payload, tried_response_urls
 
         return None, tried_response_urls
+
+    def _raise_if_fal_file_download_error(self, *, response: httpx.Response, model_hint: str) -> None:
+        if response.status_code < 400:
+            return
+        try:
+            payload = response.json()
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+        detail = payload.get('detail')
+        if not isinstance(detail, list):
+            return
+        for item in detail:
+            if not isinstance(item, dict):
+                continue
+            error_type = str(item.get('type') or '').strip().lower()
+            if error_type != 'file_download_error':
+                continue
+            failed_input = str(item.get('input') or '').strip() or None
+            message = str(item.get('msg') or 'Failed to download upstream input file').strip()
+            raise RuntimeError(
+                f'fal {model_hint} rejected input asset (file_download_error): {message}'
+                + (f' input={failed_input}' if failed_input else '')
+            )
 
     def _response_fetch_candidates(
         self,

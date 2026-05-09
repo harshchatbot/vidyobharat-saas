@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ImageDetailModal } from '@/components/ui/ImageDetailModal';
+import { Modal } from '@/components/ui/Modal';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
@@ -24,7 +25,7 @@ type MediaFilterKey = 'all' | 'videos' | 'images';
 
 const INITIAL_LIBRARY_BATCH = 12;
 const LIBRARY_BATCH_STEP = 12;
-const LIBRARY_REFRESH_STALE_MS = 20_000;
+const LIBRARY_REFRESH_STALE_MS = 90_000;
 
 function toAbsoluteUrl(url: string | null) {
   if (!url) return null;
@@ -50,6 +51,19 @@ function formatStableTimestamp(value: string) {
   });
 }
 
+function formatVideoTitle(video: Video) {
+  const raw = (video.title || '').trim();
+  if (raw) return raw;
+  const recipeLabel = (video.recipe_id || '').trim().replace(/[_-]+/g, ' ');
+  const modelLabel = (video.selected_model || video.provider_name || '').trim().replace(/[_-]+/g, ' ');
+  const baseLabel = recipeLabel || modelLabel || 'Generated video';
+  const date = new Date(video.created_at);
+  const shortStamp = Number.isFinite(date.getTime())
+    ? `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    : 'recent';
+  return `${baseLabel} · ${shortStamp}`;
+}
+
 export function VideoLibraryClient({ userId, initialVideos, initialImages }: Props) {
   const { show } = useToast();
   const [videos, setVideos] = useState(initialVideos);
@@ -59,6 +73,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
   const [refreshing, setRefreshing] = useState(initialVideos.length === 0 && initialImages.length === 0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_LIBRARY_BATCH);
@@ -127,6 +142,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
     const intervalId = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       if (refreshing) return;
+      if (Date.now() - lastLoadedAt < LIBRARY_REFRESH_STALE_MS) return;
       void refreshLibrary();
     }, LIBRARY_REFRESH_STALE_MS);
 
@@ -389,16 +405,17 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
           {visibleVideos.map((video) => {
             const poster = toAbsoluteUrl(video.thumbnail_url);
             const output = toAbsoluteUrl(video.output_url);
+            const hasPlayableOutput = Boolean(output);
+            const isCompletedWithoutOutput = video.status === 'completed' && !hasPlayableOutput;
             return (
-              <Link
+              <article
                 key={video.id}
-                href={`/videos/${video.id}`}
                 className="group overflow-hidden bg-[hsl(var(--color-surface))] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
               >
                 <div className="relative overflow-hidden border-b border-[hsl(var(--color-border-soft)/0.3)] bg-black">
-                  {video.status === 'completed' && output ? (
+                  {video.status === 'completed' && hasPlayableOutput ? (
                     <video
-                      src={output}
+                      src={output ?? undefined}
                       poster={poster ?? undefined}
                       className="h-[240px] w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                       muted
@@ -409,7 +426,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
                   ) : poster ? (
                     <img
                       src={poster}
-                      alt={video.title || 'Generated video'}
+                      alt={formatVideoTitle(video)}
                       className="h-[240px] w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                     />
                   ) : (
@@ -427,7 +444,7 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
 
                 <div className="space-y-3 p-4">
                   <div>
-                    <p className="line-clamp-1 text-base font-semibold text-text">{video.title || 'Untitled video'}</p>
+                    <p className="line-clamp-1 text-base font-semibold text-text">{formatVideoTitle(video)}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-muted">{video.script}</p>
                   </div>
 
@@ -440,10 +457,33 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
 
                   <div className="flex items-center justify-between text-xs text-muted">
                     <span>{formatTimestamp(video.created_at)}</span>
-                    <span>{video.project_id ? 'In project' : 'Open workspace'}</span>
+                    <span>{isCompletedWithoutOutput ? 'Output unavailable' : video.project_id ? 'In project' : 'Workspace available'}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {video.status === 'completed' && hasPlayableOutput ? (
+                      <Button variant="secondary" type="button" className="rounded-full px-3 py-1.5 text-xs" onClick={() => setSelectedVideo(video)}>
+                        Quick preview
+                      </Button>
+                    ) : null}
+                    {isCompletedWithoutOutput ? (
+                      <Button variant="secondary" className="rounded-full px-3 py-1.5 text-xs" disabled>
+                        Open workspace
+                      </Button>
+                    ) : (
+                      <Link href={`/videos/${video.id}`} className="inline-flex">
+                        <Button variant="secondary" className="rounded-full px-3 py-1.5 text-xs">
+                          Open workspace
+                        </Button>
+                      </Link>
+                    )}
+                    {isCompletedWithoutOutput ? (
+                      <span className="inline-flex items-center rounded-full border border-[hsl(var(--color-border-soft)/0.4)] px-3 py-1.5 text-[11px] text-muted">
+                        This run has no final output file.
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-              </Link>
+              </article>
             );
           })}
         </div>
@@ -534,6 +574,35 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
             </>
           }
         />
+      ) : null}
+
+      {selectedVideo ? (
+        <Modal
+          open={Boolean(selectedVideo)}
+          onClose={() => setSelectedVideo(null)}
+        >
+          <div className="space-y-3">
+            <div>
+              <p className="text-base font-semibold text-text">{selectedVideo.title || 'Video preview'}</p>
+              <p className="mt-1 text-xs text-muted">Created {formatTimestamp(selectedVideo.created_at)}</p>
+            </div>
+            <video
+              src={toAbsoluteUrl(selectedVideo.output_url) || undefined}
+              poster={toAbsoluteUrl(selectedVideo.thumbnail_url) || undefined}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full rounded-2xl border border-[hsl(var(--color-border-soft)/0.35)] bg-black"
+            />
+            <div className="flex justify-end">
+              <Link href={`/videos/${selectedVideo.id}`}>
+                <Button onClick={() => setSelectedVideo(null)} className="rounded-full px-4">
+                  Open workspace
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

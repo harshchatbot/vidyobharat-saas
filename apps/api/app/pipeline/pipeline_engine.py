@@ -40,6 +40,7 @@ from app.services.avatar_service import (
     build_avatar_master_prompt,
     resolve_avatar_reference_variants,
     selectBestAvatarReferenceImage,
+    selectBestAvatarReferenceImageWithContrast,
 )
 from app.services.avatar_product_tts_catalog import (
     resolve_avatar_product_gemini_language,
@@ -58,6 +59,7 @@ from app.services.motion_control_media_service import MotionControlMediaService
 from app.services.timing_sync_service import TimingSyncService
 from app.services.video_generation_service import ClipGenerationRequest, VideoGenerationService
 from app.services.video_pipeline import VideoPipelineService
+from app.services.lipsync_face_service import crop_face_for_lipsync, composite_lipsync_result
 from app.services.video_stitcher import VideoStitcher
 
 logger = logging.getLogger(__name__)
@@ -202,6 +204,22 @@ def _build_avatar_product_duration_diagnostics(
         "final_lipsync_duration_seconds": final_lipsync_duration_seconds,
         "duration_drift_seconds": duration_drift_seconds,
         "resolved_video_model_key": resolved_video_model_key,
+    }
+
+
+def _avatar_product_prompt_profile(prompt: str) -> dict[str, int]:
+    normalized = str(prompt or "").strip()
+    if not normalized:
+        return {"length_chars": 0, "rule_count": 0, "dedupe_count": 0}
+    lowered = normalized.lower()
+    separators = ['constraints:', 'must do:', 'must avoid:', ';']
+    rule_count = sum(lowered.count(sep) for sep in separators)
+    mouthish = sum(lowered.count(token) for token in ('mouth', 'lip', 'lips', 'chin'))
+    dedupe_count = max(0, mouthish - 2)
+    return {
+        "length_chars": len(normalized),
+        "rule_count": int(rule_count),
+        "dedupe_count": int(dedupe_count),
     }
 
 
@@ -457,12 +475,24 @@ def _build_avatar_product_timeboxed_script(
 
     if duration_seconds <= 5:
         if is_hindi:
-            return f"ये {product_label} {benefit}। {cta}".strip()
-        return f"This {product_label} {benefit}. {cta}".strip()
+            return (
+                f"ये {product_label} देखिए... {benefit}। "
+                f"{cta}"
+            ).strip()
+        return (
+            f"Take a look at this {product_label}... {benefit}. "
+            f"{cta}"
+        ).strip()
 
     if is_hindi:
-        return f"ये {product_label} {benefit} और रोज़मर्रा में काम आता है। {cta}".strip()
-    return f"This {product_label} {benefit} and fits naturally into everyday use. {cta}".strip()
+        return (
+            f"ये {product_label} सच में पसंद आएगा... {benefit} और रोज़मर्रा में काम आता है। "
+            f"{cta}"
+        ).strip()
+    return (
+        f"This {product_label} is genuinely useful... {benefit} and fits naturally into everyday use. "
+        f"{cta}"
+    ).strip()
 
 
 def _rewrite_avatar_product_script_for_quality(
@@ -836,6 +866,24 @@ def _upload_talking_scene_audio(
     return signed.public_url
 
 
+def _upload_video_asset(
+    *,
+    user_id: str,
+    video_id: str,
+    local_path: Path,
+    kind_suffix: str,
+) -> str:
+    storage = build_storage_provider(get_settings())
+    content_type = mimetypes.guess_type(local_path.name)[0] or "video/mp4"
+    signed = storage.upload_bytes(
+        local_path.name,
+        local_path.read_bytes(),
+        content_type=content_type,
+        kind=f"users/{user_id}/generated/videos/{video_id}/{kind_suffix}",
+    )
+    return signed.public_url
+
+
 def _generate_timed_talking_audio(
     *,
     pipeline: VideoPipelineService,
@@ -988,6 +1036,51 @@ def _fallback_timing_map_for_scene(*, script: str, duration_seconds: float | Non
             "pause_after_ms": 0,
         }
     ]
+
+
+def _derive_avatar_product_behavior_hints(
+    *,
+    narration_script: str | None,
+    duration_seconds: int | float | None,
+) -> dict[str, Any]:
+    timing_map = _fallback_timing_map_for_scene(
+        script=narration_script or "",
+        duration_seconds=float(duration_seconds or 0.0),
+    )
+    behavior_timeline = build_behavior_timeline(timing_map)
+    if not behavior_timeline:
+        return {
+            "creator_energy_hint": "warm conversational creator delivery with subtle smile and calm gestures",
+            "visual_mood_hint": "realistic creator recommendation, relaxed and human",
+            "behavior_timeline": [],
+            "dominant_emotion": "neutral",
+        }
+
+    first = behavior_timeline[0]
+    emotion = str(first.get("smoothed_emotion") or first.get("emotion") or "neutral")
+    energy_hint = {
+        "excited": "warm delight with subtle smile and restrained enthusiasm",
+        "transition_excited": "natural warm transition into a slight energized smile",
+        "serious": "calm focused recommendation with gentle eye contact",
+        "transition_serious": "natural transition into focused calm clarity",
+        "confident": "confident but relaxed recommendation tone with believable warmth",
+        "transition_confident": "natural transition into calm confident recommendation energy",
+    }.get(emotion, "warm conversational creator delivery with subtle smile and calm gestures")
+    visual_mood_hint = {
+        "excited": "friendly creator recommendation with natural positive sentiment",
+        "transition_excited": "creator recommendation with gradual positive emotional lift",
+        "serious": "trust-focused creator recommendation with grounded realism",
+        "transition_serious": "grounded creator recommendation with a focused emotional beat",
+        "confident": "trustworthy creator recommendation with calm authority",
+        "transition_confident": "creator recommendation that settles into calm confidence",
+    }.get(emotion, "realistic creator recommendation, relaxed and human")
+
+    return {
+        "creator_energy_hint": energy_hint,
+        "visual_mood_hint": visual_mood_hint,
+        "behavior_timeline": behavior_timeline,
+        "dominant_emotion": emotion,
+    }
 
 
 def _merge_scene_timing_maps(
@@ -3273,9 +3366,11 @@ def run_recipe_pipeline(
             normalized_inputs=normalized_inputs,
             avatar_product_brief=avatar_product_brief,
         )
-        avatar_reference_selection = selectBestAvatarReferenceImage(
+        product_image_url = str(reference or "").strip()
+        avatar_reference_selection = selectBestAvatarReferenceImageWithContrast(
             avatar=selected_persona or {},
             recipe_id=recipe.id,
+            product_image_url=product_image_url,
             product_category=product_category_hint,
             scene_type="single_shot_avatar_product",
             prompt_text=narration_script or topic,
@@ -3285,7 +3380,6 @@ def run_recipe_pipeline(
             or (selected_persona or {}).get("image_url")
             or ""
         ).strip()
-        product_image_url = str(reference or "").strip()
         avatar_name = str((selected_persona or {}).get("name") or "the selected avatar").strip()
 
         if selected_persona and avatar_image_url:
@@ -3318,6 +3412,10 @@ def run_recipe_pipeline(
             avatar_product_reference_image_candidate_count=avatar_reference_selection.candidate_count,
             avatar_product_reference_image_selection_reason=avatar_reference_selection.reason,
             avatar_product_reference_image_selection_fallback_mode=avatar_reference_selection.fallback_mode,
+            avatar_product_color_contrast_delta_e=avatar_reference_selection.contrast_delta_e,
+            avatar_product_color_contrast_variant_id=avatar_reference_selection.contrast_selected_variant_id,
+            avatar_product_color_contrast_variant_url=avatar_reference_selection.contrast_selected_variant_url,
+            avatar_product_color_contrast_threshold_triggered=avatar_reference_selection.contrast_threshold_triggered,
         )
 
         if not avatar_image_url:
@@ -3418,6 +3516,14 @@ def run_recipe_pipeline(
         cinematic_compiled_prompt: str | None = None
         speaking_frame_safety_enabled = False
         product_face_spacing_strategy = "standard_recipe_framing"
+        avatar_product_framing_priority = "balanced"
+        behavior_hints = _derive_avatar_product_behavior_hints(
+            narration_script=narration_script,
+            duration_seconds=requested_duration,
+        )
+        narrated_avatar_run = bool((narration_script or "").strip())
+        if narrated_avatar_run:
+            avatar_product_framing_priority = "speech_first"
         cinematic_architecture_enabled = bool(get_settings().use_new_cinematic_architecture) or str(
             normalized_inputs.get("cinematic_architecture_version")
             or initial_pipeline_metadata.get("cinematic_architecture_version")
@@ -3430,6 +3536,8 @@ def run_recipe_pipeline(
                 product_category_hint=product_category_hint,
                 narration_script=narration_script,
                 duration_seconds=requested_duration,
+                creator_energy=behavior_hints.get("creator_energy_hint"),
+                visual_mood=behavior_hints.get("visual_mood_hint"),
             )
             cinematic_compiled_prompt, cinematic_compiler_metadata = compile_cinematic_prompt(
                 family="ugc_avatar_product",
@@ -3451,6 +3559,9 @@ def run_recipe_pipeline(
                 cinematic_compiled_prompt=cinematic_compiled_prompt,
                 avatar_product_speaking_frame_safety_enabled=speaking_frame_safety_enabled,
                 avatar_product_product_face_spacing_strategy=product_face_spacing_strategy,
+                avatar_product_framing_priority=avatar_product_framing_priority,
+                avatar_product_behavior_timeline=behavior_hints.get("behavior_timeline"),
+                avatar_product_behavior_dominant_emotion=behavior_hints.get("dominant_emotion"),
             )
 
         if resolved_video_model_key == "seedance_v1_lite_reference":
@@ -3463,6 +3574,10 @@ def run_recipe_pipeline(
                     narration_script=narration_script or "",
                 )
             )
+            if cinematic_architecture_enabled and narrated_avatar_run and seedance_prompt:
+                prompt_profile = _avatar_product_prompt_profile(seedance_prompt)
+                logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": "seedance_v1_lite_reference", **prompt_profile})
+                _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
 
             kling_video_url, kling_meta = fal_service.generate_seedance_lite_reference_video(
                 prompt=seedance_prompt,
@@ -3482,6 +3597,10 @@ def run_recipe_pipeline(
                     narration_script=narration_script or "",
                 )
             )
+            if cinematic_architecture_enabled and narrated_avatar_run and ltx_prompt:
+                prompt_profile = _avatar_product_prompt_profile(ltx_prompt)
+                logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": "fal_ltx23_i2v", **prompt_profile})
+                _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
             kling_video_url, kling_meta = fal_service.generate(
                 model_key="fal_ltx23_i2v",
                 prompt=ltx_prompt,
@@ -3504,6 +3623,10 @@ def run_recipe_pipeline(
                 if cinematic_architecture_enabled and cinematic_compiled_prompt
                 else kling_prompt
             )
+            if cinematic_architecture_enabled and narrated_avatar_run and provider_prompt:
+                prompt_profile = _avatar_product_prompt_profile(provider_prompt)
+                logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": resolved_video_model_key, **prompt_profile})
+                _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
             kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
                 prompt=provider_prompt,
                 image_urls=[url for url in [avatar_image_url, product_image_url] if url],
@@ -3624,9 +3747,59 @@ def run_recipe_pipeline(
 
         logger.info("chitrakala_lipsync_started", extra={"video_id": video_id})
 
-        final_video_url, lipsync_meta = fal_service.generate_sync_lipsync_v2(
-            video_url=kling_video_url,
+        pipeline_local = VideoPipelineService()
+        local_base_path = pipeline_local.ensure_local_media_path(kling_video_url)
+        if not local_base_path:
+            raise RuntimeError("Could not download base video for face-only lipsync preprocessing.")
+
+        face_crop_path_str, face_track = crop_face_for_lipsync(str(local_base_path))
+        face_crop_path = Path(face_crop_path_str)
+        face_crop_url = _upload_video_asset(
+            user_id=user_id,
+            video_id=video_id,
+            local_path=face_crop_path,
+            kind_suffix="lipsync/face_crop",
+        )
+
+        lipsynced_face_url, lipsync_meta = fal_service.generate_sync_lipsync_v2(
+            video_url=face_crop_url,
             audio_url=audio_url,
+        )
+
+        local_lipsynced_face = pipeline_local.ensure_local_media_path(lipsynced_face_url)
+        if not local_lipsynced_face:
+            raise RuntimeError("Could not download lipsynced face video for compositing.")
+
+        composited_path_str = composite_lipsync_result(
+            str(local_base_path),
+            str(local_lipsynced_face),
+            face_track,
+        )
+        composited_path = Path(composited_path_str)
+        local_audio_path = pipeline_local.ensure_local_media_path(audio_url)
+        if not local_audio_path:
+            raise RuntimeError("Could not download TTS audio for lipsync composite mux.")
+
+        muxed_path = Path("data/renders") / f"{video_id}_lipsync_composited_muxed.mp4"
+        muxed_path = pipeline_local.merge_narration_with_video(
+            input_video_path=composited_path,
+            output_video_path=muxed_path,
+            voice_path=local_audio_path,
+            render_id=video_id,
+        )
+
+        final_video_url = _upload_video_asset(
+            user_id=user_id,
+            video_id=video_id,
+            local_path=muxed_path,
+            kind_suffix="lipsync/final_composited",
+        )
+        _merge_pipeline_metadata(
+            video_id=video_id,
+            avatar_product_lipsync_mode="face_only_composite_v1",
+            avatar_product_face_track_stats=face_track.get("stats"),
+            avatar_product_lipsync_face_crop_url=face_crop_url,
+            avatar_product_lipsync_face_result_url=lipsynced_face_url,
         )
         final_lipsync_duration_seconds = _probe_media_duration_seconds(final_video_url)
         duration_diagnostics = _build_avatar_product_duration_diagnostics(
@@ -3648,8 +3821,10 @@ def run_recipe_pipeline(
             pipeline_version="avatar_product_single_shot_v1",
             avatar_product_single_output=True,
             cinematic_architecture_enabled=cinematic_architecture_enabled,
+            avatar_product_audio_strategy="tts_then_sync_lipsync",
             avatar_product_speaking_frame_safety_enabled=speaking_frame_safety_enabled,
             avatar_product_product_face_spacing_strategy=product_face_spacing_strategy,
+            avatar_product_framing_priority=avatar_product_framing_priority,
             avatar_product_product_category_hint=product_category_hint,
             avatar_product_ugc_variant=ugc_variant,
             avatar_product_category_preservation_rules=category_preservation_rules,

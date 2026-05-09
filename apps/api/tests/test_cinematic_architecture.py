@@ -13,7 +13,7 @@ from app.services.motion_control_media_service import MotionControlMediaService
 def _build_spec():
     return build_ugc_avatar_product_spec(
         avatar_name='Chitrakala',
-        product_name='Wooden wall clock',
+        product_name='Handmade crochet teddy',
         product_category_hint='home decor',
         narration_script='A clean product-first creator ad.',
         duration_seconds=5,
@@ -43,9 +43,10 @@ def test_ugc_spec_builder_enables_speaking_frame_safety_for_narrated_runs() -> N
     spec = _build_spec()
     assert spec.metadata['speaking_frame_safety_enabled'] is True
     assert spec.metadata['product_face_spacing_strategy'] == 'lower_beside_face_chest_to_shoulder_zone'
-    assert 'mouth line' in spec.action.opening_action
+    assert 'steady frontal frame' in spec.action.opening_action
     assert 'lips fully visible' in spec.action.ending_action
-    assert 'keep lips fully visible throughout spoken sections' in spec.constraints.must_do
+    assert 'keep the talking face clearly readable throughout spoken sections' in spec.constraints.must_do
+    assert spec.metadata.get('avatar_product_cutaway_mode') == 'macro_last_2s'
 
 
 def test_ugc_spec_builder_keeps_silent_runs_less_restrictive() -> None:
@@ -64,22 +65,22 @@ def test_seedance_compiler_contains_reference_and_safety_locks() -> None:
     assert 'Product visible from first frame' in prompt
     assert 'Face stable' in prompt or 'face stable' in prompt
     assert 'No subtitles' in prompt or 'no subtitles' in prompt
-    assert 'never near the lips or chin' in prompt
-    assert 'No profile turns during speech' in prompt
+    assert 'mouth visibility stays clear' in prompt
+    assert 'near-frontal speaking angles' in prompt
     assert metadata['compiler_name'] == 'seedance_compiler'
+    assert metadata['realism_mode'] == 'natural_organic_v2'
 
 
-def test_kling_compiler_contains_structured_sections() -> None:
+def test_kling_compiler_uses_compact_natural_prompt_for_narrated_runs() -> None:
     spec = _build_spec()
     prompt, metadata = compile_cinematic_prompt(family='ugc_avatar_product', model_key='kling_o3_standard_reference', spec=spec)
-    assert 'Scene:' in prompt
-    assert 'Talent:' in prompt
-    assert 'Action:' in prompt
-    assert 'Rendering:' in prompt
-    assert 'Constraints:' in prompt
-    assert 'Speaking-frame safety enabled: yes' in prompt
-    assert 'Product/face spacing strategy: lower_beside_face_chest_to_shoulder_zone' in prompt
+    assert 'Preserve identity exactly from Reference Image 1' in prompt
+    assert 'natural blinking' in prompt
+    assert 'talking face unobstructed and readable' in prompt
+    assert 'macro product close-up' in prompt
     assert metadata['compiler_name'] == 'kling_compiler'
+    assert metadata['realism_mode'] == 'natural_organic_v2'
+    assert isinstance(metadata['prompt_profile'], dict)
 
 
 def test_ltx_compiler_is_motion_focused_and_shorter_than_kling() -> None:
@@ -87,9 +88,10 @@ def test_ltx_compiler_is_motion_focused_and_shorter_than_kling() -> None:
     ltx_prompt, ltx_metadata = compile_cinematic_prompt(family='ugc_avatar_product', model_key='fal_ltx23_i2v', spec=spec)
     kling_prompt, _ = compile_cinematic_prompt(family='ugc_avatar_product', model_key='kling_o3_standard_reference', spec=spec)
     assert 'Camera motion' in ltx_prompt or 'camera motion' in ltx_prompt
-    assert 'below the mouth line' in ltx_prompt
+    assert 'unobstructed mouth and chin area' in ltx_prompt
     assert len(ltx_prompt) < len(kling_prompt)
     assert ltx_metadata['compiler_name'] == 'ltx_compiler'
+    assert ltx_metadata['realism_mode'] == 'natural_organic_v2'
 
 
 def test_seedance_changes_do_not_affect_kling_output() -> None:
@@ -97,7 +99,15 @@ def test_seedance_changes_do_not_affect_kling_output() -> None:
     seedance_prompt, _ = compile_cinematic_prompt(family='ugc_avatar_product', model_key='seedance_v1_lite_reference', spec=spec)
     kling_prompt, _ = compile_cinematic_prompt(family='ugc_avatar_product', model_key='kling_o3_standard_reference', spec=spec)
     assert 'Scene:\n-' not in seedance_prompt
-    assert 'Scene:' in kling_prompt
+    assert 'Preserve identity exactly from Reference Image 1' in kling_prompt
+
+
+def test_kling_silent_run_keeps_structured_sections() -> None:
+    spec = _build_silent_spec()
+    prompt, _ = compile_cinematic_prompt(family='ugc_avatar_product', model_key='kling_o3_standard_reference', spec=spec)
+    assert 'Scene:' in prompt
+    assert 'Talent:' in prompt
+    assert 'Constraints:' in prompt
 
 
 def test_motion_control_builder_creates_valid_cinematic_spec() -> None:

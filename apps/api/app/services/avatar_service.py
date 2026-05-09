@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 import logging
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +13,7 @@ from app.core.config import get_settings
 from app.providers.firebase import FirebaseNotConfiguredError, get_firebase_app, get_firestore_client, normalize_firebase_bucket
 from app.schemas.catalog import AvatarResponse
 from app.services.tts import list_tts_voices
+from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,10 @@ class AvatarReferenceSelection:
     reason: str
     candidate_count: int
     fallback_mode: str
+    contrast_delta_e: float | None = None
+    contrast_threshold_triggered: bool = False
+    contrast_selected_variant_id: str | None = None
+    contrast_selected_variant_url: str | None = None
 
 
 _REFERENCE_TAG_DEFAULTS: dict[str, tuple[str, ...]] = {
@@ -258,6 +265,228 @@ def selectBestAvatarReferenceImage(
         candidate_count=len(variants),
         fallback_mode=fallback_mode,
     )
+
+
+def selectBestAvatarReferenceImageWithContrast(
+    *,
+    avatar: dict[str, Any],
+    recipe_id: str,
+    product_image_url: str,
+    product_category: str | None = None,
+    scene_type: str | None = None,
+    prompt_text: str | None = None,
+    delta_e_threshold: float = 20.0,
+    top_n: int = 5,
+) -> AvatarReferenceSelection:
+    # Keep existing deterministic heuristic selection as baseline, then refine by contrast.
+    baseline = selectBestAvatarReferenceImage(
+        avatar=avatar,
+        recipe_id=recipe_id,
+        product_category=product_category,
+        scene_type=scene_type,
+        prompt_text=prompt_text,
+    )
+    variants = _coerce_reference_variants(avatar.get('reference_image_variants') or [])
+    if not variants:
+        return baseline
+
+    pipeline = VideoPipelineService()
+    product_rgb = _dominant_rgb_from_image(
+        pipeline=pipeline,
+        url_or_path=product_image_url,
+        region='product_center',
+    )
+    if product_rgb is None:
+        return baseline
+
+    # Rank variants by baseline score first.
+    haystack = ' '.join(
+        part.strip().lower()
+        for part in [str(product_category or ''), str(prompt_text or '')]
+        if part and part.strip()
+    )
+
+    def score_variant(variant: AvatarReferenceImageVariant) -> tuple[int, int, int, int]:
+        tag_set = {tag.lower() for tag in variant.tags}
+        heuristic_score = 0
+        match_priority = 0
+        for keywords, preferred_tags, _reason in _REFERENCE_HEURISTIC_GROUPS:
+            if any(keyword in haystack for keyword in keywords):
+                heuristic_score = max(
+                    heuristic_score,
+                    sum(10 for tag in preferred_tags if tag in tag_set),
+                )
+                if heuristic_score:
+                    match_priority = 1
+        safe_fallback_score = sum(4 for tag in ('front', 'neutral', 'talking') if tag in tag_set)
+        primary_image = str(avatar.get('primary_image') or '').strip()
+        primary_bonus = 3 if primary_image and variant.url == primary_image else 0
+        return (match_priority, heuristic_score, safe_fallback_score, primary_bonus)
+
+    ranked = sorted(
+        variants,
+        key=lambda item: (
+            score_variant(item)[0],
+            score_variant(item)[1],
+            score_variant(item)[2],
+            score_variant(item)[3],
+            -len(item.tags),
+            item.id,
+        ),
+        reverse=True,
+    )
+    candidates = ranked[: max(1, int(top_n))]
+
+    best: tuple[float, AvatarReferenceImageVariant] | None = None
+    candidate_scores: list[tuple[float, AvatarReferenceImageVariant, float]] = []
+    for variant in candidates:
+        torso_rgb = _dominant_rgb_from_image(
+            pipeline=pipeline,
+            url_or_path=variant.url,
+            region='avatar_torso',
+        )
+        if torso_rgb is None:
+            continue
+        delta_e = _delta_e_cie76(_rgb_to_lab(product_rgb), _rgb_to_lab(torso_rgb))
+        # Use torso luminance as a tie-breaker (prefer darker outfits when contrast is low).
+        torso_luma = _relative_luminance(torso_rgb)
+        candidate_scores.append((delta_e, variant, torso_luma))
+        if best is None or delta_e > best[0]:
+            best = (delta_e, variant)
+
+    if best is None:
+        return baseline
+
+    best_delta_e, best_variant = best
+    threshold_triggered = bool(best_delta_e < float(delta_e_threshold))
+    chosen_variant = best_variant
+
+    if threshold_triggered and candidate_scores:
+        # Prefer clearly darker/vibrant outfits if available to prevent boundary bleeding.
+        dark_tagged = [item for item in candidates if any(tag in {t.lower() for t in item.tags} for tag in ('desk', 'selfie'))]
+        dark_candidates = []
+        for delta_e, variant, torso_luma in candidate_scores:
+            if variant in dark_tagged or torso_luma < 0.35:
+                dark_candidates.append((delta_e, variant))
+        if dark_candidates:
+            dark_candidates.sort(key=lambda x: (x[0], x[1].id), reverse=True)
+            chosen_variant = dark_candidates[0][1]
+            best_delta_e = dark_candidates[0][0]
+
+    selected = AvatarReferenceSelection(
+        selected_url=chosen_variant.url,
+        selected_id=chosen_variant.id,
+        selected_tags=chosen_variant.tags,
+        reason='contrast_maximized_variant' if not threshold_triggered else 'contrast_threshold_fallback',
+        candidate_count=len(variants),
+        fallback_mode='contrast',
+        contrast_delta_e=round(float(best_delta_e), 3),
+        contrast_threshold_triggered=threshold_triggered,
+        contrast_selected_variant_id=chosen_variant.id,
+        contrast_selected_variant_url=chosen_variant.url,
+    )
+    return selected
+
+
+def _dominant_rgb_from_image(*, pipeline: VideoPipelineService, url_or_path: str, region: str) -> tuple[int, int, int] | None:
+    resolved = pipeline.ensure_local_media_path(str(url_or_path or '').strip())
+    if not resolved or not resolved.exists():
+        return None
+    try:
+        rgb_bytes = _decode_rgb_grid(path=str(resolved), region=region, size=32)
+        if not rgb_bytes:
+            return None
+        # Mean RGB across the grid is stable and sufficient for contrast ranking.
+        count = len(rgb_bytes) // 3
+        if count <= 0:
+            return None
+        r = sum(rgb_bytes[0::3]) / count
+        g = sum(rgb_bytes[1::3]) / count
+        b = sum(rgb_bytes[2::3]) / count
+        return int(round(r)), int(round(g)), int(round(b))
+    except Exception:
+        return None
+
+
+def _decode_rgb_grid(*, path: str, region: str, size: int) -> bytes:
+    # Use ffmpeg to decode and downscale into a small RGB grid in stdout (no PIL/numpy dependency).
+    # region uses safe relative crops to avoid background noise.
+    if region == 'product_center':
+        vf = f'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25,scale={size}:{size}'
+    elif region == 'avatar_torso':
+        # Lower-middle crop approximates clothing colors.
+        vf = f'crop=iw*0.5:ih*0.4:iw*0.25:ih*0.45,scale={size}:{size}'
+    else:
+        vf = f'scale={size}:{size}'
+    cmd = [
+        'ffmpeg',
+        '-v',
+        'error',
+        '-i',
+        path,
+        '-vf',
+        vf,
+        '-frames:v',
+        '1',
+        '-f',
+        'rawvideo',
+        '-pix_fmt',
+        'rgb24',
+        'pipe:1',
+    ]
+    out = subprocess.check_output(cmd)
+    expected = int(size) * int(size) * 3
+    return out[:expected]
+
+
+def _srgb_to_linear(value: float) -> float:
+    v = value / 255.0
+    if v <= 0.04045:
+        return v / 12.92
+    return ((v + 0.055) / 1.055) ** 2.4
+
+
+def _rgb_to_xyz(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
+    r, g, b = (_srgb_to_linear(float(rgb[0])), _srgb_to_linear(float(rgb[1])), _srgb_to_linear(float(rgb[2])))
+    # sRGB D65
+    x = r * 0.4124 + g * 0.3576 + b * 0.1805
+    y = r * 0.2126 + g * 0.7152 + b * 0.0722
+    z = r * 0.0193 + g * 0.1192 + b * 0.9505
+    return x, y, z
+
+
+def _xyz_to_lab(xyz: tuple[float, float, float]) -> tuple[float, float, float]:
+    x, y, z = xyz
+    # D65 reference white
+    xr = x / 0.95047
+    yr = y / 1.00000
+    zr = z / 1.08883
+
+    def f(t: float) -> float:
+        if t > 0.008856:
+            return t ** (1.0 / 3.0)
+        return 7.787 * t + 16.0 / 116.0
+
+    fx, fy, fz = f(xr), f(yr), f(zr)
+    l = 116.0 * fy - 16.0
+    a = 500.0 * (fx - fy)
+    b = 200.0 * (fy - fz)
+    return l, a, b
+
+
+def _rgb_to_lab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
+    return _xyz_to_lab(_rgb_to_xyz(rgb))
+
+
+def _delta_e_cie76(lab1: tuple[float, float, float], lab2: tuple[float, float, float]) -> float:
+    return math.sqrt((lab1[0] - lab2[0]) ** 2 + (lab1[1] - lab2[1]) ** 2 + (lab1[2] - lab2[2]) ** 2)
+
+
+def _relative_luminance(rgb: tuple[int, int, int]) -> float:
+    r = _srgb_to_linear(float(rgb[0]))
+    g = _srgb_to_linear(float(rgb[1]))
+    b = _srgb_to_linear(float(rgb[2]))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 def build_avatar_master_prompt(

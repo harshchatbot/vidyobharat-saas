@@ -1071,6 +1071,17 @@ class AIVideoCreateService:
         if duration_mode != 'custom' or duration_seconds is None:
             return int(rules['default'])
 
+        # Motion-control dance is reference-driven and duration is auto-detected from uploaded video.
+        # Allow any integer in the supported max-range instead of preset-only buckets.
+        if model_key == 'kling_v26_standard_motion_control':
+            minimum = int(rules.get('min') or 1)
+            maximum = int(rules.get('max') or 40)
+            if duration_seconds < minimum or duration_seconds > maximum:
+                raise ProviderError(
+                    f'{self.VIDEO_MODEL_REGISTRY[model_key].label} supports durations between {minimum}s and {maximum}s'
+                )
+            return int(duration_seconds)
+
         if 'presets' in rules:
             allowed = sorted(int(item) for item in rules['presets'])
             if duration_seconds not in rules['presets']:

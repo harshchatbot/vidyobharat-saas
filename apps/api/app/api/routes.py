@@ -713,6 +713,32 @@ def _to_video_response(video, db: Session, preloaded_tags: dict[tuple[str, str],
     )
 
 
+def _is_invalid_completed_video(video: Any) -> bool:
+    status_value = str(video.status.value if hasattr(video.status, "value") else video.status or "").strip().lower()
+    has_output = bool(str(getattr(video, "output_url", "") or "").strip())
+    return status_value == "completed" and not has_output
+
+
+def _dedupe_videos_for_library(videos: list[Any]) -> tuple[list[Any], int]:
+    deduped: dict[str, Any] = {}
+    removed = 0
+    for video in videos:
+        video_id = str(getattr(video, "id", "") or "").strip()
+        output_url = str(getattr(video, "output_url", "") or "").strip()
+        created_at = getattr(video, "created_at", None)
+        dedupe_key = f"id:{video_id}" if video_id else f"legacy:{output_url or 'missing'}::{created_at}"
+        existing = deduped.get(dedupe_key)
+        if existing is None:
+            deduped[dedupe_key] = video
+            continue
+        existing_updated = getattr(existing, "updated_at", None)
+        candidate_updated = getattr(video, "updated_at", None)
+        if candidate_updated and (not existing_updated or candidate_updated >= existing_updated):
+            deduped[dedupe_key] = video
+        removed += 1
+    return list(deduped.values()), removed
+
+
 def _to_image_generation_response(
     generation,
     db: Session,
@@ -3423,9 +3449,26 @@ def list_videos(
     user_id: str = Depends(get_user_id),
 ):
     service = VideoService(None)
-    videos = service.list_videos(user_id, limit=limit)
+    raw_videos = service.list_videos(user_id, limit=limit)
+    deduped_videos, deduped_count = _dedupe_videos_for_library(raw_videos)
+    videos = [video for video in deduped_videos if not _is_invalid_completed_video(video)]
+    filtered_invalid_completed_count = max(0, len(deduped_videos) - len(videos))
+    fallback_title_count = sum(1 for video in videos if not str(getattr(video, "title", "") or "").strip())
     asset_tagging = AssetTaggingService(db)
     tag_map = asset_tagging.list_tags_for_assets([('video', video.id) for video in videos])
+    logger.info(
+        "videos_library_sanitized",
+        extra={
+            "request_id": get_request_id(),
+            "user_id": user_id,
+            "requested_limit": limit,
+            "raw_count": len(raw_videos),
+            "returned_count": len(videos),
+            "deduped_count": deduped_count,
+            "filtered_invalid_completed_count": filtered_invalid_completed_count,
+            "fallback_title_count": fallback_title_count,
+        },
+    )
     return [_to_video_response(video, db, preloaded_tags=tag_map) for video in videos]
 
 

@@ -17,3 +17,5 @@ firebase-admin==6.6.0
 fal-client
 huggingface_hub>=0.30.0
 pydub==0.25.1
+mediapipe
+opencv-python-headless

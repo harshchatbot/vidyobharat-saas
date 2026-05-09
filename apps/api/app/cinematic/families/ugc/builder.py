@@ -24,12 +24,17 @@ def build_ugc_avatar_product_spec(
     category_tokens = [token for token in category.replace('/', ' ').replace('-', ' ').split() if token]
     narrated_run = bool((narration_script or '').strip())
     lighting = _pick_lighting(product_category_hint=category, lighting_style=lighting_style)
-    motion_bundle = build_ugc_motion_bundle(product_category_hint=category)
+    motion_bundle = build_ugc_motion_bundle(product_category_hint=category, narrated_run=narrated_run)
     creator_behavior = pick_creator_behavior(product_category_hint=category, creator_energy=creator_energy)
     must_do, must_avoid, negative_prompt = build_ugc_constraints(product_category_hint=category)
     opening_action, product_interaction, hero_reveal, ending_action = _category_actions(category)
     camera = pick_ugc_camera_style(product_category_hint=category, camera_style=camera_style)
     product_face_spacing_strategy = _product_face_spacing_strategy(category, narrated_run=narrated_run)
+    cutaway_mode = _avatar_product_cutaway_mode(
+        product_category_hint=category,
+        product_name=product_name,
+        duration_seconds=duration_seconds,
+    )
     if narrated_run:
         opening_action, product_interaction, hero_reveal, ending_action = _tighten_actions_for_narrated_speech(
             category=category,
@@ -39,34 +44,35 @@ def build_ugc_avatar_product_spec(
             ending_action=ending_action,
         )
         must_do = list(must_do) + [
-            'keep lips fully visible throughout spoken sections',
-            'keep the product below the mouth and chin line during speech',
-            'hold the product at chest-to-shoulder height beside the face, never covering the lower face',
-            'keep the face near-frontal with only restrained natural head movement while speaking',
+            'keep the talking face clearly readable throughout spoken sections',
+            'keep the product from covering the mouth or chin while speaking',
+            'perform one gentle product reveal and return to a stable talking hold',
         ]
         must_avoid = list(must_avoid) + [
             'no profile turns during speech',
-            'no product, hand, or prop crossing the mouth or chin zone',
-            'no prolonged downward gaze at the product while speaking',
-            'no sudden camera sway or aggressive gesture bursts during spoken sections',
+            'avoid product or hand crossing the lower-face speaking area',
+            'avoid abrupt gesture bursts during spoken sections',
         ]
         motion_bundle = {
             **motion_bundle,
             'camera_motion': (
-                'minimal handheld drift only, stable chest-up talking-head framing, no sudden sway during speech'
+                'subtle handheld drift with stable chest-up talking-head framing during speech'
             ),
             'motion_intensity': (
-                'restrained creator movement with minimal head turns and steady mouth visibility during speech'
+                'calm creator movement, natural micro-expression, and steady face readability during speech'
             ),
             'lipsync_safety': (
-                'face near-frontal and fully readable, lips unobstructed, product held lower beside the face for reliable lip sync'
+                'face near-frontal and readable, lips unobstructed, and product held lower for reliable lip sync'
             ),
         }
         negative_prompt = (
-            f'{negative_prompt}, profile turns during speech, product near lips, product crossing chin, obstructed mouth'
+            f'{negative_prompt}, profile turns during speech, product blocking mouth, obstructed lips'
             if negative_prompt
-            else 'profile turns during speech, product near lips, product crossing chin, obstructed mouth'
+            else 'profile turns during speech, product blocking mouth, obstructed lips'
         )
+
+    if cutaway_mode:
+        ending_action = f'{ending_action} Last 2 seconds: macro product close-up, static, no hands or face visible, preserve texture detail.'
 
     return CinematicSpec(
         recipe_family='ugc_avatar_product',
@@ -118,8 +124,32 @@ def build_ugc_avatar_product_spec(
             'product_category_hint': product_category_hint,
             'creator_energy': creator_behavior,
             'visual_mood': visual_mood or 'realistic creator ugc',
+            'avatar_product_cutaway_mode': cutaway_mode,
         },
     )
+
+
+def _avatar_product_cutaway_mode(*, product_category_hint: str, product_name: str, duration_seconds: int) -> str | None:
+    if int(duration_seconds or 0) > 6:
+        return None
+    haystack = f'{product_category_hint} {product_name}'.lower()
+    keywords = (
+        'crochet',
+        'knit',
+        'knitted',
+        'jewelry',
+        'jewellery',
+        'textured',
+        'embroidered',
+        'handmade',
+        'fabric',
+        'apparel',
+        'kurti',
+        'garment',
+    )
+    if any(token in haystack for token in keywords):
+        return 'macro_last_2s'
+    return None
 
 
 def _pick_lighting(*, product_category_hint: str, lighting_style: str | None) -> str:
@@ -189,22 +219,22 @@ def _tighten_actions_for_narrated_speech(
 ) -> tuple[str, str, str, str]:
     if any(token in category for token in {'beauty', 'skincare', 'cosmetic', 'jewellery', 'jewelry', 'luxury'}):
         return (
-            'Open with the product already visible beside the face but clearly below the mouth line in a calm frontal talking-head pose.',
-            'Bring the product slightly closer once, then return it lower beside the face without blocking the lips or chin.',
-            'Do one clean hero reveal close to camera, then lower the product back to a lip-sync-safe hold beside the face.',
+            'Open in a calm frontal talking-head pose with the product visible beside the face.',
+            'Bring the product slightly closer once, then return it to a comfortable lower hold.',
+            'Do one gentle hero reveal close to camera, then settle back into a stable talking hold.',
             'End in a stable frontal frame with the product readable beside the face and the mouth fully visible.',
         )
     if any(token in category for token in {'clothing', 'kurti', 'apparel', 'fashion', 'garment'}):
         return (
-            'Open with the garment visible in a wider lower hold so the face stays fully readable in a frontal frame.',
-            'Adjust or unfold the garment once below the chin line with slow controlled movement and stable framing.',
-            'Do one clean hero reveal of the garment between second 1 and second 3, then keep it lower and wider while speaking.',
+            'Open with the garment visible in a wider lower hold so the face stays readable in a frontal frame.',
+            'Adjust or unfold the garment once with slow controlled movement and stable framing.',
+            'Do one gentle hero reveal of the garment, then keep it lower and wider while speaking.',
             'End with the garment clearly readable and the face still near-frontal with full lip visibility.',
         )
     return (
-        'Open with the product already visible beside the face at chest-to-shoulder height, clearly below the mouth line, in a steady frontal frame.',
-        'Present the product once with calm controlled movement while keeping the mouth and chin fully unobstructed.',
-        'Do one clean hero reveal between second 1 and second 3, then hold the product lower beside the face for the rest of the spoken line.',
+        'Open with the product visible beside the face in a steady frontal frame.',
+        'Present the product once with calm controlled movement while keeping speech visibility clear.',
+        'Do one gentle hero reveal, then hold the product lower beside the face for the spoken line.',
         'End on a steady creator presentation with both face and product in frame and the lips fully visible.',
     )
 

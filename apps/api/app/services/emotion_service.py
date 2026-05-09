@@ -7,11 +7,30 @@ from app.services.emotion_smoothing_service import smooth_emotions
 
 def detect_emotion(line: str) -> str:
     normalized = str(line or "").lower()
-    if "!" in normalized or "amazing" in normalized or "love" in normalized:
+    if (
+        "!" in normalized
+        or "amazing" in normalized
+        or "love" in normalized
+        or "wow" in normalized
+        or "वाह" in normalized
+        or "कमाल" in normalized
+    ):
         return "excited"
-    if "problem" in normalized or "struggle" in normalized:
+    if (
+        "problem" in normalized
+        or "struggle" in normalized
+        or "issue" in normalized
+        or "समस्या" in normalized
+        or "परेशान" in normalized
+    ):
         return "serious"
-    if "you should" in normalized or "try this" in normalized:
+    if (
+        "you should" in normalized
+        or "try this" in normalized
+        or "must try" in normalized
+        or "ज़रूर" in normalized
+        or "आज ही" in normalized
+    ):
         return "confident"
     return "neutral"
 

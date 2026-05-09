@@ -316,6 +316,39 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
   },
 ];
 
+const COMPOSER_SNAPSHOT_KEY = 'rangmanch:create:catalog-snapshot:v1';
+
+type ComposerCatalogSnapshot = {
+  recipes: RecipeCatalog[];
+  videoModels: AIVideoModel[];
+  imageModels: ImageModel[];
+  storedAt: number;
+};
+
+function readComposerCatalogSnapshot(): ComposerCatalogSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(COMPOSER_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ComposerCatalogSnapshot;
+    if (!Array.isArray(parsed.recipes) || !Array.isArray(parsed.videoModels) || !Array.isArray(parsed.imageModels)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeComposerCatalogSnapshot(snapshot: ComposerCatalogSnapshot): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(COMPOSER_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Ignore quota or private-mode failures.
+  }
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -1762,6 +1795,42 @@ export function UnifiedCreateStudioClient({
   const hasLoadedAvatarLibraryRef = useRef(false);
   const hasLoadedInspirationPhotosRef = useRef(false);
   const secondaryDeferredFetchScheduledRef = useRef(false);
+
+  useEffect(() => {
+    const snapshot = readComposerCatalogSnapshot();
+    if (!snapshot) return;
+    if (Array.isArray(snapshot.recipes) && snapshot.recipes.length > 0) {
+      setRecipes(snapshot.recipes);
+    }
+    if (Array.isArray(snapshot.videoModels) && snapshot.videoModels.length > 0) {
+      const mergedCatalog = mergeVideoModelCatalog(snapshot.videoModels);
+      const enabledFirst = [...mergedCatalog].sort((a, b) => Number(b.enabled !== false) - Number(a.enabled !== false));
+      setVideoModels(enabledFirst);
+      const visibleFamilies = getVisibleNormalVideoFamilies(enabledFirst);
+      const fallbackFamily = visibleFamilies[0]?.key ?? 'ltx_23_22b';
+      setSelectedNormalVideoFamilyKey((current) =>
+        visibleFamilies.some((family) => family.key === current) ? current : fallbackFamily,
+      );
+      const defaultRoute = resolveRouteForFamily({
+        familyKey: fallbackFamily,
+        qualityKey: 'standard',
+        generationMode: 'text_to_video',
+      });
+      setSelectedVideoModelKey((current) =>
+        enabledFirst.some((model) => model.key === current)
+          ? current
+          : (defaultRoute || enabledFirst[0]?.key || 'fal_ltx23_t2v'),
+      );
+    }
+    if (Array.isArray(snapshot.imageModels) && snapshot.imageModels.length > 0) {
+      setImageModels(snapshot.imageModels);
+      setSelectedImageModelKey((current) =>
+        snapshot.imageModels.some((model) => model.key === current)
+          ? current
+          : (snapshot.imageModels[0]?.key || 'gpt_image_1_5'),
+      );
+    }
+  }, []);
   const { show } = useToast();
 
   const isAvatarProductRecipe = useMemo(
@@ -2519,6 +2588,18 @@ export function UnifiedCreateStudioClient({
       }
       setLoadingRecipes(false);
       setModelsLoading(false);
+      if (
+        recipeResult.status === 'fulfilled' &&
+        videoModelResult.status === 'fulfilled' &&
+        imageModelResult.status === 'fulfilled'
+      ) {
+        writeComposerCatalogSnapshot({
+          recipes: recipeResult.value,
+          videoModels: videoModelResult.value,
+          imageModels: imageModelResult.value,
+          storedAt: Date.now(),
+        });
+      }
     });
 
     return () => {
