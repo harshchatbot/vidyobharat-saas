@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type SessionStatus = 'booting' | 'ready' | 'failed';
 
-export default function QASessionPage() {
+function QASessionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [status, setStatus] = useState<SessionStatus>('booting');
   const [message, setMessage] = useState('Preparing a local QA session…');
 
@@ -17,7 +18,14 @@ export default function QASessionPage() {
     const name = searchParams.get('name')?.trim() || 'QA Browser User';
     const email = searchParams.get('email')?.trim() || '';
     const next = searchParams.get('next')?.trim() || '/create';
-    return { userId, accessToken, name, email, next };
+
+    return {
+      userId,
+      accessToken,
+      name,
+      email,
+      next,
+    };
   }, [searchParams]);
 
   useEffect(() => {
@@ -53,13 +61,20 @@ export default function QASessionPage() {
         window.localStorage.setItem('vidyo_access_token', payload.accessToken);
 
         if (cancelled) return;
+
         setStatus('ready');
         setMessage('Session ready. Opening the studio…');
+
         router.replace(payload.next);
       } catch (error) {
         if (cancelled) return;
+
         setStatus('failed');
-        setMessage(error instanceof Error ? error.message : 'Could not start the QA session.');
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Could not start the QA session.',
+        );
       }
     }
 
@@ -76,13 +91,31 @@ export default function QASessionPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[hsl(var(--color-accent))]">
           QA Session
         </p>
+
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-          {status === 'failed' ? 'Session failed' : 'Bootstrapping session'}
+          {status === 'failed'
+            ? 'Session failed'
+            : 'Bootstrapping session'}
         </h1>
+
         <p className="mt-4 text-sm leading-6 text-muted">
           {message}
         </p>
       </div>
     </main>
+  );
+}
+
+export default function QASessionPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">
+          <p className="text-sm text-muted">Loading QA session…</p>
+        </main>
+      }
+    >
+      <QASessionContent />
+    </Suspense>
   );
 }
