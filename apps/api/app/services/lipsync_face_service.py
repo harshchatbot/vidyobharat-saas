@@ -228,14 +228,28 @@ def composite_lipsync_result(original_video_path: str, lipsync_face_video_path: 
         face_info = _probe_video_info(str(face))
         face_iter = _iter_rgb_frames(str(face), width=face_info.width, height=face_info.height)
 
+        frames_processed = 0
         for i in range(frame_count):
-            orig = next(src_iter)
-            face_frame = next(face_iter)
+            try:
+                orig = next(src_iter)
+            except StopIteration:
+                logger.warning(f'Source video exhausted at frame {i}/{frame_count}')
+                break
+
+            try:
+                face_frame = next(face_iter)
+            except StopIteration:
+                logger.warning(f'Face crop video exhausted at frame {i}/{frame_count}, using original frame')
+                encoder.stdin.write(orig.tobytes())
+                frames_processed += 1
+                continue
+
             box = boxes[i] if i < len(boxes) else boxes[-1]
 
             x, y, w, h = int(box['x']), int(box['y']), int(box['w']), int(box['h'])
             if w <= 0 or h <= 0:
                 encoder.stdin.write(orig.tobytes())
+                frames_processed += 1
                 continue
 
             # Resize lipsynced face crop frame back to the box size.
@@ -251,6 +265,7 @@ def composite_lipsync_result(original_video_path: str, lipsync_face_video_path: 
             patch_h = y1 - y0
             if patch_w <= 1 or patch_h <= 1:
                 encoder.stdin.write(orig.tobytes())
+                frames_processed += 1
                 continue
 
             face_patch = face_resized[:patch_h, :patch_w, :].astype(np.float32)
@@ -261,6 +276,9 @@ def composite_lipsync_result(original_video_path: str, lipsync_face_video_path: 
             orig[y0:y1, x0:x1, :] = blended
 
             encoder.stdin.write(orig.tobytes())
+            frames_processed += 1
+
+        logger.info(f'Lipsync compositing: processed {frames_processed}/{frame_count} frames')
     finally:
         try:
             encoder.stdin.close()

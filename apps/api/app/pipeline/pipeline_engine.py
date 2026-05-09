@@ -2236,19 +2236,23 @@ def _build_avatar_product_seedance_lite_prompt(
         )
     elif any(word in category for word in ["jewellery", "jewelry", "earring", "necklace", "pendant", "ring", "bracelet"]):
         product_motion = (
-            "The product is jewellery. The creator presents the jewellery carefully near the camera. "
+            "The product is jewellery. The creator holds it steadily at chest level, clearly below the chin. "
+            "She brings it slightly closer to camera for a reveal but never raises it above chin level — "
+            "the face and mouth must stay fully visible above the product at all times. "
             "Do not add extra jewellery on the body. Do not transform the jewellery into skincare, shoes, clothing, or a bottle. "
         )
     elif any(word in category for word in ["skincare", "beauty", "serum", "cream", "cosmetic", "bottle"]):
         product_motion = (
-            "The product is a beauty or skincare item. The creator holds the bottle/tube/jar beside her face and then closer to the camera. "
+            "The product is a beauty or skincare item. The creator holds the bottle/tube/jar at chest level beside or below her face. "
+            "Keep the product below chin level so the face remains fully visible. "
             "Do not transform it into jewellery, clothing, shoes, or a gadget. "
         )
     else:
         product_motion = (
-            "The creator holds the product steadily in the foreground and presents it clearly to the camera. "
+            "The creator holds the product steadily at chest level and presents it clearly to the camera. "
+            "Keep the product below chin level at all times — never raise it toward the face or eyes. "
             "The product remains visible from the first second and stays visible while she speaks. "
-            "Between second 1 and second 3, she completes one clean hero reveal by lifting, tilting, or bringing the product closer to camera, then holds it steady. "
+            "Between second 1 and second 3, she tilts or brings the product slightly closer to camera for a clean hero reveal, then holds it steady. "
             "After the reveal, keep the face and product equally readable in the same frame and avoid pushing into an extreme product-only close-up. "
         )
 
@@ -3658,6 +3662,13 @@ def run_recipe_pipeline(
                 logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": "seedance_v1_lite_reference", **prompt_profile})
                 _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
 
+            if seedance_prompt:
+                constrained = enforce_avatar_pose_constraints(seedance_prompt)
+                if constrained != seedance_prompt:
+                    logger.info("avatar_product_seedance_pose_constraints_applied", extra={"video_id": video_id})
+                seedance_prompt = constrained
+                seedance_prompt, _ = _enforce_kling_prompt_max_length(seedance_prompt, max_length=2600)
+
             kling_video_url, kling_meta = fal_service.generate_seedance_lite_reference_video(
                 prompt=seedance_prompt,
                 reference_image_urls=[url for url in [avatar_image_url, product_image_url] if url],
@@ -3680,6 +3691,13 @@ def run_recipe_pipeline(
                 prompt_profile = _avatar_product_prompt_profile(ltx_prompt)
                 logger.info("avatar_product_prompt_profile", extra={"video_id": video_id, "model_key": "fal_ltx23_i2v", **prompt_profile})
                 _merge_pipeline_metadata(video_id=video_id, avatar_product_prompt_profile=prompt_profile)
+
+            if ltx_prompt:
+                constrained = enforce_avatar_pose_constraints(ltx_prompt)
+                if constrained != ltx_prompt:
+                    logger.info("avatar_product_ltx_pose_constraints_applied", extra={"video_id": video_id})
+                ltx_prompt = constrained
+
             kling_video_url, kling_meta = fal_service.generate(
                 model_key="fal_ltx23_i2v",
                 prompt=ltx_prompt,
