@@ -230,6 +230,8 @@ _AVATAR_POSE_CONSTRAINTS_BLOCK = (
     "Hands stay at chest level or below."
 )
 
+_KlingPromptMaxLengthChars = 2500
+
 
 def enforce_avatar_pose_constraints(prompt: str) -> str:
     """
@@ -249,6 +251,55 @@ def enforce_avatar_pose_constraints(prompt: str) -> str:
         return normalized
 
     return f"{normalized}\n\nPose constraints:\n{_AVATAR_POSE_CONSTRAINTS_BLOCK}"
+
+
+def _enforce_kling_prompt_max_length(prompt: str, *, max_length: int = _KlingPromptMaxLengthChars) -> tuple[str, dict[str, Any]]:
+    """
+    FAL Kling endpoints validate prompt length (currently 2500 chars).
+    Keep the output deterministic: preserve an ending "constraints-like" tail if present.
+    """
+
+    normalized = re.sub(r"\s+\n", "\n", str(prompt or "").strip())
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
+    original_len = len(normalized)
+    if original_len <= int(max_length):
+        return normalized, {"original_length_chars": original_len, "clipped": False, "max_length_chars": int(max_length)}
+
+    lowered = normalized.lower()
+    # Preserve the most relevant tail block (constraints/pose constraints), as it often carries safety rules.
+    tail_markers = ("pose constraints:", "\nconstraints:", "\nmust do:", "\nmust avoid:")
+    tail_start = None
+    for marker in tail_markers:
+        idx = lowered.rfind(marker)
+        if idx != -1:
+            tail_start = idx
+            break
+    if tail_start is not None and (original_len - tail_start) <= 900:
+        tail = normalized[tail_start:].strip()
+    else:
+        # Fallback: keep the last N chars as tail.
+        tail = normalized[-700:].strip()
+
+    budget_for_head = max(0, int(max_length) - len(tail) - 2)
+    head = normalized[:budget_for_head].rstrip()
+    if len(head) > 60:
+        # Trim to a whitespace boundary for nicer prompts.
+        cut = head.rfind(" ")
+        if cut >= max(0, len(head) - 180):
+            head = head[:cut].rstrip()
+
+    clipped = (head + "\n\n" + tail).strip()
+    # Hard cap (safety): in worst case, tail might still overflow.
+    if len(clipped) > int(max_length):
+        clipped = clipped[: int(max_length)].rstrip()
+
+    return clipped, {
+        "original_length_chars": original_len,
+        "clipped_length_chars": len(clipped),
+        "clipped": True,
+        "max_length_chars": int(max_length),
+        "tail_preserved": bool(tail_start is not None),
+    }
 
 
 def _get_pipeline_metadata(video_id: str) -> dict[str, Any]:
@@ -3668,6 +3719,23 @@ def run_recipe_pipeline(
                         },
                     )
                 provider_prompt = constrained_prompt
+
+                provider_prompt, clip_meta = _enforce_kling_prompt_max_length(provider_prompt)
+                if clip_meta.get("clipped"):
+                    logger.warning(
+                        "avatar_product_kling_prompt_clipped",
+                        extra={
+                            "video_id": video_id,
+                            "recipe_id": recipe.id,
+                            "model_key": resolved_video_model_key,
+                            **clip_meta,
+                        },
+                    )
+                    _merge_pipeline_metadata(
+                        video_id=video_id,
+                        avatar_product_kling_prompt_clipped=True,
+                        avatar_product_kling_prompt_clip_metadata=clip_meta,
+                    )
             kling_video_url, kling_meta = fal_service.generate_kling_reference_video(
                 prompt=provider_prompt,
                 image_urls=[url for url in [avatar_image_url, product_image_url] if url],
