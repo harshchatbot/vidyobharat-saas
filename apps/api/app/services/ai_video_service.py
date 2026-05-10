@@ -654,8 +654,54 @@ class AIVideoCreateService:
         }:
             generate_audio = bool(native_audio_enabled or normalized_audio_mode == 'auto_scene_sound')
         image_url = params.get('imageUrl')
+        inputs_payload = params.get('inputs') if isinstance(params.get('inputs'), dict) else {}
+        recipe_inputs_payload = recipe_metadata.get('inputs') if isinstance(recipe_metadata.get('inputs'), dict) else {}
+
+        def _pick(*values: Any) -> Any:
+            for value in values:
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return None
+
+        motion_video_url = _pick(
+            params.get('videoUrl'),
+            params.get('video_url'),
+            params.get('danceVideo'),
+            params.get('dance_video'),
+            params.get('referenceVideoUrl'),
+            params.get('reference_video_url'),
+            inputs_payload.get('videoUrl'),
+            inputs_payload.get('video_url'),
+            inputs_payload.get('danceVideo'),
+            inputs_payload.get('dance_video'),
+            inputs_payload.get('danceVideoUrl'),
+            inputs_payload.get('dance_video_url'),
+            inputs_payload.get('referenceVideoUrl'),
+            inputs_payload.get('reference_video_url'),
+            recipe_inputs_payload.get('videoUrl'),
+            recipe_inputs_payload.get('video_url'),
+            recipe_inputs_payload.get('danceVideo'),
+            recipe_inputs_payload.get('dance_video'),
+            recipe_inputs_payload.get('danceVideoUrl'),
+            recipe_inputs_payload.get('dance_video_url'),
+            recipe_inputs_payload.get('referenceVideoUrl'),
+            recipe_inputs_payload.get('reference_video_url'),
+        )
+        character_orientation = str(params.get('characterOrientation') or params.get('character_orientation') or 'video').strip() or 'video'
+        keep_original_sound = bool(audio_settings.get('nativeAudioEnabled', recipe_metadata.get('native_audio_enabled', False)))
         metadata: dict[str, Any]
         try:
+            if requested_model == 'kling_v26_standard_motion_control':
+                logger.info(
+                    "motion_control_payload_resolution",
+                    extra={
+                        "video_id": params.get("videoId"),
+                        "has_motion_video_url": bool(motion_video_url),
+                        "top_level_keys": sorted([str(k) for k in params.keys()])[:40],
+                        "inputs_keys": sorted([str(k) for k in inputs_payload.keys()])[:40],
+                        "recipe_inputs_keys": sorted([str(k) for k in recipe_inputs_payload.keys()])[:40],
+                    },
+                )
             video_url, metadata = self.fal.generate(
                 model_key=requested_model,
                 prompt=prompt,
@@ -663,6 +709,9 @@ class AIVideoCreateService:
                 resolution=resolution,
                 duration_seconds=duration_seconds,
                 image_url=image_url,
+                video_url=motion_video_url if requested_model == 'kling_v26_standard_motion_control' else None,
+                character_orientation=character_orientation if requested_model == 'kling_v26_standard_motion_control' else None,
+                keep_original_sound=keep_original_sound if requested_model == 'kling_v26_standard_motion_control' else None,
                 image_references=image_references,
                 multi_prompt=params.get('multiPrompt'),
                 generate_audio=generate_audio,

@@ -590,6 +590,9 @@ class FalVideoService:
         resolution: str,
         duration_seconds: int,
         image_url: str | None = None,
+        video_url: str | None = None,
+        character_orientation: str | None = None,
+        keep_original_sound: bool | None = None,
         image_references: list[dict[str, Any]] | None = None,
         multi_prompt: list[dict[str, Any]] | None = None,
         shot_type: str | None = None,
@@ -608,6 +611,9 @@ class FalVideoService:
             resolution=resolution,
             duration_seconds=duration_seconds,
             image_url=image_url,
+            video_url=video_url,
+            character_orientation=character_orientation,
+            keep_original_sound=keep_original_sound,
             image_references=image_references,
             multi_prompt=multi_prompt,
             generate_audio=generate_audio,
@@ -985,6 +991,9 @@ class FalVideoService:
         resolution: str,
         duration_seconds: int,
         image_url: str | None,
+        video_url: str | None,
+        character_orientation: str | None,
+        keep_original_sound: bool | None,
         image_references: list[dict[str, Any]] | None,
         multi_prompt: list[dict[str, Any]] | None,
         generate_audio: bool | None,
@@ -994,6 +1003,23 @@ class FalVideoService:
 
         if multi_prompt:
             payload['multi_prompt'] = multi_prompt
+
+        if normalized == 'kling_v26_standard_motion_control':
+            if not image_url:
+                raise ValueError('kling_v26_standard_motion_control requires image_url')
+            if not video_url:
+                raise ValueError('kling_v26_standard_motion_control requires video_url')
+            payload.update(
+                {
+                    'aspect_ratio': aspect_ratio or '9:16',
+                    'image_url': image_url,
+                    'video_url': video_url,
+                    'character_orientation': str(character_orientation or 'video'),
+                    'keep_original_sound': bool(True if keep_original_sound is None else keep_original_sound),
+                }
+            )
+            # Motion-control endpoint does not accept our generic duration/resolution knobs.
+            return payload
 
         if normalized in {'fal_ltx23_t2v', 'fal_ltx23_i2v'}:
             width, height = self._dimensions_for(aspect_ratio=aspect_ratio, resolution=resolution)
