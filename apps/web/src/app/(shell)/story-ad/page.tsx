@@ -36,6 +36,7 @@ type WorkflowState =
   | 'script_approved'
   | 'storyboard_generated'
   | 'storyboard_approved'
+  | 'images_generating'
   | 'images_generated'
   | 'images_approved'
   | 'production_in_progress'
@@ -78,6 +79,7 @@ export default function StoryAdPage() {
               storyboard_generated: 'storyboard_generated',
               storyboard_approved: 'images_generated',
               images_generated: 'images_generated',
+              images_generating: 'production_in_progress',
               images_approved: 'production_in_progress',
               production_in_progress: 'production_in_progress',
               final_video_ready: 'final_video_ready',
@@ -213,7 +215,8 @@ export default function StoryAdPage() {
       return <StoryboardCheckpoint project={project} onApprove={() => getProject(project.id)} />;
     }
 
-    if (workflowState?.includes('storyboard_awaiting') || workflowState?.includes('storyboard_approved')) {
+    if (workflowState?.includes('storyboard_awaiting') || workflowState?.includes('storyboard_approved'
+  | 'images_generating')) {
       return <ImageCheckpoint project={project} onApprove={() => getProject(project.id)} />;
     }
 
