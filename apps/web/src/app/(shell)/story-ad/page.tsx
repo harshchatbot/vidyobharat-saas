@@ -215,8 +215,12 @@ export default function StoryAdPage() {
       return <StoryboardCheckpoint project={project} onApprove={() => getProject(project.id)} />;
     }
 
-    if (workflowState?.includes('storyboard_awaiting') || workflowState?.includes('storyboard_approved'
-  | 'images_generating')) {
+    // Show production status while images are generating
+    if (workflowState?.includes('images_generating')) {
+      return <ProductionStatus project={project} productionStatus={productionStatus} />;
+    }
+
+    if (workflowState?.includes('storyboard_awaiting') || workflowState?.includes('storyboard_approved')) {
       return <ImageCheckpoint project={project} onApprove={() => getProject(project.id)} />;
     }
 
