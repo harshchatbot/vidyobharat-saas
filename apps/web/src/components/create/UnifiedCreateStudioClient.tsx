@@ -5495,7 +5495,19 @@ export function UnifiedCreateStudioClient({
                 </div>
               </div>
               <div className="mt-auto pt-6">
-                <Button type="button" onClick={() => applyRecipeToComposer(selectedRecipe)} className="w-full rounded-[16px] py-3 text-sm font-semibold">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (selectedRecipe?.id === 'avatar_product') {
+                      console.log('[DEBUG] Avatar product selected, navigating to category selection');
+                      setSelectedRecipe(null);
+                      router.push('/story-ad?step=category');
+                    } else {
+                      applyRecipeToComposer(selectedRecipe);
+                    }
+                  }}
+                  className="w-full rounded-[16px] py-3 text-sm font-semibold"
+                >
                   {recipeModalCopy(selectedRecipe)}
                 </Button>
               </div>

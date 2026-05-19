@@ -1621,6 +1621,58 @@ RECIPES: dict[str, RecipeConfig] = {
         reference_strategy='passthrough',
         metadata={'starter_badge': 'Ads', 'version': 1},
     ),
+    'storyboard_video': RecipeConfig(
+        id='storyboard_video',
+        type='video',
+        duration_seconds=20,
+        input=RecipeInputConfig(image=False, text=True),
+        config=RecipeContentConfig(
+            style='multi_scene_storyboard',
+            tone='adaptive_to_category',
+            music=None,
+            structure=('foundation', 'production', 'final'),
+            reference_prompt='Multi-scene storyboard-based ad pipeline with user approvals at each checkpoint.',
+            scene_guidance='Scene-level generation with independent state management and failure recovery.',
+            seed_prompt='Generate a multi-shot storyboard ad using approved script and visual specifications.',
+        ),
+        generation_defaults=RecipeGenerationDefaults(
+            model_key='kling_o3_standard_reference',
+            aspect_ratio='9:16',
+            resolution='720p',
+            quality='standard',
+            captions_enabled=False,
+            narration_enabled=False,
+            voice='Kore',
+            language='English (India)',
+            caption_style='classic',
+        ),
+        scene_strategy=RecipeSceneStrategy(
+            render_scenes=tuple(),  # Dynamic per project
+        ),
+        catalog=RecipeCatalogConfig(
+            title='Storyboard Video Ads',
+            slug='storyboard-video-ads',
+            description='Multi-scene ad generation with 7 categories, user approval checkpoints, emotion-tagged TTS, and quality scoring.',
+            short_label='Storyboard Ads',
+            preview_video_url='',
+            preview_image_url='',
+            active=False,  # Phase 1 only - not in catalog yet
+            featured=False,
+            trending=False,
+            order=500,
+            tags=('storyboard', 'multi_scene', 'approval_pipeline', 'phase1'),
+            composer=None,
+        ),
+        reference_strategy='none',
+        metadata={
+            'pipeline_type': 'storyboard',
+            'phase': 'phase1_foundation',
+            'ad_categories': 7,
+            'approval_checkpoints': 4,
+            'supports_lipsync': True,
+            'supports_variations': True,
+        },
+    ),
 }
 
 SURFACE_RECIPE_IDS = frozenset({'deep_dive_explainer', 'ugc_ad', 'avatar_product', 'make_anything_dance', 'anime_lofi_reel', 'reference_video_generator_advanced'})

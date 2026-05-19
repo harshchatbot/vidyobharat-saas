@@ -13,6 +13,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { Button } from '@/components/ui/Button';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
+import PageTransition from '@/components/ui/PageTransition';
 import { API_URL } from '@/lib/env';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
@@ -24,7 +25,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help'];
+const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help', '/story-ad'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -41,6 +42,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/create')) return 'Create';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
+  if (pathname.startsWith('/story-ad')) return 'Create Ad';
   if (pathname.startsWith('/billing')) return 'Billing';
   if (pathname.startsWith('/pricing')) return 'Pricing';
   if (pathname.startsWith('/credits/history')) return 'Credit History';
@@ -294,7 +296,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
     return (
       <CreditProvider userId={effectiveUserId}>
-      <div className={`grid min-h-screen grid-cols-1 overflow-visible bg-[hsl(var(--color-bg))] ${immersiveStudioRoute ? '' : useExpandedAppShell ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
+      <div className={`grid min-h-screen grid-cols-1 overflow-visible mesh-bg ${immersiveStudioRoute ? '' : useExpandedAppShell ? 'xl:grid-cols-[240px_1fr]' : 'xl:grid-cols-[96px_1fr]'}`}>
         <div className={`pointer-events-none fixed inset-x-0 top-0 z-[110] transition-opacity duration-200 ${isPending ? 'opacity-100' : 'opacity-0'}`}>
           <div className="h-[2px] w-full overflow-hidden bg-[hsl(var(--color-border)/0.3)]">
             <div className="h-full w-1/3 animate-[rangmanch-route-slide_1.05s_ease-in-out_infinite] bg-[linear-gradient(90deg,hsl(var(--color-accent)/0),hsl(var(--color-accent)),hsl(var(--color-accent)/0))]" />
@@ -733,7 +735,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
               </div>
             </div>
           ) : null}
-          <main className={`mx-auto px-4 pb-8 ${immersiveStudioRoute ? 'pt-4 sm:px-5 sm:pb-8 sm:pt-5 xl:max-w-[1880px] xl:px-6' : 'pt-5 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ' + (useExpandedAppShell ? 'max-w-[1680px]' : 'max-w-[1500px]')} transition-[opacity,transform] duration-200 ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}>{children}</main>
+          <main className={`mx-auto px-4 pb-8 ${immersiveStudioRoute ? 'pt-4 sm:px-5 sm:pb-8 sm:pt-5 xl:max-w-[1880px] xl:px-6' : 'pt-5 sm:px-6 sm:pb-10 sm:pt-6 xl:px-8 ' + (useExpandedAppShell ? 'max-w-[1680px]' : 'max-w-[1500px]')} transition-[opacity,transform] duration-200 ${isPending ? 'opacity-80 translate-y-[2px]' : 'opacity-100 translate-y-0'}`}><PageTransition>{children}</PageTransition></main>
         </div>
       </div>
       </CreditProvider>
@@ -746,7 +748,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
 
   return (
     <CreditProvider userId={effectiveUserId}>
-      <div className="min-h-screen bg-[hsl(var(--color-bg))]">
+      <div className="min-h-screen mesh-bg">
         <header className="sticky top-0 z-50 px-4 pt-3 sm:px-6 sm:pt-4">
           <div className="mx-auto max-w-[1500px]">
             <TopNav userId={effectiveUserId} accountLabel={effectiveAccountLabel} accountEmail={effectiveAccountEmail} />

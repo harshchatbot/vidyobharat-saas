@@ -1,195 +1,197 @@
 'use client';
 
-import { createContext, PropsWithChildren, useCallback, useContext, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
 
-type ToastVariant = 'default' | 'success' | 'error' | 'info';
-type ToastInput =
-  | string
-  | {
-      title?: string;
-      message: string;
-      variant?: ToastVariant;
-      actionLabel?: string;
-      onAction?: () => void;
-      durationMs?: number;
-      celebrate?: boolean;
-    };
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-type ToastItem = {
-  id: number;
-  title?: string;
-  message: string;
-  variant: ToastVariant;
+export interface Toast {
+  id: string;
+  type: ToastType;
+  title: string;
+  message?: string;
+  duration?: number;
   actionLabel?: string;
   onAction?: () => void;
-  celebrate?: boolean;
-};
+}
 
-type ConfettiBurst = {
-  id: number;
-};
+interface ToastContextType {
+  toasts: Toast[];
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
+  show: (titleOrOptions: string | { title?: string; message?: string; type?: ToastType; variant?: 'success' | 'error' | 'warning' | 'info'; duration?: number; durationMs?: number; celebrate?: boolean; actionLabel?: string; onAction?: () => void }, message?: string) => void;
+}
 
-const ToastContext = createContext<{ show: (toast: ToastInput) => void } | null>(null);
+const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-function normalizeToast(input: ToastInput): Omit<ToastItem, 'id'> & { durationMs: number } {
-  if (typeof input === 'string') {
-    return {
-      message: input,
-      variant: 'default',
-      durationMs: 2500,
-      celebrate: false,
-    };
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within ToastProvider');
   }
-  return {
-    title: input.title,
-    message: input.message,
-    variant: input.variant ?? 'default',
-    actionLabel: input.actionLabel,
-    onAction: input.onAction,
-    durationMs: input.durationMs ?? 3200,
-    celebrate: input.celebrate ?? false,
-  };
+  return context;
 }
 
-function variantClassName(variant: ToastVariant) {
-  switch (variant) {
-    case 'success':
-      return 'border-[hsl(var(--color-success)/0.26)] bg-[hsl(var(--color-surface)/0.94)]';
-    case 'error':
-      return 'border-[hsl(var(--color-danger)/0.28)] bg-[hsl(var(--color-surface)/0.94)]';
-    case 'info':
-      return 'border-[hsl(var(--color-accent)/0.28)] bg-[hsl(var(--color-surface)/0.94)]';
-    default:
-      return 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.94)]';
-  }
-}
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
-function VariantIcon({ variant }: { variant: ToastVariant }) {
-  switch (variant) {
-    case 'success':
-      return <CheckCircle2 className="h-4 w-4 text-[hsl(var(--color-success))]" />;
-    case 'error':
-      return <AlertCircle className="h-4 w-4 text-[hsl(var(--color-danger))]" />;
-    case 'info':
-      return <Info className="h-4 w-4 text-[hsl(var(--color-accent))]" />;
-    default:
-      return <Info className="h-4 w-4 text-muted" />;
-  }
-}
-
-function confettiStyle(seed: number, index: number) {
-  const angle = -84 + index * 12 + (seed % 7);
-  const distance = 62 + ((index * 13 + seed) % 58);
-  const delay = ((index % 5) * 35);
-  const size = 7 + ((index + seed) % 6);
-  const rotate = (seed * (index + 3)) % 360;
-  const palette = [
-    'hsl(var(--color-accent))',
-    'hsl(var(--color-success))',
-    'hsl(var(--color-surface))',
-    'hsl(var(--color-text))',
-  ];
-  return {
-    width: `${size}px`,
-    height: `${Math.max(4, size * 0.72)}px`,
-    background: palette[index % palette.length],
-    left: '50%',
-    top: '50%',
-    animationDelay: `${delay}ms`,
-    transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
-    ['--confetti-x' as string]: `${Math.cos((angle * Math.PI) / 180) * distance}px`,
-    ['--confetti-y' as string]: `${Math.sin((angle * Math.PI) / 180) * distance}px`,
-    ['--confetti-rotate' as string]: `${rotate + 160}deg`,
-  } as CSSProperties;
-}
-
-export function ToastProvider({ children }: PropsWithChildren) {
-  const [items, setItems] = useState<ToastItem[]>([]);
-  const [bursts, setBursts] = useState<ConfettiBurst[]>([]);
-
-  const remove = useCallback((id: number) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const show = useCallback((input: ToastInput) => {
-    const toast = normalizeToast(input);
-    const id = Date.now();
-    setItems((prev) => [...prev, { id, ...toast }]);
-    if (toast.celebrate && toast.variant === 'success') {
-      setBursts((prev) => [...prev, { id }]);
-      window.setTimeout(() => {
-        setBursts((prev) => prev.filter((burst) => burst.id !== id));
-      }, 2200);
-    }
-    window.setTimeout(() => {
-      setItems((prev) => prev.filter((item) => item.id !== id));
-    }, toast.durationMs);
-  }, []);
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    const duration = toast.duration ?? 4000;
+
+    setToasts((prev) => [...prev, { ...toast, id, duration }]);
+
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  }, [removeToast]);
+
+  const show = useCallback(
+    (titleOrOptions: string | { title?: string; message?: string; type?: ToastType; variant?: 'success' | 'error' | 'warning' | 'info'; duration?: number; durationMs?: number; celebrate?: boolean; actionLabel?: string; onAction?: () => void }, message?: string) => {
+      let title: string;
+      let msg: string | undefined;
+      let type: ToastType = 'info';
+      let duration: number | undefined;
+      let actionLabel: string | undefined;
+      let onAction: (() => void) | undefined;
+
+      if (typeof titleOrOptions === 'string') {
+        title = titleOrOptions;
+        msg = message;
+      } else {
+        title = titleOrOptions.title || 'Notification';
+        msg = titleOrOptions.message;
+        type = titleOrOptions.type ?? (titleOrOptions.variant as ToastType) ?? 'info';
+        duration = titleOrOptions.duration ?? (titleOrOptions.durationMs ? titleOrOptions.durationMs : undefined);
+        actionLabel = titleOrOptions.actionLabel;
+        onAction = titleOrOptions.onAction;
+        
+        // celebrate is for celebration toasts, typically success
+        if (titleOrOptions.celebrate) {
+          type = 'success';
+          duration = duration ?? 5000; // Slightly longer for celebrations
+        }
+      }
+
+      addToast({
+        type,
+        title,
+        message: msg,
+        duration: duration ?? 4000,
+        actionLabel,
+        onAction,
+      });
+    },
+    [addToast],
+  );
 
   return (
-    <ToastContext.Provider value={{ show }}>
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, show }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex justify-center sm:justify-end sm:pr-8">
-        {bursts.map((burst) => (
-          <div key={burst.id} className="relative h-32 w-32 sm:h-36 sm:w-36">
-            {Array.from({ length: 18 }).map((_, index) => (
-              <span
-                key={`${burst.id}-${index}`}
-                className="absolute rounded-[3px] opacity-0 [animation:rangmanch-confetti-burst_1400ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
-                style={confettiStyle(burst.id, index)}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-      <div className="fixed bottom-4 right-4 z-40 space-y-2 px-4 sm:px-0">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className={`w-full max-w-sm rounded-[20px] border px-4 py-3 text-sm text-text shadow-[var(--shadow-hard)] backdrop-blur-xl sm:min-w-[320px] ${variantClassName(item.variant)}`}
-          >
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg)/0.68)]">
-                <VariantIcon variant={item.variant} />
-              </span>
-              <div className="min-w-0 flex-1">
-                {item.title ? <p className="text-sm font-semibold text-text">{item.title}</p> : null}
-                <p className={`text-sm ${item.title ? 'mt-1 text-muted' : 'text-text'}`}>{item.message}</p>
-                {item.actionLabel && item.onAction ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      item.onAction?.();
-                      remove(item.id);
-                    }}
-                    className="mt-2 text-sm font-semibold text-[hsl(var(--color-accent))]"
-                  >
-                    {item.actionLabel}
-                  </button>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(item.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-[hsl(var(--color-bg)/0.7)] hover:text-text"
-                aria-label="Dismiss notification"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ToastContext.Provider>
   );
 }
 
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) {
-    throw new Error('useToast must be used inside ToastProvider');
-  }
-  return ctx;
+function ToastContainer({
+  toasts,
+  onRemove,
+}: {
+  toasts: Toast[];
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <AnimatePresence mode="popLayout">
+        {toasts.map((toast) => (
+          <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ToastItem({
+  toast,
+  onRemove,
+}: {
+  toast: Toast;
+  onRemove: (id: string) => void;
+}) {
+  const borderColor =
+    toast.type === 'success'
+      ? 'hsl(var(--color-success))'
+      : toast.type === 'error'
+        ? 'hsl(var(--color-error))'
+        : toast.type === 'warning'
+          ? 'hsl(var(--color-warning))'
+          : 'hsl(var(--color-accent-cyan))';
+
+  const icon =
+    toast.type === 'success' ? (
+      <CheckCircle className="h-5 w-5" style={{ color: borderColor }} />
+    ) : toast.type === 'error' ? (
+      <AlertCircle className="h-5 w-5" style={{ color: borderColor }} />
+    ) : toast.type === 'warning' ? (
+      <AlertTriangle className="h-5 w-5" style={{ color: borderColor }} />
+    ) : (
+      <Info className="h-5 w-5" style={{ color: borderColor }} />
+    );
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 100 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="pointer-events-auto"
+      style={{
+        background: `hsl(var(--glass-bg-strong))`,
+        backdropFilter: `blur(var(--glass-blur))`,
+        border: `1px solid hsl(var(--glass-border))`,
+        borderLeft: `4px solid ${borderColor}`,
+        borderRadius: `var(--radius-lg)`,
+        boxShadow: `var(--shadow-lg)`,
+        padding: '1rem',
+        minWidth: '320px',
+        maxWidth: '420px',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 pt-0.5">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm" style={{ color: `hsl(var(--color-text))` }}>
+            {toast.title}
+          </p>
+          {toast.message && (
+            <p className="text-sm mt-1" style={{ color: `hsl(var(--color-text-secondary))` }}>
+              {toast.message}
+            </p>
+          )}
+          {toast.actionLabel && toast.onAction && (
+            <button
+              onClick={toast.onAction}
+              className="text-xs font-semibold mt-2 hover:opacity-80 transition-opacity"
+              style={{ color: borderColor }}
+            >
+              {toast.actionLabel}
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => onRemove(toast.id)}
+          className="flex-shrink-0 p-1 hover:opacity-70 transition-opacity"
+          style={{ color: `hsl(var(--color-muted))` }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
 }

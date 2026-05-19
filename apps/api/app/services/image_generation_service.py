@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+import httpx
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
@@ -309,6 +310,58 @@ class ImageGenerationService:
         }
         suffix = descriptors.get(normalized_model_key, 'cinematic lighting, refined detail, premium composition')
         return f'{cleaned}, {suffix}, high detail, creator-grade output'
+
+    def generate(
+        self,
+        prompt: str,
+        tier: str = "fast",
+        aspect_ratio: str = "16:9",
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Simple image generation method for pipeline use.
+
+        Args:
+            prompt: Image generation prompt
+            tier: 'fast' or 'pro' (default: 'fast')
+            aspect_ratio: Image aspect ratio (default: '16:9')
+            metadata: Optional metadata for tracking
+
+        Returns:
+            Image URL string
+
+        Note: This is a simplified interface used by storyboard pipeline.
+        For full control, use create_image() instead.
+        """
+        # Map tier to model key
+        if tier == "pro":
+            model_key = self.settings.gemini_pro_image_model_primary or "gemini_pro_image"
+        else:
+            model_key = self.settings.gemini_flash_image_model_primary or "gemini_flash_image"
+
+        # Use placeholder user ID for pipeline operations
+        user_id = metadata.get("project_id", "pipeline") if metadata else "pipeline"
+
+        # Default resolution based on aspect ratio
+        resolution = "1024x1024"
+        if aspect_ratio == "9:16":
+            resolution = "720x1280"
+        elif aspect_ratio == "16:9":
+            resolution = "1280x720"
+
+        # Create the image
+        image_gen = self.create_image(
+            user_id=user_id,
+            model_key=model_key,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            reference_urls=[],
+            project_id=metadata.get("project_id") if metadata else None,
+        )
+
+        # Return the URL
+        return image_gen.cdn_url or image_gen.image_source or ""
 
     def create_image(
         self,

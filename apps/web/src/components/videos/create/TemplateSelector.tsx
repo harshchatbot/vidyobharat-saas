@@ -20,67 +20,67 @@ const TEMPLATE_VISUALS: Record<
     image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Performance',
     helper: 'Beat-led cuts',
-    gradient: 'linear-gradient(160deg, rgba(22,29,57,0.25), rgba(6,8,15,0.9))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-primary) / 0.2), hsl(var(--color-bg) / 0.9))',
   },
   'explainer-video': {
     image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Explainer',
     helper: 'Clear narrative',
-    gradient: 'linear-gradient(160deg, rgba(14,47,61,0.28), rgba(6,8,15,0.9))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-accent-cyan) / 0.25), hsl(var(--color-bg) / 0.9))',
   },
   'character-vlog': {
     image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Persona',
     helper: 'Creator voice',
-    gradient: 'linear-gradient(160deg, rgba(42,18,54,0.28), rgba(6,8,15,0.9))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-accent-pink) / 0.25), hsl(var(--color-bg) / 0.9))',
   },
   'asmr-video': {
     image: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Ambient',
     helper: 'Slow pacing',
-    gradient: 'linear-gradient(160deg, rgba(34,47,28,0.2), rgba(6,8,15,0.9))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-success) / 0.2), hsl(var(--color-bg) / 0.9))',
   },
   storyboard: {
     image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Planning',
     helper: 'Scene map',
-    gradient: 'linear-gradient(160deg, rgba(53,35,18,0.2), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-accent-amber) / 0.2), hsl(var(--color-bg) / 0.92))',
   },
   history: {
     image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'History',
     helper: 'Epic retelling',
-    gradient: 'linear-gradient(160deg, rgba(66,40,18,0.22), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-warning) / 0.22), hsl(var(--color-bg) / 0.92))',
   },
   mythology: {
     image: 'https://images.unsplash.com/photo-1518562180175-34a163b1a9a6?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Mythic',
     helper: 'Emotional lore',
-    gradient: 'linear-gradient(160deg, rgba(65,23,71,0.24), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-accent-pink) / 0.24), hsl(var(--color-bg) / 0.92))',
   },
   tech: {
     image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Tech',
     helper: 'Sharp product story',
-    gradient: 'linear-gradient(160deg, rgba(18,47,71,0.25), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-accent-cyan) / 0.25), hsl(var(--color-bg) / 0.92))',
   },
   startup: {
     image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Startup',
     helper: 'Pitch angle',
-    gradient: 'linear-gradient(160deg, rgba(25,63,43,0.25), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-success) / 0.25), hsl(var(--color-bg) / 0.92))',
   },
   product: {
     image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Product',
     helper: 'Commercial polish',
-    gradient: 'linear-gradient(160deg, rgba(52,35,61,0.22), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-primary) / 0.22), hsl(var(--color-bg) / 0.92))',
   },
   'real-estate': {
     image: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
     eyebrow: 'Property',
     helper: 'Listing reel',
-    gradient: 'linear-gradient(160deg, rgba(42,42,22,0.22), rgba(6,8,15,0.92))',
+    gradient: 'linear-gradient(160deg, hsl(var(--color-warning) / 0.22), hsl(var(--color-bg) / 0.92))',
   },
 };
 
@@ -204,13 +204,13 @@ export function TemplateSelector({
                     <Icon className="h-4 w-4" />
                   </span>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72">{eyebrow}</p>
-                    <p className="text-xs font-semibold text-white">{helper}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted/70">{eyebrow}</p>
+                    <p className="text-xs font-semibold text-text">{helper}</p>
                   </div>
                 </div>
                 <div className="absolute inset-x-3 bottom-3">
-                  <p className="font-heading text-lg font-extrabold tracking-tight text-white drop-shadow-sm">{template.label}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-white/76">{template.description}</p>
+                  <p className="font-heading text-lg font-extrabold tracking-tight text-text drop-shadow-sm">{template.label}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-text/75">{template.description}</p>
                 </div>
               </div>
               <div className="space-y-1.5 px-3.5 py-3">

@@ -4,9 +4,10 @@ import math
 import logging
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, unquote, urlparse
 from uuid import uuid4
 
 from app.core.config import get_settings
@@ -16,6 +17,134 @@ from app.services.tts import list_tts_voices
 from app.services.video_pipeline import VideoPipelineService
 
 logger = logging.getLogger(__name__)
+
+
+def _redact_url(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = urlparse(raw)
+        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}" if parsed.scheme and parsed.netloc else raw.split("?", 1)[0]
+    except Exception:
+        return raw.split("?", 1)[0]
+
+
+def _extract_object_path_from_storage_url(raw_url: str) -> str | None:
+    try:
+        parsed = urlparse(raw_url)
+        path = str(parsed.path or "")
+        query = parse_qs(parsed.query or "", keep_blank_values=True)
+        if "firebasestorage.googleapis.com" in (parsed.netloc or ""):
+            marker = "/o/"
+            if marker not in path:
+                return None
+            return unquote(path.split(marker, 1)[1]).strip("/") or None
+        if "storage.googleapis.com" in (parsed.netloc or ""):
+            # /bucket/object/path OR /download/storage/v1/b/bucket/o/object
+            if path.startswith("/download/storage/v1/b/") and "/o/" in path:
+                return unquote(path.split("/o/", 1)[1]).strip("/") or None
+            segments = [seg for seg in path.split("/") if seg]
+            if len(segments) >= 2:
+                return unquote("/".join(segments[1:])).strip("/") or None
+            # some signed URLs pass object path in query
+            candidate = query.get("name", [None])[0]
+            return unquote(str(candidate)).strip("/") if candidate else None
+    except Exception:
+        return None
+    return None
+
+
+def resolve_avatar_storage_url(url: str | None) -> str:
+    raw_url = str(url or '').strip()
+    if not raw_url:
+        return ''
+    try:
+        settings = get_settings()
+        from firebase_admin import storage
+
+        logger.info(
+            "reference_url_resolve_started",
+            extra={"source_url": _redact_url(raw_url)},
+        )
+
+        if raw_url.startswith('gs://'):
+            parsed = urlparse(raw_url)
+            bucket = normalize_firebase_bucket(parsed.netloc)
+            object_path = str(parsed.path or '').strip('/')
+            if not bucket or not object_path:
+                return raw_url
+            blob = storage.bucket(bucket, app=get_firebase_app()).blob(object_path)
+            if not blob.exists():
+                return raw_url
+            signed = str(blob.generate_signed_url(version='v4', expiration=timedelta(hours=12), method='GET'))
+            logger.info(
+                "reference_url_resolved_fresh",
+                extra={"object_path": object_path, "resolved_url": _redact_url(signed)},
+            )
+            return signed
+
+        if raw_url.startswith("avatars/"):
+            bucket_name = normalize_firebase_bucket(settings.firebase_storage_bucket)
+            object_path = raw_url.strip("/")
+            if bucket_name and object_path:
+                blob = storage.bucket(bucket_name, app=get_firebase_app()).blob(object_path)
+                if blob.exists():
+                    signed = str(blob.generate_signed_url(version='v4', expiration=timedelta(hours=12), method='GET'))
+                    logger.info(
+                        "reference_url_resolved_fresh",
+                        extra={"object_path": object_path, "resolved_url": _redact_url(signed)},
+                    )
+                    return signed
+
+        if 'firebasestorage.googleapis.com' in raw_url:
+            parsed = urlparse(raw_url)
+            object_path = _extract_object_path_from_storage_url(raw_url)
+            bucket_name = normalize_firebase_bucket(settings.firebase_storage_bucket)
+            if not bucket_name or not object_path:
+                return raw_url
+            blob = storage.bucket(bucket_name, app=get_firebase_app()).blob(object_path)
+            if not blob.exists():
+                return raw_url
+            signed = str(blob.generate_signed_url(version='v4', expiration=timedelta(hours=12), method='GET'))
+            logger.info(
+                "reference_url_resolved_fresh",
+                extra={"object_path": object_path, "resolved_url": _redact_url(signed)},
+            )
+            return signed
+
+        parsed = urlparse(raw_url)
+        query = parse_qs(parsed.query or "", keep_blank_values=True)
+        stale_signed = "X-Goog-Signature" in query or "X-Goog-Date" in query or "X-Goog-Expires" in query
+        if stale_signed:
+            logger.info(
+                "reference_url_signed_url_detected",
+                extra={"source_url": _redact_url(raw_url)},
+            )
+            object_path = _extract_object_path_from_storage_url(raw_url)
+            if object_path:
+                logger.info(
+                    "reference_url_object_path_extracted",
+                    extra={"object_path": object_path},
+                )
+                bucket_name = normalize_firebase_bucket(settings.firebase_storage_bucket) or normalize_firebase_bucket(parsed.path.split("/", 2)[1] if parsed.path.startswith("/") else "")
+                if bucket_name:
+                    blob = storage.bucket(bucket_name, app=get_firebase_app()).blob(object_path)
+                    if blob.exists():
+                        signed = str(blob.generate_signed_url(version='v4', expiration=timedelta(hours=12), method='GET'))
+                        logger.info(
+                            "reference_url_resolved_fresh",
+                            extra={"object_path": object_path, "resolved_url": _redact_url(signed)},
+                        )
+                        return signed
+    except Exception:
+        logger.warning(
+            "reference_url_resolve_failed",
+            extra={"source_url": _redact_url(raw_url)},
+            exc_info=True,
+        )
+        return raw_url
+    return raw_url
 
 
 @dataclass(frozen=True)
@@ -915,6 +1044,16 @@ class AvatarService:
             raw_reference_images=data.get('reference_images'),
             fallback_reference_image_url=str(data.get('reference_image_url') or '').strip() or None,
         )
+        primary_image = self._resolve_avatar_asset_url(primary_image)
+        reference_images = [self._resolve_avatar_asset_url(url) for url in reference_images]
+        reference_image_variants = [
+            AvatarReferenceImageVariant(
+                id=item.id,
+                url=self._resolve_avatar_asset_url(item.url),
+                tags=item.tags,
+            )
+            for item in reference_image_variants
+        ]
         reference_image_url = str(data.get('reference_image_url') or '').strip() or (reference_images[0] if reference_images else '')
         if not primary_image:
             return None
@@ -1039,6 +1178,21 @@ class AvatarService:
                 or None
             ),
         )
+        primary_image = self._resolve_avatar_asset_url(primary_image)
+        reference_images = [self._resolve_avatar_asset_url(url) for url in reference_images]
+        reference_image_variants = [
+            AvatarReferenceImageVariant(
+                id=item.id,
+                url=self._resolve_avatar_asset_url(item.url),
+                tags=item.tags,
+            )
+            for item in reference_image_variants
+        ]
+        resolved_thumbnail = self._resolve_avatar_asset_url(str(data.get('thumbnail_url') or '').strip())
+        if not resolved_thumbnail:
+            resolved_thumbnail = primary_image or ''
+        if 'firebasestorage.googleapis.com' in resolved_thumbnail and (primary_image and primary_image != resolved_thumbnail):
+            resolved_thumbnail = primary_image
         style = str(data.get('style') or data.get('category') or 'actor').strip()
         normalized_gender = str(data.get('gender') or '').strip() or None
         resolved_recommended_voice = self._resolve_catalog_voice_key(
@@ -1057,7 +1211,7 @@ class AvatarService:
             style=style,
             gender=normalized_gender,
             language_tags=language_support,
-            thumbnail_url=str(data.get('thumbnail_url') or primary_image or '').strip(),
+            thumbnail_url=resolved_thumbnail,
             tags=[str(tag).strip() for tag in list(data.get('tags') or []) if str(tag).strip()],
             category=str(data.get('category') or '').strip() or None,
             reference_images=reference_images,
@@ -1079,6 +1233,9 @@ class AvatarService:
             source=str(data.get('source') or data.get('provider') or 'avatar').strip() or 'avatar',
             user_id=str(data.get('user_id') or '').strip() or None,
         )
+
+    def _resolve_avatar_asset_url(self, value: str | None) -> str:
+        return resolve_avatar_storage_url(value)
 
     def _to_avatar_response(self, record: ActorRecord) -> AvatarResponse:
         return AvatarResponse(
@@ -1142,6 +1299,16 @@ class AvatarService:
                     raw_reference_images=data.get('reference_images'),
                     fallback_reference_image_url=str(data.get('reference_image_url') or '').strip() or None,
                 )
+                primary_image = self._resolve_avatar_asset_url(primary_image)
+                reference_images = [self._resolve_avatar_asset_url(url) for url in reference_images]
+                reference_image_variants = [
+                    AvatarReferenceImageVariant(
+                        id=item.id,
+                        url=self._resolve_avatar_asset_url(item.url),
+                        tags=item.tags,
+                    )
+                    for item in reference_image_variants
+                ]
                 if not primary_image:
                     continue
                 normalized_gender = str(data.get('gender') or '').strip() or None
@@ -1168,7 +1335,7 @@ class AvatarService:
                         ),
                         gender=normalized_gender,
                         language_tags=[str(item).strip() for item in list(data.get('language_support') or []) if str(item).strip()],
-                        thumbnail_url=str(data.get('thumbnail_url') or primary_image).strip(),
+                        thumbnail_url=self._resolve_avatar_asset_url(str(data.get('thumbnail_url') or primary_image).strip()),
                         tags=[str(item).strip() for item in list(data.get('tags') or []) if str(item).strip()] or ['custom', 'ugc'],
                         category=str(data.get('category') or 'custom_avatar').strip() or 'custom_avatar',
                         reference_images=reference_images or [primary_image],

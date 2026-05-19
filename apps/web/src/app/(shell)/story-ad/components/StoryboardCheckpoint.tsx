@@ -1,13 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { StoryboardProject } from '../hooks/useStoryboardProject';
-import { useStoryboardProject } from '../hooks/useStoryboardProject';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StoryboardProject, useStoryboardProject } from '../hooks/useStoryboardProject';
+import { isTestModeEnabled } from '../utils/testModeHelper';
+import { generateMockScenes, simulateDelay } from '../services/mockDataService';
 import styles from './StoryboardCheckpoint.module.css';
+import { getCurrentUserIdOrThrow } from '@/lib/authUser';
 
 interface SceneCard {
   id: string;
   scene_number: number;
+  scene_type?: string;
+  dialogue?: string;
+  voice_line?: string;
+  tts_text?: string;
+  script_line?: string;
+  narration?: string;
   spoken_line: string;
   visual_description: string;
   shot_type: string;
@@ -15,11 +23,16 @@ interface SceneCard {
   environment?: string;
   mood?: string;
   duration_seconds: number;
+  user_approved?: boolean | null;
+  base_image_url?: string | null;
+  state?: string;
 }
 
 interface StoryboardCheckpointProps {
   project: StoryboardProject;
   onApprove: () => void;
+  onBack?: () => void;
+  canGoBack?: boolean;
 }
 
 interface EditingScene {
@@ -31,77 +44,391 @@ interface EditingScene {
   mood: string;
   environment: string;
   avatar_action: string;
+  duration_seconds: number;
 }
 
-export default function StoryboardCheckpoint({ project, onApprove }: StoryboardCheckpointProps) {
-  const { generateStoryboard, approveStoryboard, approveSceneImage, rejectSceneImage, loading } = useStoryboardProject();
+export default function StoryboardCheckpoint({
+  project,
+  onApprove,
+  onBack,
+  canGoBack = true,
+}: StoryboardCheckpointProps) {
+  const {
+    generateStoryboard,
+    approveStoryboard,
+    approveSceneImage,
+    rejectSceneImage,
+    updateScene,
+    getProject,
+    loading,
+  } = useStoryboardProject();
+
   const [scenes, setScenes] = useState<SceneCard[]>([]);
-  const [showScore, setShowScore] = useState(!!project.storyboard_score);
+  const [showScore, setShowScore] = useState(Boolean(project.storyboard_score));
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRehydratingScenes, setIsRehydratingScenes] = useState(false);
   const [editingScene, setEditingScene] = useState<EditingScene | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const generationStartedRef = useRef<string | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backNavFetchAttemptedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Auto-generate storyboard if not already started
-    if (
-      !scenes.length &&
-      project.display_script &&
-      project.workflow_state === 'script_approved' &&
-      !isGenerating &&
-      loading === false
-    ) {
-      setIsGenerating(true);
-      generateStoryboard(project.id);
+  const isMockMode = isTestModeEnabled();
+
+  const normalizeScenesFromProject = (value: any): SceneCard[] => {
+    const projectObj = value?.project || value;
+    const candidates: Array<{ source: string; value: unknown }> = [
+      { source: 'project.scenes', value: projectObj?.scenes },
+      { source: 'project.storyboard_scenes', value: projectObj?.storyboard_scenes },
+      { source: 'project.scene_breakdown', value: projectObj?.scene_breakdown },
+      { source: 'project.generated_scenes', value: projectObj?.generated_scenes },
+      { source: 'project.storyboard.scenes', value: projectObj?.storyboard?.scenes },
+      { source: 'root.scenes', value: value?.scenes },
+      { source: 'root.storyboard_scenes', value: value?.storyboard_scenes },
+      { source: 'root.scene_breakdown', value: value?.scene_breakdown },
+      { source: 'root.generated_scenes', value: value?.generated_scenes },
+      { source: 'root.storyboard.scenes', value: value?.storyboard?.scenes },
+    ];
+
+    const hit = candidates.find((entry) => Array.isArray(entry.value));
+    const rawScenes = (hit?.value as any[]) || [];
+    console.log('[StoryboardCheckpoint] extracted scenes field', {
+      projectId: project.id,
+      source: hit?.source || 'none',
+      count: rawScenes.length,
+    });
+
+    return rawScenes as SceneCard[];
+  };
+
+  const fetchScenesFromStoryboardEndpoint = async (projectId: string): Promise<SceneCard[]> => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${apiUrl}/api/storyboard/${projectId}/storyboard`, {
+      headers: {
+        'X-User-ID': getCurrentUserIdOrThrow('Storyboard scene fetch'),
+      },
+    });
+    if (!response.ok) {
+      console.warn('[StoryboardCheckpoint] storyboard endpoint fetch failed', {
+        projectId,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return [];
     }
-  }, [project.id, project.display_script, scenes.length, generateStoryboard, isGenerating, loading]);
+    const data = await response.json();
+    const endpointScenes = Array.isArray(data?.scenes) ? (data.scenes as SceneCard[]) : [];
+    console.log('[StoryboardCheckpoint] normalized scenes count', {
+      projectId,
+      source: '/storyboard endpoint',
+      count: endpointScenes.length,
+      payload: data,
+    });
+    return endpointScenes;
+  };
 
-  // Fetch storyboard scenes from API
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    console.log('[StoryboardCheckpoint] polling stopped', { projectId: project.id });
+  };
+
   useEffect(() => {
-    if (project && project.id) {
-      const fetchScenes = async () => {
-        try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-          const response = await fetch(`${apiUrl}/api/storyboard/${project.id}/storyboard`, {
-            headers: {
-              'X-User-ID': localStorage.getItem('test-user-id') || 'test-user',
-            },
-          });
-          if (!response.ok) {
-            console.error('Failed to fetch scenes:', response.statusText);
-            return;
-          }
-          const data = await response.json();
-          if (data.status === 'success' && data.scenes) {
-            setScenes(data.scenes);
-          }
-        } catch (error) {
-          console.error('Error fetching scenes:', error);
+    let cancelled = false;
+
+    const loadMockScenes = async () => {
+      if (!isMockMode) return;
+      if (scenes.length > 0) return;
+
+      try {
+        setLocalError(null);
+        setIsGenerating(true);
+
+        await simulateDelay(1000);
+
+        if (cancelled) return;
+
+        const mockScenes = generateMockScenes(4, {
+          business_brief: project.business_brief,
+          avatar_name: project.avatar_name,
+          ad_style: project.ad_category,
+          platform: project.platform,
+          tone: project.tone,
+          language: project.language,
+        }).map((scene) => ({
+          ...scene,
+          user_approved: scene.user_approved ?? null,
+          state: scene.state || 'awaiting_approval',
+        }));
+
+        setScenes(mockScenes);
+      } catch (error) {
+        console.error('[StoryboardCheckpoint] Mock scene generation failed:', error);
+        if (!cancelled) {
+          setLocalError('Failed to generate mock storyboard scenes.');
         }
-      };
-      fetchScenes();
+      } finally {
+        if (!cancelled) {
+          setIsGenerating(false);
+        }
+      }
+    };
+
+    void loadMockScenes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMockMode, scenes.length]);
+
+  // Always prefer hydrated project scenes on mount/back-navigation.
+  useEffect(() => {
+    if (isMockMode || !project?.id) return;
+    const fromProject = normalizeScenesFromProject(project);
+    if (fromProject.length > 0) {
+      setScenes(fromProject);
+      setIsGenerating(false);
+      setLocalError(null);
     }
-  }, [project.id]);
+  }, [isMockMode, project, project?.id]);
+
+  // Real mode: start storyboard generation exactly once per project.
+  useEffect(() => {
+    if (isMockMode) return;
+    if (!project?.id) return;
+    if (scenes.length > 0) return;
+    if (normalizeScenesFromProject(project).length > 0) return;
+
+    const state = String(project.workflow_state || '').toLowerCase();
+    const canStart =
+      state === 'script_approved' ||
+      state === 'storyboard_generating';
+    if (!canStart) return;
+
+    if (generationStartedRef.current === project.id) {
+      return;
+    }
+
+    generationStartedRef.current = project.id;
+    setIsGenerating(true);
+    setLocalError(null);
+    console.log('[StoryboardCheckpoint] storyboard generation started once', {
+      projectId: project.id,
+      workflowState: state,
+    });
+
+    void generateStoryboard(project.id).catch((error) => {
+      console.error('[StoryboardCheckpoint] Error generating storyboard:', error);
+      setLocalError(error instanceof Error ? error.message : 'Failed to generate storyboard.');
+      setIsGenerating(false);
+    });
+  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, generateStoryboard]);
+
+  // Back-navigation fallback: if scenes are empty in scene-plan states, fetch once.
+  useEffect(() => {
+    if (isMockMode) return;
+    if (!project?.id) return;
+    if (scenes.length > 0) return;
+
+    const state = String(project.workflow_state || '').toLowerCase();
+    const shouldHydrateFromBackend =
+      state === 'storyboard_approved' ||
+      state === 'storyboard_awaiting_approval' ||
+      state === 'images_generating' ||
+      state === 'images_awaiting_approval' ||
+      state === 'images_approved';
+    if (!shouldHydrateFromBackend) return;
+    if (backNavFetchAttemptedRef.current === project.id) return;
+    backNavFetchAttemptedRef.current = project.id;
+
+    const hydrate = async () => {
+      try {
+        setIsRehydratingScenes(true);
+        const refreshed = await getProject(project.id);
+        const fromProject = normalizeScenesFromProject(refreshed);
+        let resolved = fromProject;
+        if (resolved.length === 0) {
+          resolved = await fetchScenesFromStoryboardEndpoint(project.id);
+        }
+        if (resolved.length > 0) {
+          setScenes(resolved);
+          setLocalError(null);
+        }
+      } catch (error) {
+        console.error('[StoryboardCheckpoint] back-navigation scene rehydrate failed', error);
+      } finally {
+        setIsRehydratingScenes(false);
+      }
+    };
+
+    void hydrate();
+  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, getProject]);
+
+  // Real mode: poll project every 2s until scenes exist (90s timeout).
+  useEffect(() => {
+    if (isMockMode) return;
+    if (!project?.id) return;
+    if (scenes.length > 0) return;
+
+    const state = String(project.workflow_state || '').toLowerCase();
+    const shouldPoll =
+      generationStartedRef.current === project.id ||
+      state === 'storyboard_generating' ||
+      state === 'storyboard_awaiting_approval';
+    if (!shouldPoll) return;
+    if (pollingIntervalRef.current) return;
+
+    const poll = async () => {
+      try {
+        console.log('[StoryboardCheckpoint] polling storyboard project', { projectId: project.id });
+        const latestProject = await getProject(project.id);
+        console.log('[StoryboardCheckpoint] full project response', {
+          projectId: project.id,
+          project: latestProject,
+        });
+        const nextScenes = normalizeScenesFromProject(latestProject);
+        let resolvedScenes = nextScenes;
+        if (resolvedScenes.length === 0) {
+          resolvedScenes = await fetchScenesFromStoryboardEndpoint(project.id);
+        }
+        console.log('[StoryboardCheckpoint] normalized scenes count', {
+          projectId: project.id,
+          source: resolvedScenes === nextScenes ? 'project payload' : 'storyboard endpoint fallback',
+          count: resolvedScenes.length,
+        });
+        if (resolvedScenes.length > 0) {
+          console.log('[StoryboardCheckpoint] storyboard scenes detected', {
+            projectId: project.id,
+            count: resolvedScenes.length,
+          });
+          setScenes(resolvedScenes);
+          setIsGenerating(false);
+          setLocalError(null);
+          stopPolling();
+        }
+      } catch (error) {
+        console.error('[StoryboardCheckpoint] polling failed', error);
+      }
+    };
+
+    void poll();
+    pollingIntervalRef.current = setInterval(() => {
+      void poll();
+    }, 2000);
+
+    pollingTimeoutRef.current = setTimeout(() => {
+      setIsGenerating(false);
+      setLocalError('Scene breakdown is taking longer than expected. Please retry.');
+      stopPolling();
+    }, 90000);
+
+    return () => {
+      stopPolling();
+    };
+  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, getProject]);
+
+  const displayScenes = scenes;
+
+  const totalDuration = useMemo(() => {
+    return displayScenes.reduce((sum, scene) => sum + Number(scene.duration_seconds || 0), 0);
+  }, [displayScenes]);
+  const targetDuration = Number(project.target_ad_duration_seconds || project.selected_ad_duration_seconds || 15);
+  const durationMismatch = displayScenes.length > 0 && Math.abs(totalDuration - targetDuration) > 1;
+
+  const approvedScenes = useMemo(() => {
+    return displayScenes.filter((scene) => scene.user_approved === true).length;
+  }, [displayScenes]);
+
+  const isBusy = loading || isGenerating || isRehydratingScenes;
+  const score = project.storyboard_score;
 
   const handleApprove = async () => {
-    await approveStoryboard(project.id);
-    onApprove();
+    try {
+      setLocalError(null);
+
+      if (isMockMode) {
+        onApprove();
+        return;
+      }
+
+      await approveStoryboard(project.id);
+      onApprove();
+    } catch (error) {
+      console.error('[StoryboardCheckpoint] Failed to approve storyboard:', error);
+      setLocalError(error instanceof Error ? error.message : 'Failed to approve storyboard.');
+    }
   };
 
   const handleEditScene = (scene: SceneCard) => {
     setEditingScene({
       sceneNum: scene.scene_number,
       sceneId: scene.id,
-      spoken_line: scene.spoken_line,
+      spoken_line: getSceneSpokenLine(scene),
       visual_description: scene.visual_description,
       shot_type: scene.shot_type,
       mood: scene.mood || 'Engaging',
-      environment: scene.environment || 'Modern Bathroom',
+      environment: scene.environment || 'Modern setting',
       avatar_action: scene.avatar_action || 'Product demonstration',
+      duration_seconds: Number(scene.duration_seconds || 5),
     });
   };
 
-  const handleSaveEdit = () => {
-    // In real app, would call API to save scene edits
-    console.log('Saving scene edits:', editingScene);
+  const handleSaveEdit = async () => {
+    if (!editingScene) return;
+    console.log('storyboard_scene_edit_save_clicked', { projectId: project.id, sceneId: editingScene.sceneId });
+    const spoken = String(editingScene.spoken_line || '').trim();
+    const payload = {
+      dialogue: spoken,
+      voice_line: spoken,
+      tts_text: spoken,
+      script_line: spoken,
+      spoken_line: spoken,
+      visual_description: editingScene.visual_description,
+      shot_type: editingScene.shot_type,
+      mood: editingScene.mood,
+      environment: editingScene.environment,
+      avatar_action: editingScene.avatar_action,
+      duration_seconds: Math.max(1, Number(editingScene.duration_seconds || 1)),
+    };
+    console.log('storyboard_scene_edit_payload', payload);
+
+    try {
+      await updateScene(project.id, editingScene.sceneId, payload);
+      console.log('storyboard_scene_edit_saved', { projectId: project.id, sceneId: editingScene.sceneId });
+      console.log('storyboard_scene_edit_refresh_scene_text', { projectId: project.id, sceneId: editingScene.sceneId, spoken });
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Failed to save scene edit.');
+      return;
+    }
+
+    setScenes((currentScenes) =>
+      currentScenes.map((scene) =>
+        scene.id === editingScene.sceneId
+          ? {
+              ...scene,
+              spoken_line: spoken,
+              dialogue: spoken,
+              voice_line: spoken,
+              tts_text: spoken,
+              script_line: spoken,
+              visual_description: editingScene.visual_description,
+              shot_type: editingScene.shot_type,
+              mood: editingScene.mood,
+              environment: editingScene.environment,
+              avatar_action: editingScene.avatar_action,
+              duration_seconds: Math.max(1, Number(editingScene.duration_seconds || 1)),
+            }
+          : scene
+      )
+    );
+
     setEditingScene(null);
   };
 
@@ -110,98 +437,285 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
   };
 
   const handleApproveScene = async (scene: SceneCard) => {
-    await approveSceneImage(project.id, scene.id);
+    try {
+      if (isMockMode) {
+        setScenes((currentScenes) =>
+          currentScenes.map((item) =>
+            item.id === scene.id
+              ? {
+                  ...item,
+                  user_approved: true,
+                  state: 'approved',
+                }
+              : item
+          )
+        );
+        return;
+      }
+
+      await approveSceneImage(project.id, scene.id);
+      setScenes((currentScenes) =>
+        currentScenes.map((item) =>
+          item.id === scene.id
+            ? {
+                ...item,
+                user_approved: true,
+                state: 'approved',
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error('[StoryboardCheckpoint] Failed to approve scene:', error);
+      setLocalError(error instanceof Error ? error.message : 'Failed to approve scene.');
+    }
   };
 
   const handleRejectScene = async (scene: SceneCard) => {
     const feedback = prompt('Provide feedback for rejection:');
     if (!feedback) return;
-    await rejectSceneImage(project.id, scene.id, feedback);
+
+    try {
+      if (isMockMode) {
+        setScenes((currentScenes) =>
+          currentScenes.map((item) =>
+            item.id === scene.id
+              ? {
+                  ...item,
+                  user_approved: false,
+                  state: 'rejected',
+                }
+              : item
+          )
+        );
+        return;
+      }
+
+      await rejectSceneImage(project.id, scene.id, feedback);
+      setScenes((currentScenes) =>
+        currentScenes.map((item) =>
+          item.id === scene.id
+            ? {
+                ...item,
+                user_approved: false,
+                state: 'rejected',
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error('[StoryboardCheckpoint] Failed to reject scene:', error);
+      setLocalError(error instanceof Error ? error.message : 'Failed to reject scene.');
+    }
   };
 
   const handleRegenerateScene = async (scene: SceneCard) => {
+    if (isMockMode) {
+      const regeneratedScene = generateMockScenes(1, {
+        business_brief: project.business_brief,
+        avatar_name: project.avatar_name,
+        ad_style: project.ad_category,
+        platform: project.platform,
+        tone: project.tone,
+        language: project.language,
+      })[0];
+
+      setScenes((currentScenes) =>
+        currentScenes.map((item) =>
+          item.id === scene.id
+            ? {
+                ...item,
+                spoken_line: regeneratedScene.spoken_line,
+                visual_description: regeneratedScene.visual_description,
+                shot_type: regeneratedScene.shot_type,
+                mood: regeneratedScene.mood || item.mood,
+                environment: regeneratedScene.environment || item.environment,
+                avatar_action: regeneratedScene.avatar_action || item.avatar_action,
+                user_approved: null,
+                state: 'awaiting_approval',
+              }
+            : item
+        )
+      );
+
+      return;
+    }
+
     console.log('Regenerating scene:', scene.scene_number);
     alert('Scene regeneration feature coming soon');
   };
 
-  const score = project.storyboard_score;
-  const totalDuration = project.duration_seconds || 0;
-  const displayScenes = scenes.length > 0 ? scenes : [];
+  const handleRegenerateAll = async () => {
+    if (isMockMode) {
+      setIsGenerating(true);
+
+      await simulateDelay(1000);
+
+      const mockScenes = generateMockScenes(4, {
+        business_brief: project.business_brief,
+        avatar_name: project.avatar_name,
+        ad_style: project.ad_category,
+        platform: project.platform,
+        tone: project.tone,
+        language: project.language,
+      }).map((scene) => ({
+        ...scene,
+        user_approved: null,
+        state: 'awaiting_approval',
+      }));
+
+      setScenes(mockScenes);
+      setIsGenerating(false);
+      return;
+    }
+
+    alert('Regenerate all storyboard feature coming soon');
+  };
 
   const getScoreColor = (value: number) => {
-    if (value >= 8) return '#28a745'; // green
-    if (value >= 6) return '#ffc107'; // yellow
-    return '#dc3545'; // red
+    if (value >= 8) return '#28a745';
+    if (value >= 6) return '#ffc107';
+    return '#dc3545';
   };
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h2 className={styles.headerTitle}>Storyboard Checkpoint</h2>
-        <p className={styles.headerSubtitle}>Review scenes and approve your storyboard structure</p>
+        <span className="inline-block text-xs font-semibold uppercase tracking-widest text-teal-600 bg-teal-50 px-3 py-1 rounded-full mb-3">
+          TOW · Stage 7 of 13 — Scene Breakdown
+        </span>
+        <h2 className={styles.headerTitle}>🎞️ Scene Breakdown</h2>
+        <p className={styles.headerSubtitle}>
+          Scene-by-scene text plan: spoken line, visual description, shot type, mood, environment, avatar action, and duration.
+          No images yet — that is the next stage (Visual Storyboard).
+        </p>
       </div>
 
-      {/* Storyboard Overview */}
+      {localError ? (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.875rem 1rem',
+            borderRadius: '0.75rem',
+            border: '1px solid #fecaca',
+            background: '#fef2f2',
+            color: '#b91c1c',
+            fontSize: '0.875rem',
+          }}
+        >
+          {localError}
+        </div>
+      ) : null}
+
       <div className={styles.card}>
         <div className={styles.overviewSection}>
-          <h3 className={styles.overviewTitle}>Storyboard Overview</h3>
+          <h3 className={styles.overviewTitle}>Scene Breakdown Overview</h3>
+
           <div className={styles.statsGrid}>
             <div className={`${styles.statCard} ${styles.statCardAccent}`}>
               <p className={styles.statLabel}>Total Scenes</p>
-              <p className={styles.statValue}>{displayScenes.length || 'Generating...'}</p>
+              <p className={styles.statValue}>
+                {isBusy && displayScenes.length === 0 ? 'Generating…' : displayScenes.length}
+              </p>
             </div>
+
             <div className={`${styles.statCard} ${styles.statCardAccent}`}>
               <p className={styles.statLabel}>Total Duration</p>
-              <p className={styles.statValue}>{totalDuration || 'Calculating...'}s</p>
+              <p className={styles.statValue}>
+                {isBusy && totalDuration === 0 ? 'Calculating...' : totalDuration}s
+              </p>
             </div>
+
+            <div className={`${styles.statCard} ${styles.statCardAccent}`}>
+              <p className={styles.statLabel}>Target Duration</p>
+              <p className={styles.statValue}>{targetDuration}s</p>
+            </div>
+
             <div className={`${styles.statCard} ${styles.statCardAccent}`}>
               <p className={styles.statLabel}>Approved Scenes</p>
-              <p className={styles.statValue}>0/{displayScenes.length || '?'}</p>
+              <p className={styles.statValue}>
+                {approvedScenes}/{displayScenes.length || '?'}
+              </p>
             </div>
+
             <div className={`${styles.statCard} ${styles.statCardAccent}`}>
               <p className={styles.statLabel}>Status</p>
               <p className={styles.statValue} style={{ fontSize: '1.125rem' }}>
-                {loading ? 'Generating...' : displayScenes.length > 0 ? 'In Review' : 'Waiting...'}
+                {isBusy
+                  ? 'Generating...'
+                  : durationMismatch
+                    ? 'Duration mismatch'
+                  : displayScenes.length > 0
+                    ? (String(project.workflow_state || '').toLowerCase() === 'storyboard_approved' ? 'Approved' : 'Fits duration')
+                    : 'Waiting...'}
               </p>
             </div>
           </div>
+          {displayScenes.length > 0 && durationMismatch ? (
+            <div
+              style={{
+                marginTop: '0.75rem',
+                padding: '0.875rem 1rem',
+                borderRadius: '0.75rem',
+                border: '1px solid #fecaca',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                fontSize: '0.875rem',
+              }}
+            >
+              Scene durations total {totalDuration}s but your target ad duration is {targetDuration}s. Please regenerate or edit scene durations.
+            </div>
+          ) : null}
         </div>
 
-        {/* Loading State */}
-        {loading && (
+        {isBusy && displayScenes.length === 0 ? (
           <div className={styles.loadingContainer}>
             <div className={styles.loadingSpinner}></div>
-            <p className={styles.loadingText}>Generating storyboard scenes...</p>
-            <p className={styles.loadingSubtext}>This usually takes a few seconds</p>
+            <p className={styles.loadingText}>Generating scene breakdown…</p>
+            <p className={styles.loadingSubtext}>
+              {isMockMode ? 'Creating mock scene plan for testing' : 'This usually takes a few seconds'}
+            </p>
           </div>
-        )}
+        ) : null}
 
-        {/* No Scenes Yet */}
-        {!loading && displayScenes.length === 0 && (
+        {!isBusy && displayScenes.length === 0 ? (
           <div className={styles.loadingContainer}>
-            <p className={styles.loadingText}>No scenes generated yet</p>
-            <p className={styles.loadingSubtext}>Scenes will appear here once storyboard is generated</p>
+            {String(project.workflow_state || '').toLowerCase() === 'storyboard_approved' ? (
+              <>
+                <p className={styles.loadingText}>Scenes are not loaded. Refreshing...</p>
+                <p className={styles.loadingSubtext}>Fetching approved scene breakdown from backend.</p>
+              </>
+            ) : (
+              <>
+                <p className={styles.loadingText}>No scenes generated yet</p>
+                <p className={styles.loadingSubtext}>Scenes will appear here once storyboard is generated</p>
+              </>
+            )}
           </div>
-        )}
+        ) : null}
 
-        {/* Scene Cards */}
-        {displayScenes.length > 0 && (
+        {displayScenes.length > 0 ? (
           <div className={styles.scenesSection}>
-            <h4 className={styles.scenesTitle}>Scenes ({displayScenes.length})</h4>
+            <h4 className={styles.scenesTitle}>Scenes — Text Plan ({displayScenes.length} scenes)</h4>
+
             <div className={styles.scenesList}>
               {displayScenes.map((scene) => (
                 <div key={scene.id}>
                   {editingScene?.sceneId === scene.id ? (
-                    // Edit Mode
                     <div className={styles.editCard}>
                       <h5 className={styles.editTitle}>Edit Scene {scene.scene_number}</h5>
 
                       <div className={styles.editForm}>
                         <div className={styles.formGroup}>
-                          <label className={styles.formLabel}>Spoken Line (VO Text)</label>
+                          <label className={styles.formLabel}>Spoken Line / VO Text</label>
                           <textarea
                             value={editingScene.spoken_line}
-                            onChange={(e) => setEditingScene({ ...editingScene, spoken_line: e.target.value })}
+                            onChange={(event) =>
+                              setEditingScene({
+                                ...editingScene,
+                                spoken_line: event.target.value,
+                              })
+                            }
                             className={styles.formTextarea}
                             placeholder="What the narrator/avatar says..."
                           />
@@ -211,7 +725,12 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
                           <label className={styles.formLabel}>Visual Description</label>
                           <textarea
                             value={editingScene.visual_description}
-                            onChange={(e) => setEditingScene({ ...editingScene, visual_description: e.target.value })}
+                            onChange={(event) =>
+                              setEditingScene({
+                                ...editingScene,
+                                visual_description: event.target.value,
+                              })
+                            }
                             className={styles.formTextarea}
                             placeholder="What the camera sees, scene composition, lighting, etc..."
                           />
@@ -223,17 +742,28 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
                             <input
                               type="text"
                               value={editingScene.shot_type}
-                              onChange={(e) => setEditingScene({ ...editingScene, shot_type: e.target.value })}
+                              onChange={(event) =>
+                                setEditingScene({
+                                  ...editingScene,
+                                  shot_type: event.target.value,
+                                })
+                              }
                               className={styles.formInput}
                               placeholder="e.g., close-up, medium, wide"
                             />
                           </div>
+
                           <div className={styles.formGroup}>
                             <label className={styles.formLabel}>Mood</label>
                             <input
                               type="text"
                               value={editingScene.mood}
-                              onChange={(e) => setEditingScene({ ...editingScene, mood: e.target.value })}
+                              onChange={(event) =>
+                                setEditingScene({
+                                  ...editingScene,
+                                  mood: event.target.value,
+                                })
+                              }
                               className={styles.formInput}
                               placeholder="e.g., engaged, concerned, excited"
                             />
@@ -246,21 +776,49 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
                             <input
                               type="text"
                               value={editingScene.environment}
-                              onChange={(e) => setEditingScene({ ...editingScene, environment: e.target.value })}
+                              onChange={(event) =>
+                                setEditingScene({
+                                  ...editingScene,
+                                  environment: event.target.value,
+                                })
+                              }
                               className={styles.formInput}
                               placeholder="e.g., bathroom, living room"
                             />
                           </div>
+
                           <div className={styles.formGroup}>
                             <label className={styles.formLabel}>Avatar Action</label>
                             <input
                               type="text"
                               value={editingScene.avatar_action}
-                              onChange={(e) => setEditingScene({ ...editingScene, avatar_action: e.target.value })}
+                              onChange={(event) =>
+                                setEditingScene({
+                                  ...editingScene,
+                                  avatar_action: event.target.value,
+                                })
+                              }
                               className={styles.formInput}
                               placeholder="e.g., applying product, looking concerned"
                             />
                           </div>
+                        </div>
+
+                        <div className={styles.formGroup}>
+                          <label className={styles.formLabel}>Duration (seconds)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={editingScene.duration_seconds}
+                            onChange={(event) =>
+                              setEditingScene({
+                                ...editingScene,
+                                duration_seconds: Number(event.target.value || 1),
+                              })
+                            }
+                            className={styles.formInput}
+                          />
                         </div>
                       </div>
 
@@ -274,13 +832,13 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
                       </div>
                     </div>
                   ) : (
-                    // View Mode - Display REAL scene data
-                    <div className={`${styles.sceneCard} ${loading ? styles.sceneCardLoading : ''}`}>
+                    <div className={`${styles.sceneCard} ${isBusy ? styles.sceneCardLoading : ''}`}>
                       <div className={styles.sceneHeader}>
                         <div style={{ flex: 1 }}>
                           <h5 className={styles.sceneTitle}>Scene {scene.scene_number}</h5>
-                          <p className={styles.sceneDescription}>{scene.spoken_line}</p>
+                          <p className={styles.sceneDescription}>{getSceneSpokenLine(scene)}</p>
                         </div>
+
                         <span className={styles.sceneDuration}>{scene.duration_seconds}s</span>
                       </div>
 
@@ -289,52 +847,73 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
                           <p className={styles.detailLabel}>Visual</p>
                           <p className={styles.detailValue}>{scene.visual_description}</p>
                         </div>
+
                         <div className={styles.detailGroup}>
                           <p className={styles.detailLabel}>Shot Type</p>
                           <p className={styles.detailValue}>{scene.shot_type}</p>
                         </div>
+
                         <div className={styles.detailGroup}>
                           <p className={styles.detailLabel}>Mood</p>
                           <p className={styles.detailValue}>{scene.mood || 'N/A'}</p>
                         </div>
+
                         <div className={styles.detailGroup}>
                           <p className={styles.detailLabel}>Setting</p>
                           <p className={styles.detailValue}>{scene.environment || 'N/A'}</p>
                         </div>
-                        {scene.avatar_action && (
+
+                        {scene.avatar_action ? (
                           <div className={styles.detailGroup}>
                             <p className={styles.detailLabel}>Action</p>
                             <p className={styles.detailValue}>{scene.avatar_action}</p>
                           </div>
-                        )}
+                        ) : null}
+
+                        {scene.user_approved === true ? (
+                          <div className={styles.detailGroup}>
+                            <p className={styles.detailLabel}>Approval</p>
+                            <p className={styles.detailValue}>✅ Approved</p>
+                          </div>
+                        ) : null}
+
+                        {scene.user_approved === false ? (
+                          <div className={styles.detailGroup}>
+                            <p className={styles.detailLabel}>Approval</p>
+                            <p className={styles.detailValue}>❌ Rejected</p>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className={styles.sceneButtons}>
                         <button
                           onClick={() => handleEditScene(scene)}
-                          disabled={loading}
-                          className={`${styles.button} ${styles.buttonEdit} ${loading ? styles.buttonDisabled : ''}`}
+                          disabled={isBusy}
+                          className={`${styles.button} ${styles.buttonEdit} ${isBusy ? styles.buttonDisabled : ''}`}
                         >
                           ✎ Edit
                         </button>
+
                         <button
                           onClick={() => handleApproveScene(scene)}
-                          disabled={loading}
-                          className={`${styles.button} ${styles.buttonApprove} ${loading ? styles.buttonDisabled : ''}`}
+                          disabled={isBusy}
+                          className={`${styles.button} ${styles.buttonApprove} ${isBusy ? styles.buttonDisabled : ''}`}
                         >
                           ✓ Approve
                         </button>
+
                         <button
                           onClick={() => handleRejectScene(scene)}
-                          disabled={loading}
-                          className={`${styles.button} ${styles.buttonReject} ${loading ? styles.buttonDisabled : ''}`}
+                          disabled={isBusy}
+                          className={`${styles.button} ${styles.buttonReject} ${isBusy ? styles.buttonDisabled : ''}`}
                         >
                           ✗ Reject
                         </button>
+
                         <button
                           onClick={() => handleRegenerateScene(scene)}
-                          disabled={loading}
-                          className={`${styles.button} ${styles.buttonRegenerate} ${loading ? styles.buttonDisabled : ''}`}
+                          disabled={isBusy}
+                          className={`${styles.button} ${styles.buttonRegenerate} ${isBusy ? styles.buttonDisabled : ''}`}
                         >
                           🔄 Regen
                         </button>
@@ -345,10 +924,9 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Quality Score */}
-        {showScore && score && (
+        {showScore && score ? (
           <div className={styles.scoreSection}>
             <div className={styles.scoreHeader}>
               <h4 className={styles.scoreTitle}>Quality Score</h4>
@@ -387,21 +965,28 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
               </div>
             </div>
 
-            {score.improvement_suggestions && score.improvement_suggestions.length > 0 && (
+            {score.improvement_suggestions && score.improvement_suggestions.length > 0 ? (
               <div className={styles.suggestionsContainer}>
                 <p className={styles.suggestionsTitle}>Suggestions for improvement:</p>
                 <ul className={styles.suggestionsList}>
                   {score.improvement_suggestions.map((suggestion, idx) => (
-                    <li key={idx}>• {suggestion}</li>
+                    <li key={`${suggestion}-${idx}`}>• {suggestion}</li>
                   ))}
                 </ul>
               </div>
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
 
-        {!showScore && score && (
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-soft))' }}>
+        {!showScore && score ? (
+          <div
+            style={{
+              textAlign: 'center',
+              marginBottom: '1.5rem',
+              paddingTop: '1.5rem',
+              borderTop: '1px solid hsl(var(--color-border-soft))',
+            }}
+          >
             <button
               onClick={() => setShowScore(true)}
               style={{
@@ -416,32 +1001,59 @@ export default function StoryboardCheckpoint({ project, onApprove }: StoryboardC
               Show Quality Score
             </button>
           </div>
-        )}
+        ) : null}
 
-        {/* Action Buttons */}
         <div className={styles.actionSection}>
+          {onBack && canGoBack ? (
+            <button
+              onClick={onBack}
+              disabled={isBusy}
+              className={`${styles.actionButton} ${styles.buttonSecondary} ${isBusy ? styles.buttonDisabledState : ''}`}
+            >
+              ← Back to Character Lock
+            </button>
+          ) : null}
+
           <button
             onClick={handleApprove}
-            disabled={loading}
-            className={`${styles.actionButton} ${styles.buttonPrimary} ${loading ? styles.buttonDisabledState : ''}`}
+            disabled={isBusy || displayScenes.length === 0 || durationMismatch}
+            className={`${styles.actionButton} ${styles.buttonPrimary} ${
+              isBusy || displayScenes.length === 0 || durationMismatch ? styles.buttonDisabledState : ''
+            }`}
           >
-            {loading ? 'Processing...' : '✓ Approve Storyboard'}
+            {isBusy ? 'Processing…' : durationMismatch ? 'Fix Duration Before Approving' : '🎞️ Approve Scene Breakdown'}
           </button>
+
           <button
-            disabled={loading}
-            className={`${styles.actionButton} ${styles.buttonSecondary} ${loading ? styles.buttonDisabledState : ''}`}
+            onClick={handleRegenerateAll}
+            disabled={isBusy}
+            className={`${styles.actionButton} ${styles.buttonSecondary} ${isBusy ? styles.buttonDisabledState : ''}`}
           >
-            {loading ? 'Processing...' : '🔄 Regenerate All'}
+            {isBusy ? 'Processing…' : '🔄 Regenerate All'}
           </button>
         </div>
       </div>
 
-      {/* Info Section */}
       <div className={styles.infoContainer}>
         <p className={styles.infoText}>
-          <strong>💡 Tip:</strong> {loading ? 'Storyboard is being generated. Scene details will appear once ready.' : displayScenes.length > 0 ? 'You can edit any scene details, approve/reject individual scenes, or regenerate scenes with different prompts.' : 'Generate a storyboard from your approved script to see scenes.'}
+          <strong>💡 Next:</strong>{' '}
+          {isBusy
+            ? 'Generating scene breakdown. Scene details will appear once ready.'
+            : displayScenes.length > 0
+              ? 'Edit scene details, approve / reject individual scenes, then proceed to Visual Storyboard where generated images are shown.'
+              : 'Generating scenes from your approved script and character lock…'}
         </p>
       </div>
     </div>
   );
 }
+  const getSceneSpokenLine = (scene: SceneCard): string => {
+    return (
+      String(scene.tts_text || '').trim() ||
+      String(scene.voice_line || '').trim() ||
+      String(scene.dialogue || '').trim() ||
+      String(scene.script_line || '').trim() ||
+      String(scene.narration || '').trim() ||
+      String(scene.spoken_line || '').trim()
+    );
+  };

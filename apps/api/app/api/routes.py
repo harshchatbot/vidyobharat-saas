@@ -5,6 +5,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
@@ -175,6 +176,8 @@ class NotificationMetadataResponse(BaseModel):
     thumbnail_url: str | None = None
     selected_model: str | None = None
     provider: str | None = None
+    target_url: str | None = None
+    project_id: str | None = None
 
 
 class NotificationResponse(BaseModel):
@@ -238,6 +241,22 @@ def _summarize_video_create_payload(payload: AIVideoCreateRequest) -> dict[str, 
         'caption_style': payload.captionStyle,
         'sample_rate_hz': payload.audioSettings.sampleRateHz,
     }
+
+
+@router.get('/api/renders/{filename}')
+def serve_render_file(filename: str):
+    safe_name = Path(filename).name
+    if safe_name != filename or not safe_name:
+        raise HTTPException(status_code=400, detail='Invalid render filename')
+    if '..' in safe_name or '/' in safe_name or '\\' in safe_name:
+        raise HTTPException(status_code=400, detail='Invalid render filename')
+    if not re.match(r'^[A-Za-z0-9._-]+$', safe_name):
+        raise HTTPException(status_code=400, detail='Invalid render filename')
+
+    render_path = Path('data/renders') / safe_name
+    if not render_path.exists() or not render_path.is_file():
+        raise HTTPException(status_code=404, detail='Render file not found')
+    return FileResponse(path=render_path, media_type='video/mp4', filename=safe_name)
 
 
 def _maybe_build_anime_lofi_prompt_package(
@@ -3577,6 +3596,9 @@ def list_notifications(
         if not isinstance(created_at, datetime):
             created_at = datetime.utcnow()
         metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
+        final_video_url = str(data.get('final_video_url') or '').strip() or None
+        project_id = str(data.get('project_id') or '').strip() or None
+        target_url = str(data.get('target_url') or '').strip() or None
         items.append(
             NotificationResponse(
                 id=row.id,
@@ -3589,10 +3611,24 @@ def list_notifications(
                 read=bool(data.get('read')),
                 created_at=created_at,
                 metadata=NotificationMetadataResponse(
-                    output_url=str(metadata.get('output_url')) if metadata.get('output_url') else None,
+                    output_url=(
+                        str(metadata.get('output_url'))
+                        if metadata.get('output_url')
+                        else final_video_url
+                    ),
                     thumbnail_url=str(metadata.get('thumbnail_url')) if metadata.get('thumbnail_url') else None,
                     selected_model=str(metadata.get('selected_model')) if metadata.get('selected_model') else None,
                     provider=str(metadata.get('provider')) if metadata.get('provider') else None,
+                    target_url=(
+                        str(metadata.get('target_url'))
+                        if metadata.get('target_url')
+                        else target_url
+                    ),
+                    project_id=(
+                        str(metadata.get('project_id'))
+                        if metadata.get('project_id')
+                        else project_id
+                    ),
                 ),
             )
         )

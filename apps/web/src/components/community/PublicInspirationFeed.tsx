@@ -46,7 +46,7 @@ function InspirationCard({ item, onOpen }: { item: PublicInspirationItem; onOpen
     <button
       type="button"
       onClick={onOpen}
-      className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-surface)/0.58)] text-left shadow-soft transition duration-300 hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.34)]"
+      className="group w-full flex h-full flex-col overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-surface)/0.58)] text-left shadow-soft transition duration-300 hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.34)]"
     >
       <div className="relative">
         <div style={{ aspectRatio: aspectRatioToCss(item.aspect_ratio, '9 / 16') }} className="overflow-hidden bg-[hsl(var(--color-bg))]">
@@ -205,7 +205,7 @@ export function PublicInspirationFeed({
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading public inspiration
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="masonry-grid">
             {Array.from({ length: compact ? 4 : 8 }).map((_, index) => (
               <div key={`public-inspiration-skeleton-${index}`} className="h-[320px] animate-pulse rounded-[28px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-surface)/0.55)]" />
             ))}
@@ -226,7 +226,7 @@ export function PublicInspirationFeed({
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="masonry-grid">
             {visibleItems.map((item) => (
               <InspirationCard key={`${isVideoInspiration(item) ? 'video' : 'image'}-${item.id}`} item={item} onOpen={() => setSelectedItem(item)} />
             ))}

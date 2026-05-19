@@ -1,0 +1,489 @@
+'use client';
+
+import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Upload, X, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { api } from '@/lib/api';
+import { getCurrentUserId } from '@/lib/authUser';
+
+
+export interface BriefData {
+  business_brief: string;
+  tone: string;
+  product_image_url?: string;
+  product_reference_images?: string[];
+  target_ad_duration_seconds?: number;
+}
+
+interface StoryAdFormProps {
+  preselectedCategory: string;
+  onComplete: (data: FormData) => Promise<void>;
+  onCancel?: () => void;
+  estimatedCost?: number;
+}
+
+export interface FormData {
+  category: string;
+  platform: string;
+  targetAdDurationSeconds: number;
+  briefData: BriefData;
+  creationMode: 'avatar' | 'storyboard';
+  avatarId?: string;
+  avatarName?: string;
+}
+
+const PLATFORMS = [
+  { id: 'instagram_reels', name: 'Instagram Reels', aspect: '9:16', icon: '📱' },
+  { id: 'youtube_shorts', name: 'YouTube Shorts', aspect: '9:16', icon: '▶️' },
+  { id: 'tiktok', name: 'TikTok', aspect: '9:16', icon: '🎵' },
+  { id: 'facebook_feed', name: 'Facebook Feed', aspect: '4:5', icon: '👥' },
+  { id: 'linkedin', name: 'LinkedIn', aspect: '16:9', icon: '💼' },
+];
+
+const TONES = [
+  { id: 'casual', label: 'Casual', emoji: '😊' },
+  { id: 'professional', label: 'Professional', emoji: '💼' },
+  { id: 'emotional', label: 'Emotional', emoji: '❤️' },
+  { id: 'energetic', label: 'Energetic', emoji: '⚡' },
+];
+
+const DURATIONS = [10, 15, 20, 30];
+const SECTION_COUNT = 3;
+
+export default function StoryAdForm({ preselectedCategory, onComplete, onCancel, estimatedCost = 50 }: StoryAdFormProps) {
+  const [section, setSection] = useState(0);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+
+  // Form state
+  const [platform, setPlatform] = useState('instagram_reels');
+  const [durationSeconds, setDurationSeconds] = useState(15);
+  const [briefText, setBriefText] = useState('');
+  const [tone, setTone] = useState('casual');
+  const [productImageUrl, setProductImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const requiresProductImage = preselectedCategory === 'product_demo_lifestyle' || preselectedCategory === 'ugc_testimonial';
+
+  const handleProductImageUpload = async (file: File) => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      alert('Please sign in first');
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploaded = await api.uploadFileDirect(
+        {
+          file,
+          kind: 'storyboard_product_reference',
+        },
+        userId,
+      );
+      setProductImageUrl(uploaded.public_url);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to upload product image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const canProceedSection0 = !!platform && !!durationSeconds;
+  const canProceedSection1 = briefText.trim().length >= 10 && (!requiresProductImage || !!productImageUrl);
+  const canProceedSection2 = !!tone;
+
+  const handleNext = () => {
+    if (section === SECTION_COUNT - 1) {
+      setShowReviewModal(true);
+    } else {
+      setSection(prev => prev + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (section > 0) {
+      setSection(prev => prev - 1);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!agreed) {
+      alert('Please confirm you want to proceed');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const formData: FormData = {
+        category: preselectedCategory,
+        platform,
+        targetAdDurationSeconds: durationSeconds,
+        briefData: {
+          business_brief: briefText,
+          tone,
+          product_image_url: productImageUrl || undefined,
+          product_reference_images: productImageUrl ? [productImageUrl] : [],
+          target_ad_duration_seconds: durationSeconds,
+        },
+        creationMode: 'storyboard',
+      };
+
+      await onComplete(formData);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const canProceed = [canProceedSection0, canProceedSection1, canProceedSection2][section];
+
+  return (
+    <div className="mesh-bg min-h-screen flex flex-col items-center justify-center py-8 px-4">
+      <div className="glass-card-strong w-full max-w-xl p-8 relative overflow-hidden rounded-xl">
+        {/* Progress Dots */}
+        <div className="flex justify-center gap-2 mb-8">
+          {Array.from({ length: SECTION_COUNT }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => i < section && setSection(i)}
+              className="w-2 h-2 rounded-full transition-all duration-300"
+              style={{
+                background: i <= section ? 'hsl(var(--color-primary))' : 'hsl(var(--glass-border))',
+                cursor: i < section ? 'pointer' : 'default',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Auto-save Reassurance Banner */}
+        <div className="glass-card px-4 py-2.5 flex items-center gap-2 mb-4" style={{
+          border: '1px solid hsl(var(--color-success) / 0.25)',
+          background: 'hsl(var(--color-success) / 0.06)',
+        }}>
+          <CheckCircle size={14} style={{ color: 'hsl(var(--color-success))', flexShrink: 0 }} />
+          <span className="text-xs" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+            Your progress is auto-saved. Resume anytime from{' '}
+            <Link href="/projects" className="underline underline-offset-2 hover:opacity-80" style={{ color: 'hsl(var(--color-primary))' }}>
+              Projects
+            </Link>
+            .
+          </span>
+        </div>
+
+        {/* Section 0: Platform & Duration */}
+        <AnimatePresence mode="wait">
+          {section === 0 && (
+            <motion.div
+              key="section-0"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <h2 className="gradient-text text-2xl font-bold mb-6">Where will it run?</h2>
+
+              <div className="mb-6">
+                <p className="text-sm font-semibold mb-3" style={{ color: 'hsl(var(--color-text))' }}>
+                  Platform
+                </p>
+                <div className="space-y-2">
+                  {PLATFORMS.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPlatform(p.id)}
+                      className="w-full glass-card px-4 py-3 text-sm cursor-pointer rounded-lg transition-all duration-300 flex items-center justify-between"
+                      style={{
+                        ...(platform === p.id && {
+                          borderColor: 'hsl(var(--color-primary) / 0.5)',
+                          boxShadow: 'var(--shadow-glow-sm)',
+                        }),
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{p.icon}</span>
+                        <div className="text-left">
+                          <div className="font-semibold" style={{ color: 'hsl(var(--color-text))' }}>
+                            {p.name}
+                          </div>
+                          <div className="text-xs" style={{ color: 'hsl(var(--color-muted))' }}>
+                            {p.aspect}
+                          </div>
+                        </div>
+                      </div>
+                      {platform === p.id && <span style={{ color: 'hsl(var(--color-primary))' }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold mb-3" style={{ color: 'hsl(var(--color-text))' }}>
+                  Duration
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {DURATIONS.map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setDurationSeconds(d)}
+                      className="glass-card px-4 py-2 text-sm cursor-pointer rounded-lg transition-all duration-300"
+                      style={{
+                        ...(durationSeconds === d && {
+                          background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-primary) / 0.85))',
+                          color: 'hsl(var(--color-elevated))',
+                          borderColor: 'hsl(var(--color-primary) / 0.5)',
+                          boxShadow: 'var(--shadow-glow-md)',
+                        }),
+                        ...((durationSeconds !== d) && {
+                          color: 'hsl(var(--color-text))',
+                        }),
+                      }}
+                    >
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Section 1: Business Brief */}
+          {section === 1 && (
+            <motion.div
+              key="section-1"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <h2 className="gradient-text text-2xl font-bold mb-6">Tell us about your product</h2>
+
+              <textarea
+                value={briefText}
+                onChange={(e) => setBriefText(e.target.value)}
+                placeholder="Describe your product, target audience, and key message..."
+                className="w-full p-4 rounded-lg border resize-none focus:outline-none transition-all duration-300"
+                style={{
+                  background: 'hsl(var(--glass-bg-light))',
+                  border: '1px solid hsl(var(--glass-border))',
+                  color: 'hsl(var(--color-text))',
+                }}
+                rows={4}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'hsl(var(--color-primary) / 0.5)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-glow-sm)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'hsl(var(--glass-border))';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+              <p className="text-xs text-right mt-2" style={{ color: 'hsl(var(--color-muted))' }}>
+                {briefText.length} characters
+              </p>
+
+              {requiresProductImage && (
+                <div className="mt-6">
+                  <p className="text-sm font-semibold mb-3" style={{ color: 'hsl(var(--color-text))' }}>
+                    Product Reference Image <span style={{ color: 'hsl(var(--color-error))' }}>*</span>
+                  </p>
+
+                  {!productImageUrl ? (
+                    <label
+                      className="glass-card p-6 border-2 border-dashed rounded-lg flex flex-col items-center gap-2 cursor-pointer transition-all duration-300"
+                      style={{
+                        borderColor: 'hsl(var(--color-primary) / 0.3)',
+                      }}
+                    >
+                      <Upload size={24} style={{ color: 'hsl(var(--color-primary))' }} />
+                      <p style={{ color: 'hsl(var(--color-text-secondary))' }}>Drop product image here</p>
+                      <p className="text-xs" style={{ color: 'hsl(var(--color-muted))' }}>
+                        Optional but recommended
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleProductImageUpload(file);
+                        }}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                    </label>
+                  ) : (
+                    <div className="space-y-3">
+                      <img
+                        src={productImageUrl}
+                        alt="Product"
+                        className="h-32 w-32 rounded-lg object-cover border"
+                        style={{ borderColor: 'hsl(var(--color-border))' }}
+                      />
+                      <button
+                        onClick={() => setProductImageUrl('')}
+                        className="glass-card px-3 py-2 text-sm rounded-lg transition-all"
+                      >
+                        <X size={16} className="inline mr-1" />
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Section 2: Tone & Language */}
+          {section === 2 && (
+            <motion.div
+              key="section-2"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <h2 className="gradient-text text-2xl font-bold mb-6">Tone & Style</h2>
+
+              <div>
+                <p className="text-sm font-semibold mb-3" style={{ color: 'hsl(var(--color-text))' }}>
+                  Tone of Voice
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {TONES.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTone(t.id)}
+                      className="glass-card px-4 py-3 text-sm cursor-pointer rounded-lg transition-all duration-300 text-center"
+                      style={{
+                        ...(tone === t.id && {
+                          background: 'hsl(var(--color-primary) / 0.2)',
+                          borderColor: 'hsl(var(--color-primary) / 0.5)',
+                        }),
+                      }}
+                    >
+                      <div className="text-lg mb-1">{t.emoji}</div>
+                      <div className="text-xs font-semibold">{t.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Navigation */}
+        <div className="flex justify-between gap-3 mt-8 pt-6 border-t" style={{ borderColor: 'hsl(var(--color-border) / 0.5)' }}>
+          <button
+            onClick={handleBack}
+            disabled={section === 0 || generating}
+            className="glass-card px-6 py-2 rounded-lg cursor-pointer transition-all disabled:opacity-50"
+            style={{ color: 'hsl(var(--color-text))' }}
+          >
+            ← Back
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={!canProceed || generating}
+            className="glow-button disabled:opacity-50"
+          >
+            {section === SECTION_COUNT - 1 ? 'Review & Generate' : 'Next →'}
+          </button>
+        </div>
+      </div>
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {showReviewModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+            onClick={() => setShowReviewModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card-strong p-6 max-w-md w-full mx-4 rounded-xl"
+            >
+              <h3 className="gradient-text text-xl font-bold mb-4">Ready to generate?</h3>
+
+              <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
+                <div>
+                  <p className="text-xs uppercase" style={{ color: 'hsl(var(--color-muted))' }}>
+                    Platform
+                  </p>
+                  <p className="font-semibold" style={{ color: 'hsl(var(--color-primary))' }}>
+                    {PLATFORMS.find(p => p.id === platform)?.name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase" style={{ color: 'hsl(var(--color-muted))' }}>
+                    Duration
+                  </p>
+                  <p className="font-semibold" style={{ color: 'hsl(var(--color-primary))' }}>
+                    {durationSeconds}s
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase" style={{ color: 'hsl(var(--color-muted))' }}>
+                    Tone
+                  </p>
+                  <p className="font-semibold" style={{ color: 'hsl(var(--color-primary))' }}>
+                    {TONES.find(t => t.id === tone)?.label}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="p-3 rounded-lg mb-4 text-sm"
+                style={{
+                  background: 'hsl(var(--color-accent-amber) / 0.08)',
+                  borderColor: 'hsl(var(--color-accent-amber) / 0.25)',
+                  color: 'hsl(var(--color-accent-amber))',
+                  border: '1px solid',
+                }}
+              >
+                <strong>Estimated Cost:</strong> {estimatedCost} credits
+              </div>
+
+              <label className="flex items-center gap-3 mb-6 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: 'hsl(var(--color-primary))' }}
+                />
+                <span className="text-sm" style={{ color: 'hsl(var(--color-text))' }}>
+                  I'm ready to generate for {estimatedCost} credits
+                </span>
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  disabled={generating}
+                  className="glass-card px-4 py-2 rounded-lg cursor-pointer flex-1 transition-all disabled:opacity-50"
+                  style={{ color: 'hsl(var(--color-text))' }}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleGenerate}
+                  disabled={!agreed || generating}
+                  className="glow-button flex-1 disabled:opacity-50"
+                >
+                  {generating ? 'Generating...' : 'Generate My Ad'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

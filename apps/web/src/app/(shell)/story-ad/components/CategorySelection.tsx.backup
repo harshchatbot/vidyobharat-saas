@@ -1,0 +1,135 @@
+'use client';
+
+import React, { useState } from 'react';
+import styles from './GuidedFlow.module.css';
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  requiresAvatar: 'required' | 'optional' | 'not_needed';
+  suggestion: string;
+}
+
+interface CategorySelectionProps {
+  onSelectCategory: (categoryId: string) => void;
+}
+
+const CATEGORIES: Category[] = [
+  {
+    id: 'ugc_testimonial',
+    name: 'UGC Testimonial',
+    description: 'User-generated content style testimonial with authentic feel',
+    icon: '👤',
+    requiresAvatar: 'optional',
+    suggestion: 'Can be created with AI Avatar OR as a Storyboard',
+  },
+  {
+    id: 'founder_talking_head',
+    name: 'Founder Talking Head',
+    description: 'Founder or expert speaking directly to camera',
+    icon: '🎤',
+    requiresAvatar: 'required',
+    suggestion: 'Best created with an AI Avatar speaking to camera',
+  },
+  {
+    id: 'problem_solution',
+    name: 'Problem-Solution',
+    description: 'Showcase problem then reveal solution',
+    icon: '💡',
+    requiresAvatar: 'optional',
+    suggestion: 'Can be created with AI Avatar OR as a visual Storyboard',
+  },
+  {
+    id: 'product_demo_lifestyle',
+    name: 'Product Demo & Lifestyle',
+    description: 'Product in action with lifestyle context',
+    icon: '✨',
+    requiresAvatar: 'optional',
+    suggestion: 'Avatar can demonstrate OR show as visual storyboard',
+  },
+  {
+    id: 'inner_monologue',
+    name: 'Inner Monologue',
+    description: 'Person thinking aloud about the product',
+    icon: '💭',
+    requiresAvatar: 'required',
+    suggestion: 'Best created with an AI Avatar thinking aloud',
+  },
+  {
+    id: 'cinematic_narration',
+    name: 'Cinematic Narration',
+    description: 'High-quality cinematic style with voiceover',
+    icon: '🎬',
+    requiresAvatar: 'not_needed',
+    suggestion: 'Best created as a visual Storyboard with voiceover',
+  },
+  {
+    id: 'cinematic_broll',
+    name: 'Cinematic B-Roll',
+    description: 'Beautiful footage with minimal dialogue',
+    icon: '🎥',
+    requiresAvatar: 'not_needed',
+    suggestion: 'Best created as a visual Storyboard',
+  },
+];
+
+function getSuggestionColor(requiresAvatar: string): string {
+  switch (requiresAvatar) {
+    case 'required':
+      return 'bg-indigo-50 border-indigo-200 text-indigo-700';
+    case 'optional':
+      return 'bg-amber-50 border-amber-200 text-amber-700';
+    case 'not_needed':
+      return 'bg-purple-50 border-purple-200 text-purple-700';
+    default:
+      return 'bg-gray-50 border-gray-200 text-gray-700';
+  }
+}
+
+export default function CategorySelection({ onSelectCategory }: CategorySelectionProps) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    onSelectCategory(categoryId);
+  };
+
+  return (
+    <div className={styles.stepContainer}>
+      <div className={styles.stepHeader}>
+        <div className={styles.stepNumber}>Step 1</div>
+        <h2 className={styles.stepTitle}>Choose Your Ad Style</h2>
+        <p className={styles.stepDescription}>
+          Select the style that best matches your brand and message. We'll suggest how to create it.
+        </p>
+      </div>
+
+      <div className={styles.categoryGrid}>
+        {CATEGORIES.map(category => (
+          <button
+            key={category.id}
+            onClick={() => handleCategorySelect(category.id)}
+            className={`${styles.categoryCard} ${
+              selectedCategory === category.id ? styles.categoryCardSelected : ''
+            }`}
+          >
+            <div className={styles.categoryIcon}>{category.icon}</div>
+            <div className={styles.categoryCardContent}>
+              <h4 className={styles.categoryCardTitle}>{category.name}</h4>
+              <p className={styles.categoryCardDesc}>{category.description}</p>
+              <div
+                className={`mt-3 p-2 rounded text-sm border ${getSuggestionColor(
+                  category.requiresAvatar,
+                )}`}
+              >
+                💡 {category.suggestion}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

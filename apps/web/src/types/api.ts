@@ -413,6 +413,8 @@ export type AppNotification = {
     thumbnail_url?: string | null;
     selected_model?: string | null;
     provider?: string | null;
+    target_url?: string | null;
+    project_id?: string | null;
   };
 };
 

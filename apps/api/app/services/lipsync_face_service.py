@@ -12,6 +12,8 @@ from typing import Any
 import cv2  # type: ignore
 import numpy as np
 
+from app.services.fal_video_service import FalVideoService
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +27,35 @@ class FaceTrackStats:
     pad_px: int
     source_w: int
     source_h: int
+
+
+class LipsyncFaceService:
+    """
+    Backward-compatible storyboard lipsync service wrapper.
+
+    Storyboard worker expects a class with `apply_lipsync(video_url, audio_url, metadata)`.
+    This delegates provider execution to Fal Sync Lipsync v2.
+    """
+
+    def __init__(self) -> None:
+        self.fal_service = FalVideoService()
+
+    def apply_lipsync(
+        self,
+        *,
+        video_url: str,
+        audio_url: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        if not str(video_url or "").strip():
+            raise ValueError("video_url is required for lipsync")
+        if not str(audio_url or "").strip():
+            raise ValueError("audio_url is required for lipsync")
+        out_url, _meta = self.fal_service.generate_sync_lipsync_v2(
+            video_url=str(video_url).strip(),
+            audio_url=str(audio_url).strip(),
+        )
+        return out_url
 
 
 def crop_face_for_lipsync(input_video_path: str) -> tuple[str, dict[str, Any]]:
@@ -503,4 +534,3 @@ def _gaussian_blur(img: np.ndarray, *, radius: int) -> np.ndarray:
 
 def _resize_mask(mask: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
     return cv2.resize(mask, (int(target_w), int(target_h)), interpolation=cv2.INTER_LINEAR).astype(np.float32)
-

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from app.api.routes import router
 from app.api.routers.avatar_routes import router as avatar_router
+from app.api.routers.storyboard_routes import router as storyboard_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.request_context import get_request_id
@@ -188,3 +189,4 @@ async def runtime_error_handler(request: Request, exc: RuntimeError):
 app.mount('/static', StaticFiles(directory='data'), name='static')
 app.include_router(router)
 app.include_router(avatar_router)
+app.include_router(storyboard_router)

@@ -1,0 +1,319 @@
+:root {
+  /* === LIGHT THEME COLOR SYSTEM === */
+  /* Primary - Vibrant Violet */
+  --color-primary: 267 72% 54%;
+  --color-primary-light: 267 72% 74%;
+  --color-primary-glow: 267 88% 70%;
+  
+  /* Accents - Vibrant Palette */
+  --color-accent-amber: 39 96% 53%;
+  --color-accent-pink: 349 89% 60%;
+  --color-accent-cyan: 182 100% 50%;
+  
+  /* Neutrals - Light Theme */
+  --color-bg: 240 10% 97%;
+  --color-bg-soft: 240 10% 95%;
+  --color-surface: 240 5% 99%;
+  --color-surface-soft: 240 8% 97%;
+  --color-elevated: 240 3% 100%;
+  --color-text: 240 10% 8%;
+  --color-text-secondary: 240 5% 35%;
+  --color-muted: 240 5% 50%;
+  --color-border: 240 8% 85%;
+  --color-border-soft: 240 10% 92%;
+  
+  /* Status Colors */
+  --color-success: 142 71% 45%;
+  --color-warning: 39 96% 53%;
+  --color-error: 0 84% 60%;
+  --color-info: 182 100% 50%;
+  
+  /* Glass & Transparency */
+  --glass-bg-light: 240 10% 97% / 0.7;
+  --glass-bg-medium: 240 8% 95% / 0.6;
+  --glass-bg-strong: 240 5% 99% / 0.8;
+  --glass-border: 240 8% 85% / 0.4;
+  --glass-blur: 12px;
+  --glass-blur-strong: 24px;
+  
+  /* Gradients */
+  --gradient-brand: linear-gradient(135deg, 
+    hsl(var(--color-primary)) 0%, 
+    hsl(var(--color-accent-pink)) 50%, 
+    hsl(var(--color-accent-cyan)) 100%);
+  
+  --gradient-surface: linear-gradient(180deg, 
+    hsl(var(--color-elevated)) 0%, 
+    hsl(var(--color-surface)) 100%);
+  
+  --gradient-glow: radial-gradient(circle at 50% 50%,
+    hsl(var(--color-primary) / 0.15) 0%,
+    transparent 70%);
+  
+  --gradient-mesh: 
+    radial-gradient(circle at 20% 50%, hsl(var(--color-primary) / 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, hsl(var(--color-accent-cyan) / 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 40% 20%, hsl(var(--color-accent-pink) / 0.05) 0%, transparent 50%);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px hsl(var(--color-text) / 0.04);
+  --shadow-md: 0 4px 16px hsl(var(--color-text) / 0.08);
+  --shadow-lg: 0 8px 32px hsl(var(--color-text) / 0.12);
+  --shadow-xl: 0 16px 48px hsl(var(--color-text) / 0.16);
+  
+  --shadow-glow-sm: 0 0 16px hsl(var(--color-primary) / 0.2);
+  --shadow-glow-md: 0 0 24px hsl(var(--color-primary) / 0.3);
+  --shadow-glow-lg: 0 0 40px hsl(var(--color-primary) / 0.4);
+  
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --radius-full: 9999px;
+  
+  /* Typography */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Transitions & Animations */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === DARK THEME === */
+.dark {
+  --color-primary: 267 72% 64%;
+  --color-primary-light: 267 72% 84%;
+  --color-primary-glow: 267 88% 80%;
+  
+  --color-accent-amber: 39 96% 63%;
+  --color-accent-pink: 349 89% 70%;
+  --color-accent-cyan: 182 100% 60%;
+  
+  --color-bg: 240 10% 6%;
+  --color-bg-soft: 240 10% 9%;
+  --color-surface: 240 8% 12%;
+  --color-surface-soft: 240 8% 15%;
+  --color-elevated: 240 5% 18%;
+  --color-text: 240 10% 95%;
+  --color-text-secondary: 240 5% 75%;
+  --color-muted: 240 5% 60%;
+  --color-border: 240 8% 25%;
+  --color-border-soft: 240 10% 18%;
+  
+  --color-success: 142 71% 55%;
+  --color-warning: 39 96% 63%;
+  --color-error: 0 84% 70%;
+  --color-info: 182 100% 60%;
+  
+  --glass-bg-light: 240 8% 12% / 0.6;
+  --glass-bg-medium: 240 8% 15% / 0.5;
+  --glass-bg-strong: 240 5% 18% / 0.7;
+  --glass-border: 240 8% 25% / 0.3;
+}
+
+/* === UTILITY CLASSES === */
+
+/* Glass Card - Base Glass Component */
+.glass-card {
+  background: hsl(var(--glass-bg-medium));
+  border: 1px solid hsl(var(--glass-border));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base);
+}
+
+.glass-card:hover {
+  background: hsl(var(--glass-bg-light));
+  border-color: hsl(var(--color-primary) / 0.3);
+  box-shadow: var(--shadow-glow-sm);
+}
+
+/* Glass Card Strong - Elevated Glass */
+.glass-card-strong {
+  background: hsl(var(--glass-bg-strong));
+  border: 1px solid hsl(var(--color-primary) / 0.2);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+}
+
+/* Gradient Text - Brand Gradient on Text */
+.gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: var(--font-weight-bold);
+}
+
+/* Glow Button - Primary Action with Glow */
+.glow-button {
+  position: relative;
+  background: linear-gradient(135deg, 
+    hsl(var(--color-primary)) 0%, 
+    hsl(var(--color-primary) / 0.85) 100%);
+  color: hsl(var(--color-elevated));
+  border: none;
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-semibold);
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-glow-md);
+  overflow: hidden;
+}
+
+.glow-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow-lg);
+  background: linear-gradient(135deg, 
+    hsl(var(--color-primary-light)) 0%, 
+    hsl(var(--color-primary)) 100%);
+}
+
+.glow-button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-glow-sm);
+}
+
+/* Mesh Background - Dynamic Gradient Background */
+.mesh-bg {
+  position: relative;
+  background: hsl(var(--color-bg));
+  overflow: hidden;
+}
+
+.mesh-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-mesh);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Glow Border - Accent Border with Glow */
+.glow-border {
+  border: 2px solid hsl(var(--color-primary) / 0.4);
+  box-shadow: 
+    inset 0 0 12px hsl(var(--color-primary) / 0.1),
+    0 0 20px hsl(var(--color-primary) / 0.2);
+  border-radius: var(--radius-lg);
+}
+
+/* Gradient Border - Animated Gradient Border */
+.gradient-border {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background: hsl(var(--color-surface));
+  padding: 1px;
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  background-image: 
+    linear-gradient(hsl(var(--color-surface)), hsl(var(--color-surface))),
+    var(--gradient-brand);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* === ANIMATIONS === */
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px hsl(var(--color-primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px hsl(var(--color-primary) / 0.6);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background-size: 1000px 100%;
+}
+
+.animate-glow-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* === STATE VARIANTS === */
+
+/* Success State */
+.glass-card.success {
+  border-color: hsl(var(--color-success) / 0.4);
+  box-shadow: 0 0 16px hsl(var(--color-success) / 0.2);
+}
+
+/* Error State */
+.glass-card.error {
+  border-color: hsl(var(--color-error) / 0.4);
+  box-shadow: 0 0 16px hsl(var(--color-error) / 0.2);
+}
+
+/* Warning State */
+.glass-card.warning {
+  border-color: hsl(var(--color-warning) / 0.4);
+  box-shadow: 0 0 16px hsl(var(--color-warning) / 0.2);
+}
+
+/* Info State */
+.glass-card.info {
+  border-color: hsl(var(--color-info) / 0.4);
+  box-shadow: 0 0 16px hsl(var(--color-info) / 0.2);
+}

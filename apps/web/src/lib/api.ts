@@ -1,4 +1,5 @@
 import { getApiFallbackUrl, getApiUrl } from '@/lib/env';
+import { getCurrentUserId } from '@/lib/authUser';
 import type {
   Avatar,
   AvatarLibraryResponse,
@@ -288,8 +289,9 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  if (options.userId) {
-    headers.set('X-User-ID', options.userId);
+  const resolvedUserId = options.userId ?? getCurrentUserId();
+  if (resolvedUserId) {
+    headers.set('X-User-ID', resolvedUserId);
   }
 
   const baseCandidates = [getApiUrl(), getApiFallbackUrl()].filter(Boolean);

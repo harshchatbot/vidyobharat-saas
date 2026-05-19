@@ -23,6 +23,9 @@ celery_app = Celery(
     include=[
         # Explicit imports ensure worker process registers all task modules.
         'app.services.ai_video_service',
+        'app.workers.storyboard_tasks',
+        'app.workers.avatar_tasks',
+        'app.services.video_service',
     ],
 )
 celery_app.conf.task_always_eager = bool(settings.celery_task_always_eager and settings.env != 'production')

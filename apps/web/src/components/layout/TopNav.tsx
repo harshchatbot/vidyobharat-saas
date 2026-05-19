@@ -90,7 +90,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
   return (
     <div ref={menuRef}>
-      <div className="border-b border-[hsl(var(--color-border)/0.6)] px-1 py-2">
+      <div className="border-b border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-medium))] backdrop-blur-[var(--glass-blur)] px-1 py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -129,7 +129,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
             {!effectiveUserId && (
               <>
-                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-text))]">
+                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-text))]">
                   Sign in
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -140,18 +140,18 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
               <>
                 <Link
                   href="/dashboard"
-                  className="ml-2 inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-border))] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
+                  className="ml-2 inline-flex items-center gap-2 rounded-[12px] border border-[hsl(var(--color-primary)/0.3)] bg-[hsl(var(--color-primary)/0.1)] px-2.5 py-1 text-sm font-medium text-[hsl(var(--color-text))]"
                   title={effectiveUserId}
                 >
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--color-primary))] text-xs font-bold text-[hsl(var(--color-accent-contrast))]">
                     {initials}
                   </span>
-                  <span className="max-w-[180px] truncate text-xs text-[hsl(var(--color-muted))] sm:text-sm">
+                  <span className="max-w-[180px] truncate text-xs text-[hsl(var(--color-primary-light))] sm:text-sm">
                     {effectiveAccountEmail ?? effectiveAccountLabel ?? 'Account'}
                   </span>
                 </Link>
                 <LogoutButton
-                  className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))] disabled:opacity-70"
+                  className="rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))] disabled:opacity-70"
                   onBeforeNavigate={() => setOpen(false)}
                   icon="none"
                 />
@@ -167,7 +167,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
               <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="rounded-[12px] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
+                className="rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]"
                 aria-expanded={open}
                 aria-label="Toggle menu"
               >
@@ -179,7 +179,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
       </div>
 
       {open && (
-        <div className="mt-3 grid gap-2 border border-[hsl(var(--color-border)/0.6)] bg-[hsl(var(--color-surface)/0.82)] p-3 lg:hidden">
+        <div className="mt-3 grid gap-2 border border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-medium))] backdrop-blur-[var(--glass-blur)] p-3 lg:hidden">
           {navLinks.map((link) => (
             <Link key={link.href} href={link.href} className="rounded-[var(--radius-md)] px-2 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
               {link.label}
@@ -188,7 +188,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
           {!effectiveUserId && (
             <div className="mt-1 flex gap-2">
-              <Link href="/login" className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
+              <Link href="/login" className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[hsl(var(--glass-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
                 Sign in <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -196,7 +196,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
           {effectiveUserId && (
             <div className="mt-1 flex gap-2">
-              <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
+              <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-primary)/0.3)] bg-[hsl(var(--color-primary)/0.1)] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
                 {effectiveAccountEmail ?? 'Account'}
               </Link>
               <LogoutButton

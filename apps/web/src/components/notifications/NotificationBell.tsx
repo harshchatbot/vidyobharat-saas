@@ -196,15 +196,28 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                       {hasMounted ? relativeTime(item.created_at) : formatStableTimestamp(item.created_at)}
                     </span>
                   </div>
-                  {item.video_id ? (
+                  {(item.video_id || item.type === 'storyboard_ad_completed') ? (
                     <div className="mt-2">
+                      {(() => {
+                        const targetUrl = item.metadata?.target_url
+                          || (item.type === 'storyboard_ad_completed' && item.metadata?.project_id
+                            ? `/story-ad?projectId=${item.metadata.project_id}`
+                            : item.type === 'storyboard_ad_completed' && item.video_id
+                            ? `/story-ad?projectId=${item.video_id}`
+                            : item.video_id
+                            ? `/videos/${item.video_id}`
+                            : '#');
+                        const label = item.type === 'storyboard_ad_completed' ? 'Open storyboard ad' : 'Open video';
+                        return (
                       <Link
-                        href={`/videos/${item.video_id}`}
+                        href={targetUrl}
                         className="text-xs font-medium text-[hsl(var(--color-accent))] hover:underline"
                         onClick={() => setOpen(false)}
                       >
-                        Open video
+                        {label}
                       </Link>
+                        );
+                      })()}
                     </div>
                   ) : null}
                 </div>

@@ -97,7 +97,7 @@ function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-30 -mx-4 border-b border-white/[0.06] bg-[hsl(var(--color-bg)/0.74)] px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <header className="sticky top-0 z-30 -mx-4 border-b border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-medium))] px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-4">
         <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
 
@@ -189,7 +189,7 @@ function Header() {
 
 function ProductPreviewMock() {
   return (
-    <div className="grid h-full gap-4 bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_34%),linear-gradient(135deg,#0f0d16,#181320_42%,#08070b)] p-4 text-white md:grid-cols-[0.88fr_1.12fr] md:p-6">
+    <div className="grid h-full gap-4 bg-[radial-gradient(circle_at_top_left,hsl(var(--color-accent)/0.16),transparent_34%),linear-gradient(135deg,hsl(var(--color-bg-soft)),hsl(var(--color-bg))_42%,hsl(var(--color-bg)))] p-4 text-white md:grid-cols-[0.88fr_1.12fr] md:p-6">
       <div className="rounded-3xl border border-white/[0.10] bg-white/[0.04] p-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-white/[0.78]">Avatar Product</p>
@@ -226,7 +226,7 @@ function ProductPreviewMock() {
         <div className="absolute right-4 top-4 z-10 rounded-full border border-white/[0.10] bg-black/[0.40] px-3 py-1 text-xs font-semibold text-white/[0.70] backdrop-blur">
           Generated video
         </div>
-        <div className="flex h-full items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.02))]">
+        <div className="flex h-full items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.12),hsl(var(--color-surface)/0.04))]">
           <div className="text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-black shadow-2xl">
               <Video className="h-7 w-7" />
@@ -266,7 +266,7 @@ function ProductScrollPreview() {
 
 function MissionSection() {
   return (
-    <section className="grid gap-6 rounded-[34px] border border-white/[0.08] bg-white/[0.03] p-6 sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-10">
+    <section className="glass-card grid gap-6 rounded-[34px] p-6 sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-10">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Our mission</p>
         <h2 className="mt-4 max-w-xl font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
@@ -297,14 +297,14 @@ function OfferSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">What you can do today</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
           Three guided recipes for speed, plus freeform creation when you want full control.
         </h2>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {offerHighlights.map((item) => (
-          <div key={item.title} className="rounded-[28px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.45)] p-5 shadow-[var(--shadow-soft)]">
+          <div key={item.title} className="glass-card rounded-[28px] p-5">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-bg-soft)/0.8)] text-[hsl(var(--color-accent))]">
               {item.icon}
             </div>
@@ -322,13 +322,13 @@ function RecipeShowcaseSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Guided recipes</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
           Three fast ways to see RangManch working for you.
         </h2>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+      <div className="masonry-grid">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
               <LandingVideo
@@ -352,7 +352,7 @@ function RecipeShowcaseSection() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
             <div className="mt-5 overflow-hidden rounded-[20px] border border-[hsl(var(--color-border)/0.65)]">
@@ -376,7 +376,7 @@ function RecipeShowcaseSection() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
               <LandingVideo
@@ -412,14 +412,14 @@ function StepsSection() {
     <section className="space-y-8">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Simple workflow</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
           No complex model settings. Just a clear path to content.
         </h2>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {steps.map((step, index) => (
-          <div key={step.title} className="rounded-[28px] border border-white/[0.08] bg-white/[0.03] p-5">
+          <div key={step.title} className="glass-card rounded-[28px] p-5">
             <div className="flex items-center justify-between">
               <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.10] bg-white/[0.04] text-[hsl(var(--color-accent))]">
                 {step.icon}
@@ -440,14 +440,14 @@ function UseCasesSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Who it helps</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
           Built for people who need content, speed, and better unit economics.
         </h2>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {useCases.map((item) => (
-          <div key={item.title} className="rounded-[28px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))] p-5">
+          <div key={item.title} className="rounded-[28px] border border-[hsl(var(--color-border)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.06),hsl(var(--color-surface)/0.02))] p-5">
             <Check className="h-5 w-5 text-[hsl(var(--color-accent))]" />
             <p className="mt-5 text-xl font-heading font-extrabold text-text">{item.title}</p>
             <p className="mt-3 text-sm leading-7 text-muted">{item.body}</p>
@@ -460,28 +460,28 @@ function UseCasesSection() {
 
 function PricingTeaser() {
   return (
-    <section className="grid gap-6 rounded-[34px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(34,29,40,0.86),rgba(16,14,21,0.98))] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.28)] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10">
+    <section className="grid gap-6 rounded-[34px] border border-[hsl(var(--color-border)/0.3)] bg-[linear-gradient(180deg,hsl(var(--color-surface)/0.8),hsl(var(--color-surface)/0.9))] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.28)] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Simple credits</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-white sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight text-text sm:text-[3rem] sm:leading-[1.04]">
           Start free, test fast, and scale only when content starts working.
         </h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-slate-200 sm:text-base">
+        <p className="mt-4 max-w-xl text-sm leading-7 text-muted sm:text-base">
           Every user gets 40 free credits every month, plus a one-time 120 credit activation bonus. Use credits across images, normal videos, anime reels, and Avatar Product Ads.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-3 py-1.5 text-sm font-semibold text-white">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.3)] bg-[hsl(var(--color-surface)/0.2)] px-3 py-1.5 text-sm font-semibold text-text">
             <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
             40 monthly free credits
           </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-3 py-1.5 text-sm font-semibold text-white">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.3)] bg-[hsl(var(--color-surface)/0.2)] px-3 py-1.5 text-sm font-semibold text-text">
             <ImagePlus className="h-4 w-4 text-[hsl(var(--color-accent))]" />
             120 activation credits one time
           </span>
         </div>
         <Link
           href="/pricing"
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.08] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.3)] bg-[hsl(var(--color-surface)/0.2)] px-5 py-3 text-sm font-semibold text-text transition hover:bg-[hsl(var(--color-surface)/0.3)]"
         >
           View plans
           <ArrowRight className="h-4 w-4" />
@@ -490,12 +490,12 @@ function PricingTeaser() {
 
       <div className="space-y-3">
         {creditExamples.map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between rounded-2xl border border-white/[0.10] bg-white/[0.06] px-4 py-3">
-            <span className="text-sm text-slate-200">{label}</span>
-            <span className="text-sm font-bold text-white">{value}</span>
+          <div key={label} className="flex items-center justify-between rounded-2xl border border-[hsl(var(--color-border)/0.3)] bg-[hsl(var(--color-surface)/0.1)] px-4 py-3">
+            <span className="text-sm text-muted">{label}</span>
+            <span className="text-sm font-bold text-text">{value}</span>
           </div>
         ))}
-        <p className="px-1 text-xs leading-5 text-slate-300/90">Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
+        <p className="px-1 text-xs leading-5 text-muted/80">Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
       </div>
     </section>
   );
@@ -506,23 +506,23 @@ function FinalCta() {
     <section className="overflow-hidden rounded-[36px] border border-white/[0.08]">
       <LampContainer>
         <div className="mx-auto max-w-3xl px-5 text-center">
-          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent-cyan))]">
             <Heart className="h-3.5 w-3.5" />
             Made for Indian creators
           </p>
 
-          <h2 className="mt-4 bg-gradient-to-br from-slate-100 to-slate-400 bg-clip-text font-heading text-[2.2rem] font-extrabold tracking-tight text-transparent sm:text-[3.4rem] sm:leading-[1.02]">
+          <h2 className="gradient-text mt-4 font-heading text-[2.2rem] font-extrabold tracking-tight sm:text-[3.4rem] sm:leading-[1.02]">
             Start with a guided recipe, then create as freely as you want.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-muted sm:text-base">
             Build low-cost AI avatar ads, beautiful anime lofi reels, and freeform videos or images from the same studio. RangManch is designed to help you publish faster, not learn model jargon.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-accent))] px-6 py-3.5 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent)/0.22)]"
+              className="glow-button inline-flex items-center gap-2 px-6 py-3.5 text-base"
             >
               Start free
               <ArrowRight className="h-4 w-4" />
@@ -530,7 +530,7 @@ function FinalCta() {
 
             <Link
               href="/create"
-              className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.04] px-5 py-3.5 text-sm font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border)/0.3)] bg-[hsl(var(--color-surface)/0.2)] px-5 py-3.5 text-sm font-semibold text-text transition hover:bg-[hsl(var(--color-surface)/0.3)]"
             >
               Open studio
             </Link>
@@ -543,7 +543,7 @@ function FinalCta() {
 
 export function PublicStudioLanding() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,hsl(var(--color-hero-glow)/0.08),transparent_26%),linear-gradient(180deg,hsl(var(--color-bg)),hsl(var(--color-bg))_42%,hsl(260_16%_6%)_100%)] text-text">
+    <div className="mesh-bg min-h-screen text-text">
       <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
         <Header />
       </div>

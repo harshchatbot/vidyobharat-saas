@@ -1,0 +1,310 @@
+/* ScriptCheckpoint - Theme-aware styles */
+
+.container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.headerTitle {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: hsl(var(--color-text));
+  margin-bottom: 0.5rem;
+}
+
+.headerSubtitle {
+  color: hsl(var(--color-muted));
+}
+
+.card {
+  background: hsl(var(--color-surface));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: hsl(var(--color-text));
+  margin-bottom: 1rem;
+}
+
+.scriptSection {
+  margin-bottom: 1.5rem;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.editButton {
+  font-size: 0.875rem;
+  color: hsl(var(--color-accent));
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.editButton:hover {
+  color: hsl(var(--color-accent) / 0.7);
+}
+
+/* Script Display */
+.scriptDisplay {
+  background: hsl(var(--color-bg));
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  border: 1px solid hsl(var(--color-border-soft));
+  color: hsl(var(--color-text));
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Edit Mode */
+.editContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--color-border-soft));
+  border-radius: var(--radius-md);
+  background: hsl(var(--color-surface));
+  color: hsl(var(--color-text));
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 8rem;
+  transition: all 0.2s ease;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: hsl(var(--color-accent));
+  box-shadow: 0 0 0 2px hsl(var(--color-accent) / 0.1);
+}
+
+.editButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.buttonSave {
+  flex: 1;
+  background: hsl(var(--color-accent));
+  color: hsl(var(--color-accent-contrast));
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+.buttonSave:hover {
+  filter: brightness(1.08);
+}
+
+.buttonCancel {
+  flex: 1;
+  background: hsl(var(--color-bg));
+  color: hsl(var(--color-text));
+  border: 1px solid hsl(var(--color-border-soft));
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.buttonCancel:hover {
+  background: hsl(var(--color-border-soft));
+}
+
+/* Script Stats */
+.statsSection {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--color-border-soft));
+}
+
+.statItem {
+  text-align: center;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: hsl(var(--color-muted));
+  margin-bottom: 0.25rem;
+}
+
+.statValue {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: hsl(var(--color-accent));
+}
+
+/* Quality Score */
+.scoreSection {
+  margin-bottom: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--color-border-soft));
+}
+
+.scoreHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.scoreTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: hsl(var(--color-text));
+}
+
+.hideButton {
+  font-size: 0.75rem;
+  color: hsl(var(--color-muted));
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.hideButton:hover {
+  color: hsl(var(--color-text));
+}
+
+.scoreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.scoreCard {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid hsl(var(--color-border-soft));
+  background: hsl(var(--color-elevated));
+}
+
+.scoreCardAccent {
+  border-color: hsl(var(--color-accent) / 0.2);
+  background: hsl(var(--color-accent) / 0.06);
+}
+
+.scoreCardLabel {
+  font-size: 0.875rem;
+  color: hsl(var(--color-muted));
+  margin-bottom: 0.5rem;
+}
+
+.scoreCardValue {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: hsl(var(--color-accent));
+}
+
+.suggestionsContainer {
+  background: hsl(var(--color-accent) / 0.08);
+  border: 1px solid hsl(var(--color-accent) / 0.15);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.suggestionsTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--color-accent));
+  margin-bottom: 0.5rem;
+}
+
+.suggestionsList {
+  font-size: 0.875rem;
+  color: hsl(var(--color-muted));
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Action Buttons */
+.actionSection {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--color-border-soft));
+}
+
+.actionButton {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.buttonApprove {
+  background: hsl(var(--color-success));
+  color: hsl(var(--color-accent-contrast));
+}
+
+.buttonApprove:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.buttonRegenerate {
+  background: hsl(var(--color-bg));
+  color: hsl(var(--color-text));
+  border: 1px solid hsl(var(--color-border-soft));
+}
+
+.buttonRegenerate:hover:not(:disabled) {
+  background: hsl(var(--color-border-soft));
+}
+
+.buttonDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Info Section */
+.infoContainer {
+  background: hsl(var(--color-accent) / 0.08);
+  border: 1px solid hsl(var(--color-accent) / 0.15);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.infoText {
+  font-size: 0.875rem;
+  color: hsl(var(--color-accent));
+}
+
+.infoText strong {
+  font-weight: 600;
+}

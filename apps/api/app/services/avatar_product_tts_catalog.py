@@ -185,6 +185,84 @@ LANGUAGE_ALIAS_MAP = {
     "bangla (bangladesh)": "Bangla (Bangladesh)",
 }
 
+STORYBOARD_ENABLED_LANGUAGE_LABELS: tuple[str, ...] = (
+    "English (India)",
+    "Hindi (India)",
+    "Marathi (India)",
+    "Tamil (India)",
+    "Telugu (India)",
+    "Bangla (Bangladesh)",
+    "Gujarati (India)",
+    "Kannada (India)",
+    "Malayalam (India)",
+    "Punjabi (India)",
+    "Urdu (Pakistan)",
+    "English (US)",
+)
+
+STORYBOARD_LANGUAGE_META: dict[str, dict[str, str | bool]] = {
+    "English (India)": {"id": "english_india", "locale_hint": "en-IN", "recommended_for_india": True},
+    "Hindi (India)": {"id": "hindi_india", "locale_hint": "hi-IN", "recommended_for_india": True},
+    "Marathi (India)": {"id": "marathi_india", "locale_hint": "mr-IN", "recommended_for_india": True},
+    "Tamil (India)": {"id": "tamil_india", "locale_hint": "ta-IN", "recommended_for_india": True},
+    "Telugu (India)": {"id": "telugu_india", "locale_hint": "te-IN", "recommended_for_india": True},
+    "Bangla (Bangladesh)": {"id": "bangla_bangladesh", "locale_hint": "bn-BD", "recommended_for_india": True},
+    "Gujarati (India)": {"id": "gujarati_india", "locale_hint": "gu-IN", "recommended_for_india": True},
+    "Kannada (India)": {"id": "kannada_india", "locale_hint": "kn-IN", "recommended_for_india": True},
+    "Malayalam (India)": {"id": "malayalam_india", "locale_hint": "ml-IN", "recommended_for_india": True},
+    "Punjabi (India)": {"id": "punjabi_india", "locale_hint": "pa-IN", "recommended_for_india": True},
+    "Urdu (Pakistan)": {"id": "urdu_pakistan", "locale_hint": "ur-PK", "recommended_for_india": True},
+    "English (US)": {"id": "english_us", "locale_hint": "en-US", "recommended_for_india": False},
+}
+
+STORYBOARD_LANGUAGE_ALIAS_MAP = {
+    "en": "English (India)",
+    "en-in": "English (India)",
+    "english (india)": "English (India)",
+    "english_india": "English (India)",
+    "hi": "Hindi (India)",
+    "hi-in": "Hindi (India)",
+    "hindi_india": "Hindi (India)",
+    "mr": "Marathi (India)",
+    "mr-in": "Marathi (India)",
+    "marathi_india": "Marathi (India)",
+    "ta": "Tamil (India)",
+    "ta-in": "Tamil (India)",
+    "tamil_india": "Tamil (India)",
+    "te": "Telugu (India)",
+    "te-in": "Telugu (India)",
+    "telugu_india": "Telugu (India)",
+    "bn": "Bangla (Bangladesh)",
+    "bn-bd": "Bangla (Bangladesh)",
+    "bangla_bangladesh": "Bangla (Bangladesh)",
+    "gu": "Gujarati (India)",
+    "gu-in": "Gujarati (India)",
+    "gujarati_india": "Gujarati (India)",
+    "kn": "Kannada (India)",
+    "kn-in": "Kannada (India)",
+    "kannada_india": "Kannada (India)",
+    "ml": "Malayalam (India)",
+    "ml-in": "Malayalam (India)",
+    "malayalam_india": "Malayalam (India)",
+    "pa": "Punjabi (India)",
+    "pa-in": "Punjabi (India)",
+    "punjabi_india": "Punjabi (India)",
+    "ur": "Urdu (Pakistan)",
+    "ur-pk": "Urdu (Pakistan)",
+    "urdu_pakistan": "Urdu (Pakistan)",
+    "en-us": "English (US)",
+    "english_us": "English (US)",
+}
+
+STORYBOARD_RECOMMENDED_VOICES: tuple[str, ...] = (
+    "Kore",
+    "Aoede",
+    "Leda",
+    "Orus",
+    "Schedar",
+    "Vindemiatrix",
+)
+
 
 def list_avatar_product_gemini_voices() -> list[GeminiVoiceOption]:
     return list(GEMINI_AVATAR_PRODUCT_VOICES)
@@ -217,3 +295,46 @@ def resolve_avatar_product_gemini_language(value: str | None) -> str:
         return normalized
     return LANGUAGE_ALIAS_MAP.get(normalized.lower(), "English (India)")
 
+
+def resolve_storyboard_gemini_language(value: str | None) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return "English (India)"
+    if normalized in STORYBOARD_ENABLED_LANGUAGE_LABELS:
+        return normalized
+    lowered = normalized.lower()
+    if lowered in STORYBOARD_LANGUAGE_ALIAS_MAP:
+        return STORYBOARD_LANGUAGE_ALIAS_MAP[lowered]
+    if lowered in LANGUAGE_ALIAS_MAP:
+        alias_label = LANGUAGE_ALIAS_MAP[lowered]
+        if alias_label in STORYBOARD_ENABLED_LANGUAGE_LABELS:
+            return alias_label
+    return "English (India)"
+
+
+def list_storyboard_tts_catalog() -> dict[str, list[dict[str, str | bool]]]:
+    voices: list[dict[str, str | bool]] = []
+    for item in GEMINI_AVATAR_PRODUCT_VOICES:
+        voices.append(
+            {
+                "id": item.key.lower(),
+                "display_name": item.label,
+                "provider_voice_name": item.key,
+                "tone_description": item.description,
+                "recommended": item.key in STORYBOARD_RECOMMENDED_VOICES,
+            }
+        )
+    languages: list[dict[str, str | bool]] = []
+    for label in STORYBOARD_ENABLED_LANGUAGE_LABELS:
+        meta = STORYBOARD_LANGUAGE_META.get(label, {})
+        languages.append(
+            {
+                "id": str(meta.get("id") or label.lower().replace(" ", "_")),
+                "label": label,
+                "provider_language_code": label,
+                "locale_hint": str(meta.get("locale_hint") or ""),
+                "enabled": True,
+                "recommended_for_india": bool(meta.get("recommended_for_india", False)),
+            }
+        )
+    return {"languages": languages, "voices": voices}

@@ -3,6 +3,7 @@
 const LOCAL_AUTH_KEYS = [
   'vidyo_access_token',
   'vidyo_user_id',
+  'test-user-id',
 ] as const;
 
 const SESSION_CACHE_PREFIXES = [
