@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation';
-import { Suspense } from 'react';
 
 import { UnifiedCreateStudioClient } from '@/components/create/UnifiedCreateStudioClient';
 import { OnboardingChecklist } from '@/components/ui/OnboardingChecklist';
-import { VoicePreviewTrigger } from './VoicePreviewTrigger';
 import { getUserIdFromCookie } from '@/lib/session';
 
 export default async function CreatePage() {
@@ -14,12 +12,7 @@ export default async function CreatePage() {
 
   return (
     <div>
-      <Suspense fallback={null}>
-        <OnboardingChecklist />
-      </Suspense>
-      <Suspense fallback={null}>
-        <VoicePreviewTrigger />
-      </Suspense>
+      <OnboardingChecklist />
       <UnifiedCreateStudioClient
         userId={userId}
         initialDefaultAspectRatio={null}

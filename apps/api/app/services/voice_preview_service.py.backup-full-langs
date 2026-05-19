@@ -10,7 +10,6 @@ from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 
 from app.core.config import get_settings
 from app.providers.firebase import get_firestore_client
-from app.services.avatar_product_tts_catalog import GEMINI_AVATAR_PRODUCT_LANGUAGES
 from app.services.credit_service import CreditService
 from app.services.fal_video_service import FalVideoService
 
@@ -50,7 +49,11 @@ _STORYBOARD_GEMINI_TTS_VALID_VOICES: set[str] = {
 }
 
 _STORYBOARD_GEMINI_TTS_VALID_LANGUAGES: set[str] = {
-    lang.label for lang in GEMINI_AVATAR_PRODUCT_LANGUAGES
+    "English (India)",
+    "English (US)",
+    "English (UK)",
+    "English (Australia)",
+    "Hindi (India)",
 }
 
 

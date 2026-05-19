@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { useToast } from '@/components/ui/Toast';
-import { markOnboardingComplete } from '@/components/ui/OnboardingChecklist';
 import { api } from '@/lib/api';
 import type { UserSettings } from '@/types/api';
 const aspectOptions = ['9:16', '16:9', '1:1'];
@@ -23,10 +22,7 @@ export function SettingsClient({ userId }: { userId: string }) {
     let cancelled = false;
     void api.getMySettings(userId)
       .then((data) => {
-        if (!cancelled) {
-          setSettings(data);
-          markOnboardingComplete('complete_profile');
-        }
+        if (!cancelled) setSettings(data);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load settings');

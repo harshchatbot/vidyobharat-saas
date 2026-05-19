@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Clapperboard, Languages, Mic2, Search, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
+import { markOnboardingComplete } from '@/components/ui/OnboardingChecklist';
 import { Input } from '@/components/ui/Input';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
@@ -107,6 +108,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
 
   useEffect(() => {
     setHasMounted(true);
+    markOnboardingComplete('visit_projects');
   }, []);
 
   const filteredProjects = useMemo(() => {

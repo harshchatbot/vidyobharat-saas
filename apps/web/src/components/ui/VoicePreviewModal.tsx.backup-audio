@@ -1,0 +1,327 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Mic2, Volume2, Loader } from 'lucide-react';
+import { markOnboardingComplete } from './OnboardingChecklist';
+import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+
+// Backend API base URL
+const API_BASE_URL = 'http://localhost:8000';
+
+interface VoicePreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface Voice {
+  name: string;
+  tone: string;
+}
+
+interface Language {
+  code: string;
+  name: string;
+}
+
+export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<string>('Kore');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('English (India)');
+  const [previewText, setPreviewText] = useState<string>('Welcome to RangManchAI, lets create something for your audience today');
+  const [loading, setLoading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Load voices on mount
+  useEffect(() => {
+    setMounted(true);
+    fetchVoices();
+  }, []);
+
+  const fetchVoices = async () => {
+    try {
+      setLoading(true);
+      const userId = getCurrentUserIdOrThrow('Voice preview');
+      const response = await fetch(`${API_BASE_URL}/api/tts/voices`, {
+        method: 'GET',
+        headers: {
+          'X-User-ID': userId,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to load voices');
+      const data = await response.json();
+      setVoices(data.voices || []);
+      setLanguages(data.languages || []);
+      if (data.voices?.[0]) {
+        setSelectedVoice(data.voices[0].name);
+      }
+    } catch (err) {
+      setError('Failed to load available voices');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!previewText.trim()) {
+      setError('Please enter text to preview');
+      return;
+    }
+
+    try {
+      setPreviewing(true);
+      setError(null);
+      const userId = getCurrentUserIdOrThrow('Voice preview');
+      const response = await fetch(`${API_BASE_URL}/api/tts/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': userId,
+        },
+        body: JSON.stringify({
+          text: previewText,
+          voice: selectedVoice,
+          language: selectedLanguage,
+          style_instructions: 'Natural delivery for preview',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 402) {
+          setError('Insufficient credits. Add credits to preview voices.');
+          setCurrentBalance(0);
+        } else {
+          setError(errorData.detail || 'Failed to generate preview');
+        }
+        return;
+      }
+
+      const result = await response.json();
+      setPreviewResult(result);
+      setCurrentBalance(result.current_balance);
+
+      // Mark onboarding complete on successful preview
+      markOnboardingComplete('preview_voice');
+
+      // Auto-play preview
+      if (result.audio_url && audioRef.current) {
+        audioRef.current.src = result.audio_url;
+        setTimeout(() => {
+          audioRef.current?.play();
+        }, 100);
+      }
+    } catch (err) {
+      setError('Voice preview failed. Please try again.');
+      console.error(err);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  if (!mounted || !isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-8 overflow-y-auto"
+      onClick={onClose}
+    >
+      {/* Modal */}
+      <div
+        className="glass-card-strong p-6 max-w-lg w-full mx-4 rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Mic2 size={24} style={{ color: 'hsl(var(--color-primary))' }} />
+            <h2 className="gradient-text text-xl font-bold">Voice Preview</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-xs transition-all hover:opacity-80"
+            style={{ color: 'hsl(var(--color-muted))' }}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Subtitle */}
+        <p className="text-sm mb-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+          Try any voice before using it in your ad
+        </p>
+
+        {/* Language Selector */}
+        <div className="mb-5">
+          <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{ color: 'hsl(var(--color-muted))' }}>
+            Language
+          </label>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="w-full glass-card px-3 py-2 text-sm rounded-lg"
+            style={{
+              color: 'hsl(var(--color-text))',
+              background: 'hsl(var(--glass-bg-light))',
+              border: '1px solid hsl(var(--glass-border))',
+            }}
+          >
+            {languages.map((lang) => (
+              <option key={lang.code} value={lang.name}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Voice Selector */}
+        <div className="mb-5">
+          <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{ color: 'hsl(var(--color-muted))' }}>
+            Voice
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {voices.slice(0, 8).map((voice) => (
+              <button
+                key={voice.name}
+                onClick={() => setSelectedVoice(voice.name)}
+                className="glass-card px-3 py-2 text-sm rounded-lg text-center transition-all"
+                style={{
+                  color:
+                    selectedVoice === voice.name
+                      ? 'hsl(var(--color-primary))'
+                      : 'hsl(var(--color-text))',
+                  background:
+                    selectedVoice === voice.name
+                      ? 'hsl(var(--color-primary)/0.15)'
+                      : 'transparent',
+                  border:
+                    selectedVoice === voice.name
+                      ? '1px solid hsl(var(--color-primary)/0.5)'
+                      : '1px solid hsl(var(--glass-border))',
+                }}
+              >
+                {voice.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Preview Text Textarea */}
+        <div className="mb-5">
+          <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{ color: 'hsl(var(--color-muted))' }}>
+            Preview Text
+          </label>
+          <textarea
+            value={previewText}
+            onChange={(e) => setPreviewText(e.target.value.slice(0, 280))}
+            placeholder="Type something to hear this voice..."
+            className="w-full glass-card px-3 py-2 text-sm rounded-lg resize-none"
+            rows={3}
+            style={{
+              color: 'hsl(var(--color-text))',
+              background: 'hsl(var(--glass-bg-light))',
+              border: '1px solid hsl(var(--glass-border))',
+            }}
+          />
+          <p className="text-xs mt-1" style={{ color: 'hsl(var(--color-muted))' }}>
+            {previewText.length}/280 characters
+          </p>
+        </div>
+
+        {/* Preview Button */}
+        <button
+          onClick={handlePreview}
+          disabled={previewing || !previewText.trim()}
+          className="glow-button w-full mt-4"
+          style={{
+            background: 'var(--gradient-brand)',
+            opacity: previewing || !previewText.trim() ? 0.6 : 1,
+            cursor: previewing || !previewText.trim() ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {previewing ? (
+            <>
+              <Loader size={14} className="inline mr-2 animate-spin" />
+              Generating...
+            </>
+          ) : previewResult?.cached ? (
+            <>
+              <Volume2 size={14} className="inline mr-2" />
+              Preview Voice · Free
+            </>
+          ) : (
+            <>
+              <Mic2 size={14} className="inline mr-2" />
+              Preview Voice · 1 credit
+            </>
+          )}
+        </button>
+
+        {/* Audio Player */}
+        {previewResult && (
+          <div
+            className="glass-card mt-4 p-3 rounded-lg"
+            style={{ background: 'hsl(var(--glass-bg-light))' }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-semibold" style={{ color: 'hsl(var(--color-text))' }}>
+                  {previewResult.voice} {previewResult.cached ? '(Free)' : ''}
+                </p>
+                <p className="text-xs" style={{ color: 'hsl(var(--color-muted))' }}>
+                  {previewResult.duration_seconds.toFixed(1)}s
+                </p>
+              </div>
+              {previewResult.cached && (
+                <span className="text-xs px-2 py-1 rounded glass-card" style={{ color: 'hsl(var(--color-success))' }}>
+                  Cached
+                </span>
+              )}
+            </div>
+            <audio
+              ref={audioRef}
+              controls
+              className="w-full"
+              style={{ height: '32px' }}
+              onPlay={() => {}}
+              onPause={() => {}}
+            />
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div
+            className="mt-4 p-3 rounded-lg text-xs"
+            style={{
+              background: 'hsl(var(--color-error)/0.1)',
+              border: '1px solid hsl(var(--color-error)/0.3)',
+              color: 'hsl(var(--color-error))',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Credit Info */}
+        <div className="mt-4 text-xs" style={{ color: 'hsl(var(--color-muted))' }}>
+          {currentBalance !== null && (
+            <p>
+              Your balance: <span style={{ color: 'hsl(var(--color-text))' }}>{currentBalance} credits</span>
+            </p>
+          )}
+          <p className="mt-1">New previews cost 1 credit. Cached previews are free.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default VoicePreviewModal;

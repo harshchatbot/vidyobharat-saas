@@ -30,6 +30,7 @@ import QCCheckpoint from './components/QCCheckpoint';
 import FinalPackagingCheckpoint from './components/FinalPackagingCheckpoint';
 import { getCurrentUserId } from '@/lib/authUser';
 import { API_URL } from '@/lib/env';
+import { markOnboardingComplete } from '@/components/ui/OnboardingChecklist';
 
 type GuidedFlowStep = 'category' | 'avatar-selection' | 'step1' | 'step2' | 'step3';
 type TestMode = 'real' | 'mock' | null;
@@ -340,6 +341,7 @@ export default function StoryAdPage() {
 
     try {
       await initializeProject(input);
+      markOnboardingComplete('create_ugc_ad');
       // After initialization, the page will show the workflow checkpoints
     } catch (err) {
       console.error('Error initializing project:', err);

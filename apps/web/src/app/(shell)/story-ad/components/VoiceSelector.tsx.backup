@@ -3,7 +3,6 @@
 import React, { useState, useRef } from 'react';
 import { StoryboardProject } from '../hooks/useStoryboardProject';
 import { useStoryboardProject } from '../hooks/useStoryboardProject';
-import { markOnboardingComplete } from '@/components/ui/OnboardingChecklist';
 import { getVoicesForLanguage, PREVIEW_TEXT_BY_LANGUAGE, resolveStoryboardVoiceLanguage, STORYBOARD_ENABLED_LANGUAGES } from '../config/voiceRegistry';
 
 interface VoiceSelectorProps {
@@ -131,7 +130,6 @@ export default function VoiceSelector({ project, onSelect, onBackToScript }: Voi
       setPreviewError(null);
       setPreviewInfo(cachedLocal.isStatic ? 'Free sample' : (cachedLocal.cached ? 'Cached preview — no credits used' : '▶ Play again · Free'));
       await replayAudio(cachedLocal.audioUrl);
-      markOnboardingComplete('preview_voice');
       return;
     }
     setPreviewingVoice(voice);
@@ -166,7 +164,6 @@ export default function VoiceSelector({ project, onSelect, onBackToScript }: Voi
           setPreviewInfo(`${result?.credits_deducted ?? 1} credit used for preview`);
         }
         await replayAudio(result.audio_url);
-        markOnboardingComplete('preview_voice');
       } else {
         setPreviewError('Preview is currently unavailable. Please continue to full production voiceover.');
       }

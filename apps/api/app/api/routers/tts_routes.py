@@ -1,0 +1,307 @@
+"""Standalone TTS preview endpoint — no project required."""
+from __future__ import annotations
+
+import hashlib
+import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+from pydantic import BaseModel, Field
+
+from app.providers.firebase import get_firestore_client
+from app.services.avatar_product_tts_catalog import (
+    GEMINI_AVATAR_PRODUCT_LANGUAGES,
+    GEMINI_AVATAR_PRODUCT_VOICES,
+)
+from app.services.credit_service import CreditService
+from app.services.voice_preview_service import (
+    VoicePreviewService,
+    normalize_storyboard_tts_literals,
+    _STORYBOARD_GEMINI_TTS_VALID_LANGUAGES,
+    _STORYBOARD_GEMINI_TTS_VALID_VOICES,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/tts", tags=["tts"])
+
+
+# ===== HELPER FUNCTION =====
+
+
+def get_current_user_id(x_user_id: str = Header(...)) -> str:
+    """Extract user ID from X-User-ID header."""
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="X-User-ID header required")
+    return x_user_id
+
+
+class TTSPreviewRequest(BaseModel):
+    """Request to generate standalone TTS preview."""
+
+    text: str = Field(..., min_length=5, max_length=300, description="Text to preview (5-300 chars)")
+    voice: str = Field(..., description="Voice name e.g. Kore, Aoede")
+    language: str = Field(default="English (India)", description="Language code")
+    style_instructions: str | None = Field(None, description="Optional delivery instructions")
+
+
+class TTSVoiceOption(BaseModel):
+    """Voice option with metadata."""
+
+    key: str
+    label: str
+    tone: str
+    gender: str
+    description: str
+
+
+class TTSLanguageOption(BaseModel):
+    """Language option."""
+
+    code: str
+    name: str
+
+
+class TTSPreviewResponse(BaseModel):
+    """Response with generated TTS preview."""
+
+    audio_url: str
+    duration_seconds: float
+    voice: str
+    language: str
+    cached: bool
+    credits_deducted: int
+    current_balance: int
+    is_static_sample: bool = False
+
+
+class TTSVoicesResponse(BaseModel):
+    """Available voices and languages."""
+
+    voices: list[TTSVoiceOption]
+    languages: list[TTSLanguageOption]
+
+
+@router.post("/preview", response_model=TTSPreviewResponse, summary="Generate standalone TTS preview")
+async def preview_voice(
+    request: TTSPreviewRequest,
+    user_id: str = Depends(get_current_user_id),
+) -> dict[str, Any]:
+    """
+    Generate voice preview without project context.
+
+    - Check user credit balance (min 1 credit required for new preview)
+    - Check cache first — if hit, return free (no credit deduction)
+    - If cache miss — call TTS service, deduct 1 credit, cache result
+    - Return audio_url + metadata
+
+    Cost: 1 credit per new preview; cached previews are free.
+    """
+    try:
+        service = VoicePreviewService()
+        credit_service = CreditService()
+        firestore = get_firestore_client()
+
+        # Normalize voice and language
+        normalized_voice, normalized_language = normalize_storyboard_tts_literals(request.voice, request.language)
+
+        # Validate inputs
+        if normalized_voice not in _STORYBOARD_GEMINI_TTS_VALID_VOICES:
+            raise ValueError(f"Invalid voice: {normalized_voice}")
+        if normalized_language not in _STORYBOARD_GEMINI_TTS_VALID_LANGUAGES:
+            raise ValueError(f"Invalid language: {normalized_language}")
+
+        preview_text = str(request.text or "").strip()
+        if len(preview_text) < 5 or len(preview_text) > 300:
+            raise ValueError("Preview text must be 5-300 characters")
+
+        logger.info(
+            "tts_preview_requested",
+            extra={
+                "user_id": user_id,
+                "voice": normalized_voice,
+                "language": normalized_language,
+                "text_length": len(preview_text),
+            },
+        )
+
+        # Build cache key
+        preview_text_hash = hashlib.sha256(preview_text.encode("utf-8")).hexdigest()
+        cache_key = f"{user_id}:{normalized_language}:{normalized_voice}:{preview_text_hash}:standalone_preview"
+
+        # Check cache
+        cache_doc = firestore.collection("tts_preview_cache").document(cache_key).get()
+        if cache_doc.exists:
+            cached_data = cache_doc.to_dict() or {}
+            cached_url = str(cached_data.get("audio_url") or "").strip()
+            if cached_url:
+                firestore.collection("tts_preview_cache").document(cache_key).set(
+                    {"last_used_at": SERVER_TIMESTAMP},
+                    merge=True,
+                )
+                balance = credit_service.get_user_credit_balance(user_id)
+                logger.info(
+                    "tts_preview_cache_hit",
+                    extra={"user_id": user_id, "voice": normalized_voice},
+                )
+                is_static = bool(cached_data.get("is_static_sample"))
+                return {
+                    "audio_url": cached_url,
+                    "duration_seconds": float(cached_data.get("duration_seconds") or 2.0),
+                    "voice": normalized_voice,
+                    "language": normalized_language,
+                    "cached": True,
+                    "credits_deducted": 0,
+                    "current_balance": balance,
+                    "is_static_sample": is_static,
+                }
+
+        # Cache miss — check credits
+        preview_cost = 1
+        balance = credit_service.get_user_credit_balance(user_id)
+        if balance < preview_cost:
+            logger.warning(
+                "tts_preview_insufficient_credits",
+                extra={"user_id": user_id, "balance": balance, "required": preview_cost},
+            )
+            raise ValueError("insufficient_credits: You need 1 credit to generate a voice preview.")
+
+        logger.info(
+            "tts_preview_cache_miss",
+            extra={"user_id": user_id, "voice": normalized_voice},
+        )
+
+        # Generate preview using VoicePreviewService
+        try:
+            audio_url, metadata = service.fal_service.generate_gemini_flash_tts(
+                text=preview_text,
+                voice=normalized_voice,
+                language_code=normalized_language,
+                style_instructions=request.style_instructions or f"Natural {normalized_language} delivery for preview",
+            )
+
+            # Estimate duration
+            word_count = len(preview_text.split())
+            duration_seconds = max(2.0, min((word_count / 150.0) * 60.0, 30.0))
+
+            # Deduct credits
+            idempotency_key = f"tts_preview_{user_id}_{normalized_voice}_{preview_text_hash}"
+            credit_result = credit_service.deduct_credits(
+                user_id=user_id,
+                amount=preview_cost,
+                feature_key="tts_preview_standalone",
+                metadata={
+                    "voice": normalized_voice,
+                    "language_code": normalized_language,
+                    "text_length": len(preview_text),
+                },
+                source="standalone_tts_preview",
+                idempotency_key=idempotency_key,
+            )
+
+            logger.info(
+                "tts_preview_generated",
+                extra={"user_id": user_id, "voice": normalized_voice, "deducted": preview_cost},
+            )
+
+            # Cache result
+            firestore.collection("tts_preview_cache").document(cache_key).set(
+                {
+                    "user_id": user_id,
+                    "provider": "fal",
+                    "model_key": "gemini_flash_tts",
+                    "provider_language_code": normalized_language,
+                    "provider_voice_name": normalized_voice,
+                    "preview_text_hash": preview_text_hash,
+                    "audio_url": audio_url,
+                    "duration_seconds": duration_seconds,
+                    "credits_charged": preview_cost,
+                    "is_static_sample": False,
+                    "created_at": SERVER_TIMESTAMP,
+                    "last_used_at": SERVER_TIMESTAMP,
+                },
+                merge=True,
+            )
+
+            return {
+                "audio_url": audio_url or "",
+                "duration_seconds": duration_seconds,
+                "voice": normalized_voice,
+                "language": normalized_language,
+                "cached": False,
+                "credits_deducted": preview_cost,
+                "current_balance": credit_result.wallet.current_credits,
+                "is_static_sample": False,
+            }
+
+        except Exception as e:
+            logger.error(
+                "tts_preview_generation_failed",
+                extra={"user_id": user_id, "voice": normalized_voice, "error": str(e)},
+            )
+            if "balance" in str(e).lower():
+                raise HTTPException(
+                    status_code=502,
+                    detail="Voice preview provider failed. Please try again.",
+                )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Voice generation failed: {str(e)}",
+            )
+
+    except ValueError as e:
+        logger.warning("tts_preview_validation_error", extra={"user_id": user_id, "error": str(e)})
+        message = str(e)
+        if "insufficient_credits" in message:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error_code": "insufficient_credits",
+                    "message": "You need 1 credit to generate a voice preview.",
+                    "recoverable": True,
+                    "retry_action": "add_credits",
+                },
+            )
+        raise HTTPException(status_code=400, detail=f"Validation error: {message}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("tts_preview_error", extra={"user_id": user_id, "error": str(e)})
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/voices", response_model=TTSVoicesResponse, summary="Get available TTS voices and languages")
+async def get_voices(
+    user_id: str = Depends(get_current_user_id),
+) -> dict[str, Any]:
+    """
+    Get list of available voices and languages for TTS preview.
+
+    Returns voices grouped by language with tone information.
+    """
+    try:
+        # Use catalog voices with full metadata (gender, description, tone)
+        voices = [
+            TTSVoiceOption(
+                key=v.key,
+                label=v.label,
+                tone=v.tone,
+                gender=v.gender,
+                description=v.description,
+            )
+            for v in GEMINI_AVATAR_PRODUCT_VOICES
+        ]
+
+        # Use full language catalog (100+ languages)
+        languages = [
+            TTSLanguageOption(code=lang.code, name=lang.label)
+            for lang in GEMINI_AVATAR_PRODUCT_LANGUAGES
+        ]
+
+        logger.info("tts_voices_requested", extra={"user_id": user_id})
+        return {"voices": voices, "languages": languages}
+
+    except Exception as e:
+        logger.error("tts_voices_error", extra={"user_id": user_id, "error": str(e)})
+        raise HTTPException(status_code=500, detail="Failed to fetch voices")
