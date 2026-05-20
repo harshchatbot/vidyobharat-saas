@@ -2,16 +2,102 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { Coins } from 'lucide-react';
+import { useState } from 'react';
+import { Check, X } from 'lucide-react';
 
-import { PacmanLoader } from '@/components/ui/PacmanLoader';
-import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
-import { api } from '@/lib/api';
-import { getBestForCopy, getEstimateAssumptions, getPlanOutcomeExamples, getPlanOutcomeRows } from '@/lib/pricingEstimates';
-import type { PricingResponse } from '@/types/api';
+const PLANS = {
+  free: {
+    name: 'Free',
+    credits: 25,
+    monthly_inr: 0,
+    annual_inr: 0,
+    annual_monthly_inr: 0,
+    monthly_usd: 0,
+    annual_usd: 0,
+    features: {
+      commercial_use: false,
+      priority_queue: false,
+      voice_previews: '3/day',
+      rollover: 'None',
+      team_seats: 1,
+    },
+  },
+  starter: {
+    name: 'Starter',
+    credits: 200,
+    monthly_inr: 999,
+    annual_inr: 7990,
+    annual_monthly_inr: 799,
+    monthly_usd: 13,
+    annual_usd: 104,
+    features: {
+      commercial_use: true,
+      priority_queue: false,
+      voice_previews: '10/day',
+      rollover: '1 month',
+      team_seats: 1,
+    },
+  },
+  creator: {
+    name: 'Creator',
+    credits: 600,
+    monthly_inr: 2499,
+    annual_inr: 19990,
+    annual_monthly_inr: 1999,
+    monthly_usd: 32,
+    annual_usd: 256,
+    features: {
+      commercial_use: true,
+      priority_queue: true,
+      voice_previews: 'Unlimited',
+      rollover: '1 month',
+      team_seats: 1,
+    },
+  },
+  studio: {
+    name: 'Studio',
+    credits: 1800,
+    monthly_inr: 5999,
+    annual_inr: 47990,
+    annual_monthly_inr: 4799,
+    monthly_usd: 79,
+    annual_usd: 632,
+    features: {
+      commercial_use: true,
+      priority_queue: true,
+      voice_previews: 'Unlimited',
+      rollover: '3 months',
+      team_seats: 3,
+    },
+  },
+};
 
-function formatMoney(currency: string, amount: number) {
+const TOPUPS = [
+  { name: 'Boost', credits: 120, inr: 599, usd: 8 },
+  { name: 'Standard', credits: 270, inr: 1199, usd: 16 },
+  { name: 'Power', credits: 560, inr: 2299, usd: 30 },
+];
+
+const FAQS = [
+  {
+    q: 'Do credits expire?',
+    a: 'Monthly plan credits are valid for 30 days from purchase. Annual plan credits are valid for 365 days. Free tier credits refresh every month automatically. Top-up credits never expire.',
+  },
+  {
+    q: 'Can I switch plans?',
+    a: 'Yes — upgrade or downgrade anytime. Your remaining credits carry over to your new plan.',
+  },
+  {
+    q: "What's the difference between monthly and annual?",
+    a: 'Same credits, same features. Annual saves you 20% and credits are valid for the full year instead of 30 days.',
+  },
+  {
+    q: 'Is there a free trial?',
+    a: "Yes — start free with 25 credits, no card required. Upgrade whenever you're ready.",
+  },
+];
+
+function formatCurrency(amount: number, currency: string) {
   const locale = currency === 'INR' ? 'en-IN' : 'en-US';
   return new Intl.NumberFormat(locale, {
     style: 'currency',
@@ -20,399 +106,324 @@ function formatMoney(currency: string, amount: number) {
   }).format(amount);
 }
 
-{/* const featureCopy: Record<string, string[]> = {
-  starter: [
-    'Good first paid step after the free tier',
-    'Balanced for images, drafts, and a few premium clips',
-    'Straightforward top-up pack for solo creators',
-  ],
-  creator: [
-    'Strong working budget for repeat creation',
-    'Good mix of image, voice, and premium video usage',
-    'Best fit for active solo creators',
-  ],
-  growth: [
-    'Built for growing teams and client work',
-    'Higher throughput for repeat campaigns',
-    'Useful for agency-style workflows',
-  ],
-  pro: [
-    'Maximum headroom for production-heavy work',
-    'Best for studios and frequent premium generations',
-    'Designed for sustained campaign output',
-  ],
-};
-*/}
-
-const pricingFaqs = [
-  {
-    q: 'Do unused credits roll over?',
-    a: 'Top-up packs stay in your wallet. Monthly plan credits refresh on your active cycle and do not carry forward into the next cycle.',
-  },
-  {
-    q: 'What can I realistically do on the free plan?',
-    a: 'The free plan is designed for real testing: image drafts, template runs, voice previews, influencer setup, and lightweight Kling experiments. It is not meant to cover sustained premium Sora or Veo usage.',
-  },
-  {
-    q: 'Can I mix image, voice, and video usage?',
-    a: 'Yes. One shared wallet powers all premium generation actions across the studio.',
-  },
-  {
-    q: 'Can I start free and upgrade later?',
-    a: 'Yes. You can start on the free tier and move to paid packs whenever your output volume grows.',
-  },
-];
-
-export default function PricingPage() {
+export default function PricingPageClient() {
   const router = useRouter();
-  const [pricing, setPricing] = useState<PricingResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<string>('');
-
-  useEffect(() => {
-    let cancelled = false;
-    void api
-      .getPricing()
-      .then((result) => {
-        if (cancelled) return;
-        setPricing(result);
-        setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load pricing.');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const orderedPlans = useMemo(() => {
-    if (!pricing) return [];
-    return ['starter', 'creator', 'growth', 'pro']
-      .filter((plan) => plan in pricing.plans)
-      .map((plan) => ({
-        key: plan,
-        price: pricing.plans[plan],
-        credits: pricing.creditAllocation[plan],
-      }));
-  }, [pricing]);
-
-  const outcomeRows = useMemo(() => getPlanOutcomeRows(), []);
-
-  const estimateAssumptions = useMemo(() => getEstimateAssumptions(), []);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
   const handleSelectPlan = (planKey: string) => {
-    setSelectedPlan(planKey);
-    router.push(`/billing?plan=${encodeURIComponent(planKey)}`);
+    router.push(`/billing?plan=${planKey}&cycle=${billingCycle}`);
   };
 
   return (
-    <main className="bg-[hsl(var(--color-bg))] py-20">
+    <main style={{ background: 'hsl(var(--color-bg))' }} className="py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <StudioPageHeader
-          eyebrow="Plans"
-          title="Simple credits for India-first creators and teams"
-          description="Start with reliable workflows on the free tier, then scale into premium video, image, and voice usage only when your output volume grows."
-          className="mx-auto max-w-5xl"
-          actions={pricing ? (
-            <div className="inline-flex items-center gap-3 rounded-full border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface-glass)/0.62)] px-4 py-2 text-sm text-muted">
-              <span>
-                Currency: <strong className="text-text">{pricing.currency}</strong>
-              </span>
-              <span>•</span>
-              <span>
-                Secure checkout: <strong className="text-text capitalize">{pricing.paymentProvider}</strong>
-              </span>
-            </div>
-          ) : undefined}
-        />
-
-        {error && (
-          <p className="mx-auto mt-4 max-w-5xl text-sm text-[hsl(var(--color-danger))]">
-            {error}
+        {/* Header */}
+        <div className="mx-auto max-w-3xl text-center mb-12">
+          <h1
+            className="text-5xl font-bold tracking-tight mb-4"
+            style={{
+              background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-accent)))',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Simple, transparent pricing
+          </h1>
+          <p className="text-lg" style={{ color: 'hsl(var(--color-muted))' }}>
+            Start free and scale at your pace. All plans include commercial use and priority support.
           </p>
-        )}
+        </div>
 
-        {!pricing ? (
-          <div className="rangmanch-studio-panel mx-auto mt-12 max-w-5xl rounded-[28px] p-6">
-            <PacmanLoader centered size="lg" label="Loading pricing..." />
-          </div>
-        ) : (
-          <>
-            <div className="mt-12 grid gap-5 lg:mt-16 lg:grid-cols-4 lg:gap-8">
+        {/* Monthly/Annual Toggle */}
+        <div className="flex items-center justify-center gap-4 mb-12">
+          <button
+            onClick={() => setBillingCycle('monthly')}
+            className="glass-card px-6 py-3 text-sm font-medium rounded-lg transition"
+            style={
+              billingCycle === 'monthly'
+                ? {
+                    background: 'hsl(var(--color-primary) / 0.15)',
+                    border: '1px solid hsl(var(--color-primary) / 0.4)',
+                    color: 'hsl(var(--color-primary))',
+                  }
+                : {
+                    border: '1px solid hsl(var(--color-border))',
+                    color: 'hsl(var(--color-muted))',
+                  }
+            }
+          >
+            Monthly
+          </button>
+
+          <button
+            onClick={() => setBillingCycle('annual')}
+            className="glass-card px-6 py-3 text-sm font-medium rounded-lg transition relative"
+            style={
+              billingCycle === 'annual'
+                ? {
+                    background: 'hsl(var(--color-primary) / 0.15)',
+                    border: '1px solid hsl(var(--color-primary) / 0.4)',
+                    color: 'hsl(var(--color-primary))',
+                  }
+                : {
+                    border: '1px solid hsl(var(--color-border))',
+                    color: 'hsl(var(--color-muted))',
+                  }
+            }
+          >
+            Annual
+            <span
+              className="absolute -top-3 -right-3 text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{
+                background: 'hsl(var(--color-success) / 0.2)',
+                color: 'hsl(var(--color-success))',
+                border: '1px solid hsl(var(--color-success) / 0.3)',
+              }}
+            >
+              Save 20%
+            </span>
+          </button>
+        </div>
+
+        {/* Plan Cards Grid */}
+        <div className="grid gap-6 lg:grid-cols-4 mb-16">
+          {/* Free Plan */}
+          <button
+            onClick={() => router.push('/signup')}
+            className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1"
+            style={{
+              border: '1px solid hsl(var(--color-border) / 0.9)',
+            }}
+          >
+            <h3 className="text-2xl font-bold text-text mb-4">Free</h3>
+            <div className="mb-4">
+              <span className="text-4xl font-bold text-text">$0</span>
+              <span className="ml-2 text-muted">/forever</span>
+            </div>
+            <p className="text-sm text-muted mb-3">{PLANS.free.credits} credits/month</p>
+            <div
+              className="rounded-xl p-3 mb-4"
+              style={{
+                background: 'hsl(var(--color-bg) / 0.5)',
+                border: '1px solid hsl(var(--color-border) / 0.5)',
+              }}
+            >
+              <p className="text-xs font-semibold text-text mb-2">Best for testing</p>
+              <ul className="text-xs text-muted space-y-1">
+                <li>Image drafts</li>
+                <li>Voice previews</li>
+                <li>Templates</li>
+              </ul>
+            </div>
+            <button
+              className="mt-auto w-full rounded-lg px-4 py-3 text-sm font-semibold"
+              style={{
+                background: 'hsl(var(--color-surface))',
+                border: '1px solid hsl(var(--color-border))',
+                color: 'hsl(var(--color-text))',
+              }}
+            >
+              Start Free
+            </button>
+          </button>
+
+          {/* Starter, Creator, Studio */}
+          {(['starter', 'creator', 'studio'] as const).map((planKey) => {
+            const plan = PLANS[planKey];
+            const isPopular = planKey === 'creator';
+            const price = billingCycle === 'monthly'
+              ? plan.monthly_inr
+              : plan.annual_monthly_inr;
+            const isCurrency = price < 100 ? 'USD' : 'INR';
+
+            return (
               <button
-                type="button"
-                onClick={() => router.push('/signup')}
-                className="rangmanch-studio-panel relative flex h-full flex-col rounded-[28px] border-none bg-transparent p-5 text-left transition duration-200 hover:-translate-y-1 sm:p-6 lg:p-8"
+                key={planKey}
+                onClick={() => handleSelectPlan(planKey)}
+                className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1 relative"
+                style={{
+                  border: isPopular
+                    ? '1px solid hsl(var(--color-primary) / 0.6)'
+                    : '1px solid hsl(var(--color-border) / 0.9)',
+                  background: isPopular
+                    ? 'hsl(var(--color-primary) / 0.08)'
+                    : undefined,
+                }}
               >
-                <h3 className="text-xl font-semibold text-[hsl(var(--color-text))]">
-                  Free
-                </h3>
-
-                <div className="mt-5">
-                  <span className="text-3xl font-bold text-[hsl(var(--color-text))] sm:text-4xl">
-                    {formatMoney(pricing.currency, 0)}
-                  </span>
-                  <span className="ml-2 text-[hsl(var(--color-muted))]">
-                    /forever
-                  </span>
-                </div>
-
-                <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-                  40 credits / month
-                </p>
-
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
-                  {getBestForCopy('free')}
-                </p>
-
-                <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
-                  <p className="text-sm font-semibold text-text">Activation bonus</p>
-                  <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
-                    {getPlanOutcomeExamples('free').map((example) => (
-                      <p key={example}>{example}</p>
-                    ))}
-                  </div>
-                  <p className="mt-3 text-xs text-muted">Plus a one-time 120-credit activation bonus after your first real workflow win.</p>
-                </div>
-
-            {/*    <ul className="mt-5 space-y-3 text-sm text-[hsl(var(--color-muted))]">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>40 credits every month for real product testing</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>25-credit activation bonus after your first real workflow win</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>Good for first images, templates, voice tests, and lightweight Kling runs</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[hsl(var(--color-accent))]" />
-                    <span>Upgrade later for premium Sora, Veo, and higher-volume output</span>
-                  </li>
-                </ul>
-            */}
-
-                <span className="mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-6 py-3 text-sm font-semibold text-[hsl(var(--color-text))] transition">
-                  Start Free
-                </span>
-              </button>
-
-              {orderedPlans.map((plan) => {
-                const isPopular = plan.key === 'creator';
-                const isSelected = selectedPlan === plan.key;
-                const planExamples = getPlanOutcomeExamples(plan.key).slice(0, 3);
-
-                return (
-                  <button
-                    key={plan.key}
-                    type="button"
-                    onClick={() => handleSelectPlan(plan.key)}
-                    className={`relative flex h-full flex-col rounded-[28px] border p-5 text-left transition duration-200 sm:p-6 lg:p-8 ${
-                      isSelected || isPopular
-                        ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-elevated)/0.92)] shadow-[var(--shadow-hard)]'
-                        : 'rangmanch-studio-panel border-[hsl(var(--color-border)/0.9)] bg-transparent shadow-[var(--shadow-soft)] hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.55)] hover:shadow-[var(--shadow-hard)]'
-                    }`}
-                  >
-                    {isPopular && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[hsl(var(--color-accent))] px-4 py-1 text-xs font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
-                        Most Popular
-                      </div>
-                    )}
-
-                    <h3 className="text-xl font-semibold capitalize text-[hsl(var(--color-text))]">
-                      {plan.key}
-                    </h3>
-
-                    <div className="mt-5">
-                      <span className="text-3xl font-bold text-[hsl(var(--color-text))] sm:text-4xl">
-                        {formatMoney(pricing.currency, plan.price)}
-                      </span>
-                      <span className="ml-2 text-[hsl(var(--color-muted))]">
-                        /pack
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">
-                      {plan.credits} credits included
-                    </p>
-
-                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-[hsl(var(--color-accent))]">
-                      {getBestForCopy(plan.key)}
-                    </p>
-
-                    <div className="mt-4 rounded-[20px] border border-[hsl(var(--color-border)/0.75)] bg-[hsl(var(--color-bg)/0.44)] px-4 py-4">
-                      <p className="text-sm font-semibold text-text">Approximate outcomes</p>
-                      <div className="mt-3 space-y-2 text-sm text-[hsl(var(--color-muted))]">
-                        {planExamples.map((example) => (
-                          <p key={example}>{example}</p>
-                        ))}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`mt-8 inline-flex w-full items-center justify-center rounded-[var(--radius-md)] px-6 py-3 text-sm font-semibold transition ${
-                        isSelected || isPopular
-                          ? 'bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))]'
-                          : 'border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text))]'
-                      }`}
-                    >
-                      {isSelected ? 'Selected Plan' : isPopular ? 'Choose Creator' : 'Select Plan'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <section className="mt-8 rounded-[28px] border border-[hsl(var(--color-border)/0.8)] bg-[hsl(var(--color-surface)/0.26)] px-5 py-5 sm:px-6">
-              <div className="max-w-5xl">
-                <p className="text-sm font-semibold text-text">How to read these examples</p>
-                <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
-                  {estimateAssumptions.map((item) => (
-                    <p key={item}>{item}</p>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <div className="rangmanch-studio-panel mt-16 rounded-[28px] border-none bg-transparent p-5 shadow-[var(--shadow-soft)] sm:p-6 lg:mt-20 lg:p-8">
-              <div className="mb-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
-                  <p className="text-sm font-semibold text-text">What 40 free credits are best for</p>
-                  <div className="mt-3 space-y-2 text-sm text-muted">
-                    {getPlanOutcomeExamples('free').map((example) => (
-                      <p key={example}>{example}</p>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-[22px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-5 py-5">
-                  <p className="text-sm font-semibold text-text">Best way to use the free tier</p>
-                  <p className="mt-3 text-sm text-muted">
-                    Start with images, drafts, and workflow testing. Use paid credits when you need reliable ad output, longer videos, or repeated campaign runs.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mb-6 flex items-center gap-3">
-                <Coins className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-                <div>
-                  <p className="font-semibold text-[hsl(var(--color-text))]">
-                    What costs credits?
-                  </p>
-                  <p className="text-sm text-[hsl(var(--color-muted))]">
-                    Credits are consumed only when premium actions run.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3 sm:hidden">
-                {[
-                  { feature: 'Standard image', cost: 'from 4 credits' },
-                  { feature: 'Normal video 5s', cost: 'from 25 credits' },
-                  { feature: 'Auto scene sound', cost: 'from +15 credits' },
-                  { feature: 'Avatar Product Ad', cost: 'from 49 credits' },
-                ].map((item) => (
+                {isPopular && (
                   <div
-                    key={item.feature}
-                    className="rounded-[20px] border border-[hsl(var(--color-border)/0.82)] bg-[hsl(var(--color-bg)/0.46)] px-4 py-3"
+                    className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full"
+                    style={{
+                      background: 'hsl(var(--color-primary))',
+                      color: 'hsl(var(--color-primary-contrast))',
+                    }}
                   >
-                    <p className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.feature}</p>
-                    <p className="mt-1 text-sm text-[hsl(var(--color-muted))]">{item.cost} credits</p>
+                    Most Popular
                   </div>
-                ))}
-              </div>
+                )}
 
-              <div className="hidden overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border)/0.82)] sm:block">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[hsl(var(--color-elevated))]">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">
-                        Item
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">
-                        Credits
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { feature: 'Standard image', cost: 'from 4 credits' },
-                      { feature: 'Normal video 5s', cost: 'from 25 credits' },
-                      { feature: 'Auto scene sound', cost: 'from +15 credits' },
-                      { feature: 'Avatar Product Ad', cost: 'from 49 credits' },
-                    ].map((item) => (
-                      <tr
-                        key={item.feature}
-                        className="border-t border-[hsl(var(--color-border))]"
-                      >
-                        <td className="px-4 py-3 text-[hsl(var(--color-text))]">
-                          {item.feature}
-                        </td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">
-                          {item.cost} credits
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                <h3 className="text-2xl font-bold text-text mb-4 capitalize">{plan.name}</h3>
+                <div className="mb-4">
+                  <span className="text-4xl font-bold text-text">{formatCurrency(price, isCurrency === 'INR' ? 'INR' : 'USD')}</span>
+                  <span className="ml-2 text-muted">/month</span>
+                </div>
+                {billingCycle === 'annual' && (
+                  <p className="text-xs text-muted mb-3">Billed {formatCurrency(billingCycle === 'annual' ? plan.annual_inr : plan.monthly_inr, isCurrency === 'INR' ? 'INR' : 'USD')} annually</p>
+                )}
+                <p className="text-sm text-muted mb-3">{plan.credits} credits/month</p>
+                <p className="text-xs text-muted mb-4">
+                  Valid {billingCycle === 'monthly' ? '30 days' : '365 days'}
+                </p>
 
-              <div className="mt-8 overflow-x-auto rounded-[24px] border border-[hsl(var(--color-border)/0.82)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[hsl(var(--color-elevated))]">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Plan</th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Credits</th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Affordable 5s Ads</th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Affordable 10s Ads</th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Standard 5s Ads</th>
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--color-text))]">Standard Images</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {outcomeRows.map((row) => (
-                      <tr key={row.plan} className="border-t border-[hsl(var(--color-border))]">
-                        <td className="px-4 py-3 text-[hsl(var(--color-text))]">{row.plan}</td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.credits}</td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.affordable5sAds}</td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.affordable10sAds}</td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.standard5sAds}</td>
-                        <td className="px-4 py-3 text-[hsl(var(--color-muted))]">{row.standardImages}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <section className="mt-10 grid gap-4 lg:mt-12 lg:grid-cols-3">
-              {pricingFaqs.map((item) => (
-                <article
-                  key={item.q}
-                  className="rangmanch-studio-panel rounded-[24px] border-none bg-transparent p-4 shadow-[var(--shadow-soft)]"
+                <div
+                  className="rounded-xl p-3 mb-4 flex-1"
+                  style={{
+                    background: 'hsl(var(--color-bg) / 0.5)',
+                    border: '1px solid hsl(var(--color-border) / 0.5)',
+                  }}
                 >
-                  <h3 className="text-sm font-semibold text-[hsl(var(--color-text))]">{item.q}</h3>
-                  <p className="mt-2 text-sm text-[hsl(var(--color-muted))]">{item.a}</p>
-                </article>
-              ))}
-            </section>
+                  <p className="text-xs font-semibold text-text mb-3">Includes</p>
+                  <ul className="text-xs text-muted space-y-2">
+                    <li className="flex items-center gap-2">
+                      {plan.features.commercial_use ? (
+                        <Check className="h-3 w-3" style={{ color: 'hsl(var(--color-success))' }} />
+                      ) : (
+                        <X className="h-3 w-3" style={{ color: 'hsl(var(--color-muted))' }} />
+                      )}
+                      Commercial use
+                    </li>
+                    <li className="flex items-center gap-2">
+                      {plan.features.priority_queue ? (
+                        <Check className="h-3 w-3" style={{ color: 'hsl(var(--color-success))' }} />
+                      ) : (
+                        <X className="h-3 w-3" style={{ color: 'hsl(var(--color-muted))' }} />
+                      )}
+                      Priority queue
+                    </li>
+                    <li>{plan.features.voice_previews} voice previews</li>
+                    <li>{plan.features.rollover} rollover</li>
+                  </ul>
+                </div>
 
-            <div className="mt-16 text-center lg:mt-20">
-              <p className="mb-4 text-sm text-[hsl(var(--color-muted))]">
-                Start free, earn the activation bonus on your first real win, and upgrade when you need more polished output or more weekly volume.
-              </p>
-              <Link href="/billing">
-                <button className="rounded-[var(--radius-md)] bg-[hsl(var(--color-accent))] px-8 py-3 text-sm font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[var(--shadow-soft)]">
-                  Upgrade or Top-Up
+                <button
+                  className="w-full rounded-lg px-4 py-3 text-sm font-semibold transition"
+                  style={
+                    isPopular
+                      ? {
+                          background: 'hsl(var(--color-primary))',
+                          color: 'hsl(var(--color-primary-contrast))',
+                        }
+                      : {
+                          background: 'hsl(var(--color-surface))',
+                          border: '1px solid hsl(var(--color-border))',
+                          color: 'hsl(var(--color-text))',
+                        }
+                  }
+                >
+                  {isPopular ? 'Choose Creator' : 'Select Plan'}
                 </button>
-              </Link>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Feature Comparison Table */}
+        <div
+          className="glass-card rounded-2xl p-6 mb-16 overflow-x-auto"
+          style={{
+            border: '1px solid hsl(var(--color-border) / 0.8)',
+          }}
+        >
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: '1px solid hsl(var(--color-border))' }}>
+                <th className="text-left font-semibold py-3 px-4 text-text">Feature</th>
+                <th className="text-left font-semibold py-3 px-4 text-text">Free</th>
+                <th className="text-left font-semibold py-3 px-4 text-text">Starter</th>
+                <th className="text-left font-semibold py-3 px-4 text-text">Creator</th>
+                <th className="text-left font-semibold py-3 px-4 text-text">Studio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: 'Credits/month', values: ['25', '200', '600', '1800'] },
+                { label: 'Commercial use', values: ['❌', '✅', '✅', '✅'] },
+                { label: 'Priority queue', values: ['❌', '❌', '✅', '✅'] },
+                { label: 'Voice previews', values: ['3/day', '10/day', 'Unlimited', 'Unlimited'] },
+                { label: 'Rollover period', values: ['None', '1 month', '1 month', '3 months'] },
+              ].map((row, idx) => (
+                <tr
+                  key={idx}
+                  style={{
+                    borderBottom: '1px solid hsl(var(--color-border))',
+                    background: idx % 2 === 0 ? 'transparent' : 'hsl(var(--color-bg) / 0.3)',
+                  }}
+                >
+                  <td className="font-semibold py-3 px-4 text-text">{row.label}</td>
+                  {row.values.map((value, i) => (
+                    <td key={i} className="py-3 px-4 text-muted">
+                      {value}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Top-ups Section */}
+        <div className="mb-16 text-center">
+          <h2 className="text-2xl font-bold text-text mb-2">Need extra credits?</h2>
+          <p className="text-muted mb-6">Top up anytime without changing your plan. Credits never expire.</p>
+          <div className="grid gap-4 md:grid-cols-3">
+            {TOPUPS.map((topup) => (
+              <div
+                key={topup.name}
+                className="glass-card rounded-xl p-4"
+                style={{
+                  border: '1px solid hsl(var(--color-border) / 0.8)',
+                }}
+              >
+                <p className="font-semibold text-text">{topup.name}</p>
+                <p className="text-2xl font-bold text-text my-2">{topup.credits}</p>
+                <p className="text-xs text-muted">credits</p>
+                <p className="text-sm font-semibold text-primary mt-3">₹{topup.inr}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* FAQ Section */}
+        <div className="grid gap-4 lg:grid-cols-2 mb-16">
+          {FAQS.map((faq, idx) => (
+            <div
+              key={idx}
+              className="glass-card rounded-xl p-4"
+              style={{
+                border: '1px solid hsl(var(--color-border) / 0.8)',
+              }}
+            >
+              <h3 className="font-semibold text-text text-sm mb-2">{faq.q}</h3>
+              <p className="text-xs text-muted">{faq.a}</p>
             </div>
-          </>
-        )}
+          ))}
+        </div>
+
+        {/* Final CTA */}
+        <div className="text-center">
+          <p className="text-muted mb-4">Start free, earn the activation bonus on your first real win, and upgrade when you need more capacity.</p>
+          <Link
+            href="/billing"
+            className="inline-block px-8 py-3 rounded-lg text-sm font-semibold"
+            style={{
+              background: 'hsl(var(--color-primary))',
+              color: 'hsl(var(--color-primary-contrast))',
+            }}
+          >
+            Upgrade or Top-Up
+          </Link>
+        </div>
       </div>
     </main>
   );

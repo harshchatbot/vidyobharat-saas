@@ -51,7 +51,6 @@ export default function BillingPage() {
   const [history, setHistory] = useState<CreditHistoryItem[]>([]);
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [selectedPlan, setSelectedPlan] = useState('creator');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

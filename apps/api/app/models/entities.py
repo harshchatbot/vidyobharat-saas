@@ -192,6 +192,10 @@ class CreditWallet(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_active_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    credits_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    plan_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    billing_cycle: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    plan_activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped['User'] = relationship(back_populates='credit_wallet')
     transaction_history: Mapped[list['CreditTransaction']] = relationship(back_populates='wallet')

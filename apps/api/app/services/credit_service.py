@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -1273,6 +1273,14 @@ class CreditService:
         # is normalized separately so top-ups cannot alter future monthly resets.
         wallet.current_credits += credits
         wallet.lifetime_purchased += credits
+
+        # Set expiry fields based on billing cycle and plan
+        validity_days = metadata.get('validity_days', 30)
+        wallet.credits_expires_at = datetime.now(UTC) + timedelta(days=validity_days)
+        wallet.plan_name = metadata.get('plan_name', 'starter')
+        wallet.billing_cycle = metadata.get('billing_cycle', 'monthly')
+        wallet.plan_activated_at = datetime.now(UTC)
+
         tx_id = self.repo._new_int_id()
         feature_key, source = self._resolve_credit_transaction_labels(metadata)
         return wallet, {
@@ -1343,6 +1351,11 @@ class CreditService:
         idempotency_key: str,
     ) -> tuple[FirestoreCreditWallet, dict[str, Any]]:
         self._apply_monthly_reset_if_due(wallet)
+
+        # Check if paid plan credits have expired
+        if amount > 0 and wallet.credits_expires_at and datetime.now(UTC) > wallet.credits_expires_at:
+            raise RuntimeError(f'Plan expired. Your {wallet.plan_name} plan expired on {wallet.credits_expires_at}. Please renew to continue.')
+
         if amount > 0 and wallet.current_credits < amount:
             raise InsufficientCreditsError(required=amount, available=wallet.current_credits)
         wallet.current_credits -= amount
@@ -1577,3 +1590,20 @@ class CreditService:
 def _load_json_config(filename: str) -> dict[str, Any]:
     config_path = Path(__file__).resolve().parents[1] / 'core' / filename
     return json.loads(config_path.read_text())
+
+    def check_expiry_warnings(self, user_id: str) -> dict[str, Any]:
+        """Check if plan expires soon and return warning info."""
+        wallet = self.ensure_wallet(user_id)
+        if not wallet.credits_expires_at:
+            return {'warning': False}
+
+        days_left = (wallet.credits_expires_at - datetime.now(UTC)).days
+
+        if days_left <= 3:
+            return {
+                'warning': True,
+                'days_left': days_left,
+                'message': f'Your {wallet.plan_name} plan expires in {days_left} days. Renew to keep creating.',
+                'plan_name': wallet.plan_name,
+            }
+        return {'warning': False}

@@ -3,19 +3,41 @@
     "countries": ["IN", "NP", "LK", "BD", "PK", "BT", "MM"],
     "currency": "INR",
     "plans": {
-      "starter": 499,
-      "creator": 1499,
-      "growth": 2999,
-      "pro": 5999
+      "starter": {
+        "monthly": 999,
+        "annual": 7990,
+        "annual_monthly_equivalent": 799
+      },
+      "creator": {
+        "monthly": 2499,
+        "annual": 19990,
+        "annual_monthly_equivalent": 1999
+      },
+      "studio": {
+        "monthly": 5999,
+        "annual": 47990,
+        "annual_monthly_equivalent": 4799
+      }
     }
   },
   "global": {
     "currency": "USD",
     "plans": {
-      "starter": 9,
-      "creator": 19,
-      "growth": 39,
-      "pro": 79
+      "starter": {
+        "monthly": 13,
+        "annual": 104,
+        "annual_monthly_equivalent": 10
+      },
+      "creator": {
+        "monthly": 32,
+        "annual": 256,
+        "annual_monthly_equivalent": 26
+      },
+      "studio": {
+        "monthly": 79,
+        "annual": 632,
+        "annual_monthly_equivalent": 63
+      }
     }
   }
 }

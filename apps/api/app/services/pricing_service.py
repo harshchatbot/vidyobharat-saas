@@ -36,6 +36,8 @@ class CheckoutPlanSelection:
     payment_provider: str
     amount_minor: int
     allocated_credits: int
+    billing_cycle: str = 'monthly'
+    validity_days: int = 30
 
 
 

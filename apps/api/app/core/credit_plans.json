@@ -1,6 +1,49 @@
 {
-  "starter": 200,
-  "creator": 650,
-  "growth": 1400,
-  "pro": 3000
+  "free": {
+    "credits": 25,
+    "validity_days": 30,
+    "features": {
+      "commercial_use": false,
+      "priority_queue": false,
+      "voice_previews_per_day": 3,
+      "team_seats": 1,
+      "rollover_months": 0
+    }
+  },
+  "starter": {
+    "credits": 200,
+    "validity_days": 30,
+    "annual_credits": 200,
+    "features": {
+      "commercial_use": true,
+      "priority_queue": false,
+      "voice_previews_per_day": 10,
+      "team_seats": 1,
+      "rollover_months": 1
+    }
+  },
+  "creator": {
+    "credits": 600,
+    "validity_days": 30,
+    "annual_credits": 600,
+    "features": {
+      "commercial_use": true,
+      "priority_queue": true,
+      "voice_previews_per_day": 999,
+      "team_seats": 1,
+      "rollover_months": 1
+    }
+  },
+  "studio": {
+    "credits": 1800,
+    "validity_days": 30,
+    "annual_credits": 1800,
+    "features": {
+      "commercial_use": true,
+      "priority_queue": true,
+      "voice_previews_per_day": 999,
+      "team_seats": 3,
+      "rollover_months": 3
+    }
+  }
 }

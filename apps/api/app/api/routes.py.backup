@@ -933,31 +933,6 @@ def get_credit_wallet(
     return _to_credit_wallet_response(wallet)
 
 
-@router.get('/api/plan')
-def get_plan_status(
-    user_id: str = Depends(get_user_id),
-):
-    """Get user's current plan status including expiry information"""
-    wallet = CreditService().ensure_wallet(user_id)
-    now = datetime.now(UTC)
-
-    is_expired = bool(wallet.credits_expires_at and now > wallet.credits_expires_at)
-    days_until_expiry = None
-    if wallet.credits_expires_at and not is_expired:
-        delta = wallet.credits_expires_at - now
-        days_until_expiry = delta.days
-
-    return {
-        'plan_name': wallet.plan_name or 'free',
-        'billing_cycle': wallet.billing_cycle or 'monthly',
-        'credits_expires_at': wallet.credits_expires_at.isoformat() if wallet.credits_expires_at else None,
-        'days_until_expiry': days_until_expiry,
-        'is_expired': is_expired,
-        'current_credits': wallet.current_credits,
-        'plan_activated_at': wallet.plan_activated_at.isoformat() if wallet.plan_activated_at else None,
-    }
-
-
 @router.post('/api/estimateCredits', response_model=EstimateCreditsResponse)
 def estimate_credits(
     payload: EstimateCreditsRequest,

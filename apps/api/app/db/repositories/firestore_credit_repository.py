@@ -27,6 +27,10 @@ class FirestoreCreditWallet:
     recurring_monthly_credits: int = 40
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    credits_expires_at: datetime | None = None
+    plan_name: str | None = None
+    billing_cycle: str | None = None
+    plan_activated_at: datetime | None = None
 
 
 @dataclass
