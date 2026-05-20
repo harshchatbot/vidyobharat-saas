@@ -18,8 +18,6 @@ import VoiceSelector from './components/VoiceSelector';
 import ProductionStatus from './components/ProductionStatus';
 import ProductionStartingCheckpoint from './components/ProductionStartingCheckpoint';
 import FinalPreview from './components/FinalPreview';
-import CreditEstimate from './components/CreditEstimate';
-import TestModeSelector from './components/TestModeSelector';
 // ── TOW Checkpoint Components ─────────────────────────────────────────────
 import BriefCheckpoint from './components/BriefCheckpoint';
 import ProjectStatePackCheckpoint from './components/ProjectStatePackCheckpoint';
@@ -34,7 +32,7 @@ import { getCurrentUserId } from '@/lib/authUser';
 import { API_URL } from '@/lib/env';
 
 type GuidedFlowStep = 'category' | 'avatar-selection' | 'step1' | 'step2' | 'step3';
-type TestMode = 'real' | 'mock' | null;
+type TestMode = 'real' | null;
 
 const CATEGORY_MAP: Record<string, { name: string; requiresAvatar: 'required' | 'optional' | 'not_needed' }> = {
   ugc_testimonial: { name: 'UGC Testimonial', requiresAvatar: 'optional' },
@@ -122,8 +120,7 @@ export default function StoryAdPage() {
 
   const [guidedFlowStep, setGuidedFlowStep] = useState<GuidedFlowStep>(initialStep);
   const [creationMode, setCreationMode] = useState<'avatar' | 'storyboard' | null>(null);
-  const [testMode, setTestMode] = useState<TestMode>(null);
-  const [showTestModeSelector, setShowTestModeSelector] = useState(false);
+  const [testMode] = useState<TestMode>('real');
   const [guidedFlowData, setGuidedFlowData] = useState<{
     category?: string;
     platform?: string;
@@ -284,13 +281,10 @@ export default function StoryAdPage() {
       return;
     }
 
-    // Show test mode selector
-    setShowTestModeSelector(true);
+    await handleRealModeStart();
   };
 
-  const handleTestModeSelected = async (mode: 'real' | 'mock') => {
-    console.log('HANDLE TEST MODE SELECTED FIRED', mode);
-    setTestMode(mode);
+  const handleRealModeStart = async () => {
     // When setup wizard has already collected a brief, skip TOW Stage 1 (Brand Brief)
     // and start directly at Stage 2 (Project State Pack).
     // Only show brief_collecting when there is no setup data.
@@ -298,12 +292,11 @@ export default function StoryAdPage() {
     ? 'project_state_pack_generating'
     : 'brief_collecting';
     setLocalState(startState);
-    setShowTestModeSelector(false);
 
-    // Store test mode in session storage for use in components
+    // Store fixed real mode in session storage for components that still read this value.
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('testMode', mode);
-      console.log('[StoryAd] selected mode:', mode);
+      sessionStorage.setItem('testMode', 'real');
+      console.log('[StoryAd] selected mode:', 'real');
       console.log('[StoryAd] stored mode:', sessionStorage.getItem('testMode'));
     }
 
@@ -312,7 +305,7 @@ export default function StoryAdPage() {
       return;
     }
     const requiresProductReference = creationMode === 'avatar' || guidedFlowData.category === 'product_demo_lifestyle';
-    if (mode === 'real' && requiresProductReference && !guidedFlowData.briefData.product_image_url) {
+    if (requiresProductReference && !guidedFlowData.briefData.product_image_url) {
       alert('Upload a product reference image before starting real generation.');
       return;
     }
@@ -979,7 +972,7 @@ export default function StoryAdPage() {
     );
   };
 
-  const isMockMode = testMode === 'mock';
+  const isMockMode = false;
 
   const selectedCategory = guidedFlowData.category ? CATEGORY_MAP[guidedFlowData.category] : null;
 
@@ -991,22 +984,8 @@ export default function StoryAdPage() {
         : project.workflow_state || 'initialized',
     }
   : null;
-  const hideCreditEstimateDuringProduction = Boolean(
-    activeProjectForUi &&
-    ['production_starting', 'production_in_progress', 'production_completed', 'qc_ready', 'package_ready'].includes(
-      String(activeProjectForUi.workflow_state || '').toLowerCase(),
-    ),
-  );
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Test Mode Selector Modal */}
-      <TestModeSelector
-        open={showTestModeSelector}
-        onSelectMode={handleTestModeSelected}
-      />
-
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -1184,10 +1163,6 @@ export default function StoryAdPage() {
               {getCurrentCheckpoint()}
             </div>
 
-            {/* Credit Estimate Bar (sticky footer) */}
-            {activeProjectForUi && !hideCreditEstimateDuringProduction ? (
-              <CreditEstimate project={activeProjectForUi} />
-            ) : null}
           </>
         )}
       </div>
