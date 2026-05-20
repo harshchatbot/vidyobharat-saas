@@ -1,0 +1,189 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import { TrendingUp } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import type { CreditHistoryItem } from '@/types/api';
+
+interface SpendingByFeature {
+  feature: string;
+  credits: number;
+}
+
+interface DailyUsage {
+  date: string;
+  credits: number;
+}
+
+interface CreditsAnalyticsProps {
+  history: CreditHistoryItem[];
+}
+
+function formatFeatureName(name: string): string {
+  return name
+    .split('_')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+    .slice(0, 14);
+}
+
+function getSpendingByFeature(history: CreditHistoryItem[]): SpendingByFeature[] {
+  const spending: Record<string, number> = {};
+
+  history.forEach(item => {
+    if (item.transactionType === 'debit') {
+      const feat = item.featureName || 'other';
+      spending[feat] = (spending[feat] || 0) + item.creditsUsed;
+    }
+  });
+
+  return Object.entries(spending)
+    .map(([feature, credits]) => ({
+      feature: formatFeatureName(feature),
+      credits,
+    }))
+    .sort((a, b) => b.credits - a.credits)
+    .slice(0, 6);
+}
+
+function getDailyUsage(history: CreditHistoryItem[]): DailyUsage[] {
+  const daily: Record<string, number> = {};
+  const now = new Date();
+
+  // Initialize last 30 days
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const key = date.toISOString().split('T')[0];
+    daily[key] = 0;
+  }
+
+  // Add spending data
+  history.forEach(item => {
+    const date = new Date(item.createdAt).toISOString().split('T')[0];
+    if (date in daily && item.transactionType === 'debit') {
+      daily[date] += item.creditsUsed;
+    }
+  });
+
+  return Object.entries(daily)
+    .map(([date, credits]) => ({
+      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      credits,
+    }));
+}
+
+export function CreditsAnalytics({ history }: CreditsAnalyticsProps) {
+  const spendingByFeature = useMemo(() => getSpendingByFeature(history), [history]);
+  const dailyUsage = useMemo(() => getDailyUsage(history), [history]);
+
+  const totalSpent = useMemo(() =>
+    history.reduce((sum, item) => sum + (item.transactionType === 'debit' ? item.creditsUsed : 0), 0),
+    [history]
+  );
+
+  const avgDailySpend = useMemo(() =>
+    Math.round(totalSpent / 30),
+    [totalSpent]
+  );
+
+  const topFeature = useMemo(() =>
+    spendingByFeature[0]?.feature || 'N/A',
+    [spendingByFeature]
+  );
+
+  const maxSpending = useMemo(() =>
+    Math.max(...spendingByFeature.map(s => s.credits), 1),
+    [spendingByFeature]
+  );
+
+  const maxDaily = useMemo(() =>
+    Math.max(...dailyUsage.map(d => d.credits), 1),
+    [dailyUsage]
+  );
+
+  if (history.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="rangmanch-studio-panel space-y-2 border-none bg-transparent">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">Total spent (all-time)</p>
+          <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{totalSpent}</p>
+        </Card>
+        <Card className="rangmanch-studio-panel space-y-2 border-none bg-transparent">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">Avg daily spend</p>
+          <p className="font-heading text-xl font-extrabold text-text sm:text-2xl">{avgDailySpend}</p>
+        </Card>
+        <Card className="rangmanch-studio-panel space-y-2 border-none bg-transparent">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">Top feature</p>
+          <p className="font-heading text-xl font-extrabold text-text sm:text-2xl truncate">{topFeature}</p>
+        </Card>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Spending by Feature Bar Chart */}
+        {spendingByFeature.length > 0 && (
+          <Card className="rangmanch-studio-panel border-none bg-transparent p-4">
+            <p className="mb-4 text-sm font-semibold text-text">Spending by feature</p>
+            <div className="space-y-3">
+              {spendingByFeature.map((item) => {
+                const percentage = (item.credits / maxSpending) * 100;
+                return (
+                  <div key={item.feature} className="flex items-center gap-3">
+                    <div className="min-w-20 text-xs font-medium text-muted">{item.feature}</div>
+                    <div className="flex-1 rounded-full h-6 bg-[hsl(var(--color-bg)/0.5)] overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[hsl(var(--color-accent))] to-[hsl(var(--color-accent)/0.7)] rounded-full transition-all duration-300"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="min-w-10 text-right text-sm font-semibold text-text">{item.credits}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Daily Usage Sparkline */}
+        {dailyUsage.length > 0 && (
+          <Card className="rangmanch-studio-panel border-none bg-transparent p-4">
+            <p className="mb-4 text-sm font-semibold text-text">Daily spending (30 days)</p>
+            <div className="flex items-end justify-between gap-0.5 h-24">
+              {dailyUsage.map((item, idx) => {
+                const percentage = (item.credits / maxDaily) * 100 || 5;
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 group">
+                    <div
+                      className="w-full rounded-t-sm bg-gradient-to-t from-[hsl(var(--color-accent))] to-[hsl(var(--color-accent)/0.5)] transition-all duration-200 group-hover:from-[hsl(var(--color-accent)/0.9)] group-hover:to-[hsl(var(--color-accent)/0.6)] cursor-pointer"
+                      style={{ height: `${Math.max(percentage, 5)}%` }}
+                      title={`${item.date}: ${item.credits} credits`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-muted">
+              <span>{dailyUsage[0]?.date}</span>
+              <span>{dailyUsage[dailyUsage.length - 1]?.date}</span>
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

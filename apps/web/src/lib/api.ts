@@ -1193,5 +1193,21 @@ export const api = {
     }, { userId, cache: 'no-store' });
   },
 
-  
+  listStoryboardProjects(userId: string, limit = 50) {
+    return request<{ projects: Array<{
+      id: string;
+      adCategory: string;
+      businessBrief: string;
+      workflowState: string;
+      productionStatus: string | null;
+      thumbnailUrl: string | null;
+      createdAt: string | null;
+      completedAt: string | null;
+    }> }>(
+      `/api/storyboard?limit=${limit}`,
+      {},
+      { userId, cache: 'no-store' }
+    );
+  },
+
 };

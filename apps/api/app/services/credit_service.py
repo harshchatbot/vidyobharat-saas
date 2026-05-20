@@ -453,6 +453,13 @@ class CreditService:
                     'already_processed': already_processed,
                 },
             )
+        # Record streak activity on successful credit deduction
+        if amount > 0 and not already_processed:
+            try:
+                from app.services.streak_service import StreakService
+                StreakService().record_activity(user_id)
+            except Exception as e:
+                logger.exception('streak_recording_failed', extra={'user_id': user_id, 'error': str(e)})
         return result
 
     def list_history(self, user_id: str, limit: int = 100) -> list[FirestoreCreditTransaction]:

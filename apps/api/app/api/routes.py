@@ -124,6 +124,7 @@ from app.services.avatar_product_tts_catalog import (
     resolve_avatar_product_gemini_language,
 )
 from app.services.credit_service import CreditCapExceededError, CreditService, InsufficientCreditsError
+from app.services.streak_service import StreakService
 from app.services.fal_video_service import FalVideoService
 from app.services.model_registry import get_normal_video_family_definition
 from app.services.motion_control_media_service import MAX_MOTION_CONTROL_DURATION_SECONDS, MotionControlMediaService
@@ -1222,6 +1223,24 @@ def run_monthly_credit_reset():
     # Internal hook for cron/scheduler integration.
     updated = CreditService().run_monthly_reset()
     return {'updated_wallets': updated}
+
+
+@router.get('/api/streak')
+def get_streak(
+    user_id: str = Depends(get_user_id),
+):
+    """Get current user streak."""
+    streak_service = StreakService()
+    return streak_service.get_streak(user_id)
+
+
+@router.post('/api/streak/activity')
+def record_activity(
+    user_id: str = Depends(get_user_id),
+):
+    """Record user activity and update streak."""
+    streak_service = StreakService()
+    return streak_service.record_activity(user_id)
 
 
 @router.get('/me/profile', response_model=UserProfileResponse)

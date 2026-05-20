@@ -12,7 +12,6 @@ import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StudioPageHeader } from '@/components/ui/StudioPageHeader';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
-import { StoryboardProjects } from './StoryboardProjects';
 import type { Project } from '@/types/api';
 
 type Props = {
@@ -102,7 +101,7 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
   const [sortBy, setSortBy] = useState<SortKey>('recent');
   const [activeTab, setActiveTab] = useState<'all' | 'storyboard'>('all');
   const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
-  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [deletingProjectId, setDeleteingProjectId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_PROJECT_BATCH);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(initialProjects.length > 0 ? Date.now() : 0);
@@ -273,41 +272,6 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
         </div>
 
         <div className="space-y-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('all')}
-              className="glass-card px-4 py-2 text-sm font-medium rounded-[12px] border transition"
-              style={activeTab === 'all' ? {
-                background: 'hsl(var(--color-primary) / 0.15)',
-                border: '1px solid hsl(var(--color-primary) / 0.4)',
-                color: 'hsl(var(--color-primary))'
-              } : {
-                background: 'transparent',
-                border: '1px solid hsl(var(--color-border))',
-                color: 'hsl(var(--color-text))'
-              }}
-            >
-              My Projects
-            </button>
-            <button
-              onClick={() => setActiveTab('storyboard')}
-              className="glass-card px-4 py-2 text-sm font-medium rounded-[12px] border transition"
-              style={activeTab === 'storyboard' ? {
-                background: 'hsl(var(--color-primary) / 0.15)',
-                border: '1px solid hsl(var(--color-primary) / 0.4)',
-                color: 'hsl(var(--color-primary))'
-              } : {
-                background: 'transparent',
-                border: '1px solid hsl(var(--color-border))',
-                color: 'hsl(var(--color-text))'
-              }}
-            >
-              🎬 Ad Projects
-            </button>
-          </div>
-
-          {activeTab === 'all' ? (
-          <>
           <div className="space-y-3 border-b border-[hsl(var(--color-border)/0.5)] pb-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -444,10 +408,6 @@ export function ProjectsClient({ initialProjects, userId }: Props) {
               </Button>
             </div>
           ) : null}
-          </>
-          ) : (
-            <StoryboardProjects userId={userId} />
-          )}
         </div>
       </section>
     </div>

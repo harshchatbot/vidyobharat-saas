@@ -3,6 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Mic2, Volume2, Loader } from 'lucide-react';
 import { markOnboardingComplete } from './OnboardingChecklist';
+import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+
+// Backend API base URL
+const API_BASE_URL = 'http://localhost:8000';
 
 interface VoicePreviewModalProps {
   isOpen: boolean;
@@ -10,8 +14,11 @@ interface VoicePreviewModalProps {
 }
 
 interface Voice {
-  name: string;
+  key: string;
+  label: string;
   tone: string;
+  gender: string;
+  description: string;
 }
 
 interface Language {
@@ -27,11 +34,48 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
   const [previewText, setPreviewText] = useState<string>('Welcome to RangManchAI, lets create something for your audience today');
   const [loading, setLoading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewResult, setPreviewResult] = useState<any>(null);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Get placeholder text based on selected language
+  const getPlaceholder = (lang: string): string => {
+    if (lang.toLowerCase().includes('hindi')) return 'हिंदी में टाइप करें... e.g. नमस्ते, आज हम कुछ खास बनाएंगे';
+    if (lang.toLowerCase().includes('bengali')) return 'বাংলায় টাইপ করুন...';
+    if (lang.toLowerCase().includes('tamil')) return 'தமிழில் தட்டச்சு செய்யுங்கள்...';
+    if (lang.toLowerCase().includes('telugu')) return 'తెలుగులో టైప్ చేయండి...';
+    if (lang.toLowerCase().includes('marathi')) return 'मराठीत टाइप करा...';
+    return 'Type something to hear this voice...';
+  };
+
+  // Get default text based on language
+  const getDefaultText = (lang: string): string => {
+    const l = lang.toLowerCase();
+    if (l.includes('hindi')) return 'नमस्ते, आज हम कुछ खास बनाएंगे आपके दर्शकों के लिए';
+    if (l.includes('punjabi')) return 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ, ਅੱਜ ਅਸੀਂ ਤੁਹਾਡੇ ਦਰਸ਼ਕਾਂ ਲਈ ਕੁਝ ਖਾਸ ਬਣਾਵਾਂਗੇ';
+    if (l.includes('bengali') || l.includes('bangla')) return 'হ্যালো, আজ আমরা আপনার দর্শকদের জন্য কিছু বিশেষ তৈরি করব';
+    if (l.includes('tamil')) return 'வணக்கம், இன்று உங்கள் பார்வையாளர்களுக்காக ஏதாவது சிறப்பானதை உருவாக்குவோம்';
+    if (l.includes('telugu')) return 'నమస్కారం, ఈరోజు మీ ప్రేక్షకుల కోసం ఏదైనా ప్రత్యేకమైనది సృష్టిద్దాం';
+    if (l.includes('marathi')) return 'नमस्कार, आज आपल्या प्रेक्षकांसाठी काहीतरी खास बनवूया';
+    if (l.includes('gujarati')) return 'નમસ્તે, આજે આપણે તમારા પ્રેક્ષકો માટે કંઈક ખાસ બનાવીશું';
+    if (l.includes('kannada')) return 'ನಮಸ್ಕಾರ, ಇಂದು ನಿಮ್ಮ ಪ್ರೇಕ್ಷಕರಿಗಾಗಿ ಏನಾದರೂ ವಿಶೇಷವಾದದ್ದನ್ನು ರಚಿಸೋಣ';
+    if (l.includes('malayalam')) return 'നമസ്കാരം, ഇന്ന് നിങ്ങളുടെ പ്രേക്ഷകർക്കായി എന്തെങ്കിലും പ്രത്യേകമായത് സൃഷ്ടിക്കാം';
+    if (l.includes('urdu')) return 'السلام علیکم، آج ہم آپ کے ناظرین کے لیے کچھ خاص بنائیں گے';
+    if (l.includes('odia')) return 'ନମସ୍କାର, ଆଜି ଆମେ ଆପଣଙ୍କ ଦର୍ଶକଙ୍କ ପାଇଁ କିଛି ବିଶେଷ ତିଆରି କରିବା';
+    if (l.includes('arabic')) return 'مرحباً، اليوم سنصنع شيئاً مميزاً لجمهورك';
+    if (l.includes('spanish')) return 'Hola, hoy crearemos algo especial para tu audiencia';
+    if (l.includes('french')) return 'Bonjour, aujourd\'hui nous allons créer quelque chose de spécial pour votre public';
+    if (l.includes('german')) return 'Hallo, heute werden wir etwas Besonderes für Ihr Publikum erstellen';
+    if (l.includes('japanese')) return 'こんにちは、今日はあなたの視聴者のために特別なものを作りましょう';
+    if (l.includes('korean')) return '안녕하세요, 오늘 여러분의 시청자를 위해 특별한 것을 만들어 보겠습니다';
+    if (l.includes('chinese')) return '你好，今天我们将为您的观众创造一些特别的东西';
+    if (l.includes('portuguese')) return 'Olá, hoje vamos criar algo especial para o seu público';
+    if (l.includes('russian')) return 'Привет, сегодня мы создадим что-то особенное для вашей аудитории';
+    return 'Welcome to RangManchAI, lets create something amazing for your audience today';
+  };
 
   // Load voices on mount
   useEffect(() => {
@@ -42,9 +86,12 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
   const fetchVoices = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/tts/voices', {
+      const userId = getCurrentUserIdOrThrow('Voice preview');
+      const response = await fetch(`${API_BASE_URL}/api/tts/voices`, {
         method: 'GET',
-        credentials: 'include',
+        headers: {
+          'X-User-ID': userId,
+        },
       });
       if (!response.ok) throw new Error('Failed to load voices');
       const data = await response.json();
@@ -69,11 +116,15 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
 
     try {
       setPreviewing(true);
+      setAudioLoading(true);
       setError(null);
-      const response = await fetch('/api/tts/preview', {
+      const userId = getCurrentUserIdOrThrow('Voice preview');
+      const response = await fetch(`${API_BASE_URL}/api/tts/preview`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': userId,
+        },
         body: JSON.stringify({
           text: previewText,
           voice: selectedVoice,
@@ -99,14 +150,6 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
 
       // Mark onboarding complete on successful preview
       markOnboardingComplete('preview_voice');
-
-      // Auto-play preview
-      if (result.audio_url && audioRef.current) {
-        audioRef.current.src = result.audio_url;
-        setTimeout(() => {
-          audioRef.current?.play();
-        }, 100);
-      }
     } catch (err) {
       setError('Voice preview failed. Please try again.');
       console.error(err);
@@ -155,7 +198,10 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
           </label>
           <select
             value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
+            onChange={(e) => {
+              setSelectedLanguage(e.target.value);
+              setPreviewText(getDefaultText(e.target.value));
+            }}
             className="w-full glass-card px-3 py-2 text-sm rounded-lg"
             style={{
               color: 'hsl(var(--color-text))',
@@ -176,30 +222,58 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
           <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{ color: 'hsl(var(--color-muted))' }}>
             Voice
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            {voices.slice(0, 8).map((voice) => (
+          <div className="max-h-48 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {voices.map((voice) => (
               <button
-                key={voice.name}
-                onClick={() => setSelectedVoice(voice.name)}
-                className="glass-card px-3 py-2 text-sm rounded-lg text-center transition-all"
+                key={voice.key}
+                onClick={() => setSelectedVoice(voice.label)}
+                className="glass-card px-3 py-2 text-sm rounded-lg transition-all flex flex-col items-start"
                 style={{
                   color:
-                    selectedVoice === voice.name
+                    selectedVoice === voice.label
                       ? 'hsl(var(--color-primary))'
                       : 'hsl(var(--color-text))',
                   background:
-                    selectedVoice === voice.name
+                    selectedVoice === voice.label
                       ? 'hsl(var(--color-primary)/0.15)'
                       : 'transparent',
                   border:
-                    selectedVoice === voice.name
+                    selectedVoice === voice.label
                       ? '1px solid hsl(var(--color-primary)/0.5)'
                       : '1px solid hsl(var(--glass-border))',
                 }}
               >
-                {voice.name}
+                <div className="flex items-center gap-1.5 w-full">
+                  <span className="font-medium">{voice.label}</span>
+                  {voice.gender.toLowerCase() === 'female' ? (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        background: 'hsl(var(--color-accent-pink) / 0.15)',
+                        color: 'hsl(var(--color-accent-pink))',
+                      }}
+                    >
+                      F
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        background: 'hsl(var(--color-accent-cyan) / 0.15)',
+                        color: 'hsl(var(--color-accent-cyan))',
+                      }}
+                    >
+                      M
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs mt-1 truncate w-full" style={{ color: 'hsl(var(--color-muted))' }}>
+                  {voice.description}
+                </span>
               </button>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -211,7 +285,7 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
           <textarea
             value={previewText}
             onChange={(e) => setPreviewText(e.target.value.slice(0, 280))}
-            placeholder="Type something to hear this voice..."
+            placeholder={getPlaceholder(selectedLanguage)}
             className="w-full glass-card px-3 py-2 text-sm rounded-lg resize-none"
             rows={3}
             style={{
@@ -222,6 +296,9 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
           />
           <p className="text-xs mt-1" style={{ color: 'hsl(var(--color-muted))' }}>
             {previewText.length}/280 characters
+          </p>
+          <p className="text-xs mt-2" style={{ color: 'hsl(var(--color-accent-amber))' }}>
+            💡 For best results, type your preview text in the selected language script.
           </p>
         </div>
 
@@ -275,13 +352,37 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
                 </span>
               )}
             </div>
+            {audioLoading && (
+              <div
+                className="flex items-center gap-2 text-xs mt-2"
+                style={{ color: 'hsl(var(--color-muted))' }}
+              >
+                <div
+                  className="h-3 w-3 rounded-full border-2 animate-spin"
+                  style={{
+                    borderColor: 'hsl(var(--color-primary) / 0.3)',
+                    borderTopColor: 'hsl(var(--color-primary))',
+                  }}
+                />
+                Loading audio...
+              </div>
+            )}
             <audio
+              key={previewResult.audio_url}
               ref={audioRef}
+              src={previewResult.audio_url}
               controls
-              className="w-full"
+              autoPlay
+              crossOrigin="anonymous"
+              className="w-full mt-2"
               style={{ height: '32px' }}
-              onPlay={() => {}}
-              onPause={() => {}}
+              onLoadStart={() => setAudioLoading(true)}
+              onCanPlay={() => setAudioLoading(false)}
+              onError={(e) => {
+                console.error('Audio playback error:', e);
+                setAudioLoading(false);
+                setError('Failed to load audio. Please try again.');
+              }}
             />
           </div>
         )}

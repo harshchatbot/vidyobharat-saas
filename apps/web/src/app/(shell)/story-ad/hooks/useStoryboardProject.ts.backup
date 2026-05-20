@@ -8,7 +8,7 @@ function getUserId(): string {
 }
 
 // Backend API base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8000';
 const STORY_AD_REAL_SMOKE = process.env.NEXT_PUBLIC_STORY_AD_REAL_SMOKE === 'true';
 
 

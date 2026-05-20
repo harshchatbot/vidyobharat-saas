@@ -1,0 +1,156 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Play, Calendar, Tag } from 'lucide-react';
+import { api } from '@/lib/api';
+import { Card } from '@/components/ui/Card';
+
+interface StoryboardProject {
+  id: string;
+  adCategory: string;
+  businessBrief: string;
+  workflowState: string;
+  productionStatus: string | null;
+  thumbnailUrl: string | null;
+  createdAt: string | null;
+  completedAt: string | null;
+}
+
+type Props = {
+  userId: string;
+};
+
+function getStatusBadge(workflowState: string, productionStatus: string | null) {
+  const baseClasses = 'inline-block px-2 py-1 rounded-full text-xs font-semibold';
+
+  if (workflowState === 'completed' || productionStatus === 'completed') {
+    return <span className={`${baseClasses} bg-green-900/30 text-green-200`}>Completed</span>;
+  }
+  if (productionStatus === 'failed') {
+    return <span className={`${baseClasses} bg-red-900/30 text-red-200`}>Failed</span>;
+  }
+  if (productionStatus && productionStatus !== 'pending') {
+    return <span className={`${baseClasses} bg-blue-900/30 text-blue-200`}>In Production</span>;
+  }
+  if (workflowState.includes('script')) {
+    return <span className={`${baseClasses} bg-yellow-900/30 text-yellow-200`}>Script Phase</span>;
+  }
+  if (workflowState.includes('storyboard')) {
+    return <span className={`${baseClasses} bg-purple-900/30 text-purple-200`}>Storyboard Phase</span>;
+  }
+  return <span className={`${baseClasses} bg-slate-900/30 text-slate-200`}>In Progress</span>;
+}
+
+export function StoryboardProjects({ userId }: Props) {
+  const [projects, setProjects] = useState<StoryboardProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.listStoryboardProjects(userId);
+        setProjects(result.projects || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load ad projects');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => (
+          <Card key={i} className="rangmanch-studio-panel h-24 border-none bg-transparent animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="rangmanch-studio-panel border-none bg-transparent p-4">
+        <p className="text-sm text-red-400">{error}</p>
+      </Card>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <Card className="rangmanch-studio-panel border-none bg-transparent p-8 text-center">
+        <div className="space-y-2">
+          <Play className="h-8 w-8 mx-auto text-[hsl(var(--color-accent)/0.5)]" />
+          <p className="text-sm text-muted">No ad projects yet</p>
+          <p className="text-xs text-[hsl(var(--color-accent))]">
+            <Link href="/create/avatar" className="underline hover:no-underline">
+              Create your first ad
+            </Link>
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {projects.map(project => (
+        <Link
+          key={project.id}
+          href={`/story-ad?resumeProjectId=${project.id}`}
+          className="block group"
+        >
+          <Card className="rangmanch-studio-panel border-none bg-transparent p-4 transition hover:bg-[hsl(var(--color-accent)/0.05)] cursor-pointer">
+            <div className="flex items-start gap-4">
+              {/* Thumbnail */}
+              {project.thumbnailUrl && (
+                <div className="h-20 w-20 rounded-lg overflow-hidden flex-shrink-0 bg-[hsl(var(--color-bg)/0.5)]">
+                  <img
+                    src={project.thumbnailUrl}
+                    alt={project.businessBrief}
+                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                  />
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1">
+                    <p className="font-semibold text-text truncate">{project.businessBrief}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Tag className="h-3 w-3 text-muted" />
+                      <p className="text-xs text-muted capitalize">{project.adCategory}</p>
+                    </div>
+                  </div>
+                  {getStatusBadge(project.workflowState, project.productionStatus)}
+                </div>
+
+                {/* Timeline */}
+                <div className="flex items-center gap-4 text-xs text-muted">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>
+                      {project.createdAt
+                        ? new Date(project.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Unknown'}
+                    </span>
+                  </div>
+                  <span>•</span>
+                  <span className="capitalize">{project.workflowState}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Link>
+      ))}
+    </div>
+  );
+}

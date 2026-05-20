@@ -6,7 +6,7 @@ import { markOnboardingComplete } from './OnboardingChecklist';
 import { getCurrentUserIdOrThrow } from '@/lib/authUser';
 
 // Backend API base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8000';
 
 interface VoicePreviewModalProps {
   isOpen: boolean;
@@ -53,27 +53,11 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
 
   // Get default text based on language
   const getDefaultText = (lang: string): string => {
-    const l = lang.toLowerCase();
-    if (l.includes('hindi')) return 'नमस्ते, आज हम कुछ खास बनाएंगे आपके दर्शकों के लिए';
-    if (l.includes('punjabi')) return 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ, ਅੱਜ ਅਸੀਂ ਤੁਹਾਡੇ ਦਰਸ਼ਕਾਂ ਲਈ ਕੁਝ ਖਾਸ ਬਣਾਵਾਂਗੇ';
-    if (l.includes('bengali') || l.includes('bangla')) return 'হ্যালো, আজ আমরা আপনার দর্শকদের জন্য কিছু বিশেষ তৈরি করব';
-    if (l.includes('tamil')) return 'வணக்கம், இன்று உங்கள் பார்வையாளர்களுக்காக ஏதாவது சிறப்பானதை உருவாக்குவோம்';
-    if (l.includes('telugu')) return 'నమస్కారం, ఈరోజు మీ ప్రేక్షకుల కోసం ఏదైనా ప్రత్యేకమైనది సృష్టిద్దాం';
-    if (l.includes('marathi')) return 'नमस्कार, आज आपल्या प्रेक्षकांसाठी काहीतरी खास बनवूया';
-    if (l.includes('gujarati')) return 'નમસ્તે, આજે આપણે તમારા પ્રેક્ષકો માટે કંઈક ખાસ બનાવીશું';
-    if (l.includes('kannada')) return 'ನಮಸ್ಕಾರ, ಇಂದು ನಿಮ್ಮ ಪ್ರೇಕ್ಷಕರಿಗಾಗಿ ಏನಾದರೂ ವಿಶೇಷವಾದದ್ದನ್ನು ರಚಿಸೋಣ';
-    if (l.includes('malayalam')) return 'നമസ്കാരം, ഇന്ന് നിങ്ങളുടെ പ്രേക്ഷകർക്കായി എന്തെങ്കിലും പ്രത്യേകമായത് സൃഷ്ടിക്കാം';
-    if (l.includes('urdu')) return 'السلام علیکم، آج ہم آپ کے ناظرین کے لیے کچھ خاص بنائیں گے';
-    if (l.includes('odia')) return 'ନମସ୍କାର, ଆଜି ଆମେ ଆପଣଙ୍କ ଦର୍ଶକଙ୍କ ପାଇଁ କିଛି ବିଶେଷ ତିଆରି କରିବା';
-    if (l.includes('arabic')) return 'مرحباً، اليوم سنصنع شيئاً مميزاً لجمهورك';
-    if (l.includes('spanish')) return 'Hola, hoy crearemos algo especial para tu audiencia';
-    if (l.includes('french')) return 'Bonjour, aujourd\'hui nous allons créer quelque chose de spécial pour votre public';
-    if (l.includes('german')) return 'Hallo, heute werden wir etwas Besonderes für Ihr Publikum erstellen';
-    if (l.includes('japanese')) return 'こんにちは、今日はあなたの視聴者のために特別なものを作りましょう';
-    if (l.includes('korean')) return '안녕하세요, 오늘 여러분의 시청자를 위해 특별한 것을 만들어 보겠습니다';
-    if (l.includes('chinese')) return '你好，今天我们将为您的观众创造一些特别的东西';
-    if (l.includes('portuguese')) return 'Olá, hoje vamos criar algo especial para o seu público';
-    if (l.includes('russian')) return 'Привет, сегодня мы создадим что-то особенное для вашей аудитории';
+    if (lang.toLowerCase().includes('hindi')) return 'नमस्ते, आज हम कुछ खास बनाएंगे आपके दर्शकों के लिए';
+    if (lang.toLowerCase().includes('bengali')) return 'হ্যালো, আজ আমরা আপনার দর্শকদের জন্য কিছু বিশেষ তৈরি করব';
+    if (lang.toLowerCase().includes('tamil')) return 'வணக்கம், இன்று உங்கள் பார்வையாளர்களுக்காக ஏதாவது சிறப்பானதை உருவாக்குவோம்';
+    if (lang.toLowerCase().includes('telugu')) return 'నమస్కారం, ఈరోజు మీ ప్రేక్షకుల కోసం ఏదైనా ప్రత్యేకమైనది సృష్టిద్దాం';
+    if (lang.toLowerCase().includes('marathi')) return 'नमस्कार, आज आपल्या प्रेक्षकांसाठी काहीतरी खास बनवूया';
     return 'Welcome to RangManchAI, lets create something amazing for your audience today';
   };
 
@@ -298,7 +282,7 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
             {previewText.length}/280 characters
           </p>
           <p className="text-xs mt-2" style={{ color: 'hsl(var(--color-accent-amber))' }}>
-            💡 For best results, type your preview text in the selected language script.
+            💡 Type your text in the selected language. Selecting Hindi? Write in Hindi script for authentic pronunciation.
           </p>
         </div>
 

@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -189,6 +189,9 @@ class CreditWallet(Base):
     last_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     premium_usage_count: Mapped[int] = mapped_column(Integer, default=0)
     free_usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_active_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     user: Mapped['User'] = relationship(back_populates='credit_wallet')
     transaction_history: Mapped[list['CreditTransaction']] = relationship(back_populates='wallet')

@@ -180,6 +180,48 @@ async def initialize_project(
         logger.error("project_initialization_failed", extra={"error": str(e)})
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("", summary="List user's storyboard projects")
+async def list_projects(
+    limit: int = 50,
+    user_id: str = Depends(get_current_user_id),
+) -> dict[str, Any]:
+    """
+    List all storyboard projects for the current user.
+    
+    Returns project summaries with status and creation date.
+    """
+    try:
+        service = StoryboardPipelineService()
+        projects = service.db.list_projects(user_id=user_id, limit=limit)
+        
+        # Map to response format
+        project_list = [
+            {
+                "id": p.id,
+                "adCategory": p.ad_category,
+                "businessBrief": p.business_brief[:60] + "..." if len(p.business_brief) > 60 else p.business_brief,
+                "workflowState": p.workflow_state,
+                "productionStatus": p.production_status,
+                "thumbnailUrl": p.thumbnail_url,
+                "createdAt": p.created_at.isoformat() if p.created_at else None,
+                "completedAt": p.completed_at.isoformat() if p.completed_at else None,
+            }
+            for p in projects
+        ]
+        
+        logger.info("projects_listed", extra={"user_id": user_id, "count": len(project_list)})
+        return {
+            "status": "success",
+            "projects": project_list,
+            "total": len(project_list),
+        }
+    except Exception as e:
+        logger.error("list_projects_failed", extra={"error": str(e)})
+        raise HTTPException(status_code=400, detail=str(e))
+
+        logger.error("project_initialization_failed", extra={"error": str(e)})
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/{project_id}", summary="Get project details")
 async def get_project(

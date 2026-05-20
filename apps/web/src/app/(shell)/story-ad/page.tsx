@@ -116,7 +116,7 @@ export default function StoryAdPage() {
   };
   const searchParams = useSearchParams();
   const router = useRouter();
-  const projectIdParam = searchParams.get('project_id');
+  const projectIdParam = searchParams.get('project_id') || searchParams.get('resumeProjectId');
   const initialStep = (searchParams.get('step') as GuidedFlowStep) || 'category';
 
   const [guidedFlowStep, setGuidedFlowStep] = useState<GuidedFlowStep>(initialStep);

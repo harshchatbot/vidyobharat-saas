@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Coins, Receipt, Wallet } from 'lucide-react';
 
 import { useCredits } from '@/components/credits/CreditContext';
+import { CreditsAnalytics } from '@/components/credits/CreditsAnalytics';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -87,7 +88,7 @@ export default function BillingPage() {
 
         const [walletResult, historyResult] = await Promise.allSettled([
           api.getCreditWallet(raw),
-          api.getCreditHistory(raw, 8),
+          api.getCreditHistory(raw, 60),
         ]);
 
         if (walletResult.status === 'fulfilled') {
@@ -179,7 +180,7 @@ export default function BillingPage() {
               );
               setWallet(verification.wallet);
               applyWallet(verification.wallet);
-              const refreshed = await api.getCreditHistory(userId, 8);
+              const refreshed = await api.getCreditHistory(userId, 60);
               setHistory(refreshed.items);
               show(`Top-up successful! Credits Added: ${verification.addedCredits} · Balance: ${verification.wallet.currentCredits}`);
             } catch (verifyError) {
@@ -231,6 +232,17 @@ export default function BillingPage() {
           </>
         }
       />
+
+      {/* Usage & Insights Section */}
+      {history.length > 0 && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-text">Usage & Insights</p>
+            <p className="text-xs text-muted">Analytics of your credit spending and patterns.</p>
+          </div>
+          <CreditsAnalytics history={history} />
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
@@ -358,7 +370,7 @@ export default function BillingPage() {
             <p className="text-sm text-muted">No billing activity yet.</p>
           ) : (
             <div className="space-y-3">
-              {history.map((item) => (
+              {history.slice(0, 8).map((item) => (
                 <div key={item.id} className="rounded-[22px] border border-[hsl(var(--color-border)/0.78)] bg-[hsl(var(--color-bg)/0.45)] p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     <p className="text-sm font-semibold text-text">{formatCreditFeatureLabel(item)}</p>

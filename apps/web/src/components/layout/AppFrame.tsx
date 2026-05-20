@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, Suspense } from 'react';
 import { ChevronDown, Compass, FolderKanban, FolderPlus, HelpCircle, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, MessageCircle, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
@@ -13,6 +13,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { Button } from '@/components/ui/Button';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
+import { StreakWidget } from '@/components/ui/StreakWidget';
 import PageTransition from '@/components/ui/PageTransition';
 import { API_URL } from '@/lib/env';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -367,6 +368,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     </Button>
                   </div>
                     */}
+                  <Suspense fallback={null}>
+                    <StreakWidget />
+                  </Suspense>
                   <SidebarCreditsCard />
 
                 {/*  <button
