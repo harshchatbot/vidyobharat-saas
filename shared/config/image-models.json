@@ -1,0 +1,52 @@
+{
+  "imageModels": [
+    {
+      "key": "budget_image_model",
+      "label": "Fast Social Images",
+      "description": "Budget-friendly image generation for quick social content and rapid iteration.",
+      "frontend_hint": "Primary fast lane for fast drafts and social-first visuals.",
+      "provider": "Together",
+      "badge": "Affordable",
+      "logo_label": "T",
+      "canonical_model_key": "budget_image_model",
+      "bestFor": "Best for quick social content",
+      "creditsPerImage": 4
+    },
+    {
+      "key": "gpt_image_1_5",
+      "label": "GPT Image 1.5",
+      "description": "Premium realistic image generation with stronger prompt fidelity.",
+      "frontend_hint": "Best for polished brand visuals, ads, and premium realism.",
+      "provider": "OpenAI",
+      "badge": "Premium",
+      "logo_label": "O",
+      "canonical_model_key": "gpt_image_1_5",
+      "bestFor": "Best for realistic product images",
+      "creditsPerImage": 12
+    },
+    {
+      "key": "recraft",
+      "label": "Recraft",
+      "description": "Design-focused image generation for posters, carousels, and structured graphics.",
+      "frontend_hint": "Best for graphic-style outputs and brand layouts.",
+      "provider": "Recraft",
+      "badge": "Design",
+      "logo_label": "R",
+      "canonical_model_key": "recraft",
+      "bestFor": "Best for design, posters & graphics",
+      "creditsPerImage": 7
+    },
+    {
+      "key": "gemini_flash_image",
+      "label": "Gemini 3.1 Flash Image",
+      "description": "Fast, affordable image generation for high-volume creative work.",
+      "frontend_hint": "Best for quick image concepts and social testing.",
+      "provider": "Google",
+      "badge": "Fast",
+      "logo_label": "G",
+      "canonical_model_key": "gemini_flash_image",
+      "bestFor": "Best for high-volume generation",
+      "creditsPerImage": 4
+    }
+  ]
+}

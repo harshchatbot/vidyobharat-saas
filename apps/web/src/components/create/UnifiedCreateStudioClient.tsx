@@ -273,7 +273,77 @@ const VIDEO_MODEL_FALLBACK = buildVideoModelsForApiFallback();
 const VIDEO_MODEL_MAP = getVideoModelMap();
 const NORMAL_VIDEO_FAMILIES = getNormalVideoFamilyConfigs();
 const NORMAL_VIDEO_FAMILY_MAP = Object.fromEntries(NORMAL_VIDEO_FAMILIES.map((family) => [family.key, family]));
-const IMAGE_MODEL_FALLBACK: ImageModel[] = [
+
+const BEST_FOR_MAPPING: Record<string, string> = {
+  'ltx_23_22b': 'Best for UGC ads & quick tests',
+  'seedance_v1_lite': 'Best for budget generations',
+  'kling_o3': 'Best for smooth motion & realism',
+  'sora2': 'Best for cinematic hero shots',
+  'pixverse_c1_reference': 'Best for anime & stylized content',
+  'motion_control': 'Best for Make Anything Dance',
+};
+
+// Credit estimates from credit-engine.json normalVideoFixedPricing (5s duration, standard quality)
+const VIDEO_CREDIT_ESTIMATES: Record<string, number> = {
+  'ltx_23_22b': 25,           // fal_ltx23_i2v 5s
+  'seedance_v1_lite': 29,     // seedance_v1_lite_reference 5s
+  'kling_o3': 59,             // kling_o3_reference 5s
+  'sora2': 45,                // Sora2 not in fixed pricing; approximate from credit engine
+  'pixverse_c1_reference': 22, // PixVerse approximate
+  'motion_control': 35,       // Kling Motion Control approximate
+};
+
+// Image model credit estimates (1024px resolution, standard quality)
+const IMAGE_CREDIT_ESTIMATES: Record<string, number> = {
+  'budget_image_model': 4,
+  'gemini_flash_image': 4,
+  'gpt_image_1_5': 12,
+  'recraft': 7,
+};
+
+const JSON_TEMPLATES = {
+  'Product Showcase': {
+    composition: 'medium close-up, product centered',
+    camera_movement: 'slow push in',
+    lens: '85mm',
+    lighting: 'soft studio lighting, warm tones',
+    subject: { description: 'product on clean surface', props: 'product only' },
+    scene: { location: 'minimal studio', time_of_day: 'controlled lighting', environment: 'clean white background' },
+    visual_details: { action: 'subtle rotation, light catching surface', special_effects: 'none' },
+    cinematography: { color_palette: 'clean, bright, commercial', framing: 'centered symmetrical', tone: 'premium commercial' }
+  },
+  'Lifestyle Scene': {
+    composition: 'wide establishing shot',
+    camera_movement: 'gentle pan left to right',
+    lens: '24mm',
+    lighting: 'golden hour natural light',
+    subject: { description: 'person in casual setting', wardrobe: 'casual modern outfit' },
+    scene: { location: 'urban cafe or park', time_of_day: 'golden hour', environment: 'warm natural surroundings' },
+    visual_details: { action: 'walking, interacting naturally', special_effects: 'none' },
+    cinematography: { color_palette: 'warm golden tones', framing: 'rule of thirds', tone: 'authentic lifestyle' }
+  },
+  'Cinematic B-Roll': {
+    composition: 'extreme wide establishing',
+    camera_movement: 'slow drone pullback',
+    lens: '16mm ultra wide',
+    lighting: 'dramatic natural, high contrast',
+    subject: { description: 'landscape or environment detail' },
+    scene: { location: 'dramatic natural landscape', time_of_day: 'blue hour or golden hour', environment: 'cinematic outdoor' },
+    visual_details: { action: 'subtle environmental motion, wind in trees', special_effects: 'lens flare' },
+    cinematography: { color_palette: 'cinematic teal and orange', framing: 'panoramic widescreen', tone: 'epic cinematic' }
+  },
+  'Talking Head': {
+    composition: 'medium shot, chest up',
+    camera_movement: 'static with subtle breathing motion',
+    lens: '50mm',
+    lighting: 'three point studio lighting',
+    subject: { description: 'person speaking to camera', wardrobe: 'professional casual' },
+    scene: { location: 'clean office or studio background', time_of_day: 'controlled lighting', environment: 'professional setting' },
+    visual_details: { action: 'speaking expressively, gesturing naturally', special_effects: 'none' },
+    cinematography: { color_palette: 'clean neutral professional', framing: 'centered rule of thirds', tone: 'trustworthy professional' }
+  }
+};
+const IMAGE_MODEL_FALLBACK: (ImageModel & { bestFor?: string })[] = [
   {
     key: 'budget_image_model',
     label: 'Fast Social Images',
@@ -283,6 +353,7 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
     badge: 'Affordable',
     logo_label: 'T',
     canonical_model_key: 'budget_image_model',
+    bestFor: 'Best for quick social content',
   },
   {
     key: 'gpt_image_1_5',
@@ -293,6 +364,7 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
     badge: 'Premium',
     logo_label: 'O',
     canonical_model_key: 'gpt_image_1_5',
+    bestFor: 'Best for realistic product images',
   },
   {
     key: 'recraft',
@@ -303,6 +375,7 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
     badge: 'Design',
     logo_label: 'R',
     canonical_model_key: 'recraft',
+    bestFor: 'Best for design, posters & graphics',
   },
   {
     key: 'gemini_flash_image',
@@ -313,6 +386,7 @@ const IMAGE_MODEL_FALLBACK: ImageModel[] = [
     badge: 'Fast',
     logo_label: 'G',
     canonical_model_key: 'gemini_flash_image',
+    bestFor: 'Best for high-volume generation',
   },
 ];
 
@@ -1523,12 +1597,12 @@ function ComposerPoster({
       onClick={onClick}
       className="group relative mb-4 inline-block w-full break-inside-avoid overflow-hidden rounded-[28px] border border-[hsl(var(--color-border)/0.62)] bg-[hsl(var(--color-surface)/0.55)] text-left shadow-soft transition duration-300 hover:-translate-y-1 hover:border-[hsl(var(--color-accent)/0.32)]"
     >
-      <div className="relative">
+      <div className="aspect-[9/16] relative overflow-hidden">
         {previewVideoUrl ? (
           <video
             src={previewVideoUrl}
             poster={previewUrl}
-            className="block h-auto w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.02]"
             autoPlay
             muted
             loop
@@ -1539,7 +1613,7 @@ function ComposerPoster({
           <img
             src={previewUrl}
             alt={title}
-            className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.02]"
             loading="lazy"
             decoding="async"
           />
@@ -4304,6 +4378,27 @@ export function UnifiedCreateStudioClient({
               ) : (
                 composerPromptMode === 'json' && mode === 'video' ? (
                   <div className="space-y-3">
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {Object.keys(JSON_TEMPLATES).map(name => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setJsonComposerText(JSON.stringify(JSON_TEMPLATES[name as keyof typeof JSON_TEMPLATES], null, 2))}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: '999px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            background: 'hsl(var(--color-primary) / 0.12)',
+                            border: '1px solid hsl(var(--color-primary) / 0.3)',
+                            color: 'hsl(var(--color-primary))',
+                          }}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
                     <Textarea
                       ref={textareaRef}
                       rows={10}
@@ -4486,22 +4581,46 @@ export function UnifiedCreateStudioClient({
                         <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_250px]">
                           <div className="space-y-1.5">
                             {mode === 'video' && !recipeComposer
-                              ? visibleNormalVideoFamilies.map((family) => (
-                                <ModelRow
-                                  key={family.key}
-                                  title={family.displayName}
-                                  badges={[...getAvailableGenerationBadgesForFamily(family), ...family.tags]}
-                                  active={effectiveNormalVideoFamilyKey === family.key}
-                                  disabled={false}
-                                  onClick={() => {
-                                    setSelectedNormalVideoFamilyKey(family.key);
-                                    const defaultQuality = family.supportedQualities[0]?.key ?? 'standard';
-                                    setQualityProfile(profileFromFamilyQuality(defaultQuality));
-                                    setDurationPreference(String(family.supportedDurations[0] ?? 5));
-                                  }}
-                                  onHover={() => setSelectedNormalVideoFamilyKey(family.key)}
-                                />
-                              ))
+                              ? visibleNormalVideoFamilies.map((family) => {
+                                const defaultQuality = family.supportedQualities[0]?.key ?? 'standard';
+                                const defaultDuration = family.supportedDurations[0] ?? 5;
+                                const estimatedCredits = VIDEO_CREDIT_ESTIMATES[family.key] ?? 0;
+                                return (
+                                <div key={family.key} className="space-y-1">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <ModelRow
+                                      title={family.displayName}
+                                      badges={[...getAvailableGenerationBadgesForFamily(family), ...family.tags]}
+                                      active={effectiveNormalVideoFamilyKey === family.key}
+                                      disabled={false}
+                                      onClick={() => {
+                                        setSelectedNormalVideoFamilyKey(family.key);
+                                        setQualityProfile(profileFromFamilyQuality(defaultQuality));
+                                        setDurationPreference(String(defaultDuration));
+                                      }}
+                                      onHover={() => setSelectedNormalVideoFamilyKey(family.key)}
+                                    />
+                                    {estimatedCredits > 0 && (
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: '600',
+                                        padding: '2px 8px',
+                                        borderRadius: '999px',
+                                        background: 'hsl(var(--color-success) / 0.12)',
+                                        color: 'hsl(var(--color-success))',
+                                        border: '1px solid hsl(var(--color-success) / 0.25)',
+                                        whiteSpace: 'nowrap',
+                                      }}>
+                                        ~{estimatedCredits} cr/{defaultDuration}s
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: '11px', color: 'hsl(var(--color-accent-amber))', marginLeft: '12px', fontWeight: '500' }}>
+                                    {BEST_FOR_MAPPING[family.key] || ''}
+                                  </p>
+                                </div>
+                                );
+                              })
                               : mode === 'video'
                               ? videoModels
                                 .filter((model) => !isAvatarProductRecipe || isAllowedAvatarProductModelKey(model.key))
@@ -4540,24 +4659,49 @@ export function UnifiedCreateStudioClient({
                                   onHover={() => setModelPanelKey(model.key)}
                                 />
                               ))
-                              : imageModels.map((model) => (
-                                <ModelRow
-                                  key={model.key}
-                                  title={model.label}
-                                  badges={[
-                                    qualityProfile === 'fast_social' ? '1K' : '1.5K',
-                                    ...(model.badge ? [model.badge] : []),
-                                  ]}
-                                  active={selectedImageModelKey === model.key}
-                                  onClick={() => {
-                                    setSelectedImageModelKey(model.key);
-                                    setModelPanelKey(model.key);
-                                    setQualityProfile(profileForImageModel(model.key));
-                                    closeMenus();
-                                  }}
-                                  onHover={() => setModelPanelKey(model.key)}
-                                />
-                              ))}
+                              : imageModels.map((model) => {
+                                const modelWithBestFor = model as typeof model & { bestFor?: string };
+                                return (
+                                <div key={model.key} className="space-y-1">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <ModelRow
+                                      title={model.label}
+                                      badges={[
+                                        qualityProfile === 'fast_social' ? '1K' : '1.5K',
+                                        ...(model.badge ? [model.badge] : []),
+                                      ]}
+                                      active={selectedImageModelKey === model.key}
+                                      onClick={() => {
+                                        setSelectedImageModelKey(model.key);
+                                        setModelPanelKey(model.key);
+                                        setQualityProfile(profileForImageModel(model.key));
+                                        closeMenus();
+                                      }}
+                                      onHover={() => setModelPanelKey(model.key)}
+                                    />
+                                    {IMAGE_CREDIT_ESTIMATES[model.key] && (
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: '600',
+                                        padding: '2px 8px',
+                                        borderRadius: '999px',
+                                        background: 'hsl(var(--color-success) / 0.12)',
+                                        color: 'hsl(var(--color-success))',
+                                        border: '1px solid hsl(var(--color-success) / 0.25)',
+                                        whiteSpace: 'nowrap',
+                                      }}>
+                                        ~{IMAGE_CREDIT_ESTIMATES[model.key]} cr/img
+                                      </span>
+                                    )}
+                                  </div>
+                                  {modelWithBestFor.bestFor && (
+                                    <p style={{ fontSize: '11px', color: 'hsl(var(--color-accent-amber))', marginLeft: '12px', fontWeight: '500' }}>
+                                      {modelWithBestFor.bestFor}
+                                    </p>
+                                  )}
+                                </div>
+                                );
+                              })}
                           </div>
                           <div className="rounded-[20px] border border-white/8 bg-black/25 p-3">
                             {mode === 'video' && !recipeComposer && selectedNormalVideoFamily ? (
@@ -5394,7 +5538,7 @@ export function UnifiedCreateStudioClient({
             ))}
           </div>
         ) : (
-          <div className="columns-1 gap-4 sm:columns-2 xl:columns-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredRecipes.map((recipe) => (
               <ComposerPoster
                 key={recipe.id}
