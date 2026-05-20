@@ -1,0 +1,186 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+
+interface BeautifulLoadingScreenProps {
+  stage: 'script' | 'storyboard' | 'images' | 'voice' | 'video' | 'production';
+  message?: string;
+  subMessage?: string;
+  isMockMode?: boolean;
+}
+
+const STAGE_CONFIG = {
+  script: {
+    title: 'Generating Script',
+    defaultMessage: 'Creating engaging copy for your ad...',
+  },
+  storyboard: {
+    title: 'Creating Storyboard',
+    defaultMessage: 'Planning scenes and shot sequences...',
+  },
+  images: {
+    title: 'Generating Images',
+    defaultMessage: 'Creating visual assets for each scene...',
+  },
+  voice: {
+    title: 'Processing Voice',
+    defaultMessage: 'Synthesizing voiceover with emotion...',
+  },
+  video: {
+    title: 'Rendering Video',
+    defaultMessage: 'Stitching scenes into final output...',
+  },
+  production: {
+    title: 'Production in Progress',
+    defaultMessage: 'Processing your ad content...',
+  },
+};
+
+export default function BeautifulLoadingScreen({
+  stage,
+  message,
+  subMessage,
+  isMockMode = false,
+}: BeautifulLoadingScreenProps) {
+  const config = STAGE_CONFIG[stage];
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((d) => (d.length >= 3 ? '' : d + '.'));
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-hidden" style={{ background: 'hsl(var(--color-bg))' }}>
+      {/* Animated mesh gradient background */}
+      <div className="absolute inset-0 mesh-bg opacity-100" />
+
+      {/* Floating orbs */}
+      <div
+        className="absolute top-20 left-20 w-80 h-80 rounded-full blur-3xl opacity-15"
+        style={{ background: 'hsl(var(--color-primary) / 1)' }}
+      />
+      <div
+        className="absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl opacity-10"
+        style={{ background: 'hsl(var(--color-accent-pink) / 1)' }}
+      />
+      <div
+        className="absolute top-1/2 left-1/2 w-64 h-64 rounded-full blur-3xl opacity-10 -translate-x-1/2 -translate-y-1/2"
+        style={{ background: 'hsl(var(--color-accent-cyan) / 1)' }}
+      />
+
+      {/* Center content */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="space-y-8">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <div
+              className="text-6xl font-black tracking-tighter"
+              style={{
+                background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-accent)))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'float 3s ease-in-out infinite',
+              }}
+            >
+              R
+            </div>
+          </div>
+
+          {/* Brand name */}
+          <div className="text-center">
+            <h1
+              className="text-2xl font-bold tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-accent)))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              RangManchAI
+            </h1>
+          </div>
+
+          {/* Status text */}
+          <div className="text-center space-y-3">
+            <p
+              className="text-sm font-medium"
+              style={{ color: 'hsl(var(--color-text-secondary))' }}
+            >
+              {message || config.defaultMessage}
+              <span className="inline-block w-4">{dots}</span>
+            </p>
+          </div>
+
+          {/* Progress bar */}
+          <div className="flex justify-center w-full max-w-xs mx-auto">
+            <div
+              className="w-full h-1 rounded-full overflow-hidden"
+              style={{ background: 'hsl(var(--glass-border))' }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  background: 'linear-gradient(90deg, hsl(var(--color-primary)), hsl(var(--color-accent)))',
+                  animation: 'progress 1.5s ease-in-out infinite',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Status label */}
+          <p
+            className="text-xs font-semibold uppercase tracking-widest text-center"
+            style={{ color: 'hsl(var(--color-muted))' }}
+          >
+            {config.title}
+          </p>
+
+          {/* Mock mode badge */}
+          {isMockMode && (
+            <div className="mt-4 px-4 py-2 rounded-lg" style={{ background: 'hsl(var(--color-success) / 0.1)', border: '1px solid hsl(var(--color-success) / 0.3)' }}>
+              <p className="text-xs" style={{ color: 'hsl(var(--color-success))' }}>
+                💡 Mock Mode - No credits consumed
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+
+        @keyframes progress {
+          0% { width: 0%; opacity: 0.5; }
+          50% { width: 100%; opacity: 1; }
+          100% { width: 100%; opacity: 0.5; }
+        }
+
+        .mesh-bg {
+          background: linear-gradient(
+            135deg,
+            hsl(var(--color-bg)) 0%,
+            hsl(var(--color-primary) / 0.02) 25%,
+            hsl(var(--color-accent) / 0.02) 50%,
+            hsl(var(--color-bg)) 100%
+          );
+          background-size: 400% 400%;
+          animation: meshFlow 8s ease infinite;
+        }
+
+        @keyframes meshFlow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+    </div>
+  );
+}

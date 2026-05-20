@@ -75,8 +75,7 @@ class PricingService:
             previous_plan: str | None = None
             previous_cost_per_credit: float | None = None
             for plan in PLAN_ORDER:
-                plan_pricing = plans[plan]
-                price = float(plan_pricing['monthly']) if isinstance(plan_pricing, dict) else float(plan_pricing)
+                price = float(plans[plan])
                 plan_data = self.credit_plans[plan]
                 credits = float(plan_data['credits']) if isinstance(plan_data, dict) else float(plan_data)
                 if price <= 0:
@@ -103,7 +102,7 @@ class PricingService:
             region=region,
             currency=currency,
             payment_provider=payment_provider,
-            plans={key: int(pricing['monthly']) if isinstance(pricing, dict) else int(pricing) for key, pricing in bucket['plans'].items()},
+            plans={key: int(value) for key, value in bucket['plans'].items()},
             credit_allocation={key: int(data['credits']) if isinstance(data, dict) else int(data) for key, data in self.credit_plans.items()},
             action_costs={key: int(value) for key, value in self.credit_costs.items()},
         )

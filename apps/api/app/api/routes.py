@@ -2,7 +2,7 @@ import logging
 import json
 import hashlib
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
@@ -939,7 +939,7 @@ def get_plan_status(
 ):
     """Get user's current plan status including expiry information"""
     wallet = CreditService().ensure_wallet(user_id)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     is_expired = bool(wallet.credits_expires_at and now > wallet.credits_expires_at)
     days_until_expiry = None
@@ -2218,11 +2218,11 @@ def get_ai_video_status(
     if status_value in {'draft', 'processing'}:
         created_at = getattr(video, 'created_at', None)
         updated_at = getattr(video, 'updated_at', None) or created_at
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         if created_at and getattr(created_at, 'tzinfo', None) is None:
-            created_at = created_at.replace(tzinfo=UTC)
+            created_at = created_at.replace(tzinfo=timezone.utc)
         if updated_at and getattr(updated_at, 'tzinfo', None) is None:
-            updated_at = updated_at.replace(tzinfo=UTC)
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
         draft_age_seconds = int((now - created_at).total_seconds()) if created_at else 0
         processing_stale_seconds = int((now - updated_at).total_seconds()) if updated_at else 0
         if status_value == 'draft' and draft_age_seconds > DRAFT_LOCAL_RECOVERY_SECONDS:
@@ -2253,7 +2253,7 @@ def get_ai_video_status(
                         status_value = video.status.value if hasattr(video.status, 'value') else str(video.status)
                         updated_at = getattr(video, 'updated_at', None) or created_at
                         if updated_at and getattr(updated_at, 'tzinfo', None) is None:
-                            updated_at = updated_at.replace(tzinfo=UTC)
+                            updated_at = updated_at.replace(tzinfo=timezone.utc)
                         processing_stale_seconds = int((now - updated_at).total_seconds()) if updated_at else 0
                 except Exception:
                     logger.exception(

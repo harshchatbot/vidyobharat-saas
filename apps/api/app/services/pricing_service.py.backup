@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.services.geo_service import resolve_country_code
 
 logger = logging.getLogger(__name__)
-PLAN_ORDER = ('starter', 'creator', 'studio')
+PLAN_ORDER = ('starter', 'creator', 'growth', 'pro')
 
 
 @dataclass
@@ -61,8 +61,7 @@ class PricingService:
             raise ValueError(f'Missing credit allocation for plans: {", ".join(missing_plan_credits)}')
 
         for plan in PLAN_ORDER:
-            plan_data = self.credit_plans[plan]
-            allocated = int(plan_data['credits']) if isinstance(plan_data, dict) else int(plan_data)
+            allocated = int(self.credit_plans[plan])
             if allocated <= 0:
                 raise ValueError(f'Invalid credit allocation for plan "{plan}": {allocated}')
 
@@ -75,10 +74,8 @@ class PricingService:
             previous_plan: str | None = None
             previous_cost_per_credit: float | None = None
             for plan in PLAN_ORDER:
-                plan_pricing = plans[plan]
-                price = float(plan_pricing['monthly']) if isinstance(plan_pricing, dict) else float(plan_pricing)
-                plan_data = self.credit_plans[plan]
-                credits = float(plan_data['credits']) if isinstance(plan_data, dict) else float(plan_data)
+                price = float(plans[plan])
+                credits = float(self.credit_plans[plan])
                 if price <= 0:
                     raise ValueError(f'Invalid price for region "{region}" plan "{plan}": {price}')
                 cost_per_credit = price / credits
@@ -103,12 +100,12 @@ class PricingService:
             region=region,
             currency=currency,
             payment_provider=payment_provider,
-            plans={key: int(pricing['monthly']) if isinstance(pricing, dict) else int(pricing) for key, pricing in bucket['plans'].items()},
-            credit_allocation={key: int(data['credits']) if isinstance(data, dict) else int(data) for key, data in self.credit_plans.items()},
+            plans={key: int(value) for key, value in bucket['plans'].items()},
+            credit_allocation={key: int(value) for key, value in self.credit_plans.items()},
             action_costs={key: int(value) for key, value in self.credit_costs.items()},
         )
 
-    def resolve_checkout_plan(self, request: Request, plan_name: str, billing_cycle: str = 'monthly') -> CheckoutPlanSelection:
+    def resolve_checkout_plan(self, request: Request, plan_name: str) -> CheckoutPlanSelection:
         quote = self.get_pricing_quote(request)
         normalized_plan = plan_name.strip().lower()
 
@@ -116,7 +113,6 @@ class PricingService:
             raise ValueError('Unsupported plan name')
 
         amount_major = quote.plans[normalized_plan]
-        validity_days = 365 if billing_cycle == 'annual' else 30
 
         return CheckoutPlanSelection(
             plan_name=normalized_plan,
@@ -126,8 +122,6 @@ class PricingService:
             payment_provider=quote.payment_provider,
             amount_minor=self._to_minor_units(amount_major, quote.currency),
             allocated_credits=quote.credit_allocation[normalized_plan],
-            billing_cycle=billing_cycle,
-            validity_days=validity_days,
         )
 
     def make_stripe_placeholder_session_id(self) -> str:

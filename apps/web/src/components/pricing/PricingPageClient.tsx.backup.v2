@@ -245,10 +245,10 @@ export default function PricingPageClient() {
                 onClick={() => handleSelectPlan(planKey)}
                 style={{
                   border: isPopular
-                    ? '1px solid hsl(var(--color-primary) / 0.6)'
+                    ? '1px solid hsl(45, 96%, 56% / 0.5)'
                     : '1px solid hsl(var(--color-border) / 0.9)',
                   background: isPopular
-                    ? 'hsl(var(--color-primary) / 0.08)'
+                    ? 'hsl(45, 96%, 56% / 0.06)'
                     : undefined,
                 }}
               >
@@ -256,8 +256,8 @@ export default function PricingPageClient() {
                   <div
                     className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full"
                     style={{
-                      background: 'hsl(var(--color-primary))',
-                      color: 'hsl(var(--color-primary-contrast))',
+                      background: 'hsl(45, 96%, 56%)',
+                      color: '#000',
                     }}
                   >
                     Most Popular
@@ -313,8 +313,9 @@ export default function PricingPageClient() {
                   style={
                     isPopular
                       ? {
-                          background: 'hsl(var(--color-primary))',
-                          color: 'hsl(var(--color-primary-contrast))',
+                          background: 'hsl(45, 96%, 56%)',
+                          color: '#000',
+                          boxShadow: '0 0 30px hsl(45, 96%, 56% / 0.4)',
                         }
                       : {
                           background: 'hsl(var(--color-surface))',

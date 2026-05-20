@@ -143,9 +143,9 @@ export default function PricingPageClient() {
             style={
               billingCycle === 'monthly'
                 ? {
-                    background: 'hsl(var(--color-primary) / 0.15)',
-                    border: '1px solid hsl(var(--color-primary) / 0.4)',
-                    color: 'hsl(var(--color-primary))',
+                    background: 'hsl(45, 96%, 56% / 0.15)',
+                    border: '1px solid hsl(45, 96%, 56% / 0.5)',
+                    color: 'hsl(45, 96%, 56%)',
                   }
                 : {
                     border: '1px solid hsl(var(--color-border))',
@@ -162,9 +162,9 @@ export default function PricingPageClient() {
             style={
               billingCycle === 'annual'
                 ? {
-                    background: 'hsl(var(--color-primary) / 0.15)',
-                    border: '1px solid hsl(var(--color-primary) / 0.4)',
-                    color: 'hsl(var(--color-primary))',
+                    background: 'hsl(45, 96%, 56% / 0.15)',
+                    border: '1px solid hsl(45, 96%, 56% / 0.5)',
+                    color: 'hsl(45, 96%, 56%)',
                   }
                 : {
                     border: '1px solid hsl(var(--color-border))',
@@ -189,9 +189,9 @@ export default function PricingPageClient() {
         {/* Plan Cards Grid */}
         <div className="grid gap-6 lg:grid-cols-4 mb-16">
           {/* Free Plan */}
-          <button
+          <div
+            className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1 cursor-pointer"
             onClick={() => router.push('/signup')}
-            className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1"
             style={{
               border: '1px solid hsl(var(--color-border) / 0.9)',
             }}
@@ -216,8 +216,9 @@ export default function PricingPageClient() {
                 <li>Templates</li>
               </ul>
             </div>
-            <button
-              className="mt-auto w-full rounded-lg px-4 py-3 text-sm font-semibold"
+            <a
+              href="/signup"
+              className="mt-auto w-full rounded-lg px-4 py-3 text-sm font-semibold inline-block text-center"
               style={{
                 background: 'hsl(var(--color-surface))',
                 border: '1px solid hsl(var(--color-border))',
@@ -225,8 +226,8 @@ export default function PricingPageClient() {
               }}
             >
               Start Free
-            </button>
-          </button>
+            </a>
+          </div>
 
           {/* Starter, Creator, Studio */}
           {(['starter', 'creator', 'studio'] as const).map((planKey) => {
@@ -238,16 +239,16 @@ export default function PricingPageClient() {
             const isCurrency = price < 100 ? 'USD' : 'INR';
 
             return (
-              <button
+              <div
                 key={planKey}
+                className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1 relative cursor-pointer"
                 onClick={() => handleSelectPlan(planKey)}
-                className="glass-card rounded-2xl p-6 flex flex-col h-full text-left transition hover:-translate-y-1 relative"
                 style={{
                   border: isPopular
-                    ? '1px solid hsl(var(--color-primary) / 0.6)'
+                    ? '1px solid hsl(45, 96%, 56% / 0.5)'
                     : '1px solid hsl(var(--color-border) / 0.9)',
                   background: isPopular
-                    ? 'hsl(var(--color-primary) / 0.08)'
+                    ? 'hsl(45, 96%, 56% / 0.06)'
                     : undefined,
                 }}
               >
@@ -255,8 +256,8 @@ export default function PricingPageClient() {
                   <div
                     className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full"
                     style={{
-                      background: 'hsl(var(--color-primary))',
-                      color: 'hsl(var(--color-primary-contrast))',
+                      background: 'hsl(45, 96%, 56%)',
+                      color: '#000',
                     }}
                   >
                     Most Popular
@@ -306,13 +307,15 @@ export default function PricingPageClient() {
                   </ul>
                 </div>
 
-                <button
-                  className="w-full rounded-lg px-4 py-3 text-sm font-semibold transition"
+                <a
+                  href={`/billing?plan=${planKey}&cycle=${billingCycle}`}
+                  className="w-full rounded-lg px-4 py-3 text-sm font-semibold transition inline-block text-center"
                   style={
                     isPopular
                       ? {
-                          background: 'hsl(var(--color-primary))',
-                          color: 'hsl(var(--color-primary-contrast))',
+                          background: 'hsl(45, 96%, 56%)',
+                          color: '#000',
+                          boxShadow: '0 0 30px hsl(45, 96%, 56% / 0.4)',
                         }
                       : {
                           background: 'hsl(var(--color-surface))',
@@ -322,8 +325,8 @@ export default function PricingPageClient() {
                   }
                 >
                   {isPopular ? 'Choose Creator' : 'Select Plan'}
-                </button>
-              </button>
+                </a>
+              </div>
             );
           })}
         </div>
@@ -380,15 +383,15 @@ export default function PricingPageClient() {
             {TOPUPS.map((topup) => (
               <div
                 key={topup.name}
-                className="glass-card rounded-xl p-4"
+                className="glass-card rounded-xl p-4 transition hover:border-amber-400"
                 style={{
                   border: '1px solid hsl(var(--color-border) / 0.8)',
                 }}
               >
                 <p className="font-semibold text-text">{topup.name}</p>
-                <p className="text-2xl font-bold text-text my-2">{topup.credits}</p>
+                <p className="text-3xl font-bold my-2" style={{ color: 'hsl(45, 96%, 56%)' }}>{topup.credits}</p>
                 <p className="text-xs text-muted">credits</p>
-                <p className="text-sm font-semibold text-primary mt-3">₹{topup.inr}</p>
+                <p className="text-sm font-semibold mt-3" style={{ color: 'hsl(var(--color-text))' }}>₹{topup.inr}</p>
               </div>
             ))}
           </div>
@@ -415,10 +418,12 @@ export default function PricingPageClient() {
           <p className="text-muted mb-4">Start free, earn the activation bonus on your first real win, and upgrade when you need more capacity.</p>
           <Link
             href="/billing"
-            className="inline-block px-8 py-3 rounded-lg text-sm font-semibold"
+            className="inline-block px-8 py-3 text-sm font-semibold"
             style={{
-              background: 'hsl(var(--color-primary))',
-              color: 'hsl(var(--color-primary-contrast))',
+              background: 'hsl(45, 96%, 56%)',
+              color: '#000',
+              borderRadius: '9999px',
+              boxShadow: '0 0 30px hsl(45, 96%, 56% / 0.4)',
             }}
           >
             Upgrade or Top-Up
