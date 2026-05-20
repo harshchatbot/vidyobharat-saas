@@ -3211,48 +3211,6 @@ def get_unified_template(
     return template
 
 
-@router.post('/api/onboarding/complete')
-def claim_onboarding_reward(
-    user_id: str = Depends(get_user_id),
-):
-    """Grant 20 credits as onboarding completion reward. One-time only."""
-    db = get_firestore_client()
-
-    # Check if already claimed (idempotency)
-    reward_ref = db.collection('onboarding_rewards').document(user_id)
-    existing = reward_ref.get()
-
-    if existing.exists:
-        return {
-            'success': False,
-            'message': 'Reward already claimed',
-            'already_claimed': True
-        }
-
-    # Grant 20 credits using existing credit service
-    result = CreditService().top_up_credits(
-        user_id=user_id,
-        credits=20,
-        metadata={'source': 'onboarding_completion_reward', 'reward_type': 'creator_badge'},
-        idempotency_key=f'onboarding_reward_{user_id}'
-    )
-
-    # Mark as claimed in Firestore
-    reward_ref.set({
-        'user_id': user_id,
-        'credits_granted': 20,
-        'claimed_at': datetime.utcnow().isoformat(),
-        'reward_type': 'creator_badge_v1'
-    })
-
-    return {
-        'success': True,
-        'credits_granted': 20,
-        'new_balance': result.current_credits,
-        'message': 'Congratulations! 20 credits added to your account.'
-    }
-
-
 @router.post('/api/templates/preview', response_model=TemplatePreviewResponse)
 def preview_template(
     payload: TemplateGenerateRequest,

@@ -2957,6 +2957,7 @@ export function CreateVideoPage({
               description="Keep the setup light. Start from a proven format or tune the engine only if needed."
               icon={<Sparkles className="h-5 w-5" />}
               compact
+              data-section="recipes"
             >
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

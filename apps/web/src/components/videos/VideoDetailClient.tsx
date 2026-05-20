@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { PacmanLoader } from '@/components/ui/PacmanLoader';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
@@ -298,32 +299,32 @@ export function VideoDetailClient({ userId, videoId }: Props) {
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [todoOverrides, setTodoOverrides] = useState<Record<string, boolean>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const { wallet, refreshing } = useCredits();
   const { show } = useToast();
   const terminalToastRef = useRef<string | null>(null);
+  const completionToastRef = useRef<string | null>(null);
 
   const loadBase = async () => {
     try {
-      const [current, musicTracks] = await Promise.all([
-        api.getVideo(videoId, userId),
-        api.listMusicTracks().catch(() => [] as MusicTrack[]),
-      ]);
-      setVideo(current);
-      setTracks(musicTracks);
-      void api
-        .getTtsCatalog(userId)
-        .then((catalog) => {
-          setVoiceOptions(catalog.voices);
-          setLanguageOptions(catalog.languages);
-          if (catalog.languages[0]) {
-            setSelectedLanguage((currentLanguage) => currentLanguage || catalog.languages[0].code);
-          }
-        })
-        .catch(() => null);
+      setLoading(true);
+      const nextVideo = await api.getVideo(videoId, userId);
+      if (!nextVideo) {
+        setError('Video not found');
+        return;
+      }
+      setVideo(nextVideo);
       setError(null);
-      setStatusRefreshWarning(null);
-    } catch {
-      setError('Unable to load video status.');
+
+      const catalog = await api.getAvatarProductTtsCatalog(userId);
+      setLanguageOptions(catalog.languages);
+      setVoiceOptions(catalog.voices);
+      if (catalog.voices[0]) setSelectedVoice(catalog.voices[0].key);
+
+      const nextTracks = await api.listMusicTracks();
+      setTracks(nextTracks);
+    } catch (err) {
+      setError('Failed to load video');
     } finally {
       setLoading(false);
     }
@@ -337,7 +338,7 @@ export function VideoDetailClient({ userId, videoId }: Props) {
       setVideo((previous) => (previous ? mergeVideoWithStatus(previous, status) : previous));
       setStatusRefreshWarning(null);
     } catch {
-      setStatusRefreshWarning('Status refresh delayed. We’ll retry automatically.');
+      setStatusRefreshWarning('Status refresh delayed. We\'ll retry automatically.');
     }
   };
 
@@ -427,373 +428,155 @@ export function VideoDetailClient({ userId, videoId }: Props) {
 
   const referenceImages = useMemo(() => {
     if (!video) return [];
-    const candidates = [video.source_image_url, ...video.reference_images, ...video.image_urls]
-      .filter(Boolean)
-      .map((url) => toAbsoluteUrl(url as string))
-      .filter(Boolean) as string[];
-    return Array.from(new Set(candidates));
+    return video.reference_images || video.image_urls || [];
   }, [video]);
-  const visualAssets = useMemo(() => {
-    const items: Array<{ kind: 'output' | 'reference'; label: string; url: string }> = [];
-    if (displayPosterUrl) {
-      items.push({ kind: 'output', label: 'Generated output', url: displayPosterUrl });
-    }
-    referenceImages.forEach((url, index) => {
-      items.push({ kind: 'reference', label: `Reference ${index + 1}`, url });
-    });
-    return items;
-  }, [displayPosterUrl, referenceImages]);
 
-  const selectedTrack = useMemo(
-    () => (video?.music_track_id ? tracks.find((track) => track.id === video.music_track_id) ?? null : null),
-    [tracks, video?.music_track_id],
-  );
+  const selectedTrack = useMemo(() => {
+    if (!video || !video.music_track_id) return null;
+    return tracks.find((t) => t.id === video.music_track_id) || null;
+  }, [video, tracks]);
+
   const selectedVoiceOption = useMemo(
-    () => voiceOptions.find((voice) => voice.key === selectedVoice) ?? voiceOptions[0] ?? null,
-    [selectedVoice, voiceOptions],
+    () => voiceOptions.find((option) => option.key === selectedVoice),
+    [voiceOptions, selectedVoice],
   );
-  const bgmPreviewUrl = useMemo(
-    () => toAbsoluteUrl(selectedTrack?.preview_url ?? null) ?? toAbsoluteUrl(video?.music_file_url ?? null),
-    [selectedTrack?.preview_url, video?.music_file_url],
-  );
-  const pipelineEvents = useMemo(
-    () =>
-    ((video?.pipeline_metadata?.events as Array<{
-      id: string;
-      kind: string;
-      title: string;
-      detail: string;
-      state?: string;
-      created_at?: string;
-    }>) || []),
-    [video?.pipeline_metadata],
-  );
-  const sortedPipelineEvents = useMemo(
-    () =>
-      [...pipelineEvents].sort((left, right) => {
-        const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
-        const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
-        return leftTime - rightTime;
-      }),
-    [pipelineEvents],
-  );
-  const deepScenePlan = useMemo(
-    () => video?.pipeline_metadata?.deep_scene_plan ?? [],
-    [video?.pipeline_metadata],
-  );
-  const ugcScenePlan = useMemo(
-    () => video?.pipeline_metadata?.ugc_scene_plan ?? [],
-    [video?.pipeline_metadata],
-  );
-  const plannerScenePlan = deepScenePlan.length > 0 ? deepScenePlan : ugcScenePlan;
-  const plannerQaEntries = useMemo(
-    () =>
-      plannerScenePlan
-        .map((scene) => {
-          const flags = Array.isArray(scene?.qa_flags)
-            ? scene.qa_flags.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0)
-            : [];
-          if (flags.length === 0) return null;
-          return {
-            sceneId: typeof scene?.scene_id === 'string' ? scene.scene_id : 'scene',
-            stageLabel: typeof scene?.stage_label === 'string' ? scene.stage_label : 'Scene',
-            shotArchetype: typeof scene?.shot_archetype === 'string' ? scene.shot_archetype : null,
-            flags,
-          };
-        })
-        .filter((entry): entry is { sceneId: string; stageLabel: string; shotArchetype: string | null; flags: string[] } => Boolean(entry)),
-    [plannerScenePlan],
-  );
-  const ugcAvatarDebug = useMemo(() => {
-    const metadata = video?.pipeline_metadata;
-    if (!metadata) return null;
-    const source = typeof metadata.resolved_avatar_source === 'string' ? metadata.resolved_avatar_source : null;
-    const avatarId = typeof metadata.resolved_avatar_id === 'string' ? metadata.resolved_avatar_id : null;
-    const avatarName = typeof metadata.resolved_avatar_name === 'string' ? metadata.resolved_avatar_name : null;
-    const requestedVoice = typeof metadata.requested_voice === 'string' ? metadata.requested_voice : null;
-    const requestedLanguage = typeof metadata.requested_language === 'string' ? metadata.requested_language : null;
-    const syncedVoice = typeof metadata.avatar_synced_voice === 'string' ? metadata.avatar_synced_voice : null;
-    const syncedLanguage = typeof metadata.avatar_synced_language === 'string' ? metadata.avatar_synced_language : null;
-    const resolvedVoice = typeof metadata.resolved_talking_voice === 'string' ? metadata.resolved_talking_voice : null;
-    const resolvedLanguage = typeof metadata.resolved_talking_language === 'string' ? metadata.resolved_talking_language : null;
-    const runtimeRows = Array.isArray(metadata.ugc_talking_scene_debug)
-      ? metadata.ugc_talking_scene_debug
-          .map((row) => {
-            const sceneId = typeof row?.scene_id === 'string' ? row.scene_id : null;
-            const provider = typeof row?.talking_provider === 'string' ? row.talking_provider : null;
-            const providerLabel = typeof row?.talking_provider_label === 'string' ? row.talking_provider_label : null;
-            const fallbackReason = typeof row?.talking_fallback_reason === 'string' ? row.talking_fallback_reason : null;
-            if (!sceneId && !provider && !providerLabel && !fallbackReason) return null;
-            return { sceneId, provider, providerLabel, fallbackReason };
-          })
-          .filter((row): row is { sceneId: string | null; provider: string | null; providerLabel: string | null; fallbackReason: string | null } => Boolean(row))
-      : [];
-    const watchouts = Array.isArray(metadata.intro_outro_watchouts)
-      ? metadata.intro_outro_watchouts
-          .map((row) => ({
-            sceneId: typeof row?.scene_id === 'string' ? row.scene_id : 'scene',
-            stage: typeof row?.stage_name === 'string' ? row.stage_name : 'stage',
-            flags: Array.isArray(row?.flags)
-              ? row.flags.filter((flag): flag is string => typeof flag === 'string' && flag.trim().length > 0)
-              : [],
-          }))
-          .filter((row) => row.flags.length > 0)
-      : [];
-    const hasCore = Boolean(source || avatarId || avatarName || requestedVoice || resolvedVoice || runtimeRows.length > 0 || watchouts.length > 0);
-    if (!hasCore) return null;
-    return {
-      source,
-      avatarId,
-      avatarName,
-      requestedVoice,
-      requestedLanguage,
-      syncedVoice,
-      syncedLanguage,
-      resolvedVoice,
-      resolvedLanguage,
-      runtimeRows,
-      watchouts,
-    };
-  }, [video?.pipeline_metadata]);
 
-  const stage = video ? getStage(video.progress, video.status) : null;
-  const isGenerationActive = video?.status === 'draft' || video?.status === 'processing';
-  const todoItems = useMemo(() => (video ? getStageTodos(video) : []), [video]);
+  const visualAssets = useMemo(() => {
+    if (!video) return [];
+    const assets: Array<{ url: string; label: string; kind: string }> = [];
+    if (video.source_image_url) {
+      const url = toAbsoluteUrl(video.source_image_url);
+      if (url) assets.push({ url, label: 'Source image', kind: 'source' });
+    }
+    if (video.image_urls?.length) {
+      video.image_urls.forEach((u, index) => {
+        const url = toAbsoluteUrl(u);
+        if (url) assets.push({ url, label: `Reference ${index + 1}`, kind: 'reference' });
+      });
+    }
+    if (video.reference_images?.length) {
+      video.reference_images.forEach((u, index) => {
+        const url = toAbsoluteUrl(u);
+        if (url) assets.push({ url, label: `Reference ${index + 1}`, kind: 'reference' });
+      });
+    }
+    if (video.output_url && video.thumbnail_url) {
+      const url = toAbsoluteUrl(video.thumbnail_url);
+      if (url) assets.push({ url, label: 'Output preview', kind: 'output' });
+    }
+    return assets;
+  }, [video]);
+
+  const stage = useMemo(() => (video ? getStage(video.progress || 0, video.status) : null), [video]);
+
+  const effectiveTodoItems = useMemo(() => {
+    if (!video) return [];
+    const items = getStageTodos(video);
+    return items.map((item) => ({
+      ...item,
+      complete: item.complete || todoOverrides[item.label],
+    }));
+  }, [video, todoOverrides]);
 
   const createdSummary = useMemo(() => {
     if (!video) return '';
-    if (video.status === 'completed') {
-      return `Created a ${formatLongDuration(video.duration_seconds)} ${video.aspect_ratio} video using ${video.selected_model || 'the selected model'} with ${video.music_mode !== 'none' ? 'an attached music layer' : 'no background music'} and export-ready playback.`;
+    const parts = [];
+    if (video.created_at) {
+      const date = new Date(video.created_at);
+      parts.push(date.toLocaleDateString());
     }
-    return `Preparing a ${video.aspect_ratio} video using ${video.selected_model || 'the selected model'}${referenceImages.length > 0 ? ` with ${referenceImages.length} visual reference${referenceImages.length === 1 ? '' : 's'}` : ''}.`;
-  }, [referenceImages.length, video]);
+    if (video.duration_seconds) {
+      parts.push(`${formatLongDuration(video.duration_seconds)}`);
+    }
+    return parts.join(' · ');
+  }, [video]);
 
-  const effectiveTodoItems = useMemo(
-    () => todoItems.map((item) => ({ ...item, complete: item.complete || Boolean(todoOverrides[item.label]) })),
-    [todoItems, todoOverrides],
-  );
+  const sortedPipelineEvents = useMemo(() => {
+    if (!video?.pipeline_metadata?.events) return [];
+    const events = Array.isArray(video.pipeline_metadata.events) ? video.pipeline_metadata.events : [];
+    return events.slice().sort((a, b) => {
+      const aTime = new Date(a.created_at || 0).getTime();
+      const bTime = new Date(b.created_at || 0).getTime();
+      return aTime - bTime;
+    });
+  }, [video?.pipeline_metadata]);
+
+  const plannerQaEntries = useMemo(() => {
+    if (!video?.pipeline_metadata?.planner_qa) return [];
+    const entries = Array.isArray(video.pipeline_metadata.planner_qa) ? video.pipeline_metadata.planner_qa : [];
+    return entries;
+  }, [video?.pipeline_metadata]);
+
+  const ugcAvatarDebug = useMemo(() => {
+    if (!video?.pipeline_metadata?.avatar) return null;
+    return video.pipeline_metadata.avatar;
+  }, [video?.pipeline_metadata]);
+
+  const isGenerationActive = useMemo(() => {
+    if (!video) return false;
+    return video.status === 'draft' || video.status === 'processing';
+  }, [video]);
 
   const togglePlayback = () => {
-    const player = videoRef.current;
-    if (!player) return;
-    if (player.paused) {
-      void player.play();
-      return;
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        void videoRef.current.play();
+      }
     }
-    player.pause();
   };
 
   const openFullscreen = async () => {
-    const player = videoRef.current;
-    if (!player) return;
-    if (typeof player.requestFullscreen === 'function') {
-      await player.requestFullscreen();
-    }
-  };
-
-  const pushAssistantMessage = (role: 'user' | 'assistant', text: string) => {
-    setAssistantMessages((current) => [...current, { role, text }]);
-  };
-
-  const sendAssistantPrompt = async (promptText: string) => {
-    const prompt = promptText.trim();
-    if (!prompt) return;
-
-    pushAssistantMessage('user', prompt);
-    setAssistantInput('');
-    setAssistantBusy(true);
-
-    if (/asset|reference|image/i.test(prompt)) {
-      setAssetTab('visual');
-    } else if (/music|bgm|audio/i.test(prompt)) {
-      setAssetTab('bgm');
-    }
-
+    if (!videoRef.current) return;
     try {
-      const response = await api.videoStudioChat(
-        {
-          videoId,
-          message: prompt,
-          chatHistory: assistantMessages.slice(-6),
-        },
-        userId,
-      );
-      if (/todo|run|execute|complete/i.test(prompt)) {
-        setTodoOverrides(Object.fromEntries(todoItems.map((item) => [item.label, true])));
+      if (videoRef.current.requestFullscreen) {
+        await videoRef.current.requestFullscreen();
       }
-      pushAssistantMessage('assistant', response.reply);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Studio AI could not respond right now.';
+    } catch {
       show({
-        title: 'Studio AI unavailable',
-        message,
+        title: 'Fullscreen unavailable',
+        message: 'Your browser does not support fullscreen mode.',
         variant: 'error',
       });
-      pushAssistantMessage(
-        'assistant',
-        `I hit a temporary issue reaching Studio AI. Right now the studio is at "${stage?.label ?? 'processing'}" and the current summary is: ${createdSummary}`,
-      );
-    } finally {
-      setAssistantBusy(false);
     }
   };
-
-  const runAssistantAction = (action: 'explain' | 'assets' | 'notes') => {
-    if (assistantBusy) return;
-    if (action === 'assets') {
-      setAssetTab('visual');
-      void sendAssistantPrompt('Show me the current visual assets and reference context for this render.');
-      return;
-    }
-    if (action === 'notes') {
-      void sendAssistantPrompt('Give me concise export notes and the final status for this render.');
-      return;
-    }
-    void sendAssistantPrompt('Explain the current render status and the next best edit step.');
-  };
-
-  const submitAssistantPrompt = () => {
-    if (assistantBusy) return;
-    void sendAssistantPrompt(assistantInput);
-  };
-
-  useEffect(() => {
-    if (!selectedVoice && voiceOptions.length > 0) {
-      const preferred =
-        voiceOptions.find((voice) => voice.provider_voice === video?.tts_resolved_voice) ??
-        voiceOptions.find((voice) => voice.key === video?.voice) ??
-        voiceOptions[0];
-      if (preferred) {
-        setSelectedVoice(preferred.key);
-      }
-    }
-  }, [selectedVoice, video?.tts_resolved_voice, video?.voice, voiceOptions]);
-
-  useEffect(() => {
-    if (!languageOptions.length) return;
-    const currentLanguage = video?.language;
-    if (!currentLanguage) return;
-    const exact = languageOptions.find((option) => option.code === currentLanguage);
-    const loose =
-      languageOptions.find((option) => option.label.toLowerCase() === currentLanguage.toLowerCase()) ??
-      languageOptions.find((option) => option.native_label.toLowerCase() === currentLanguage.toLowerCase());
-    const nextLanguage = exact?.code ?? loose?.code;
-    if (nextLanguage) {
-      setSelectedLanguage(nextLanguage);
-    }
-  }, [languageOptions, video?.language]);
-
-  useEffect(() => {
-    setTranslatedScripts({});
-  }, [video?.id, narrationScript]);
-
-  useEffect(() => {
-    if (!narrationScript.trim()) return;
-    if (selectedLanguage === 'en-IN') return;
-    if (translatedScripts[selectedLanguage]) return;
-
-    let cancelled = false;
-    setTranslatingScript(true);
-    void api
-      .translateScriptText(
-        {
-          text: narrationScript,
-          target_language: selectedLanguageLabel,
-        },
-        userId,
-      )
-      .then((response) => {
-        if (cancelled) return;
-        setTranslatedScripts((current) => ({ ...current, [selectedLanguage]: response.text.trim() || narrationScript }));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTranslatedScripts((current) => ({ ...current, [selectedLanguage]: narrationScript }));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setTranslatingScript(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [narrationScript, selectedLanguage, selectedLanguageLabel, translatedScripts, userId]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    let rafId = 0;
-
-    const tick = () => {
-      if (videoRef.current) {
-        setPlaybackTime(videoRef.current.currentTime || 0);
-      }
-      rafId = window.requestAnimationFrame(tick);
-    };
-
-    rafId = window.requestAnimationFrame(tick);
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [isPlaying]);
 
   const previewVoice = async () => {
     if (!selectedVoiceOption) return;
-    setVoicePreviewing(true);
-    setVoicePreviewMessage(null);
     try {
-      const response = await api.previewTts(
-        {
-          voice: selectedVoiceOption.key,
-          language: selectedLanguage,
-          sample_rate_hz: 22050,
-          text: buildVoicePreviewText(selectedLanguage, displayedNarrationScript),
-        },
-        userId,
-      );
-      setVoicePreviewUrl(toAbsoluteUrl(response.preview_url));
-      setVoicePreviewMessage(
-        `${response.provider}${response.resolved_voice ? ` · ${response.resolved_voice}` : ''}${response.cached ? ' · cached' : ''}`,
-      );
-    } catch (error) {
-      setVoicePreviewMessage(error instanceof Error ? error.message : 'Unable to preview this voice right now.');
+      setVoicePreviewing(true);
+      setVoicePreviewMessage(null);
+      const previewText = buildVoicePreviewText(selectedLanguage, narrationScript);
+      const url = await api.previewTts({ text: previewText, voice: selectedVoiceOption.key, language: selectedLanguage, sample_rate_hz: 24000 }, userId);
+      setVoicePreviewUrl(url.preview_url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to preview this voice right now.';
+      setVoicePreviewMessage(message);
     } finally {
       setVoicePreviewing(false);
     }
   };
 
   const applyVoiceAndRerender = async () => {
-    if (!selectedVoiceOption) return;
-    setApplyingVoice(true);
+    if (!video || !selectedVoiceOption) return;
     try {
-      const response = await api.retryVideo(
-        videoId,
-        userId,
-        {
-          voice: selectedVoiceOption.key,
-          language: selectedLanguage,
-          script: displayedNarrationScript,
-          audio_sample_rate_hz: 48000,
-        },
-      );
+      setApplyingVoice(true);
+      await api.retryVideo(video.id, userId, {
+        voice: selectedVoiceOption.key,
+        language: selectedLanguage,
+      });
       show({
-        title: 'Rerender started',
-        message: `The video is rerendering with ${selectedVoiceOption.label}.`,
+        title: 'Voice applied',
+        message: 'A new narration pass is queued for this video.',
         variant: 'success',
       });
-      pushAssistantMessage(
-        'assistant',
-        `Voice updated to ${selectedVoiceOption.label}. I queued a fresh render pass so narration, captions, and the final mix can rebuild with the new voice.`,
-      );
-      setVoicePreviewMessage(`Rerender queued · ${response.status}`);
-      await loadBase();
-    } catch (error) {
+      void refreshStatus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to apply voice.';
       show({
-        title: 'Could not rerender',
-        message: error instanceof Error ? error.message : 'Please try again.',
+        title: 'Could not apply voice',
+        message,
         variant: 'error',
       });
     } finally {
@@ -838,11 +621,82 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     }
   };
 
+  const submitAssistantPrompt = async () => {
+    if (!assistantInput.trim() || assistantBusy || !video) return;
+    try {
+      setAssistantBusy(true);
+      const userMessage: VideoStudioChatMessage = { role: 'user', text: assistantInput };
+      setAssistantMessages((prev) => [...prev, userMessage]);
+      setAssistantInput('');
+
+      const response = await api.videoStudioChat(
+        {
+          videoId: video.id,
+          message: assistantInput,
+        },
+        userId,
+      );
+
+      const aiMessage: VideoStudioChatMessage = { role: 'assistant', text: response.reply };
+      setAssistantMessages((prev) => [...prev, aiMessage]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Studio AI could not respond right now.';
+      show({
+        title: 'Chat error',
+        message,
+        variant: 'error',
+      });
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  const runAssistantAction = async (action: 'explain' | 'assets' | 'notes') => {
+    if (!video || assistantBusy) return;
+    try {
+      setAssistantBusy(true);
+      const prompts: Record<string, string> = {
+        explain: 'Explain what happened in this render. What were the key decisions?',
+        assets: 'What assets were used to create this video?',
+        notes: 'Give me production notes I can share with my team about this render.',
+      };
+      const prompt = prompts[action];
+      if (!prompt) return;
+
+      setAssistantMessages((prev) => [...prev, { role: 'user', text: prompt }]);
+      const response = await api.videoStudioChat(
+        { videoId: video.id, message: prompt },
+        userId,
+      );
+      setAssistantMessages((prev) => [...prev, { role: 'assistant', text: response.reply }]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Action failed.';
+      show({
+        title: 'Chat error',
+        message,
+        variant: 'error',
+      });
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
   if (loading) {
     return (
-      <Card>
-        <PacmanLoader centered size="md" label="Loading video..." />
-      </Card>
+      <div className="mesh-bg min-h-screen p-4 md:p-6">
+        <div className="mx-auto max-w-6xl space-y-4">
+          <Skeleton variant="card" className="h-16" />
+          <Skeleton variant="video" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton variant="card" className="h-48" />
+            <Skeleton variant="card" className="h-48" />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton variant="card" className="h-40" />
+            <Skeleton variant="card" className="h-40" />
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -854,13 +708,14 @@ export function VideoDetailClient({ userId, videoId }: Props) {
     );
   }
 
-  const currentVideo: Video = video;
-  const generationTypeLabel = inferGenerationType(currentVideo);
+  const generationTypeLabel = inferGenerationType(video);
+  const completionPercentage = video.progress || 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[hsl(var(--color-bg))] font-sans text-[13px] text-text">
-      <div className="border-b border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg))] px-5 py-3">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="mesh-bg min-h-screen p-4 md:p-6">
+      <div className="mx-auto max-w-6xl space-y-4">
+        {/* HEADER */}
+        <div className="glass-card-strong flex flex-col gap-4 rounded-[24px] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -876,751 +731,363 @@ export function VideoDetailClient({ userId, videoId }: Props) {
             >
               <ArrowLeft className="h-4.5 w-4.5" />
             </button>
-
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold tracking-tight text-text sm:text-lg">
-                {currentVideo.title || 'Untitled Video'}
+              <h1 className="gradient-text truncate text-lg font-bold sm:text-xl">
+                {video.title || 'Untitled Video'}
               </h1>
-              <p className="mt-0.5 text-xs text-muted">Studio workspace</p>
+              <p className="mt-0.5 hidden text-xs text-muted sm:block">Studio workspace</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-transparent px-3 py-1.5 text-xs text-muted">
-              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-              <span>{wallet?.currentCredits ?? 0} credits{refreshing ? ' · refreshing' : ''}</span>
+              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent-amber))]" />
+              {wallet?.currentCredits ?? 0} credits
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-transparent px-3 py-1.5 text-xs text-muted">
-              <span>{currentVideo.status}</span>
-              {currentVideo.selected_model ? <span className="text-text">{currentVideo.selected_model}</span> : null}
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+              video.status === 'completed'
+                ? 'border-[hsl(var(--color-success)/0.3)] bg-[hsl(var(--color-success)/0.1)] text-[hsl(var(--color-success))]'
+                : video.status === 'processing' || video.status === 'draft'
+                  ? 'border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.1)] text-[hsl(var(--color-accent))]'
+                  : 'border-[hsl(var(--color-danger)/0.3)] bg-[hsl(var(--color-danger)/0.1)] text-[hsl(var(--color-danger))]'
+            }`}>
+              {video.status === 'completed' ? '✓' : video.status === 'processing' ? '◐' : '✕'} {video.status}
             </div>
 
             <Button
               variant="secondary"
-              className="h-10 rounded-[14px] border border-transparent bg-[hsl(var(--color-accent))] px-5 text-[hsl(var(--color-accent-contrast))] shadow-none hover:opacity-95"
+              className="glass-card h-9 rounded-[12px] px-3 text-xs font-medium"
               onClick={() => void shareVideo()}
               disabled={sharing}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
               {sharing ? 'Copying…' : 'Share'}
             </Button>
 
             <Button
-              className="h-10 rounded-[14px] bg-black px-5 text-white shadow-none hover:opacity-95"
+              className="glow-button h-9 rounded-[12px] px-3 text-xs font-medium"
               onClick={() => void downloadVideo()}
               disabled={!outputUrl || downloading}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="mr-1.5 h-3.5 w-3.5" />
               {downloading ? 'Exporting…' : 'Export'}
             </Button>
           </div>
         </div>
-        {statusRefreshWarning ? (
-          <div className="mt-3 rounded-[14px] border border-[hsl(var(--color-accent)/0.24)] bg-[hsl(var(--color-accent)/0.08)] px-3 py-2 text-xs font-medium text-[hsl(var(--color-accent))]">
-            {statusRefreshWarning}
+
+        {/* VIDEO PLAYER - HERO SECTION */}
+        <div className="glass-card-strong relative overflow-hidden rounded-[26px] p-5">
+          <div className="relative flex w-full items-center justify-center bg-black rounded-[20px] overflow-hidden" style={{ aspectRatio: video.aspect_ratio.replace(':', ' / ') }}>
+            {/* Completion Ring Overlay */}
+            {video.status === 'processing' || video.status === 'draft' ? (
+              <div className="absolute top-4 right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full border-2 border-[hsl(var(--color-accent))] bg-[hsl(var(--color-surface)/0.8)]">
+                <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15.915" fill="none" stroke="hsl(var(--color-accent))" strokeWidth="2" opacity="0.2" />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.915"
+                    fill="none"
+                    stroke="hsl(var(--color-accent))"
+                    strokeWidth="2"
+                    strokeDasharray={`${100 * 0.9973} 100`}
+                    strokeLinecap="round"
+                    style={{ strokeDashoffset: `${100 * (1 - completionPercentage / 100) * 0.9973}` }}
+                  />
+                </svg>
+                <span className="absolute text-xs font-semibold text-text">{completionPercentage}%</span>
+              </div>
+            ) : null}
+
+            {video.status === 'completed' && outputUrl ? (
+              <>
+                {!isPlaying && displayPosterUrl ? (
+                  <img
+                    src={displayPosterUrl}
+                    alt={video.title || 'Poster'}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : null}
+                <video
+                  ref={videoRef}
+                  src={outputUrl}
+                  poster={displayPosterUrl ?? undefined}
+                  className={`relative h-full w-full object-contain ${!isPlaying && displayPosterUrl ? 'opacity-0' : 'opacity-100'}`}
+                  onLoadedMetadata={(e) => setPlaybackDuration(e.currentTarget.duration || 0)}
+                  onTimeUpdate={(e) => setPlaybackTime(e.currentTarget.currentTime || 0)}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                />
+              </>
+            ) : displayPosterUrl ? (
+              <img src={displayPosterUrl} alt={video.title || 'Preview'} className="h-full w-full object-cover opacity-90" />
+            ) : (
+              <Skeleton variant="video" className="absolute inset-0" />
+            )}
+
+            {/* Play/Processing Overlay */}
+            {video.status !== 'completed' || !outputUrl ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-black/30 backdrop-blur">
+                  {video.status === 'completed' ? (
+                    <Play className="ml-1 h-6 w-6 fill-white text-white" />
+                  ) : (
+                    <Spinner />
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-6 pt-4 lg:px-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_380px] 2xl:grid-cols-[minmax(0,1.55fr)_400px]">
-          <div className="min-w-0 space-y-4">
-            <section className="overflow-hidden rounded-[26px] bg-[hsl(var(--color-surface))] shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.24)]">
-              <div className="border-b border-[hsl(var(--color-border-soft)/0.22)] px-5 py-5 sm:px-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-                      <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                      Render Workspace
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold tracking-tight text-text sm:text-xl">Preview</h2>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-                        Review the current export, monitor render progress, and make voice or asset decisions without the extra editing chrome.
-                      </p>
-                    </div>
-                  </div>
+          {/* Controls Bar */}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={togglePlayback}
+                disabled={video.status !== 'completed' || !outputUrl}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
+              </button>
+              <span className="text-xs font-semibold text-text">
+                {formatClock(playbackTime)} / {formatClock(playbackDuration || video.duration_seconds || 0)}
+              </span>
+            </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <SoftPill>{currentVideo.aspect_ratio}</SoftPill>
-                    <SoftPill>{currentVideo.resolution}</SoftPill>
-                    {currentVideo.duration_seconds ? <SoftPill>{formatLongDuration(currentVideo.duration_seconds)}</SoftPill> : null}
-                    <SoftPill>{generationTypeLabel}</SoftPill>
-                    <SoftPill>{currentVideo.selected_model || 'No model selected'}</SoftPill>
-                  </div>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              <SoftPill>{video.aspect_ratio}</SoftPill>
+              <SoftPill>{video.selected_model || 'Model'}</SoftPill>
+            </div>
+
+            <Button
+              variant="secondary"
+              className="h-9 rounded-[12px]"
+              onClick={() => void openFullscreen()}
+              disabled={video.status !== 'completed' || !outputUrl}
+            >
+              <Expand className="mr-1.5 h-3.5 w-3.5" />
+              Fullscreen
+            </Button>
+          </div>
+        </div>
+
+        {/* TWO COLUMNS: PIPELINE STATUS + CHAT */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* PIPELINE STATUS */}
+          <div className="glass-card-strong rounded-[24px] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted">Pipeline</p>
+            <div className="mt-4 grid gap-3 grid-cols-2">
+              <div className="glass-card rounded-[16px] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted">Playback</p>
+                <p className="mt-2 text-sm font-semibold text-text">
+                  {formatClock(playbackTime)} / {formatClock(playbackDuration || video.duration_seconds || 0)}
+                </p>
+                <p className="mt-1 text-xs text-muted">Current position</p>
               </div>
-
-              <div className="grid gap-6 px-5 py-5 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] lg:px-6">
-                <div className="mx-auto flex w-full max-w-[360px] items-center justify-center">
-                  <div className="relative w-full overflow-hidden rounded-[22px] bg-[linear-gradient(180deg,hsl(var(--color-bg-soft)),hsl(var(--color-surface)))] px-4 py-4 shadow-inner">
-                    {video.status === 'completed' && outputUrl ? (
-                      <div className="relative flex min-h-[420px] items-center justify-center">
-                        {!isPlaying && displayPosterUrl ? (
-                          <img
-                            src={displayPosterUrl}
-                            alt={video.title || 'Poster frame'}
-                            className="absolute inset-0 m-auto h-full w-full rounded-[18px] object-cover"
-                            style={{ aspectRatio: video.aspect_ratio.replace(':', ' / ') }}
-                          />
-                        ) : null}
-                        <video
-                          ref={videoRef}
-                          src={outputUrl}
-                          poster={displayPosterUrl ?? undefined}
-                          className={`relative h-full w-full rounded-[18px] bg-transparent object-contain ${!isPlaying && displayPosterUrl ? 'opacity-0' : 'opacity-100'}`}
-                          style={{ aspectRatio: video.aspect_ratio.replace(':', ' / ') }}
-                          onLoadedMetadata={(event) => setPlaybackDuration(event.currentTarget.duration || 0)}
-                          onTimeUpdate={(event) => setPlaybackTime(event.currentTarget.currentTime || 0)}
-                          onPlay={() => setIsPlaying(true)}
-                          onPause={() => setIsPlaying(false)}
-                          onEnded={() => setIsPlaying(false)}
-                        />
-                      </div>
-                    ) : displayPosterUrl ? (
-                      <div className="relative flex min-h-[420px] items-center justify-center">
-                        <img
-                          src={displayPosterUrl}
-                          alt={video.title || 'Video preview'}
-                          className="h-full w-full rounded-[18px] object-cover opacity-90"
-                          style={{ aspectRatio: video.aspect_ratio.replace(':', ' / ') }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-black/30 backdrop-blur">
-                            {video.status === 'completed' ? <Play className="ml-1 h-6 w-6 fill-current text-white" /> : <Spinner />}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex min-h-[420px] items-center justify-center text-muted">
-                        <div className="flex aspect-[9/16] w-full animate-pulse items-center justify-center rounded-[18px] bg-[hsl(var(--color-bg-soft))]">
-                          <Clapperboard className="h-10 w-10" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex min-w-0 flex-col justify-between gap-5">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Playback</p>
-                      <p className="mt-2 text-base font-semibold text-text">
-                        {formatClock(playbackTime)} / {formatClock(playbackDuration || currentVideo.duration_seconds || 0)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">Current export length and scrub position.</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Audio stack</p>
-                      <p className="mt-2 text-base font-semibold text-text">
-                        {video.narration_enabled ? 'Narration on' : 'Narration off'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {video.music_mode !== 'none' ? `BGM ${Math.round(video.music_volume * 100)}%` : 'No background music'}
-                      </p>
-                    </div>
-                    <div className="rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Pipeline</p>
-                      <p className="mt-2 text-base font-semibold text-text">{stage.label}</p>
-                      <p className="mt-1 text-xs text-muted">{stage.detail}</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Export</p>
-                      <p className="mt-2 text-base font-semibold text-text">Final output</p>
-                      <p className="mt-1 text-xs text-muted">{createdSummary}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] bg-[hsl(var(--color-bg-soft))] p-4 sm:p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={togglePlayback}
-                          disabled={currentVideo.status !== 'completed' || !outputUrl}
-                          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label={isPlaying ? 'Pause video' : 'Play video'}
-                        >
-                          {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
-                        </button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="h-11 rounded-[14px]"
-                          onClick={() => void openFullscreen()}
-                          disabled={video.status !== 'completed' || !outputUrl}
-                        >
-                          <Expand className="mr-2 h-4 w-4" />
-                          Fullscreen
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-3 text-sm text-muted sm:grid-cols-2">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Selected format</p>
-                          <p className="mt-1 text-sm font-medium text-text">{video.template || video.template_id || 'Freeform render'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Model path</p>
-                          <p className="mt-1 text-sm font-medium text-text">{video.selected_model || 'Provider-managed'}</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <SoftPill>{generationTypeLabel}</SoftPill>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="glass-card rounded-[16px] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted">Audio Stack</p>
+                <p className="mt-2 text-sm font-semibold text-text">
+                  {video.narration_enabled ? 'On' : 'Off'}
+                </p>
+                <p className="mt-1 text-xs text-muted">Narration {video.music_mode !== 'none' ? '+ BGM' : ''}</p>
               </div>
-            </section>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)]">
-              <section className="min-w-0">
-                <div className="flex h-full min-h-[520px] flex-col rounded-[24px] bg-[hsl(var(--color-surface))] shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.24)]">
-                  <div className="flex items-center justify-between px-5 py-5">
-                    <div>
-                      <p className="text-lg font-semibold text-text">Assets</p>
-                      <p className="mt-1 text-sm text-muted">Reference visuals, music, and speech settings for this render.</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-transparent text-muted transition hover:bg-[hsl(var(--color-bg-soft))] hover:text-text"
-                      aria-label="Filter assets"
-                    >
-                      <SlidersHorizontal className="h-4.5 w-4.5" />
-                    </button>
-                  </div>
-
-                  <div className="px-4 pb-4">
-                    <div className="grid grid-cols-2 rounded-[14px] bg-[hsl(var(--color-bg-soft))] p-1">
-                      <button type="button" className="rounded-[10px] bg-white px-4 py-2 text-sm font-medium text-text shadow-none">
-                        Media
-                      </button>
-                      <button type="button" className="rounded-[10px] px-4 py-2 text-sm font-medium text-muted">
-                        Docs
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 px-4">
-                    {([
-                      ['visual', 'Visual', ImageIcon],
-                      ['bgm', 'BGM', Music4],
-                      ['speech', 'Speech', AudioLines],
-                    ] as const).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setAssetTab(key)}
-                        className={`rounded-[12px] px-3 py-2 text-sm font-medium transition ${assetTab === key ? 'bg-[hsl(var(--color-bg-soft))] text-text' : 'bg-transparent text-muted hover:text-text'}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex-1 px-4 pb-4">
-                    {assetTab === 'visual' ? (
-                      <div className="space-y-3">
-                        {video.template || video.template_id ? (
-                          <div className="rounded-[16px] bg-[hsl(var(--color-bg-soft))] p-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Recipe / format</p>
-                            <p className="mt-1 text-sm font-semibold text-text">{video.template || video.template_id}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <SoftPill>{currentVideo.aspect_ratio}</SoftPill>
-                              <SoftPill>{generationTypeLabel}</SoftPill>
-                              <SoftPill>{video.selected_model || 'Selected model'}</SoftPill>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {visualAssets.length > 0 ? (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {visualAssets.slice(0, 4).map((asset, index) => (
-                              <div key={`${asset.url}-${index}`} className="overflow-hidden rounded-[16px] bg-[hsl(var(--color-bg-soft))]">
-                                <img
-                                  src={asset.url}
-                                  alt={asset.label}
-                                  className={`${asset.kind === 'output' ? 'aspect-[16/10] max-h-[160px]' : 'aspect-[4/5]'} w-full object-cover`}
-                                />
-                                <div className="px-3 py-2">
-                                  <p className="text-xs font-medium text-text">{asset.label}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[260px] items-center justify-center rounded-[16px] bg-[hsl(var(--color-bg-soft))] text-sm text-muted">No visuals yet</div>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {assetTab === 'bgm' ? (
-                      <div className="space-y-3">
-                        {selectedTrack || video.music_file_url ? (
-                          <div className="rounded-[16px] bg-[hsl(var(--color-bg-soft))] p-3">
-                            <div className="flex items-start gap-3">
-                              <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[hsl(var(--color-surface))]">
-                                <Music4 className="h-5 w-5 text-[hsl(var(--color-accent))]" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="line-clamp-1 text-sm font-semibold text-text">
-                                  {selectedTrack?.name || (video.music_mode === 'upload' ? 'Uploaded music track' : 'Applied background music')}
-                                </p>
-                                <p className="mt-1 text-xs text-muted">
-                                  {video.music_mode === 'library'
-                                    ? 'Selected from the RangManch music library'
-                                    : video.music_mode === 'upload'
-                                      ? 'Uploaded by you for this render'
-                                      : video.music_mode === 'generated'
-                                        ? 'Generated music asset for this video'
-                                        : 'Music layer attached to the final export'}
-                                </p>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  <SoftPill>{video.music_mode}</SoftPill>
-                                  <SoftPill>Vol {Math.round(video.music_volume * 100)}%</SoftPill>
-                                  {selectedTrack?.duration_sec ? <SoftPill>{formatLongDuration(selectedTrack.duration_sec)}</SoftPill> : null}
-                                </div>
-                              </div>
-                            </div>
-                            {selectedTrack?.preview_url ? (
-                              <audio className="mt-3 w-full" controls src={toAbsoluteUrl(selectedTrack.preview_url) ?? undefined} />
-                            ) : null}
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[260px] items-center justify-center rounded-[16px] bg-[hsl(var(--color-bg-soft))] text-sm text-muted">No BGM yet</div>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {assetTab === 'speech' ? (
-                      <div className="space-y-3">
-                        {video.narration_enabled ? (
-                          <div className="rounded-[16px] bg-[hsl(var(--color-bg-soft))] p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-text">Speech / voice</p>
-                              <SoftPill>{video.narration_enabled ? 'On' : 'Off'}</SoftPill>
-                            </div>
-                            <p className="mt-2 text-xs text-muted">
-                              {`Voice provider: ${video.tts_provider || 'Configured'}${video.tts_resolved_voice ? ` · ${video.tts_resolved_voice}` : ''}`}
-                            </p>
-                            {video.tts_provider_message ? (
-                              <p className="mt-3 rounded-[12px] bg-[hsl(var(--color-surface))] px-3 py-2 text-xs text-muted">
-                                {video.tts_provider_message}
-                              </p>
-                            ) : null}
-
-                            {voiceOptions.length > 0 ? (
-                              <div className="mt-4 space-y-4 rounded-[12px] bg-[hsl(var(--color-surface))] p-3 sm:p-4">
-                                <div className="grid gap-3">
-                                  <label className="block">
-                                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Language</span>
-                                    <Dropdown value={selectedLanguage} onChange={(event) => setSelectedLanguage(event.target.value)}>
-                                      {languageOptions.map((option, index) => (
-                                        <option key={`${option.code}-${option.label}-${index}`} value={option.code}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Dropdown>
-                                  </label>
-                                  <label className="block">
-                                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Voice</span>
-                                    <Dropdown value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value)}>
-                                      {voiceOptions.map((option) => (
-                                        <option key={option.key} value={option.key}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Dropdown>
-                                  </label>
-                                </div>
-                                <div className="space-y-3">
-                                  <p className="max-w-[26rem] text-xs leading-5 text-muted">
-                                    Preview a Sarvam voice, then apply it to queue a new narration pass for this video.
-                                  </p>
-                                  <div className="flex w-full flex-col gap-2">
-                                    <Button type="button" variant="secondary" className="h-9 w-full rounded-[12px]" onClick={() => void previewVoice()} disabled={voicePreviewing || translatingScript}>
-                                      {voicePreviewing ? 'Previewing…' : 'Preview voice'}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      className="h-9 w-full rounded-[12px]"
-                                      onClick={() => void applyVoiceAndRerender()}
-                                      disabled={applyingVoice || !selectedVoiceOption || translatingScript}
-                                    >
-                                      {applyingVoice ? 'Applying…' : 'Apply & rerender'}
-                                    </Button>
-                                  </div>
-                                </div>
-                                {translatingScript ? <p className="text-xs text-muted">Translating narration script…</p> : null}
-                                {voicePreviewMessage ? <p className="text-xs text-muted">{voicePreviewMessage}</p> : null}
-                                {voicePreviewUrl ? <audio className="w-full" controls src={voicePreviewUrl} /> : null}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[260px] items-center justify-center rounded-[16px] bg-[hsl(var(--color-bg-soft))] text-[15px] text-[hsl(var(--color-text-muted))]">
-                            No speech yet
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="flex justify-end px-4 pb-4">
-                    <button
-                      type="button"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-[14px] bg-[hsl(var(--color-bg-soft))] text-text transition hover:opacity-90"
-                      aria-label="Add asset"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="min-w-0">
-                <div className="flex h-full min-h-[520px] flex-col rounded-[24px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.24)]">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-muted">Audio script</p>
-                      <p className="mt-1 text-sm text-muted">Current spoken copy and translation state for this export.</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {narrationSourceType ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1 text-xs text-text">
-                          <span>{narrationSourceType === 'openai_explainer_script' ? 'AI narration' : 'Generated narration'}</span>
-                        </div>
-                      ) : null}
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1 text-xs text-text">
-                        <span>Read-only</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex-1 rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4 sm:p-5">
-                    {displayedNarrationScript ? (
-                      <div className="space-y-3">
-                        {selectedLanguage !== 'en-IN' ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <SoftPill>{selectedLanguageLabel}</SoftPill>
-                            {translatingScript ? <SoftPill>Translating…</SoftPill> : null}
-                          </div>
-                        ) : null}
-                        <p className="whitespace-pre-wrap break-words text-sm leading-7 text-text [overflow-wrap:anywhere]">{displayedNarrationScript}</p>
-                      </div>
-                    ) : (
-                      <div className="flex h-full min-h-[180px] items-center justify-center text-sm text-muted">No audio script yet</div>
-                    )}
-                  </div>
-                </div>
-              </section>
+              <div className="glass-card rounded-[16px] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted">Pipeline</p>
+                <p className="mt-2 text-sm font-semibold text-text">{stage.label}</p>
+                <p className="mt-1 text-xs text-muted">{stage.detail.slice(0, 40)}…</p>
+              </div>
+              <div className="glass-card rounded-[16px] p-3 border-l-4 border-l-[hsl(var(--color-success))]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted">Export</p>
+                <p className="mt-2 text-sm font-semibold text-text">Final output</p>
+                <p className="mt-1 text-xs text-muted">{createdSummary}</p>
+              </div>
             </div>
           </div>
 
-          <aside className="min-h-0 self-start xl:sticky xl:top-4">
-            <div className="flex h-[520px] min-h-[520px] max-h-[520px] flex-col overflow-hidden rounded-[22px] bg-[hsl(var(--color-surface))] p-4 shadow-soft ring-1 ring-[hsl(var(--color-border-soft)/0.3)] 2xl:px-5">
-              <div className="flex items-center justify-between px-1 pb-1">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg-soft))] px-2.5 py-1 text-xs font-medium text-text">
-                  {referenceImages[0] || displayPosterUrl ? (
-                    <img src={referenceImages[0] || displayPosterUrl || undefined} alt="" className="h-5 w-5 rounded-full object-cover" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 text-[hsl(var(--color-accent))]" />
-                  )}
-                  Studio AI
-                </div>
-                <SoftPill>{video.progress}%</SoftPill>
+          {/* STUDIO AI CHAT */}
+          <div className="glass-card-strong rounded-[24px] p-5 flex flex-col">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <p className="gradient-text font-bold text-sm">Studio AI</p>
+              <div className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${
+                video.progress === 100
+                  ? 'bg-[hsl(var(--color-success)/0.12)] text-[hsl(var(--color-success))]'
+                  : 'bg-[hsl(var(--color-accent-amber)/0.12)] text-[hsl(var(--color-accent-amber))]'
+              }`}>
+                {video.progress === 100 ? '✓' : completionPercentage}%
               </div>
+            </div>
 
-              <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 2xl:pr-2">
-                {referenceImages[0] ? (
-                  <div className="ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-2.5">
-                    <img src={referenceImages[0]} alt="Reference" className="aspect-[4/3] w-full rounded-[14px] object-cover" />
-                  </div>
-                ) : null}
+            {referenceImages[0] ? (
+              <img src={referenceImages[0]} alt="Ref" className="w-full max-h-32 rounded-[14px] object-cover mb-3" />
+            ) : null}
 
-                <div className="ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <SoftPill>{narrationSourceLabel}</SoftPill>
-                        {video.narration_enabled ? <SoftPill>Narration on</SoftPill> : <SoftPill>Narration off</SoftPill>}
-                      </div>
-                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{displayedNarrationScript || 'Prepare a social-first video from my prompt.'}</p>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <SoftPill>AI video</SoftPill>
-                    <SoftPill>{currentVideo.aspect_ratio}</SoftPill>
-                  </div>
-                </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => runAssistantAction('explain')}
+                disabled={assistantBusy}
+                className="glass-card rounded-full px-3 py-1.5 text-xs font-medium transition hover:opacity-90 disabled:opacity-50"
+              >
+                Explain edit
+              </button>
+              <button
+                type="button"
+                onClick={() => runAssistantAction('assets')}
+                disabled={assistantBusy}
+                className="glass-card rounded-full px-3 py-1.5 text-xs font-medium transition hover:opacity-90 disabled:opacity-50"
+              >
+                Show assets
+              </button>
+              <button
+                type="button"
+                onClick={() => runAssistantAction('notes')}
+                disabled={assistantBusy}
+                className="glass-card rounded-full px-3 py-1.5 text-xs font-medium transition hover:opacity-90 disabled:opacity-50"
+              >
+                Export notes
+              </button>
+            </div>
 
-                {sortedPipelineEvents.length > 0
-                  ? sortedPipelineEvents.map((event) => (
-                    <div key={event.id} className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                          <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                          {event.title}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {event.created_at ? <span className="text-[11px] text-muted">{formatEventStamp(event.created_at)}</span> : null}
-                          {event.state ? (
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-medium ${eventStateTone(event.state)}`}>
-                              {event.state}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{event.detail}</p>
-                    </div>
-                  ))
-                  : (
-                    <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                        <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                        {stage.label}
-                      </div>
-                      <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{stage.detail}</p>
-                    </div>
-                  )}
-
-                {isGenerationActive ? (
-                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                      <Spinner />
-                      AI is working
-                    </div>
-                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
-                      {sortedPipelineEvents.length > 0
-                        ? 'Still generating. The copilot will keep appending pipeline updates here as the render moves through scenes, audio, and final export.'
-                        : `${stage.label}. ${stage.detail}`}
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--color-success))]" />
-                    Workspace loaded
-                  </div>
-                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{createdSummary}</p>
-                  </div>
-
-                <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                  <p className="text-sm font-semibold text-text">Todos</p>
-                  <div className="mt-3 space-y-3">
-                    {effectiveTodoItems.map((item, index) => (
-                      <button
-                        key={`${item.label}-${index}`}
-                        type="button"
-                        onClick={() => setTodoOverrides((current) => ({ ...current, [item.label]: !current[item.label] }))}
-                        className="flex w-full gap-3 text-left"
-                      >
-                        <span
-                          className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${item.complete
-                            ? 'border-[hsl(var(--color-success)/0.4)] bg-[hsl(var(--color-success)/0.16)] text-[hsl(var(--color-success))]'
-                            : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface)/0.72)] text-muted'
-                            }`}
-                        >
-                          {item.complete ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
-                        </span>
-                        <p className={`text-sm leading-5 ${item.complete ? 'text-text' : 'text-muted'}`}>{item.label}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {plannerQaEntries.length > 0 ? (
-                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                        <Wand2 className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                        Planner watchouts
-                      </div>
-                      <SoftPill>{plannerQaEntries.length}</SoftPill>
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {plannerQaEntries.slice(0, 4).map((entry) => (
-                        <div key={entry.sceneId} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted">{entry.stageLabel}</p>
-                            {entry.shotArchetype ? <SoftPill>{entry.shotArchetype}</SoftPill> : null}
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {entry.flags.map((flag) => (
-                              <span
-                                key={flag}
-                                className="inline-flex items-center rounded-full bg-[hsl(var(--color-warning)/0.12)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--color-warning))]"
-                              >
-                                {flag.replace(/_/g, ' ')}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-muted">
-                      These are lightweight planner warnings so we can catch repetition or weak scene grounding before expanding the recipe system further.
-                    </p>
-                  </div>
-                ) : null}
-
-                {ugcAvatarDebug ? (
-                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                        <AudioLines className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                        UGC avatar sync
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2 text-sm text-text">
-                      <p>
-                        Avatar: {ugcAvatarDebug.avatarName || '—'} ({ugcAvatarDebug.source || 'unknown'})
-                        {ugcAvatarDebug.avatarId ? ` · ${ugcAvatarDebug.avatarId}` : ''}
-                      </p>
-                      <p>
-                        Voice contract: requested {ugcAvatarDebug.requestedVoice || '—'} / {ugcAvatarDebug.requestedLanguage || '—'}
-                        {' -> '}synced {ugcAvatarDebug.syncedVoice || '—'} / {ugcAvatarDebug.syncedLanguage || '—'}
-                        {' -> '}resolved {ugcAvatarDebug.resolvedVoice || '—'} / {ugcAvatarDebug.resolvedLanguage || '—'}
-                      </p>
-                    </div>
-                    {ugcAvatarDebug.runtimeRows.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {ugcAvatarDebug.runtimeRows.slice(0, 4).map((row, index) => (
-                          <div key={`${row.sceneId || 'scene'}-${index}`} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
-                            <p className="font-semibold text-text">
-                              {row.sceneId || 'Talking scene'} · {row.providerLabel || row.provider || 'provider unknown'}
-                            </p>
-                            {row.fallbackReason ? (
-                              <p className="mt-1 text-[hsl(var(--color-warning))]">
-                                fallback: {row.fallbackReason}
-                              </p>
-                            ) : (
-                              <p className="mt-1 text-[hsl(var(--color-success))]">Talking provider path succeeded.</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {ugcAvatarDebug.watchouts.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {ugcAvatarDebug.watchouts.map((row) => (
-                          <div key={`${row.sceneId}-${row.stage}`} className="rounded-[14px] bg-[hsl(var(--color-bg))] px-3 py-2 text-xs text-muted">
-                            <p className="font-semibold text-text">{row.stage.replace(/_/g, ' ')}</p>
-                            <div className="mt-1 flex flex-wrap gap-1.5">
-                              {row.flags.map((flag) => (
-                                <span
-                                  key={flag}
-                                  className="inline-flex items-center rounded-full bg-[hsl(var(--color-warning)/0.12)] px-2 py-0.5 text-[11px] font-medium text-[hsl(var(--color-warning))]"
-                                >
-                                  {flag.replace(/_/g, ' ')}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {assistantMessages.map((message, index) => (
-                  <div
-                    key={`${message.role}-${index}`}
-                    className={`${message.role === 'user'
-                      ? 'ml-auto max-w-[88%] rounded-[18px] bg-[hsl(var(--color-accent)/0.12)] px-4 py-3'
-                      : 'max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3'
-                      }`}
+            {assistantMessages.length === 0 ? (
+              <div className="flex-1 flex flex-col gap-2 justify-center">
+                {[
+                  'Make it more cinematic',
+                  'Change the lighting',
+                  'Explain this render',
+                  'What model was used?'
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => {
+                      setAssistantInput(prompt);
+                      setTimeout(submitAssistantPrompt, 0);
+                    }}
+                    disabled={assistantBusy}
+                    className="glass-card text-left rounded-[12px] px-3 py-2 text-xs transition hover:opacity-90 disabled:opacity-50"
                   >
-                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">{message.text}</p>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex-1 min-h-[200px] overflow-y-auto space-y-3 mb-3">
+                {assistantMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`glass-card rounded-[12px] px-3 py-2 text-xs ${
+                      msg.role === 'user'
+                        ? 'ml-auto max-w-[80%] bg-[hsl(var(--color-accent)/0.12)] border-[hsl(var(--color-accent)/0.2)]'
+                        : 'bg-[hsl(var(--glass-bg-light))]'
+                    }`}
+                  >
+                    {msg.text}
                   </div>
                 ))}
-
-                {selectedTrack || video.music_file_url ? (
-                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--color-bg))] px-2.5 py-1 text-[11px] font-medium text-muted">
-                      <Music4 className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                      Updated BGM
-                    </div>
-                    <p className="mt-3 break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
-                      {selectedTrack?.name || 'Background music attached'} is ready for the final mix at {Math.round(video.music_volume * 100)}%
-                      volume.
-                    </p>
-                  </div>
-                ) : null}
-
-                {video.status === 'completed' ? (
-                  <div className="max-w-[92%] rounded-[18px] bg-[hsl(var(--color-bg-soft))] px-4 py-3">
-                    <p className="break-words text-sm leading-6 text-text [overflow-wrap:anywhere]">
-                      Your video is ready. The final export is available with the selected aspect ratio, music settings, and playback controls.
-                    </p>
-                  </div>
-                ) : null}
               </div>
+            )}
 
-              <div className="mt-4 border-t border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface))] px-1 pt-4 pb-1">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => runAssistantAction('explain')}
-                    disabled={assistantBusy}
-                    className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
-                  >
-                    Explain edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runAssistantAction('assets')}
-                    disabled={assistantBusy}
-                    className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
-                  >
-                    Show assets
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runAssistantAction('notes')}
-                    disabled={assistantBusy}
-                    className="rounded-full bg-[hsl(var(--color-bg-soft))] px-3 py-1.5 text-xs font-medium text-text transition hover:opacity-90"
-                  >
-                    Export notes
-                  </button>
+            <div className="glass-card flex items-center gap-2 rounded-[14px] px-3 py-2.5">
+              <input
+                value={assistantInput}
+                onChange={(e) => setAssistantInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !assistantBusy) {
+                    e.preventDefault();
+                    submitAssistantPrompt();
+                  }
+                }}
+                disabled={assistantBusy}
+                placeholder="Ask me anything…"
+                className="flex-1 bg-transparent text-xs text-text outline-none placeholder:text-muted"
+              />
+              <button
+                type="button"
+                onClick={submitAssistantPrompt}
+                disabled={assistantBusy || !assistantInput.trim()}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* TWO COLUMNS BOTTOM: ASSETS + AUDIO SCRIPT */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* ASSETS */}
+          <div className="glass-card-strong rounded-[24px] p-5">
+            <p className="gradient-text font-bold text-sm mb-4">Assets</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(['visual', 'bgm', 'speech'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAssetTab(key)}
+                  className={`glass-card rounded-full px-3 py-1.5 text-xs font-medium transition ${assetTab === key ? 'bg-[hsl(var(--color-accent)/0.2)] border-[hsl(var(--color-accent)/0.4)]' : ''}`}
+                >
+                  {key === 'visual' ? '🖼️ Visual' : key === 'bgm' ? '🎵 BGM' : '🎙️ Speech'}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-[200px]">
+              {assetTab === 'visual' && visualAssets.length > 0 && (
+                <div className="grid gap-3 grid-cols-2">
+                  {visualAssets.slice(0, 4).map((asset, i) => (
+                    <div key={i} className="overflow-hidden rounded-[14px] bg-[hsl(var(--color-bg-soft))]">
+                      <img src={asset.url} alt={asset.label} className="w-full h-24 object-cover" />
+                      <p className="px-2 py-1.5 text-xs font-medium text-text">{asset.label}</p>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--color-accent))]" />
-                  {assistantBusy ? 'Studio AI is thinking…' : 'Ask me anything...'}
+              )}
+              {assetTab === 'bgm' && (selectedTrack || video.music_file_url) && (
+                <div className="glass-card rounded-[14px] p-3">
+                  <p className="text-xs font-semibold text-text">{selectedTrack?.name || 'BGM'}</p>
+                  <p className="mt-1 text-[11px] text-muted">{video.music_mode} · {Math.round(video.music_volume * 100)}%</p>
+                  {selectedTrack?.preview_url && (
+                    <audio className="mt-2 w-full" controls src={toAbsoluteUrl(selectedTrack.preview_url) ?? ''} />
+                  )}
                 </div>
-
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-[hsl(var(--color-bg-soft))] px-3.5 py-3 text-sm text-muted">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Wand2 className="h-4 w-4 shrink-0 text-[hsl(var(--color-accent))]" />
-                    <input
-                      value={assistantInput}
-                      onChange={(event) => setAssistantInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !assistantBusy) {
-                          event.preventDefault();
-                          submitAssistantPrompt();
-                        }
-                      }}
-                      disabled={assistantBusy}
-                      placeholder="Ask about this render, assets, or the next edit step…"
-                      className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-                    />
+              )}
+              {assetTab === 'speech' && video.narration_enabled && (
+                <div className="glass-card rounded-[14px] p-3 space-y-2">
+                  <p className="text-xs font-semibold text-text">Voice: {video.tts_resolved_voice}</p>
+                  <p className="text-[11px] text-muted">{video.tts_provider}</p>
+                  <div className="flex gap-2">
+                    <Button className="h-8 text-xs" onClick={() => void previewVoice()} disabled={voicePreviewing}>
+                      {voicePreviewing ? 'Previewing…' : 'Preview'}
+                    </Button>
+                    <Button className="h-8 text-xs" variant="secondary" onClick={() => void applyVoiceAndRerender()} disabled={applyingVoice}>
+                      {applyingVoice ? 'Applying…' : 'Apply'}
+                    </Button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={submitAssistantPrompt}
-                    disabled={assistantBusy || !assistantInput.trim()}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--color-accent))] text-[hsl(var(--color-accent-contrast))] shadow-none"
-                    aria-label="Send"
-                  >
-                    {assistantBusy ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-                  </button>
                 </div>
+              )}
+              {((assetTab === 'visual' && visualAssets.length === 0) || (assetTab === 'bgm' && !selectedTrack && !video.music_file_url) || (assetTab === 'speech' && !video.narration_enabled)) && (
+                <div className="flex h-full items-center justify-center text-muted text-xs">No {assetTab} assets</div>
+              )}
+            </div>
+          </div>
+
+          {/* AUDIO SCRIPT */}
+          <div className="glass-card-strong rounded-[24px] p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <p className="gradient-text font-bold text-sm">Audio Script</p>
+              <div className="glass-card rounded-full px-2.5 py-1 text-[10px] font-semibold text-text">
+                Read-only
               </div>
             </div>
-          </aside>
+
+            <div className="glass-card rounded-[14px] p-4 min-h-[200px] text-sm leading-relaxed text-text">
+              {displayedNarrationScript ? displayedNarrationScript : <span className="text-muted">No script yet</span>}
+            </div>
+          </div>
         </div>
       </div>
     </div>

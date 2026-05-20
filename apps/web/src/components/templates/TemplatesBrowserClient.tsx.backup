@@ -432,7 +432,7 @@ export function TemplatesBrowserClient({ userId, initialProjectId }: { userId: s
                     variant="secondary"
                     onClick={() => {
                       if (generatedResult.contentType === 'image') {
-                        router.push('/create');
+                        router.push('/images');
                         return;
                       }
                       router.push(`/videos/${generatedResult.assetId}`);

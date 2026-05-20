@@ -132,9 +132,9 @@ export function AuthSidebar({ accountLabel }: Props) {
   const activeGroup = panelGroups[activeRail] ?? panelGroups.home;
 
   return (
-    <aside className="sticky top-0 grid h-screen grid-cols-[72px_240px] border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
-      <div className="flex flex-col items-center gap-3 border-r border-[hsl(var(--color-border))] px-2 py-3">
-        <div className="rounded-full border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-1">
+    <aside className="sticky top-0 grid h-screen grid-cols-[72px_240px] border-r border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-medium))] backdrop-blur-[var(--glass-blur)]">
+      <div className="flex flex-col items-center gap-3 border-r border-[hsl(var(--glass-border))] px-2 py-3">
+        <div className="rounded-full border border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-light))] p-1">
           <BrandLogo href="/dashboard" variant="mark" size="sm" />
         </div>
 
@@ -149,8 +149,8 @@ export function AuthSidebar({ accountLabel }: Props) {
                 title={item.label}
                 className={`inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border transition ${
                   active
-                    ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.14)] text-text'
-                    : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-muted hover:text-text'
+                    ? 'border-[hsl(var(--color-primary)/0.5)] bg-[hsl(var(--color-primary)/0.15)] text-[hsl(var(--color-primary))]'
+                    : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-light))] text-muted hover:text-text'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -172,9 +172,9 @@ export function AuthSidebar({ accountLabel }: Props) {
         <div className="mt-3 grid gap-2">
           <Link
             href="/projects#new-project"
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-accent)/0.45)] bg-[hsl(var(--color-accent)/0.12)] px-3 py-2 text-sm font-semibold text-text transition hover:border-[hsl(var(--color-accent))]"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-primary)/0.3)] bg-[hsl(var(--color-primary)/0.12)] px-3 py-2 text-sm font-semibold text-text transition hover:border-[hsl(var(--color-primary)/0.5)]"
           >
-            <FolderPlus className="h-4 w-4 text-[hsl(var(--color-accent))]" />
+            <FolderPlus className="h-4 w-4 text-[hsl(var(--color-primary))]" />
             Create project
           </Link>
           {activeGroup.links.map((item) => {
@@ -186,22 +186,22 @@ export function AuthSidebar({ accountLabel }: Props) {
                 href={item.href}
                 className={`flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm transition ${
                   active
-                    ? 'border-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] text-text'
-                    : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] text-muted hover:text-text'
+                    ? 'border-[hsl(var(--color-primary)/0.5)] bg-[hsl(var(--color-primary)/0.12)] text-text'
+                    : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-light))] text-muted hover:text-text'
                 }`}
               >
-                {Icon ? <Icon className={`h-4 w-4 ${active ? 'text-[hsl(var(--color-accent))]' : ''}`} /> : null}
+                {Icon ? <Icon className={`h-4 w-4 ${active ? 'text-[hsl(var(--color-primary))]' : ''}`} /> : null}
                 {item.label}
               </Link>
             );
           })}
         </div>
 
-        <div className="mt-auto rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3">
+        <div className="mt-auto rounded-[var(--radius-md)] border border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-bg-light))] p-3">
           <p className="text-xs text-muted">Personal</p>
           <p className="text-sm font-semibold text-text">{accountLabel ?? 'User'}</p>
           <LogoutButton
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-2 text-sm font-semibold text-text disabled:opacity-70"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--glass-border))] px-3 py-2 text-sm font-semibold text-text disabled:opacity-70"
             label="Log out"
             pendingLabel="Logging out..."
           />

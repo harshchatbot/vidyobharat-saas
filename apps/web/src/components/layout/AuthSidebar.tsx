@@ -39,7 +39,7 @@ type PanelLink = {
 
 const railItems: RailItem[] = [
   { id: 'home', label: 'Home', href: '/dashboard', icon: Home },
-  { id: 'tools', label: 'Tools', href: '/images', icon: Sparkles },
+  { id: 'tools', label: 'Tools', href: '/create', icon: Sparkles },
   { id: 'avatar', label: 'Create Avatar', href: '/influencer', icon: Wand2 },
   { id: 'templates', label: 'Templates', href: '/templates', icon: LayoutTemplate },
   { id: 'projects', label: 'Projects', href: '/projects', icon: FolderKanban },
@@ -60,7 +60,6 @@ const panelGroups: Record<string, { title: string; links: PanelLink[] }> = {
   tools: {
     title: 'Create with Tools',
     links: [
-      { label: 'Generate images', href: '/images', icon: ImageIcon },
       { label: 'Unified studio', href: '/create', icon: Video },
       { label: 'Template Browser', href: '/templates', icon: LayoutTemplate },
     ],
@@ -113,7 +112,7 @@ function matchActiveRail(pathname: string): string {
   if (pathname === '/dashboard') return 'home';
   if (pathname.startsWith('/influencer') || pathname.startsWith('/create/avatar')) return 'avatar';
   if (pathname.startsWith('/templates') || pathname.startsWith('/admin/templates') || pathname.startsWith('/create/template')) return 'templates';
-  if (pathname.startsWith('/images') || pathname.startsWith('/create/') || pathname === '/create') return 'tools';
+  if (pathname.startsWith('/create/') || pathname === '/create') return 'tools';
   if (pathname.startsWith('/projects') || pathname.startsWith('/editor/')) return 'projects';
   if (pathname.startsWith('/renders/')) return 'renders';
   if (

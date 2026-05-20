@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check, X, UserRound, Clapperboard, Sparkles, Mic2, FolderOpen } from 'lucide-react';
 import { VoicePreviewModal } from './VoicePreviewModal';
+import { getCurrentUserIdOrThrow } from '@/lib/authUser';
 
 const CHECKLIST_ITEMS = [
   {
@@ -200,6 +201,21 @@ function OnboardingChecklistContent({
                 >
                   {isCompleted ? '✓' : 'Try Now'}
                 </button>
+              ) : item.id === 'explore_recipe' ? (
+                <button
+                  onClick={() => {
+                    const recipesSection = document.querySelector('[data-section="recipes"]');
+                    if (recipesSection) {
+                      recipesSection.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    }
+                  }}
+                  className="glass-card px-3 py-1 text-xs flex-shrink-0 ml-2 rounded-lg transition-all hover:opacity-80"
+                  style={{ color: 'hsl(var(--color-primary))' }}
+                >
+                  {isCompleted ? '✓' : 'Try Now'}
+                </button>
               ) : (
                 <Link
                   href={item.href}
@@ -228,7 +244,72 @@ function OnboardingChecklistContent({
   );
 }
 
+function triggerConfetti() {
+  const colors = ['#7C3AED', '#EC4899', '#F59E0B', '#06B6D4', '#10B981'];
+  const style = document.createElement('style');
+  style.textContent = `@keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }`;
+  document.head.appendChild(style);
+
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed;
+      width: ${Math.random() * 10 + 5}px;
+      height: ${Math.random() * 10 + 5}px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      left: ${Math.random() * 100}vw;
+      top: -20px;
+      z-index: 99999;
+      pointer-events: none;
+      animation: confetti-fall ${Math.random() * 2 + 2}s ease-in forwards;
+      animation-delay: ${Math.random() * 1.5}s;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  }
+  setTimeout(() => style.remove(), 6000);
+}
+
+async function claimOnboardingReward(): Promise<boolean> {
+  try {
+    const userId = getCurrentUserIdOrThrow('onboarding reward');
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${apiUrl}/api/onboarding/complete`, {
+      method: 'POST',
+      headers: { 'X-User-ID': userId },
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Dispatch credit update event so topbar refreshes
+      window.dispatchEvent(new CustomEvent('rangmanch:credits-updated'));
+      return true;
+    }
+  } catch (err) {
+    console.error('Failed to claim onboarding reward:', err);
+  }
+  return false;
+}
+
 function BadgeEarnedContent({ onDismiss }: { onDismiss: () => void }) {
+  const [creditsGranted, setCreditsGranted] = useState<number | null>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  useEffect(() => {
+    const claim = async () => {
+      setClaiming(true);
+      const success = await claimOnboardingReward();
+      if (success) {
+        triggerConfetti();
+        setCreditsGranted(20);
+      }
+      setClaiming(false);
+    };
+    claim();
+  }, []);
   return (
     <div className="glass-card-strong p-8 mb-8 rounded-xl flex flex-col items-center text-center">
       <div className="animate-float text-6xl mb-4">🏆</div>
@@ -240,12 +321,21 @@ function BadgeEarnedContent({ onDismiss }: { onDismiss: () => void }) {
         <span style={{ color: 'hsl(var(--color-accent-amber))', fontSize: '18px' }}>⭐</span>
         <span className="gradient-text font-bold">RangManchAI Creator</span>
       </div>
+      {creditsGranted && (
+        <p
+          className="text-sm font-semibold mb-4"
+          style={{ color: 'hsl(var(--color-success))' }}
+        >
+          🎉 +{creditsGranted} credits added to your account!
+        </p>
+      )}
       <button
         onClick={onDismiss}
         className="glow-button"
         style={{ background: 'var(--gradient-brand)' }}
+        disabled={claiming}
       >
-        Start Creating →
+        {claiming ? 'Claiming reward...' : 'Start Creating →'}
       </button>
     </div>
   );

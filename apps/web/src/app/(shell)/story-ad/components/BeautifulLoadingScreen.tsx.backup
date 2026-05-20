@@ -9,52 +9,12 @@ interface BeautifulLoadingScreenProps {
   isMockMode?: boolean;
 }
 
-const STAGE_CONFIG = {
-  script: {
-    emoji: '✍️',
-    title: 'Generating Script',
-    defaultMessage: 'Creating engaging copy for your ad...',
-    color: 'from-purple-500 to-pink-500',
-  },
-  storyboard: {
-    emoji: '🎬',
-    title: 'Creating Storyboard',
-    defaultMessage: 'Planning scenes and shot sequences...',
-    color: 'from-blue-500 to-cyan-500',
-  },
-  images: {
-    emoji: '🖼️',
-    title: 'Generating Images',
-    defaultMessage: 'Creating visual assets for each scene...',
-    color: 'from-green-500 to-emerald-500',
-  },
-  voice: {
-    emoji: '🎤',
-    title: 'Processing Voice',
-    defaultMessage: 'Synthesizing voiceover with emotion...',
-    color: 'from-orange-500 to-red-500',
-  },
-  video: {
-    emoji: '🎥',
-    title: 'Rendering Video',
-    defaultMessage: 'Stitching scenes into final output...',
-    color: 'from-indigo-500 to-purple-500',
-  },
-  production: {
-    emoji: '⚙️',
-    title: 'Production in Progress',
-    defaultMessage: 'Processing your ad content...',
-    color: 'from-slate-500 to-gray-500',
-  },
-};
-
 export default function BeautifulLoadingScreen({
   stage,
   message,
   subMessage,
   isMockMode = false,
 }: BeautifulLoadingScreenProps) {
-  const config = STAGE_CONFIG[stage];
   const [dots, setDots] = useState('');
 
   useEffect(() => {
@@ -65,84 +25,207 @@ export default function BeautifulLoadingScreen({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-md w-full mx-auto px-6">
-        <div className="absolute inset-0 overflow-hidden">
-          <div
-            className={`absolute top-1/3 left-1/4 w-96 h-96 bg-gradient-to-r ${config.color} rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse`}
-          />
-          <div
-            className={`absolute bottom-1/3 right-1/4 w-96 h-96 bg-gradient-to-r ${config.color} rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000`}
-          />
-        </div>
-
-        <div className="relative space-y-6">
-          <div className="flex justify-center">
-            <div className="text-7xl animate-bounce">{config.emoji}</div>
-          </div>
-
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              {config.title}
-            </h2>
-            <p className="text-gray-600 text-lg">
-              {message || config.defaultMessage}
-              <span className="inline-block w-6">{dots}</span>
-            </p>
-          </div>
-
-          <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className={`h-full bg-gradient-to-r ${config.color} animate-pulse`}
-              style={{ animation: 'progress 2s ease-in-out infinite' }}
-            />
-          </div>
-
-          {subMessage && (
-            <p className="text-center text-sm text-gray-500 italic">
-              {subMessage}
-            </p>
-          )}
-
-          {isMockMode ? (
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <p className="text-xs text-gray-600 text-center">
-                💡 This is{' '}
-                <span className="font-semibold text-green-600">MOCK MODE</span> - No
-                credits are being consumed
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <p className="text-xs text-gray-600 text-center">
-                🚀 Real generation in progress. Credits may be consumed.
-              </p>
-            </div>
-          )}
-
-          <div className="flex justify-center gap-2 mt-6">
-            <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce" />
-            <div
-              className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce"
-              style={{ animationDelay: '0.1s' }}
-            />
-            <div
-              className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-bounce"
-              style={{ animationDelay: '0.2s' }}
-            />
-          </div>
-        </div>
-      </div>
-
+    <div className="fixed inset-0 z-[9999] overflow-hidden" style={{ background: 'hsl(var(--color-bg))' }}>
       <style>{`
-        @keyframes progress {
-          0%, 100% { width: 0%; }
-          50% { width: 100%; }
+        @keyframes orb-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.15); opacity: 1; }
         }
-        .animation-delay-2000 {
-          animation-delay: 2s;
+
+        @keyframes logo-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-12px); }
+        }
+
+        @keyframes progress-flow {
+          0% { width: 0%; opacity: 1; }
+          60% { width: 100%; opacity: 1; }
+          100% { width: 100%; opacity: 0; }
         }
       `}</style>
+
+      {/* Orb 1 - Primary violet (top left) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '-10%',
+          left: '-10%',
+          width: '600px',
+          height: '600px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, hsl(var(--color-primary) / 0.35) 0%, transparent 70%)',
+          animation: 'orb-breathe 4s ease-in-out infinite',
+          filter: 'blur(40px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Orb 2 - Pink (bottom right) */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '-10%',
+          right: '-10%',
+          width: '700px',
+          height: '700px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, hsl(var(--color-accent-pink) / 0.25) 0%, transparent 70%)',
+          animation: 'orb-breathe 5s ease-in-out infinite reverse',
+          filter: 'blur(60px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Orb 3 - Cyan (center left) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '40%',
+          left: '-5%',
+          width: '400px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, hsl(var(--color-accent-cyan) / 0.2) 0%, transparent 70%)',
+          animation: 'orb-breathe 6s ease-in-out infinite 1s',
+          filter: 'blur(50px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Orb 4 - Amber (top right) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10%',
+          right: '10%',
+          width: '300px',
+          height: '300px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, hsl(var(--color-accent-amber) / 0.2) 0%, transparent 70%)',
+          animation: 'orb-breathe 3.5s ease-in-out infinite 0.5s',
+          filter: 'blur(40px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Center content */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          textAlign: 'center',
+          zIndex: 10,
+        }}
+      >
+        {/* Logo mark */}
+        <div
+          style={{
+            width: '72px',
+            height: '72px',
+            borderRadius: '50%',
+            background: 'var(--gradient-brand)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 24px',
+            fontSize: '32px',
+            fontWeight: '800',
+            color: 'white',
+            fontFamily: '"Inter", "system-ui", sans-serif',
+            animation: 'logo-float 3s ease-in-out infinite',
+            boxShadow: '0 0 60px hsl(var(--color-primary) / 0.5)',
+          }}
+        >
+          R
+        </div>
+
+        {/* Brand name */}
+        <p
+          style={{
+            fontSize: '13px',
+            fontWeight: '600',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: 'hsl(var(--color-text-secondary))',
+            marginBottom: '32px',
+            margin: '0 auto 32px',
+          }}
+        >
+          RangManchAI
+        </p>
+
+        {/* Status message */}
+        <p
+          style={{
+            fontSize: '15px',
+            color: 'hsl(var(--color-text-secondary))',
+            marginBottom: '16px',
+            minHeight: '24px',
+          }}
+        >
+          {message || 'Preparing your workspace...'}
+          <span>{dots}</span>
+        </p>
+
+        {/* Thin progress bar */}
+        <div
+          style={{
+            width: '200px',
+            height: '3px',
+            background: 'hsl(var(--glass-border))',
+            borderRadius: '999px',
+            overflow: 'hidden',
+            margin: '0 auto',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              background: 'var(--gradient-brand)',
+              borderRadius: '999px',
+              animation: 'progress-flow 2s ease-in-out infinite',
+            }}
+          />
+        </div>
+
+        {/* Stage label */}
+        {stage && (
+          <p
+            style={{
+              fontSize: '11px',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'hsl(var(--color-muted))',
+              marginTop: '12px',
+            }}
+          >
+            {stage}
+          </p>
+        )}
+
+        {/* Mock mode badge */}
+        {isMockMode && (
+          <div
+            style={{
+              marginTop: '16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              background: 'hsl(var(--color-success) / 0.15)',
+              border: '1px solid hsl(var(--color-success) / 0.3)',
+              color: 'hsl(var(--color-success))',
+              fontSize: '11px',
+              fontWeight: '600',
+            }}
+          >
+            ⚡ Mock Mode
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -21,13 +21,34 @@ const HELP_SECTIONS: HelpSection[] = [
     title: 'Get Started in 60 Seconds',
     items: [
       {
-        question: 'Create your first UGC ad',
+        question: 'Create your first image',
+        answer: (
+          <div className="space-y-3">
+            <ol className="list-decimal space-y-1 pl-4 text-sm text-muted">
+              <li>Go to Image Studio</li>
+              <li>Choose a style</li>
+              <li>Write your idea</li>
+              <li>Click Generate</li>
+            </ol>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/images">
+                <Button className="gap-2 rounded-full px-4 py-2 text-xs">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Go to Image Studio
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ),
+      },
+      {
+        question: 'Create your first video',
         answer: (
           <div className="space-y-3">
             <ol className="list-decimal space-y-1 pl-4 text-sm text-muted">
               <li>Go to Video Studio</li>
-              <li>Choose Avatar or Storyboard layout</li>
-              <li>Write your product pitch script</li>
+              <li>Click Quick Start like Viral, Story, or Explainer</li>
+              <li>Edit the script</li>
               <li>Click Create Reel</li>
             </ol>
             <div className="flex flex-wrap gap-2">
@@ -41,34 +62,26 @@ const HELP_SECTIONS: HelpSection[] = [
           </div>
         ),
       },
-      {
-        question: 'Try a Recipe',
-        answer: 'Recipes are pre-built templates that speed up creation. Go to Video Studio, scroll to the Recipes section, pick one that matches your content style, and let the template guide your script.',
-      },
-      {
-        question: 'Preview a voice',
-        answer: 'Before generating your full video, click the voice selector to hear different narrator voices. This lets you pick the right voice personality for your content without waiting for full generation.',
-      },
     ],
   },
   {
-    title: 'Images & Videos',
+    title: 'Image Generation',
     items: [
       {
-        question: 'What image models are available?',
-        answer: 'We use Gemini Flash for speed, Recraft for design-heavy assets, and Together Flux for custom styling. The app recommends the best model based on your brief.',
+        question: 'How do I generate an image?',
+        answer: 'Open Image Studio, choose the result type you want, describe the visual, and click Create image. You can keep the default settings for your first few generations.',
       },
       {
-        question: 'How do I write a good visual prompt?',
-        answer: 'Be specific about subject, mood, and framing. Example: "vibrant product photography of premium coffee beans in golden morning light, clean flat lay, premium catalog style." Avoid vague descriptions.',
+        question: 'Which model should I choose?',
+        answer: 'Most creators can stay with the recommended output goal cards. Fast Social is best for quick iterations, Creator Quality is better for polished posts, Design / Carousel suits branded graphics, and Character / Influencer is best for persona-led visuals.',
       },
       {
-        question: 'Which video models are best?',
-        answer: 'LTX 2.3 excels at character-driven narratives, Kling O3 is versatile for most ads, and PixVerse C1 works well for stylized content. Use Kling O3 if unsure.',
+        question: 'What is a good prompt?',
+        answer: 'Describe the subject, mood, setting, and style in one focused sentence. Example: a cinematic Indian street-food product shot at golden hour, premium ad style, vertical social composition.',
       },
       {
-        question: 'Can I use the same style across images and videos?',
-        answer: 'Yes. Create images with your preferred model and style, then use the same visual direction when writing video scripts. Consistent branding works best.',
+        question: 'Why are my images not good?',
+        answer: 'Usually the prompt is too vague or trying to do too much at once. Keep it focused, add one clear visual direction, and generate a few versions instead of over-editing settings.',
       },
     ],
   },
@@ -77,44 +90,23 @@ const HELP_SECTIONS: HelpSection[] = [
     items: [
       {
         question: 'How do I generate a video?',
-        answer: 'Go to Video Studio, pick a layout (Avatar or Storyboard), write or edit your script, choose a voice, and click Create Reel. Keep your script under 60 words for best results.',
+        answer: 'Use Quick Start or pick a template, review the starter script, keep the reel short, and click Create Reel. You do not need to change advanced settings unless you already know why.',
       },
       {
-        question: 'What are Avatars vs Storyboards?',
-        answer: 'Avatar videos show a character narrating while holding your product. Storyboard videos cut between visual scenes. Use Avatar for UGC-style ads, Storyboard for narrative-heavy content.',
+        question: 'Which template should I use?',
+        answer: 'Use Explainer for teaching, Story for journeys and listicles, Ad for promos, Character for persona-led videos, and Cute / Fun for playful shareable clips.',
       },
       {
-        question: 'How long does video generation take?',
-        answer: 'Most videos render in 2–5 minutes depending on length and model load. Longer scripts and complex visuals take more time. You can keep working while generation runs in the background.',
+        question: 'Why is my video not good?',
+        answer: 'Video quality depends heavily on script quality. Keep the script short, give it an emotional hook, and make sure the ending has a clear CTA or closing thought.',
       },
       {
-        question: 'Why is my voice mismatched?',
-        answer: 'Make sure your selected language and voice personality match your script tone. Preview the voice before generating the full video to catch mismatches early.',
+        question: 'Why is my video silent?',
+        answer: 'Check that Voice is turned on before generating. The preview only tests the narration voice. The final reel still needs narration enabled when you click Create Reel.',
       },
       {
-        question: 'What should I do if generation fails?',
-        answer: 'Check your script length (max 66 words), simplify any unusual character combinations, and retry. If it fails again, choose a different video model or contact support.',
-      },
-    ],
-  },
-  {
-    title: 'UGC Ads & Recipes',
-    items: [
-      {
-        question: 'What is UGC and why does it matter?',
-        answer: 'UGC stands for User-Generated Content. Brands love authentic-looking ads from real people (even if AI-generated). UGC ads feel native and honest, so they often outperform polished brand videos on social media.',
-      },
-      {
-        question: 'When should I use Avatar vs Storyboard?',
-        answer: 'Avatar is best for personal testimonials, product unboxing, and direct-to-camera pitches. Storyboard works for lifestyle narratives, product benefits, and story-driven content. Pick based on what tells your product story best.',
-      },
-      {
-        question: 'How long does a UGC ad take to generate?',
-        answer: 'A typical 30-second UGC ad takes 3–5 minutes to generate. Shorter scripts (15–30 seconds) render faster. You can save drafts and resume anytime.',
-      },
-      {
-        question: 'How do I resume a saved ad?',
-        answer: 'Go to Projects, find your saved draft, and click it to reopen. You can edit the script, change the voice, or regenerate the video without starting over.',
+        question: 'Why does generation fail sometimes?',
+        answer: 'AI video models can fail because of provider queueing, unsupported combinations, or temporary model issues. If that happens, keep the setup simple, retry once, or choose the recommended defaults.',
       },
     ],
   },
@@ -210,10 +202,16 @@ export function HelpPageClient() {
         description="Everything here is designed to get you from confusion to first result faster. Keep the defaults, start simple, and refine only when you need more control."
         actions={
           <>
+            <Link href="/images">
+              <Button variant="secondary" className="gap-2 rounded-full px-4 py-2 text-xs">
+                <ImageIcon className="h-3.5 w-3.5" />
+                Image Studio
+              </Button>
+            </Link>
             <Link href="/create">
               <Button className="gap-2 rounded-full px-4 py-2 text-xs">
                 <Sparkles className="h-3.5 w-3.5" />
-                Create Studio
+                Video Studio
               </Button>
             </Link>
           </>

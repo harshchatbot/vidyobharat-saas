@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { StreakWidget } from '@/components/ui/StreakWidget';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import PageTransition from '@/components/ui/PageTransition';
 import { API_URL } from '@/lib/env';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -26,7 +27,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help', '/story-ad'];
+const appRoutePrefixes = ['/dashboard', '/community', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help', '/story-ad'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -35,8 +36,6 @@ function isAppRoute(pathname: string) {
 function getPageTitle(pathname: string) {
   if (pathname.startsWith('/dashboard')) return 'Dashboard';
   if (pathname.startsWith('/library')) return 'Library';
-  if (pathname.startsWith('/images/library')) return 'Images';
-  if (pathname.startsWith('/images')) return 'Image Studio';
   if (pathname === '/videos') return 'Library';
   if (pathname.startsWith('/templates')) return 'Template Browser';
   if (pathname.startsWith('/influencer')) return 'Influencer Studio';
@@ -148,7 +147,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     if (!inApp) return;
     [
       '/dashboard',
-      '/images',
       '/videos',
       '/library',
       '/create',
@@ -221,7 +219,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
   if (inApp) {
     const flyoutPreviews: Record<string, string> = {
       '/create': '/illustrations/startup.png',
-      '/images': '/illustrations/product-ads.png',
       '/templates': '/illustrations/edtech.png',
       '/influencer': '/illustrations/ai-influencer.png',
       '/billing': '/illustrations/marketing.png',
@@ -271,7 +268,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
       create: [
         { href: '/create', label: 'Unified studio', icon: Video },
         { href: '/videos', label: 'Video library', icon: Video },
-        { href: '/images', label: 'Generate images', icon: ImageIcon },
         { href: '/templates', label: 'Template browser', icon: LayoutTemplate },
         { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
       ],
@@ -288,7 +284,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     } as const;
 
     const mobileNavItems = [
-      { href: '/create', label: 'Explore', hint: 'Recipe-led creation', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer') },
+      { href: '/create', label: 'Explore', hint: 'Recipe-led creation', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer') },
       { href: '/projects', label: 'Projects', hint: projectsNavPending ? 'Loading workspace…' : 'Organize renders', icon: FolderKanban, active: pathname.startsWith('/projects') },
       { href: '/library', label: 'Library', hint: 'Revisit outputs', icon: Video, active: pathname.startsWith('/library') },
       { href: '/billing', label: 'Billing', hint: 'Credits and plans', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits') },
@@ -319,7 +315,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                 </div>
                 <div className="mt-7 space-y-1.5">
                   {[
-                    { href: '/create', label: 'Explore', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer'), onClick: () => navigateWithinApp('/create', 'Create') },
+                    { href: '/create', label: 'Explore', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer'), onClick: () => navigateWithinApp('/create', 'Create') },
                     { href: '/projects', label: 'Projects', icon: FolderKanban, active: pathname.startsWith('/projects'), onClick: openProjectsWorkspace },
                     { href: '/library', label: 'Library', icon: Video, active: pathname.startsWith('/library'), onClick: () => navigateWithinApp('/library', 'library') },
                     { href: '/billing', label: 'Billing', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits'), onClick: () => navigateWithinApp('/billing', 'Billing') },
@@ -369,6 +365,9 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                   </div>
                     */}
                   <Suspense fallback={null}>
+                    <CreatorBadge />
+                  </Suspense>
+                  <Suspense fallback={null}>
                     <StreakWidget />
                   </Suspense>
                   <SidebarCreditsCard />
@@ -397,7 +396,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     const groupKey = item.groupKey;
                     const active =
                       groupKey === 'create'
-                        ? pathname.startsWith('/create') || pathname.startsWith('/images') || pathname.startsWith('/templates') || pathname.startsWith('/influencer')
+                        ? pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer')
                         : groupKey === 'projects'
                           ? pathname.startsWith('/projects')
                           : groupKey === 'billing'
@@ -493,17 +492,15 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                         <span className="block truncate text-[10px] text-muted">
                           {groupItem.href === '/create'
                             ? 'Unified creation hub'
-                            : groupItem.href === '/images'
-                              ? 'Fast social visuals'
-                              : groupItem.href === '/templates'
-                                ? 'Guided workflows'
-                                : groupItem.href === '/influencer'
-                                  ? 'Consistent avatar creation'
-                                  : groupItem.href === '/billing'
-                                      ? 'Credits and plans'
-                                      : groupItem.href === '/help'
-                                        ? 'Quick answers'
-                                      : 'Workspace settings'}
+                            : groupItem.href === '/templates'
+                              ? 'Guided workflows'
+                              : groupItem.href === '/influencer'
+                                ? 'Consistent avatar creation'
+                                : groupItem.href === '/billing'
+                                    ? 'Credits and plans'
+                                    : groupItem.href === '/help'
+                                      ? 'Quick answers'
+                                    : 'Workspace settings'}
                         </span>
                       </span>
                     </Link>

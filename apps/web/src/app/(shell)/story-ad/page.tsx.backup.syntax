@@ -5,12 +5,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useStoryboardProject, InitializeProjectInput } from './hooks/useStoryboardProject';
 import { useProductionPolling } from './hooks/useProductionPolling';
 import CategorySelection from './components/CategorySelection';
+import StoryAdForm from './StoryAdForm';
 import CreationMethodModal from './components/CreationMethodModal';
 import AvatarPickerModal from './components/AvatarPickerModal';
-import Step1CategoryPlatform from './components/Step1CategoryPlatform';
+import type { BriefData } from './StoryAdForm';
 import { useAvatarLibrary } from './hooks/useAvatarLibrary';
-import Step2BusinessBrief, { BriefData } from './components/Step2BusinessBrief';
-import Step3ReviewGenerate from './components/Step3ReviewGenerate';
 import ScriptCheckpoint from './components/ScriptCheckpoint';
 import StoryboardCheckpoint from './components/StoryboardCheckpoint';
 import ImageCheckpoint from './components/ImageCheckpoint';
@@ -28,10 +27,11 @@ import FormatDecisionCheckpoint from './components/FormatDecisionCheckpoint';
 import CharacterLockCheckpoint from './components/CharacterLockCheckpoint';
 import VideoPromptCheckpoint from './components/VideoPromptCheckpoint';
 import QCCheckpoint from './components/QCCheckpoint';
-import FinalPackagingCheckpoint from './components/FinalPackagingCheckpoint';
 import { WorkflowStepper } from '@/components/story-ad/WorkflowStepper';
+import FinalPackagingCheckpoint from './components/FinalPackagingCheckpoint';
 import { getCurrentUserId } from '@/lib/authUser';
 import { API_URL } from '@/lib/env';
+import { markOnboardingComplete } from '@/components/ui/OnboardingChecklist';
 
 type GuidedFlowStep = 'category' | 'avatar-selection' | 'step1' | 'step2' | 'step3';
 type TestMode = 'real' | 'mock' | null;
@@ -117,7 +117,7 @@ export default function StoryAdPage() {
   };
   const searchParams = useSearchParams();
   const router = useRouter();
-  const projectIdParam = searchParams.get('project_id');
+  const projectIdParam = searchParams.get('project_id') || searchParams.get('resumeProjectId');
   const initialStep = (searchParams.get('step') as GuidedFlowStep) || 'category';
 
   const [guidedFlowStep, setGuidedFlowStep] = useState<GuidedFlowStep>(initialStep);
@@ -321,8 +321,8 @@ export default function StoryAdPage() {
       ad_category: guidedFlowData.category,
       business_brief: guidedFlowData.briefData.business_brief,
       platform: guidedFlowData.platform,
-      language: guidedFlowData.briefData.language,
       tone: guidedFlowData.briefData.tone,
+      language: 'en',
       creation_mode: creationMode,
       production_path: creationMode === 'avatar' ? 'ai_avatar' : 'storyboard',
       avatar_id: guidedFlowData.avatarId,
@@ -342,6 +342,7 @@ export default function StoryAdPage() {
 
     try {
       await initializeProject(input);
+      markOnboardingComplete('create_ugc_ad');
       // After initialization, the page will show the workflow checkpoints
     } catch (err) {
       console.error('Error initializing project:', err);
@@ -618,32 +619,25 @@ export default function StoryAdPage() {
         );
       }
 
-      // Show step1 if step1 — only platform selection (category already chosen)
-      if (guidedFlowStep === 'step1') {
+      // Show StoryAdForm for the unified 3-step workflow
+      if (guidedFlowStep === 'step1' || guidedFlowStep === 'step2' || guidedFlowStep === 'step3') {
+        const handleStoryAdFormComplete = async (formData: any) => {
+          setGuidedFlowData(prev => ({
+            ...prev,
+            category: formData.category,
+            platform: formData.platform,
+            targetAdDurationSeconds: formData.targetAdDurationSeconds,
+            briefData: formData.briefData,
+            creationMode: formData.creationMode,
+          }));
+          // Show test mode selector
+          setShowTestModeSelector(true);
+        };
+
         return (
-          <Step1CategoryPlatform
+          <StoryAdForm
             preselectedCategory={guidedFlowData.category ?? 'ugc_testimonial'}
-            onNext={handleStep1Next}
-          />
-        );
-      } else if (guidedFlowStep === 'step2' && guidedFlowData.category) {
-        return (
-          <Step2BusinessBrief
-            category={guidedFlowData.category}
-            onNext={handleStep2Next}
-            onBack={handleStep2Back}
-          />
-        );
-      } else if (guidedFlowStep === 'step3' && guidedFlowData.category && guidedFlowData.platform && guidedFlowData.briefData) {
-        return (
-          <Step3ReviewGenerate
-            category={guidedFlowData.category}
-            platform={guidedFlowData.platform}
-            briefData={guidedFlowData.briefData}
-            avatarName={guidedFlowData.avatarName}
-            onGenerate={handleStep3Generate}
-            onBack={handleStep3Back}
-            loading={loading}
+            onComplete={handleStoryAdFormComplete}
             estimatedCost={50}
           />
         );
@@ -677,7 +671,7 @@ export default function StoryAdPage() {
           ad_category: guidedFlowData.category ?? project.ad_category,
           platform: guidedFlowData.platform ?? project.platform,
           tone: guidedFlowData.briefData?.tone ?? project.tone,
-          language: guidedFlowData.briefData?.language ?? project.language,
+          language: project.language,
           business_brief: guidedFlowData.briefData?.business_brief ?? project.business_brief,
           product_image_url: guidedFlowData.briefData?.product_image_url ?? project.product_image_url,
           product_reference_images: guidedFlowData.briefData?.product_reference_images ?? project.product_reference_images,
@@ -707,7 +701,10 @@ export default function StoryAdPage() {
     //  Stage 13: final_packaging / qc_approved → FinalPackagingCheckpoint
     // ─────────────────────────────────────────────────────────────────────
 
-    // Stage 1: Brand Brief
+    // Render checkpoints with workflow progress stepper
+    if (project && workflowState) {
+      const checkpoint = (() => {
+      // Stage 1: Brand Brief
     if (workflowState === 'brief_collecting' || workflowState === 'brief_approved') {
       return (
         <BriefCheckpoint
@@ -1178,9 +1175,6 @@ export default function StoryAdPage() {
           <>
             {/* Workflow Checkpoint */}
             <div className="mb-12">
-              {project && project.workflow_state && (
-                <WorkflowStepper workflowState={project.workflow_state} />
-              )}
               {getCurrentCheckpoint()}
             </div>
 

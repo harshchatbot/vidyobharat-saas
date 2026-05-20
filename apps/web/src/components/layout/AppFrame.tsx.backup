@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, Suspense } from 'react';
 import { ChevronDown, Compass, FolderKanban, FolderPlus, HelpCircle, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, MessageCircle, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
@@ -13,6 +13,8 @@ import { TopNav } from '@/components/layout/TopNav';
 import { Button } from '@/components/ui/Button';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
+import { StreakWidget } from '@/components/ui/StreakWidget';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import PageTransition from '@/components/ui/PageTransition';
 import { API_URL } from '@/lib/env';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -25,7 +27,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help'];
+const appRoutePrefixes = ['/dashboard', '/community', '/images', '/templates', '/influencer', '/create', '/videos', '/library', '/projects', '/editor', '/billing', '/pricing', '/credits', '/profile', '/settings', '/help', '/story-ad'];
 
 function isAppRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -42,6 +44,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith('/create')) return 'Create';
   if (pathname.startsWith('/videos/')) return 'Video Details';
   if (pathname.startsWith('/projects')) return 'Projects';
+  if (pathname.startsWith('/story-ad')) return 'Create Ad';
   if (pathname.startsWith('/billing')) return 'Billing';
   if (pathname.startsWith('/pricing')) return 'Pricing';
   if (pathname.startsWith('/credits/history')) return 'Credit History';
@@ -366,6 +369,12 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                     </Button>
                   </div>
                     */}
+                  <Suspense fallback={null}>
+                    <CreatorBadge />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <StreakWidget />
+                  </Suspense>
                   <SidebarCreditsCard />
 
                 {/*  <button
