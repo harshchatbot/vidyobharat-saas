@@ -31,7 +31,7 @@ export default function VideoPromptCheckpoint({
   onBack,
 }: VideoPromptCheckpointProps) {
   const isMockMode = isTestModeEnabled();
-  const { getProject } = useStoryboardProject();
+  const { getProject, updateScene } = useStoryboardProject();
   const [usedLocalFallback, setUsedLocalFallback] = useState(false);
   const [prompts, setPrompts] = useState<SceneVideoPrompt[]>(project.video_prompts ?? []);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -217,7 +217,22 @@ export default function VideoPromptCheckpoint({
       usedLocalFallback,
     });
     setIsApproving(true);
-    try { await onApprove(); }
+    try {
+      if (!isMockMode && project?.id && Array.isArray((project as any).scenes) && (project as any).scenes.length > 0) {
+        const scenesByNumber = new Map<number, any>(
+          ((project as any).scenes || []).map((scene: any) => [Number(scene.scene_number || 0), scene]),
+        );
+        for (const prompt of prompts) {
+          const scene = scenesByNumber.get(Number(prompt.scene_number || 0));
+          if (!scene?.id) continue;
+          await updateScene(project.id, scene.id, {
+            duration_seconds: Number(prompt.duration_seconds || 5),
+            lipsync_this_scene: Boolean(prompt.lipsync_required),
+          });
+        }
+      }
+      await onApprove();
+    }
     finally { setIsApproving(false); }
   };
 

@@ -246,6 +246,20 @@ def run_restitch_project(args: argparse.Namespace) -> dict[str, Any]:
         transition_duration=float(args.transition_duration),
     )
     inspected = pipeline.inspect_media(final_path)
+    write_summary: dict[str, Any] = {"write_project": False}
+    if args.write_project:
+        db.update_project(
+            args.project_id,
+            final_video_url=final_path,
+            production_status="production_completed",
+            workflow_state="production_completed",
+            production_substage="package_ready",
+            stitching_status="completed",
+            package_status="package_ready",
+            qc_status="qc_ready",
+            production_qa_tools_used=True,
+        )
+        write_summary = {"write_project": True, "project_id": args.project_id, "final_video_url": final_path}
     return {
         "mode": "restitch_project",
         "project_id": args.project_id,
@@ -255,6 +269,7 @@ def run_restitch_project(args: argparse.Namespace) -> dict[str, Any]:
         "has_video": bool(inspected.get("has_video")),
         "has_audio": bool(inspected.get("has_audio")),
         "duration_seconds": float(inspected.get("duration_seconds") or 0.0),
+        "write_summary": write_summary,
     }
 
 

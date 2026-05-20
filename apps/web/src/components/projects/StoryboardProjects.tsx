@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Calendar, Tag } from 'lucide-react';
+import { Play, Calendar, Tag, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 
@@ -54,6 +54,9 @@ export function StoryboardProjects({ userId }: Props) {
   const [projects, setProjects] = useState<StoryboardProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'failed'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'last7' | 'last30'>('all');
 
   useEffect(() => {
     void (async () => {
@@ -69,6 +72,42 @@ export function StoryboardProjects({ userId }: Props) {
       }
     })();
   }, [userId]);
+
+  const visibleProjects = useMemo(() => {
+    const now = Date.now();
+    const queryText = query.trim().toLowerCase();
+    const filtered = projects.filter((project) => {
+      const workflow = String(project.workflowState || '').toLowerCase();
+      const production = String(project.productionStatus || '').toLowerCase();
+      const stateText = `${workflow} ${production}`;
+
+      if (statusFilter === 'completed' && !(workflow === 'completed' || stateText.includes('package_ready') || stateText.includes('production_completed'))) {
+        return false;
+      }
+      if (statusFilter === 'in_progress' && (workflow === 'completed' || stateText.includes('failed'))) {
+        return false;
+      }
+      if (statusFilter === 'failed' && !stateText.includes('failed')) {
+        return false;
+      }
+
+      const timestamp = new Date(project.createdAt || project.completedAt || '').getTime();
+      const ageDays = Number.isFinite(timestamp) ? (now - timestamp) / (1000 * 60 * 60 * 24) : Number.POSITIVE_INFINITY;
+      if (dateFilter === 'today' && ageDays > 1) return false;
+      if (dateFilter === 'last7' && ageDays > 7) return false;
+      if (dateFilter === 'last30' && ageDays > 30) return false;
+
+      if (!queryText) return true;
+      const haystack = `${project.businessBrief || ''} ${project.adCategory || ''} ${project.workflowState || ''}`.toLowerCase();
+      return haystack.includes(queryText);
+    });
+
+    return filtered.sort((a, b) => {
+      const aTs = new Date(a.completedAt || a.createdAt || 0).getTime();
+      const bTs = new Date(b.completedAt || b.createdAt || 0).getTime();
+      return bTs - aTs; // latest -> oldest by default
+    });
+  }, [projects, query, statusFilter, dateFilter]);
 
   if (loading) {
     return (
@@ -106,7 +145,41 @@ export function StoryboardProjects({ userId }: Props) {
 
   return (
     <div className="space-y-3">
-      {projects.map(project => {
+      <div className="glass-card p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+          <div className="relative min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search storyboard projects..."
+              className="w-full rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-bg)/0.72)] px-10 py-2.5 text-sm text-text outline-none placeholder:text-muted"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="min-h-10 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 text-sm text-text"
+          >
+            <option value="all">All status</option>
+            <option value="completed">Completed</option>
+            <option value="in_progress">In progress</option>
+            <option value="failed">Failed</option>
+          </select>
+          <select
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value as any)}
+            className="min-h-10 rounded-[12px] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 text-sm text-text"
+          >
+            <option value="all">All dates</option>
+            <option value="today">Today</option>
+            <option value="last7">Last 7 days</option>
+            <option value="last30">Last 30 days</option>
+          </select>
+        </div>
+      </div>
+
+      {visibleProjects.map(project => {
         const status = getStatus(project.workflowState);
         const categoryLabel = getCategoryLabel(project.adCategory);
         const briefPreview = project.businessBrief.slice(0, 80);
@@ -170,6 +243,11 @@ export function StoryboardProjects({ userId }: Props) {
           </div>
         );
       })}
+      {visibleProjects.length === 0 ? (
+        <Card className="rangmanch-studio-panel border-none bg-transparent p-6 text-center">
+          <p className="text-sm text-muted">No projects match your current filters.</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

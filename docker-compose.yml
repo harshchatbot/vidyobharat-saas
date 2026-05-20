@@ -10,7 +10,7 @@ services:
       context: ./apps/api
     container_name: vidyobharat-api
     env_file:
-      - ./apps/api/.env.example
+      - ./apps/api/.env
     volumes:
       - ./apps/api/data:/app/data
     ports:
@@ -24,7 +24,7 @@ services:
     container_name: vidyobharat-worker
     command: celery -A app.workers.worker.celery_app worker --loglevel=INFO
     env_file:
-      - ./apps/api/.env.example
+      - ./apps/api/.env
     volumes:
       - ./apps/api/data:/app/data
     depends_on:

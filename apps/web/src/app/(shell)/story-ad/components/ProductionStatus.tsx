@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { StoryboardProject } from '../hooks/useStoryboardProject';
 import { ProductionStatus as ProductionStatusType } from '../hooks/useProductionPolling';
 import { useProductionPolling } from '../hooks/useProductionPolling';
@@ -10,8 +11,71 @@ interface ProductionStatusProps {
   productionStatus: ProductionStatusType | null;
 }
 
+function AnimatedRadialChart({
+  value = 0,
+  size = 220,
+  duration = 1.2,
+}: {
+  value?: number;
+  size?: number;
+  duration?: number;
+}) {
+  const strokeWidth = Math.max(10, size * 0.055);
+  const radius = size * 0.35;
+  const center = size / 2;
+  const circumference = Math.PI * radius;
+
+  const animatedValue = useMotionValue(0);
+  const offset = useTransform(animatedValue, [0, 100], [circumference, 0]);
+
+  useEffect(() => {
+    const controls = animate(animatedValue, value, {
+      duration,
+      ease: 'easeOut',
+    });
+    return controls.stop;
+  }, [animatedValue, value, duration]);
+
+  return (
+    <div className="relative" style={{ width: size, height: size * 0.7 }}>
+      <svg width={size} height={size * 0.7} viewBox={`0 0 ${size} ${size * 0.7}`} className="overflow-visible">
+        <path
+          d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+          fill="none"
+          stroke="hsl(var(--color-border))"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          opacity="0.55"
+        />
+        <motion.path
+          d={`M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+          fill="none"
+          stroke="hsl(var(--color-accent))"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 mt-9 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-3xl font-bold text-text">
+            <motion.span>{useTransform(animatedValue, (latest) => Math.round(latest))}</motion.span>%
+          </div>
+          <div className="mt-1 text-xs text-muted">Live progress</div>
+        </div>
+      </div>
+      <div className="absolute bottom-0 left-3 text-[11px] text-muted">0%</div>
+      <div className="absolute bottom-0 right-3 text-[11px] text-muted">100%</div>
+    </div>
+  );
+}
+
 export default function ProductionStatus({ project, productionStatus }: ProductionStatusProps) {
-  const { isPolling, startPolling } = useProductionPolling(project?.id);
+  const { productionStatus: liveProductionStatus, isPolling, startPolling } = useProductionPolling(project?.id);
+  const [showLeavePopup, setShowLeavePopup] = useState(false);
+
+  const effectiveStatus = liveProductionStatus ?? productionStatus;
 
   useEffect(() => {
     if (project?.workflow_state?.includes('production') && !isPolling) {
@@ -19,17 +83,41 @@ export default function ProductionStatus({ project, productionStatus }: Producti
     }
   }, [project?.workflow_state, isPolling, startPolling]);
 
+  useEffect(() => {
+    if (!project?.id) return;
+    const state = String(project?.workflow_state || '').toLowerCase();
+    const isActive = state === 'production_starting' || state === 'production_in_progress';
+    if (!isActive || project?.final_video_url) return;
+    const key = `storyboard-leave-popup-dismissed-${project.id}`;
+    if (typeof window !== 'undefined' && localStorage.getItem(key) !== '1') {
+      setShowLeavePopup(true);
+    }
+  }, [project?.id, project?.workflow_state, project?.final_video_url]);
+
   const scenes = useMemo(() => {
-    const source = Array.isArray(productionStatus?.scenes) ? productionStatus?.scenes : [];
+    const source = Array.isArray(effectiveStatus?.scenes) ? effectiveStatus?.scenes : [];
     return [...source].sort((a, b) => (a.scene_number || 0) - (b.scene_number || 0));
-  }, [productionStatus?.scenes]);
+  }, [effectiveStatus?.scenes]);
 
   const totalScenes = scenes.length;
   const imageCompleted = scenes.filter((scene) => scene.image_status === 'completed').length;
   const videoCompleted = scenes.filter((scene) => scene.video_status === 'completed').length;
   const lipsyncRequired = scenes.filter((scene) => scene.lipsync_status !== 'skipped').length;
   const lipsyncCompleted = scenes.filter((scene) => scene.lipsync_status === 'completed').length;
-  const overallProgress = productionStatus?.overall_progress ?? (totalScenes > 0 ? Math.round((videoCompleted / totalScenes) * 100) : 0);
+  const sceneProgress = totalScenes > 0
+    ? Math.round(
+      scenes.reduce((acc, scene) => {
+        const img = scene.image_status === 'completed' ? 1 : 0;
+        const vid = scene.video_status === 'completed' ? 1 : 0;
+        const lip = scene.lipsync_status === 'completed' || scene.lipsync_status === 'skipped' ? 1 : 0;
+        return acc + ((img + vid + lip) / 3);
+      }, 0) / totalScenes * 100,
+    )
+    : 0;
+  const overallProgress = Math.max(
+    effectiveStatus?.overall_progress ?? 0,
+    sceneProgress,
+  );
 
   const stageIcon = (status: 'completed' | 'active' | 'waiting' | 'failed') => {
     if (status === 'completed') return '✅';
@@ -62,9 +150,24 @@ export default function ProductionStatus({ project, productionStatus }: Producti
 
       <div className="bg-white rounded-lg shadow-md p-8 mb-6">
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-3">
+          <div className="mb-3 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Overall Progress</h3>
             <span className="text-2xl font-bold text-indigo-600">{overallProgress}%</span>
+          </div>
+          <div className="mb-3 grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <AnimatedRadialChart value={overallProgress} size={220} />
+            </div>
+            <div className="flex items-center">
+              <div className="w-full">
+                <div className="mb-3 h-4 w-full overflow-hidden rounded-full bg-gray-200">
+                  <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {videoCompleted} of {totalScenes} scene videos completed • {lipsyncCompleted} of {lipsyncRequired || totalScenes} lipsync steps completed
+                </p>
+              </div>
+            </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden mb-3">
             <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
@@ -140,6 +243,30 @@ export default function ProductionStatus({ project, productionStatus }: Producti
           <p className="text-sm text-gray-600">🔄 Auto-refreshing every 3 seconds • {isPolling ? '🟢 Live' : '⚪ Paused'}</p>
         </div>
       </div>
+
+      {showLeavePopup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-white p-5 shadow-xl">
+            <h4 className="text-lg font-semibold text-gray-900">Video generation is running</h4>
+            <p className="mt-2 text-sm text-gray-600">
+              You can safely leave this page. We’ll notify you once your video is generated and ready.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  if (project?.id && typeof window !== 'undefined') {
+                    localStorage.setItem(`storyboard-leave-popup-dismissed-${project.id}`, '1');
+                  }
+                  setShowLeavePopup(false);
+                }}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

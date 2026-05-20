@@ -888,7 +888,7 @@ export default function StoryAdPage() {
     }
 
     // Stage 12: QC — AFTER production
-    if (workflowState === 'qc_in_progress' || workflowState === 'qc_awaiting_approval') {
+    if (workflowState === 'qc_in_progress' || workflowState === 'qc_awaiting_approval' || workflowState === 'qc_ready') {
       return (
         <QCCheckpoint
           project={checkpointProject}
@@ -899,7 +899,7 @@ export default function StoryAdPage() {
     }
 
     // Stage 13: Final Packaging — AFTER QC
-    if (workflowState === 'qc_approved' || workflowState === 'final_packaging') {
+    if (workflowState === 'qc_approved' || workflowState === 'final_packaging' || workflowState === 'package_ready') {
       return (
         <FinalPackagingCheckpoint
           project={checkpointProject}
@@ -1021,117 +1021,6 @@ export default function StoryAdPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Workflow Progress Indicator */}
-        {project && (
-          <div className="mb-8 rounded-lg shadow-sm p-4 border glass-card">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                {[
-                  { label: 'PSP', states: ['project_state_pack'] },
-                  { label: 'Foundation', states: ['foundation'] },
-                  { label: 'Format', states: ['format_select', 'format_approv'] },
-                  { label: 'Script', states: ['script'] },
-                  { label: 'Char Lock', states: ['character_lock'] },
-                  { label: 'Scene Plan', states: ['storyboard_await'] },
-                  { label: 'Storyboard', states: ['storyboard_approv', 'images'] },
-                  { label: 'Motion', states: ['video_prompts_generating', 'video_prompts_awaiting_approval', 'video_prompts_approved', 'voice_approved', 'voice_confirmed', 'production_starting', 'production_in_progress'] },
-                  { label: 'Voice', states: ['voice', 'video_prompts_approved', 'voice_approved', 'voice_confirmed', 'production_starting', 'production_in_progress'] },
-                  { label: 'Production', states: ['production_starting', 'production_in_progress', 'production_completed'] },
-                  { label: 'QC', states: ['qc'] },
-                  { label: 'Package', states: ['final_packag', 'qc_approv'] },
-                ].map(({ label, states }) => {
-                  const stateStr = localState ?? '';
-                  const isActive = states.some((s) => stateStr.includes(s));
-                  const isMotionDone = [
-                    'video_prompts_approved',
-                    'voice_approved',
-                    'voice_confirmed',
-                    'production_starting',
-                    'production_in_progress',
-                    'production_completed',
-                    'qc_in_progress',
-                    'qc_awaiting_approval',
-                    'qc_approved',
-                    'final_packaging',
-                    'completed',
-                  ].some((s) => stateStr.includes(s));
-                  const isVoiceDone = [
-                    'voice_confirmed',
-                    'production_starting',
-                    'production_in_progress',
-                    'production_completed',
-                    'qc_in_progress',
-                    'qc_awaiting_approval',
-                    'qc_approved',
-                    'final_packaging',
-                    'completed',
-                  ].some((s) => stateStr.includes(s));
-                  const stateOrder = ['project_state_pack', 'foundation', 'format', 'script', 'character_lock', 'storyboard', 'images', 'video_prompts', 'voice', 'production', 'qc', 'final_packag', 'qc_approv', 'completed'];
-                  const currentIdx = stateOrder.findIndex((s) => stateStr.includes(s));
-                  const myIdx = stateOrder.findIndex((s) => states.some((ms) => s.includes(ms.replace('_await', '').replace('_approv', '').replace('_select', ''))));
-                  let isDone = myIdx >= 0 && currentIdx > myIdx;
-                  if (label === 'Motion') isDone = isMotionDone && !isActive;
-                  if (label === 'Voice') isDone = isVoiceDone && !isActive;
-                  if (label === 'Motion') {
-                    const motionDoneStates = ['video_prompts_approved', 'voice_approved', 'voice_confirmed', 'production_starting', 'production_in_progress', 'production_completed', 'qc_', 'final_packag', 'completed'];
-                    const motionActiveStates = ['video_prompts_generating', 'video_prompts_awaiting_approval'];
-                    const motionDone = motionDoneStates.some((s) => stateStr.includes(s));
-                    const motionActive = motionActiveStates.some((s) => stateStr.includes(s));
-                    isDone = motionDone;
-                    if (motionDone) {
-                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    }
-                    if (motionDone && !motionActive) {
-                      // active should be false once approved and voice/production begins
-                    }
-                  }
-                  let overrideActive = isActive;
-                  if (label === 'Motion') {
-                    overrideActive = ['video_prompts_generating', 'video_prompts_awaiting_approval'].some((s) => stateStr.includes(s));
-                    if (['video_prompts_approved', 'voice_approved', 'voice_confirmed', 'production_starting', 'production_in_progress', 'production_completed', 'qc_', 'final_packag', 'completed'].some((s) => stateStr.includes(s))) {
-                      isDone = true;
-                      overrideActive = false;
-                    }
-                  }
-                  if (label === 'Voice') {
-                    overrideActive = ['video_prompts_approved', 'voice_approved', 'voice_confirmed'].some((s) => stateStr.includes(s));
-                    if (['production_starting', 'production_in_progress', 'production_completed', 'qc_', 'final_packag', 'completed'].some((s) => stateStr.includes(s))) {
-                      isDone = true;
-                      overrideActive = false;
-                    }
-                  }
-                  if (label === 'Production') {
-                    overrideActive = ['production_starting', 'production_in_progress'].some((s) => stateStr.includes(s));
-                    if (['production_completed', 'qc_', 'final_packag', 'completed'].some((s) => stateStr.includes(s))) {
-                      isDone = true;
-                      overrideActive = false;
-                    }
-                  }
-                  let bgColor, textColor;
-                  if (overrideActive) {
-                    bgColor = `hsl(var(--color-primary) / 0.1)`;
-                    textColor = `hsl(var(--color-primary))`;
-                  } else if (isDone) {
-                    bgColor = `hsl(var(--color-success) / 0.1)`;
-                    textColor = `hsl(var(--color-success))`;
-                  } else {
-                    bgColor = `hsl(var(--color-surface))`;
-                    textColor = `hsl(var(--color-muted))`;
-                  }
-                  return (
-                    <span key={label} className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: bgColor, color: textColor }}>
-                      {isDone ? '✓ ' : overrideActive ? '● ' : '○ '}{label}
-                    </span>
-                  );
-                })}
-              </div>
-              <span className="text-xs font-medium tabular-nums" style={{ color: `hsl(var(--color-text-secondary))` }}>
-                {isMockMode ? localState : project.workflow_state}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Show loading when resuming project from URL */}
         {isResumingProject && loading && (
           <div className="mb-6 p-4 rounded-lg border" style={{ backgroundColor: `hsl(var(--color-primary) / 0.08)`, borderColor: `hsl(var(--color-primary) / 0.3)`, color: `hsl(var(--color-primary))` }}>

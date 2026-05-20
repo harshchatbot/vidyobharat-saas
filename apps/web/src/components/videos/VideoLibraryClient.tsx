@@ -22,6 +22,8 @@ type Props = {
 };
 
 type MediaFilterKey = 'all' | 'videos' | 'images';
+type DateFilterKey = 'all' | 'today' | 'last7' | 'last30';
+type SortKey = 'latest' | 'oldest';
 
 const INITIAL_LIBRARY_BATCH = 12;
 const LIBRARY_BATCH_STEP = 12;
@@ -70,6 +72,8 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
   const [images, setImages] = useState(initialImages);
   const [query, setQuery] = useState('');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterKey>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilterKey>('all');
+  const [sortBy, setSortBy] = useState<SortKey>('latest');
   const [refreshing, setRefreshing] = useState(initialVideos.length === 0 && initialImages.length === 0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -159,8 +163,14 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
 
   const filteredVideos = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
-    return videos.filter((video) => {
+    const now = Date.now();
+    const result = videos.filter((video) => {
       if (mediaFilter === 'images') return false;
+      const createdAt = new Date(video.created_at).getTime();
+      const ageDays = Number.isFinite(createdAt) ? (now - createdAt) / (1000 * 60 * 60 * 24) : Number.POSITIVE_INFINITY;
+      if (dateFilter === 'today' && ageDays > 1) return false;
+      if (dateFilter === 'last7' && ageDays > 7) return false;
+      if (dateFilter === 'last30' && ageDays > 30) return false;
       if (!trimmed) return true;
       const haystack = [
         video.title,
@@ -175,12 +185,24 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
         .toLowerCase();
       return haystack.includes(trimmed);
     });
-  }, [mediaFilter, query, videos]);
+    result.sort((a, b) => {
+      const aTs = new Date(a.created_at).getTime();
+      const bTs = new Date(b.created_at).getTime();
+      return sortBy === 'latest' ? bTs - aTs : aTs - bTs;
+    });
+    return result;
+  }, [dateFilter, mediaFilter, query, sortBy, videos]);
 
   const filteredImages = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
-    return images.filter((image) => {
+    const now = Date.now();
+    const result = images.filter((image) => {
       if (mediaFilter === 'videos') return false;
+      const createdAt = new Date(image.created_at).getTime();
+      const ageDays = Number.isFinite(createdAt) ? (now - createdAt) / (1000 * 60 * 60 * 24) : Number.POSITIVE_INFINITY;
+      if (dateFilter === 'today' && ageDays > 1) return false;
+      if (dateFilter === 'last7' && ageDays > 7) return false;
+      if (dateFilter === 'last30' && ageDays > 30) return false;
       if (!trimmed) return true;
       const haystack = [
         image.prompt,
@@ -195,11 +217,17 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
         .toLowerCase();
       return haystack.includes(trimmed);
     });
-  }, [images, mediaFilter, query]);
+    result.sort((a, b) => {
+      const aTs = new Date(a.created_at).getTime();
+      const bTs = new Date(b.created_at).getTime();
+      return sortBy === 'latest' ? bTs - aTs : aTs - bTs;
+    });
+    return result;
+  }, [dateFilter, images, mediaFilter, query, sortBy]);
 
   useEffect(() => {
     setVisibleCount(INITIAL_LIBRARY_BATCH);
-  }, [images.length, mediaFilter, query, videos.length]);
+  }, [dateFilter, images.length, mediaFilter, query, sortBy, videos.length]);
 
   const visibleImages = useMemo(
     () => filteredImages.slice(0, mediaFilter === 'all' ? visibleCount : Math.max(visibleCount, filteredImages.length)),
@@ -323,6 +351,26 @@ export function VideoLibraryClient({ userId, initialVideos, initialImages }: Pro
                 {label}
               </button>
             ))}
+            <select
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value as DateFilterKey)}
+              className="min-h-10 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.72)] px-3 text-sm text-text"
+              aria-label="Filter by date"
+            >
+              <option value="all">All dates</option>
+              <option value="today">Today</option>
+              <option value="last7">Last 7 days</option>
+              <option value="last30">Last 30 days</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as SortKey)}
+              className="min-h-10 rounded-full border border-[hsl(var(--color-border-soft)/0.3)] bg-[hsl(var(--color-surface)/0.72)] px-3 text-sm text-text"
+              aria-label="Sort media"
+            >
+              <option value="latest">Latest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
           </div>
         </div>
 

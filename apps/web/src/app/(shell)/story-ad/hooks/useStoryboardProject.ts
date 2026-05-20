@@ -740,6 +740,7 @@ export function useStoryboardProject() {
       mood?: string;
       environment?: string;
       avatar_action?: string;
+      lipsync_this_scene?: boolean;
     },
   ) => {
     setLoading(true);

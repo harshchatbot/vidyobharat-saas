@@ -18,10 +18,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.api.deps import require_admin_user
 from app.services.storyboard_pipeline_service import (
     StoryboardPipelineService,
     StoryboardWorkflowState,
 )
+from app.services.storyboard_library_reconcile_service import StoryboardLibraryReconcileService
 from app.services.voice_preview_service import normalize_storyboard_tts_literals
 from app.services.avatar_product_tts_catalog import list_storyboard_tts_catalog, resolve_storyboard_gemini_language
 
@@ -95,6 +97,7 @@ class UpdateSceneRequest(BaseModel):
     environment: str | None = None
     avatar_action: str | None = None
     duration_seconds: int | None = None
+    lipsync_this_scene: bool | None = None
 
 
 class GenerateVoicePreviewRequest(BaseModel):
@@ -997,6 +1000,25 @@ async def retry_failed_scenes(
         service = StoryboardPipelineService()
         result = service.retry_failed_scenes(project_id, user_id)
         return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{project_id}/admin/reconcile-library", summary="Admin: reconcile storyboard library record")
+async def reconcile_storyboard_library_record(
+    project_id: str,
+    _: str = Depends(require_admin_user),
+) -> dict[str, Any]:
+    """
+    Admin-safe recovery path.
+
+    Upserts the video library record from existing storyboard project outputs
+    (final_video_url, thumbnail, metadata) without triggering any generation.
+    """
+    try:
+        service = StoryboardLibraryReconcileService()
+        result = service.reconcile_project(project_id)
+        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

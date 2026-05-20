@@ -539,7 +539,7 @@ export default function ImageCheckpoint({
 
   // ── Main render ────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 bg-slate-950/95 p-3 sm:p-4 md:p-6 rounded-2xl border border-slate-800">
+    <div className="space-y-6 rounded-2xl border border-border bg-bg p-3 sm:p-4 md:p-6">
       {showDebug && !clientPreview ? (
         <div className="rounded-xl border border-indigo-400/30 bg-indigo-500/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">Debug · Identity Locks</p>
@@ -574,50 +574,50 @@ export default function ImageCheckpoint({
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: 'easeOut' }}
-        className="rounded-2xl border border-slate-700/70 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 shadow-[0_20px_80px_rgba(0,0,0,0.35)] p-5 sm:p-6 md:p-7"
+        className="glass-card rounded-2xl border border-border p-5 sm:p-6 md:p-7"
       >
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-400/30">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--color-accent))] bg-[hsl(var(--color-accent)/0.12)] px-3 py-1 rounded-full border border-[hsl(var(--color-accent)/0.3)]">
               Stage 8 · Visual Production Board
             </span>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mt-3">AI Creative Production Board</h2>
-            <p className="text-slate-300 mt-1 text-sm sm:text-base">
+            <h2 className="mt-3 text-2xl font-bold text-text sm:text-3xl">AI Creative Production Board</h2>
+            <p className="mt-1 text-sm text-muted sm:text-base">
               Cinematic frame review with production-safe approvals, regeneration, and continuity visibility.
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              {project.avatar_name ? <span className="px-2.5 py-1 rounded-full border border-slate-600 text-slate-200">Avatar: {project.avatar_name}</span> : null}
-              <span className="px-2.5 py-1 rounded-full border border-slate-600 text-slate-200">{totalScenes} scenes</span>
-              <span className="px-2.5 py-1 rounded-full border border-slate-600 text-slate-200">{(project.target_ad_duration_seconds || project.selected_ad_duration_seconds || 0) || '?'}s</span>
-              <span className="px-2.5 py-1 rounded-full border border-emerald-500/40 text-emerald-300">{productionStatusLabel}</span>
+              {project.avatar_name ? <span className="rounded-full border border-border px-2.5 py-1 text-text">Avatar: {project.avatar_name}</span> : null}
+              <span className="rounded-full border border-border px-2.5 py-1 text-text">{totalScenes} scenes</span>
+              <span className="rounded-full border border-border px-2.5 py-1 text-text">{(project.target_ad_duration_seconds || project.selected_ad_duration_seconds || 0) || '?'}s</span>
+              <span className="rounded-full border border-[hsl(var(--color-success)/0.4)] px-2.5 py-1 text-[hsl(var(--color-success))]">{productionStatusLabel}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-xl border border-slate-600 bg-slate-800/70 p-1">
+            <div className="inline-flex items-center rounded-xl border border-border bg-surface p-1">
               <button
                 onClick={() => setViewMode('review')}
-                className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${viewMode === 'review' ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-300 hover:text-white'}`}
+                className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${viewMode === 'review' ? 'bg-bg text-text font-semibold' : 'text-muted hover:text-text'}`}
               >
                 Review View
               </button>
               <button
                 onClick={() => setViewMode('board')}
-                className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${viewMode === 'board' ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-300 hover:text-white'}`}
+                className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${viewMode === 'board' ? 'bg-bg text-text font-semibold' : 'text-muted hover:text-text'}`}
               >
                 Board View
               </button>
             </div>
             <button
               onClick={() => setClientPreview((prev) => !prev)}
-              className={`px-3 py-2 text-xs sm:text-sm rounded-xl border transition ${clientPreview ? 'border-emerald-400/70 text-emerald-300 bg-emerald-500/10' : 'border-slate-600 text-slate-200 hover:border-slate-400'}`}
+              className={`px-3 py-2 text-xs sm:text-sm rounded-xl border transition ${clientPreview ? 'border-[hsl(var(--color-success)/0.6)] text-[hsl(var(--color-success))] bg-[hsl(var(--color-success)/0.1)]' : 'border-border text-text hover:bg-elevated'}`}
             >
               {clientPreview ? 'Exit Client Preview' : 'Client Preview'}
             </button>
             {!clientPreview ? (
               <>
-                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-slate-700 text-slate-500 cursor-not-allowed">Export PDF</button>
-                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-slate-700 text-slate-500 cursor-not-allowed">Share Board</button>
-                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-slate-700 text-slate-500 cursor-not-allowed">Presentation Mode</button>
+                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-border text-muted cursor-not-allowed">Export PDF</button>
+                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-border text-muted cursor-not-allowed">Share Board</button>
+                <button title="Coming soon" disabled className="px-3 py-2 text-xs rounded-xl border border-border text-muted cursor-not-allowed">Presentation Mode</button>
               </>
             ) : null}
           </div>
@@ -656,8 +656,8 @@ export default function ImageCheckpoint({
       </motion.div>
 
       {/* ── Thumbnail Strip ── */}
-      <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Scene Navigator
         </p>
         <div className="flex gap-3 overflow-x-auto pb-1">
@@ -667,8 +667,8 @@ export default function ImageCheckpoint({
               onClick={() => scrollToScene(scene.scene_number)}
               className={`flex-shrink-0 group relative rounded-lg overflow-hidden border-2 transition-all ${
                 activeThumb === scene.scene_number
-                  ? 'border-cyan-400 shadow-md shadow-cyan-500/20'
-                  : 'border-slate-600 hover:border-cyan-400/60'
+                  ? 'border-[hsl(var(--color-accent))] shadow-soft'
+                  : 'border-border hover:border-[hsl(var(--color-accent)/0.5)]'
               }`}
               style={{ width: 96, height: 64 }}
               title={`Scene ${scene.scene_number} — ${scene.scene_type}`}
@@ -680,8 +680,8 @@ export default function ImageCheckpoint({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-                  <span className="text-xs text-slate-300">🎬</span>
+                <div className="flex h-full w-full items-center justify-center bg-elevated">
+                  <span className="text-xs text-muted">🎬</span>
                 </div>
               )}
               {/* Scene number overlay */}
@@ -721,18 +721,18 @@ export default function ImageCheckpoint({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
             className={`rounded-xl border p-4 ${
-              color === 'blue' ? 'border-cyan-500/30 bg-cyan-500/10' :
-              color === 'green' ? 'border-emerald-500/30 bg-emerald-500/10' :
-              color === 'red' ? 'border-rose-500/30 bg-rose-500/10' :
-              'border-amber-500/30 bg-amber-500/10'
+              color === 'blue' ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)]' :
+              color === 'green' ? 'border-[hsl(var(--color-success)/0.35)] bg-[hsl(var(--color-success)/0.1)]' :
+              color === 'red' ? 'border-[hsl(var(--color-danger)/0.35)] bg-[hsl(var(--color-danger)/0.1)]' :
+              'border-[hsl(var(--color-warning)/0.35)] bg-[hsl(var(--color-warning)/0.1)]'
             }`}
           >
-            <p className="text-xs text-slate-400 mb-1">{label}</p>
+            <p className="mb-1 text-xs text-muted">{label}</p>
             <p className={`text-2xl font-bold ${
-              color === 'blue' ? 'text-cyan-300' :
-              color === 'green' ? 'text-emerald-300' :
-              color === 'red' ? 'text-rose-300' :
-              'text-amber-300'
+              color === 'blue' ? 'text-[hsl(var(--color-accent))]' :
+              color === 'green' ? 'text-[hsl(var(--color-success))]' :
+              color === 'red' ? 'text-[hsl(var(--color-danger))]' :
+              'text-[hsl(var(--color-warning))]'
             }`}>{value}</p>
           </motion.div>
         ))}
@@ -764,8 +764,8 @@ export default function ImageCheckpoint({
             ref={(el) => { sceneRefs.current[scene.id] = el; }}
             className={`rounded-2xl overflow-hidden border backdrop-blur-sm transition-shadow ${
               frameReady
-                ? 'bg-slate-900/85 border-slate-700 hover:shadow-[0_15px_50px_rgba(14,165,233,0.12)]'
-                : 'bg-slate-900/70 border-slate-800'
+                ? 'bg-surface border-border hover:shadow-soft'
+                : 'bg-[hsl(var(--color-surface)/0.7)] border-border'
             }`}
           >
             {/* Image Frame */}
@@ -777,7 +777,7 @@ export default function ImageCheckpoint({
                     setPreviewImageFailed(false);
                     setPreviewSceneId(scene.id);
                   }}
-                  className="w-full h-full block focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+                  className="block h-full w-full focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent))] focus:ring-offset-2 focus:ring-offset-bg"
                   title={`Preview Scene ${scene.scene_number}`}
                 >
                   <img
@@ -789,8 +789,8 @@ export default function ImageCheckpoint({
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                   <div className="h-20 w-20 rounded-full border border-slate-600 bg-slate-800/70 animate-pulse mb-3 flex items-center justify-center text-2xl">🎬</div>
-                  <p className="text-sm text-slate-200 font-medium">Scene {scene.scene_number}</p>
-                  <p className="text-xs text-slate-400 mt-1">Awaiting frame generation</p>
+                  <p className="text-sm font-medium text-text">Scene {scene.scene_number}</p>
+                  <p className="mt-1 text-xs text-muted">Awaiting frame generation</p>
                 </div>
               )}
               {/* Scene number badge */}
@@ -798,8 +798,8 @@ export default function ImageCheckpoint({
                 Scene {scene.scene_number}
               </div>
               <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
-                <span className="bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full border border-white/20">{scene.shot_type}</span>
-                <span className="bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full border border-white/20">{scene.duration_seconds}s</span>
+                <span className="rounded-full border border-border bg-[hsl(var(--color-surface)/0.8)] px-2.5 py-1 text-xs text-text">{scene.shot_type}</span>
+                <span className="rounded-full border border-border bg-[hsl(var(--color-surface)/0.8)] px-2.5 py-1 text-xs text-text">{scene.duration_seconds}s</span>
               </div>
               {/* Approval ribbon */}
               {scene.user_approved === true && hasFrameUrl(scene) && (
@@ -828,13 +828,13 @@ export default function ImageCheckpoint({
                 {scene.mood ? <span className="text-xs px-2 py-0.5 rounded-full border border-slate-500/40 text-slate-200">{scene.mood}</span> : null}
                 {scene.environment ? <span className="text-xs px-2 py-0.5 rounded-full border border-slate-500/40 text-slate-200">{scene.environment}</span> : null}
               </div>
-              <span className="text-xs text-slate-400 font-medium tabular-nums">{scene.duration_seconds}s</span>
+              <span className="text-xs font-medium tabular-nums text-muted">{scene.duration_seconds}s</span>
             </div>
 
             {/* Metadata */}
             <div className="px-5 pb-4 space-y-3">
               {/* Spoken line */}
-              <p className="text-sm italic text-slate-200 leading-relaxed border-l-2 border-cyan-400/60 pl-3 mt-2">
+              <p className="mt-2 border-l-2 border-[hsl(var(--color-accent)/0.6)] pl-3 text-sm italic leading-relaxed text-text">
                 &ldquo;{getSceneSpokenLine(scene)}&rdquo;
               </p>
 
@@ -872,7 +872,7 @@ export default function ImageCheckpoint({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-slate-300 line-clamp-2">
+                  <p className="line-clamp-2 text-xs text-muted">
                     {scene.visual_description}
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -919,14 +919,14 @@ export default function ImageCheckpoint({
 
             {/* Action Buttons */}
               {!clientPreview ? (
-              <div className="px-5 pb-5 flex gap-2 border-t border-slate-700/60 pt-3">
+              <div className="flex gap-2 border-t border-border px-5 pb-5 pt-3">
               <button
                 onClick={() => handleApproveScene(scene.id)}
                 disabled={loading || !hasFrameUrl(scene)}
                 className={`flex-1 rounded-xl py-2 text-xs font-semibold transition-colors ${
                   hasFrameUrl(scene)
                     ? 'bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/25'
-                    : 'bg-slate-700 text-slate-400 cursor-not-allowed border border-slate-600'
+                    : 'cursor-not-allowed border border-border bg-elevated text-muted'
                 } disabled:opacity-50`}
               >
                 ✓ Approve
@@ -937,7 +937,7 @@ export default function ImageCheckpoint({
                 className={`flex-1 rounded-xl py-2 text-xs font-semibold transition-colors ${
                   hasFrameUrl(scene)
                     ? 'bg-rose-500/15 border border-rose-400/40 text-rose-200 hover:bg-rose-500/25'
-                    : 'bg-slate-700 text-slate-400 cursor-not-allowed border border-slate-600'
+                    : 'cursor-not-allowed border border-border bg-elevated text-muted'
                 } disabled:opacity-50`}
               >
                 ✗ Reject
@@ -945,23 +945,23 @@ export default function ImageCheckpoint({
               <button
                 onClick={() => handleRegenerateScene(scene.id)}
                 disabled={loading}
-                className="flex-1 rounded-xl py-2 text-xs font-semibold bg-violet-500/15 border border-violet-400/40 text-violet-200 hover:bg-violet-500/25 transition-colors disabled:opacity-50"
+                className="flex-1 rounded-xl border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] py-2 text-xs font-semibold text-[hsl(var(--color-accent))] transition-colors hover:bg-[hsl(var(--color-accent)/0.2)] disabled:opacity-50"
               >
                 🔄 Regen
               </button>
               <button
                 onClick={() => startEditPrompt(scene)}
                 disabled={loading}
-                className="flex-1 rounded-xl py-2 text-xs font-semibold bg-amber-500/15 border border-amber-400/40 text-amber-200 hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+                className="flex-1 rounded-xl border border-[hsl(var(--color-warning)/0.4)] bg-[hsl(var(--color-warning)/0.12)] py-2 text-xs font-semibold text-[hsl(var(--color-warning))] transition-colors hover:bg-[hsl(var(--color-warning)/0.2)] disabled:opacity-50"
               >
                 ✏️ Prompt
               </button>
               </div>
               ) : (
                 <div className="px-5 pb-5 pt-3 border-t border-slate-700/60">
-                  <div className="flex flex-wrap gap-2">
-                    {continuityBadges.map((badge) => (
-                      <span key={`${scene.id}-${badge}`} className="text-[11px] px-2.5 py-1 rounded-full border border-cyan-400/30 text-cyan-200 bg-cyan-500/10">
+                <div className="flex flex-wrap gap-2">
+                  {continuityBadges.map((badge) => (
+                      <span key={`${scene.id}-${badge}`} className="rounded-full border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] px-2.5 py-1 text-[11px] text-[hsl(var(--color-accent))]">
                         {badge}
                       </span>
                     ))}
@@ -975,18 +975,18 @@ export default function ImageCheckpoint({
 
       {/* ── Action Bar ── */}
       {!clientPreview ? (
-      <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-6 flex items-center justify-between gap-4 flex-wrap">
+      <div className="glass-card rounded-2xl border border-border p-6 flex items-center justify-between gap-4 flex-wrap">
         {onBack && canGoBack && (
           <button
             onClick={onBack}
             disabled={loading || isLoading}
-            className="px-5 py-2.5 text-slate-200 border border-slate-600 rounded-xl hover:bg-slate-800 font-medium transition-colors disabled:opacity-50"
+            className="rounded-xl border border-border px-5 py-2.5 font-medium text-text transition-colors hover:bg-elevated disabled:opacity-50"
           >
             ← Back to Scene Breakdown
           </button>
         )}
         <div className="flex-1" />
-        <p className="text-sm text-slate-300 hidden md:block">
+        <p className="hidden text-sm text-muted md:block">
           {allApproved
             ? 'All frames approved — ready to proceed to Motion Planning.'
             : `${approvedCount} of ${totalScenes} frames approved. Missing frames: ${missingCount}.`}
@@ -994,14 +994,14 @@ export default function ImageCheckpoint({
         <button
           onClick={handleGenerateImages}
           disabled={loading || isLoading}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold text-sm transition-colors disabled:opacity-50"
+          className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
         >
           {loading ? 'Working…' : (localError || missingCount > 0 ? '🔄 Try Again' : '🖼️ Generate Frames')}
         </button>
         <button
           onClick={handleApproveAll}
           disabled={loading || missingCount > 0 || isLoading}
-          className="px-8 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-semibold text-base transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="flex items-center gap-2 rounded-xl bg-[hsl(var(--color-success))] px-8 py-3 text-base font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
           {loading ? (
             <><span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Approving…</>
@@ -1015,22 +1015,22 @@ export default function ImageCheckpoint({
       {/* ── Fullscreen Preview Modal ── */}
       {previewScene ? (
         <div
-          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-[hsl(var(--color-bg)/0.74)] p-3 backdrop-blur-sm sm:p-6"
           onClick={() => setPreviewSceneId(null)}
           role="dialog"
           aria-modal="true"
           aria-label={`Scene ${previewScene.scene_number} preview`}
         >
           <div
-            className="w-full max-w-6xl max-h-[95vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col"
+            className="glass-card-strong flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">
                   Scene {previewScene.scene_number} · {previewScene.scene_type}
                 </p>
-                <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                <p className="mt-0.5 text-sm font-semibold text-text">
                   {previewScene.user_approved === true && previewSceneImage
                     ? 'Approved'
                     : previewScene.user_approved === false && previewSceneImage
@@ -1041,14 +1041,14 @@ export default function ImageCheckpoint({
               <button
                 type="button"
                 onClick={() => setPreviewSceneId(null)}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text transition hover:bg-elevated"
               >
                 Close
               </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] min-h-0 flex-1">
-              <div className="bg-gray-900/95 flex items-center justify-center min-h-[260px]">
+              <div className="flex min-h-[260px] items-center justify-center bg-[hsl(var(--color-bg)/0.9)]">
                 {previewSceneImage && !previewImageFailed ? (
                   <img
                     src={previewSceneImage}
@@ -1057,9 +1057,9 @@ export default function ImageCheckpoint({
                     onError={() => setPreviewImageFailed(true)}
                   />
                 ) : (
-                  <div className="text-center px-6 py-10 text-white/90">
+                  <div className="px-6 py-10 text-center text-text">
                     <p className="text-base font-semibold">Preview unavailable</p>
-                    <p className="text-sm mt-1 text-white/70">
+                    <p className="mt-1 text-sm text-muted">
                       This frame could not be loaded right now.
                     </p>
                   </div>
@@ -1068,21 +1068,21 @@ export default function ImageCheckpoint({
 
               <div className="overflow-y-auto p-4 sm:p-5 space-y-4">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Spoken line</p>
-                  <p className="text-sm text-gray-700 italic">&ldquo;{getSceneSpokenLine(previewScene)}&rdquo;</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted">Spoken line</p>
+                  <p className="text-sm italic text-text">&ldquo;{getSceneSpokenLine(previewScene)}&rdquo;</p>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Visual description</p>
-                  <p className="text-sm text-gray-700">{previewScene.visual_description}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted">Visual description</p>
+                  <p className="text-sm text-text">{previewScene.visual_description}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                  <div className="rounded-lg bg-gray-50 border border-gray-200 p-2">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-500">Shot</p>
-                    <p className="font-medium text-gray-700">{previewScene.shot_type}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-text">
+                  <div className="rounded-lg border border-border bg-surface p-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted">Shot</p>
+                    <p className="font-medium text-text">{previewScene.shot_type}</p>
                   </div>
-                  <div className="rounded-lg bg-gray-50 border border-gray-200 p-2">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-500">Duration</p>
-                    <p className="font-medium text-gray-700">{previewScene.duration_seconds}s</p>
+                  <div className="rounded-lg border border-border bg-surface p-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted">Duration</p>
+                    <p className="font-medium text-text">{previewScene.duration_seconds}s</p>
                   </div>
                 </div>
 
@@ -1090,21 +1090,21 @@ export default function ImageCheckpoint({
                   <button
                     onClick={() => void handleApproveScene(previewScene.id)}
                     disabled={loading || !previewSceneImage}
-                    className="rounded-xl py-2 text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                    className="rounded-xl border border-[hsl(var(--color-success)/0.35)] bg-[hsl(var(--color-success)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-success))] transition hover:bg-[hsl(var(--color-success)/0.18)] disabled:opacity-50"
                   >
                     ✓ Approve frame
                   </button>
                   <button
                     onClick={() => handleRejectScene(previewScene.id)}
                     disabled={loading || !previewSceneImage}
-                    className="rounded-xl py-2 text-xs font-semibold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    className="rounded-xl border border-[hsl(var(--color-danger)/0.35)] bg-[hsl(var(--color-danger)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-danger))] transition hover:bg-[hsl(var(--color-danger)/0.18)] disabled:opacity-50"
                   >
                     ✗ Reject frame
                   </button>
                   <button
                     onClick={() => void handleRegenerateScene(previewScene.id)}
                     disabled={loading}
-                    className="rounded-xl py-2 text-xs font-semibold bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                    className="rounded-xl border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-accent))] transition hover:bg-[hsl(var(--color-accent)/0.18)] disabled:opacity-50"
                   >
                     🔄 Regenerate
                   </button>
@@ -1114,14 +1114,14 @@ export default function ImageCheckpoint({
                       download={`scene-${previewScene.scene_number}.jpg`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-xl py-2 text-center text-xs font-semibold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100"
+                      className="rounded-xl border border-border bg-surface py-2 text-center text-xs font-semibold text-text transition hover:bg-elevated"
                     >
                       ⬇ Download
                     </a>
                   ) : (
                     <button
                       disabled
-                      className="rounded-xl py-2 text-xs font-semibold bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed"
+                      className="cursor-not-allowed rounded-xl border border-border bg-elevated py-2 text-xs font-semibold text-muted"
                     >
                       ⬇ Download
                     </button>
@@ -1144,8 +1144,8 @@ function MetaRow({ icon, label, value }: { icon: string; label: string; value: s
     <div className="flex items-start gap-2">
       <span className="text-xs mt-0.5 flex-shrink-0">{icon}</span>
       <div className="min-w-0">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}: </span>
-        <span className="text-xs text-slate-200 leading-snug">{value}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{label}: </span>
+        <span className="text-xs leading-snug text-text">{value}</span>
       </div>
     </div>
   );

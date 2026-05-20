@@ -274,12 +274,6 @@ def scene_requires_lipsync(scene: Any, project: Any | None = None) -> tuple[bool
         return True, "lipsync_required"
     if bool(getattr(scene, "requires_lipsync", False)):
         return True, "requires_lipsync"
-    spoken_line = str(getattr(scene, "spoken_line", "") or "").strip()
-    voice_line = str(getattr(scene, "voice_line", "") or "").strip()
-    script_text = str(getattr(scene, "script_text", "") or "").strip()
-    selected_voice = str(getattr(project, "selected_voice", "") or "").strip() if project is not None else ""
-    if selected_voice and any([spoken_line, voice_line, script_text]):
-        return True, "dialogue_with_selected_voice"
     return False, "none"
 
 
@@ -676,6 +670,40 @@ def _queue_stitching_once(*, db: StoryboardRepository, project_id: str, user_id:
     project_fresh = db.get_project(project_id)
     stitching_status = str(getattr(project_fresh, "stitching_status", "") or "").strip().lower() if project_fresh else ""
     stitching_lock = bool(getattr(project_fresh, "stitching_lock", False)) if project_fresh else False
+    stitching_task_id = str(getattr(project_fresh, "stitching_task_id", "") or "").strip() if project_fresh else ""
+    stitching_queued_at = coerce_datetime(getattr(project_fresh, "stitching_queued_at", None)) if project_fresh else None
+    stitching_started_at = coerce_datetime(getattr(project_fresh, "stitching_started_at", None)) if project_fresh else None
+    stitching_completed_at = coerce_datetime(getattr(project_fresh, "stitching_completed_at", None)) if project_fresh else None
+    final_video_url = str(getattr(project_fresh, "final_video_url", "") or "").strip() if project_fresh else ""
+
+    # Recover from stale stitch lock/status (e.g., worker restart or lost task) so pipeline can continue.
+    now = utcnow()
+    queued_age_seconds = (now - stitching_queued_at).total_seconds() if stitching_queued_at else None
+    started_age_seconds = (now - stitching_started_at).total_seconds() if stitching_started_at else None
+    looks_stale_queued = stitching_status == "queued" and (not stitching_task_id or (queued_age_seconds is not None and queued_age_seconds > 300))
+    looks_stale_in_progress = stitching_status == "in_progress" and (not stitching_started_at or (started_age_seconds is not None and started_age_seconds > 900))
+    if (stitching_lock or stitching_status in {"queued", "in_progress"}) and not final_video_url and not stitching_completed_at and (looks_stale_queued or looks_stale_in_progress):
+        logger.warning(
+            "storyboard_stitching_stale_lock_recovered",
+            extra={
+                "project_id": project_id,
+                "previous_stitching_status": stitching_status,
+                "had_lock": stitching_lock,
+                "had_task_id": bool(stitching_task_id),
+                "queued_age_seconds": queued_age_seconds,
+                "started_age_seconds": started_age_seconds,
+            },
+        )
+        db.update_project(
+            project_id,
+            stitching_lock=False,
+            stitching_status="retry_queued",
+            stitching_task_id=None,
+        )
+        project_fresh = db.get_project(project_id)
+        stitching_status = str(getattr(project_fresh, "stitching_status", "") or "").strip().lower() if project_fresh else ""
+        stitching_lock = bool(getattr(project_fresh, "stitching_lock", False)) if project_fresh else False
+
     if stitching_lock or stitching_status in {"queued", "in_progress", "completed"}:
         logger.info(
             "storyboard_stitching_queue_skipped_existing",
@@ -807,14 +835,21 @@ def generate_script_task(
         if generated_word_count > max_words:
             # Deterministic fallback for short formats to avoid blocking user flow.
             if target_duration_seconds == 10:
+                brief_words = [w for w in (business_brief or "").split() if w.strip()]
+                subject = "your product"
+                if brief_words:
+                    subject = " ".join(brief_words[:6]).strip(",. ")
                 clean_script = (
-                    "Busy day? This smartwatch keeps calls, steps, and reminders on my wrist, "
-                    "so I stay organized without checking my phone again and again."
+                    f"Meet {subject}. Clear benefits, authentic feel, and fast everyday value in one quick scroll-stopping ad. "
+                    "Tap now to try it today."
                 )
+                # Enforce max words deterministically while preserving product context.
+                words = [w for w in clean_script.split() if w.strip()]
+                clean_script = " ".join(words[:max_words]).strip()
                 generated_word_count = len([w for w in clean_script.split() if w.strip()])
                 logger.warning(
                     "storyboard_script_condensed_to_fit",
-                    extra={"project_id": project_id, "fallback": "deterministic_10s"},
+                    extra={"project_id": project_id, "fallback": "brief_aware_10s"},
                 )
             else:
                 words = [w for w in clean_script.split() if w.strip()]
