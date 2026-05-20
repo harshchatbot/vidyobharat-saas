@@ -1,9 +1,12 @@
 """
 Gemini API provider for script generation, storyboard planning, and quality scoring.
-Uses the new google.genai library (google.generativeai is deprecated).
+Uses direct Gemini REST calls so runtime does not depend on google.genai package.
 """
 
 import logging
+import json
+import urllib.request
+import urllib.error
 from typing import Optional
 from app.core.config import get_settings
 
@@ -32,47 +35,61 @@ class GeminiClient:
             Dict with 'text' key containing the generated content
         """
         try:
-            import google.genai as genai
-
             if not self.api_key:
                 logger.error('gemini_api_key_not_configured', extra={})
                 raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
 
-            # New google.genai API - create client with API key
-            client = genai.Client(api_key=self.api_key)
-            
-            # Generate content using the new API
-            response = client.models.generate_content(
-                model=self.flash_model,
-                contents=prompt,
-                config=genai.types.GenerateContentConfig(
-                    temperature=kwargs.get('temperature', 0.7),
-                    max_output_tokens=kwargs.get('max_tokens', 2048),
-                ),
+            payload = {
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {
+                    'temperature': kwargs.get('temperature', 0.7),
+                    'maxOutputTokens': kwargs.get('max_tokens', 2048),
+                },
+            }
+            request = urllib.request.Request(
+                url=f'{self.base_url.rstrip("/")}/models/{self.flash_model}:generateContent',
+                data=json.dumps(payload).encode('utf-8'),
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': str(self.api_key),
+                },
+                method='POST',
             )
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    raw = response.read().decode('utf-8')
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode('utf-8', errors='ignore')
+                raise RuntimeError(f'Gemini API HTTP {exc.code}: {detail[:500]}') from exc
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f'Gemini API connection failed: {exc.reason}') from exc
 
-            generated_text = response.text if response and hasattr(response, 'text') else str(response)
+            data = json.loads(raw)
+            candidates = data.get('candidates') or []
+            generated_text = ''
+            for candidate in candidates:
+                content = candidate.get('content', {})
+                parts = content.get('parts') or []
+                for part in parts:
+                    maybe_text = str(part.get('text') or '').strip()
+                    if maybe_text:
+                        generated_text = maybe_text
+                        break
+                if generated_text:
+                    break
+            if not generated_text:
+                raise RuntimeError('Gemini API returned empty text response')
 
             logger.info(
                 'gemini_text_generation_success',
                 extra={
                     'prompt_length': len(prompt),
-                    'output_length': len(generated_text) if generated_text else 0,
+                    'output_length': len(generated_text),
                     'model': self.flash_model,
                 },
             )
+            return {'text': generated_text, 'status': 'success', 'is_mock': False}
 
-            return {
-                'text': generated_text,
-                'status': 'success',
-                'is_mock': False,
-            }
-
-        except ImportError as e:
-            logger.error('google_genai_not_installed', extra={'error': str(e)})
-            raise Exception(
-                "google.genai library not installed. Install with: pip install google-genai"
-            )
         except ValueError as e:
             # API key not configured
             logger.error('gemini_api_key_error', extra={'error': str(e)})
@@ -102,33 +119,57 @@ class GeminiClient:
             Dict with 'analysis' key
         """
         try:
-            import google.genai as genai
-
             if not self.api_key:
                 raise ValueError("Gemini API key not configured")
 
-            client = genai.Client(api_key=self.api_key)
-            
-            response = client.models.generate_content(
-                model=self.vision_model,
-                contents=[prompt, image_url],
-                config=genai.types.GenerateContentConfig(
-                    temperature=kwargs.get('temperature', 0.5),
-                    max_output_tokens=kwargs.get('max_tokens', 1024),
-                ),
-            )
-
-            logger.info(
-                'gemini_vision_analysis_success',
-                extra={'prompt_length': len(prompt)},
-            )
-
-            return {
-                'analysis': response.text if response else '',
-                'status': 'success',
-                'is_mock': False,
+            payload = {
+                'contents': [
+                    {
+                        'parts': [
+                            {'text': prompt},
+                            {'fileData': {'fileUri': image_url}},
+                        ]
+                    }
+                ],
+                'generationConfig': {
+                    'temperature': kwargs.get('temperature', 0.5),
+                    'maxOutputTokens': kwargs.get('max_tokens', 1024),
+                },
             }
+            request = urllib.request.Request(
+                url=f'{self.base_url.rstrip("/")}/models/{self.vision_model}:generateContent',
+                data=json.dumps(payload).encode('utf-8'),
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': str(self.api_key),
+                },
+                method='POST',
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    raw = response.read().decode('utf-8')
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode('utf-8', errors='ignore')
+                raise RuntimeError(f'Gemini API HTTP {exc.code}: {detail[:500]}') from exc
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f'Gemini API connection failed: {exc.reason}') from exc
 
+            data = json.loads(raw)
+            candidates = data.get('candidates') or []
+            analysis = ''
+            for candidate in candidates:
+                content = candidate.get('content', {})
+                parts = content.get('parts') or []
+                for part in parts:
+                    maybe_text = str(part.get('text') or '').strip()
+                    if maybe_text:
+                        analysis = maybe_text
+                        break
+                if analysis:
+                    break
+
+            logger.info('gemini_vision_analysis_success', extra={'prompt_length': len(prompt)})
+            return {'analysis': analysis, 'status': 'success', 'is_mock': False}
         except Exception as e:
             logger.error('gemini_vision_analysis_failed', extra={'error': str(e)})
             raise
