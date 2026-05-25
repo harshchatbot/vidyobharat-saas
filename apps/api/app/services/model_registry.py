@@ -101,6 +101,37 @@ MODEL_REGISTRY: dict[str, GenerationModelDefinition] = {
         aliases=('nano_banana',),
     ),
 
+    'storyboard_flux_subject': GenerationModelDefinition(
+        model_key='storyboard_flux_subject',
+        display_name='Storyboard Flux Subject',
+        medium='image',
+        provider='fal',
+        provider_model_key='fal-ai/flux-subject',
+        mode_ids=('storyboard_draft', 'storyboard_standard'),
+        cost_profile='storyboard_flux_subject',
+        billing_unit='per_image',
+        quality_tier='standard',
+        user_facing_description='Subject-aware storyboard frame generation for fast draft and standard visual boards.',
+        default_image_count=1,
+        fallback_model_key='storyboard_gemini_flash_edit',
+        aliases=('fal-ai/flux-subject', 'flux_subject'),
+    ),
+
+    'storyboard_gemini_flash_edit': GenerationModelDefinition(
+        model_key='storyboard_gemini_flash_edit',
+        display_name='Storyboard Gemini Flash Image Edit',
+        medium='image',
+        provider='fal',
+        provider_model_key='fal-ai/gemini-25-flash-image/edit',
+        mode_ids=('storyboard_premium', 'storyboard_repair'),
+        cost_profile='storyboard_gemini_flash_edit',
+        billing_unit='per_image',
+        quality_tier='premium',
+        user_facing_description='Premium storyboard image edit model for continuity repair and stronger reference fidelity.',
+        default_image_count=1,
+        aliases=('fal-ai/gemini-25-flash-image/edit', 'gemini_flash_image_edit_storyboard'),
+    ),
+
     # ---------------- VIDEO MODELS ---------------- #
 
     'fal_ltx23_t2v': GenerationModelDefinition(

@@ -71,14 +71,14 @@ function Header() {
       className="sticky top-3 z-30 py-3"
     >
       <div
-        className="mx-auto flex min-h-16 max-w-[1180px] items-center justify-between gap-4 rounded-full border px-3 py-2 shadow-[var(--landing-tile-shadow)] backdrop-blur-2xl sm:px-4"
+        className="mx-auto flex min-h-14 max-w-[1180px] items-center justify-between gap-2 rounded-full border px-2.5 py-2 shadow-[var(--landing-tile-shadow)] backdrop-blur-2xl sm:min-h-16 sm:gap-4 sm:px-4"
         style={{
           borderColor: 'var(--landing-glass-border)',
           background:
             'linear-gradient(135deg, hsl(var(--color-surface) / 0.72), hsl(var(--color-elevated) / 0.48))',
         }}
       >
-        <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
+        <BrandLogo href="/" variant="full" size="md" className="max-w-[130px] min-[420px]:max-w-[160px] sm:max-w-[220px]" />
 
         <nav
           className="hidden items-center rounded-full border px-2 py-1 text-sm font-semibold lg:flex"
@@ -112,14 +112,14 @@ function Header() {
           </Link>
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
             style={{
               background: 'hsl(var(--color-accent-amber))',
               color: '#0A0A0F',
               boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.24)'
             }}
           >
-            Start free
+            <span className="hidden min-[390px]:inline">Start free</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
           <button
@@ -140,7 +140,7 @@ function Header() {
         </div>
       </div>
       {mobileMenuOpen && (
-        <div className="mx-auto max-w-[1180px] py-3 lg:hidden">
+        <div className="mx-auto max-w-[1180px] px-3 py-3 lg:hidden">
           <div
             className="overflow-hidden rounded-[26px] border p-3 backdrop-blur-xl"
             style={glassPanelStyle}
@@ -279,7 +279,7 @@ function HeroSection() {
           </motion.div>
 
           <motion.h1
-            className="font-heading text-[2.5rem] sm:text-[3.8rem] font-extrabold tracking-tight leading-[1.08]"
+            className="font-heading text-[2.25rem] font-extrabold leading-[1.05] tracking-tight min-[420px]:text-[2.65rem] sm:text-[3.8rem] sm:leading-[1.08]"
             style={{
               color: 'var(--landing-title)',
               textShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.14)',
@@ -311,7 +311,7 @@ function HeroSection() {
           >
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition hover:opacity-95"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:opacity-95 sm:px-6 sm:py-3.5 sm:text-base"
               style={{
                 background: `linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-accent-amber) / 0.78))`,
                 color: '#0A0A0F',
@@ -324,7 +324,7 @@ function HeroSection() {
 
             <Link
               href="/create"
-              className="inline-flex items-center gap-2 rounded-full border px-5 py-3.5 text-sm font-semibold transition hover:bg-[hsl(var(--color-surface)/0.3)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold transition hover:bg-[hsl(var(--color-surface)/0.3)] sm:py-3.5"
               style={{
                 borderColor: `hsl(var(--color-border) / 0.3)`,
                 background: `hsl(var(--color-surface) / 0.2)`,
@@ -508,9 +508,9 @@ function SolutionDemoSection() {
           </h2>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-5 relative">
+        <div className="relative grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {/* Connecting line (desktop only) */}
-          <div className="hidden md:block absolute top-12 left-8 right-8 h-1" style={{
+          <div className="absolute left-8 right-8 top-12 hidden h-1 lg:block" style={{
             background: 'linear-gradient(90deg, hsl(var(--color-accent-amber) / 0.2), hsl(var(--color-accent-amber) / 0.4), hsl(var(--color-accent-amber) / 0.2))',
             zIndex: 0
           }} />
@@ -636,7 +636,7 @@ function CategoryShowcaseSection() {
           </h2>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {categories.map((cat, idx) => (
             <motion.div
               key={cat.title}
@@ -713,7 +713,7 @@ function RecipeShowcaseSection() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--color-accent-amber)/0.55)] to-transparent" />
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {recipes.map((recipe, index) => (
           <motion.article
             key={recipe.title}
@@ -763,12 +763,12 @@ function RecipeShowcaseSection() {
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-accent-amber))` }}>{recipe.category}</p>
                 <h3
-                  className="mt-3 min-h-[7.5rem] font-heading text-[2rem] font-extrabold leading-[1.06] tracking-tight"
+                  className="mt-3 font-heading text-[1.55rem] font-extrabold leading-[1.08] tracking-tight sm:text-[1.75rem] lg:min-h-[7.5rem] lg:text-[2rem] lg:leading-[1.06]"
                   style={{ color: '#F8FAFC' }}
                 >
                   {recipe.title}
                 </h3>
-                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: '#C7CBD6' }}>
+                <p className="mt-3 text-sm leading-6 lg:min-h-[3.25rem]" style={{ color: '#C7CBD6' }}>
                   {recipe.description}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2 pt-1">
@@ -928,14 +928,14 @@ function FinalCtaSection() {
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
-      <LampContainer>
-        <div className="mx-auto max-w-3xl px-5 text-center">
+      <LampContainer className="min-h-[31rem] md:min-h-[36rem]">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-5">
           <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>
             <Heart className="h-3.5 w-3.5" />
             Made for Indian creators
           </p>
 
-          <h2 className="mt-4 font-heading text-[2.2rem] sm:text-[3.4rem] font-extrabold tracking-tight leading-[1.02]"
+          <h2 className="mt-4 font-heading text-[2rem] font-extrabold leading-[1.04] tracking-tight sm:text-[3.4rem] sm:leading-[1.02]"
             style={{
               color: 'var(--landing-title)',
             }}>
@@ -949,7 +949,7 @@ function FinalCtaSection() {
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition hover:opacity-95"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:opacity-95 sm:px-6 sm:py-3.5 sm:text-base"
               style={{
                 background: `linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-accent-amber) / 0.78))`,
                 color: '#0A0A0F',
@@ -962,7 +962,7 @@ function FinalCtaSection() {
 
             <Link
               href="/create"
-              className="inline-flex items-center gap-2 rounded-full border px-5 py-3.5 text-sm font-semibold transition hover:bg-[hsl(var(--color-surface)/0.3)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold transition hover:bg-[hsl(var(--color-surface)/0.3)] sm:py-3.5"
               style={{
                 borderColor: `hsl(var(--color-border) / 0.3)`,
                 background: `hsl(var(--color-surface) / 0.2)`,

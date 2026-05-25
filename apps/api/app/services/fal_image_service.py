@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -190,6 +191,111 @@ class FalImageService:
             mode="text_only",
         )
         return result["image_url"], result
+
+    def generate_flux_subject_image(
+        self,
+        *,
+        prompt: str,
+        subject_image_url: str,
+        image_size: dict[str, int] | str | None = None,
+        num_inference_steps: int = 6,
+        guidance_scale: float = 3.0,
+        output_format: str = "jpeg",
+        seed: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        endpoint = str(self.settings.storyboard_flux_subject_endpoint or "fal-ai/flux-subject").strip()
+        subject_url = str(subject_image_url or "").strip()
+        if not endpoint:
+            raise RuntimeError("STORYBOARD_FLUX_SUBJECT_ENDPOINT is not configured")
+        if not subject_url:
+            raise RuntimeError("flux-subject storyboard image generation requires subject_image_url")
+
+        if isinstance(image_size, dict):
+            width = int(image_size.get("width") or 512)
+            height = int(image_size.get("height") or 896)
+            resolved_image_size: dict[str, int] | str = {"width": width, "height": height}
+        elif isinstance(image_size, str) and image_size.strip():
+            resolved_image_size = image_size.strip()
+            width, height = 512, 896
+        else:
+            width, height = 512, 896
+            resolved_image_size = {"width": width, "height": height}
+
+        estimated_megapixels = (width * height) / 1_000_000
+        billable_megapixels = max(1, math.ceil(estimated_megapixels))
+        estimated_cost_usd = billable_megapixels * 0.04
+
+        payload: dict[str, Any] = {
+            "prompt": prompt,
+            "image_url": subject_url,
+            "image_size": resolved_image_size,
+            "num_inference_steps": int(num_inference_steps),
+            "guidance_scale": float(guidance_scale),
+            "num_images": 1,
+            "enable_safety_checker": True,
+            "output_format": output_format,
+        }
+        if seed is not None:
+            payload["seed"] = int(seed)
+
+        request_metadata = {
+            **(metadata or {}),
+            "model_key": "storyboard_flux_subject",
+            "estimated_megapixels": round(estimated_megapixels, 6),
+            "billable_megapixels": billable_megapixels,
+            "estimated_cost_usd": round(estimated_cost_usd, 4),
+        }
+        logger.info(
+            "storyboard_flux_subject_request_started",
+            extra={"endpoint": endpoint, "metadata": request_metadata},
+        )
+        logger.info(
+            "storyboard_flux_subject_subject_url_present",
+            extra={"subject_url_present": bool(subject_url), "metadata": request_metadata},
+        )
+        logger.info(
+            "storyboard_flux_subject_params",
+            extra={
+                "image_size": resolved_image_size,
+                "num_inference_steps": int(num_inference_steps),
+                "guidance_scale": float(guidance_scale),
+                "output_format": output_format,
+                "metadata": request_metadata,
+            },
+        )
+        try:
+            result = self._submit_storyboard_image_job(
+                endpoint=endpoint,
+                payload=payload,
+                metadata=request_metadata,
+                mode="flux_subject",
+            )
+        except Exception:
+            logger.error("storyboard_flux_subject_failed", extra={"endpoint": endpoint, "metadata": request_metadata}, exc_info=True)
+            raise
+
+        normalized = {
+            **result,
+            "image_url": result["image_url"],
+            "model_key": "storyboard_flux_subject",
+            "provider": "fal",
+            "width": width,
+            "height": height,
+            "estimated_megapixels": round(estimated_megapixels, 6),
+            "billable_megapixels": billable_megapixels,
+            "estimated_cost_usd": round(estimated_cost_usd, 4),
+            "raw": result,
+        }
+        logger.info(
+            "storyboard_flux_subject_request_completed",
+            extra={
+                "endpoint": endpoint,
+                "image_url": normalized["image_url"],
+                "metadata": request_metadata,
+            },
+        )
+        return normalized
 
     def _submit_storyboard_image_job(
         self,

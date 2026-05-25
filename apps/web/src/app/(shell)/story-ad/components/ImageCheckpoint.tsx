@@ -46,6 +46,10 @@ interface Scene {
   frame_url?: string | null;
   state: string;
   user_approved: boolean | null;
+  image_generation_model_key?: string | null;
+  image_generation_quality_mode?: string | null;
+  image_generation_cost_usd_estimate?: number | null;
+  image_generation_fallback_used?: boolean | null;
 }
 
 interface ImageCheckpointProps {
@@ -86,6 +90,11 @@ export default function ImageCheckpoint({
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
   const [previewImageFailed, setPreviewImageFailed] = useState(false);
   const [staleApprovalCount, setStaleApprovalCount] = useState(0);
+  const [imageQualityMode, setImageQualityMode] = useState<'draft' | 'standard' | 'premium'>(
+    ['draft', 'standard', 'premium'].includes(String(project.storyboard_image_quality_mode || 'standard'))
+      ? (String(project.storyboard_image_quality_mode || 'standard') as 'draft' | 'standard' | 'premium')
+      : 'standard'
+  );
   const sceneRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -175,6 +184,10 @@ export default function ImageCheckpoint({
         frame_url: String(raw.frame_url || frameUrl || ''),
         state: String(raw.state || ''),
         user_approved: raw.user_approved ?? null,
+        image_generation_model_key: raw.image_generation_model_key || null,
+        image_generation_quality_mode: raw.image_generation_quality_mode || null,
+        image_generation_cost_usd_estimate: raw.image_generation_cost_usd_estimate ?? null,
+        image_generation_fallback_used: raw.image_generation_fallback_used ?? null,
       };
     });
 
@@ -342,7 +355,7 @@ export default function ImageCheckpoint({
     try {
       setLocalError(null);
       const before = scenes.find((s) => s.id === sceneId)?.base_image_url || null;
-      await regenerateSceneImage(project.id, sceneId);
+      await regenerateSceneImage(project.id, sceneId, imageQualityMode);
       let attempts = 0;
       const maxAttempts = 60; // up to 2 minutes
       while (attempts < maxAttempts) {
@@ -388,15 +401,15 @@ export default function ImageCheckpoint({
         setShowGeneratingImagesLoader(false);
         return;
       }
-      const estimateRes = await fetch(`${API_BASE_URL}/api/storyboard/${project.id}/credit-estimate?operation=generate_base_images`, {
+      const estimateRes = await fetch(`${API_BASE_URL}/api/storyboard/${project.id}/credit-estimate?operation=generate_base_images&storyboard_image_quality_mode=${encodeURIComponent(imageQualityMode)}`, {
         headers: { 'X-User-ID': getUserId() },
       });
       if (estimateRes.ok) {
         const { estimate } = await estimateRes.json();
-        if (!confirm(`Image generation costs ${estimate.cost_credits} credits. Balance: ${estimate.available_credits}. Proceed?`)) return;
+        if (!confirm(`Image generation costs ${estimate.cost_credits} credits. Balance: ${estimate.available_credits}. Mode: ${imageQualityMode}. Proceed?`)) return;
         if (!estimate.can_afford) { alert('Insufficient credits.'); return; }
       }
-      await generateImages(project.id, true);
+      await generateImages(project.id, true, imageQualityMode);
       await fetchScenes(false);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to generate images.');
@@ -593,6 +606,25 @@ export default function ImageCheckpoint({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {!clientPreview ? (
+              <div className="rounded-xl border border-border bg-surface p-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  Image Quality
+                </label>
+                <select
+                  value={imageQualityMode}
+                  onChange={(event) => setImageQualityMode(event.target.value as 'draft' | 'standard' | 'premium')}
+                  className="min-h-10 rounded-lg border border-border bg-bg px-3 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent))]"
+                >
+                  <option value="draft">Draft — lower cost preview</option>
+                  <option value="standard">Standard — balanced</option>
+                  <option value="premium">Premium — continuity repair</option>
+                </select>
+                <p className="mt-1 max-w-[260px] text-[11px] leading-4 text-muted">
+                  Standard uses Flux Subject for storyboard drafts. Premium keeps Gemini repair available.
+                </p>
+              </div>
+            ) : null}
             <div className="inline-flex items-center rounded-xl border border-border bg-surface p-1">
               <button
                 onClick={() => setViewMode('review')}
@@ -827,6 +859,8 @@ export default function ImageCheckpoint({
                 </span>
                 {scene.mood ? <span className="text-xs px-2 py-0.5 rounded-full border border-slate-500/40 text-slate-200">{scene.mood}</span> : null}
                 {scene.environment ? <span className="text-xs px-2 py-0.5 rounded-full border border-slate-500/40 text-slate-200">{scene.environment}</span> : null}
+                {scene.image_generation_model_key ? <span className="text-xs px-2 py-0.5 rounded-full border border-amber-400/30 text-amber-200">{scene.image_generation_model_key}</span> : null}
+                {scene.image_generation_fallback_used ? <span className="text-xs px-2 py-0.5 rounded-full border border-orange-400/30 text-orange-200">Fallback used</span> : null}
               </div>
               <span className="text-xs font-medium tabular-nums text-muted">{scene.duration_seconds}s</span>
             </div>

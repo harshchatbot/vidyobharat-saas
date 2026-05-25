@@ -197,6 +197,16 @@
         "1024": 10,
         "1536": 12,
         "2048": 15
+      },
+      "storyboard_flux_subject": {
+        "1024": 5,
+        "1536": 6,
+        "2048": 8
+      },
+      "storyboard_gemini_flash_edit": {
+        "1024": 5,
+        "1536": 6,
+        "2048": 8
       }
     },
     "modelMultiplier": {
@@ -249,13 +259,18 @@
     "openai_image": "premium",
     "recraft_studio": "premium",
     "recraft_studio_pro": "premium",
+    "storyboard_flux_subject": "standard",
+    "storyboard_gemini_flash_edit": "premium",
     "nano_banana": "standard"
   },
   "imageModelAliases": {
     "nano_banana": "gemini_flash_image",
     "gpt_image_1_5": "openai_image",
     "recraft": "recraft_studio",
-    "budget_image_model": "gemini_flash_image"
+    "budget_image_model": "gemini_flash_image",
+    "flux_subject": "storyboard_flux_subject",
+    "fal-ai/flux-subject": "storyboard_flux_subject",
+    "fal-ai/gemini-25-flash-image/edit": "storyboard_gemini_flash_edit"
   },
   "freeVoiceKeys": ["Aarav", "Mira", "Dev", "Shubh", "Priya"],
   "freeImageModels": [],

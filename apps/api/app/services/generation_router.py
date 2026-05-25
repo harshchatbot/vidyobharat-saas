@@ -71,6 +71,10 @@ def _billing_model_key(model_key: str) -> str:
         return 'openai_image'
     if resolved == 'recraft':
         return 'recraft_studio'
+    if resolved == 'storyboard_flux_subject':
+        return 'storyboard_flux_subject'
+    if resolved == 'storyboard_gemini_flash_edit':
+        return 'gemini_flash_image'
     if resolved == 'ltx_benchmark':
         return 'ltx'
     return resolved

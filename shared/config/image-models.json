@@ -47,6 +47,30 @@
       "canonical_model_key": "gemini_flash_image",
       "bestFor": "Best for high-volume generation",
       "creditsPerImage": 4
+    },
+    {
+      "key": "storyboard_flux_subject",
+      "label": "Storyboard Flux Subject",
+      "description": "Subject-aware storyboard frame generation for fast draft and standard visual boards.",
+      "frontend_hint": "Default storyboard frame model for lower-cost approval previews.",
+      "provider": "Fal",
+      "badge": "Storyboard",
+      "logo_label": "F",
+      "canonical_model_key": "storyboard_flux_subject",
+      "bestFor": "Best for storyboard draft frames with subject consistency",
+      "creditsPerImage": 5
+    },
+    {
+      "key": "storyboard_gemini_flash_edit",
+      "label": "Storyboard Gemini Flash Edit",
+      "description": "Premium storyboard image editing for continuity repair and stronger reference fidelity.",
+      "frontend_hint": "Use when product or character continuity needs repair.",
+      "provider": "Fal",
+      "badge": "Premium",
+      "logo_label": "G",
+      "canonical_model_key": "storyboard_gemini_flash_edit",
+      "bestFor": "Best for storyboard continuity repair",
+      "creditsPerImage": 5
     }
   ]
 }

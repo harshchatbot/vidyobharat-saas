@@ -1154,6 +1154,7 @@ def generate_base_image_task(
     scene_id: str,
     user_id: str,
     model_tier: str = "fast",
+    storyboard_image_quality_mode: str | None = None,
 ) -> dict:
     """
     Generate base image for a scene.
@@ -1175,6 +1176,7 @@ def generate_base_image_task(
                 "project_id": project_id,
                 "scene_id": scene_id,
                 "model_tier": model_tier,
+                "storyboard_image_quality_mode": storyboard_image_quality_mode,
                 "idempotency_key": idempotency_key,
                 "task_id": self.request.id,
             },
@@ -1268,6 +1270,22 @@ def generate_base_image_task(
             extra={"project_id": project_id, "scene_id": scene_id, "count": len(reference_urls)},
         )
         supports_reference_images = bool(reference_urls)
+        quality_mode = str(
+            storyboard_image_quality_mode
+            or getattr(project, "storyboard_image_quality_mode", None)
+            or settings.storyboard_image_quality_mode_default
+            or "standard"
+        ).strip().lower()
+        if quality_mode not in {"draft", "standard", "premium"}:
+            quality_mode = "standard"
+        flux_params = {
+            "draft": {"width": 512, "height": 896, "num_inference_steps": 4, "guidance_scale": 3.0},
+            "standard": {"width": 512, "height": 896, "num_inference_steps": 6, "guidance_scale": 3.0},
+            "premium": {"width": 768, "height": 1344, "num_inference_steps": 8, "guidance_scale": 3.2},
+        }.get(quality_mode, {"width": 512, "height": 896, "num_inference_steps": 6, "guidance_scale": 3.0})
+        default_model_key = str(settings.storyboard_image_default_model or "storyboard_flux_subject").strip()
+        premium_model_key = str(settings.storyboard_image_premium_model or "storyboard_gemini_flash_edit").strip()
+        selected_storyboard_model_key = premium_model_key if quality_mode == "premium" else default_model_key
         logger.info(
             "storyboard_image_prompt_built",
             extra={
@@ -1275,6 +1293,9 @@ def generate_base_image_task(
                 "scene_id": scene_id,
                 "storyboard_image_prompt_length": len(image_prompt),
                 "storyboard_image_prompt_mode": ("reference" if supports_reference_images else "text_only"),
+                "storyboard_image_quality_mode": quality_mode,
+                "storyboard_image_default_model": default_model_key,
+                "storyboard_image_selected_model": selected_storyboard_model_key,
             },
         )
         storyboard_provider = str(settings.storyboard_image_provider or "fal").strip().lower()
@@ -1294,6 +1315,12 @@ def generate_base_image_task(
 
         if settings.storyboard_safe_test_mode:
             image_url = str(scene.base_image_url or project.product_image_url or "mock://storyboard/base-image")
+            fal_meta = {"mode": "safe_test", "model_key": "safe_test", "provider": "mock"}
+            image_generation_subject_source = None
+            image_generation_subject_url = None
+            fallback_used = False
+            fallback_from = None
+            fallback_to = None
             logger.info(
                 "storyboard_safe_test_mode_image_bypass",
                 extra={"project_id": project_id, "scene_id": scene_id, "image_url": image_url},
@@ -1310,8 +1337,91 @@ def generate_base_image_task(
                     "provider": "fal",
                 },
             )
-            if supports_reference_images:
+            image_generation_subject_source = None
+            image_generation_subject_url = None
+            fallback_used = False
+            fallback_from = None
+            fallback_to = None
+
+            def select_flux_subject() -> tuple[str | None, str | None]:
+                if character_reference_sheet_url:
+                    return character_reference_sheet_url, "character_reference_sheet"
+                if avatar_led_scene and strong_avatar_references:
+                    return strong_avatar_references[0], "avatar_reference"
+                previous_scene_images = [
+                    str(item.base_image_url or "").strip()
+                    for item in db.list_scenes(project_id)
+                    if int(getattr(item, "scene_number", 0) or 0) < int(getattr(scene, "scene_number", 0) or 0)
+                    and str(item.base_image_url or "").strip()
+                ]
+                if previous_scene_images:
+                    return previous_scene_images[-1], "previous_scene_image"
+                if bool(settings.storyboard_flux_subject_use_product_as_subject) and product_reference_images:
+                    return product_reference_images[0], "product_reference"
+                if avatar_reference_urls:
+                    return avatar_reference_urls[0], "avatar_reference"
+                if product_reference_images:
+                    return product_reference_images[0], "product_reference_fallback"
+                return None, None
+
+            should_use_flux = (
+                bool(settings.storyboard_flux_subject_enabled)
+                and selected_storyboard_model_key == "storyboard_flux_subject"
+            )
+            if should_use_flux:
+                subject_url, subject_source = select_flux_subject()
+                logger.info(
+                    "storyboard_flux_subject_selected_subject_source",
+                    extra={"project_id": project_id, "scene_id": scene_id, "subject_source": subject_source},
+                )
+                logger.info(
+                    "storyboard_flux_subject_selected_subject_url_present",
+                    extra={"project_id": project_id, "scene_id": scene_id, "subject_url_present": bool(subject_url)},
+                )
+                logger.info(
+                    "storyboard_flux_subject_product_reference_present",
+                    extra={"project_id": project_id, "scene_id": scene_id, "product_reference_present": bool(product_reference_images)},
+                )
+                if subject_url:
+                    image_generation_subject_source = subject_source
+                    image_generation_subject_url = subject_url
+                    flux_prompt = (
+                        f"{image_prompt}\n\n"
+                        "PRODUCT LOCK: Product must match uploaded product reference exactly when visible. "
+                        "Do not invent a new watch/product. Keep product shape, color, strap, material, screen form, proportions, and brand cues consistent. "
+                        "If product identity is uncertain, keep it partially visible rather than redesigning it."
+                    )
+                    try:
+                        model_key = "storyboard_flux_subject"
+                        fal_meta = fal_service.generate_flux_subject_image(
+                            prompt=flux_prompt,
+                            subject_image_url=subject_url,
+                            image_size={"width": int(flux_params["width"]), "height": int(flux_params["height"])},
+                            num_inference_steps=int(flux_params["num_inference_steps"]),
+                            guidance_scale=float(flux_params["guidance_scale"]),
+                            output_format="jpeg",
+                            metadata={"project_id": project_id, "scene_id": scene_id, "user_id": user_id, "quality_mode": quality_mode},
+                        )
+                        image_url = str(fal_meta.get("image_url") or "").strip()
+                    except Exception:
+                        if not bool(settings.storyboard_flux_subject_fallback_to_gemini):
+                            raise
+                        logger.warning(
+                            "storyboard_flux_subject_failed_falling_back",
+                            extra={"project_id": project_id, "scene_id": scene_id, "fallback_to": "storyboard_gemini_flash_edit"},
+                            exc_info=True,
+                        )
+                        fallback_used = True
+                        fallback_from = "storyboard_flux_subject"
+                        fallback_to = "storyboard_gemini_flash_edit"
+                        should_use_flux = False
+                else:
+                    should_use_flux = False
+
+            if not should_use_flux and supports_reference_images:
                 model_key = str(settings.storyboard_image_reference_model or "fal-ai/gemini-25-flash-image/edit")
+                if selected_storyboard_model_key == "storyboard_gemini_flash_edit" or fallback_used:
+                    model_key = "storyboard_gemini_flash_edit"
                 logger.info(
                     "storyboard_image_model_selected",
                     extra={
@@ -1327,7 +1437,15 @@ def generate_base_image_task(
                     reference_urls=reference_urls,
                     metadata={"project_id": project_id, "scene_id": scene_id, "user_id": user_id},
                 )
-            else:
+                if fallback_used:
+                    fal_meta = {
+                        **fal_meta,
+                        "model_key": "storyboard_gemini_flash_edit",
+                        "fallback_used": True,
+                        "fallback_from": fallback_from,
+                        "fallback_to": fallback_to,
+                    }
+            elif not should_use_flux:
                 model_key = str(settings.storyboard_image_text_model or "fal-ai/recraft/v3/text-to-image")
                 logger.info(
                     "storyboard_image_model_selected",
@@ -1343,12 +1461,16 @@ def generate_base_image_task(
                     aspect_ratio="9:16",
                     metadata={"project_id": project_id, "scene_id": scene_id, "user_id": user_id},
                 )
+            if not str(image_url or "").strip():
+                raise RuntimeError("Storyboard image generation completed without image_url")
             logger.info(
                 "storyboard_reference_image_generation_payload",
                 extra={
                     "project_id": project_id,
                     "scene_id": scene_id,
                     "selected_model": model_key,
+                    "storyboard_image_quality_mode": quality_mode,
+                    "image_generation_subject_source": image_generation_subject_source,
                     "supports_reference_images": supports_reference_images,
                     "avatar_reference_count": len(strong_avatar_references if avatar_led_scene else []),
                     "product_reference_count": len(product_reference_images),
@@ -1363,6 +1485,10 @@ def generate_base_image_task(
                     "fal_storyboard_metadata": {
                         "endpoint": fal_meta.get("endpoint"),
                         "mode": fal_meta.get("mode"),
+                        "model_key": fal_meta.get("model_key") or model_key,
+                        "estimated_cost_usd": fal_meta.get("estimated_cost_usd"),
+                        "billable_megapixels": fal_meta.get("billable_megapixels"),
+                        "fallback_used": bool(fallback_used or fal_meta.get("fallback_used")),
                         "status_url": _redact_url(fal_meta.get("status_url")),
                         "response_url": _redact_url(fal_meta.get("response_url")),
                     },
@@ -1384,6 +1510,8 @@ def generate_base_image_task(
                     "project_id": project_id,
                     "scene_id": scene_id,
                     "model_tier": model_tier,
+                    "storyboard_image_quality_mode": quality_mode,
+                    "image_generation_model_key": fal_meta.get("model_key") or model_key,
                     "operation": "base_image_generation",
                 },
                 source="storyboard_base_image_generation",
@@ -1403,6 +1531,25 @@ def generate_base_image_task(
             image_generation_error=None,
             state=SceneState.AWAITING_APPROVAL,
             image_generation_started_at=None,
+            image_generation_model_key=fal_meta.get("model_key") or model_key,
+            image_generation_provider=fal_meta.get("provider") or "fal",
+            image_generation_quality_mode=quality_mode,
+            image_generation_cost_usd_estimate=fal_meta.get("estimated_cost_usd"),
+            image_generation_subject_source=image_generation_subject_source,
+            image_generation_subject_url=image_generation_subject_url,
+            image_generation_fallback_used=bool(fallback_used or fal_meta.get("fallback_used")),
+            image_generation_fallback_from=fallback_from or fal_meta.get("fallback_from"),
+            image_generation_fallback_to=fallback_to or fal_meta.get("fallback_to"),
+            image_generation_width=fal_meta.get("width"),
+            image_generation_height=fal_meta.get("height"),
+            image_generation_metadata={
+                "endpoint": fal_meta.get("endpoint"),
+                "mode": fal_meta.get("mode"),
+                "estimated_megapixels": fal_meta.get("estimated_megapixels"),
+                "billable_megapixels": fal_meta.get("billable_megapixels"),
+                "estimated_cost_usd": fal_meta.get("estimated_cost_usd"),
+                "quality_mode": quality_mode,
+            },
         )
 
         # Auto-advance project when all scene images are available.
@@ -1429,6 +1576,11 @@ def generate_base_image_task(
                 "selected_product_reference": _redact_url(selected_product_reference),
                 "supports_reference_images": supports_reference_images,
                 "selected_image_model": model_key,
+                "storyboard_image_quality_mode": quality_mode,
+                "image_generation_model_key": fal_meta.get("model_key") or model_key,
+                "image_generation_cost_usd_estimate": fal_meta.get("estimated_cost_usd"),
+                "image_generation_subject_source": image_generation_subject_source,
+                "image_generation_fallback_used": bool(fallback_used or fal_meta.get("fallback_used")),
                 "overlay_text_removed": bool(getattr(scene, "_overlay_text_removed", False)),
                 "consistency_strategy": "reference_order_lock_v1",
                 "character_reference_sheet_used": bool(character_reference_sheet_url),
@@ -1446,6 +1598,9 @@ def generate_base_image_task(
             "status": "completed",
             "image_url": image_url,
             "credits_deducted": cost,
+            "model_key": fal_meta.get("model_key") or model_key,
+            "quality_mode": quality_mode,
+            "estimated_cost_usd": fal_meta.get("estimated_cost_usd"),
             "task_id": self.request.id,
         }
 

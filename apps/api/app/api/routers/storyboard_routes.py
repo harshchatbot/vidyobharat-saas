@@ -69,6 +69,13 @@ class GenerateStoryboardRequest(BaseModel):
     """Request to generate storyboard from script."""
 
     confirmation: bool = Field(..., description="Must be true to proceed")
+    storyboard_image_quality_mode: str | None = Field(None, description="Storyboard image quality: draft, standard, premium")
+
+
+class StoryboardImageQualityRequest(BaseModel):
+    """Optional request payload for scene image quality selection."""
+
+    storyboard_image_quality_mode: str | None = Field(None, description="Storyboard image quality: draft, standard, premium")
 
 
 class ApproveSceneRequest(BaseModel):
@@ -452,6 +459,15 @@ async def get_storyboard(
                     "image_url": s.base_image_url,
                     "frame_url": s.base_image_url,
                     "base_image_prompt": s.base_image_prompt,
+                    "image_generation_model_key": getattr(s, "image_generation_model_key", None),
+                    "image_generation_provider": getattr(s, "image_generation_provider", None),
+                    "image_generation_quality_mode": getattr(s, "image_generation_quality_mode", None),
+                    "image_generation_cost_usd_estimate": getattr(s, "image_generation_cost_usd_estimate", None),
+                    "image_generation_subject_source": getattr(s, "image_generation_subject_source", None),
+                    "image_generation_subject_url": getattr(s, "image_generation_subject_url", None),
+                    "image_generation_fallback_used": getattr(s, "image_generation_fallback_used", None),
+                    "image_generation_width": getattr(s, "image_generation_width", None),
+                    "image_generation_height": getattr(s, "image_generation_height", None),
                     "state": s.state,
                     "user_approved": s.user_approved,
                 }
@@ -595,6 +611,7 @@ async def regenerate_scene(
 async def regenerate_scene_image(
     project_id: str,
     scene_id: str,
+    request: StoryboardImageQualityRequest | None = None,
     user_id: str = Depends(get_current_user_id),
 ) -> dict[str, Any]:
     """Regenerate base image for a single scene only."""
@@ -605,6 +622,7 @@ async def regenerate_scene_image(
             scene_id=scene_id,
             user_id=user_id,
             model_tier="fast",
+            storyboard_image_quality_mode=request.storyboard_image_quality_mode if request else None,
         )
         return {"status": "success", "result": result}
     except Exception as e:
@@ -630,7 +648,11 @@ async def generate_images(
 
         # If confirmation not provided, return estimate
         if not request.confirmation:
-            estimate = service.get_credit_estimate(project_id, "generate_base_images")
+            estimate = service.get_credit_estimate(
+                project_id,
+                "generate_base_images",
+                storyboard_image_quality_mode=request.storyboard_image_quality_mode,
+            )
             return {
                 "status": "estimate_required",
                 "credit_estimate": {
@@ -643,7 +665,12 @@ async def generate_images(
             }
 
         # Launch image generation
-        result = service.generate_base_images(project_id, user_id, model_tier="fast")
+        result = service.generate_base_images(
+            project_id,
+            user_id,
+            model_tier="fast",
+            storyboard_image_quality_mode=request.storyboard_image_quality_mode,
+        )
         return {"status": "success", "result": result}
     except ValueError as e:
         logger.error("image_generation_validation_failed", extra={"project_id": project_id, "error": str(e)})
@@ -1049,12 +1076,17 @@ async def create_variation(
 async def get_credit_estimate(
     project_id: str,
     operation: str,
+    storyboard_image_quality_mode: str | None = None,
     user_id: str = Depends(get_current_user_id),
 ) -> dict[str, Any]:
     """Get credit cost estimate for next operation."""
     try:
         service = StoryboardPipelineService()
-        estimate = service.get_credit_estimate(project_id, operation)
+        estimate = service.get_credit_estimate(
+            project_id,
+            operation,
+            storyboard_image_quality_mode=storyboard_image_quality_mode,
+        )
 
         return {
             "status": "success",

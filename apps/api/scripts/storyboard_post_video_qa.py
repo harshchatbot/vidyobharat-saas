@@ -11,6 +11,7 @@ from typing import Any
 from app.core.config import get_settings
 from app.db.repositories.storyboard_repository import StoryboardRepository
 from app.services.fal_video_service import FalVideoService
+from app.services.fal_image_service import FalImageService
 from app.services.video_pipeline import VideoPipelineService
 from app.services.avatar_product_tts_catalog import (
     list_storyboard_tts_catalog,
@@ -128,6 +129,38 @@ def run_inspect_media(args: argparse.Namespace) -> dict[str, Any]:
     payload["mode"] = "inspect_media"
     _print("qa_media_inspection", payload)
     return payload
+
+
+def run_generate_storyboard_image(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.prompt:
+        raise ValueError("--prompt is required for generate_storyboard_image")
+    if args.image_model != "storyboard_flux_subject":
+        raise ValueError("QA generate_storyboard_image currently supports --image-model storyboard_flux_subject only")
+    if not args.subject_image_url:
+        raise ValueError("--subject-image-url is required for storyboard_flux_subject")
+
+    subject = str(args.subject_image_url).strip()
+    if is_gs_uri(subject):
+        raise ValueError("generate_storyboard_image requires a public/signed URL for --subject-image-url; gs:// is not directly accessible to Fal.")
+
+    fal = FalImageService()
+    result = fal.generate_flux_subject_image(
+        prompt=str(args.prompt),
+        subject_image_url=subject,
+        image_size={"width": int(args.width), "height": int(args.height)},
+        num_inference_steps=int(args.num_inference_steps),
+        guidance_scale=float(args.guidance_scale),
+        output_format=str(args.output_format),
+        metadata={"qa_mode": "generate_storyboard_image", "project_id": args.project_id},
+    )
+    return {
+        "mode": "generate_storyboard_image",
+        "image_model": args.image_model,
+        "subject_image_url": args.subject_image_url,
+        "resolved_subject_image_url": subject,
+        "prompt": args.prompt,
+        "result": result,
+    }
 
 
 def run_stitch_with_audio(args: argparse.Namespace) -> dict[str, Any]:
@@ -457,11 +490,13 @@ def build_parser() -> argparse.ArgumentParser:
             "4) Stitch uploaded videos + mux uploaded audio:\n"
             "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode stitch_with_audio --project-id qa-firebase-test --transition-type crossfade --transition-duration 0.3 --scene-video-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1001.mp4\" --scene-video-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1002.mp4\" --audio-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1001_1002_audio.mp3\"\n\n"
             "5) Re-stitch existing project scenes only (no generation):\n"
-            "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode restitch_project --project-id 14d6dbd3-4960-4f69-a7b0-7f020eb04f7e --transition-type crossfade --transition-duration 0.3"
+            "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode restitch_project --project-id 14d6dbd3-4960-4f69-a7b0-7f020eb04f7e --transition-type crossfade --transition-duration 0.3\n\n"
+            "6) Generate one low-cost storyboard frame with Flux Subject:\n"
+            "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode generate_storyboard_image --image-model storyboard_flux_subject --subject-image-url \"https://example.com/avatar.jpg\" --prompt \"Cinematic vertical storyboard frame of the same person holding the product\" --width 512 --height 896"
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "restitch_project", "tts_only", "lipsync_one", "full_existing_videos", "inspect_media"])
+    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "restitch_project", "tts_only", "lipsync_one", "full_existing_videos", "inspect_media", "generate_storyboard_image"])
     parser.add_argument("--list-tts-options", action="store_true")
     parser.add_argument("--project-id", dest="project_id")
     parser.add_argument("--scene-id", dest="scene_id")
@@ -475,6 +510,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--transition-type", default="crossfade", choices=["none", "crossfade", "fade_black"])
     parser.add_argument("--transition-duration", type=float, default=0.3)
     parser.add_argument("--inspect-media")
+    parser.add_argument("--image-model", default="storyboard_flux_subject")
+    parser.add_argument("--subject-image-url")
+    parser.add_argument("--prompt")
+    parser.add_argument("--width", type=int, default=512)
+    parser.add_argument("--height", type=int, default=896)
+    parser.add_argument("--num-inference-steps", type=int, default=6)
+    parser.add_argument("--guidance-scale", type=float, default=3.0)
+    parser.add_argument("--output-format", default="jpeg")
     return parser
 
 
@@ -523,6 +566,8 @@ def main() -> int:
           result = run_full_existing_videos(args)
       elif args.mode == "inspect_media":
           result = run_inspect_media(args)
+      elif args.mode == "generate_storyboard_image":
+          result = run_generate_storyboard_image(args)
       else:
           raise ValueError(f"Unsupported mode: {args.mode}")
       _print("qa_result", result)

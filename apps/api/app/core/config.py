@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     storyboard_image_generation_stale_seconds: int = 120
     storyboard_reference_strength: float = 0.85
     storyboard_image_provider: str = "fal"
+    storyboard_image_default_model: str = "storyboard_flux_subject"
+    storyboard_image_premium_model: str = "storyboard_gemini_flash_edit"
+    storyboard_flux_subject_enabled: bool = True
+    storyboard_flux_subject_endpoint: str = "fal-ai/flux-subject"
+    storyboard_flux_subject_fallback_to_gemini: bool = True
+    storyboard_flux_subject_use_product_as_subject: bool = False
+    storyboard_image_quality_mode_default: str = "standard"
     storyboard_image_reference_model: str = "fal-ai/gemini-25-flash-image/edit"
     storyboard_image_text_model: str = "fal-ai/recraft/v3/text-to-image"
     allow_openai_storyboard_image_provider: bool = False

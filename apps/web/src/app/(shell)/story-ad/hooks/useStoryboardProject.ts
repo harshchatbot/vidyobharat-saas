@@ -49,6 +49,7 @@ function normalizeProject(raw: any): StoryboardProject {
       : [],
     character_reference_sheet_url: projectData.character_reference_sheet_url || undefined,
     character_reference_sheet_prompt: projectData.character_reference_sheet_prompt || undefined,
+    storyboard_image_quality_mode: projectData.storyboard_image_quality_mode || 'standard',
   };
 }
 
@@ -279,6 +280,7 @@ export interface StoryboardProject {
   selected_tts_provider_voice_name?: string;
   selected_video_quality_label?: string;
   selected_video_model_key?: string;
+  storyboard_image_quality_mode?: 'draft' | 'standard' | 'premium' | string;
   selected_ad_duration_seconds?: number;
   target_ad_duration_seconds?: number;
   selected_duration_label?: string;
@@ -770,7 +772,7 @@ export function useStoryboardProject() {
     }
   }, [getProject]);
 
-  const regenerateSceneImage = useCallback(async (projectId: string, sceneId: string) => {
+  const regenerateSceneImage = useCallback(async (projectId: string, sceneId: string, storyboardImageQualityMode?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -780,6 +782,7 @@ export function useStoryboardProject() {
           'Content-Type': 'application/json',
           'X-User-ID': getUserId(),
         },
+        body: JSON.stringify({ storyboard_image_quality_mode: storyboardImageQualityMode }),
       });
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
@@ -937,7 +940,7 @@ export function useStoryboardProject() {
     }
   }, [getProject]);
 
-  const generateImages = useCallback(async (projectId: string, confirmation: boolean = true) => {
+  const generateImages = useCallback(async (projectId: string, confirmation: boolean = true, storyboardImageQualityMode?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -947,7 +950,7 @@ export function useStoryboardProject() {
           'Content-Type': 'application/json',
           'X-User-ID': getUserId(),
         },
-        body: JSON.stringify({ confirmation }),
+        body: JSON.stringify({ confirmation, storyboard_image_quality_mode: storyboardImageQualityMode }),
       });
 
       const responseText = await response.text();

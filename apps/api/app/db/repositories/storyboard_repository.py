@@ -61,6 +61,7 @@ class StoryboardProject:
         selected_tts_provider_voice_name: str | None = None,
         selected_video_quality_label: str | None = None,
         selected_video_model_key: str | None = None,
+        storyboard_image_quality_mode: str | None = "standard",
         selected_ad_duration_seconds: int | None = None,
         target_ad_duration_seconds: int | None = 15,
         selected_duration_label: str | None = None,
@@ -133,6 +134,7 @@ class StoryboardProject:
         self.selected_tts_provider_voice_name = selected_tts_provider_voice_name
         self.selected_video_quality_label = selected_video_quality_label
         self.selected_video_model_key = selected_video_model_key
+        self.storyboard_image_quality_mode = storyboard_image_quality_mode or "standard"
         self.selected_ad_duration_seconds = selected_ad_duration_seconds
         self.target_ad_duration_seconds = target_ad_duration_seconds
         self.selected_duration_label = selected_duration_label
@@ -208,6 +210,7 @@ class StoryboardProject:
             'selected_tts_provider_voice_name': self.selected_tts_provider_voice_name,
             'selected_video_quality_label': self.selected_video_quality_label,
             'selected_video_model_key': self.selected_video_model_key,
+            'storyboard_image_quality_mode': self.storyboard_image_quality_mode,
             'selected_ad_duration_seconds': self.selected_ad_duration_seconds,
             'target_ad_duration_seconds': self.target_ad_duration_seconds,
             'selected_duration_label': self.selected_duration_label,
@@ -285,6 +288,7 @@ class StoryboardProject:
             selected_tts_provider_voice_name=data.get('selected_tts_provider_voice_name'),
             selected_video_quality_label=data.get('selected_video_quality_label'),
             selected_video_model_key=data.get('selected_video_model_key'),
+            storyboard_image_quality_mode=data.get('storyboard_image_quality_mode', 'standard'),
             selected_ad_duration_seconds=data.get('selected_ad_duration_seconds', 15),
             target_ad_duration_seconds=data.get('target_ad_duration_seconds', 15),
             selected_duration_label=data.get('selected_duration_label', '15s'),
@@ -353,6 +357,18 @@ class StoryboardScene:
         lipsync_this_scene: bool = False,
         base_image_url: str | None = None,
         base_image_prompt: str | None = None,
+        image_generation_model_key: str | None = None,
+        image_generation_provider: str | None = None,
+        image_generation_quality_mode: str | None = None,
+        image_generation_cost_usd_estimate: float | None = None,
+        image_generation_subject_source: str | None = None,
+        image_generation_subject_url: str | None = None,
+        image_generation_fallback_used: bool | None = None,
+        image_generation_fallback_from: str | None = None,
+        image_generation_fallback_to: str | None = None,
+        image_generation_width: int | None = None,
+        image_generation_height: int | None = None,
+        image_generation_metadata: dict[str, Any] | None = None,
         video_url: str | None = None,
         video_prompt: str | None = None,
         lipsync_video_url: str | None = None,
@@ -400,6 +416,18 @@ class StoryboardScene:
         self.lipsync_this_scene = lipsync_this_scene
         self.base_image_url = base_image_url
         self.base_image_prompt = base_image_prompt
+        self.image_generation_model_key = image_generation_model_key
+        self.image_generation_provider = image_generation_provider
+        self.image_generation_quality_mode = image_generation_quality_mode
+        self.image_generation_cost_usd_estimate = image_generation_cost_usd_estimate
+        self.image_generation_subject_source = image_generation_subject_source
+        self.image_generation_subject_url = image_generation_subject_url
+        self.image_generation_fallback_used = image_generation_fallback_used
+        self.image_generation_fallback_from = image_generation_fallback_from
+        self.image_generation_fallback_to = image_generation_fallback_to
+        self.image_generation_width = image_generation_width
+        self.image_generation_height = image_generation_height
+        self.image_generation_metadata = image_generation_metadata or {}
         self.video_url = video_url
         self.video_prompt = video_prompt
         self.lipsync_video_url = lipsync_video_url
@@ -450,6 +478,18 @@ class StoryboardScene:
             'lipsync_this_scene': self.lipsync_this_scene,
             'base_image_url': self.base_image_url,
             'base_image_prompt': self.base_image_prompt,
+            'image_generation_model_key': self.image_generation_model_key,
+            'image_generation_provider': self.image_generation_provider,
+            'image_generation_quality_mode': self.image_generation_quality_mode,
+            'image_generation_cost_usd_estimate': self.image_generation_cost_usd_estimate,
+            'image_generation_subject_source': self.image_generation_subject_source,
+            'image_generation_subject_url': self.image_generation_subject_url,
+            'image_generation_fallback_used': self.image_generation_fallback_used,
+            'image_generation_fallback_from': self.image_generation_fallback_from,
+            'image_generation_fallback_to': self.image_generation_fallback_to,
+            'image_generation_width': self.image_generation_width,
+            'image_generation_height': self.image_generation_height,
+            'image_generation_metadata': self.image_generation_metadata,
             'video_url': self.video_url,
             'video_prompt': self.video_prompt,
             'lipsync_video_url': self.lipsync_video_url,
@@ -502,6 +542,18 @@ class StoryboardScene:
             lipsync_this_scene=data.get('lipsync_this_scene', False),
             base_image_url=data.get('base_image_url'),
             base_image_prompt=data.get('base_image_prompt'),
+            image_generation_model_key=data.get('image_generation_model_key'),
+            image_generation_provider=data.get('image_generation_provider'),
+            image_generation_quality_mode=data.get('image_generation_quality_mode'),
+            image_generation_cost_usd_estimate=data.get('image_generation_cost_usd_estimate'),
+            image_generation_subject_source=data.get('image_generation_subject_source'),
+            image_generation_subject_url=data.get('image_generation_subject_url'),
+            image_generation_fallback_used=data.get('image_generation_fallback_used'),
+            image_generation_fallback_from=data.get('image_generation_fallback_from'),
+            image_generation_fallback_to=data.get('image_generation_fallback_to'),
+            image_generation_width=data.get('image_generation_width'),
+            image_generation_height=data.get('image_generation_height'),
+            image_generation_metadata=data.get('image_generation_metadata'),
             video_url=data.get('video_url'),
             video_prompt=data.get('video_prompt'),
             lipsync_video_url=data.get('lipsync_video_url'),
@@ -543,6 +595,7 @@ class StoryboardRepository:
         kwargs.setdefault('updated_at', utcnow())
         kwargs.setdefault('target_ad_duration_seconds', 15)
         kwargs.setdefault('selected_duration_label', '15s')
+        kwargs.setdefault('storyboard_image_quality_mode', 'standard')
 
         valid_fields = set(inspect.signature(StoryboardProject.__init__).parameters.keys()) - {'self'}
         unknown_fields = sorted([key for key in kwargs.keys() if key not in valid_fields])

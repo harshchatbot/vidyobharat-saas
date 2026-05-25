@@ -290,6 +290,7 @@ class StoryboardPipelineService:
             avatar_reference_images=resolved_avatar_refs,
             selected_video_model_key="kling_standard",
             selected_video_quality_label=STORYBOARD_VIDEO_QUALITY_MAP.get("kling_standard", {}).get("quality_label", "Best Quality"),
+            storyboard_image_quality_mode=str(self.settings.storyboard_image_quality_mode_default or "standard").strip().lower() or "standard",
             selected_ad_duration_seconds=normalized_target_duration,
             target_ad_duration_seconds=normalized_target_duration,
             selected_duration_label=f"{normalized_target_duration}s",
@@ -384,6 +385,7 @@ class StoryboardPipelineService:
             "selected_tts_provider_voice_name": getattr(project, "selected_tts_provider_voice_name", None),
             "selected_video_quality_label": getattr(project, "selected_video_quality_label", None),
             "selected_video_model_key": getattr(project, "selected_video_model_key", None),
+            "storyboard_image_quality_mode": getattr(project, "storyboard_image_quality_mode", "standard"),
             "selected_ad_duration_seconds": getattr(project, "selected_ad_duration_seconds", 15),
             "target_ad_duration_seconds": getattr(project, "target_ad_duration_seconds", 15),
             "selected_duration_label": getattr(project, "selected_duration_label", "15s"),
@@ -891,6 +893,7 @@ class StoryboardPipelineService:
         scene_id: str,
         user_id: str,
         model_tier: str = "fast",
+        storyboard_image_quality_mode: str | None = None,
     ) -> dict[str, Any]:
         project = self.db.get_project(project_id)
         if not project:
@@ -898,6 +901,14 @@ class StoryboardPipelineService:
         scene = self.db.get_scene(project_id, scene_id)
         if not scene:
             raise ValueError(f"Scene {scene_id} not found in project {project_id}")
+        normalized_quality_mode = str(
+            storyboard_image_quality_mode
+            or getattr(project, "storyboard_image_quality_mode", None)
+            or self.settings.storyboard_image_quality_mode_default
+            or "standard"
+        ).strip().lower()
+        if normalized_quality_mode not in {"draft", "standard", "premium"}:
+            normalized_quality_mode = "standard"
 
         estimate = self.get_credit_estimate(
             project_id=project_id,
@@ -938,6 +949,7 @@ class StoryboardPipelineService:
             project_id,
             workflow_state=StoryboardWorkflowState.IMAGES_GENERATING,
             image_generation_started_at=now,
+            storyboard_image_quality_mode=normalized_quality_mode,
         )
 
         from app.workers.storyboard_tasks import generate_base_image_task
@@ -948,6 +960,7 @@ class StoryboardPipelineService:
                 "scene_id": scene_id,
                 "user_id": user_id,
                 "model_tier": model_tier,
+                "storyboard_image_quality_mode": normalized_quality_mode,
             },
             task_id=f"regen_image_{project_id}_{scene_id}_{int(now.timestamp())}",
         )
@@ -959,6 +972,7 @@ class StoryboardPipelineService:
                 "scene_id": scene_id,
                 "task_id": task.id,
                 "model_tier": model_tier,
+                "storyboard_image_quality_mode": normalized_quality_mode,
                 "character_reference_sheet_status": ensure_sheet.get("status"),
                 "character_reference_sheet_fallback_to_golden_refs": bool(is_ai_avatar and not sheet_url) or bool(ensure_sheet.get("used_fallback")),
             },
@@ -1066,6 +1080,7 @@ class StoryboardPipelineService:
         project_id: str,
         user_id: str,
         model_tier: str = "fast",
+        storyboard_image_quality_mode: str | None = None,
     ) -> dict[str, Any]:
         """
         Generate base images for all approved scenes.
@@ -1075,6 +1090,14 @@ class StoryboardPipelineService:
         project = self.db.get_project(project_id)
         if not project:
             raise ValueError(f"Project {project_id} not found")
+        normalized_quality_mode = str(
+            storyboard_image_quality_mode
+            or getattr(project, "storyboard_image_quality_mode", None)
+            or self.settings.storyboard_image_quality_mode_default
+            or "standard"
+        ).strip().lower()
+        if normalized_quality_mode not in {"draft", "standard", "premium"}:
+            normalized_quality_mode = "standard"
 
         estimate = self.get_credit_estimate(
             project_id=project_id,
@@ -1210,6 +1233,7 @@ class StoryboardPipelineService:
                 "project_id": project_id,
                 "scene_count": len(scenes),
                 "model_tier": model_tier,
+                "storyboard_image_quality_mode": normalized_quality_mode,
                 "retryable_scene_count": len(retryable_scenes),
                 "skipped_scene_count": len(skipped_scenes),
                 "character_reference_sheet_status": ensure_sheet.get("status"),
@@ -1228,6 +1252,7 @@ class StoryboardPipelineService:
                 scene_id=scene.id,
                 user_id=user_id,
                 model_tier=model_tier,
+                storyboard_image_quality_mode=normalized_quality_mode,
             )
             for scene in scenes_to_queue
         ])
@@ -1250,6 +1275,7 @@ class StoryboardPipelineService:
             project_id,
             workflow_state=StoryboardWorkflowState.IMAGES_GENERATING,
             image_generation_started_at=now,
+            storyboard_image_quality_mode=normalized_quality_mode,
         )
 
         logger.info(
@@ -1259,6 +1285,7 @@ class StoryboardPipelineService:
                 "task_group_id": result.id,
                 "queued_scene_ids": queued_scene_ids,
                 "skipped_scenes": skipped_scenes,
+                "storyboard_image_quality_mode": normalized_quality_mode,
             },
         )
 
@@ -1891,8 +1918,21 @@ class StoryboardPipelineService:
         if operation == "generate_base_images":
             scene_count = len(self.db.list_scenes(project_id))
             model_tier = kwargs.get("model_tier", "fast")
+            quality_mode = str(
+                kwargs.get("storyboard_image_quality_mode")
+                or getattr(project, "storyboard_image_quality_mode", None)
+                or self.settings.storyboard_image_quality_mode_default
+                or "standard"
+            ).strip().lower()
+            if quality_mode not in {"draft", "standard", "premium"}:
+                quality_mode = "standard"
+            model_label = (
+                str(self.settings.storyboard_image_premium_model or "storyboard_gemini_flash_edit")
+                if quality_mode == "premium"
+                else str(self.settings.storyboard_image_default_model or "storyboard_flux_subject")
+            )
             cost = scene_count * (CREDIT_COSTS.base_image_generation_fast if model_tier == "fast" else CREDIT_COSTS.base_image_generation_pro)
-            description = f"Generate {scene_count} base images ({model_tier} quality)"
+            description = f"Generate {scene_count} storyboard frames ({quality_mode}, {model_label})"
 
         elif operation == "voice_preview":
             cost = 3
