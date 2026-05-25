@@ -142,109 +142,207 @@ export default function ProductionStatus({ project, productionStatus }: Producti
   console.log('storyboard_production_ui_video_completed_count', { projectId: project?.id, videoCompleted, totalScenes });
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Production in Progress</h2>
-        <p className="text-gray-600">Your ad is being generated. This may take a few minutes.</p>
-      </div>
+    <>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+      `}</style>
 
-      <div className="bg-white rounded-lg shadow-md p-8 mb-6">
-        <div className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Overall Progress</h3>
-            <span className="text-2xl font-bold text-indigo-600">{overallProgress}%</span>
-          </div>
-          <div className="mb-3 grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <AnimatedRadialChart value={overallProgress} size={220} />
+      <div className="mesh-bg min-h-screen p-4 md:p-6">
+        <div className="max-w-6xl mx-auto space-y-4">
+          {/* Header Section */}
+          <div className="glass-card-strong px-6 py-4 mb-4 flex items-center justify-between">
+            <div>
+              <p style={{ fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: 'hsl(var(--color-muted))' }}>
+                STORYBOARD AD CREATOR
+              </p>
+              <h1 style={{
+                fontSize: '22px', fontWeight: '700',
+                background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-accent-pink)))',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+              }}>
+                Production in Progress
+              </h1>
+              <p style={{ fontSize: '13px', color: 'hsl(var(--color-text-secondary))', marginTop: '2px' }}>
+                Your ad is being generated. You can safely leave this page.
+              </p>
             </div>
-            <div className="flex items-center">
-              <div className="w-full">
-                <div className="mb-3 h-4 w-full overflow-hidden rounded-full bg-gray-200">
-                  <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
-                </div>
-                <p className="text-sm text-gray-600">
-                  {videoCompleted} of {totalScenes} scene videos completed • {lipsyncCompleted} of {lipsyncRequired || totalScenes} lipsync steps completed
-                </p>
-              </div>
+            {/* Live indicator */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '6px 14px', borderRadius: '999px',
+              background: 'hsl(var(--color-success) / 0.12)',
+              border: '1px solid hsl(var(--color-success) / 0.3)',
+            }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'hsl(var(--color-success))',
+                animation: 'pulse-glow 1.5s ease-in-out infinite',
+              }} />
+              <span style={{ fontSize: '12px', fontWeight: '600', color: 'hsl(var(--color-success))' }}>
+                Live
+              </span>
             </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden mb-3">
-            <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
-          </div>
-        </div>
 
-        <div className="mb-8 pt-8 border-t border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Production Stages</h3>
-          <div className="space-y-4">
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900">Image Generation</h4>
-                  <p className="text-sm text-gray-600">{imageCompleted} of {totalScenes} scenes completed</p>
-                </div>
-                <span className="text-xl">{stageIcon(imageStage)}</span>
-              </div>
+          {/* Overall Progress Section */}
+          <div className="glass-card-strong p-5 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'hsl(var(--color-text))' }}>
+                Overall Progress
+              </h2>
+              <span style={{
+                fontSize: '28px', fontWeight: '800',
+                background: 'linear-gradient(135deg, hsl(var(--color-primary)), hsl(var(--color-accent-pink)))',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+              }}>
+                {overallProgress}%
+              </span>
             </div>
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900">Video Generation</h4>
-                  <p className="text-sm text-gray-600">{videoCompleted} of {totalScenes} scenes completed</p>
-                </div>
-                <span className="text-xl">{stageIcon(videoStage)}</span>
-              </div>
+
+            {/* Thin gradient progress bar */}
+            <div style={{
+              height: '6px', borderRadius: '999px',
+              background: 'hsl(var(--glass-border))',
+              overflow: 'hidden', marginBottom: '12px',
+            }}>
+              <div style={{
+                height: '100%', borderRadius: '999px',
+                background: 'linear-gradient(90deg, hsl(var(--color-primary)), hsl(var(--color-accent-pink)), hsl(var(--color-accent-amber)))',
+                width: `${overallProgress}%`,
+                transition: 'width 0.5s ease-out',
+                boxShadow: '0 0 10px hsl(var(--color-primary) / 0.5)',
+              }} />
             </div>
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900">Lipsync</h4>
-                  <p className="text-sm text-gray-600">
-                    {lipsyncRequired === 0 ? 'Skipped / Not required' : `${lipsyncCompleted} of ${lipsyncRequired} scenes completed`}
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Images', value: `${imageCompleted}/${totalScenes}`, done: imageCompleted === totalScenes },
+                { label: 'Videos', value: `${videoCompleted}/${totalScenes}`, done: videoCompleted === totalScenes },
+                { label: 'Lipsync', value: lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'N/A', done: lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired },
+              ].map(stat => (
+                <div key={stat.label} className="glass-card p-3 text-center">
+                  <p style={{
+                    fontSize: '18px', fontWeight: '700',
+                    color: stat.done ? 'hsl(var(--color-success))' : 'hsl(var(--color-text))',
+                  }}>
+                    {stat.value}
+                  </p>
+                  <p style={{ fontSize: '11px', color: 'hsl(var(--color-muted))', marginTop: '2px' }}>
+                    {stat.label}
                   </p>
                 </div>
-                <span className="text-xl">{stageIcon(lipsyncStage)}</span>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div className="mb-8 pt-8 border-t border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Scene Status</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {scenes.map((scene) => {
-              const videoDone = scene.video_status === 'completed';
-              const imageDone = scene.image_status === 'completed';
-              const lipsyncDone = scene.lipsync_status === 'completed' || scene.lipsync_status === 'skipped';
-              const sceneState = videoDone ? 'Done' : scene.video_status === 'generating' ? 'In Progress' : 'Waiting';
-              return (
-                <div key={scene.scene_id} className="border border-gray-200 rounded-lg p-4 text-center">
-                  <div className="text-3xl mb-2">{videoDone ? '✅' : scene.video_status === 'generating' ? '⏳' : '⏹️'}</div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Scene {scene.scene_number}</h4>
-                  <div className="text-xs text-gray-600 space-y-1 mb-3">
-                    <div>🖼️ {imageDone ? '✓' : '○'}</div>
-                    <div>🎬 {videoDone ? '✓' : scene.video_status === 'generating' ? '⟳' : '○'}</div>
-                    <div>👄 {lipsyncDone ? '✓' : '○'}</div>
+          {/* Production Pipeline Section */}
+          <div className="glass-card-strong p-5 mb-4">
+            <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'hsl(var(--color-text))', marginBottom: '16px' }}>
+              Production Pipeline
+            </h2>
+            <div className="flex items-center gap-0">
+              {[
+                { label: 'Images', count: `${imageCompleted}/${totalScenes}`, done: imageCompleted === totalScenes, active: imageCompleted < totalScenes },
+                { label: 'Videos', count: `${videoCompleted}/${totalScenes}`, done: videoCompleted === totalScenes, active: imageCompleted === totalScenes && videoCompleted < totalScenes },
+                { label: 'Lipsync', count: lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'Skipped', done: lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired, active: videoCompleted === totalScenes && lipsyncCompleted < lipsyncRequired },
+                { label: 'Stitching', count: overallProgress === 100 ? 'Done' : 'Pending', done: overallProgress === 100, active: lipsyncCompleted === lipsyncRequired && overallProgress < 100 },
+              ].map((stage, i, arr) => (
+                <div key={stage.label} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto 6px',
+                      background: stage.done
+                        ? 'hsl(var(--color-success) / 0.15)'
+                        : stage.active
+                        ? 'hsl(var(--color-primary) / 0.15)'
+                        : 'hsl(var(--glass-bg-medium))',
+                      border: `2px solid ${stage.done ? 'hsl(var(--color-success))' : stage.active ? 'hsl(var(--color-primary))' : 'hsl(var(--glass-border))'}`,
+                      animation: stage.active ? 'pulse-glow 1.5s ease-in-out infinite' : 'none',
+                    }}>
+                      {stage.done ? (
+                        <span style={{ color: 'hsl(var(--color-success))', fontSize: '16px' }}>✓</span>
+                      ) : stage.active ? (
+                        <span style={{ fontSize: '14px', animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+                      ) : (
+                        <span style={{ color: 'hsl(var(--color-muted))', fontSize: '12px' }}>○</span>
+                      )}
+                    </div>
+                    <p style={{
+                      fontSize: '11px', textAlign: 'center', fontWeight: stage.active ? '600' : '400',
+                      color: stage.done ? 'hsl(var(--color-success))' : stage.active ? 'hsl(var(--color-primary))' : 'hsl(var(--color-muted))',
+                    }}>
+                      {stage.label}
+                    </p>
+                    <p style={{ fontSize: '10px', textAlign: 'center', color: 'hsl(var(--color-muted))' }}>
+                      {stage.count}
+                    </p>
                   </div>
-                  <div className="text-xs font-medium text-gray-700">{sceneState}</div>
+                  {i < arr.length - 1 && (
+                    <div style={{
+                      height: '2px', flex: 0.5,
+                      background: stage.done ? 'hsl(var(--color-success))' : 'hsl(var(--glass-border))',
+                      transition: 'background 0.5s ease',
+                      marginBottom: '22px',
+                    }} />
+                  )}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {finalVideoExists ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-green-800">Final video detected. Moving to next stage…</p>
+          {/* Scene Status Grid */}
+          <div className="glass-card-strong p-5">
+            <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'hsl(var(--color-text))', marginBottom: '12px' }}>
+              Scene Status
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {scenes.map((scene) => (
+                <div key={scene.scene_id} className="glass-card p-3">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'hsl(var(--color-text))' }}>
+                      Scene {scene.scene_number}
+                    </span>
+                    <span style={{
+                      fontSize: '10px', padding: '2px 8px', borderRadius: '999px',
+                      background: scene.video_status === 'completed' ? 'hsl(var(--color-success) / 0.15)' : 'hsl(var(--color-primary) / 0.15)',
+                      color: scene.video_status === 'completed' ? 'hsl(var(--color-success))' : 'hsl(var(--color-primary))',
+                    }}>
+                      {scene.video_status === 'completed' ? 'Done' : scene.video_status === 'generating' ? 'Generating' : 'Waiting'}
+                    </span>
+                  </div>
+                  {[
+                    { label: '🖼️ Image', status: scene.image_status },
+                    { label: '🎬 Video', status: scene.video_status },
+                    { label: '👄 Lipsync', status: scene.lipsync_status },
+                  ].map(item => (
+                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span style={{ fontSize: '10px', color: 'hsl(var(--color-muted))' }}>{item.label}</span>
+                      <span style={{
+                        fontSize: '10px',
+                        color: item.status === 'completed' ? 'hsl(var(--color-success))' : item.status === 'generating' ? 'hsl(var(--color-accent-amber))' : item.status === 'skipped' ? 'hsl(var(--color-muted))' : 'hsl(var(--color-muted))',
+                      }}>
+                        {item.status === 'completed' ? '✓' : item.status === 'generating' ? '⟳' : item.status === 'skipped' ? '—' : '○'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
-        ) : null}
 
-        <div className="text-center pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-600">🔄 Auto-refreshing every 3 seconds • {isPolling ? '🟢 Live' : '⚪ Paused'}</p>
+          {finalVideoExists ? (
+            <div className="glass-card-strong p-4" style={{ background: 'hsl(var(--color-success) / 0.15)', border: '1px solid hsl(var(--color-success) / 0.3)' }}>
+              <p style={{ fontSize: '13px', color: 'hsl(var(--color-success))', fontWeight: '500' }}>✓ Final video detected. Moving to next stage…</p>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {showLeavePopup ? (
+      {showLeavePopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-white p-5 shadow-xl">
             <h4 className="text-lg font-semibold text-gray-900">Video generation is running</h4>
@@ -266,7 +364,7 @@ export default function ProductionStatus({ project, productionStatus }: Producti
             </div>
           </div>
         </div>
-      ) : null}
-    </div>
+      )}
+    </>
   );
 }

@@ -22,12 +22,9 @@ import {
 
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { LandingFooter } from '@/components/landing/LandingFooter';
-import { LandingVideo } from '@/components/landing/LandingVideo';
 import { ToggleTheme } from '@/components/ui/ToggleTheme';
-import { AnimatedMarqueeHero } from '@/components/ui/hero-3';
 import { AnimatedTestimonialGrid } from '@/components/landing/AnimatedTestimonialGrid';
 import { LampContainer } from '@/components/ui/lamp';
-import { heroMedia } from '@/config/heroMedia';
 import { cn } from '@/lib/utils';
 
 const testimonialImages = [
@@ -345,19 +342,6 @@ function HeroSection() {
         </div>
       </div>
     </motion.section>
-  );
-}
-
-// SECTION 1.5: ANIMATED MARQUEE HERO GALLERY (gallery only, no duplicate headline)
-function AnimatedMarqueeHeroSection() {
-  return (
-    <section className="w-full overflow-hidden relative z-10">
-      <AnimatedMarqueeHero
-        images={[]}
-        mediaItems={heroMedia}
-        className="rounded-none border-0 bg-transparent shadow-none"
-      />
-    </section>
   );
 }
 
@@ -701,142 +685,6 @@ function CategoryShowcaseSection() {
   );
 }
 
-// SECTION 6.5: RECIPE SHOWCASE (with video previews)
-function RecipeShowcaseSection() {
-  const recipes = [
-    {
-      src: '/hero/ugc_avtaar_product_ad.mp4',
-      category: 'Avatar Product',
-      title: 'Quick UGC ads with AI avatars',
-      description: 'Upload product, pick avatar, generate ad.',
-      highlights: ['Fast setup', 'Brand-ready output'],
-      overlay: 'Product + avatar -> UGC ad',
-    },
-    {
-      src: '/videos/samples/anime_lofi_reel.mp4',
-      category: 'Anime Lofi Reel',
-      title: 'Beautiful anime reels without prompt complexity',
-      description: 'Choose character, vibe, and motion in minutes.',
-      highlights: ['Guided inputs', 'Anime-first styling'],
-      overlay: 'Character + vibe -> anime reel',
-    },
-    {
-      src: '/videos/samples/panda_dancing.mp4',
-      category: 'Make Anything Dance',
-      title: 'Turn any character into a viral reel',
-      description: 'Map one dance reference to any character.',
-      highlights: ['Reference-led motion', 'Vertical-ready export'],
-      overlay: 'Character + dance -> viral reel',
-    }
-  ];
-
-  return (
-    <motion.section
-      className="space-y-6"
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: '-50px' }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className="max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Guided recipes</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-primary)) 0%, hsl(var(--color-accent-amber)) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
-          Three fast ways to see RangManch working for you.
-        </h2>
-      </div>
-
-      <div
-        className="grid gap-5 md:grid-cols-3"
-        style={{
-          background: 'radial-gradient(circle at 50% 0%, hsl(var(--color-accent-amber) / 0.12), transparent 58%)',
-        }}
-      >
-        {recipes.map((recipe, index) => (
-          <motion.article
-            key={recipe.title}
-            className="glass-card flex h-full flex-col overflow-hidden rounded-[30px]"
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
-              borderColor: 'hsl(var(--color-border) / 0.38)',
-              boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
-            }}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: index * 0.15 }}
-          >
-            <div className="flex h-full flex-col">
-              <div
-                className="relative border-b"
-                style={{
-                  borderColor: `hsl(var(--color-border) / 0.65)`,
-                  background: 'radial-gradient(circle at top, hsl(var(--color-accent-amber) / 0.08), transparent 65%)',
-                }}
-              >
-                <LandingVideo
-                  src={recipe.src}
-                  poster={recipe.src}
-                  className="aspect-[4/5] h-full w-full object-cover"
-                />
-                {recipe.overlay && (
-                  <div
-                    className="absolute inset-x-3 bottom-3 rounded-[16px] border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] backdrop-blur"
-                    style={{
-                      borderColor: `hsl(var(--color-border) / 0.28)`,
-                      background: `hsl(var(--color-bg) / 0.76)`,
-                      color: `hsl(var(--color-elevated))`,
-                    }}
-                  >
-                    {recipe.overlay}
-                  </div>
-                )}
-              </div>
-              <div
-                className="flex flex-1 flex-col p-5 sm:p-6"
-                style={{
-                  background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.94) 0%, hsl(var(--color-surface-soft) / 0.98) 100%)',
-                }}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-accent-amber))` }}>{recipe.category}</p>
-                <h3
-                  className="mt-3 min-h-[7.5rem] font-heading text-[2rem] font-extrabold leading-[1.06] tracking-tight"
-                  style={{ color: 'hsl(var(--color-text))' }}
-                >
-                  {recipe.title}
-                </h3>
-                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
-                  {recipe.description}
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2 pt-1">
-                  {recipe.highlights.map((feature) => (
-                    <span
-                      key={feature}
-                      className="inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]"
-                      style={{
-                        borderColor: 'hsl(var(--color-border) / 0.5)',
-                        background: 'hsl(var(--color-surface) / 0.5)',
-                        color: 'hsl(var(--color-text))',
-                      }}
-                    >
-                      {feature}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.article>
-        ))}
-      </div>
-    </motion.section>
-  );
-}
-
 // SECTION 7: LANGUAGE SECTION
 function LanguageSection() {
   const languages = [
@@ -1055,9 +903,6 @@ export function PublicStudioLanding() {
         <HeroSection />
       </div>
 
-      {/* ANIMATED MARQUEE GALLERY (after Hero) */}
-      <AnimatedMarqueeHeroSection />
-
       {/* MAIN CONTENT SECTIONS */}
       <div className="mx-auto w-full max-w-[1180px] px-4 pb-10 sm:px-6 lg:px-8 relative z-10">
         <main className="space-y-12 pb-8 sm:space-y-14">
@@ -1075,9 +920,6 @@ export function PublicStudioLanding() {
 
           {/* SECTION 6: Category Showcase */}
           <CategoryShowcaseSection />
-
-          {/* SECTION 6.5: Recipe Showcase (with video previews) */}
-          <RecipeShowcaseSection />
 
           {/* SECTION 7: Languages */}
           <LanguageSection />

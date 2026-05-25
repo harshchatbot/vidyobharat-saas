@@ -15,10 +15,10 @@ export interface AnimatedMarqueeHeroMediaItem {
 }
 
 interface AnimatedMarqueeHeroProps {
-  tagline: string;
-  title: React.ReactNode;
-  description: string;
-  ctaText: string;
+  tagline?: string;
+  title?: React.ReactNode;
+  description?: string;
+  ctaText?: string;
   images: string[];
   mediaItems?: AnimatedMarqueeHeroMediaItem[];
   className?: string;
@@ -85,71 +85,85 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
         }));
   const duplicatedMediaItems = [...normalizedMediaItems, ...normalizedMediaItems];
 
+  // Determine if text content is present
+  const hasTextContent = !!(tagline || title || description || ctaText);
+
   return (
     <section
       className={cn(
-        'relative flex min-h-[calc(100vh-4rem)] w-full flex-col items-center justify-start overflow-hidden bg-bg px-4 pb-32 pt-14 text-center sm:pt-16 md:pb-40 md:pt-20',
+        'relative flex w-full flex-col items-center justify-start overflow-hidden bg-bg px-4 text-center',
+        hasTextContent ? 'min-h-[calc(100vh-4rem)] pb-32 pt-14 sm:pt-16 md:pb-40 md:pt-20' : 'min-h-[320px] sm:min-h-[420px] pb-0 pt-0',
         className,
       )}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--color-accent)/0.16),transparent_28%),linear-gradient(180deg,hsl(var(--color-bg-soft)/0.52),transparent_30%,hsl(var(--color-bg)))]" />
 
-      <div className="z-10 flex flex-col items-center">
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={fadeInAnimationVariants}
-          className="mb-4 inline-block rounded-full border border-border bg-[hsl(var(--color-surface-glass)/0.5)] px-4 py-1.5 text-sm font-medium text-muted backdrop-blur-sm"
-        >
-          {tagline}
-        </motion.div>
+      {tagline || title || description || ctaText ? (
+        <div className="z-10 flex flex-col items-center">
+          {tagline && (
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={fadeInAnimationVariants}
+              className="mb-4 inline-block rounded-full border border-border bg-[hsl(var(--color-surface-glass)/0.5)] px-4 py-1.5 text-sm font-medium text-muted backdrop-blur-sm"
+            >
+              {tagline}
+            </motion.div>
+          )}
 
-        <motion.h1
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: {},
-            show: {
-              transition: {
-                staggerChildren: 0.1,
-              },
-            },
-          }}
-          className="max-w-5xl text-balance text-5xl font-black tracking-[-0.045em] text-[hsl(var(--color-text))] dark:text-[hsl(var(--color-elevated))] md:text-7xl"
-          style={{
-            textShadow: '0 10px 34px hsl(var(--color-accent-amber) / 0.12)',
-          }}
-        >
-          {typeof title === 'string'
-            ? title.split(' ').map((word, index) => (
-                <motion.span key={index} variants={fadeInAnimationVariants} className="inline-block">
-                  {word}&nbsp;
-                </motion.span>
-              ))
-            : title}
-        </motion.h1>
+          {title && (
+            <motion.h1
+              initial="hidden"
+              animate="show"
+              variants={{
+                hidden: {},
+                show: {
+                  transition: {
+                    staggerChildren: 0.1,
+                  },
+                },
+              }}
+              className="max-w-5xl text-balance text-5xl font-black tracking-[-0.045em] text-[hsl(var(--color-text))] dark:text-[hsl(var(--color-elevated))] md:text-7xl"
+              style={{
+                textShadow: '0 10px 34px hsl(var(--color-accent-amber) / 0.12)',
+              }}
+            >
+              {typeof title === 'string'
+                ? title.split(' ').map((word, index) => (
+                    <motion.span key={index} variants={fadeInAnimationVariants} className="inline-block">
+                      {word}&nbsp;
+                    </motion.span>
+                  ))
+                : title}
+            </motion.h1>
+          )}
 
-        <motion.p
-          initial="hidden"
-          animate="show"
-          variants={fadeInAnimationVariants}
-          transition={{ delay: 0.5 }}
-          className="mt-6 max-w-xl text-lg text-[hsl(var(--color-text-secondary))] dark:text-[hsl(var(--color-text-secondary))]"
-        >
-          {description}
-        </motion.p>
+          {description && (
+            <motion.p
+              initial="hidden"
+              animate="show"
+              variants={fadeInAnimationVariants}
+              transition={{ delay: 0.5 }}
+              className="mt-6 max-w-xl text-lg text-[hsl(var(--color-text-secondary))] dark:text-[hsl(var(--color-text-secondary))]"
+            >
+              {description}
+            </motion.p>
+          )}
 
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={fadeInAnimationVariants}
-          transition={{ delay: 0.6 }}
-        >
-          <ActionButton onClick={onCtaClick} href={ctaHref}>
-            {ctaText}
-          </ActionButton>
-        </motion.div>
-      </div>
+          {ctaText && (
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={fadeInAnimationVariants}
+              transition={{ delay: 0.6 }}
+            >
+              <ActionButton onClick={onCtaClick} href={ctaHref}>
+                {ctaText}
+              </ActionButton>
+            </motion.div>
+          )}
+        </div>
+      ) : null}
 
       <div className="absolute bottom-0 left-0 h-1/3 w-full [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] md:h-2/5">
         <motion.div

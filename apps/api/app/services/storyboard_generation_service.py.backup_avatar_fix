@@ -381,7 +381,7 @@ Your task: Break down a script into detailed visual scene cards for a {ad_catego
 - Target Platform: {platform}
 - Language: {language}
 - Tone: {tone}
-- Avatar/Character: {avatar_description if avatar_description and not avatar_description.startswith('av-') and len(avatar_description) < 30 else 'the creator avatar'}
+- Avatar/Character: {avatar_description}
 - Business Context: {business_context}
 {cultural_block}
 

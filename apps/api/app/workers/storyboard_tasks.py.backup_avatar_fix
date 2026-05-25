@@ -62,15 +62,13 @@ def _resolve_avatar_identity_anchor(*, project, user_id: str) -> tuple[str | Non
     try:
         avatar = AvatarService().get_avatar(avatar_id, user_id=user_id)
         if not avatar:
-            return None, None
+            return avatar_id, None
         reference_url = str(
             getattr(avatar, "primary_image", None)
             or ((getattr(avatar, "reference_images", None) or [None])[0])
             or ""
         ).strip() or None
-        avatar_name = str(getattr(avatar, "name", "") or "").strip()
-        if not avatar_name:
-            avatar_name = None  # Let caller use project.avatar_name fallback
+        avatar_name = str(getattr(avatar, "name", "") or "").strip() or avatar_id
         return avatar_name, reference_url
     except Exception:
         logger.warning(
@@ -78,7 +76,7 @@ def _resolve_avatar_identity_anchor(*, project, user_id: str) -> tuple[str | Non
             extra={"project_id": getattr(project, "id", None), "avatar_id": avatar_id},
             exc_info=True,
         )
-        return None, None
+        return avatar_id, None
 
 
 _STORYBOARD_AVATAR_REFERENCE_FALLBACKS: dict[str, list[str]] = {
@@ -993,13 +991,7 @@ def generate_storyboard_task(
             raise ValueError("No approved script available")
 
         avatar_name, _ = _resolve_avatar_identity_anchor(project=project, user_id=user_id)
-        # Use avatar_name from project if resolution failed
-        resolved_name = avatar_name or str(getattr(project, "avatar_name", "") or "").strip() or None
-        avatar_description = resolved_name or "the creator avatar"
-        # This ensures:
-        # 1. Use resolved name from AvatarService (best)
-        # 2. Fall back to project.avatar_name stored at initialization (second best)
-        # 3. Fall back to generic "the creator avatar" (never show raw ID)
+        avatar_description = str(avatar_name or project.avatar_id or "creator avatar").strip()
         cultural_guidance, cultural_profile_name, avatar_cultural_key = _resolve_project_cultural_grounding(project)
         if cultural_guidance:
             logger.info(
