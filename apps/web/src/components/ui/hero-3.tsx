@@ -39,7 +39,8 @@ const ActionButton = ({
     {href ? (
       <Link
         href={href}
-        className="inline-flex rounded-full bg-accent px-8 py-3 font-semibold text-accent-contrast shadow-[var(--shadow-float)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent)/0.45)]"
+        className="inline-flex rounded-full px-8 py-3 font-semibold shadow-[var(--shadow-float)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent-amber)/0.45)]"
+        style={{ background: 'hsl(var(--color-accent-amber))', color: '#0A0A0F' }}
       >
         {children}
       </Link>
@@ -47,7 +48,8 @@ const ActionButton = ({
       <button
         type="button"
         onClick={onClick}
-        className="rounded-full bg-accent px-8 py-3 font-semibold text-accent-contrast shadow-[var(--shadow-float)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent)/0.45)]"
+        className="rounded-full px-8 py-3 font-semibold shadow-[var(--shadow-float)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-accent-amber)/0.45)]"
+        style={{ background: 'hsl(var(--color-accent-amber))', color: '#0A0A0F' }}
       >
         {children}
       </button>
@@ -92,11 +94,11 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
     <section
       className={cn(
         'relative flex w-full flex-col items-center justify-start overflow-hidden bg-bg px-4 text-center',
-        hasTextContent ? 'min-h-[calc(100vh-4rem)] pb-32 pt-14 sm:pt-16 md:pb-40 md:pt-20' : 'min-h-[320px] sm:min-h-[420px] pb-0 pt-0',
+        hasTextContent ? 'pb-[280px] sm:pb-[320px] pt-14 sm:pt-16 md:pt-20' : 'pb-0 pt-0',
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--color-accent)/0.16),transparent_28%),linear-gradient(180deg,hsl(var(--color-bg-soft)/0.52),transparent_30%,hsl(var(--color-bg)))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--color-accent-amber)/0.14),transparent_28%),linear-gradient(180deg,hsl(var(--color-bg-soft)/0.52),transparent_30%,hsl(var(--color-bg)))]" />
 
       {tagline || title || description || ctaText ? (
         <div className="z-10 flex flex-col items-center">
@@ -105,7 +107,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
               initial="hidden"
               animate="show"
               variants={fadeInAnimationVariants}
-              className="mb-4 inline-block rounded-full border border-border bg-[hsl(var(--color-surface-glass)/0.5)] px-4 py-1.5 text-sm font-medium text-muted backdrop-blur-sm"
+              className="mb-4 inline-block rounded-full border border-border bg-[hsl(var(--color-surface-glass)/0.5)] px-4 py-1.5 text-sm font-medium text-[hsl(var(--color-text-secondary))] backdrop-blur-sm"
             >
               {tagline}
             </motion.div>
@@ -123,7 +125,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
                   },
                 },
               }}
-              className="max-w-5xl text-balance text-5xl font-black tracking-[-0.045em] text-[hsl(var(--color-text))] dark:text-[hsl(var(--color-elevated))] md:text-7xl"
+              className="max-w-5xl text-balance text-5xl font-black tracking-[-0.045em] text-[hsl(var(--color-text))] md:text-7xl"
               style={{
                 textShadow: '0 10px 34px hsl(var(--color-accent-amber) / 0.12)',
               }}
@@ -165,7 +167,12 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
         </div>
       ) : null}
 
-      <div className="absolute bottom-0 left-0 h-1/3 w-full [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] md:h-2/5">
+      <div className={cn(
+        'w-full [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)]',
+        hasTextContent
+          ? 'absolute bottom-0 left-0 h-1/3 md:h-2/5'
+          : 'relative h-64 sm:h-80 mt-8'
+      )}>
         <motion.div
           className="flex gap-4"
           animate={{

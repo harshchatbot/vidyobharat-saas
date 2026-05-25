@@ -5,10 +5,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
+  BadgeIndianRupee,
   Check,
   Film,
   Heart,
   ImagePlus,
+  IndianRupee,
   Layers3,
   Menu,
   Sparkles,
@@ -42,20 +44,6 @@ const testimonialImages = [
   { imgSrc: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop', alt: 'Creator 11' },
 ];
 
-const glassPanelStyle = {
-  borderColor: 'var(--landing-glass-border)',
-  background: 'var(--landing-glass-panel-bg)',
-  backdropFilter: 'blur(22px)',
-  boxShadow: 'var(--landing-glass-shadow)',
-} as const;
-
-const glassTileStyle = {
-  borderColor: 'var(--landing-glass-border)',
-  background: 'var(--landing-glass-tile-bg)',
-  backdropFilter: 'blur(18px)',
-  boxShadow: 'var(--landing-tile-shadow)',
-} as const;
-
 function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -68,31 +56,21 @@ function Header() {
 
   return (
     <header
-      className="sticky top-3 z-30 py-3"
+      className="sticky top-0 z-30 -mx-4 border-b px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+      style={{
+        borderColor: 'hsl(var(--color-border))',
+        background: `hsl(var(--color-surface) / 0.6)`
+      }}
     >
-      <div
-        className="mx-auto flex min-h-16 max-w-[1180px] items-center justify-between gap-4 rounded-full border px-3 py-2 shadow-[var(--landing-tile-shadow)] backdrop-blur-2xl sm:px-4"
-        style={{
-          borderColor: 'var(--landing-glass-border)',
-          background:
-            'linear-gradient(135deg, hsl(var(--color-surface) / 0.72), hsl(var(--color-elevated) / 0.48))',
-        }}
-      >
+      <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-4">
         <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
 
-        <nav
-          className="hidden items-center rounded-full border px-2 py-1 text-sm font-semibold lg:flex"
-          style={{
-            borderColor: 'var(--landing-glass-border)',
-            background: 'var(--landing-glass-tile-bg)',
-            color: 'var(--landing-title)',
-          }}
-        >
+        <nav className="hidden items-center gap-7 text-sm font-medium lg:flex" style={{ color: 'hsl(var(--color-text))' }}>
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full px-4 py-2 transition hover:bg-[hsl(var(--color-accent-amber)/0.1)] hover:text-[hsl(var(--color-accent-amber))]"
+              className="transition hover:text-[hsl(var(--color-accent-amber))]"
             >
               {item.label}
             </Link>
@@ -105,8 +83,8 @@ function Header() {
           </div>
           <Link
             href="/login"
-            className="hidden rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-[hsl(var(--color-accent-amber)/0.1)] hover:text-[hsl(var(--color-accent-amber))] sm:inline-flex"
-            style={{ color: 'var(--landing-title)' }}
+            className="hidden rounded-full px-4 py-2 text-sm font-medium transition hover:text-[hsl(var(--color-accent-amber))] sm:inline-flex"
+            style={{ color: 'hsl(var(--color-text))' }}
           >
             Sign in
           </Link>
@@ -115,7 +93,7 @@ function Header() {
             className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
             style={{
               background: 'hsl(var(--color-accent-amber))',
-              color: '#0A0A0F',
+              color: 'hsl(var(--color-elevated))',
               boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.24)'
             }}
           >
@@ -127,10 +105,10 @@ function Header() {
             onClick={() => setMobileMenuOpen((current) => !current)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full lg:hidden"
             style={{
-              border: `1px solid var(--landing-glass-border)`,
-              background: `var(--landing-glass-tile-bg)`,
-              color: 'var(--landing-title)',
-              boxShadow: 'var(--shadow-sm)'
+              border: `1px solid hsl(var(--color-border) / 0.72)`,
+              background: `linear-gradient(180deg,hsl(var(--color-surface)/0.72),hsl(var(--color-elevated)/0.68))`,
+              color: 'hsl(var(--color-text))',
+              boxShadow: 'var(--shadow-soft)'
             }}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
@@ -140,20 +118,24 @@ function Header() {
         </div>
       </div>
       {mobileMenuOpen && (
-        <div className="mx-auto max-w-[1180px] py-3 lg:hidden">
+        <div className="mx-auto max-w-[1180px] border-t py-4 lg:hidden" style={{ borderColor: `hsl(var(--color-border) / 0.45)` }}>
           <div
             className="overflow-hidden rounded-[26px] border p-3 backdrop-blur-xl"
-            style={glassPanelStyle}
+            style={{
+              borderColor: `hsl(var(--color-border) / 0.55)`,
+              background: `linear-gradient(180deg,hsl(var(--color-surface)/0.9),hsl(var(--color-elevated)/0.82))`,
+              boxShadow: 'var(--shadow-float)'
+            }}
           >
             <div
               className="rounded-[20px] border px-4 py-3"
               style={{
-                borderColor: `var(--landing-glass-border)`,
-                background: `var(--landing-glass-tile-bg)`
+                borderColor: `hsl(var(--color-border) / 0.38)`,
+                background: `radial-gradient(circle_at_top_left,hsl(var(--color-primary)/0.12),transparent_42%),hsl(var(--color-bg-soft)/0.5)`
               }}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>Explore RangManch</p>
-              <p className="mt-1 text-sm leading-6" style={{ color: 'var(--landing-muted)' }}>Jump into create, browse galleries, check pricing, or switch your theme.</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-primary))' }}>Explore RangManch</p>
+              <p className="mt-1 text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>Jump into create, browse galleries, check pricing, or switch your theme.</p>
             </div>
             <div className="mt-3 grid gap-2">
             {navItems.map((item) => (
@@ -163,15 +145,15 @@ function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="group rounded-[18px] border px-4 py-3.5 text-sm font-medium transition hover:-translate-y-0.5"
                 style={{
-                  borderColor: `var(--landing-glass-border)`,
-                  background: `var(--landing-glass-tile-bg)`,
-                  color: 'var(--landing-title)',
-                  boxShadow: 'var(--shadow-sm)'
+                  borderColor: `hsl(var(--color-border) / 0.5)`,
+                  background: `hsl(var(--color-surface) / 0.62)`,
+                  color: 'hsl(var(--color-text))',
+                  boxShadow: 'var(--shadow-soft)'
                 }}
               >
                 <span className="flex items-center justify-between gap-3">
                   <span>{item.label}</span>
-                  <ArrowRight className="h-4 w-4 transition" style={{ color: 'var(--landing-muted)' }} />
+                  <ArrowRight className="h-4 w-4 transition" style={{ color: 'hsl(var(--color-muted))' }} />
                 </span>
               </Link>
             ))}
@@ -179,14 +161,14 @@ function Header() {
             <div
               className="mt-3 flex items-center justify-between gap-3 rounded-[18px] border px-4 py-3 sm:hidden"
               style={{
-                borderColor: `var(--landing-glass-border)`,
-                background: `var(--landing-glass-tile-bg)`,
-                boxShadow: 'var(--shadow-sm)'
+                borderColor: `hsl(var(--color-border) / 0.45)`,
+                background: `hsl(var(--color-surface) / 0.5)`,
+                boxShadow: 'var(--shadow-soft)'
               }}
             >
               <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--landing-title)' }}>Theme</p>
-                <p className="mt-0.5 text-xs" style={{ color: 'var(--landing-muted)' }}>Switch light or dark mode</p>
+                <p className="text-sm font-semibold" style={{ color: 'hsl(var(--color-text))' }}>Theme</p>
+                <p className="mt-0.5 text-xs" style={{ color: 'hsl(var(--color-muted))' }}>Switch light or dark mode</p>
               </div>
               <ToggleTheme />
             </div>
@@ -196,10 +178,10 @@ function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="rounded-[18px] border px-4 py-3.5 text-center text-sm font-medium"
                 style={{
-                  borderColor: `var(--landing-glass-border)`,
-                  background: `var(--landing-glass-tile-bg)`,
-                  color: 'var(--landing-title)',
-                  boxShadow: 'var(--shadow-sm)'
+                  borderColor: `hsl(var(--color-border) / 0.5)`,
+                  background: `hsl(var(--color-surface) / 0.62)`,
+                  color: 'hsl(var(--color-text))',
+                  boxShadow: 'var(--shadow-soft)'
                 }}
               >
                 Sign in
@@ -210,7 +192,7 @@ function Header() {
                 className="inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3.5 text-sm font-semibold"
                 style={{
                   background: `hsl(var(--color-accent-amber))`,
-                  color: '#0A0A0F',
+                  color: 'hsl(var(--color-elevated))',
                   boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.22)'
                 }}
               >
@@ -237,6 +219,7 @@ function HeroSection() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}
     >
+      {/* 3 breathing orbs */}
       <div style={{
         position: 'absolute', top: '-10%', left: '-5%',
         width: '500px', height: '500px', borderRadius: '50%',
@@ -254,7 +237,7 @@ function HeroSection() {
       <div style={{
         position: 'absolute', bottom: '10%', left: '30%',
         width: '300px', height: '300px', borderRadius: '50%',
-        background: 'radial-gradient(circle, hsl(var(--color-accent-amber) / 0.06) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, hsl(var(--color-primary) / 0.06) 0%, transparent 70%)',
         filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0,
         animation: 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite 1s'
       }} />
@@ -278,11 +261,14 @@ function HeroSection() {
             </span>
           </motion.div>
 
+          {/* Headline with gradient */}
           <motion.h1
             className="font-heading text-[2.5rem] sm:text-[3.8rem] font-extrabold tracking-tight leading-[1.08]"
             style={{
-              color: 'var(--landing-title)',
-              textShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.14)',
+              background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
             }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -294,7 +280,7 @@ function HeroSection() {
           {/* Subheadline */}
           <motion.p
             className="mx-auto max-w-2xl text-sm sm:text-lg leading-7"
-            style={{ color: 'var(--landing-muted)' }}
+            style={{ color: 'hsl(var(--color-text-secondary))' }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -314,7 +300,7 @@ function HeroSection() {
               className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition hover:opacity-95"
               style={{
                 background: `linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-accent-amber) / 0.78))`,
-                color: '#0A0A0F',
+                color: `hsl(var(--color-elevated))`,
                 boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.26)'
               }}
             >
@@ -328,7 +314,7 @@ function HeroSection() {
               style={{
                 borderColor: `hsl(var(--color-border) / 0.3)`,
                 background: `hsl(var(--color-surface) / 0.2)`,
-                color: `var(--landing-title)`
+                color: `hsl(var(--color-text))`
               }}
             >
               Open studio
@@ -345,15 +331,15 @@ function HeroSection() {
           >
             <div className="text-center">
               <p className="text-2xl font-black" style={{ color: 'hsl(var(--color-accent-amber))' }}>500+</p>
-              <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--landing-muted)' }}>Creators</p>
+              <p className="text-xs uppercase tracking-wider" style={{ color: 'hsl(var(--color-text-secondary))' }}>Creators</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-black" style={{ color: 'hsl(var(--color-accent-amber))' }}>2.8K+</p>
-              <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--landing-muted)' }}>Videos</p>
+              <p className="text-xs uppercase tracking-wider" style={{ color: 'hsl(var(--color-text-secondary))' }}>Videos</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-black" style={{ color: 'hsl(var(--color-accent-amber))' }}>₹0</p>
-              <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--landing-muted)' }}>To start</p>
+              <p className="text-xs uppercase tracking-wider" style={{ color: 'hsl(var(--color-text-secondary))' }}>To start</p>
             </div>
           </motion.div>
         </div>
@@ -386,18 +372,30 @@ function TrustBarSection() {
 
   return (
     <motion.section
-      className="py-6 sm:py-8"
+      className="py-8 sm:py-10"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-0 overflow-hidden rounded-[34px] border backdrop-blur-2xl md:grid-cols-4" style={glassPanelStyle}>
+        <div
+          className="rounded-[28px] border p-3 sm:p-4"
+          style={{
+            borderColor: 'hsl(var(--glass-border))',
+            background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.78) 0%, hsl(var(--color-surface) / 0.58) 100%)',
+            boxShadow: '0 28px 80px hsl(var(--color-text) / 0.1)',
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                className="landing-stat-cell group relative flex flex-col items-center gap-2 px-4 py-5 text-center transition-transform duration-300 hover:-translate-y-0.5 sm:px-5 sm:py-6"
+                className="group relative flex flex-col items-center gap-2 overflow-hidden rounded-[22px] border px-4 py-5 text-center transition-transform duration-300 sm:px-5 sm:py-6 hover:-translate-y-0.5"
+                style={{
+                  borderColor: 'hsl(var(--glass-border))',
+                  background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.82) 100%)',
+                }}
                 initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -406,57 +404,89 @@ function TrustBarSection() {
                 <h3
                   className="text-[2rem] sm:text-[2.2rem] font-black tracking-tight"
                   style={{
-                    color: 'hsl(var(--color-accent-amber))',
+                    background: 'linear-gradient(135deg, hsl(var(--color-primary)) 0%, hsl(var(--color-accent-amber)) 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
                   }}
                 >
                   {stat.value}
                 </h3>
-                <p className="text-[0.75rem] font-semibold" style={{ color: 'var(--landing-muted)' }}>
+                <p className="text-[0.75rem] font-semibold" style={{ color: 'hsl(var(--color-text-secondary))' }}>
                   {stat.label}
                 </p>
               </motion.div>
             ))}
+          </div>
         </div>
       </div>
     </motion.section>
   );
 }
 
-// SECTION 3: PROBLEM — The reality of traditional UGC production
+// SECTION 3: PROBLEM
 function ProblemSection() {
+  const painPoints = [
+    {
+      title: 'Production costs are high',
+      desc: 'Hiring models, shooting studios, editors, and voice artists for each product variation is expensive and slow.'
+    },
+    {
+      title: 'Short content cycle is grinding',
+      desc: 'Social platforms demand constant fresh content. Manual production can\'t keep pace with the demand.'
+    },
+    {
+      title: 'AI tools have steep learning curves',
+      desc: 'Most generative tools require technical knowledge and complex prompt engineering. That\'s not scalable.'
+    },
+  ];
+
   return (
-    <section className="relative overflow-hidden rounded-[42px] border p-6 sm:p-8 lg:p-10" style={glassPanelStyle}>
-      <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--color-accent-amber)/0.5)] to-transparent" />
-      <div className="mx-auto mb-10 max-w-3xl text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
-          The reality
-        </p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
-          Creating a UGC ad used to mean...
-        </h2>
+    <motion.section
+      className="py-12 sm:py-16"
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
+            The challenge
+          </p>
+          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]">
+            Creating content at scale is hard.
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {painPoints.map((point, idx) => (
+            <motion.div
+              key={point.title}
+              className="rounded-[28px] border p-6"
+              style={{
+                borderColor: 'hsl(var(--color-border) / 0.4)',
+                background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.92) 100%)',
+              }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: idx * 0.1 }}
+            >
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-full" style={{ background: 'hsl(var(--color-accent-amber) / 0.1)' }}>
+                <span style={{ color: 'hsl(var(--color-accent-amber))' }} className="font-bold">⚠</span>
+              </div>
+              <h3 className="mt-4 font-heading text-xl font-extrabold" style={{ color: 'hsl(var(--color-text))' }}>
+                {point.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+                {point.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[
-          { pain: 'Hiring a model', cost: '₹5,000–20,000 per shoot' },
-          { pain: 'Booking a studio', cost: '₹3,000–10,000 per day' },
-          { pain: 'Finding a video editor', cost: '₹2,000–8,000 per video' },
-          { pain: 'Recording voiceover', cost: '₹1,500–5,000 per script' },
-          { pain: 'Waiting 2–3 weeks', cost: 'Lost market opportunity' },
-          { pain: 'Doing it all again', cost: 'For every new product' },
-        ].map(item => (
-          <div key={item.pain} className="rounded-[24px] border p-4" style={glassTileStyle}>
-            <p className="flex items-center gap-2 font-semibold" style={{ color: 'var(--landing-title)' }}>
-              <X className="h-4 w-4" style={{ color: 'hsl(var(--color-accent-amber))' }} />
-              {item.pain}
-            </p>
-            <p className="mt-1 text-sm" style={{ color: 'var(--landing-muted)' }}>{item.cost}</p>
-          </div>
-        ))}
-      </div>
-      <p className="mt-8 text-center text-lg font-semibold italic" style={{ color: 'var(--landing-muted)' }}>
-        "There had to be a better way."
-      </p>
-    </section>
+    </motion.section>
   );
 }
 
@@ -503,7 +533,7 @@ function SolutionDemoSection() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
             How it works
           </p>
-          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
+          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]">
             Simple 5-step flow. No complexity.
           </h2>
         </div>
@@ -518,8 +548,11 @@ function SolutionDemoSection() {
           {steps.map((step, index) => (
             <motion.div
               key={step.title}
-              className="relative z-10 rounded-[28px] border p-5"
-              style={glassTileStyle}
+              className="rounded-[28px] border p-5 relative z-10"
+              style={{
+                borderColor: 'hsl(var(--color-border) / 0.5)',
+                background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.92) 100%)',
+              }}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -537,10 +570,10 @@ function SolutionDemoSection() {
               <div className="mt-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--color-accent-amber))' }}>
                 Step {index + 1}
               </div>
-              <h3 className="mt-2 font-heading text-lg font-extrabold" style={{ color: 'var(--landing-title)' }}>
+              <h3 className="mt-2 font-heading text-lg font-extrabold" style={{ color: 'hsl(var(--color-text))' }}>
                 {step.title}
               </h3>
-              <p className="mt-2 text-xs leading-5" style={{ color: 'var(--landing-muted)' }}>
+              <p className="mt-2 text-xs leading-5" style={{ color: 'hsl(var(--color-text-secondary))' }}>
                 {step.body}
               </p>
             </motion.div>
@@ -551,71 +584,74 @@ function SolutionDemoSection() {
   );
 }
 
-// SECTION 5: DIFFERENTIATORS — Why creators choose RangManchAI
+// SECTION 5: DIFFERENTIATORS (3 cards)
 function DifferentiatorsSection() {
+  const differentiators = [
+    {
+      title: 'Built for India',
+      desc: 'TTS in 12 Indian languages. Payment in INR. 24/7 support for creators across Bharat.',
+      icon: '🇮🇳',
+    },
+    {
+      title: 'Speed-first design',
+      desc: 'No prompt engineering. No waiting for complex settings. Upload → Choose → Generate → Post.',
+      icon: '⚡',
+    },
+    {
+      title: 'Pay only for what you use',
+      desc: 'Simple credit pricing. 40 free every month. No subscriptions. Scale on your timeline.',
+      icon: '💰',
+    },
+  ];
+
   return (
-    <section className="relative overflow-hidden rounded-[42px] border p-6 sm:p-8 lg:p-10" style={glassPanelStyle}>
-      <div className="pointer-events-none absolute inset-y-10 right-0 w-1/3 bg-[radial-gradient(circle_at_center,hsl(var(--color-accent-amber)/0.12),transparent_62%)]" />
-      <div className="mx-auto max-w-3xl text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
-          Why creators choose RangManchAI
-        </p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
-          Three things nobody else offers
-        </h2>
+    <motion.section
+      className="py-12 sm:py-16"
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-6 md:grid-cols-3">
+          {differentiators.map((diff, idx) => (
+            <motion.div
+              key={diff.title}
+              className="rounded-[32px] border p-8"
+              style={{
+                borderColor: 'hsl(var(--color-accent-amber) / 0.2)',
+                background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
+                boxShadow: '0 24px 64px hsl(var(--color-text) / 0.08)',
+              }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: idx * 0.1 }}
+            >
+              <div className="text-4xl mb-4">{diff.icon}</div>
+              <h3 className="font-heading text-2xl font-extrabold" style={{ color: 'hsl(var(--color-text))' }}>
+                {diff.title}
+              </h3>
+              <p className="mt-3 text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+                {diff.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        {[
-          {
-            icon: <UserRound className="h-7 w-7" />,
-            badge: 'Industry first in India',
-            title: 'Your own AI avatar',
-            subtitle: 'Upload your photos → become the face of your brand',
-            desc: 'No generic stock avatars. Upload 1–4 photos of yourself or your model. RangManchAI creates a custom avatar that looks like YOU — consistent across every ad you create.',
-          },
-          {
-            icon: <Video className="h-7 w-7" />,
-            badge: 'Regional language support',
-            title: '12 Indian languages',
-            subtitle: 'Hindi · Bengali · Marathi · Punjabi · Tamil + 7 more',
-            desc: 'Your customers in Bengal speak Bengali. Your customers in Punjab speak Punjabi. Reach them in their language with natural, accent-aware voiceover — not a robotic translation.',
-          },
-          {
-            icon: <Sparkles className="h-7 w-7" />,
-            badge: 'Category intelligence',
-            title: 'Product-aware AI',
-            subtitle: 'Saree gets a twirl. Serum gets an application shot.',
-            desc: 'Our AI understands your product category. Skincare ads show the avatar applying the product. Ethnic wear shows a full-body reveal with fabric movement. Food ads use sensory storytelling.',
-          },
-        ].map((card) => (
-          <div key={card.title} className="relative rounded-[30px] border p-6" style={glassTileStyle}>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1" style={{ borderColor: 'hsl(var(--color-accent-amber) / 0.28)', background: 'hsl(var(--color-accent-amber) / 0.1)' }}>
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
-                {card.badge}
-              </span>
-            </div>
-            <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border" style={{ borderColor: 'hsl(var(--color-accent-amber) / 0.25)', background: 'hsl(var(--color-accent-amber) / 0.1)', color: 'hsl(var(--color-accent-amber))' }}>
-              {card.icon}
-            </div>
-            <h3 className="font-heading text-xl font-extrabold mb-2" style={{ color: 'var(--landing-title)' }}>{card.title}</h3>
-            <p className="text-sm font-semibold mb-3" style={{ color: 'hsl(var(--color-accent-amber))' }}>{card.subtitle}</p>
-            <p className="text-sm leading-7" style={{ color: 'var(--landing-muted)' }}>{card.desc}</p>
-          </div>
-        ))}
-      </div>
-    </section>
+    </motion.section>
   );
 }
 
 // SECTION 6: CATEGORY SHOWCASE (6 product types)
 function CategoryShowcaseSection() {
   const categories = [
-    { title: 'AI Avatar Ads', desc: 'Quick UGC product ads', icon: <UserRound className="h-6 w-6" /> },
-    { title: 'Anime Reels', desc: 'Guided anime lofi motion', icon: <Film className="h-6 w-6" /> },
-    { title: 'Social Content', desc: 'Vertical platform-ready', icon: <Video className="h-6 w-6" /> },
-    { title: 'Educational Videos', desc: 'Explainer and tutorial format', icon: <Layers3 className="h-6 w-6" /> },
-    { title: 'Brand Stories', desc: 'Long-form narrative ads', icon: <Sparkles className="h-6 w-6" /> },
-    { title: 'Freeform Creation', desc: 'Full custom control', icon: <ImagePlus className="h-6 w-6" /> },
+    { title: 'AI Avatar Ads', desc: 'Quick UGC product ads', emoji: '🎬' },
+    { title: 'Anime Reels', desc: 'Guided anime lofi motion', emoji: '🎨' },
+    { title: 'Social Content', desc: 'Vertical platform-ready', emoji: '📱' },
+    { title: 'Educational Videos', desc: 'Explainer and tutorial format', emoji: '📚' },
+    { title: 'Brand Stories', desc: 'Long-form narrative ads', emoji: '✨' },
+    { title: 'Freeform Creation', desc: 'Full custom control', emoji: '🎭' },
   ];
 
   return (
@@ -631,7 +667,7 @@ function CategoryShowcaseSection() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
             What you can create
           </p>
-          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
+          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]">
             Six product types. One studio.
           </h2>
         </div>
@@ -640,20 +676,21 @@ function CategoryShowcaseSection() {
           {categories.map((cat, idx) => (
             <motion.div
               key={cat.title}
-              className="group rounded-[28px] border p-6 text-center transition-all hover:-translate-y-1 hover:border-[hsl(var(--color-accent-amber)/0.4)]"
-              style={glassTileStyle}
+              className="rounded-[24px] border p-6 text-center group hover:border-[hsl(var(--color-accent-amber)/0.4)] transition-all"
+              style={{
+                borderColor: 'hsl(var(--color-border) / 0.3)',
+                background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.92) 100%)',
+              }}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: idx * 0.08 }}
             >
-              <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border" style={{ borderColor: 'hsl(var(--color-accent-amber) / 0.25)', background: 'hsl(var(--color-accent-amber) / 0.1)', color: 'hsl(var(--color-accent-amber))' }}>
-                {cat.icon}
-              </div>
-              <h3 className="font-heading text-lg font-extrabold" style={{ color: 'var(--landing-title)' }}>
+              <div className="text-4xl mb-3">{cat.emoji}</div>
+              <h3 className="font-heading text-lg font-extrabold" style={{ color: 'hsl(var(--color-text))' }}>
                 {cat.title}
               </h3>
-              <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--landing-muted)' }}>
+              <p className="mt-2 text-xs font-semibold" style={{ color: 'hsl(var(--color-text-secondary))' }}>
                 {cat.desc}
               </p>
             </motion.div>
@@ -695,8 +732,7 @@ function RecipeShowcaseSection() {
 
   return (
     <motion.section
-      className="relative overflow-hidden rounded-[42px] border p-5 sm:p-7 lg:p-8"
-      style={glassPanelStyle}
+      className="space-y-6"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
@@ -706,23 +742,29 @@ function RecipeShowcaseSection() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Guided recipes</p>
         <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
           style={{
-            color: 'var(--landing-title)',
+            background: 'linear-gradient(135deg, hsl(var(--color-primary)) 0%, hsl(var(--color-accent-amber)) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
           }}>
           Three fast ways to see RangManch working for you.
         </h2>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--color-accent-amber)/0.55)] to-transparent" />
-      <div className="grid gap-5 md:grid-cols-3">
+      <div
+        className="grid gap-5 md:grid-cols-3"
+        style={{
+          background: 'radial-gradient(circle at 50% 0%, hsl(var(--color-accent-amber) / 0.12), transparent 58%)',
+        }}
+      >
         {recipes.map((recipe, index) => (
           <motion.article
             key={recipe.title}
             className="glass-card flex h-full flex-col overflow-hidden rounded-[30px]"
             style={{
-              background: 'linear-gradient(180deg, hsl(230 10% 15% / 0.96) 0%, hsl(230 12% 9% / 0.94) 100%)',
-              borderColor: 'hsl(var(--color-accent-amber) / 0.18)',
-              boxShadow: '0 24px 80px hsl(var(--color-text) / 0.1)',
-              backdropFilter: 'blur(18px)',
+              background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
+              borderColor: 'hsl(var(--color-border) / 0.38)',
+              boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
             }}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -733,7 +775,7 @@ function RecipeShowcaseSection() {
               <div
                 className="relative border-b"
                 style={{
-                  borderColor: `hsl(var(--color-border) / 0.5)`,
+                  borderColor: `hsl(var(--color-border) / 0.65)`,
                   background: 'radial-gradient(circle at top, hsl(var(--color-accent-amber) / 0.08), transparent 65%)',
                 }}
               >
@@ -746,9 +788,9 @@ function RecipeShowcaseSection() {
                   <div
                     className="absolute inset-x-3 bottom-3 rounded-[16px] border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] backdrop-blur"
                     style={{
-                      borderColor: `hsl(var(--color-border) / 0.3)`,
-                      background: `rgba(10, 10, 15, 0.82)`,
-                      color: '#F8FAFC',
+                      borderColor: `hsl(var(--color-border) / 0.28)`,
+                      background: `hsl(var(--color-bg) / 0.76)`,
+                      color: `hsl(var(--color-elevated))`,
                     }}
                   >
                     {recipe.overlay}
@@ -758,17 +800,17 @@ function RecipeShowcaseSection() {
               <div
                 className="flex flex-1 flex-col p-5 sm:p-6"
                 style={{
-                  background: 'linear-gradient(180deg, hsl(230 10% 15% / 0.96) 0%, hsl(230 12% 9% / 0.94) 100%)',
+                  background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.94) 0%, hsl(var(--color-surface-soft) / 0.98) 100%)',
                 }}
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-accent-amber))` }}>{recipe.category}</p>
                 <h3
                   className="mt-3 min-h-[7.5rem] font-heading text-[2rem] font-extrabold leading-[1.06] tracking-tight"
-                  style={{ color: '#F8FAFC' }}
+                  style={{ color: 'hsl(var(--color-text))' }}
                 >
                   {recipe.title}
                 </h3>
-                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: '#C7CBD6' }}>
+                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
                   {recipe.description}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2 pt-1">
@@ -777,9 +819,9 @@ function RecipeShowcaseSection() {
                       key={feature}
                       className="inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]"
                       style={{
-                        borderColor: 'rgba(245, 158, 11, 0.2)',
-                        background: 'rgba(245, 158, 11, 0.08)',
-                        color: '#F8FAFC',
+                        borderColor: 'hsl(var(--color-border) / 0.5)',
+                        background: 'hsl(var(--color-surface) / 0.5)',
+                        color: 'hsl(var(--color-text))',
                       }}
                     >
                       {feature}
@@ -795,48 +837,61 @@ function RecipeShowcaseSection() {
   );
 }
 
-// SECTION 7: LANGUAGE SECTION — 12 Indian languages with natural voices
+// SECTION 7: LANGUAGE SECTION
 function LanguageSection() {
+  const languages = [
+    'Hindi', 'Marathi', 'Bengali', 'Tamil', 'Telugu',
+    'Kannada', 'Malayalam', 'Gujarati', 'Punjabi', 'Odia',
+    'Assamese', 'English'
+  ];
+
   return (
-    <section className="relative overflow-hidden rounded-[42px] border p-6 text-center sm:p-8 lg:p-10" style={glassPanelStyle}>
-      <div className="pointer-events-none absolute -left-16 top-1/2 h-48 w-48 -translate-y-1/2 rounded-full blur-3xl" style={{ background: 'hsl(var(--color-accent-amber) / 0.1)' }} />
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
-        Speak their language
-      </p>
-      <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
-        12 Indian languages. Natural voices.
-      </h2>
-      <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 sm:text-base" style={{ color: 'var(--landing-muted)' }}>
-        From Hindi to Tamil, Bengali to Punjabi — reach customers in their mother tongue with voices that sound natural, not robotic.
-      </p>
-      <div className="mt-8 flex flex-wrap gap-3 justify-center">
-        {[
-          { lang: 'Hindi', script: 'हिंदी' },
-          { lang: 'English (India)', script: 'English' },
-          { lang: 'Hinglish', script: 'Hinglish' },
-          { lang: 'Bengali', script: 'বাংলা' },
-          { lang: 'Marathi', script: 'मराठी' },
-          { lang: 'Tamil', script: 'தமிழ்' },
-          { lang: 'Telugu', script: 'తెలుగు' },
-          { lang: 'Gujarati', script: 'ગુજરાતી' },
-          { lang: 'Kannada', script: 'ಕನ್ನಡ' },
-          { lang: 'Malayalam', script: 'മലയാളം' },
-          { lang: 'Punjabi', script: 'ਪੰਜਾਬੀ' },
-          { lang: 'Odia', script: 'ଓଡ଼ିଆ' },
-        ].map(l => (
-          <div key={l.lang} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 backdrop-blur-xl" style={glassTileStyle}>
-            <span className="text-sm font-medium" style={{ color: 'var(--landing-title)' }}>{l.lang}</span>
-            <span className="text-xs" style={{ color: 'var(--landing-muted)' }}>{l.script}</span>
+    <motion.section
+      className="py-12 sm:py-16"
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-accent-amber))' }}>
+            Made for Bharat
+          </p>
+          <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]">
+            Support for 12 Indian languages.
+          </h2>
+          <p className="mt-4 text-sm leading-6 mx-auto max-w-2xl" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+            Create content in Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, and more. Made by Indians, for Indians.
+          </p>
+        </div>
+
+        <div className="rounded-[32px] border p-8" style={{
+          borderColor: 'hsl(var(--color-border) / 0.3)',
+          background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
+        }}>
+          <div className="flex flex-wrap justify-center gap-3">
+            {languages.map((lang, idx) => (
+              <motion.div
+                key={lang}
+                className="inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold"
+                style={{
+                  borderColor: 'hsl(var(--color-accent-amber) / 0.2)',
+                  background: 'hsl(var(--color-accent-amber) / 0.06)',
+                  color: 'hsl(var(--color-text))'
+                }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.3, delay: idx * 0.03 }}
+              >
+                {lang}
+              </motion.div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
-      <div className="mt-8">
-        <Link href="/signup" className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold" style={{ background: 'hsl(var(--color-accent-amber))', color: '#0A0A0F' }}>
-          Preview voices free
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -871,8 +926,11 @@ function PricingAnchorSection() {
 
   return (
     <motion.section
-      className="grid gap-6 rounded-[34px] border p-6 text-[var(--landing-title)] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10"
-      style={glassPanelStyle}
+      className="grid gap-6 rounded-[34px] border p-6 text-[hsl(var(--color-text))] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:p-10"
+      style={{
+        borderColor: `hsl(var(--color-border) / 0.3)`,
+        background: `linear-gradient(180deg,hsl(var(--color-surface)/0.8),hsl(var(--color-surface)/0.9))`
+      }}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-50px' }}
@@ -880,10 +938,10 @@ function PricingAnchorSection() {
     >
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Simple credits</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]" style={{ color: 'var(--landing-title)' }}>
+        <h2 className="mt-3 font-heading text-[2.1rem] sm:text-[3rem] font-extrabold tracking-tight leading-[1.04]">
           Start free, test fast, and scale when content works.
         </h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 sm:text-base" style={{ color: `var(--landing-muted)` }}>
+        <p className="mt-4 max-w-xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
           Every user gets 40 free credits every month, plus a one-time 120 credit activation bonus. Use across images, videos, reels, and Avatar Product Ads.
         </p>
         <Link
@@ -901,17 +959,17 @@ function PricingAnchorSection() {
           <motion.div
             key={label}
             className="flex items-center justify-between rounded-2xl border px-4 py-3"
-            style={glassTileStyle}
+            style={{ borderColor: `hsl(var(--color-border) / 0.3)`, background: `hsl(var(--color-surface) / 0.1)` }}
             initial={{ opacity: 0, x: 10 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.3 }}
           >
-            <span className="text-sm" style={{ color: `var(--landing-muted)` }}>{label}</span>
+            <span className="text-sm" style={{ color: `hsl(var(--color-text-secondary))` }}>{label}</span>
             <span className="text-sm font-bold">{value}</span>
           </motion.div>
         ))}
-        <p className="px-1 text-xs leading-5" style={{ color: `var(--landing-muted)` }}>Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
+        <p className="px-1 text-xs leading-5" style={{ color: `hsl(var(--color-text-secondary))` }}>Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
       </div>
     </motion.section>
   );
@@ -922,7 +980,7 @@ function FinalCtaSection() {
   return (
     <motion.section
       className="overflow-hidden rounded-[36px] border"
-      style={{ borderColor: `hsl(var(--color-border) / 0.3)` }}
+      style={{ borderColor: `hsl(var(--color-border) / 0.08)` }}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-50px' }}
@@ -937,12 +995,15 @@ function FinalCtaSection() {
 
           <h2 className="mt-4 font-heading text-[2.2rem] sm:text-[3.4rem] font-extrabold tracking-tight leading-[1.02]"
             style={{
-              color: 'var(--landing-title)',
+              background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
             }}>
             Start with a guided recipe, create freely from there.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `var(--landing-muted)` }}>
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
             Build AI avatar ads, anime reels, and freeform videos from one studio. Designed to help you publish faster, not learn jargon.
           </p>
 
@@ -952,7 +1013,7 @@ function FinalCtaSection() {
               className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition hover:opacity-95"
               style={{
                 background: `linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-accent-amber) / 0.78))`,
-                color: '#0A0A0F',
+                color: `hsl(var(--color-elevated))`,
                 boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.26)'
               }}
             >
@@ -966,7 +1027,7 @@ function FinalCtaSection() {
               style={{
                 borderColor: `hsl(var(--color-border) / 0.3)`,
                 background: `hsl(var(--color-surface) / 0.2)`,
-                color: `var(--landing-title)`
+                color: `hsl(var(--color-text))`
               }}
             >
               Open studio
@@ -981,12 +1042,11 @@ function FinalCtaSection() {
 export function PublicStudioLanding() {
   return (
     <div
-      className="landing-page mesh-bg relative min-h-screen overflow-hidden text-[var(--landing-title)]"
+      className="mesh-bg relative min-h-screen overflow-hidden text-[hsl(var(--color-text))]"
       style={{
-        background: `radial-gradient(circle_at_16%_8%,hsl(var(--color-accent-amber)/0.18),transparent_30%),radial-gradient(circle_at_82%_16%,hsl(var(--color-accent-amber)/0.1),transparent_26%),radial-gradient(circle_at_50%_58%,hsl(var(--color-accent-amber)/0.06),transparent_34%),linear-gradient(180deg,hsl(var(--color-bg-soft)),hsl(var(--color-bg))_34%,hsl(var(--color-bg)))`
+        background: `radial-gradient(circle_at_18%_14%,hsl(var(--color-accent-amber)/0.16),transparent_30%),radial-gradient(circle_at_82%_10%,hsl(var(--color-accent-amber)/0.1),transparent_26%),linear-gradient(180deg,hsl(var(--color-bg-soft)),hsl(var(--color-bg))_34%,hsl(var(--color-bg)))`
       }}
     >
-      <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.18]" style={{ backgroundImage: 'linear-gradient(hsl(var(--color-text) / 0.08) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--color-text) / 0.08) 1px, transparent 1px)', backgroundSize: '72px 72px' }} />
       {/* HERO + HEADER */}
       <div style={{ position: 'relative', overflow: 'hidden', zIndex: 1 }}>
         <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8 relative z-10">
@@ -1038,55 +1098,6 @@ export function PublicStudioLanding() {
 
       {/* Add keyframes for pulse animation */}
       <style>{`
-        .landing-page {
-          --landing-title: #101014;
-          --landing-muted: #5f6572;
-          --landing-glass-border: rgba(17, 24, 39, 0.11);
-          --landing-glass-panel-bg:
-            radial-gradient(circle at 14% 0%, rgba(245, 158, 11, 0.13), transparent 34%),
-            linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.54));
-          --landing-glass-tile-bg:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.46));
-          --landing-glass-shadow: 0 28px 100px rgba(17, 24, 39, 0.08);
-          --landing-tile-shadow: 0 18px 60px rgba(17, 24, 39, 0.08);
-        }
-
-        .dark .landing-page {
-          --landing-title: #f8fafc;
-          --landing-muted: #c7cbd6;
-          --landing-glass-border: rgba(255, 255, 255, 0.13);
-          --landing-glass-panel-bg:
-            radial-gradient(circle at 14% 0%, rgba(245, 158, 11, 0.13), transparent 34%),
-            linear-gradient(135deg, rgba(25, 25, 34, 0.68), rgba(12, 12, 17, 0.54));
-          --landing-glass-tile-bg:
-            linear-gradient(180deg, rgba(29, 29, 39, 0.66), rgba(13, 13, 19, 0.48));
-          --landing-glass-shadow: 0 30px 120px rgba(0, 0, 0, 0.34);
-          --landing-tile-shadow: 0 20px 76px rgba(0, 0, 0, 0.28);
-        }
-
-        .landing-stat-cell {
-          border-bottom: 1px solid var(--landing-glass-border);
-        }
-
-        .landing-stat-cell:nth-child(odd) {
-          border-right: 1px solid var(--landing-glass-border);
-        }
-
-        .landing-stat-cell:nth-child(n + 3) {
-          border-bottom: 0;
-        }
-
-        @media (min-width: 768px) {
-          .landing-stat-cell {
-            border-bottom: 0;
-            border-right: 1px solid var(--landing-glass-border);
-          }
-
-          .landing-stat-cell:last-child {
-            border-right: 0;
-          }
-        }
-
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.7; }
