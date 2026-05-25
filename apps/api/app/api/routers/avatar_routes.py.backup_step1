@@ -167,12 +167,10 @@ def list_avatar_library(
 
     try:
         avatars = AvatarService().list_avatars(user_id=user_id)
-        preset_avatars = [a for a in avatars if a.scope == 'public']
-        user_avatars = [a for a in avatars if a.scope == 'own']
         return AvatarLibraryResponse(
-            avatars=[],  # Empty — frontend uses preset_avatars and user_avatars instead
-            preset_avatars=preset_avatars,
-            user_avatars=user_avatars,
+            avatars=avatars,
+            preset_avatars=[],
+            user_avatars=[],
         )
     except Exception as exc:
         logger.exception(

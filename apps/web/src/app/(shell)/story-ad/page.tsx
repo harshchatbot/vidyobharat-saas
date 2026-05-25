@@ -1079,6 +1079,7 @@ export default function StoryAdPage() {
         loading={avatarLoading}
         error={avatarError}
         selectedAvatarId={guidedFlowData.avatarId}
+        userId={userId}
         onSelectAvatar={(avatar) => handleAvatarSelected(avatar.id, avatar.name, avatar.referenceImages || [])}
         onClose={() => {
           setGuidedFlowStep('category');

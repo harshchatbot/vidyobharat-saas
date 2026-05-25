@@ -25,7 +25,7 @@ from app.recipes.storyboard_video import AdCategory, CREDIT_COSTS, MODEL_ROUTING
 from app.services.credit_service import CreditService
 from app.services.emotion_tagging_service import EmotionTaggingService
 from app.services.quality_score_service import QualityScoreService
-from app.services.script_generation_service import ScriptGenerationService, detect_product_category
+from app.services.script_generation_service import ScriptGenerationService
 from app.services.storyboard_generation_service import StoryboardGenerationService
 from app.services.voice_preview_service import normalize_storyboard_tts_literals
 from app.services.voice_preview_service import VoicePreviewService
@@ -198,21 +198,6 @@ class StoryboardPipelineService:
         self.emotion_tagging_service = EmotionTaggingService()
         self.quality_score_service = QualityScoreService()
         self.voice_preview_service = VoicePreviewService()
-
-    def _enrich_scenes_with_category_metadata(self, scenes: list[Any], business_brief: str) -> list[dict[str, Any]]:
-        """Add product_category and scene position metadata to each scene."""
-        product_category = detect_product_category(business_brief)
-        total_scenes = len(scenes)
-
-        enriched = []
-        for i, scene in enumerate(scenes):
-            scene_dict = dict(scene) if hasattr(scene, '__dict__') else scene
-            scene_dict['product_category'] = product_category
-            scene_dict['scene_index'] = i
-            scene_dict['total_scenes'] = total_scenes
-            enriched.append(scene_dict)
-
-        return enriched
 
     # ===== INITIALIZATION & PROJECT MANAGEMENT =====
 

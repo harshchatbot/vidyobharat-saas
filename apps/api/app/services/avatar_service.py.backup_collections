@@ -856,13 +856,7 @@ class AvatarService:
         except FirebaseNotConfiguredError:
             return None
 
-        # First check 'avatars' collection (public/preset avatars)
         snap = db.collection('avatars').document(normalized_id).get()
-
-        # If not found, check 'actors' collection (user-created custom avatars)
-        if not snap.exists:
-            snap = db.collection('actors').document(normalized_id).get()
-
         if not snap.exists:
             return None
 
@@ -1153,29 +1147,6 @@ class AvatarService:
                         "reason": str(exc),
                     },
                 )
-
-        # Query 'actors' collection (user-created custom avatars)
-        if normalized_user_id:
-            for snap in db.collection('actors').where('user_id', '==', normalized_user_id).where('scope', '==', 'own').stream():
-                try:
-                    data = snap.to_dict() or {}
-                    actor_id = str(data.get('id') or snap.id).strip()
-                    if not actor_id:
-                        continue
-
-                    status = str(data.get('status') or 'active').strip().lower()
-                    if status not in {'active', 'ready_for_preview', 'ready'}:
-                        continue
-
-                    records.append(self._actor_from_firestore(data, actor_id))
-                except Exception as exc:
-                    logger.warning(
-                        "avatar_list_custom_actor_skipped",
-                        extra={
-                            "actor_id": getattr(snap, "id", None),
-                            "reason": str(exc),
-                        },
-                    )
 
         records.sort(
             key=lambda item: (

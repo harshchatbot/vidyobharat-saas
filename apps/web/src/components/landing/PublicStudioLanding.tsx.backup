@@ -297,7 +297,7 @@ function OfferSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">What you can do today</p>
-        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-accent-amber))] via-[hsl(var(--color-warning))] to-[hsl(var(--color-accent-amber))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Three guided recipes for speed, plus freeform creation when you want full control.
         </h2>
       </div>
@@ -322,13 +322,13 @@ function RecipeShowcaseSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Guided recipes</p>
-        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-accent-amber))] via-[hsl(var(--color-warning))] to-[hsl(var(--color-accent-amber))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Three fast ways to see RangManch working for you.
         </h2>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <article className="glass-card overflow-hidden rounded-[30px]">
+      <div className="masonry-grid">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
               <LandingVideo
@@ -352,16 +352,14 @@ function RecipeShowcaseSection() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
-            <div className="mt-5 overflow-hidden rounded-[20px] border border-[hsl(var(--color-border)/0.65)]">
-                <LandingVideo
-                  src="/videos/samples/anime_lofi_reel.mp4"
-                  poster="/videos/samples/anime_lofi_reel.mp4"
-                  className="aspect-[9/16] w-full object-cover"
-                />
-              </div>
+              <LandingVideo
+                src="/videos/samples/anime_lofi_reel.mp4"
+                poster="/videos/samples/anime_lofi_reel.mp4"
+                className="aspect-[9/16] h-full w-full object-cover"
+              />
               <div className="absolute inset-x-3 bottom-3 rounded-[16px] border border-white/12 bg-black/45 px-3 py-2 text-xs font-medium text-white/90 backdrop-blur">
                 Upload character {'->'} choose motion, vibe, scene {'->'} generate reel
               </div>
@@ -376,7 +374,7 @@ function RecipeShowcaseSection() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-[30px] border border-[hsl(var(--color-border)/0.72)] bg-[hsl(var(--color-surface)/0.48)] shadow-[var(--shadow-soft)]">
+        <article className="glass-card overflow-hidden rounded-[30px] w-full">
           <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
             <div className="relative border-b border-[hsl(var(--color-border)/0.65)] md:border-b-0 md:border-r">
               <LandingVideo
@@ -412,7 +410,7 @@ function StepsSection() {
     <section className="space-y-8">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Simple workflow</p>
-        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-accent-amber))] via-[hsl(var(--color-warning))] to-[hsl(var(--color-accent-amber))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           No complex model settings. Just a clear path to content.
         </h2>
       </div>
@@ -440,7 +438,7 @@ function UseCasesSection() {
     <section className="space-y-8">
       <div className="max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent))]">Who it helps</p>
-        <h2 className="gradient-text mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-accent-amber))] via-[hsl(var(--color-warning))] to-[hsl(var(--color-accent-amber))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Built for people who need content, speed, and better unit economics.
         </h2>
       </div>
@@ -506,12 +504,12 @@ function FinalCta() {
     <section className="overflow-hidden rounded-[36px] border border-white/[0.08]">
       <LampContainer>
         <div className="mx-auto max-w-3xl px-5 text-center">
-          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent-cyan))]">
+          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--color-accent-amber))]">
             <Heart className="h-3.5 w-3.5" />
             Made for Indian creators
           </p>
 
-          <h2 className="gradient-text mt-4 font-heading text-[2.2rem] font-extrabold tracking-tight sm:text-[3.4rem] sm:leading-[1.02]">
+          <h2 className="mt-4 bg-gradient-to-r from-[hsl(var(--color-accent-amber))] via-[hsl(var(--color-warning))] to-[hsl(var(--color-accent-amber))] bg-clip-text font-heading text-[2.2rem] font-extrabold tracking-tight text-transparent sm:text-[3.4rem] sm:leading-[1.02]">
             Start with a guided recipe, then create as freely as you want.
           </h2>
 
@@ -522,7 +520,7 @@ function FinalCta() {
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/signup"
-              className="glow-button inline-flex items-center gap-2 px-6 py-3.5 text-base"
+              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-warning)))] px-6 py-3.5 text-base font-semibold text-[hsl(var(--color-accent-contrast))] shadow-[0_18px_60px_hsl(var(--color-accent-amber)/0.32)] transition hover:opacity-95"
             >
               Start free
               <ArrowRight className="h-4 w-4" />
@@ -543,7 +541,7 @@ function FinalCta() {
 
 export function PublicStudioLanding() {
   return (
-    <div className="mesh-bg min-h-screen text-text">
+    <div className="mesh-bg min-h-screen bg-[radial-gradient(circle_at_20%_15%,hsl(var(--color-accent-amber)/0.2),transparent_32%),radial-gradient(circle_at_82%_12%,hsl(var(--color-warning)/0.16),transparent_30%)] text-text">
       <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
         <Header />
       </div>

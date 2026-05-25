@@ -10,6 +10,175 @@ from app.providers.gemini import get_gemini_client
 logger = logging.getLogger(__name__)
 
 
+def detect_product_category(business_brief: str) -> str:
+    """Detect product category from business brief text."""
+    brief_lower = business_brief.lower()
+
+    category_keywords = {
+        'skincare': ['serum', 'cream', 'moisturizer', 'sunscreen', 'face wash',
+                     'toner', 'spf', 'vitamin c', 'retinol', 'glow', 'skin',
+                     'acne', 'dark spots', 'anti-aging', 'dermatologist'],
+        'apparel_ethnic': ['saree', 'kurti', 'lehenga', 'salwar', 'dupatta',
+                           'kurta', 'ethnic', 'traditional', 'indian wear',
+                           'anarkali', 'palazzo', 'churidar'],
+        'apparel_western': ['dress', 'jeans', 'top', 'jacket', 't-shirt',
+                            'western', 'casual wear', 'formal wear', 'shirt',
+                            'trouser', 'skirt', 'blouse'],
+        'footwear': ['shoes', 'heels', 'sneakers', 'sandals', 'boots',
+                     'footwear', 'chappal', 'slippers', 'running shoes',
+                     'formal shoes', 'sports shoes'],
+        'food_confectionery': ['chocolate', 'candy', 'sweet', 'snack', 'biscuit',
+                               'cookie', 'cake', 'mithai', 'dessert', 'wafer',
+                               'dairy milk', 'kitkat', 'chips'],
+        'food_beverage': ['juice', 'drink', 'beverage', 'tea', 'coffee',
+                          'smoothie', 'water', 'milk', 'lassi', 'sharbat',
+                          'energy drink', 'protein shake'],
+        'food_grocery': ['masala', 'spice', 'oil', 'ghee', 'pickle', 'sauce',
+                         'atta', 'dal', 'rice', 'grocery', 'cooking'],
+        'supplement_health': ['protein', 'vitamin', 'supplement', 'capsule',
+                              'tablet', 'health', 'immunity', 'weight loss',
+                              'muscle', 'fitness', 'omega', 'calcium'],
+        'jewelry': ['necklace', 'earrings', 'ring', 'bracelet', 'bangles',
+                    'jewelry', 'jewellery', 'gold', 'silver', 'diamond',
+                    'pendant', 'chain', 'anklet'],
+        'electronics': ['phone', 'laptop', 'headphones', 'watch', 'gadget',
+                        'speaker', 'charger', 'smartwatch', 'earbuds', 'tablet'],
+        'home_decor': ['furniture', 'decor', 'lamp', 'cushion', 'curtain',
+                       'bedsheet', 'carpet', 'vase', 'frame', 'candle'],
+        'app_digital': ['app', 'software', 'platform', 'service', 'subscription',
+                        'online', 'digital', 'saas', 'tool', 'website'],
+        'personal_care': ['shampoo', 'conditioner', 'hair', 'body wash',
+                          'deodorant', 'perfume', 'soap', 'toothpaste',
+                          'face wash', 'lip balm'],
+    }
+
+    scores = {}
+    for category, keywords in category_keywords.items():
+        score = sum(1 for kw in keywords if kw in brief_lower)
+        if score > 0:
+            scores[category] = score
+
+    if scores:
+        return max(scores, key=scores.get)
+    return 'general'
+
+
+STORY_ARC_TEMPLATES = {
+    'skincare': {
+        10: {
+            'arc_name': 'Problem-Solution-Glow',
+            'beats': ['hook_problem', 'product_discovery', 'result_cta'],
+            'story': 'Relatable skin concern → This product changed everything → Look at this glow',
+        },
+        15: {
+            'arc_name': 'Transformation Journey',
+            'beats': ['hook_problem', 'discovery', 'application', 'result', 'cta'],
+            'story': 'Dull skin struggle → Found this serum → Watch the magic → 7 days later',
+        },
+        30: {
+            'arc_name': 'Expert Testimonial',
+            'beats': ['hook', 'problem_deep', 'discovery', 'ingredients', 'application', 'result', 'social_proof', 'cta'],
+            'story': 'I tried everything → Nothing worked → Then I found this → Here is why it works → My skin now',
+        },
+    },
+    'apparel_ethnic': {
+        10: {
+            'arc_name': 'Wear-Twirl-Wow',
+            'beats': ['outfit_reveal', 'movement_beauty', 'cta'],
+            'story': 'The outfit you have been waiting for → Feel the fabric → Own every room',
+        },
+        15: {
+            'arc_name': 'Occasion Story',
+            'beats': ['getting_ready', 'outfit_reveal', 'fabric_detail', 'lifestyle_moment', 'cta'],
+            'story': 'Getting ready for something special → Perfect outfit found → Look at this fabric → Every occasion deserves this',
+        },
+    },
+    'food_confectionery': {
+        10: {
+            'arc_name': 'Craving-Unwrap-Bliss',
+            'beats': ['sensory_hook', 'unwrap_ritual', 'taste_bliss'],
+            'story': 'That irresistible craving → The ritual of unwrapping → Pure bliss',
+        },
+        15: {
+            'arc_name': 'Moment of Indulgence',
+            'beats': ['stress_hook', 'product_appears', 'unwrap_asmr', 'taste_emotion', 'share_moment', 'brand'],
+            'story': 'Tough day → Chocolate appears → That unwrapping sound → First bite bliss → Share the joy',
+        },
+    },
+    'footwear': {
+        10: {
+            'arc_name': 'Walk-Detail-Confidence',
+            'beats': ['movement_hook', 'shoe_detail', 'confidence_walk'],
+            'story': 'Every step tells a story → Built for this → Walk with confidence',
+        },
+        15: {
+            'arc_name': 'Performance-Style Story',
+            'beats': ['activity_hook', 'shoe_reveal', 'in_action', 'detail_closeup', 'lifestyle_confidence', 'cta'],
+            'story': 'Made for the way you move → Every detail designed → From gym to street → Your next step starts here',
+        },
+    },
+    'supplement_health': {
+        10: {
+            'arc_name': 'Problem-Product-Energy',
+            'beats': ['pain_hook', 'product_hero', 'energy_result'],
+            'story': 'Feeling drained every day → This changed everything → Feel the difference',
+        },
+        15: {
+            'arc_name': 'Transformation Story',
+            'beats': ['before_pain', 'discovery', 'product_detail', 'how_it_works', 'after_result', 'cta'],
+            'story': 'I was always tired → Found this supplement → Here is what is inside → 30 days later',
+        },
+    },
+    'jewelry': {
+        10: {
+            'arc_name': 'Detail-Wear-Glow',
+            'beats': ['jewelry_macro', 'wearing_reveal', 'confidence_portrait'],
+            'story': 'Crafted for moments that matter → Wear it with pride → You deserve this',
+        },
+    },
+    'general': {
+        10: {
+            'arc_name': 'Hook-Benefit-CTA',
+            'beats': ['attention_hook', 'core_benefit', 'call_to_action'],
+            'story': 'Get attention → Show value → Drive action',
+        },
+        15: {
+            'arc_name': 'Problem-Solution-Proof',
+            'beats': ['hook', 'problem', 'solution', 'proof', 'cta'],
+            'story': 'Relatable problem → Here is the solution → Proof it works → Try it now',
+        },
+    },
+}
+
+
+AVATAR_ACTIONS_BY_CATEGORY = {
+    'skincare': {
+        'application': 'Avatar using dropper, applying 2-3 drops to cheek with fingertips, gentle upward circular massage motion, eyes half-closed, peaceful expression',
+        'hold_product': 'Avatar holding serum bottle label-forward at chest height, both hands, slight tilt to show product, confident warm smile',
+    },
+    'apparel_ethnic': {
+        'full_body_reveal': 'Avatar standing straight, arms slightly away from body showing outfit fully, confident posture, warm smile toward camera',
+        'twirl': 'Avatar doing slow 180-degree twirl, one hand slightly lifted, dupatta/saree fabric flowing with movement, looking over shoulder at camera mid-twirl',
+    },
+    'food_confectionery': {
+        'unwrap': 'Hands only in frame, fingers slowly peeling back wrapper from one corner, deliberate unhurried motion, chocolate surface revealing',
+        'first_bite': 'Avatar bringing chocolate piece to lips, pause for beat, slow gentle bite, eyes closing naturally, slight smile spreading',
+    },
+    'footwear': {
+        'walk_toward': 'Avatar walking toward camera at normal pace, camera at ground level, shoes prominent in lower frame, confident stride',
+    },
+    'supplement_health': {
+        'hold_product': 'Avatar holding supplement bottle/box at chest height, label clearly visible, one hand pointing to key claim on label',
+    },
+    'jewelry': {
+        'wear_necklace': 'Avatar clasping necklace behind neck, then facing camera, necklace prominent on chest',
+    },
+    'general': {
+        'hold_product': 'Avatar holding product label-forward at chest height, confident warm smile, making eye contact with camera',
+    },
+}
+
+
 class ScriptGenerationService:
     """Service for generating ad scripts with Gemini."""
 
@@ -35,6 +204,7 @@ class ScriptGenerationService:
         platform: str,
         language: str = 'en',
         tone: str = 'casual',
+        target_duration_seconds: int = 15,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -46,6 +216,7 @@ class ScriptGenerationService:
             platform: Target platform (e.g., 'instagram_reels')
             language: Language code (e.g., 'en', 'hi')
             tone: Tone of voice (e.g., 'casual', 'professional')
+            target_duration_seconds: Target video duration in seconds (default 15)
 
         Returns:
             Dict with 'script', 'word_count', 'duration_estimate'
@@ -58,6 +229,7 @@ class ScriptGenerationService:
                 platform=platform,
                 language=language,
                 tone=tone,
+                target_duration_seconds=target_duration_seconds,
             )
 
             # Call Gemini
@@ -108,73 +280,88 @@ class ScriptGenerationService:
         platform: str,
         language: str,
         tone: str,
+        target_duration_seconds: int = 15,
     ) -> str:
         """Build prompt for Gemini script generation."""
+        word_target = self._get_word_target_for_platform(platform)
+
+        # Detect product category for enhanced storytelling
+        product_category = detect_product_category(business_brief)
+
+        # Get story arc for this category + duration
+        arc_data = STORY_ARC_TEMPLATES.get(product_category, STORY_ARC_TEMPLATES['general'])
+        duration_key = min(arc_data.keys(), key=lambda x: abs(x - target_duration_seconds))
+        story_arc = arc_data[duration_key]
 
         category_guidelines = {
-            'ugc_testimonial': 'User-generated testimonial with authentic personal experience',
-            'founder_talking_head': 'Founder or expert speaking directly to camera',
-            'problem_solution': 'Showcase problem then reveal solution',
-            'product_demo_lifestyle': 'Product in action with lifestyle context',
-            'inner_monologue': 'Person thinking aloud about the product',
-            'cinematic_narration': 'High-quality cinematic style with voiceover',
-            'cinematic_broll': 'Beautiful footage with minimal dialogue',
-        }
-
-        platform_specs = {
-            'instagram_reels': '30 seconds target (max 60), vertical video (9:16), captions helpful, hook in first 3 seconds',
-            'facebook_feed': '30 seconds target (max 60), square or vertical, engaging from start',
-            'youtube_shorts': '30 seconds target (max 60), vertical video, strong hook',
-            'linkedin': '45-60 seconds, professional tone, highlight value proposition clearly',
-            'tiktok': '20-30 seconds target, trendy, engaging, hook in first 2 seconds, mobile-first',
+            'ugc_testimonial': 'Authentic personal experience as a real user/customer. First person, conversational, genuine emotion.',
+            'founder_talking_head': 'Brand founder speaking with authority and passion. Expert credibility, personal mission, direct address.',
+            'problem_solution': 'Opens with relatable pain point, builds tension, reveals product as hero solution, shows proof.',
+            'product_demo_lifestyle': 'Product in natural use within aspirational lifestyle context. Show not tell.',
+            'inner_monologue': 'Internal thoughts spoken aloud. Intimate, vulnerable, relatable internal dialogue.',
+            'cinematic_narration': 'Beautiful visual storytelling with poetic voiceover. Evocative language, sensory details.',
+            'cinematic_broll': 'Minimal dialogue, let visuals carry emotion. Only essential lines, mostly ambient.',
         }
 
         tone_guidelines = {
-            'casual': 'Friendly, conversational, relatable tone',
-            'professional': 'Formal, authoritative, trustworthy tone',
-            'emotional': 'Evocative, inspiring, heartfelt tone',
-            'energetic': 'Upbeat, exciting, dynamic tone',
+            'casual': 'conversational, friendly, like talking to a friend, use simple everyday words',
+            'professional': 'polished, confident, credible, clear benefits, authoritative but approachable',
+            'emotional': 'warm, heartfelt, connect with feelings, use sensory and emotional language',
+            'energetic': 'exciting, dynamic, punchy, short sentences, high energy, motivating',
         }
 
-        platform_duration = {
-            'instagram_reels': 'max 30 seconds (aim for 20-25 seconds)',
-            'facebook_feed': 'max 30 seconds (aim for 20-25 seconds)',
-            'youtube_shorts': 'max 30 seconds (aim for 20-25 seconds)',
-            'tiktok': 'max 20 seconds (aim for 15-18 seconds)',
-            'linkedin': 'max 60 seconds (aim for 45-50 seconds)',
-        }
-        duration_target = platform_duration.get(platform, 'max 30 seconds (aim for 20-25 seconds)')
-        word_target = self._get_word_target_for_platform(platform)
+        # Build story beats instruction
+        beats_instruction = '\n'.join([
+            f"Beat {i+1} — {beat.upper().replace('_', ' ')}"
+            for i, beat in enumerate(story_arc['beats'])
+        ])
 
-        prompt = f"""Write approximately {word_target} words of testimonial voiceover for a {duration_target} ad.
+        category_rules = self._get_category_script_rules(product_category)
 
-Product/Service: {business_brief}
-Type: {category_guidelines.get(ad_category, ad_category)}
-Platform: {platform}
-Tone: {tone}
+        prompt = f"""You are an expert Indian ad copywriter creating a {target_duration_seconds}-second social media ad script.
 
-GUIDELINES:
-- Aim for roughly {word_target} words (flexibility of ±15% is fine, but don't go much longer)
-- Speak naturally and conversationally, like someone telling a friend
-- Start with an immediate hook (first sentence must grab attention)
-- End with a direct call-to-action
-- Include 3-4 sentences about the benefit or impact
-- Add 1-2 personal, authentic statements
-- Use natural filler words (like, seriously, so, right?) but not excessively
-- Keep sentences punchy and varied in length
+PRODUCT/BRIEF: {business_brief}
+PRODUCT CATEGORY: {product_category}
+AD FORMAT: {category_guidelines.get(ad_category, 'engaging product advertisement')}
+PLATFORM: {platform}
+TONE: {tone_guidelines.get(tone, tone)}
+TARGET WORDS: approximately {word_target} words (±15% flexibility)
 
-STRUCTURE:
-1. Hook - Establish the problem or emotion in 1-2 sentences
-2. Discovery - Introduce the solution in 1 sentence
-3. Impact - Show the benefit/results in 2-3 sentences
-4. Personal endorsement - Why you genuinely love it in 1-2 sentences
-5. Call-to-action - Tell them what to do (1 sentence)
+STORY ARC: {story_arc['arc_name']}
+{story_arc['story']}
 
-FORMAT: Plain text only. No formatting, no asterisks, no brackets, no speaker labels, no timing markers, no scene directions. Just natural dialogue as someone would speak it.
+REQUIRED STORY BEATS (write in this exact order):
+{beats_instruction}
 
-OUTPUT: Only the script text. Nothing else.
+PRODUCT CATEGORY RULES for {product_category}:
+{category_rules}
+
+UNIVERSAL RULES:
+- First sentence MUST be a scroll-stopping hook (question, surprising fact, or emotional statement)
+- Product name must appear naturally within first 40% of script
+- End with ONE clear call-to-action
+- Write in {language} language
+- NO generic filler phrases like "amazing product" or "you won't believe"
+- Make it feel REAL, not like an ad
+- Every line must serve the story — no wasted words
+
+OUTPUT: Plain script text only. No formatting, labels, timing marks, or directions.
 """
         return prompt
+
+    def _get_category_script_rules(self, product_category: str) -> str:
+        """Get category-specific rules for script generation."""
+        rules = {
+            'skincare': '- Must mention specific skin benefit (glow/dark spots/hydration)\n- Include "before" feeling and "after" result\n- Use sensory language (smooth, soft, melts in)\n- Mention timeframe for results if applicable',
+            'apparel_ethnic': '- Evoke occasion or emotion (wedding, festival, family gathering)\n- Describe how wearing it FEELS, not just looks\n- Use fabric sensory words (flowing, soft, lightweight)\n- Connect to cultural pride or personal identity',
+            'food_confectionery': '- Lead with sensory experience (taste, texture, smell, sound)\n- Minimal product features — maximum emotion\n- Use indulgence language (melt, rich, smooth, irresistible)\n- Include sharing or moment context',
+            'food_beverage': '- Open with thirst/craving or refreshment need\n- Describe taste journey (first sip to aftertaste)\n- Mention occasion (morning, post-workout, hot day)\n- Sensory language throughout',
+            'footwear': '- Start with activity or movement\n- Connect shoes to confidence or performance\n- Mention specific occasion or use case\n- Use motion and energy language',
+            'supplement_health': '- Open with specific pain/problem (fatigue, weakness, deficiency)\n- Mention key ingredient or mechanism simply\n- Show transformation with timeframe\n- Include credibility signal (tested/certified/doctor)',
+            'jewelry': '- Connect to occasion or emotion (gift, milestone, self-love)\n- Describe craftsmanship with sensory detail\n- Evoke the feeling of wearing it\n- Include gifting or self-treat angle',
+            'general': '- Open with problem or desire your audience feels\n- Connect product to their life improvement\n- Include one specific proof point or result\n- End with urgency or clear next step',
+        }
+        return rules.get(product_category, rules['general'])
 
     def _clean_script_response(self, raw_script: str, word_target: int = 80) -> str:
         """

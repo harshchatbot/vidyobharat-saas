@@ -147,7 +147,7 @@ def build_ltx_storyboard_prompt(
     return prompt
 
 
-def build_deep_explainer_prompt(
+def build_sora_deep_explainer_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
     reference: str | None,
@@ -247,7 +247,7 @@ def build_deep_explainer_prompt(
     return prompt
 
 
-def build_ugc_ad_prompt(
+def build_sora_ugc_ad_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
     reference: str | None,
@@ -497,9 +497,9 @@ def build_scene_prompt(
     inputs: dict[str, Any] | None = None,
 ) -> str:
     if recipe.id == 'deep_dive_explainer' and recipe.generation_defaults.model_key == 'sora2':
-        return build_deep_explainer_prompt(recipe, scene, reference, inputs)
+        return build_sora_deep_explainer_prompt(recipe, scene, reference, inputs)
     if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key in {'sora2', 'fal_ltx23_i2v'}:
-        return build_ugc_ad_prompt(recipe, scene, reference, inputs)
+        return build_sora_ugc_ad_prompt(recipe, scene, reference, inputs)
     if recipe.id in LTX_BENCHMARK_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':
         return build_ltx_cinematic_montage_prompt(recipe, scene, reference, inputs)
     if recipe.id in LTX_FREEFORM_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':

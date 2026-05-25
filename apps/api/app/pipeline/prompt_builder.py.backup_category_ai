@@ -5,53 +5,6 @@ from typing import Any
 from app.recipes.recipe_registry import EXPLAINER_RECIPE_IDS, LTX_BENCHMARK_RECIPE_IDS, LTX_FREEFORM_RECIPE_IDS, RecipeConfig, UGC_AD_RECIPE_IDS
 
 
-def _get_category_scene_instructions(product_category: str, scene_index: int, total_scenes: int) -> str:
-    """Get category-specific visual instructions for each scene position."""
-
-    position = 'opening' if scene_index == 0 else ('closing' if scene_index == total_scenes - 1 else 'middle')
-
-    instructions = {
-        'skincare': {
-            'opening': 'AVATAR ACTION: Avatar touching face gently, looking at imaginary mirror, slightly concerned expression. PRODUCT: Not yet visible. SHOT: Tight face close-up.',
-            'middle': 'AVATAR ACTION: Avatar using dropper, applying 2-3 drops to cheek with fingertips, gentle upward circular massage. PRODUCT: Prominently held, label visible. SHOT: Macro hands + face.',
-            'closing': 'AVATAR ACTION: Avatar touching glowing cheek, amazed expression. PRODUCT: Beauty shot displayed. SHOT: Face glow close-up + product.',
-        },
-        'apparel_ethnic': {
-            'opening': 'AVATAR ACTION: Avatar standing straight showing full outfit, confident posture. PRODUCT: Full outfit visible head-to-toe. SHOT: Full body wide shot.',
-            'middle': 'AVATAR ACTION: Avatar doing slow 180-degree twirl, one hand lifted, fabric flowing. PRODUCT: Fabric movement and texture clearly visible. SHOT: Medium-wide capture movement.',
-            'closing': 'AVATAR ACTION: Avatar showing fabric detail, appreciative expression. PRODUCT: Fabric macro detail + portrait. SHOT: Split macro fabric + portrait.',
-        },
-        'food_confectionery': {
-            'opening': 'AVATAR ACTION: Hands unwrapping product slowly. PRODUCT: Hero product macro shot, texture visible. SHOT: Extreme close-up product + hands.',
-            'middle': 'AVATAR ACTION: Avatar taking first bite, bliss expression, eyes closing. PRODUCT: Clearly visible before bite. SHOT: Face close-up + product.',
-            'closing': 'AVATAR ACTION: Avatar offering product toward camera, warm smile. PRODUCT: Full product visible, brand/logo clear. SHOT: Medium warm shot.',
-        },
-        'footwear': {
-            'opening': 'AVATAR ACTION: Avatar walking toward camera, full body, confident stride. PRODUCT: Shoes prominently visible at ground level. SHOT: Low angle ground level.',
-            'middle': 'AVATAR ACTION: Avatar stopping, looking at shoes, then at camera. PRODUCT: Shoe close-up detail, side profile. SHOT: Macro shoe detail.',
-            'closing': 'AVATAR ACTION: Avatar walking confidently away then turning back. PRODUCT: Full shoe visible in motion. SHOT: Medium tracking shot.',
-        },
-        'supplement_health': {
-            'opening': 'AVATAR ACTION: Avatar looking tired, hand on forehead, low energy. PRODUCT: Not visible yet. SHOT: Medium avatar close-up.',
-            'middle': 'AVATAR ACTION: Avatar holding product label-forward, pointing to key benefit. PRODUCT: Label fully visible, hero shot. SHOT: Product + hands prominent.',
-            'closing': 'AVATAR ACTION: Avatar standing energized, bright expression, dynamic posture. PRODUCT: Product displayed beside avatar. SHOT: Medium confident portrait.',
-        },
-        'jewelry': {
-            'opening': 'AVATAR ACTION: Avatar opening jewelry box, revealing piece. PRODUCT: Jewelry hero shot, catching light. SHOT: Extreme macro jewelry detail.',
-            'middle': 'AVATAR ACTION: Avatar wearing jewelry, touching it with fingertips, confident. PRODUCT: Jewelry clearly visible on body. SHOT: Portrait with jewelry prominent.',
-            'closing': 'AVATAR ACTION: Avatar confident portrait, jewelry catching light. PRODUCT: Jewelry clearly visible. SHOT: Three-quarter portrait.',
-        },
-    }
-
-    category_instructions = instructions.get(product_category, {
-        'opening': 'AVATAR ACTION: Avatar holding product prominently. PRODUCT: Hero product shot. SHOT: Medium shot.',
-        'middle': 'AVATAR ACTION: Avatar demonstrating product use naturally. PRODUCT: Clearly visible throughout. SHOT: Action demonstration.',
-        'closing': 'AVATAR ACTION: Avatar confident with product displayed. PRODUCT: Prominently visible. SHOT: Closing portrait.',
-    })
-
-    return category_instructions.get(position, category_instructions.get('middle', ''))
-
-
 def build_ltx_cinematic_montage_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
@@ -147,7 +100,7 @@ def build_ltx_storyboard_prompt(
     return prompt
 
 
-def build_deep_explainer_prompt(
+def build_sora_deep_explainer_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
     reference: str | None,
@@ -247,7 +200,7 @@ def build_deep_explainer_prompt(
     return prompt
 
 
-def build_ugc_ad_prompt(
+def build_sora_ugc_ad_prompt(
     recipe: RecipeConfig,
     scene: dict[str, Any],
     reference: str | None,
@@ -364,29 +317,6 @@ def build_ugc_ad_prompt(
     if recipe.config.reference_prompt:
         prompt += f'Creative direction: {recipe.config.reference_prompt}\n'
 
-    # Add product category-specific scene instructions
-    product_category = str(scene.get('product_category') or 'general').strip()
-    scene_index = int(scene.get('scene_index') or 0)
-    total_scenes = int(scene.get('total_scenes') or 2)
-    category_scene_instruction = _get_category_scene_instructions(product_category, scene_index, total_scenes)
-
-    prompt += f"""
-🎯 CATEGORY-SPECIFIC SCENE DIRECTION ({product_category.upper()}):
-{category_scene_instruction}
-
-🔥 PRODUCT PROMINENCE RULES:
-- Product must be PROMINENTLY VISIBLE in minimum 70% of frame time
-- Product label/branding must be readable at least once per scene
-- NO blurry background product placement — product is a CO-STAR not a prop
-- Avatar must INTERACT with product (hold/use/wear/apply) — not just stand near it
-
-🎬 SHOT COMPOSITION:
-- This is scene {scene_index + 1} of {total_scenes}
-- Follow the scene direction above for this position in the story
-- Vary shot type from other scenes — avoid all scenes being same framing
-
-"""
-
     prompt += (
         'Prioritize native short-form ad realism over polished commercial spectacle.\n'
         'Make the scene feel creator-like, mobile-first, and believable for Meta Reels or TikTok style placements.\n'
@@ -497,9 +427,9 @@ def build_scene_prompt(
     inputs: dict[str, Any] | None = None,
 ) -> str:
     if recipe.id == 'deep_dive_explainer' and recipe.generation_defaults.model_key == 'sora2':
-        return build_deep_explainer_prompt(recipe, scene, reference, inputs)
+        return build_sora_deep_explainer_prompt(recipe, scene, reference, inputs)
     if recipe.id in UGC_AD_RECIPE_IDS and recipe.generation_defaults.model_key in {'sora2', 'fal_ltx23_i2v'}:
-        return build_ugc_ad_prompt(recipe, scene, reference, inputs)
+        return build_sora_ugc_ad_prompt(recipe, scene, reference, inputs)
     if recipe.id in LTX_BENCHMARK_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':
         return build_ltx_cinematic_montage_prompt(recipe, scene, reference, inputs)
     if recipe.id in LTX_FREEFORM_RECIPE_IDS and recipe.generation_defaults.model_key == 'ltx':

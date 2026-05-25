@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { CustomAvatarCreator } from '@/components/avatar/CustomAvatarCreator';
 import { AvatarOption } from '../hooks/useAvatarLibrary';
 
 interface AvatarPickerModalProps {
@@ -12,7 +10,6 @@ interface AvatarPickerModalProps {
   loading: boolean;
   error: string | null;
   selectedAvatarId?: string;
-  userId?: string | null;
   onSelectAvatar: (avatar: AvatarOption) => void;
   onClose: () => void;
 }
@@ -23,13 +20,11 @@ export default function AvatarPickerModal({
   loading,
   error,
   selectedAvatarId,
-  userId,
   onSelectAvatar,
   onClose,
 }: AvatarPickerModalProps) {
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const [previewModal, setPreviewModal] = useState<AvatarOption | null>(null);
-  const [showCreator, setShowCreator] = useState(false);
 
   const activePreview = activePreviewId
     ? avatars.find((a) => a.personaId === activePreviewId)
@@ -38,20 +33,6 @@ export default function AvatarPickerModal({
   const publicAvatars = avatars.filter((a) => a.source === 'preset');
   const savedAvatars = avatars.filter((a) => a.source === 'saved');
 
-  const handleAvatarCreated = (avatar: { id: string; name: string; referenceImages: string[] }) => {
-    setShowCreator(false);
-    // Create a new AvatarOption from the created avatar
-    const newAvatar: AvatarOption = {
-      id: avatar.id,
-      personaId: avatar.id,
-      name: avatar.name,
-      imageUrl: avatar.referenceImages?.[0],
-      source: 'saved',
-      sourceLabel: 'Saved',
-    };
-    onSelectAvatar(newAvatar);
-  };
-
   return (
     <Modal open={open} onClose={onClose} size="xl">
       <div className="space-y-5">
@@ -59,52 +40,15 @@ export default function AvatarPickerModal({
         <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">AI Avatar</p>
-            <h3 className="mt-1 text-xl font-semibold text-text">
-              {showCreator ? 'Create Your Avatar' : 'Choose your spokesperson'}
-            </h3>
+            <h3 className="mt-1 text-xl font-semibold text-text">Choose your spokesperson</h3>
             <p className="mt-1 text-sm text-muted">
-              {showCreator
-                ? 'Upload photos and set your avatar details.'
-                : 'Preview the avatar first, then use it for your ad scenes.'}
+              Preview the avatar first, then use it for your ad scenes.
             </p>
           </div>
-          {!showCreator && avatars.length > 0 && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowCreator(false)}
-                className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
-                style={{
-                  borderColor: !showCreator ? 'hsl(var(--color-primary))' : 'hsl(var(--color-border))',
-                  color: !showCreator ? 'hsl(var(--color-primary))' : 'hsl(var(--color-muted))',
-                }}
-              >
-                Choose Avatar
-              </button>
-              <button
-                onClick={() => setShowCreator(true)}
-                className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition"
-                style={{
-                  borderColor: showCreator ? 'hsl(var(--color-primary))' : 'hsl(var(--color-border))',
-                  color: showCreator ? 'hsl(var(--color-primary))' : 'hsl(var(--color-muted))',
-                }}
-              >
-                <Plus className="size-3.5" />
-                Create Avatar
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Content */}
-        {showCreator ? (
-          <div className="max-h-[70vh] overflow-y-auto">
-            <CustomAvatarCreator
-              userId={userId}
-              onCreated={handleAvatarCreated}
-              onCancel={() => setShowCreator(false)}
-            />
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="py-10 text-center text-sm text-muted">Loading avatars...</div>
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_340px]">
@@ -115,29 +59,6 @@ export default function AvatarPickerModal({
                   Failed to load avatars. Please try again.
                 </div>
               )}
-
-              {/* Create Avatar Card - Always First */}
-              <div
-                onClick={() => setShowCreator(true)}
-                className="rounded-[20px] border-2 border-dashed p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition min-h-[120px]"
-                style={{
-                  borderColor: 'hsl(var(--color-primary) / 0.4)',
-                  background: 'hsl(var(--color-primary) / 0.05)',
-                }}
-              >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: 'hsl(var(--color-primary) / 0.15)' }}
-                >
-                  <Plus className="size-5" style={{ color: 'hsl(var(--color-primary))' }} />
-                </div>
-                <p className="text-xs font-semibold text-center" style={{ color: 'hsl(var(--color-primary))' }}>
-                  Create Your Avatar
-                </p>
-                <p className="text-[10px] text-center" style={{ color: 'hsl(var(--color-muted))' }}>
-                  Upload your photos
-                </p>
-              </div>
 
               {/* Public Avatars */}
               {publicAvatars.length > 0 && (
@@ -291,7 +212,7 @@ export default function AvatarPickerModal({
 
               {avatars.length === 0 && !loading && (
                 <div className="rounded-[20px] border border-dashed border-border/74 p-6 text-sm text-muted">
-                  No avatars available. Create your first avatar using the form above.
+                  No avatars available. Create or import avatars from the main Create page.
                 </div>
               )}
             </div>
@@ -366,6 +287,43 @@ export default function AvatarPickerModal({
             </aside>
           </div>
         )}
+
+        {/* Preview Modal */}
+        <Modal open={Boolean(previewModal)} onClose={() => setPreviewModal(null)}>
+          {previewModal && (
+            <div className="mx-auto max-w-[420px] space-y-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Avatar Preview</p>
+                <h3 className="mt-1 text-lg font-semibold text-text">{previewModal.name}</h3>
+              </div>
+              {previewModal.previewVideoUrl ? (
+                <video
+                  className="w-full rounded-[16px]"
+                  autoPlay
+                  controls
+                  src={previewModal.previewVideoUrl}
+                />
+              ) : previewModal.imageUrl ? (
+                <img
+                  src={previewModal.imageUrl}
+                  alt={previewModal.name}
+                  className="w-full rounded-[16px]"
+                />
+              ) : (
+                <div className="rounded-[16px] border border-dashed border-border/74 py-12 text-center text-sm text-muted">
+                  No preview available
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setPreviewModal(null)}
+                className="w-full rounded-[12px] border border-border/74 px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface/50"
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </Modal>
       </div>
     </Modal>
   );

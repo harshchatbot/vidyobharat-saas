@@ -856,13 +856,7 @@ class AvatarService:
         except FirebaseNotConfiguredError:
             return None
 
-        # First check 'avatars' collection (public/preset avatars)
         snap = db.collection('avatars').document(normalized_id).get()
-
-        # If not found, check 'actors' collection (user-created custom avatars)
-        if not snap.exists:
-            snap = db.collection('actors').document(normalized_id).get()
-
         if not snap.exists:
             return None
 

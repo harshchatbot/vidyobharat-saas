@@ -21,7 +21,7 @@ from app.services.credit_service import CreditService
 from app.services.emotion_tagging_service import EmotionTaggingService
 from app.services.quality_score_service import QualityScoreService
 from app.services.render_service import celery_app as app
-from app.services.script_generation_service import ScriptGenerationService
+from app.services.script_generation_service import ScriptGenerationService, detect_product_category
 from app.services.storyboard_generation_service import StoryboardGenerationService
 from app.services.avatar_service import AvatarService, resolve_avatar_storage_url
 from app.services.storyboard_pipeline_service import SceneState, StoryboardWorkflowState
@@ -1051,9 +1051,12 @@ def generate_storyboard_task(
             db.delete_scene(project_id, old_scene.id)
             deleted_old_scene_count += 1
 
+        # Detect product category for scene enrichment
+        product_category = detect_product_category(project.business_brief or '')
+
         # Create scene documents in Firestore
         scene_ids = []
-        for scene_card, normalized_duration in zip(scene_cards, normalized):
+        for scene_index, (scene_card, normalized_duration) in enumerate(zip(scene_cards, normalized)):
             scene = db.create_scene(
                 project_id=project_id,
                 scene_generation_id=scene_generation_id,
@@ -1073,6 +1076,9 @@ def generate_storyboard_task(
                 normalized_scene_duration_seconds=int(normalized_duration),
                 target_duration_seconds=target_duration_seconds,
                 duration_seconds=int(normalized_duration),
+                product_category=product_category,
+                scene_index=scene_index,
+                total_scenes=len(scene_cards),
             )
             scene_ids.append(scene.id)
 

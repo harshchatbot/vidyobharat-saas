@@ -130,12 +130,12 @@ function Header() {
       <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-4">
         <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
 
-        <nav className="hidden items-center gap-7 text-sm font-medium lg:flex" style={{ color: 'hsl(var(--color-text))' }}>
+        <nav className="hidden items-center gap-7 text-sm font-medium lg:flex" style={{ color: 'hsl(var(--color-muted))' }}>
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="transition hover:text-[hsl(var(--color-accent-amber))]"
+              className="transition hover:text-[hsl(var(--color-text))]"
             >
               {item.label}
             </Link>
@@ -148,8 +148,8 @@ function Header() {
           </div>
           <Link
             href="/login"
-            className="hidden rounded-full px-4 py-2 text-sm font-medium transition hover:text-[hsl(var(--color-accent-amber))] sm:inline-flex"
-            style={{ color: 'hsl(var(--color-text))' }}
+            className="hidden rounded-full px-4 py-2 text-sm font-medium transition sm:inline-flex"
+            style={{ color: 'hsl(var(--color-muted))' }}
           >
             Sign in
           </Link>
@@ -380,7 +380,7 @@ function SocialProofStats() {
             borderColor: 'hsl(var(--glass-border))',
             background:
               'linear-gradient(180deg, hsl(var(--color-surface) / 0.78) 0%, hsl(var(--color-surface) / 0.58) 100%)',
-            boxShadow: '0 28px 80px hsl(var(--color-text) / 0.1)',
+            boxShadow: '0 28px 80px rgba(0, 0, 0, 0.2)',
           }}
         >
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
@@ -461,9 +461,9 @@ function MissionSection() {
     <motion.section
       className="glass-card grid gap-6 rounded-[34px] p-6 sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-10"
       style={{
-        background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
+        background: 'linear-gradient(180deg, hsl(240 10% 10% / 0.98) 0%, hsl(240 8% 14% / 0.96) 100%)',
         borderColor: 'hsl(var(--color-border) / 0.38)',
-        boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
+        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.28)',
       }}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
@@ -612,9 +612,9 @@ function RecipeShowcaseSection() {
             key={recipe.title}
             className="glass-card flex h-full flex-col overflow-hidden rounded-[30px]"
             style={{
-              background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
+              background: 'linear-gradient(180deg, hsl(240 10% 10% / 0.98) 0%, hsl(240 8% 14% / 0.96) 100%)',
               borderColor: 'hsl(var(--color-border) / 0.38)',
-              boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.24)',
             }}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -650,17 +650,17 @@ function RecipeShowcaseSection() {
               <div
                 className="flex flex-1 flex-col p-5 sm:p-6"
                 style={{
-                  background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.94) 0%, hsl(var(--color-surface-soft) / 0.98) 100%)',
+                  background: 'linear-gradient(180deg, rgba(14, 14, 18, 0.94) 0%, rgba(20, 20, 26, 0.98) 100%)',
                 }}
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-accent-amber))` }}>{recipe.category}</p>
                 <h3
                   className="mt-3 min-h-[7.5rem] font-heading text-[2rem] font-extrabold leading-[1.06] tracking-tight"
-                  style={{ color: 'hsl(var(--color-text))' }}
+                  style={{ color: '#F7F4EE' }}
                 >
                   {recipe.title}
                 </h3>
-                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: 'rgba(239, 234, 226, 0.78)' }}>
                   {recipe.description}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2 pt-1">
@@ -669,9 +669,9 @@ function RecipeShowcaseSection() {
                       key={feature}
                       className="inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]"
                       style={{
-                        borderColor: 'hsl(var(--color-border) / 0.5)',
-                        background: 'hsl(var(--color-surface) / 0.5)',
-                        color: 'hsl(var(--color-text))',
+                        borderColor: 'rgba(255, 255, 255, 0.08)',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        color: 'rgba(247, 244, 238, 0.82)',
                       }}
                     >
                       {feature}

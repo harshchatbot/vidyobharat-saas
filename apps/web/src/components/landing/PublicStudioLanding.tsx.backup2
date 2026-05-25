@@ -27,9 +27,7 @@ import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import { AnimatedMarqueeHero } from '@/components/ui/hero-3';
 import { LampContainer } from '@/components/ui/lamp';
-import { AnimatedTestimonialGrid } from '@/components/landing/AnimatedTestimonialGrid';
 import { heroMedia } from '@/config/heroMedia';
-import { cn } from '@/lib/utils';
 
 const steps = [
   {
@@ -88,27 +86,6 @@ const creditExamples = [
   ['Affordable 5s avatar ad', '49 credits'],
 ];
 
-const socialProofStats = [
-  { value: '500+', label: 'Creators', icon: Heart },
-  { value: '2,800+', label: 'Videos Generated', icon: Film },
-  { value: '3', label: 'AI Recipes', icon: Sparkles },
-  { value: '₹0', label: 'To Start Free', icon: BadgeIndianRupee },
-] as const;
-
-const testimonialImages = [
-  { imgSrc: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop', alt: 'Creator 1' },
-  { imgSrc: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop', alt: 'Creator 2' },
-  { imgSrc: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop', alt: 'Creator 3' },
-  { imgSrc: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop', alt: 'Creator 4' },
-  { imgSrc: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop', alt: 'Creator 5' },
-  { imgSrc: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop', alt: 'Creator 6' },
-  { imgSrc: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop', alt: 'Creator 7' },
-  { imgSrc: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop', alt: 'Creator 8' },
-  { imgSrc: 'https://images.unsplash.com/photo-1488161628813-04466f872be2?w=200&h=200&fit=crop', alt: 'Creator 9' },
-  { imgSrc: 'https://images.unsplash.com/photo-1514315384763-ba401779410f?w=200&h=200&fit=crop', alt: 'Creator 10' },
-  { imgSrc: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop', alt: 'Creator 11' },
-];
-
 function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -130,12 +107,12 @@ function Header() {
       <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-4">
         <BrandLogo href="/" variant="full" size="md" className="max-w-[180px] sm:max-w-[220px]" />
 
-        <nav className="hidden items-center gap-7 text-sm font-medium lg:flex" style={{ color: 'hsl(var(--color-text))' }}>
+        <nav className="hidden items-center gap-7 text-sm font-medium lg:flex" style={{ color: 'hsl(var(--color-muted))' }}>
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="transition hover:text-[hsl(var(--color-accent-amber))]"
+              className="transition hover:text-[hsl(var(--color-text))]"
             >
               {item.label}
             </Link>
@@ -148,8 +125,8 @@ function Header() {
           </div>
           <Link
             href="/login"
-            className="hidden rounded-full px-4 py-2 text-sm font-medium transition hover:text-[hsl(var(--color-accent-amber))] sm:inline-flex"
-            style={{ color: 'hsl(var(--color-text))' }}
+            className="hidden rounded-full px-4 py-2 text-sm font-medium transition sm:inline-flex"
+            style={{ color: 'hsl(var(--color-muted))' }}
           >
             Sign in
           </Link>
@@ -157,9 +134,9 @@ function Header() {
             href="/signup"
             className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
             style={{
-              background: 'hsl(var(--color-accent-amber))',
+              background: 'hsl(var(--color-primary))',
               color: 'hsl(var(--color-elevated))',
-              boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.24)'
+              boxShadow: '0 18px 60px hsl(var(--color-primary) / 0.22)'
             }}
           >
             Start free
@@ -200,7 +177,7 @@ function Header() {
               }}
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'hsl(var(--color-primary))' }}>Explore RangManch</p>
-              <p className="mt-1 text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>Jump into create, browse galleries, check pricing, or switch your theme.</p>
+              <p className="mt-1 text-sm leading-6" style={{ color: 'hsl(var(--color-muted))' }}>Jump into create, browse public galleries, check pricing, or switch your theme.</p>
             </div>
             <div className="mt-3 grid gap-2">
             {navItems.map((item) => (
@@ -234,7 +211,6 @@ function Header() {
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'hsl(var(--color-text))' }}>Theme</p>
                 <p className="mt-0.5 text-xs" style={{ color: 'hsl(var(--color-muted))' }}>Switch light or dark mode</p>
-                
               </div>
               <ToggleTheme />
             </div>
@@ -257,9 +233,9 @@ function Header() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-3.5 text-sm font-semibold"
                 style={{
-                  background: `hsl(var(--color-accent-amber))`,
+                  background: `hsl(var(--color-primary))`,
                   color: 'hsl(var(--color-elevated))',
-                  boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.22)'
+                  boxShadow: '0 18px 60px hsl(var(--color-primary) / 0.22)'
                 }}
               >
                 Start free
@@ -295,20 +271,20 @@ function ProductPreviewMock() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border p-4" style={{ borderColor: `hsl(var(--color-border) / 0.1)`, background: `hsl(var(--color-surface) / 0.2)` }}>
-              <UserRound className="h-5 w-5" style={{ color: `hsl(var(--color-accent-amber))` }} />
+              <UserRound className="h-5 w-5" style={{ color: `hsl(var(--color-primary))` }} />
               <p className="mt-3 text-sm font-semibold">Ruhi avatar</p>
               <p className="mt-1 text-xs" style={{ color: `hsl(var(--color-text) / 0.48)` }}>Indoor creator look</p>
             </div>
             <div className="rounded-2xl border p-4" style={{ borderColor: `hsl(var(--color-border) / 0.1)`, background: `hsl(var(--color-surface) / 0.2)` }}>
-              <BadgeIndianRupee className="h-5 w-5" style={{ color: `hsl(var(--color-accent-amber))` }} />
+              <BadgeIndianRupee className="h-5 w-5" style={{ color: `hsl(var(--color-primary))` }} />
               <p className="mt-3 text-sm font-semibold">Standard lane</p>
               <p className="mt-1 text-xs" style={{ color: `hsl(var(--color-text) / 0.48)` }}>Better consistency</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border p-4" style={{ borderColor: `hsl(var(--color-accent-amber) / 0.28)`, background: `hsl(var(--color-accent-amber) / 0.08)` }}>
-            <p className="text-sm font-semibold" style={{ color: `hsl(var(--color-accent-amber))` }}>Estimated output</p>
-            <p className="mt-1 text-xs" style={{ color: `hsl(var(--color-text-secondary))` }}>Short vertical product ad • AI avatar • voice + lip sync</p>
+          <div className="rounded-2xl border p-4" style={{ borderColor: `hsl(var(--color-primary) / 0.28)`, background: `hsl(var(--color-primary) / 0.08)` }}>
+            <p className="text-sm font-semibold" style={{ color: `hsl(var(--color-primary))` }}>Estimated output</p>
+            <p className="mt-1 text-xs" style={{ color: `hsl(var(--color-text) / 0.56)` }}>Short vertical product ad • AI avatar • voice + lip sync</p>
           </div>
         </div>
       </div>
@@ -339,19 +315,11 @@ function ProductScrollPreview() {
       <ContainerScroll
         titleComponent={
           <div className="mx-auto max-w-3xl space-y-4 px-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>How RangManch helps</p>
-            <h2
-              className="font-heading text-[2.2rem] font-extrabold tracking-tight sm:text-[3.5rem] sm:leading-[1.02]"
-              style={{
-                background: 'linear-gradient(135deg, hsl(var(--color-text)) 0%, hsl(var(--color-accent-amber)) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>How RangManch helps</p>
+            <h2 className="font-heading text-[2.2rem] font-extrabold tracking-tight text-[hsl(var(--color-text))] sm:text-[3.5rem] sm:leading-[1.02]">
               From one product photo to a finished UGC ad, without a production team.
             </h2>
-            <p className="mx-auto max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
+            <p className="mx-auto max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-muted))` }}>
               The live recipe flow is simple: choose AI avatar, upload product image, provide a few basics, and generate high-quality ads at a fraction of traditional production cost.
             </p>
           </div>
@@ -366,7 +334,7 @@ function ProductScrollPreview() {
 function SocialProofStats() {
   return (
     <motion.section
-      className="py-8 sm:py-10"
+      className="py-8 border-y"
       style={{ borderColor: 'hsl(var(--glass-border))' }}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
@@ -374,82 +342,26 @@ function SocialProofStats() {
       transition={{ duration: 0.5 }}
     >
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div
-          className="rounded-[28px] border p-3 sm:p-4"
-          style={{
-            borderColor: 'hsl(var(--glass-border))',
-            background:
-              'linear-gradient(180deg, hsl(var(--color-surface) / 0.78) 0%, hsl(var(--color-surface) / 0.58) 100%)',
-            boxShadow: '0 28px 80px hsl(var(--color-text) / 0.1)',
-          }}
-        >
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-            {socialProofStats.map((stat, index) => {
-              const Icon = stat.icon;
-
-              return (
-                <motion.div
-                  key={stat.label}
-                  className={cn(
-                    'group relative flex flex-col items-center gap-3 overflow-hidden rounded-[22px] border px-4 py-5 text-center transition-transform duration-300 sm:px-5 sm:py-6',
-                    'hover:-translate-y-0.5'
-                  )}
-                  style={{
-                    borderColor: 'hsl(var(--glass-border))',
-                    background:
-                      'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.82) 100%)',
-                  }}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                >
-                  <div
-                    className="absolute inset-x-6 top-0 h-px opacity-80"
-                    style={{
-                      background:
-                        'linear-gradient(90deg, transparent 0%, hsl(var(--color-accent-amber) / 0.85) 50%, transparent 100%)',
-                    }}
-                  />
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
-                    style={{
-                      background: 'radial-gradient(circle at top, hsl(var(--color-accent-amber) / 0.3), transparent 72%)',
-                    }}
-                  >
-                    <Icon
-                      className="h-5 w-5"
-                      style={{
-                        color: 'hsl(var(--color-accent-amber))',
-                        filter: 'drop-shadow(0 0 10px hsl(var(--color-accent-amber) / 0.22))',
-                      }}
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <h3
-                      className="text-[1.9rem] font-black tracking-tight sm:text-[2.35rem]"
-                      style={{
-                        background: 'linear-gradient(135deg, hsl(var(--color-primary)) 0%, hsl(var(--color-accent-amber)) 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        textShadow: '0 0 22px hsl(var(--color-accent-amber) / 0.08)',
-                      }}
-                    >
-                      {stat.value}
-                    </h3>
-                    <p
-                      className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] sm:text-[0.82rem]"
-                      style={{ color: 'hsl(var(--color-text-secondary))' }}
-                    >
-                      {stat.label}
-                    </p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          {[
+            { value: '500+', label: 'Creators', icon: '🎨' },
+            { value: '2,800+', label: 'Videos Generated', icon: '🎬' },
+            { value: '3', label: 'AI Recipes', icon: '✨' },
+            { value: '₹0', label: 'To Start Free', icon: '🚀' },
+          ].map((stat) => (
+            <motion.div
+              key={stat.label}
+              className="flex flex-col items-center gap-1"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+            >
+              <span className="text-2xl">{stat.icon}</span>
+              <p className="gradient-text text-2xl font-bold">{stat.value}</p>
+              <p className="text-sm" style={{ color: 'hsl(var(--color-muted))' }}>{stat.label}</p>
+            </motion.div>
+          ))}
         </div>
       </div>
     </motion.section>
@@ -460,23 +372,18 @@ function MissionSection() {
   return (
     <motion.section
       className="glass-card grid gap-6 rounded-[34px] p-6 sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-10"
-      style={{
-        background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
-        borderColor: 'hsl(var(--color-border) / 0.38)',
-        boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
-      }}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Our mission</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>Our mission</p>
         <h2 className="mt-4 max-w-xl font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]" style={{ color: `hsl(var(--color-text))` }}>
           Make AI creation simple for Bharat&apos;s creators and businesses.
         </h2>
       </div>
-      <div className="space-y-5 text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
+      <div className="space-y-5 text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-muted))` }}>
         <p>
           Most small teams cannot afford repeated shoots, editors, models, voice artists, and agency timelines. RangManch AI exists to make quality content creation accessible, faster, and dramatically more affordable.
         </p>
@@ -485,15 +392,7 @@ function MissionSection() {
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
           {['Built for creators', 'Useful for local businesses', 'Simple credit pricing', 'Made in India'].map((item) => (
-            <span
-              key={item}
-              className="rounded-full border px-3 py-1.5 text-sm"
-              style={{
-                borderColor: `hsl(var(--color-border) / 0.3)`,
-                background: `hsl(var(--color-surface) / 0.22)`,
-                color: `hsl(var(--color-text) / 0.9)`,
-              }}
-            >
+            <span key={item} className="rounded-full border px-3 py-1.5 text-sm" style={{ borderColor: `hsl(var(--color-border) / 0.08)`, background: `hsl(var(--color-surface) / 0.16)`, color: `hsl(var(--color-text) / 0.86)` }}>
               {item}
             </span>
           ))}
@@ -506,21 +405,15 @@ function MissionSection() {
 function OfferSection() {
   return (
     <motion.section
-      className="space-y-6"
+      className="space-y-8"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div className="max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>What you can do today</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>What you can do today</p>
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-primary))] via-[hsl(var(--color-accent-pink))] to-[hsl(var(--color-primary))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Three guided recipes for speed, plus freeform creation when you want full control.
         </h2>
       </div>
@@ -530,21 +423,16 @@ function OfferSection() {
           <motion.div
             key={item.title}
             className="glass-card rounded-[28px] p-5"
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.92) 100%)',
-              borderColor: 'hsl(var(--color-border) / 0.5)',
-              boxShadow: '0 18px 40px hsl(var(--color-text) / 0.08)',
-            }}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4, delay: index * 0.1 }}
           >
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border" style={{ borderColor: `hsl(var(--color-border) / 0.72)`, background: `hsl(var(--color-bg-soft) / 0.82)`, color: `hsl(var(--color-accent-amber))` }}>
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border" style={{ borderColor: `hsl(var(--color-border) / 0.72)`, background: `hsl(var(--color-bg-soft) / 0.8)`, color: `hsl(var(--color-primary))` }}>
               {item.icon}
             </div>
             <p className="mt-5 text-xl font-heading font-extrabold" style={{ color: `hsl(var(--color-text))` }}>{item.title}</p>
-            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-text-secondary))` }}>{item.body}</p>
+            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-muted))` }}>{item.body}</p>
           </motion.div>
         ))}
       </div>
@@ -558,130 +446,160 @@ function RecipeShowcaseSection() {
       src: '/hero/ugc_avtaar_product_ad.mp4',
       category: 'Avatar Product',
       title: 'Quick UGC ads with AI avatars',
-      description: 'Upload product, pick avatar, generate ad.',
-      highlights: ['Fast setup', 'Brand-ready output'],
-      overlay: 'Product + avatar -> UGC ad',
+      description: 'Select an AI avatar, upload product image, provide a few basic inputs, click generate, and get a polished UGC-style product ad.',
+      features: [
+        'Affordable to premium quality lanes',
+        'Product image + avatar + a few campaign basics',
+        'Built for fast, repeatable ad output',
+      ]
     },
     {
       src: '/videos/samples/anime_lofi_reel.mp4',
       category: 'Anime Lofi Reel',
       title: 'Beautiful anime reels without prompt complexity',
-      description: 'Choose character, vibe, and motion in minutes.',
-      highlights: ['Guided inputs', 'Anime-first styling'],
-      overlay: 'Character + vibe -> anime reel',
+      description: 'Upload the anime character, choose the motion, vibe, and scenery, and RangManch builds the reel prompt for you automatically.',
+      features: null,
+      overlay: 'Upload character → choose motion, vibe, scene → generate reel',
     },
     {
       src: '/videos/samples/panda_dancing.mp4',
       category: 'Make Anything Dance',
       title: 'Turn any character into a viral reel',
-      description: 'Map one dance reference to any character.',
-      highlights: ['Reference-led motion', 'Vertical-ready export'],
-      overlay: 'Character + dance -> viral reel',
+      description: 'Upload one clear character image and one dance clip, and RangManch transfers the choreography into a playful vertical dance reel.',
+      features: [
+        'Choreography follows the uploaded dance reference',
+        '9:16 social-first output by default',
+        'Great for memes, mascots, anime edits, and pets',
+      ],
+      overlay: 'Character image + dance video = viral reel',
     }
   ];
 
   return (
     <motion.section
-      className="space-y-6"
+      className="space-y-8"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div className="max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Guided recipes</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-primary)) 0%, hsl(var(--color-accent-amber)) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>Guided recipes</p>
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-primary))] via-[hsl(var(--color-accent-pink))] to-[hsl(var(--color-primary))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Three fast ways to see RangManch working for you.
         </h2>
       </div>
 
-      <div
-        className="grid gap-5 md:grid-cols-3"
-        style={{
-          background: 'radial-gradient(circle at 50% 0%, hsl(var(--color-accent-amber) / 0.12), transparent 58%)',
-        }}
-      >
+      <div className="masonry-grid">
         {recipes.map((recipe, index) => (
           <motion.article
             key={recipe.title}
-            className="glass-card flex h-full flex-col overflow-hidden rounded-[30px]"
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.98) 0%, hsl(var(--color-surface-soft) / 0.96) 100%)',
-              borderColor: 'hsl(var(--color-border) / 0.38)',
-              boxShadow: '0 24px 64px hsl(var(--color-text) / 0.12)',
-            }}
+            className="glass-card overflow-hidden rounded-[30px] w-full"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4, delay: index * 0.15 }}
           >
-            <div className="flex h-full flex-col">
-              <div
-                className="relative border-b"
-                style={{
-                  borderColor: `hsl(var(--color-border) / 0.65)`,
-                  background: 'radial-gradient(circle at top, hsl(var(--color-accent-amber) / 0.08), transparent 65%)',
-                }}
-              >
+            <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+              <div className="relative border-b md:border-b-0 md:border-r" style={{ borderColor: `hsl(var(--color-border) / 0.65)` }}>
                 <LandingVideo
                   src={recipe.src}
                   poster={recipe.src}
-                  className="aspect-[4/5] h-full w-full object-cover"
+                  className="aspect-[9/16] h-full w-full object-cover"
                 />
                 {recipe.overlay && (
-                  <div
-                    className="absolute inset-x-3 bottom-3 rounded-[16px] border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] backdrop-blur"
-                    style={{
-                      borderColor: `hsl(var(--color-border) / 0.28)`,
-                      background: `hsl(var(--color-bg) / 0.76)`,
-                      color: `hsl(var(--color-elevated))`,
-                    }}
-                  >
+                  <div className="absolute inset-x-3 bottom-3 rounded-[16px] border px-3 py-2 text-xs font-medium backdrop-blur" style={{ borderColor: `hsl(var(--color-border) / 0.12)`, background: `hsl(var(--color-surface) / 0.45)`, color: `hsl(var(--color-text))` }}>
                     {recipe.overlay}
                   </div>
                 )}
               </div>
-              <div
-                className="flex flex-1 flex-col p-5 sm:p-6"
-                style={{
-                  background: 'linear-gradient(180deg, hsl(var(--color-surface) / 0.94) 0%, hsl(var(--color-surface-soft) / 0.98) 100%)',
-                }}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-accent-amber))` }}>{recipe.category}</p>
-                <h3
-                  className="mt-3 min-h-[7.5rem] font-heading text-[2rem] font-extrabold leading-[1.06] tracking-tight"
-                  style={{ color: 'hsl(var(--color-text))' }}
-                >
-                  {recipe.title}
-                </h3>
-                <p className="mt-3 min-h-[3.25rem] text-sm leading-6" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+              <div className="p-5 sm:p-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: `hsl(var(--color-primary))` }}>{recipe.category}</p>
+                <h3 className="mt-3 font-heading text-2xl font-extrabold tracking-tight" style={{ color: `hsl(var(--color-text))` }}>{recipe.title}</h3>
+                <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-muted))` }}>
                   {recipe.description}
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2 pt-1">
-                  {recipe.highlights.map((feature) => (
-                    <span
-                      key={feature}
-                      className="inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]"
-                      style={{
-                        borderColor: 'hsl(var(--color-border) / 0.5)',
-                        background: 'hsl(var(--color-surface) / 0.5)',
-                        color: 'hsl(var(--color-text))',
-                      }}
-                    >
-                      {feature}
-                    </span>
-                  ))}
-                </div>
+                {recipe.features && (
+                  <div className="mt-5 space-y-2 text-sm" style={{ color: `hsl(var(--color-muted))` }}>
+                    {recipe.features.map(feature => (
+                      <div key={feature} className="flex items-start gap-2">
+                        <Check className="mt-0.5 h-4 w-4" style={{ color: `hsl(var(--color-primary))` }} />
+                        {feature}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </motion.article>
         ))}
+      </div>
+    </motion.section>
+  );
+}
+
+function TestimonialsSection() {
+  const testimonials = [
+    {
+      name: 'Priya Sharma',
+      role: 'D2C Brand Owner, Mumbai',
+      avatar: '🧑‍💼',
+      quote: 'I created my first UGC ad in under 10 minutes. The AI avatar looks so real, my customers thought it was a real influencer.'
+    },
+    {
+      name: 'Rahul Verma',
+      role: 'Content Creator, Delhi',
+      avatar: '🎥',
+      quote: 'The Anime Lofi recipe is insane. I went from idea to a viral-ready reel in one click. My Instagram engagement doubled.'
+    },
+    {
+      name: 'Sneha Patel',
+      role: 'Marketing Agency, Bangalore',
+      avatar: '📱',
+      quote: 'We now deliver 5x more ad variants to clients at a fraction of the cost. RangManchAI is our secret weapon.'
+    },
+  ];
+
+  return (
+    <motion.section
+      className="py-16"
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 className="gradient-text text-3xl font-bold text-center mb-3">
+          Creators love RangManchAI
+        </h2>
+        <p className="text-center mb-10 text-sm" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+          Join 500+ Indian creators making AI-powered ads
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {testimonials.map((t, index) => (
+            <motion.div
+              key={t.name}
+              className="glass-card p-6 flex flex-col gap-4"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: index * 0.1 }}
+            >
+              <p className="text-sm leading-relaxed" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+                &quot;{t.quote}&quot;
+              </p>
+              <div className="flex items-center gap-3 mt-auto">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'hsl(var(--color-primary) / 0.15)' }}>
+                  {t.avatar}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: 'hsl(var(--color-text))' }}>{t.name}</p>
+                  <p className="text-xs" style={{ color: 'hsl(var(--color-muted))' }}>{t.role}</p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </motion.section>
   );
@@ -714,23 +632,17 @@ function WhoItIsForSection() {
 
   return (
     <motion.section
-      className="py-10"
+      className="py-16"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
-    >
+    >cjujy
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="font-heading text-3xl font-bold text-center mb-3"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+        <h2 className="gradient-text text-3xl font-bold text-center mb-3">
           Built for creators
         </h2>
-        <p className="text-center mb-8 text-sm" style={{ color: 'hsl(var(--color-text-secondary))' }}>
+        <p className="text-center mb-10 text-sm" style={{ color: 'hsl(var(--color-text-secondary))' }}>
           Whether you&#39;re solo or scaling — RangManchAI works for you
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -738,11 +650,6 @@ function WhoItIsForSection() {
             <motion.div
               key={card.title}
               className="glass-card p-6 flex flex-col gap-3 group hover:border-[hsl(var(--color-primary)/0.4)] transition-all"
-              style={{
-                background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.9) 100%)',
-                borderColor: 'hsl(var(--color-border) / 0.5)',
-                boxShadow: '0 18px 40px hsl(var(--color-text) / 0.08)',
-              }}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -753,7 +660,7 @@ function WhoItIsForSection() {
               <p className="text-sm leading-relaxed flex-1" style={{ color: 'hsl(var(--color-text-secondary))' }}>
                 {card.description}
               </p>
-              <a href={card.href} className="text-sm font-semibold mt-2" style={{ color: 'hsl(var(--color-accent-amber))' }}>
+              <a href={card.href} className="text-sm font-semibold mt-2" style={{ color: 'hsl(var(--color-primary))' }}>
                 {card.cta}
               </a>
             </motion.div>
@@ -767,21 +674,15 @@ function WhoItIsForSection() {
 function StepsSection() {
   return (
     <motion.section
-      className="space-y-6"
+      className="space-y-8"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Simple workflow</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>Simple workflow</p>
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-primary))] via-[hsl(var(--color-accent-pink))] to-[hsl(var(--color-primary))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           No complex model settings. Just a clear path to content.
         </h2>
       </div>
@@ -791,24 +692,19 @@ function StepsSection() {
           <motion.div
             key={step.title}
             className="glass-card rounded-[28px] p-5"
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--color-elevated) / 0.96) 0%, hsl(var(--color-surface) / 0.92) 100%)',
-              borderColor: 'hsl(var(--color-border) / 0.5)',
-              boxShadow: '0 18px 40px hsl(var(--color-text) / 0.08)',
-            }}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4, delay: index * 0.1 }}
           >
             <div className="flex items-center justify-between">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border" style={{ borderColor: `hsl(var(--color-border) / 0.18)`, background: `hsl(var(--color-surface) / 0.55)`, color: `hsl(var(--color-accent-amber))` }}>
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border" style={{ borderColor: `hsl(var(--color-border) / 0.1)`, background: `hsl(var(--color-surface) / 0.04)`, color: `hsl(var(--color-primary))` }}>
                 {step.icon}
               </div>
               <span className="text-sm font-bold" style={{ color: `hsl(var(--color-text) / 0.26)` }}>0{index + 1}</span>
             </div>
             <p className="mt-5 text-xl font-heading font-extrabold" style={{ color: `hsl(var(--color-text))` }}>{step.title}</p>
-            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-text-secondary))` }}>{step.body}</p>
+            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-muted))` }}>{step.body}</p>
           </motion.div>
         ))}
       </div>
@@ -819,21 +715,15 @@ function StepsSection() {
 function UseCasesSection() {
   return (
     <motion.section
-      className="space-y-6"
+      className="space-y-8"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.5 }}
     >
       <div className="max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Who it helps</p>
-        <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]"
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>Who it helps</p>
+        <h2 className="mt-3 bg-gradient-to-r from-[hsl(var(--color-primary))] via-[hsl(var(--color-accent-pink))] to-[hsl(var(--color-primary))] bg-clip-text font-heading text-[2.1rem] font-extrabold tracking-tight text-transparent sm:text-[3rem] sm:leading-[1.04]">
           Built for people who need content, speed, and better unit economics.
         </h2>
       </div>
@@ -843,19 +733,15 @@ function UseCasesSection() {
           <motion.div
             key={item.title}
             className="rounded-[28px] border p-5"
-            style={{
-              borderColor: `hsl(var(--color-border) / 0.4)`,
-              background: `linear-gradient(180deg,hsl(var(--color-elevated)/0.96),hsl(var(--color-surface)/0.9))`,
-              boxShadow: '0 18px 40px hsl(var(--color-text) / 0.08)',
-            }}
+            style={{ borderColor: `hsl(var(--color-border) / 0.3)`, background: `linear-gradient(180deg,hsl(var(--color-surface)/0.06),hsl(var(--color-surface)/0.02))` }}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4, delay: index * 0.1 }}
           >
-            <Check className="h-5 w-5" style={{ color: `hsl(var(--color-accent-amber))` }} />
+            <Check className="h-5 w-5" style={{ color: `hsl(var(--color-primary))` }} />
             <p className="mt-5 text-xl font-heading font-extrabold" style={{ color: `hsl(var(--color-text))` }}>{item.title}</p>
-            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-text-secondary))` }}>{item.body}</p>
+            <p className="mt-3 text-sm leading-7" style={{ color: `hsl(var(--color-muted))` }}>{item.body}</p>
           </motion.div>
         ))}
       </div>
@@ -877,20 +763,20 @@ function PricingTeaser() {
       transition={{ duration: 0.5 }}
     >
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>Simple credits</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>Simple credits</p>
         <h2 className="mt-3 font-heading text-[2.1rem] font-extrabold tracking-tight sm:text-[3rem] sm:leading-[1.04]">
           Start free, test fast, and scale only when content starts working.
         </h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
+        <p className="mt-4 max-w-xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-muted))` }}>
           Every user gets 40 free credits every month, plus a one-time 120 credit activation bonus. Use credits across images, normal videos, anime reels, and Avatar Product Ads.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold" style={{ borderColor: `hsl(var(--color-border) / 0.3)`, background: `hsl(var(--color-surface) / 0.2)` }}>
-            <Sparkles className="h-4 w-4" style={{ color: `hsl(var(--color-accent-amber))` }} />
+            <Sparkles className="h-4 w-4" style={{ color: `hsl(var(--color-primary))` }} />
             40 monthly free credits
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold" style={{ borderColor: `hsl(var(--color-border) / 0.3)`, background: `hsl(var(--color-surface) / 0.2)` }}>
-            <ImagePlus className="h-4 w-4" style={{ color: `hsl(var(--color-accent-amber))` }} />
+            <ImagePlus className="h-4 w-4" style={{ color: `hsl(var(--color-primary))` }} />
             120 activation credits one time
           </span>
         </div>
@@ -907,11 +793,11 @@ function PricingTeaser() {
       <div className="space-y-3">
         {creditExamples.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: `hsl(var(--color-border) / 0.3)`, background: `hsl(var(--color-surface) / 0.1)` }}>
-            <span className="text-sm" style={{ color: `hsl(var(--color-text-secondary))` }}>{label}</span>
+            <span className="text-sm" style={{ color: `hsl(var(--color-muted))` }}>{label}</span>
             <span className="text-sm font-bold">{value}</span>
           </div>
         ))}
-        <p className="px-1 text-xs leading-5" style={{ color: `hsl(var(--color-text-secondary))` }}>Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
+        <p className="px-1 text-xs leading-5" style={{ color: `hsl(var(--color-muted) / 0.8)` }}>Examples are approximate. Actual credits vary by model, duration, audio mode, references, and add-ons.</p>
       </div>
     </motion.section>
   );
@@ -929,22 +815,16 @@ function FinalCta() {
     >
       <LampContainer>
         <div className="mx-auto max-w-3xl px-5 text-center">
-          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-accent-amber))` }}>
+          <p className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: `hsl(var(--color-primary))` }}>
             <Heart className="h-3.5 w-3.5" />
             Made for Indian creators
           </p>
 
-          <h2 className="mt-4 font-heading text-[2.2rem] font-extrabold tracking-tight sm:text-[3.4rem] sm:leading-[1.02]"
-            style={{
-              background: 'linear-gradient(135deg, hsl(var(--color-accent-amber)) 0%, hsl(var(--color-accent-amber) / 0.72) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}>
+          <h2 className="mt-4 bg-gradient-to-r from-[hsl(var(--color-primary))] via-[hsl(var(--color-accent-pink))] to-[hsl(var(--color-primary))] bg-clip-text font-heading text-[2.2rem] font-extrabold tracking-tight text-transparent sm:text-[3.4rem] sm:leading-[1.02]">
             Start with a guided recipe, then create as freely as you want.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-text-secondary))` }}>
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 sm:text-base" style={{ color: `hsl(var(--color-muted))` }}>
             Build low-cost AI avatar ads, beautiful anime lofi reels, and freeform videos or images from the same studio. RangManch is designed to help you publish faster, not learn model jargon.
           </p>
 
@@ -953,9 +833,9 @@ function FinalCta() {
               href="/signup"
               className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition hover:opacity-95"
               style={{
-                background: `linear-gradient(135deg,hsl(var(--color-accent-amber)),hsl(var(--color-accent-amber) / 0.78))`,
+                background: `linear-gradient(135deg,hsl(var(--color-primary)),hsl(var(--color-accent-pink)))`,
                 color: `hsl(var(--color-elevated))`,
-                boxShadow: '0 18px 60px hsl(var(--color-accent-amber) / 0.26)'
+                boxShadow: '0 18px 60px hsl(var(--color-primary) / 0.32)'
               }}
             >
               Start free
@@ -985,73 +865,59 @@ export function PublicStudioLanding() {
     <div
       className="mesh-bg relative min-h-screen overflow-hidden text-[hsl(var(--color-text))]"
       style={{
-        background: `radial-gradient(circle_at_18%_14%,hsl(var(--color-accent-amber)/0.16),transparent_30%),radial-gradient(circle_at_82%_10%,hsl(var(--color-accent-amber)/0.1),transparent_26%),linear-gradient(180deg,hsl(var(--color-bg-soft)),hsl(var(--color-bg))_34%,hsl(var(--color-bg)))`
+        background: `radial-gradient(circle_at_20%_15%,hsl(var(--color-primary)/0.2),transparent_32%),radial-gradient(circle_at_82%_12%,hsl(var(--color-accent-pink)/0.16),transparent_30%)`
       }}
     >
-      {/* FIX 1: Hero section with proper orb positioning */}
+      {/* Floating Orbs */}
       <div style={{
-        position: 'relative',
-        overflow: 'hidden',
-        zIndex: 1,
-      }}>
-        {/* Floating Orbs - positioned absolutely inside relative container */}
-        <div style={{
-          position: 'absolute', top: '-10%', left: '-5%',
-          width: '500px', height: '500px', borderRadius: '50%',
-          background: 'radial-gradient(circle, hsl(var(--color-accent-amber) / 0.12) 0%, transparent 70%)',
-          filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0,
-        }} />
-        <div style={{
-          position: 'absolute', top: '20%', right: '-5%',
-          width: '400px', height: '400px', borderRadius: '50%',
-          background: 'radial-gradient(circle, hsl(var(--color-accent-amber) / 0.08) 0%, transparent 70%)',
-          filter: 'blur(50px)', pointerEvents: 'none', zIndex: 0,
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '10%', left: '30%',
-          width: '300px', height: '300px', borderRadius: '50%',
-          background: 'radial-gradient(circle, hsl(var(--color-primary) / 0.06) 0%, transparent 70%)',
-          filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0,
-        }} />
+        position: 'absolute', top: '-10%', left: '-5%',
+        width: '500px', height: '500px', borderRadius: '50%',
+        background: 'radial-gradient(circle, hsl(var(--color-primary) / 0.12) 0%, transparent 70%)',
+        filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0,
+      }} />
+      <div style={{
+        position: 'absolute', top: '20%', right: '-5%',
+        width: '400px', height: '400px', borderRadius: '50%',
+        background: 'radial-gradient(circle, hsl(var(--color-accent-pink) / 0.1) 0%, transparent 70%)',
+        filter: 'blur(50px)', pointerEvents: 'none', zIndex: 0,
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '10%', left: '30%',
+        width: '300px', height: '300px', borderRadius: '50%',
+        background: 'radial-gradient(circle, hsl(var(--color-accent-cyan) / 0.08) 0%, transparent 70%)',
+        filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0,
+      }} />
 
-        <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8 relative z-10">
-          <Header />
-        </div>
-
-        <section className="w-full overflow-hidden relative z-10">
-          <AnimatedMarqueeHero
-            tagline="40 free monthly credits + 120 activation credits for new users"
-            title={
-              <>
-                Generate avatar ads,
-                <br />
-                anime reels, and social videos fast.
-              </>
-            }
-            description="RangManch helps creators, brands, and small teams create quick UGC ads with AI avatars, guided anime lofi reels, and freeform videos or images without dealing with complicated model settings."
-            ctaText="Start free with credits"
-            images={[]}
-            mediaItems={heroMedia}
-            className="rounded-none border-0 bg-transparent shadow-none"
-            ctaHref="/signup"
-          />
-        </section>
+      <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8 relative z-10">
+        <Header />
       </div>
 
+      <section className="w-full overflow-hidden relative z-10">
+        <AnimatedMarqueeHero
+          tagline="40 free monthly credits + 120 activation credits for new users"
+          title={
+            <>
+              Generate avatar ads,
+              <br />
+              anime reels, and social videos fast.
+            </>
+          }
+          description="RangManch helps creators, brands, and small teams create quick UGC ads with AI avatars, guided anime lofi reels, and freeform videos or images without dealing with complicated model settings."
+          ctaText="Start free with credits"
+          images={[]}
+          mediaItems={heroMedia}
+          className="rounded-none border-0 bg-transparent shadow-none"
+          ctaHref="/signup"
+        />
+      </section>
+
       <div className="mx-auto w-full max-w-[1180px] px-4 pb-10 sm:px-6 lg:px-8 relative z-10">
-        <main className="space-y-12 pb-8 sm:space-y-14">
+        <main className="space-y-16 pb-8 sm:space-y-20">
           <ProductScrollPreview />
           <SocialProofStats />
           <OfferSection />
           <RecipeShowcaseSection />
-          <AnimatedTestimonialGrid
-            testimonials={testimonialImages}
-            badgeText="500+ Creators"
-            title="Loved by creators worldwide"
-            description="Join creators, agencies, and D2C brands making AI-powered content with RangManchAI"
-            ctaText="Start free today"
-            ctaHref="/signup"
-          />
+          <TestimonialsSection />
           <MissionSection />
           <WhoItIsForSection />
           <StepsSection />
