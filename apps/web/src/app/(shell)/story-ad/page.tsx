@@ -143,7 +143,7 @@ export default function StoryAdPage() {
   const [isClient, setIsClient] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const { project, loading, error, initializeProject, getProject, startProduction } = useStoryboardProject();
+  const { project, loading, error, initializeProject, getProject, startProduction, generateStoryboard } = useStoryboardProject();
   const { productionStatus, isPolling, startPolling, stopPolling } = useProductionPolling(project?.id);
   const { avatars, loading: avatarLoading, error: avatarError, loadAvatarLibrary } = useAvatarLibrary(userId);
 
@@ -483,8 +483,13 @@ export default function StoryAdPage() {
   const handleCharacterLockApprove = async () => {
     console.log('[page.tsx] Character locked → generating Scene Breakdown');
     // After character lock, scene breakdown (storyboard) is generated
-    if (isMockMode) { setLocalState('storyboard_awaiting_approval'); return; }
+    if (isMockMode) { setLocalState('storyboard_generating'); return; }
     if (!project?.id) return;
+    try {
+      await generateStoryboard(project.id);
+    } catch (error) {
+      console.error('[page.tsx] storyboard generation trigger failed after character lock', error);
+    }
     const updated = await getProject(project.id);
     const nextState = updated?.workflow_state as WorkflowState | undefined;
     if (nextState) {
@@ -495,13 +500,13 @@ export default function StoryAdPage() {
           nextState,
           projectId: project.id,
         });
-        setLocalState('storyboard_awaiting_approval');
+        setLocalState('storyboard_generating');
         return;
       }
 
       setLocalState(nextState);
     } else {
-      setLocalState('storyboard_awaiting_approval');
+      setLocalState('storyboard_generating');
     }
   };
 
@@ -993,7 +998,7 @@ export default function StoryAdPage() {
             <div>
               <h1 className="text-3xl font-bold" style={{ color: `hsl(var(--color-text))` }}>Storyboard Ad Creator</h1>
               <p className="mt-1" style={{ color: `hsl(var(--color-muted))` }}>
-                Create multi-scene ads with AI in 5 checkpoints
+                Create storyboard-led AI ads from script to final video
               </p>
             </div>
             <div className="flex gap-2">

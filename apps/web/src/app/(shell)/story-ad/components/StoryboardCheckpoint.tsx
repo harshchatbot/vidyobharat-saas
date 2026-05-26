@@ -55,6 +55,7 @@ export default function StoryboardCheckpoint({
 }: StoryboardCheckpointProps) {
   const {
     generateStoryboard,
+    retrySceneBreakdown,
     approveStoryboard,
     approveSceneImage,
     rejectSceneImage,
@@ -75,6 +76,9 @@ export default function StoryboardCheckpoint({
   const backNavFetchAttemptedRef = useRef<string | null>(null);
 
   const isMockMode = isTestModeEnabled();
+  const workflowState = String(project.workflow_state || '').toLowerCase();
+  const isStoryboardFailed = workflowState === 'storyboard_failed';
+  const backendStoryboardError = String((project as any).storyboard_generation_error || '').trim();
 
   const normalizeScenesFromProject = (value: any): SceneCard[] => {
     const projectObj = value?.project || value;
@@ -206,7 +210,7 @@ export default function StoryboardCheckpoint({
     if (scenes.length > 0) return;
     if (normalizeScenesFromProject(project).length > 0) return;
 
-    const state = String(project.workflow_state || '').toLowerCase();
+    const state = workflowState;
     const canStart =
       state === 'script_approved' ||
       state === 'storyboard_generating';
@@ -229,7 +233,7 @@ export default function StoryboardCheckpoint({
       setLocalError(error instanceof Error ? error.message : 'Failed to generate storyboard.');
       setIsGenerating(false);
     });
-  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, generateStoryboard]);
+  }, [isMockMode, project?.id, workflowState, scenes.length, generateStoryboard]);
 
   // Back-navigation fallback: if scenes are empty in scene-plan states, fetch once.
   useEffect(() => {
@@ -237,13 +241,15 @@ export default function StoryboardCheckpoint({
     if (!project?.id) return;
     if (scenes.length > 0) return;
 
-    const state = String(project.workflow_state || '').toLowerCase();
+    const state = workflowState;
     const shouldHydrateFromBackend =
+      state === 'storyboard_generating' ||
       state === 'storyboard_approved' ||
       state === 'storyboard_awaiting_approval' ||
       state === 'images_generating' ||
       state === 'images_awaiting_approval' ||
-      state === 'images_approved';
+      state === 'images_approved' ||
+      state === 'script_approved';
     if (!shouldHydrateFromBackend) return;
     if (backNavFetchAttemptedRef.current === project.id) return;
     backNavFetchAttemptedRef.current = project.id;
@@ -269,7 +275,7 @@ export default function StoryboardCheckpoint({
     };
 
     void hydrate();
-  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, getProject]);
+  }, [isMockMode, project?.id, workflowState, scenes.length, getProject]);
 
   // Real mode: poll project every 2s until scenes exist (90s timeout).
   useEffect(() => {
@@ -277,11 +283,12 @@ export default function StoryboardCheckpoint({
     if (!project?.id) return;
     if (scenes.length > 0) return;
 
-    const state = String(project.workflow_state || '').toLowerCase();
+    const state = workflowState;
     const shouldPoll =
       generationStartedRef.current === project.id ||
       state === 'storyboard_generating' ||
-      state === 'storyboard_awaiting_approval';
+      state === 'storyboard_awaiting_approval' ||
+      state === 'script_approved';
     if (!shouldPoll) return;
     if (pollingIntervalRef.current) return;
 
@@ -325,14 +332,16 @@ export default function StoryboardCheckpoint({
 
     pollingTimeoutRef.current = setTimeout(() => {
       setIsGenerating(false);
-      setLocalError('Scene breakdown is taking longer than expected. Please retry.');
+      if (!isStoryboardFailed) {
+        setLocalError('Scene breakdown is taking longer than expected. Please retry.');
+      }
       stopPolling();
     }, 90000);
 
     return () => {
       stopPolling();
     };
-  }, [isMockMode, project?.id, project?.workflow_state, scenes.length, getProject]);
+  }, [isMockMode, project?.id, workflowState, scenes.length, getProject, isStoryboardFailed]);
 
   const displayScenes = scenes;
 
@@ -363,6 +372,18 @@ export default function StoryboardCheckpoint({
     } catch (error) {
       console.error('[StoryboardCheckpoint] Failed to approve storyboard:', error);
       setLocalError(error instanceof Error ? error.message : 'Failed to approve storyboard.');
+    }
+  };
+
+  const handleRetrySceneBreakdown = async () => {
+    if (isMockMode || !project?.id) return;
+    try {
+      setLocalError(null);
+      setIsGenerating(true);
+      await retrySceneBreakdown(project.id);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Failed to retry scene breakdown.');
+      setIsGenerating(false);
     }
   };
 
@@ -581,9 +602,6 @@ export default function StoryboardCheckpoint({
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <span className="inline-block text-xs font-semibold uppercase tracking-widest text-teal-600 bg-teal-50 px-3 py-1 rounded-full mb-3">
-          TOW · Stage 7 of 13 — Scene Breakdown
-        </span>
         <h2 className={styles.headerTitle}>🎞️ Scene Breakdown</h2>
         <p className={styles.headerSubtitle}>
           Scene-by-scene text plan: spoken line, visual description, shot type, mood, environment, avatar action, and duration.
@@ -591,7 +609,7 @@ export default function StoryboardCheckpoint({
         </p>
       </div>
 
-      {localError ? (
+      {localError || (isStoryboardFailed && backendStoryboardError) ? (
         <div
           style={{
             marginBottom: '1rem',
@@ -603,7 +621,7 @@ export default function StoryboardCheckpoint({
             fontSize: '0.875rem',
           }}
         >
-          {localError}
+          {localError || backendStoryboardError}
         </div>
       ) : null}
 
@@ -646,8 +664,10 @@ export default function StoryboardCheckpoint({
                   : durationMismatch
                     ? 'Duration mismatch'
                   : displayScenes.length > 0
-                    ? (String(project.workflow_state || '').toLowerCase() === 'storyboard_approved' ? 'Approved' : 'Fits duration')
-                    : 'Waiting...'}
+                    ? (workflowState === 'storyboard_approved' ? 'Approved' : 'Fits duration')
+                    : (workflowState === 'storyboard_generating' || workflowState === 'script_approved' || workflowState === 'storyboard_awaiting_approval')
+                      ? 'Generating...'
+                      : (isStoryboardFailed ? 'Failed' : 'Waiting...')}
               </p>
             </div>
           </div>
@@ -680,10 +700,22 @@ export default function StoryboardCheckpoint({
 
         {!isBusy && displayScenes.length === 0 ? (
           <div className={styles.loadingContainer}>
-            {String(project.workflow_state || '').toLowerCase() === 'storyboard_approved' ? (
+            {isStoryboardFailed ? (
+              <>
+                <p className={styles.loadingText}>Scene breakdown generation failed</p>
+                <p className={styles.loadingSubtext}>
+                  {backendStoryboardError || 'Please retry scene breakdown generation.'}
+                </p>
+              </>
+            ) : workflowState === 'storyboard_approved' ? (
               <>
                 <p className={styles.loadingText}>Scenes are not loaded. Refreshing...</p>
                 <p className={styles.loadingSubtext}>Fetching approved scene breakdown from backend.</p>
+              </>
+            ) : workflowState === 'storyboard_generating' || workflowState === 'storyboard_awaiting_approval' || workflowState === 'script_approved' ? (
+              <>
+                <p className={styles.loadingText}>Generating scene breakdown...</p>
+                <p className={styles.loadingSubtext}>Polling backend for scene cards and duration plan.</p>
               </>
             ) : (
               <>
@@ -1003,12 +1035,12 @@ export default function StoryboardCheckpoint({
           </div>
         ) : null}
 
-        <div className={styles.actionSection}>
+        <div className={`${styles.actionSection} flex-col sm:flex-row`}>
           {onBack && canGoBack ? (
             <button
               onClick={onBack}
               disabled={isBusy}
-              className={`${styles.actionButton} ${styles.buttonSecondary} ${isBusy ? styles.buttonDisabledState : ''}`}
+              className={`${styles.actionButton} ${styles.buttonSecondary} w-full sm:w-auto ${isBusy ? styles.buttonDisabledState : ''}`}
             >
               ← Back to Character Lock
             </button>
@@ -1017,7 +1049,7 @@ export default function StoryboardCheckpoint({
           <button
             onClick={handleApprove}
             disabled={isBusy || displayScenes.length === 0 || durationMismatch}
-            className={`${styles.actionButton} ${styles.buttonPrimary} ${
+            className={`${styles.actionButton} ${styles.buttonPrimary} w-full sm:w-auto ${
               isBusy || displayScenes.length === 0 || durationMismatch ? styles.buttonDisabledState : ''
             }`}
           >
@@ -1027,10 +1059,19 @@ export default function StoryboardCheckpoint({
           <button
             onClick={handleRegenerateAll}
             disabled={isBusy}
-            className={`${styles.actionButton} ${styles.buttonSecondary} ${isBusy ? styles.buttonDisabledState : ''}`}
+            className={`${styles.actionButton} ${styles.buttonSecondary} w-full sm:w-auto ${isBusy ? styles.buttonDisabledState : ''}`}
           >
             {isBusy ? 'Processing…' : '🔄 Regenerate All'}
           </button>
+          {(isStoryboardFailed || backendStoryboardError) ? (
+            <button
+              onClick={handleRetrySceneBreakdown}
+              disabled={isBusy}
+              className={`${styles.actionButton} ${styles.buttonSecondary} w-full sm:w-auto ${isBusy ? styles.buttonDisabledState : ''}`}
+            >
+              {isBusy ? 'Retrying…' : '↻ Retry Scene Breakdown'}
+            </button>
+          ) : null}
         </div>
       </div>
 

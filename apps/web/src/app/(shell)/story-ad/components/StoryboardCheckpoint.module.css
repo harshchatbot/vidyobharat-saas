@@ -499,3 +499,33 @@
 .infoText strong {
   font-weight: 600;
 }
+
+@media (max-width: 640px) {
+  .card {
+    padding: 1rem;
+  }
+
+  .sceneDetails {
+    grid-template-columns: 1fr;
+  }
+
+  .sceneButtons {
+    flex-direction: column;
+  }
+
+  .editButtons {
+    flex-direction: column;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actionSection {
+    flex-direction: column;
+  }
+
+  .actionButton {
+    width: 100%;
+  }
+}

@@ -979,15 +979,32 @@ def generate_storyboard_task(
     - Return list of scene IDs
     """
     try:
-        logger.info(
-            "generate_storyboard_task_started",
-            extra={"project_id": project_id, "task_id": self.request.id},
-        )
+        logger.info("storyboard_scene_breakdown_task_started", extra={"project_id": project_id, "task_id": self.request.id})
+        logger.info("generate_storyboard_task_started", extra={"project_id": project_id, "task_id": self.request.id})
 
         db = StoryboardRepository()
         project = db.get_project(project_id)
         if not project:
             raise ValueError(f"Project {project_id} not found")
+
+        logger.info(
+            "storyboard_scene_breakdown_task_input",
+            extra={
+                "project_id": project_id,
+                "ad_category": getattr(project, "ad_category", None),
+                "creation_mode": getattr(project, "creation_mode", None),
+                "production_path": getattr(project, "production_path", None),
+                "continuity_mode": getattr(project, "continuity_mode", None),
+                "script_present": bool(getattr(project, "display_script", None)),
+                "target_duration": int(getattr(project, "target_ad_duration_seconds", 15) or 15),
+            },
+        )
+        logger.info("storyboard_scene_breakdown_category", extra={"project_id": project_id, "ad_category": getattr(project, "ad_category", None)})
+        logger.info("storyboard_scene_breakdown_creation_mode", extra={"project_id": project_id, "creation_mode": getattr(project, "creation_mode", None)})
+        logger.info("storyboard_scene_breakdown_production_path", extra={"project_id": project_id, "production_path": getattr(project, "production_path", None)})
+        logger.info("storyboard_scene_breakdown_continuity_mode", extra={"project_id": project_id, "continuity_mode": getattr(project, "continuity_mode", None)})
+        logger.info("storyboard_scene_breakdown_script_present", extra={"project_id": project_id, "script_present": bool(getattr(project, "display_script", None))})
+        logger.info("storyboard_scene_breakdown_target_duration", extra={"project_id": project_id, "target_duration": int(getattr(project, "target_ad_duration_seconds", 15) or 15)})
 
         if not project.display_script:
             raise ValueError("No approved script available")
@@ -1025,6 +1042,7 @@ def generate_storyboard_task(
             language=project.language,
             tone=project.tone,
         )
+        logger.info("storyboard_scene_breakdown_generated_scene_count", extra={"project_id": project_id, "scene_count": len(scene_cards)})
         target_duration_seconds = int(getattr(project, "target_ad_duration_seconds", 15) or 15)
         durations_before = [int(getattr(card, "duration_seconds", 0) or 0) for card in scene_cards]
         logger.info(
@@ -1083,6 +1101,7 @@ def generate_storyboard_task(
                 original_llm_duration_seconds=scene_card.duration_seconds,
                 normalized_scene_duration_seconds=int(normalized_duration),
                 target_duration_seconds=target_duration_seconds,
+                continuity_mode=str(getattr(project, "continuity_mode", None) or ""),
                 duration_seconds=int(normalized_duration),
                 product_category=product_category,
                 scene_index=scene_index,
@@ -1108,6 +1127,8 @@ def generate_storyboard_task(
                 f"Overall score: {storyboard_score.overall:.1f}/10"
             ],
         )
+        logger.info("storyboard_scene_breakdown_persisted_scene_count", extra={"project_id": project_id, "scene_count": len(scene_ids)})
+        logger.info("storyboard_scene_breakdown_task_completed", extra={"project_id": project_id, "scene_count": len(scene_ids)})
 
         logger.info(
             "generate_storyboard_task_completed",
@@ -1136,6 +1157,18 @@ def generate_storyboard_task(
         }
 
     except Exception as e:
+        try:
+            StoryboardRepository().update_project(
+                project_id,
+                workflow_state=StoryboardWorkflowState.STORYBOARD_FAILED,
+                storyboard_generation_error=str(e),
+                storyboard_generation_failed_at=utcnow(),
+                storyboard_generation_recoverable=True,
+                storyboard_generation_retry_action="regenerate_scene_breakdown",
+            )
+        except Exception:
+            logger.exception("storyboard_scene_breakdown_task_failed_state_persist_error", extra={"project_id": project_id})
+        logger.error("storyboard_scene_breakdown_task_failed", extra={"project_id": project_id, "task_id": self.request.id, "error": str(e)})
         logger.error(
             "generate_storyboard_task_failed",
             extra={

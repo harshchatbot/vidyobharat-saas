@@ -127,8 +127,10 @@ class StoryboardWorkflowState:
     INITIALIZED = "initialized"
     SCRIPT_AWAITING_APPROVAL = "script_awaiting_approval"
     SCRIPT_APPROVED = "script_approved"
+    STORYBOARD_GENERATING = "storyboard_generating"
     STORYBOARD_AWAITING_APPROVAL = "storyboard_awaiting_approval"
     STORYBOARD_APPROVED = "storyboard_approved"
+    STORYBOARD_FAILED = "storyboard_failed"
     IMAGES_GENERATING = "images_generating"
     IMAGES_AWAITING_APPROVAL = "images_awaiting_approval"
     IMAGES_APPROVED = "images_approved"
@@ -216,6 +218,26 @@ class StoryboardPipelineService:
 
     # ===== INITIALIZATION & PROJECT MANAGEMENT =====
 
+    @staticmethod
+    def _derive_continuity_mode(*, ad_category: str, creation_mode: str | None, production_path: str | None) -> str:
+        category = str(ad_category or "").strip().lower()
+        mode = str(creation_mode or "").strip().lower()
+        path = str(production_path or "").strip().lower()
+        avatar_forced = mode == "avatar" or path == "ai_avatar"
+        by_category = {
+            "ugc_testimonial": "face_lock",
+            "founder_talking_head": "face_lock",
+            "inner_monologue": "face_lock",
+            "product_demo_lifestyle": "hybrid_lock",
+            "problem_solution": "product_style_lock",
+            "cinematic_narration": "visual_continuity_lock",
+            "cinematic_broll": "visual_continuity_lock",
+        }
+        selected = by_category.get(category, "visual_continuity_lock")
+        if avatar_forced and category in {"ugc_testimonial", "founder_talking_head", "inner_monologue"}:
+            return "face_lock"
+        return selected
+
     def initialize_project(
         self,
         user_id: str,
@@ -296,6 +318,11 @@ class StoryboardPipelineService:
             selected_duration_label=f"{normalized_target_duration}s",
             requested_ad_duration_seconds=normalized_target_duration,
             actual_estimated_output_duration_seconds=normalized_target_duration,
+            continuity_mode=self._derive_continuity_mode(
+                ad_category=ad_category,
+                creation_mode=normalized_creation_mode,
+                production_path=normalized_production_path,
+            ),
             credits_estimated=0,
             credits_consumed=0,
         )
@@ -391,6 +418,11 @@ class StoryboardPipelineService:
             "selected_duration_label": getattr(project, "selected_duration_label", "15s"),
             "requested_ad_duration_seconds": getattr(project, "requested_ad_duration_seconds", None),
             "actual_estimated_output_duration_seconds": getattr(project, "actual_estimated_output_duration_seconds", None),
+            "continuity_mode": getattr(project, "continuity_mode", None),
+            "storyboard_generation_error": getattr(project, "storyboard_generation_error", None),
+            "storyboard_generation_failed_at": getattr(project, "storyboard_generation_failed_at", None).isoformat() if getattr(project, "storyboard_generation_failed_at", None) else None,
+            "storyboard_generation_recoverable": getattr(project, "storyboard_generation_recoverable", None),
+            "storyboard_generation_retry_action": getattr(project, "storyboard_generation_retry_action", None),
             "production_credit_estimate": getattr(project, "production_credit_estimate", None),
             "production_estimated_time_label": getattr(project, "production_estimated_time_label", None),
             "credits_estimated": project.credits_estimated,
@@ -429,6 +461,7 @@ class StoryboardPipelineService:
                     "original_llm_duration_seconds": getattr(scene, "original_llm_duration_seconds", None),
                     "normalized_scene_duration_seconds": getattr(scene, "normalized_scene_duration_seconds", None),
                     "target_duration_seconds": getattr(scene, "target_duration_seconds", None),
+                    "continuity_mode": getattr(scene, "continuity_mode", None),
                     "duration_seconds": scene.duration_seconds,
                     "lipsync_this_scene": scene.lipsync_this_scene,
                     "base_image_url": scene.base_image_url,
@@ -766,6 +799,7 @@ class StoryboardPipelineService:
         # Idempotency: if storyboard has already been generated/advanced,
         # return a no-op success instead of surfacing a 400 to the UI.
         if project.workflow_state in {
+            StoryboardWorkflowState.STORYBOARD_GENERATING,
             StoryboardWorkflowState.STORYBOARD_AWAITING_APPROVAL,
             StoryboardWorkflowState.STORYBOARD_APPROVED,
             StoryboardWorkflowState.IMAGES_GENERATING,
@@ -786,10 +820,7 @@ class StoryboardPipelineService:
         if project.workflow_state != StoryboardWorkflowState.SCRIPT_APPROVED:
             raise ValueError(f"Cannot generate storyboard in state {project.workflow_state}")
 
-        logger.info(
-            "storyboard_generation_requested",
-            extra={"project_id": project_id},
-        )
+        logger.info("storyboard_scene_breakdown_trigger_requested", extra={"project_id": project_id, "user_id": user_id})
 
         # Launch Celery task
         from app.workers.storyboard_tasks import generate_storyboard_task
@@ -798,12 +829,18 @@ class StoryboardPipelineService:
             args=[project_id, user_id],
             task_id=f"storyboard_{project_id}",
         )
+        logger.info("storyboard_scene_breakdown_task_queued", extra={"project_id": project_id, "task_id": task.id})
 
         # Update workflow state to show generation in progress
         self.db.update_project(
             project_id,
-            workflow_state=StoryboardWorkflowState.STORYBOARD_AWAITING_APPROVAL,
+            workflow_state=StoryboardWorkflowState.STORYBOARD_GENERATING,
+            storyboard_generation_error=None,
+            storyboard_generation_failed_at=None,
+            storyboard_generation_recoverable=None,
+            storyboard_generation_retry_action=None,
         )
+        logger.info("storyboard_scene_breakdown_trigger_accepted", extra={"project_id": project_id, "workflow_state": StoryboardWorkflowState.STORYBOARD_GENERATING})
 
         return {
             "project_id": project_id,
@@ -812,6 +849,23 @@ class StoryboardPipelineService:
             "message": "Storyboard generation task queued",
             "estimated_duration": "30-60 seconds",
         }
+
+    def retry_scene_breakdown(self, project_id: str, user_id: str) -> dict[str, Any]:
+        logger.info("storyboard_scene_breakdown_retry_requested", extra={"project_id": project_id, "user_id": user_id})
+        project = self.db.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        self.db.update_project(
+            project_id,
+            storyboard_generation_error=None,
+            storyboard_generation_failed_at=None,
+            storyboard_generation_recoverable=True,
+            storyboard_generation_retry_action="regenerate_scene_breakdown",
+            workflow_state=StoryboardWorkflowState.SCRIPT_APPROVED,
+        )
+        result = self.generate_storyboard(project_id, user_id)
+        logger.info("storyboard_scene_breakdown_retry_queued", extra={"project_id": project_id, "task_id": result.get("task_id")})
+        return result
 
     def approve_storyboard(self, project_id: str, user_id: str) -> dict[str, Any]:
         """Approve storyboard and move to production preparation."""

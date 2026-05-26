@@ -67,6 +67,11 @@ class StoryboardProject:
         selected_duration_label: str | None = None,
         requested_ad_duration_seconds: int | None = None,
         actual_estimated_output_duration_seconds: int | None = None,
+        continuity_mode: str | None = None,
+        storyboard_generation_error: str | None = None,
+        storyboard_generation_failed_at: datetime | None = None,
+        storyboard_generation_recoverable: bool | None = None,
+        storyboard_generation_retry_action: str | None = None,
         production_credit_estimate: dict[str, Any] | None = None,
         production_estimated_time_label: str | None = None,
         script_score: dict | None = None,
@@ -140,6 +145,11 @@ class StoryboardProject:
         self.selected_duration_label = selected_duration_label
         self.requested_ad_duration_seconds = requested_ad_duration_seconds
         self.actual_estimated_output_duration_seconds = actual_estimated_output_duration_seconds
+        self.continuity_mode = continuity_mode
+        self.storyboard_generation_error = storyboard_generation_error
+        self.storyboard_generation_failed_at = storyboard_generation_failed_at
+        self.storyboard_generation_recoverable = storyboard_generation_recoverable
+        self.storyboard_generation_retry_action = storyboard_generation_retry_action
         self.production_credit_estimate = production_credit_estimate
         self.production_estimated_time_label = production_estimated_time_label
         self.script_score = script_score
@@ -216,6 +226,11 @@ class StoryboardProject:
             'selected_duration_label': self.selected_duration_label,
             'requested_ad_duration_seconds': self.requested_ad_duration_seconds,
             'actual_estimated_output_duration_seconds': self.actual_estimated_output_duration_seconds,
+            'continuity_mode': self.continuity_mode,
+            'storyboard_generation_error': self.storyboard_generation_error,
+            'storyboard_generation_failed_at': self.storyboard_generation_failed_at,
+            'storyboard_generation_recoverable': self.storyboard_generation_recoverable,
+            'storyboard_generation_retry_action': self.storyboard_generation_retry_action,
             'production_credit_estimate': self.production_credit_estimate,
             'production_estimated_time_label': self.production_estimated_time_label,
             'script_score': self.script_score,
@@ -294,6 +309,11 @@ class StoryboardProject:
             selected_duration_label=data.get('selected_duration_label', '15s'),
             requested_ad_duration_seconds=data.get('requested_ad_duration_seconds'),
             actual_estimated_output_duration_seconds=data.get('actual_estimated_output_duration_seconds'),
+            continuity_mode=data.get('continuity_mode'),
+            storyboard_generation_error=data.get('storyboard_generation_error'),
+            storyboard_generation_failed_at=coerce_datetime(data.get('storyboard_generation_failed_at')),
+            storyboard_generation_recoverable=data.get('storyboard_generation_recoverable'),
+            storyboard_generation_retry_action=data.get('storyboard_generation_retry_action'),
             production_credit_estimate=data.get('production_credit_estimate'),
             production_estimated_time_label=data.get('production_estimated_time_label'),
             script_score=data.get('script_score'),
@@ -353,6 +373,7 @@ class StoryboardScene:
         original_llm_duration_seconds: int | None = None,
         normalized_scene_duration_seconds: int | None = None,
         target_duration_seconds: int | None = None,
+        continuity_mode: str | None = None,
         duration_seconds: int = 5,
         lipsync_this_scene: bool = False,
         base_image_url: str | None = None,
@@ -412,6 +433,7 @@ class StoryboardScene:
         self.original_llm_duration_seconds = original_llm_duration_seconds
         self.normalized_scene_duration_seconds = normalized_scene_duration_seconds
         self.target_duration_seconds = target_duration_seconds
+        self.continuity_mode = continuity_mode
         self.duration_seconds = duration_seconds
         self.lipsync_this_scene = lipsync_this_scene
         self.base_image_url = base_image_url
@@ -474,6 +496,7 @@ class StoryboardScene:
             'original_llm_duration_seconds': self.original_llm_duration_seconds,
             'normalized_scene_duration_seconds': self.normalized_scene_duration_seconds,
             'target_duration_seconds': self.target_duration_seconds,
+            'continuity_mode': self.continuity_mode,
             'duration_seconds': self.duration_seconds,
             'lipsync_this_scene': self.lipsync_this_scene,
             'base_image_url': self.base_image_url,
@@ -538,6 +561,7 @@ class StoryboardScene:
             original_llm_duration_seconds=data.get('original_llm_duration_seconds'),
             normalized_scene_duration_seconds=data.get('normalized_scene_duration_seconds'),
             target_duration_seconds=data.get('target_duration_seconds'),
+            continuity_mode=data.get('continuity_mode'),
             duration_seconds=data.get('duration_seconds', 5),
             lipsync_this_scene=data.get('lipsync_this_scene', False),
             base_image_url=data.get('base_image_url'),

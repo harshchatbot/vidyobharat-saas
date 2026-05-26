@@ -393,7 +393,9 @@ async def generate_storyboard(
 
     try:
         service = StoryboardPipelineService()
+        logger.info("storyboard_scene_breakdown_trigger_requested", extra={"project_id": project_id, "user_id": user_id})
         result = service.generate_storyboard(project_id, user_id)
+        logger.info("storyboard_scene_breakdown_trigger_accepted", extra={"project_id": project_id, "result_status": result.get("status")})
         return {"status": "success", "result": result}
     except ValueError as e:
         logger.error("storyboard_generation_validation_failed", extra={"project_id": project_id, "error": str(e)})
@@ -401,6 +403,20 @@ async def generate_storyboard(
     except Exception as e:
         logger.error("storyboard_generation_failed", extra={"project_id": project_id, "error": str(e), "error_type": type(e).__name__})
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.post("/{project_id}/retry-scene-breakdown", summary="Retry scene breakdown generation")
+async def retry_scene_breakdown(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> dict[str, Any]:
+    try:
+        service = StoryboardPipelineService()
+        result = service.retry_scene_breakdown(project_id, user_id)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        logger.error("storyboard_scene_breakdown_retry_failed", extra={"project_id": project_id, "error": str(e)})
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{project_id}/storyboard", summary="Get storyboard scenes")
@@ -453,6 +469,7 @@ async def get_storyboard(
                     "original_llm_duration_seconds": getattr(s, "original_llm_duration_seconds", None),
                     "normalized_scene_duration_seconds": getattr(s, "normalized_scene_duration_seconds", None),
                     "target_duration_seconds": getattr(s, "target_duration_seconds", None),
+                    "continuity_mode": getattr(s, "continuity_mode", None),
                     "duration_seconds": s.duration_seconds,
                     "base_image_url": s.base_image_url,
                     "generated_image_url": s.base_image_url,

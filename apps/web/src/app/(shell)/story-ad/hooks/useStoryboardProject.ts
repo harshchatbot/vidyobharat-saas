@@ -281,11 +281,16 @@ export interface StoryboardProject {
   selected_video_quality_label?: string;
   selected_video_model_key?: string;
   storyboard_image_quality_mode?: 'draft' | 'standard' | 'premium' | string;
+  continuity_mode?: string;
   selected_ad_duration_seconds?: number;
   target_ad_duration_seconds?: number;
   selected_duration_label?: string;
   requested_ad_duration_seconds?: number;
   actual_estimated_output_duration_seconds?: number;
+  storyboard_generation_error?: string;
+  storyboard_generation_failed_at?: string;
+  storyboard_generation_recoverable?: boolean;
+  storyboard_generation_retry_action?: string;
   production_credit_estimate?: Record<string, unknown>;
   production_estimated_time_label?: string;
   script_word_count?: number;
@@ -642,6 +647,34 @@ export function useStoryboardProject() {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
       console.error('Error generating storyboard:', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [getProject]);
+
+  const retrySceneBreakdown = useCallback(async (projectId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/storyboard/${projectId}/retry-scene-breakdown`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': getUserId(),
+        },
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`Failed to retry scene breakdown: ${response.statusText}${detail ? ` (${detail})` : ''}`);
+      }
+      const data = await response.json();
+      await getProject(projectId);
+      return data;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      console.error('Error retrying scene breakdown:', errorMessage);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -1108,6 +1141,7 @@ export function useStoryboardProject() {
     regenerateScript,
     updateScript,
     generateStoryboard,
+    retrySceneBreakdown,
     approveStoryboard,
     approveSceneImage,
     rejectSceneImage,

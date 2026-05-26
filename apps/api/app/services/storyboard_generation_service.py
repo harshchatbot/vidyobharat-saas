@@ -360,6 +360,7 @@ class StoryboardGenerationService:
         cultural_guidance: str | None = None,
     ) -> str:
         """Build the Gemini prompt for scene generation."""
+        category_instructions = self._category_scene_prompt_block(ad_category)
         cultural_block = ""
         if cultural_guidance:
             cultural_block = f"""
@@ -384,6 +385,8 @@ Your task: Break down a script into detailed visual scene cards for a {ad_catego
 - Avatar/Character: {avatar_description if avatar_description and not avatar_description.startswith('av-') and len(avatar_description) < 30 else 'the creator avatar'}
 - Business Context: {business_context}
 {cultural_block}
+=== CATEGORY-SPECIFIC CREATIVE RULES ===
+{category_instructions}
 
 === DURATION CONSTRAINTS ===
 - Create between {ideal_scenes} and {max_scenes} scenes.
@@ -434,6 +437,48 @@ Return ONLY a valid JSON array of scene cards. Example:
 
 Generate the complete scene card array now:
 """
+
+    def _category_scene_prompt_block(self, ad_category: str) -> str:
+        key = str(ad_category or "").strip().lower()
+        blocks: dict[str, str] = {
+            "cinematic_narration": (
+                "- Do NOT force a talking-head spokesperson.\n"
+                "- Prioritize cinematic visual storytelling: product closeups, hand interactions, texture, environment, symbolic cutaways.\n"
+                "- Spoken lines can be VO-first with minimal on-camera speaking.\n"
+                "- Emphasize emotional arc and visual continuity over direct-to-camera delivery."
+            ),
+            "cinematic_broll": (
+                "- Do NOT generate dialogue-heavy talking-head scenes.\n"
+                "- Use micro visual beats and b-roll language: movement, atmosphere, details, transitions.\n"
+                "- Keep spoken_line short or empty where visual-led storytelling is stronger.\n"
+                "- Focus on product/material/environment continuity and cinematic pacing."
+            ),
+            "problem_solution": (
+                "- Structure scene progression as: problem beat -> solution beat -> proof/benefit beat.\n"
+                "- Product presence is optional unless provided, but solution clarity is mandatory.\n"
+                "- Keep narrative practical and conversion-oriented."
+            ),
+            "founder_talking_head": (
+                "- Human subject is expected and may speak directly to camera.\n"
+                "- Keep framing and identity continuity stable across scenes."
+            ),
+            "ugc_testimonial": (
+                "- Human subject/creator testimonial style is expected.\n"
+                "- Use natural first-person delivery and authentic social tone."
+            ),
+            "inner_monologue": (
+                "- Human subject is expected; delivery should feel introspective and personal.\n"
+                "- Avoid loud promo phrasing; keep emotional continuity."
+            ),
+            "product_demo_lifestyle": (
+                "- Balance human usage moments with product-focused visuals.\n"
+                "- Ensure product continuity and practical usage demonstration."
+            ),
+        }
+        return blocks.get(
+            key,
+            "- Keep category fit strong, narrative clear, and avoid forcing avatar-led talking head unless the category explicitly requires it.",
+        )
 
     def _parse_scene_cards(self, response_text: str) -> list[SceneCard]:
         """Parse scene cards from Gemini response."""

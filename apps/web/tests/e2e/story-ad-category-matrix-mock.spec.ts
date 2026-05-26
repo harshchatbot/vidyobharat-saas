@@ -19,6 +19,10 @@ test.describe('Story-Ad category matrix (mock, no-credit)', () => {
       const now = new Date().toISOString();
       const projectId = `proj-${category.id}`;
       let initializePayload: Record<string, unknown> | null = null;
+      let approveScriptCalled = false;
+      let approveLockCalled = false;
+      let generateStoryboardCalled = false;
+      let paidGenerationRouteHit = false;
 
       await page.addInitScript((uid) => {
         window.localStorage.setItem('test-user-id', uid);
@@ -74,6 +78,42 @@ test.describe('Story-Ad category matrix (mock, no-credit)', () => {
             created_at: now,
           }),
         });
+      });
+
+      await page.route(`**/api/storyboard/${projectId}/approve-script`, async (route) => {
+        approveScriptCalled = true;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: 'success', workflow_state: 'script_approved' }),
+        });
+      });
+
+      await page.route(`**/api/storyboard/${projectId}/approve-character-lock`, async (route) => {
+        approveLockCalled = true;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: 'success', workflow_state: 'character_lock_approved' }),
+        });
+      });
+
+      await page.route(`**/api/storyboard/${projectId}/generate-storyboard`, async (route) => {
+        generateStoryboardCalled = true;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'success',
+            workflow_state: 'storyboard_generating',
+            task_queued: true,
+          }),
+        });
+      });
+
+      await page.route('**/fal.run/**', async (route) => {
+        paidGenerationRouteHit = true;
+        await route.abort();
       });
 
       await page.route('**/api/storyboard/*', async (route) => {
@@ -148,20 +188,60 @@ test.describe('Story-Ad category matrix (mock, no-credit)', () => {
       await page.getByRole('button', { name: /Generate My Ad/i }).first().click();
 
       await expect.poll(() => initializePayload, { timeout: 12000 }).not.toBeNull();
+      const payload = (initializePayload || {}) as Record<string, unknown>;
       // eslint-disable-next-line no-console
       console.log(`CATEGORY_PAYLOAD ${category.id}: ${JSON.stringify(initializePayload)}`);
-      expect(initializePayload?.ad_category).toBe(category.id);
-      expect(initializePayload?.target_ad_duration_seconds).toBe(15);
+      expect(payload.ad_category).toBe(category.id);
+      expect(payload.target_ad_duration_seconds).toBe(15);
 
       if (category.requiresAvatar) {
-        expect(initializePayload?.creation_mode).toBe('avatar');
+        expect(payload.creation_mode).toBe('avatar');
       } else {
-        expect(initializePayload?.creation_mode).toBe('storyboard');
+        expect(payload.creation_mode).toBe('storyboard');
       }
 
       if (category.requiresProductImage) {
-        expect(initializePayload?.product_image_url).toBeTruthy();
+        expect(payload.product_image_url).toBeTruthy();
       }
+
+      // No-credit scene-breakdown transition contract smoke:
+      // approve script -> approve lock -> trigger scene breakdown.
+      const transitionResponses = await page.evaluate(
+        async ({ base, pid, uid }) => {
+          const headers = {
+            'Content-Type': 'application/json',
+            'X-User-ID': uid,
+          };
+          const script = await fetch(`${base}/api/storyboard/${pid}/approve-script`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ confirmation: true }),
+          });
+          const lock = await fetch(`${base}/api/storyboard/${pid}/approve-character-lock`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ confirmation: true }),
+          });
+          const storyboard = await fetch(`${base}/api/storyboard/${pid}/generate-storyboard`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ confirmation: true }),
+          });
+          return {
+            scriptOk: script.ok,
+            lockOk: lock.ok,
+            storyboardOk: storyboard.ok,
+          };
+        },
+        { base: API_BASE, pid: projectId, uid: userId }
+      );
+      expect(transitionResponses.scriptOk).toBeTruthy();
+      expect(transitionResponses.lockOk).toBeTruthy();
+      expect(transitionResponses.storyboardOk).toBeTruthy();
+      expect(approveScriptCalled).toBeTruthy();
+      expect(approveLockCalled).toBeTruthy();
+      expect(generateStoryboardCalled).toBeTruthy();
+      expect(paidGenerationRouteHit).toBeFalsy();
     });
   }
 });
