@@ -11,6 +11,7 @@ import httpx
 from uuid import uuid4
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
+import re
 
 from app.core.config import get_settings
 from app.db.repositories.storyboard_repository import StoryboardRepository
@@ -46,6 +47,94 @@ _PROMPT_TEXT_INTENT_TOKENS = (
     "logo",
     "caption",
 )
+
+
+def strip_storyboard_tts_metadata(text: str | None) -> str:
+    """Remove metadata tag lines so only spoken text is sent to TTS."""
+    source = str(text or "").strip()
+    if not source:
+        return ""
+    lines: list[str] = []
+    for raw in source.splitlines():
+        line = str(raw or "").strip()
+        if not line:
+            continue
+        lowered = line.lower()
+        if lowered.startswith("[emotional context:"):
+            continue
+        if lowered.startswith("[language:"):
+            continue
+        if lowered.startswith("[delivery:"):
+            continue
+        lines.append(line)
+    cleaned = "\n".join(lines).strip()
+    return cleaned or source
+
+
+def build_storyboard_tts_style(
+    *,
+    ad_category: str,
+    language: str,
+    voice: str,
+    tone: str,
+    generation_mode: str,
+) -> dict[str, str]:
+    category = str(ad_category or "").strip().lower()
+    language_value = str(language or "").strip() or "English (India)"
+    voice_value = str(voice or "").strip() or "Kore"
+    tone_value = str(tone or "").strip().lower() or "casual"
+
+    emotional_context_map: dict[str, str] = {
+        "ugc_testimonial": "Authentic personal experience shared naturally by a real creator with relatable warmth.",
+        "founder_talking_head": "Founder-led storytelling with credible authority, trust, and calm conviction.",
+        "problem_solution": "Empathetic opening, reassuring middle, and confident benefit-driven resolution.",
+        "product_demo_lifestyle": "Warm aspirational lifestyle storytelling with sensory and premium product feel.",
+        "inner_monologue": "Introspective personal reflection with emotional honesty and thoughtful pauses.",
+        "cinematic_narration": "Emotionally rich visual storytelling with premium cinematic atmosphere and reflective tone.",
+        "cinematic_broll": "Heartwarming handcrafted story focused on comfort, gifting, emotional connection, and nostalgia.",
+    }
+    delivery_profile_map: dict[str, str] = {
+        "ugc_testimonial": "Conversational, friendly, slight enthusiasm, avoid scripted delivery and announcer tone.",
+        "founder_talking_head": "Clear articulation, calm authority, persuasive but never salesy.",
+        "problem_solution": "Natural pacing with emotional progression from concern to reassurance to confidence.",
+        "product_demo_lifestyle": "Smooth pacing, warm premium texture, allow sensory words to breathe.",
+        "inner_monologue": "Intimate and reflective cadence with thoughtful pauses and personal sincerity.",
+        "cinematic_narration": "Slow deliberate pacing, meaningful pauses, intimate luxury-brand narration feel.",
+        "cinematic_broll": "Soft emotional narration, gentle pacing, warm nostalgic tone, let visuals breathe.",
+    }
+
+    emotional_context = emotional_context_map.get(
+        category,
+        "Natural, emotionally grounded storytelling suitable for social ad narration.",
+    )
+    delivery_profile = delivery_profile_map.get(
+        category,
+        "Natural pacing, clear pronunciation, conversational flow.",
+    )
+    if tone_value in {"energetic", "inspiring"} and category in {"ugc_testimonial", "problem_solution"}:
+        delivery_profile = f"{delivery_profile} Add controlled uplift and positive momentum."
+
+    hindi_like = bool(re.search(r"\b(hindi|hinglish|hi[-_ ]?in)\b", language_value.lower()))
+    hindi_guidance = (
+        " Use natural Hindi/Hinglish cadence, emotional pauses, and conversational delivery. "
+        "Avoid textbook narration and robotic pronunciation."
+        if hindi_like
+        else ""
+    )
+    mode_phrase = (
+        "Cinematic narration voiceover mode."
+        if generation_mode == "narration_combined"
+        else "Scene-level sync voice mode."
+    )
+    style_instruction = (
+        f"{mode_phrase} {emotional_context} Delivery: {delivery_profile} "
+        f"Language: {language_value}. Voice: {voice_value}.{hindi_guidance}"
+    ).strip()
+    return {
+        "emotional_context": emotional_context,
+        "delivery_profile": delivery_profile,
+        "style_instruction": style_instruction,
+    }
 
 
 def _redact_url(value: str | None) -> str:
@@ -2819,6 +2908,48 @@ def generate_tts_task(
         scene_generation_id = str(getattr(project, "scene_generation_id", "") or "").strip() or None if project else None
         scenes = db.list_scenes(project_id, scene_generation_id=scene_generation_id, active_only=True)
         required = [scene for scene in scenes if bool(scene.user_approved)]
+        ad_category = str(getattr(project, "ad_category", "") or "").strip().lower() if project else ""
+        project_tone = str(getattr(project, "tone", "") or "casual").strip().lower() if project else "casual"
+        tts_style = build_storyboard_tts_style(
+            ad_category=ad_category,
+            language=language_code,
+            voice=selected_voice,
+            tone=project_tone,
+            generation_mode=generation_mode,
+        )
+        logger.info(
+            "storyboard_tts_style_selected",
+            extra={
+                "project_id": project_id,
+                "ad_category": ad_category,
+                "voice": selected_voice,
+                "language": language_code,
+                "generation_mode": generation_mode,
+                "style_instruction_length": len(str(tts_style.get("style_instruction") or "")),
+            },
+        )
+        logger.info(
+            "storyboard_tts_emotional_context_selected",
+            extra={
+                "project_id": project_id,
+                "ad_category": ad_category,
+                "voice": selected_voice,
+                "language": language_code,
+                "generation_mode": generation_mode,
+                "emotional_context": str(tts_style.get("emotional_context") or ""),
+            },
+        )
+        logger.info(
+            "storyboard_tts_delivery_profile_selected",
+            extra={
+                "project_id": project_id,
+                "ad_category": ad_category,
+                "voice": selected_voice,
+                "language": language_code,
+                "generation_mode": generation_mode,
+                "delivery_profile": str(tts_style.get("delivery_profile") or ""),
+            },
+        )
 
         lipsync_required_scenes: list[Any] = []
         for scene in required:
@@ -2848,14 +2979,14 @@ def generate_tts_task(
 
         narration_audio_url: str | None = None
         if generation_mode == "narration_combined":
-            narration_text = str(tts_script or "").strip()
+            narration_text = strip_storyboard_tts_metadata(tts_script)
             if not narration_text:
                 raise ValueError("Missing narration script for cinematic narration mode")
             narration_audio_url, _meta = fal_service.generate_gemini_flash_tts(
                 text=narration_text,
                 voice=selected_voice,
                 language_code=language_code,
-                style_instructions=f"Generate cinematic narration TTS for {language_code} language using voice {selected_voice}",
+                style_instructions=str(tts_style.get("style_instruction") or ""),
             )
             total_audio_duration = _estimate_audio_duration_seconds(narration_text)
             db.update_project(
@@ -2884,6 +3015,7 @@ def generate_tts_task(
                     or str(getattr(scene, "script_line", "") or "").strip()
                     or (split_chunks[idx] if idx < len(split_chunks) else "")
                 ).strip()
+                scene_text = strip_storyboard_tts_metadata(scene_text)
                 if not scene_text:
                     raise ValueError(f"Missing scene-level TTS text for scene {scene.scene_number}")
                 logger.info("storyboard_tts_scene_text_selected", extra={"project_id": project_id, "scene_id": scene_id, "text_length": len(scene_text)})
@@ -2893,7 +3025,7 @@ def generate_tts_task(
                     text=scene_text,
                     voice=selected_voice,
                     language_code=language_code,
-                    style_instructions=f"Generate scene-level TTS for {language_code} language using voice {selected_voice}",
+                    style_instructions=str(tts_style.get("style_instruction") or ""),
                 )
                 scene_audio_duration = _estimate_audio_duration_seconds(scene_text)
                 scene_duration = float(getattr(scene, "duration_seconds", 0) or 0)

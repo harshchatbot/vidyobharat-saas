@@ -17,6 +17,12 @@ from app.services.avatar_product_tts_catalog import (
     list_storyboard_tts_catalog,
     resolve_storyboard_gemini_language,
 )
+from app.services.voice_preview_service import normalize_storyboard_tts_literals
+from app.services.emotion_tagging_service import EmotionTaggingService
+from app.workers.storyboard_tasks import (
+    build_storyboard_tts_style,
+    strip_storyboard_tts_metadata,
+)
 
 
 def _print(title: str, data: Any) -> None:
@@ -29,6 +35,8 @@ def _print(title: str, data: Any) -> None:
 
 def _collect_text(args: argparse.Namespace) -> str:
     parts: list[str] = []
+    if getattr(args, "script", None):
+        parts.append(str(args.script).strip())
     if args.text:
         parts.append(str(args.text).strip())
     if args.line:
@@ -409,6 +417,86 @@ def run_tts_only(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def run_preview_tts_payload(args: argparse.Namespace) -> dict[str, Any]:
+    raw_script = _collect_text(args)
+    if not raw_script:
+        raise ValueError("preview_tts_payload requires --script or --text")
+
+    ad_category = str(args.ad_category or "cinematic_broll").strip().lower()
+    normalized_language = _normalize_language(args.language_code)
+    normalized_voice, provider_language = normalize_storyboard_tts_literals(
+        _validate_voice(args.voice_name),
+        normalized_language,
+    )
+    generation_mode = "narration_combined" if ad_category in {"cinematic_broll", "cinematic_narration"} else "scene_lipsync"
+
+    tagged_tts_script = raw_script
+    try:
+        tagged = EmotionTaggingService().tag_script(
+            clean_script=raw_script,
+            ad_category=ad_category,
+            language=provider_language,
+            tone=str(args.tone or "casual").strip().lower(),
+        )
+        tagged_tts_script = str(tagged.tts_script or "").strip() or raw_script
+    except Exception:
+        pass
+
+    spoken_text = strip_storyboard_tts_metadata(tagged_tts_script)
+    old_emotional_context = None
+    for line in tagged_tts_script.splitlines():
+        candidate = str(line or "").strip()
+        if candidate.lower().startswith("[emotional context:"):
+            old_emotional_context = candidate
+            break
+
+    old_style_instruction = (
+        f"Generate cinematic narration TTS for {provider_language} language using voice {normalized_voice}"
+        if generation_mode == "narration_combined"
+        else f"Generate scene-level TTS for {provider_language} language using voice {normalized_voice}"
+    )
+
+    style_profile = build_storyboard_tts_style(
+        ad_category=ad_category,
+        language=provider_language,
+        voice=normalized_voice,
+        tone=str(args.tone or "casual").strip().lower(),
+        generation_mode=generation_mode,
+    )
+    style_instruction = str(style_profile.get("style_instruction") or old_style_instruction)
+
+    payload = {
+        "prompt": spoken_text,
+        "style_instructions": style_instruction,
+        "voice": normalized_voice,
+        "language_code": provider_language,
+        "temperature": 1,
+        "output_format": "mp3",
+    }
+    return {
+        "mode": "preview_tts_payload",
+        "provider": "fal",
+        "model": str(getattr(get_settings(), "fal_gemini_tts_endpoint", "") or "fal-ai/gemini-3.1-flash-tts"),
+        "ad_category": ad_category,
+        "narration_required": generation_mode == "narration_combined",
+        "lipsync_required_mode": generation_mode == "scene_lipsync",
+        "generation_mode": generation_mode,
+        "voice": normalized_voice,
+        "language_code": provider_language,
+        "raw_script": raw_script,
+        "tagged_tts_script": tagged_tts_script,
+        "spoken_text": spoken_text,
+        "final_text": spoken_text,
+        "old_emotional_context": old_emotional_context,
+        "old_style_instruction": old_style_instruction,
+        "emotional_context": str(style_profile.get("emotional_context") or ""),
+        "delivery_profile": str(style_profile.get("delivery_profile") or ""),
+        "style_instruction": style_instruction,
+        "full_payload": payload,
+        "paid_api_called": False,
+    }
+
+
 def run_lipsync_one(args: argparse.Namespace) -> dict[str, Any]:
     if not args.scene_video_url or len(args.scene_video_url) != 1:
         raise ValueError("lipsync_one requires exactly one --scene-video-url")
@@ -546,7 +634,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "stitch_cinematic_with_narration", "restitch_project", "tts_only", "lipsync_one", "full_existing_videos", "inspect_media", "generate_storyboard_image"])
+    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "stitch_cinematic_with_narration", "restitch_project", "tts_only", "preview_tts_payload", "lipsync_one", "full_existing_videos", "inspect_media", "generate_storyboard_image"])
     parser.add_argument("--list-tts-options", action="store_true")
     parser.add_argument("--project-id", dest="project_id")
     parser.add_argument("--scene-id", dest="scene_id")
@@ -554,6 +642,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--audio-url")
     parser.add_argument("--voice-name", default="Kore")
     parser.add_argument("--language-code", default="English (India)")
+    parser.add_argument("--ad-category", default="cinematic_broll")
+    parser.add_argument("--tone", default="casual")
+    parser.add_argument("--script")
     parser.add_argument("--text")
     parser.add_argument("--line", action="append", default=[])
     parser.add_argument("--write-project", action="store_true")
@@ -612,6 +703,8 @@ def main() -> int:
               _print("tts_failure", {"error": str(exc), "provider_error_body": provider_body})
               _print("tts_traceback", traceback.format_exc())
               return 1
+      elif args.mode == "preview_tts_payload":
+          result = run_preview_tts_payload(args)
       elif args.mode == "lipsync_one":
           result = run_lipsync_one(args)
       elif args.mode == "full_existing_videos":
