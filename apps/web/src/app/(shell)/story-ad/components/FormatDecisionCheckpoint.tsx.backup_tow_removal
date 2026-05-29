@@ -180,7 +180,9 @@ export default function FormatDecisionCheckpoint({
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-        
+        <span className="text-xs font-semibold uppercase tracking-widest text-green-600 bg-green-50 px-3 py-1 rounded-full">
+          TOW · Stage 4 of 13
+        </span>
         <h2 className="text-2xl font-bold text-gray-900 mt-3">🎬 Format Confirmation</h2>
         <p className="text-gray-500 mt-1">
           Based on your ad style selection, we've matched the optimal format and narrative path.

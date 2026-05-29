@@ -104,20 +104,20 @@ export default function ProductionStatus({ project, productionStatus }: Producti
   const videoCompleted = scenes.filter((scene) => scene.video_status === 'completed').length;
   const lipsyncRequired = scenes.filter((scene) => scene.lipsync_status !== 'skipped').length;
   const lipsyncCompleted = scenes.filter((scene) => scene.lipsync_status === 'completed').length;
-  const sceneProgress = totalScenes > 0
-    ? Math.round(
-      scenes.reduce((acc, scene) => {
-        const img = scene.image_status === 'completed' ? 1 : 0;
-        const vid = scene.video_status === 'completed' ? 1 : 0;
-        const lip = scene.lipsync_status === 'completed' || scene.lipsync_status === 'skipped' ? 1 : 0;
-        return acc + ((img + vid + lip) / 3);
-      }, 0) / totalScenes * 100,
-    )
-    : 0;
-  const overallProgress = Math.max(
-    effectiveStatus?.overall_progress ?? 0,
-    sceneProgress,
+  const isCinematicNarrationMode = ['cinematic_broll', 'cinematic_narration'].includes(String(project?.ad_category || '').toLowerCase());
+  const narrationRequired = isCinematicNarrationMode;
+  const narrationReady = !narrationRequired || (
+    String((project as any)?.tts_status || '').toLowerCase() === 'completed' &&
+    Boolean((project as any)?.tts_audio_url)
   );
+  const finalVideoExists = Boolean(project?.final_video_url);
+
+  const imageRatio = totalScenes > 0 ? imageCompleted / totalScenes : 0;
+  const videoRatio = totalScenes > 0 ? videoCompleted / totalScenes : 0;
+  const lipsyncRatio = lipsyncRequired > 0 ? lipsyncCompleted / lipsyncRequired : 1;
+  const narrationRatio = narrationReady ? 1 : 0;
+  const stitchRatio = finalVideoExists ? 1 : 0;
+  const overallProgress = Math.round(((imageRatio + videoRatio + lipsyncRatio + narrationRatio + stitchRatio) / 5) * 100);
 
   const stageIcon = (status: 'completed' | 'active' | 'waiting' | 'failed') => {
     if (status === 'completed') return '✅';
@@ -135,8 +135,6 @@ export default function ProductionStatus({ project, productionStatus }: Producti
       : lipsyncCompleted > 0
         ? 'active'
         : 'waiting';
-
-  const finalVideoExists = Boolean(project?.final_video_url);
 
   console.log('storyboard_production_ui_real_scene_count', { projectId: project?.id, totalScenes });
   console.log('storyboard_production_ui_video_completed_count', { projectId: project?.id, videoCompleted, totalScenes });
@@ -220,7 +218,7 @@ export default function ProductionStatus({ project, productionStatus }: Producti
               {[
                 { label: 'Images', value: `${imageCompleted}/${totalScenes}`, done: imageCompleted === totalScenes },
                 { label: 'Videos', value: `${videoCompleted}/${totalScenes}`, done: videoCompleted === totalScenes },
-                { label: 'Lipsync', value: lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'N/A', done: lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired },
+                { label: 'Lipsync', value: lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'Skipped', done: lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired },
               ].map(stat => (
                 <div key={stat.label} className="glass-card p-3 text-center">
                   <p style={{
@@ -246,8 +244,8 @@ export default function ProductionStatus({ project, productionStatus }: Producti
               {[
                 { label: 'Images', count: `${imageCompleted}/${totalScenes}`, done: imageCompleted === totalScenes, active: imageCompleted < totalScenes },
                 { label: 'Videos', count: `${videoCompleted}/${totalScenes}`, done: videoCompleted === totalScenes, active: imageCompleted === totalScenes && videoCompleted < totalScenes },
-                { label: 'Lipsync', count: lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'Skipped', done: lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired, active: videoCompleted === totalScenes && lipsyncCompleted < lipsyncRequired },
-                { label: 'Stitching', count: overallProgress === 100 ? 'Done' : 'Pending', done: overallProgress === 100, active: lipsyncCompleted === lipsyncRequired && overallProgress < 100 },
+                { label: narrationRequired ? 'Narration' : 'Lipsync', count: narrationRequired ? (narrationReady ? 'Done' : 'Pending') : (lipsyncRequired > 0 ? `${lipsyncCompleted}/${lipsyncRequired}` : 'Skipped'), done: narrationRequired ? narrationReady : (lipsyncRequired === 0 || lipsyncCompleted === lipsyncRequired), active: videoCompleted === totalScenes && (narrationRequired ? !narrationReady : lipsyncCompleted < lipsyncRequired) },
+                { label: 'Stitching', count: finalVideoExists ? 'Done' : 'Pending', done: finalVideoExists, active: (narrationRequired ? narrationReady : (lipsyncCompleted === lipsyncRequired)) && !finalVideoExists },
               ].map((stage, i, arr) => (
                 <div key={stage.label} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                   <div style={{ flex: 1 }}>

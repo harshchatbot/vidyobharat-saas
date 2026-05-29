@@ -64,7 +64,7 @@ export default function Step3ReviewGenerate({
   onGenerate,
   onBack,
   loading = false,
-  estimatedCost = 150,
+  estimatedCost = 50,
 }: Step3Props) {
   const [agreed, setAgreed] = useState(false);
 
@@ -149,17 +149,11 @@ export default function Step3ReviewGenerate({
       <div className={styles.costSection}>
         <div className={styles.costHeader}>
           <h3>Estimated Cost</h3>
-          <div>
-          <p style={{ fontSize: '22px', fontWeight: '800', color: 'hsl(var(--color-text))' }}>
-            60–220 credits
-          </p>
-          <p style={{ fontSize: '12px', color: 'hsl(var(--color-muted))', marginTop: '4px' }}>
-            Estimated total across all stages
-          </p>
-        </div>
+          <div className={styles.costAmount}>{estimatedCost} credits</div>
         </div>
         <p className={styles.costDescription}>
-          Credits are used progressively: images (~25 cr), voice preview (~3 cr), video production (~130–190 cr depending on quality and duration). You only pay for each stage as you approve it.
+          This includes script generation, storyboard planning, image creation, video generation, and audio synthesis.
+          You can edit and regenerate individual scenes if needed.
         </p>
       </div>
 
@@ -172,7 +166,7 @@ export default function Step3ReviewGenerate({
             onChange={(e) => setAgreed(e.target.checked)}
             className={styles.agreementCheckbox}
           />
-          <span>I understand the credit costs and am ready to proceed with generation</span>
+          <span>I'm ready to generate my ad for {estimatedCost} credits</span>
         </label>
       </div>
 

@@ -142,7 +142,6 @@ export default function StoryAdPage() {
   const [lastResumeAttemptId, setLastResumeAttemptId] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { project, loading, error, initializeProject, getProject, startProduction, generateStoryboard } = useStoryboardProject();
   const { productionStatus, isPolling, startPolling, stopPolling } = useProductionPolling(project?.id);
@@ -359,23 +358,6 @@ export default function StoryAdPage() {
     setIsResumingProject(false);
     // Also clear the project state
     window.location.href = '/story-ad?step=category';
-  };
-
-  // Refresh project state (check if status has changed)
-  const handleRefresh = async () => {
-    if (!project?.id) return;
-    setIsRefreshing(true);
-    try {
-      const updated = await getProject(project.id);
-      if (updated?.workflow_state) {
-        setLocalState(updated.workflow_state as WorkflowState);
-        console.log('[page.tsx] Project refreshed:', { projectId: project.id, workflowState: updated.workflow_state });
-      }
-    } catch (err) {
-      console.error('[page.tsx] Refresh failed:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   // Start fresh (clear localStorage and restart)
@@ -604,23 +586,6 @@ export default function StoryAdPage() {
     }
   };
 
-  // Auto-advance cinematic ads past character lock (no avatar needed)
-  useEffect(() => {
-    if (!project?.id) return;
-    const state = String(project.workflow_state || '').toLowerCase();
-    const isCinematic = project.ad_category === 'cinematic_narration' ||
-                        project.ad_category === 'cinematic_broll';
-
-    if (isCinematic && (state === 'character_lock_selecting' || state === 'script_approved')) {
-      console.log('[StoryAdPage] Auto-advancing cinematic ad past character lock', {
-        projectId: project.id,
-        adCategory: project.ad_category,
-        workflowState: state,
-      });
-      void handleCharacterLockApprove();
-    }
-  }, [project?.id, project?.workflow_state, project?.ad_category, handleCharacterLockApprove]);
-
   // Determine current checkpoint based on workflow state
   const getCurrentCheckpoint = () => {
     // Show loading while resuming project from URL
@@ -677,7 +642,7 @@ export default function StoryAdPage() {
             onGenerate={handleStep3Generate}
             onBack={handleStep3Back}
             loading={loading}
-            estimatedCost={150}
+            estimatedCost={50}
           />
         );
       }
@@ -810,13 +775,9 @@ export default function StoryAdPage() {
     }
 
     // Stage 6: Character / Face Lock — AFTER script, BEFORE scene breakdown
-    // SKIP for cinematic ads (no avatar needed) — auto-advance handled by useEffect
-    const isCinematicAd = checkpointProject.ad_category === 'cinematic_narration' ||
-                          checkpointProject.ad_category === 'cinematic_broll';
-
     if (
-      (workflowState === 'script_approved' || workflowState === 'character_lock_selecting') &&
-      !isCinematicAd
+      workflowState === 'script_approved' ||
+      workflowState === 'character_lock_selecting'
     ) {
       return (
         <CharacterLockCheckpoint
@@ -994,50 +955,23 @@ export default function StoryAdPage() {
     }
 
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '500px' }}>
-        <div className="glass-card-strong p-8 text-center max-w-md mx-auto">
-          <p style={{ fontSize: '40px', marginBottom: '16px' }}>⚠️</p>
-          <h2 style={{
-            fontSize: '20px', fontWeight: '700',
-            color: 'hsl(var(--color-text))', marginBottom: '8px'
-          }}>
-            Generation Failed
-          </h2>
-          <p style={{
-            fontSize: '14px', color: 'hsl(var(--color-text-secondary))',
-            marginBottom: '8px'
-          }}>
-            Current status: <strong>{workflowState}</strong>
-          </p>
-          <p style={{
-            fontSize: '13px', color: 'hsl(var(--color-muted))',
-            marginBottom: '24px'
-          }}>
-            This sometimes happens due to AI provider timeouts.
-            Try refreshing first — if it persists, start a new project.
-          </p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="glass-card px-5 py-2.5 text-sm font-semibold"
-              style={{ color: 'hsl(var(--color-primary))' }}
-            >
-              {isRefreshing ? '⟳ Refreshing...' : '↻ Refresh'}
-            </button>
-            <button
-              onClick={handleStartFresh}
-              className="glow-button px-5 py-2.5 text-sm font-semibold"
-            >
-              Start Fresh
-            </button>
-          </div>
-          <p style={{
-            fontSize: '11px', color: 'hsl(var(--color-muted))',
-            marginTop: '16px'
-          }}>
-            Project ID: {checkpointProject.id}
-          </p>
+      <div className="max-w-3xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h3 className="text-lg font-semibold text-amber-900">Unsupported storyboard status</h3>
+        <p className="mt-2 text-sm text-amber-800">Current status: {workflowState || 'unknown'}</p>
+        <p className="mt-1 text-xs text-amber-700">Project ID: {checkpointProject.id}</p>
+        <div className="mt-4 flex gap-3">
+          <button
+            className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+            onClick={() => { if (project?.id) void getProject(project.id); }}
+          >
+            Refresh
+          </button>
+          <button
+            className="px-4 py-2 rounded-lg border border-amber-400 text-amber-900 text-sm font-medium hover:bg-amber-100"
+            onClick={handleStartFresh}
+          >
+            Start Over
+          </button>
         </div>
       </div>
     );

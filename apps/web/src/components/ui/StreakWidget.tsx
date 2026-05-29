@@ -38,6 +38,8 @@ export function StreakWidget() {
   if (loading || !streak) return null
 
   const isAtRisk = !streak.created_today && streak.current_streak > 0
+  const dayLabel = streak.current_streak === 1 ? 'day' : 'days'
+  const bestDayLabel = streak.longest_streak === 1 ? 'day' : 'days'
 
   return (
     <div className="glass-card px-3 py-2.5 mx-2 mb-2">
@@ -57,10 +59,10 @@ export function StreakWidget() {
                   : 'hsl(var(--color-accent-amber))'
               }}
             >
-              {streak.current_streak} day streak
+              {streak.current_streak} {dayLabel} streak
             </p>
             <p className="text-[10px]" style={{ color: 'hsl(var(--color-muted))' }}>
-              Best: {streak.longest_streak} days
+              Best: {streak.longest_streak} {bestDayLabel}
             </p>
           </div>
         </div>

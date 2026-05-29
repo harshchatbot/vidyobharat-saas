@@ -416,6 +416,15 @@ class VideoPipelineService:
 
             transition_mode = str(transition_type or 'none').strip().lower()
             transition_seconds = max(0.0, float(transition_duration or 0.0))
+            logger.info(
+                'storyboard_transition_config_selected',
+                extra={
+                    'project_id': project_id,
+                    'transition_type': transition_mode,
+                    'transition_duration': float(transition_seconds),
+                    'scene_count': len(local_files),
+                },
+            )
 
             def _run_concat() -> None:
                 concat_file.write_text('\n'.join([f"file '{clip.resolve()}'" for clip in local_files]), encoding='utf-8')
@@ -444,6 +453,16 @@ class VideoPipelineService:
                 logger.info('storyboard_stitch_ffmpeg_completed', extra={'project_id': project_id, 'output': str(transition_output_path), 'mode': 'concat'})
 
             if transition_mode == 'none' or len(local_files) < 2:
+                logger.info(
+                    'storyboard_transition_skipped',
+                    extra={
+                        'project_id': project_id,
+                        'transition_type': transition_mode,
+                        'transition_duration': float(transition_seconds),
+                        'scene_count': len(local_files),
+                        'reason': 'none_or_single_scene',
+                    },
+                )
                 logger.info('storyboard_stitch_audio_strategy_selected', extra={'project_id': project_id, 'strategy': 'concat_mux'})
                 _run_concat()
             else:
@@ -493,6 +512,15 @@ class VideoPipelineService:
                     logger.info('storyboard_stitch_transition_ffmpeg_started', extra={'project_id': project_id, 'output': str(transition_output_path), 'transition_type': transition_mode})
                     self._run(ffmpeg_cmd)
                     logger.info('storyboard_stitch_transition_ffmpeg_completed', extra={'project_id': project_id, 'output': str(transition_output_path), 'transition_type': transition_mode})
+                    logger.info(
+                        'storyboard_transition_applied',
+                        extra={
+                            'project_id': project_id,
+                            'transition_type': transition_mode,
+                            'transition_duration': float(safe_transition),
+                            'scene_count': len(local_files),
+                        },
+                    )
                     logger.info(
                         'storyboard_ffprobe_transition_output',
                         extra={'project_id': project_id, 'probe': self.inspect_media(str(transition_output_path))},
@@ -568,6 +596,16 @@ class VideoPipelineService:
                     logger.warning(
                         'storyboard_stitch_transition_failed_fallback_concat',
                         extra={'project_id': project_id, 'transition_type': transition_mode, 'error': str(exc)},
+                    )
+                    logger.info(
+                        'storyboard_transition_skipped',
+                        extra={
+                            'project_id': project_id,
+                            'transition_type': transition_mode,
+                            'transition_duration': float(safe_transition),
+                            'scene_count': len(local_files),
+                            'reason': 'ffmpeg_transition_failed_fallback_concat',
+                        },
                     )
                     _run_concat()
 

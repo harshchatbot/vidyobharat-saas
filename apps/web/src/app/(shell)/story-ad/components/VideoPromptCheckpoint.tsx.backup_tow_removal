@@ -40,11 +40,6 @@ export default function VideoPromptCheckpoint({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const generatedRef = useRef(false);
-  const isCinematicMode = ['cinematic_broll', 'cinematic_narration'].includes(String(project?.ad_category || '').toLowerCase());
-  const defaultLipsyncForCategory = (category?: string): boolean => {
-    const key = String(category || '').trim().toLowerCase();
-    return !(key === 'cinematic_broll' || key === 'cinematic_narration');
-  };
 
   const normalizePrompt = (input: any, index: number): SceneVideoPrompt | null => {
     if (!input || typeof input !== 'object') return null;
@@ -62,11 +57,7 @@ export default function VideoPromptCheckpoint({
       environment_movement: String(input.environment_movement || 'Subtle ambient background motion only'),
       continuity_rules: continuity.length ? continuity : ['Preserve identity, outfit, and product continuity from approved storyboard frame'],
       negative_motion_rules: negative.length ? negative : ['No face drift, no limb warping, no abrupt camera jump'],
-      lipsync_required: Boolean(
-        input.lipsync_required ??
-        input.lipsync_this_scene ??
-        defaultLipsyncForCategory(project?.ad_category)
-      ),
+      lipsync_required: Boolean(input.lipsync_required ?? true),
       duration_seconds: Number(input.duration_seconds || 5),
       reference_mood: String(input.reference_mood || input.mood || 'Natural'),
     };
@@ -125,16 +116,14 @@ export default function VideoPromptCheckpoint({
               ? `Maintain continuity with ${scene.environment}; only subtle ambient movement.`
               : 'Keep background movement minimal and consistent.',
             continuity_rules: [
-              isCinematicMode
-                ? 'Preserve visual continuity from approved frame: lighting palette, mood, and camera rhythm.'
-                : 'Preserve face identity and outfit exactly as approved frame.',
-              'Preserve product shape, texture, material, and placement continuity.',
+              'Preserve face identity and outfit exactly as approved frame.',
+              'Preserve product shape, texture, and placement continuity.',
             ],
             negative_motion_rules: [
               'No sudden zooms, no perspective warping.',
               'No identity drift, no extra limbs or hand artifacts.',
             ],
-            lipsync_required: defaultLipsyncForCategory(project?.ad_category),
+            lipsync_required: true,
             duration_seconds: scene.duration_seconds || 5,
             reference_mood: scene.mood || 'Natural',
           },
@@ -221,27 +210,6 @@ export default function VideoPromptCheckpoint({
     setPrompts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
   };
 
-  const handleLipsyncToggle = async (idx: number) => {
-    const prompt = prompts[idx];
-    if (!prompt) return;
-    const nextValue = !prompt.lipsync_required;
-    handleFieldEdit(idx, 'lipsync_required', nextValue);
-    console.log('storyboard_lipsync_toggle_changed', {
-      projectId: project.id,
-      sceneNumber: prompt.scene_number,
-      requires_lipsync: nextValue,
-    });
-    if (isMockMode || !project?.id) return;
-    const projectScenes = Array.isArray((project as any).scenes) ? (project as any).scenes : [];
-    const scene = projectScenes.find((s: any) => Number(s.scene_number || 0) === Number(prompt.scene_number || 0));
-    if (!scene?.id) return;
-    try {
-      await updateScene(project.id, scene.id, { lipsync_this_scene: nextValue });
-    } catch {
-      // Fallback persistence still happens in handleApprove.
-    }
-  };
-
   const handleApprove = async () => {
     console.log('[VideoPromptCheckpoint] approve clicked', {
       projectId: project.id,
@@ -306,13 +274,15 @@ export default function VideoPromptCheckpoint({
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
         <div className="flex items-start justify-between">
           <div>
-            
+            <span className="text-xs font-semibold uppercase tracking-widest text-violet-600 bg-violet-50 px-3 py-1 rounded-full">
+              TOW · Stage 9 of 13 — Motion Planning
+            </span>
             <h2 className="text-2xl font-bold text-gray-900 mt-3">🎯 Motion Planning</h2>
-              <p className="text-gray-500 mt-1">
-                Per-scene camera behavior, avatar movement, environment motion, continuity rules,
-                and negative-motion rules — derived from your approved Visual Storyboard frames.
-                No video generated here. This locks the motion blueprint before production.
-              </p>
+            <p className="text-gray-500 mt-1">
+              Per-scene camera behavior, avatar movement, environment motion, continuity rules,
+              and negative-motion rules — derived from your approved Visual Storyboard frames.
+              No video generated here. This locks the motion blueprint before production.
+            </p>
           </div>
           <button
             onClick={() => { generatedRef.current = false; setPrompts([]); }}
@@ -325,11 +295,8 @@ export default function VideoPromptCheckpoint({
         {/* Context note */}
         <div className="mt-4 p-3 bg-violet-50 border border-violet-100 rounded-lg text-xs text-violet-700">
           🎯 Motion rules are derived FROM your approved Visual Storyboard (Stage 8) — they describe
-          how each approved frame animates, not how to create a new image.
-          {' '}No text should be embedded inside generated frames; CTA text should be added only as final overlay.
-          {isCinematicMode
-            ? ' Visual Continuity Block is applied: preserve product geometry/material, lighting palette, handcrafted cozy mood, and narration-first pacing. Lipsync is optional.'
-            : ' Face-Lock Block from Character Lock (Stage 6) is embedded in avatar-led video generation calls.'}
+          how each approved frame animates, not how to create a new image. The Face-Lock Block
+          from Character Lock (Stage 6) is embedded in every video generation call.
         </div>
         {usedLocalFallback ? (
           <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
@@ -437,11 +404,9 @@ export default function VideoPromptCheckpoint({
 
                 {/* Lipsync toggle */}
                 <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                  <span className="text-sm text-gray-600">
-                    {isCinematicMode ? 'Lipsync (optional, narration-only by default)' : 'Lipsync required for this scene'}
-                  </span>
+                  <span className="text-sm text-gray-600">Lipsync required for this scene</span>
                   <button
-                    onClick={() => void handleLipsyncToggle(idx)}
+                    onClick={() => handleFieldEdit(idx, 'lipsync_required', !prompt.lipsync_required)}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                       prompt.lipsync_required ? 'bg-violet-600' : 'bg-gray-300'
                     }`}

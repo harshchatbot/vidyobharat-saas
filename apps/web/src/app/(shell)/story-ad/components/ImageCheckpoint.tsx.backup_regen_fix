@@ -40,12 +40,6 @@ interface Scene {
   environment?: string;
   avatar_action?: string;
   duration_seconds: number;
-  base_image_prompt?: string | null;
-  edited_image_prompt?: string | null;
-  prompt_last_edited_at?: string | null;
-  prompt_edit_source?: string | null;
-  last_regeneration_prompt?: string | null;
-  last_regenerated_at?: string | null;
   base_image_url: string | null;
   image_url?: string | null;
   generated_image_url?: string | null;
@@ -79,7 +73,6 @@ export default function ImageCheckpoint({
     approveSceneImage,
     rejectSceneImage,
     regenerateSceneImage,
-    updateScene,
     loading,
   } = useStoryboardProject();
 
@@ -89,9 +82,6 @@ export default function ImageCheckpoint({
   const [showFeedbackFor, setShowFeedbackFor] = useState<string | null>(null);
   const [editingPromptFor, setEditingPromptFor] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState<string>('');
-  const [editedPrompts, setEditedPrompts] = useState<Record<string, string>>({});
-  const [promptSavedFor, setPromptSavedFor] = useState<string | null>(null);
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState<Record<string, boolean>>({});
   const [activeThumb, setActiveThumb] = useState<number>(1);
   const [showGeneratingImagesLoader, setShowGeneratingImagesLoader] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -100,7 +90,6 @@ export default function ImageCheckpoint({
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
   const [previewImageFailed, setPreviewImageFailed] = useState(false);
   const [staleApprovalCount, setStaleApprovalCount] = useState(0);
-  const [regeneratingSceneIds, setRegeneratingSceneIds] = useState<Record<string, boolean>>({});
   const [imageQualityMode, setImageQualityMode] = useState<'draft' | 'standard' | 'premium'>(
     ['draft', 'standard', 'premium'].includes(String(project.storyboard_image_quality_mode || 'standard'))
       ? (String(project.storyboard_image_quality_mode || 'standard') as 'draft' | 'standard' | 'premium')
@@ -119,11 +108,7 @@ export default function ImageCheckpoint({
     String(scene.dialogue || '').trim() ||
     String(scene.script_line || '').trim() ||
     String(scene.narration || '').trim() ||
-      String(scene.spoken_line || '').trim();
-  const getEffectivePrompt = (scene: Partial<Scene>): string =>
-    String(scene.edited_image_prompt || '').trim() ||
-    String(scene.base_image_prompt || '').trim() ||
-    String(scene.visual_description || '').trim();
+    String(scene.spoken_line || '').trim();
 
   const normalizeMockScenes = (count = 4): Scene[] =>
     generateMockScenes(count, {
@@ -193,12 +178,6 @@ export default function ImageCheckpoint({
         environment: raw.environment || undefined,
         avatar_action: raw.avatar_action || undefined,
         duration_seconds: Number(raw.duration_seconds || 0),
-        base_image_prompt: String(raw.base_image_prompt || '').trim() || null,
-        edited_image_prompt: String(raw.edited_image_prompt || '').trim() || null,
-        prompt_last_edited_at: raw.prompt_last_edited_at || null,
-        prompt_edit_source: raw.prompt_edit_source || null,
-        last_regeneration_prompt: raw.last_regeneration_prompt || null,
-        last_regenerated_at: raw.last_regenerated_at || null,
         base_image_url: frameUrl,
         image_url: String(raw.image_url || frameUrl || ''),
         generated_image_url: String(raw.generated_image_url || frameUrl || ''),
@@ -347,26 +326,19 @@ export default function ImageCheckpoint({
         setScenes((prev) => prev.map((s) => s.id === sceneId ? { ...s, user_approved: false, state: 'image_rejected' } : s));
         setShowFeedbackFor(null);
         setRejectionFeedback((prev) => ({ ...prev, [sceneId]: '' }));
-        setFeedbackSubmitted((prev) => ({ ...prev, [sceneId]: true }));
-        setTimeout(() => setFeedbackSubmitted((prev) => ({ ...prev, [sceneId]: false })), 3000);
         return;
       }
       await rejectSceneImage(project.id, sceneId, feedback);
       await fetchScenes(false);
       setShowFeedbackFor(null);
       setRejectionFeedback((prev) => ({ ...prev, [sceneId]: '' }));
-      // Show confirmation that feedback was saved
-      setFeedbackSubmitted((prev) => ({ ...prev, [sceneId]: true }));
-      setTimeout(() => setFeedbackSubmitted((prev) => ({ ...prev, [sceneId]: false })), 3000);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to reject frame.');
     }
   };
 
   const handleRegenerateScene = async (sceneId: string) => {
-    if (regeneratingSceneIds[sceneId]) return;
     if (isMockMode) {
-      setRegeneratingSceneIds((prev) => ({ ...prev, [sceneId]: true }));
       setShowGeneratingImagesLoader(true);
       await simulateDelay(800);
       const fresh = normalizeMockScenes(4);
@@ -378,17 +350,12 @@ export default function ImageCheckpoint({
         )
       );
       setShowGeneratingImagesLoader(false);
-      setRegeneratingSceneIds((prev) => ({ ...prev, [sceneId]: false }));
       return;
     }
     try {
       setLocalError(null);
-      setRegeneratingSceneIds((prev) => ({ ...prev, [sceneId]: true }));
-      console.log('storyboard_prompt_regen_requested', { projectId: project.id, sceneId });
       const before = scenes.find((s) => s.id === sceneId)?.base_image_url || null;
-      const scene = scenes.find((s) => s.id === sceneId);
-      const editedPrompt = String(editedPrompts[sceneId] || getEffectivePrompt(scene || {})).trim();
-      await regenerateSceneImage(project.id, sceneId, imageQualityMode, editedPrompt || undefined);
+      await regenerateSceneImage(project.id, sceneId, imageQualityMode);
       let attempts = 0;
       const maxAttempts = 60; // up to 2 minutes
       while (attempts < maxAttempts) {
@@ -412,8 +379,6 @@ export default function ImageCheckpoint({
       setLocalError('Scene regeneration is taking longer than expected. Please wait and refresh.');
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to regenerate scene.');
-    } finally {
-      setRegeneratingSceneIds((prev) => ({ ...prev, [sceneId]: false }));
     }
   };
 
@@ -461,36 +426,16 @@ export default function ImageCheckpoint({
   };
 
   const startEditPrompt = (scene: Scene) => {
-    console.log('storyboard_prompt_edit_opened', { projectId: project.id, sceneId: scene.id });
     setEditingPromptFor(scene.id);
-    setPromptDraft(getEffectivePrompt(scene));
+    setPromptDraft(scene.visual_description);
   };
 
-  const saveEditPrompt = async (sceneId: string) => {
-    const nextPrompt = String(promptDraft || '').trim();
-    if (!nextPrompt) {
-      setLocalError('Prompt cannot be empty.');
-      return;
-    }
-    try {
-      setLocalError(null);
-      await updateScene(project.id, sceneId, {
-        edited_image_prompt: nextPrompt,
-        prompt_edit_source: 'user',
-      });
-      setScenes((prev) =>
-        prev.map((s) => s.id === sceneId ? { ...s, edited_image_prompt: nextPrompt, prompt_edit_source: 'user' } : s)
-      );
-      setEditedPrompts((prev) => ({ ...prev, [sceneId]: nextPrompt }));
-      setPromptSavedFor(sceneId);
-      setTimeout(() => setPromptSavedFor((current) => (current === sceneId ? null : current)), 2500);
-      console.log('storyboard_prompt_saved', { projectId: project.id, sceneId, source: 'user' });
-      setEditingPromptFor(null);
-      setPromptDraft('');
-      await fetchScenes(false);
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Failed to save prompt.');
-    }
+  const saveEditPrompt = (sceneId: string) => {
+    setScenes((prev) =>
+      prev.map((s) => s.id === sceneId ? { ...s, visual_description: promptDraft } : s)
+    );
+    setEditingPromptFor(null);
+    setPromptDraft('');
   };
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -842,7 +787,6 @@ export default function ImageCheckpoint({
               continuityFlags.environment ? 'Environment Locked' : null,
             ].filter(Boolean) as string[];
             const frameReady = hasFrameUrl(scene);
-            const isRegenerating = Boolean(regeneratingSceneIds[scene.id]);
             return (
           <motion.div
             key={scene.id}
@@ -857,7 +801,7 @@ export default function ImageCheckpoint({
           >
             {/* Image Frame */}
             <div className="relative w-full" style={{ aspectRatio: viewMode === 'board' ? '9/16' : '16/9', background: '#0b1020' }}>
-              {scene.base_image_url && !isRegenerating ? (
+              {scene.base_image_url ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -875,17 +819,9 @@ export default function ImageCheckpoint({
                 </button>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                  <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full border border-slate-600 bg-slate-800/70">
-                    {isRegenerating ? (
-                      <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-amber-300 border-b-transparent" />
-                    ) : (
-                      <span className="animate-pulse text-2xl">🎬</span>
-                    )}
-                  </div>
+                  <div className="h-20 w-20 rounded-full border border-slate-600 bg-slate-800/70 animate-pulse mb-3 flex items-center justify-center text-2xl">🎬</div>
                   <p className="text-sm font-medium text-text">Scene {scene.scene_number}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {isRegenerating ? 'Generating frame...' : 'Awaiting frame generation'}
-                  </p>
+                  <p className="mt-1 text-xs text-muted">Awaiting frame generation</p>
                 </div>
               )}
               {/* Scene number badge */}
@@ -939,9 +875,6 @@ export default function ImageCheckpoint({
               {editingPromptFor === scene.id ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-slate-400 uppercase">Editing Visual Prompt</p>
-                  <p className="text-[11px] text-slate-300">
-                    Do not include text inside generated image. CTA text can be added later as overlay.
-                  </p>
                   <textarea
                     value={promptDraft}
                     onChange={(e) => setPromptDraft(e.target.value)}
@@ -950,7 +883,7 @@ export default function ImageCheckpoint({
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={() => void saveEditPrompt(scene.id)}
+                      onClick={() => saveEditPrompt(scene.id)}
                       className="flex-1 bg-cyan-500 text-slate-950 text-xs py-1.5 rounded-lg font-semibold hover:bg-cyan-400"
                     >
                       ✓ Save
@@ -965,16 +898,7 @@ export default function ImageCheckpoint({
                 </div>
               ) : viewMode === 'review' ? (
                 <div className="grid grid-cols-1 gap-1.5">
-                  <MetaRow icon="🖼️" label="Visual" value={getEffectivePrompt(scene)} />
-                  {String(scene.edited_image_prompt || '').trim() ? (
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[11px] text-cyan-200">Edited</span>
-                      <span className="text-[11px] text-cyan-200">Using edited prompt</span>
-                    </div>
-                  ) : null}
-                  {promptSavedFor === scene.id ? (
-                    <p className="text-[11px] text-emerald-300">✓ Prompt saved</p>
-                  ) : null}
+                  <MetaRow icon="🖼️" label="Visual" value={scene.visual_description} />
                   {scene.mood && <MetaRow icon="🎭" label="Mood" value={scene.mood} />}
                   {scene.environment && <MetaRow icon="🌅" label="Setting" value={scene.environment} />}
                   {scene.avatar_action && <MetaRow icon="🧑" label="Action" value={scene.avatar_action} />}
@@ -982,7 +906,7 @@ export default function ImageCheckpoint({
               ) : (
                 <div className="space-y-2">
                   <p className="line-clamp-2 text-xs text-muted">
-                    {getEffectivePrompt(scene)}
+                    {scene.visual_description}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <span className="text-[11px] px-2 py-0.5 rounded-full border border-slate-500/40 text-slate-200">{scene.shot_type}</span>
@@ -1031,10 +955,10 @@ export default function ImageCheckpoint({
               <div className="flex gap-2 border-t border-border px-5 pb-5 pt-3">
               <button
                 onClick={() => handleApproveScene(scene.id)}
-                disabled={loading || isRegenerating || !hasFrameUrl(scene)}
+                disabled={loading || !hasFrameUrl(scene)}
                 className={`flex-1 rounded-xl py-2 text-xs font-semibold transition-colors ${
                   hasFrameUrl(scene)
-                    ? 'border border-emerald-300/60 bg-emerald-400/25 text-emerald-50 hover:bg-emerald-400/35'
+                    ? 'bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/25'
                     : 'cursor-not-allowed border border-border bg-elevated text-muted'
                 } disabled:opacity-50`}
               >
@@ -1042,10 +966,10 @@ export default function ImageCheckpoint({
               </button>
               <button
                 onClick={() => handleRejectScene(scene.id)}
-                disabled={loading || isRegenerating || !hasFrameUrl(scene)}
+                disabled={loading || !hasFrameUrl(scene)}
                 className={`flex-1 rounded-xl py-2 text-xs font-semibold transition-colors ${
                   hasFrameUrl(scene)
-                    ? 'border border-rose-300/60 bg-rose-400/25 text-rose-50 hover:bg-rose-400/35'
+                    ? 'bg-rose-500/15 border border-rose-400/40 text-rose-200 hover:bg-rose-500/25'
                     : 'cursor-not-allowed border border-border bg-elevated text-muted'
                 } disabled:opacity-50`}
               >
@@ -1053,38 +977,27 @@ export default function ImageCheckpoint({
               </button>
               <button
                 onClick={() => handleRegenerateScene(scene.id)}
-                disabled={loading || isRegenerating}
-                className="flex-1 rounded-xl border border-amber-300/60 bg-amber-400/30 py-2 text-xs font-semibold text-amber-50 transition-colors hover:bg-amber-400/40 disabled:opacity-50"
+                disabled={loading}
+                className="flex-1 rounded-xl border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] py-2 text-xs font-semibold text-[hsl(var(--color-accent))] transition-colors hover:bg-[hsl(var(--color-accent)/0.2)] disabled:opacity-50"
               >
-                {isRegenerating ? '⏳ Generating…' : '🔄 Regen'}
+                🔄 Regen
               </button>
               <button
                 onClick={() => startEditPrompt(scene)}
-                disabled={loading || isRegenerating}
-                className="flex-1 rounded-xl border border-sky-300/60 bg-sky-400/25 py-2 text-xs font-semibold text-sky-50 transition-colors hover:bg-sky-400/35 disabled:opacity-50"
+                disabled={loading}
+                className="flex-1 rounded-xl border border-[hsl(var(--color-warning)/0.4)] bg-[hsl(var(--color-warning)/0.12)] py-2 text-xs font-semibold text-[hsl(var(--color-warning))] transition-colors hover:bg-[hsl(var(--color-warning)/0.2)] disabled:opacity-50"
               >
                 ✏️ Prompt
               </button>
               </div>
               ) : (
-                <div className="space-y-3">
-                  {feedbackSubmitted[scene.id] && (
-                    <p style={{
-                      fontSize: '11px',
-                      color: 'hsl(var(--color-success))',
-                      textAlign: 'center',
-                    }}>
-                      ✓ Feedback saved — will improve next generation
-                    </p>
-                  )}
-                  <div className="px-5 pb-5 pt-3 border-t border-slate-700/60">
-                    <div className="flex flex-wrap gap-2">
-                      {continuityBadges.map((badge) => (
-                          <span key={`${scene.id}-${badge}`} className="rounded-full border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] px-2.5 py-1 text-[11px] text-[hsl(var(--color-accent))]">
-                            {badge}
-                          </span>
-                        ))}
-                    </div>
+                <div className="px-5 pb-5 pt-3 border-t border-slate-700/60">
+                <div className="flex flex-wrap gap-2">
+                  {continuityBadges.map((badge) => (
+                      <span key={`${scene.id}-${badge}`} className="rounded-full border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.12)] px-2.5 py-1 text-[11px] text-[hsl(var(--color-accent))]">
+                        {badge}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1209,24 +1122,24 @@ export default function ImageCheckpoint({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => void handleApproveScene(previewScene.id)}
-                    disabled={loading || regeneratingSceneIds[previewScene.id] || !previewSceneImage}
-                    className="rounded-xl border border-emerald-300/60 bg-emerald-400/25 py-2 text-xs font-semibold text-emerald-50 transition hover:bg-emerald-400/35 disabled:opacity-50"
+                    disabled={loading || !previewSceneImage}
+                    className="rounded-xl border border-[hsl(var(--color-success)/0.35)] bg-[hsl(var(--color-success)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-success))] transition hover:bg-[hsl(var(--color-success)/0.18)] disabled:opacity-50"
                   >
                     ✓ Approve frame
                   </button>
                   <button
                     onClick={() => handleRejectScene(previewScene.id)}
-                    disabled={loading || regeneratingSceneIds[previewScene.id] || !previewSceneImage}
-                    className="rounded-xl border border-rose-300/60 bg-rose-400/25 py-2 text-xs font-semibold text-rose-50 transition hover:bg-rose-400/35 disabled:opacity-50"
+                    disabled={loading || !previewSceneImage}
+                    className="rounded-xl border border-[hsl(var(--color-danger)/0.35)] bg-[hsl(var(--color-danger)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-danger))] transition hover:bg-[hsl(var(--color-danger)/0.18)] disabled:opacity-50"
                   >
                     ✗ Reject frame
                   </button>
                   <button
                     onClick={() => void handleRegenerateScene(previewScene.id)}
-                    disabled={loading || Boolean(regeneratingSceneIds[previewScene.id])}
-                    className="rounded-xl border border-amber-300/60 bg-amber-400/30 py-2 text-xs font-semibold text-amber-50 transition hover:bg-amber-400/40 disabled:opacity-50"
+                    disabled={loading}
+                    className="rounded-xl border border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.1)] py-2 text-xs font-semibold text-[hsl(var(--color-accent))] transition hover:bg-[hsl(var(--color-accent)/0.18)] disabled:opacity-50"
                   >
-                    {regeneratingSceneIds[previewScene.id] ? '⏳ Generating…' : '🔄 Regenerate'}
+                    🔄 Regenerate
                   </button>
                   {previewSceneImage ? (
                     <a

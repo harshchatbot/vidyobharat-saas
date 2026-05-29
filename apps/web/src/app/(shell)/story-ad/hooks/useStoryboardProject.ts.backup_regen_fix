@@ -776,8 +776,6 @@ export function useStoryboardProject() {
       environment?: string;
       avatar_action?: string;
       lipsync_this_scene?: boolean;
-      edited_image_prompt?: string;
-      prompt_edit_source?: string;
     },
   ) => {
     setLoading(true);
@@ -807,23 +805,17 @@ export function useStoryboardProject() {
     }
   }, [getProject]);
 
-  const regenerateSceneImage = useCallback(async (projectId: string, sceneId: string, storyboardImageQualityMode?: string, customPrompt?: string) => {
+  const regenerateSceneImage = useCallback(async (projectId: string, sceneId: string, storyboardImageQualityMode?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
-        storyboard_image_quality_mode: storyboardImageQualityMode,
-      };
-      if (customPrompt) {
-        body.custom_prompt = customPrompt;
-      }
       const response = await fetch(`${API_BASE_URL}/api/storyboard/${projectId}/scenes/${sceneId}/regenerate-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': getUserId(),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ storyboard_image_quality_mode: storyboardImageQualityMode }),
       });
       if (!response.ok) {
         const detail = await response.text().catch(() => '');

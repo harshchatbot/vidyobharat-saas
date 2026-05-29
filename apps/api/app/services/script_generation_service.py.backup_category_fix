@@ -50,18 +50,6 @@ def detect_product_category(business_brief: str) -> str:
         'personal_care': ['shampoo', 'conditioner', 'hair', 'body wash',
                           'deodorant', 'perfume', 'soap', 'toothpaste',
                           'face wash', 'lip balm'],
-        'gift_items': ['gift', 'gifting', 'present', 'keepsake', 'memento',
-                       'souvenir', 'collectible', 'special occasion', 'birthday',
-                       'anniversary', 'wedding gift', 'baby shower'],
-        'toys_collectibles': ['teddy', 'plush', 'stuffed', 'toy', 'doll',
-                              'figurine', 'collectible', 'plushie', 'soft toy',
-                              'crochet', 'knitted', 'handmade toy'],
-        'handmade_artisan': ['handcrafted', 'handmade', 'artisan', 'craft',
-                             'crochet', 'knitted', 'woven', 'embroidered',
-                             'hand-stitched', 'bespoke', 'custom made'],
-        'wellness_emotional': ['comfort', 'cozy', 'soothing', 'calming', 'stress',
-                               'anxiety', 'emotional', 'mental health', 'self-care',
-                               'therapeutic', 'healing', 'companion'],
     }
 
     scores = {}
@@ -160,49 +148,6 @@ STORY_ARC_TEMPLATES = {
             'story': 'Relatable problem → Here is the solution → Proof it works → Try it now',
         },
     },
-    'gift_items': {
-        10: {
-            'arc_name': 'Gift-Emotion-Moment',
-            'beats': ['occasion_hook', 'product_reveal', 'emotional_cta'],
-            'story': 'Special moment coming → Perfect gift found → Make them feel loved',
-        },
-        15: {
-            'arc_name': 'Gift Story',
-            'beats': ['occasion_hook', 'search_struggle', 'product_discovery', 'gifting_moment', 'reaction_cta'],
-            'story': 'Someone special deserves something special → Searched everywhere → Found this → Their face when they received it',
-        },
-    },
-    'toys_collectibles': {
-        10: {
-            'arc_name': 'Cozy-Comfort-Love',
-            'beats': ['emotional_hook', 'product_beauty', 'comfort_moment'],
-            'story': 'Some things just feel like home → Look at this craftsmanship → Hold one and feel the difference',
-        },
-        15: {
-            'arc_name': 'Handcraft Story',
-            'beats': ['cozy_hook', 'craft_detail', 'emotional_connection', 'gifting_moment', 'cta'],
-            'story': 'Not just a toy — a feeling → Every stitch made with love → For someone who deserves warmth → Gift one today',
-        },
-    },
-    'handmade_artisan': {
-        10: {
-            'arc_name': 'Craft-Care-Connection',
-            'beats': ['craft_hook', 'process_detail', 'product_beauty'],
-            'story': 'Made by hand → Every detail intentional → Something machine-made could never match',
-        },
-        15: {
-            'arc_name': 'Artisan Story',
-            'beats': ['hook_mass_vs_handmade', 'craft_process', 'detail_beauty', 'emotional_value', 'cta'],
-            'story': 'In a world of fast production → This was made for you → One stitch at a time → Worth every moment',
-        },
-    },
-    'wellness_emotional': {
-        10: {
-            'arc_name': 'Feeling-Relief-Peace',
-            'beats': ['stress_hook', 'product_solution', 'peaceful_result'],
-            'story': 'Tough day? → This helps → Feel the calm',
-        },
-    },
 }
 
 
@@ -241,36 +186,16 @@ class ScriptGenerationService:
         """Initialize with Gemini client."""
         self.gemini_client = gemini_client or get_gemini_client()
 
-    def _get_word_target_for_platform(self, platform: str, target_duration_seconds: int = 15) -> int:
-        """Calculate word target based on duration (primary) and platform (secondary).
-
-        Speech rate: ~2.5 words/second for natural paced ad delivery.
-        We target 85% of max to allow for pauses, music, emphasis.
-        """
-        # Duration-based targets (primary)
-        duration_targets = {
-            10: 22,   # 10s × 2.5 × 0.85 = ~21 words
-            15: 32,   # 15s × 2.5 × 0.85 = ~32 words
-            20: 42,   # 20s × 2.5 × 0.85 = ~42 words
-            30: 63,   # 30s × 2.5 × 0.85 = ~63 words
-            60: 125,  # 60s × 2.5 × 0.85 = ~125 words
+    def _get_word_target_for_platform(self, platform: str) -> int:
+        """Get word count target for a specific platform."""
+        targets = {
+            'instagram_reels': 80,
+            'facebook_feed': 80,
+            'youtube_shorts': 80,
+            'tiktok': 60,
+            'linkedin': 150,
         }
-
-        # Find closest duration
-        closest = min(duration_targets.keys(), key=lambda x: abs(x - target_duration_seconds))
-        base_target = duration_targets[closest]
-
-        # Platform adjustment (minor modifier)
-        platform_modifier = {
-            'tiktok': 0.9,        # Faster pace
-            'instagram_reels': 1.0,
-            'youtube_shorts': 1.0,
-            'facebook_reels': 1.0,
-            'linkedin': 1.1,      # Slightly slower, more deliberate
-        }
-
-        modifier = platform_modifier.get(platform.lower().replace(' ', '_'), 1.0)
-        return max(15, int(base_target * modifier))
+        return targets.get(platform, 80)
 
     def generate(
         self,
@@ -318,7 +243,7 @@ class ScriptGenerationService:
                 raise Exception(f"Gemini API error: {response}")
 
             raw_script = response.get('text', '').strip()
-            word_target = self._get_word_target_for_platform(platform, target_duration_seconds)
+            word_target = self._get_word_target_for_platform(platform)
             script = self._clean_script_response(raw_script, word_target=word_target)
 
             # Calculate metrics
@@ -358,7 +283,7 @@ class ScriptGenerationService:
         target_duration_seconds: int = 15,
     ) -> str:
         """Build prompt for Gemini script generation."""
-        word_target = self._get_word_target_for_platform(platform, target_duration_seconds)
+        word_target = self._get_word_target_for_platform(platform)
 
         # Detect product category for enhanced storytelling
         product_category = detect_product_category(business_brief)
@@ -434,10 +359,6 @@ OUTPUT: Plain script text only. No formatting, labels, timing marks, or directio
             'footwear': '- Start with activity or movement\n- Connect shoes to confidence or performance\n- Mention specific occasion or use case\n- Use motion and energy language',
             'supplement_health': '- Open with specific pain/problem (fatigue, weakness, deficiency)\n- Mention key ingredient or mechanism simply\n- Show transformation with timeframe\n- Include credibility signal (tested/certified/doctor)',
             'jewelry': '- Connect to occasion or emotion (gift, milestone, self-love)\n- Describe craftsmanship with sensory detail\n- Evoke the feeling of wearing it\n- Include gifting or self-treat angle',
-            'gift_items': '- Open with the occasion or the person being gifted\n- Describe the emotional impact of receiving this gift\n- Use words: surprise, delight, thoughtful, perfect, unforgettable\n- End with gifting urgency: "Order before [occasion]" or "Make them feel special"',
-            'toys_collectibles': '- Lead with the emotional comfort or joy the product brings\n- Describe texture, softness, craftsmanship with sensory words\n- Connect to cozy lifestyle moments (rainy day, bedtime, desk companion)\n- Avoid clinical descriptions — use warm, personal language',
-            'handmade_artisan': '- Emphasize the human touch and care in creation\n- Contrast with mass-produced alternatives\n- Use words: crafted, stitched, made with love, one of a kind\n- Connect to the value of owning something truly handmade',
-            'wellness_emotional': '- Acknowledge the emotional state first (stress, loneliness, anxiety)\n- Position product as a gentle comforting solution\n- Use soft sensory language (warm, cozy, hold, embrace)\n- Avoid medical claims — focus on feelings and comfort',
             'general': '- Open with problem or desire your audience feels\n- Connect product to their life improvement\n- Include one specific proof point or result\n- End with urgency or clear next step',
         }
         return rules.get(product_category, rules['general'])

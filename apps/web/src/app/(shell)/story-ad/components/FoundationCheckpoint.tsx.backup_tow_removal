@@ -128,7 +128,9 @@ export default function FoundationCheckpoint({ project, onApprove, onBack }: Fou
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
         <div className="flex items-start justify-between">
           <div>
-            
+            <span className="text-xs font-semibold uppercase tracking-widest text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+              TOW · Stage 3 of 13
+            </span>
             <h2 className="text-2xl font-bold text-gray-900 mt-3">🧠 Foundation — Strategy</h2>
             <p className="text-gray-500 mt-1">
               Strategic foundation only — no script, no scenes yet. Approve to proceed

@@ -415,6 +415,7 @@ Each scene needs:
 - Ensure smooth visual transitions between scenes
 - Product should be integrated naturally (not forced)
 - Each scene should take ~5 seconds to perform/show
+- No text in visuals: no captions, subtitles, labels, logos, watermark, UI buttons, CTA text, or typography in-frame.
 
 === OUTPUT FORMAT ===
 Return ONLY a valid JSON array of scene cards. Example:

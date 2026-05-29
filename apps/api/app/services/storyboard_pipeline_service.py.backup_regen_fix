@@ -469,19 +469,6 @@ class StoryboardPipelineService:
                     "image_url": scene.base_image_url,
                     "frame_url": scene.base_image_url,
                     "base_image_prompt": scene.base_image_prompt,
-                    "edited_image_prompt": getattr(scene, "edited_image_prompt", None),
-                    "prompt_last_edited_at": (
-                        getattr(scene, "prompt_last_edited_at", None).isoformat()
-                        if getattr(scene, "prompt_last_edited_at", None)
-                        else None
-                    ),
-                    "prompt_edit_source": getattr(scene, "prompt_edit_source", None),
-                    "last_regeneration_prompt": getattr(scene, "last_regeneration_prompt", None),
-                    "last_regenerated_at": (
-                        getattr(scene, "last_regenerated_at", None).isoformat()
-                        if getattr(scene, "last_regenerated_at", None)
-                        else None
-                    ),
                     "video_url": scene.video_url,
                     "lipsync_video_url": scene.lipsync_video_url,
                     "scene_video_status": getattr(scene, "scene_video_status", None),
@@ -961,7 +948,6 @@ class StoryboardPipelineService:
         user_id: str,
         model_tier: str = "fast",
         storyboard_image_quality_mode: str | None = None,
-        custom_prompt: str | None = None,
     ) -> dict[str, Any]:
         project = self.db.get_project(project_id)
         if not project:
@@ -1005,28 +991,6 @@ class StoryboardPipelineService:
                     break
 
         now = utcnow()
-        custom_prompt_value = str(custom_prompt or "").strip() or None
-        edited_prompt_value = str(getattr(scene, "edited_image_prompt", "") or "").strip() or None
-        base_prompt_value = str(getattr(scene, "base_image_prompt", "") or "").strip() or None
-        effective_prompt = custom_prompt_value or edited_prompt_value or base_prompt_value
-        prompt_source = (
-            "custom_prompt"
-            if custom_prompt_value
-            else "edited_image_prompt"
-            if edited_prompt_value
-            else "base_image_prompt"
-            if base_prompt_value
-            else "auto_build"
-        )
-        logger.info(
-            "storyboard_scene_effective_prompt_resolved",
-            extra={
-                "project_id": project_id,
-                "scene_id": scene_id,
-                "source": prompt_source,
-                "has_effective_prompt": bool(effective_prompt),
-            },
-        )
         self.db.update_scene(
             project_id,
             scene_id,
@@ -1051,7 +1015,6 @@ class StoryboardPipelineService:
                 "user_id": user_id,
                 "model_tier": model_tier,
                 "storyboard_image_quality_mode": normalized_quality_mode,
-                "custom_prompt": effective_prompt,
             },
             task_id=f"regen_image_{project_id}_{scene_id}_{int(now.timestamp())}",
         )
@@ -2132,12 +2095,9 @@ class StoryboardPipelineService:
         scene_count = int(normalized["scene_count"])
         actual_duration = int(normalized["actual_duration_seconds"])
         scene_video_credits = int(STORYBOARD_MODEL_SCENE_CREDITS.get(normalized_model_key, 15)) * scene_count
-        cinematic_narration_mode = str(getattr(project, "ad_category", "") or "").strip().lower() in {"cinematic_broll", "cinematic_narration"}
         tts_credits = 4
         scenes = self.db.list_scenes(project_id)
         lipsync_required_count = sum(1 for s in scenes if bool(getattr(s, "lipsync_this_scene", False)))
-        if cinematic_narration_mode:
-            lipsync_required_count = 0
         lipsync_credits = lipsync_required_count * 4
         stitching_credits = 2
         qc_credits = 2
@@ -2151,8 +2111,8 @@ class StoryboardPipelineService:
         meta = STORYBOARD_VIDEO_QUALITY_MAP[normalized_model_key]
         breakdown = [
             {"label": "Scene videos", "credits": scene_video_credits},
-            {"label": "Narration voiceover" if cinematic_narration_mode else "TTS", "credits": tts_credits},
-            {"label": "Lipsync", "credits": lipsync_credits, "status": "skipped" if cinematic_narration_mode else "required"},
+            {"label": "TTS", "credits": tts_credits},
+            {"label": "Lipsync", "credits": lipsync_credits},
             {"label": "Stitching", "credits": stitching_credits},
             {"label": "QC", "credits": qc_credits},
         ]

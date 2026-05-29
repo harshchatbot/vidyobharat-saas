@@ -15,7 +15,7 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.db.repositories.storyboard_repository import StoryboardRepository
 from app.db.repositories.video_repository import VideoRepository
-from app.db.firestore_utils import utcnow
+from app.db.firestore_utils import coerce_datetime, utcnow
 from app.providers.firebase import get_firestore_client
 from app.services.credit_service import CreditService
 from app.services.emotion_tagging_service import EmotionTaggingService
@@ -33,6 +33,19 @@ from app.services.avatar_cultural_registry import (
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+NO_TEXT_VISUAL_RULE = (
+    "No text, no captions, no subtitles, no labels, no logos, no watermark, no UI buttons, "
+    "no call-to-action text, no 'Shop Now' text, no typography anywhere in the image/frame."
+)
+
+_PROMPT_TEXT_INTENT_TOKENS = (
+    "shop now",
+    "discount",
+    "text overlay",
+    "logo",
+    "caption",
+)
 
 
 def _redact_url(value: str | None) -> str:
@@ -180,6 +193,27 @@ def _strip_overlay_text_hints(value: str | None) -> tuple[str, bool]:
     return cleaned or source, changed
 
 
+def _append_no_text_prompt_safety(prompt: str) -> str:
+    base = str(prompt or "").strip()
+    if not base:
+        return NO_TEXT_VISUAL_RULE
+    if NO_TEXT_VISUAL_RULE.lower() in base.lower():
+        return base
+    return f"{base}\n\n{NO_TEXT_VISUAL_RULE}"
+
+
+def _append_text_intent_safety_if_needed(prompt: str) -> str:
+    base = str(prompt or "").strip()
+    lower = base.lower()
+    if any(token in lower for token in _PROMPT_TEXT_INTENT_TOKENS):
+        extra = (
+            "Do not render this as visible text inside the image; treat it only as marketing intent."
+        )
+        if extra.lower() not in lower:
+            return f"{base}\n\n{extra}"
+    return base
+
+
 def _resolve_project_cultural_grounding(project) -> tuple[str | None, str | None, str | None]:
     profile = resolve_avatar_cultural_profile(
         avatar_id=str(getattr(project, "avatar_id", "") or "").strip() or None,
@@ -270,13 +304,101 @@ def _resolve_reference_urls_for_storyboard(urls: list[str]) -> list[str]:
 
 
 def scene_requires_lipsync(scene: Any, project: Any | None = None) -> tuple[bool, str]:
+    scene_number = int(getattr(scene, "scene_number", 0) or 0)
+    project_id = str(getattr(scene, "project_id", "") or getattr(project, "id", "") or "")
     if bool(getattr(scene, "lipsync_this_scene", False)):
+        logger.info(
+            "storyboard_scene_lipsync_enabled",
+            extra={
+                "project_id": project_id,
+                "scene_id": str(getattr(scene, "id", "") or ""),
+                "scene_number": scene_number,
+                "requires_lipsync": True,
+                "source": "lipsync_this_scene",
+            },
+        )
         return True, "lipsync_this_scene"
     if bool(getattr(scene, "lipsync_required", False)):
+        logger.info(
+            "storyboard_scene_lipsync_enabled",
+            extra={
+                "project_id": project_id,
+                "scene_id": str(getattr(scene, "id", "") or ""),
+                "scene_number": scene_number,
+                "requires_lipsync": True,
+                "source": "lipsync_required",
+            },
+        )
         return True, "lipsync_required"
     if bool(getattr(scene, "requires_lipsync", False)):
+        logger.info(
+            "storyboard_scene_lipsync_enabled",
+            extra={
+                "project_id": project_id,
+                "scene_id": str(getattr(scene, "id", "") or ""),
+                "scene_number": scene_number,
+                "requires_lipsync": True,
+                "source": "requires_lipsync",
+            },
+        )
         return True, "requires_lipsync"
+    logger.info(
+        "storyboard_scene_lipsync_skipped",
+        extra={
+            "project_id": project_id,
+            "scene_id": str(getattr(scene, "id", "") or ""),
+            "scene_number": scene_number,
+            "requires_lipsync": False,
+            "source": "none",
+        },
+    )
     return False, "none"
+
+
+def _is_cinematic_narration_mode(project: Any | None) -> bool:
+    category = str(getattr(project, "ad_category", "") or "").strip().lower() if project else ""
+    return category in {"cinematic_broll", "cinematic_narration"}
+
+
+def _narration_audio_ready(project: Any | None) -> tuple[bool, str]:
+    if not project:
+        return False, ""
+    narration_audio_url = str(getattr(project, "tts_audio_url", "") or "").strip()
+    tts_status = str(getattr(project, "tts_status", "") or "").strip().lower()
+    ready = bool(narration_audio_url) and tts_status == "completed"
+    if ready:
+        logger.info(
+            "storyboard_narration_audio_url_present",
+            extra={"project_id": str(getattr(project, "id", "") or ""), "tts_status": tts_status},
+        )
+    else:
+        logger.info(
+            "storyboard_narration_audio_missing",
+            extra={
+                "project_id": str(getattr(project, "id", "") or ""),
+                "tts_status": tts_status,
+                "audio_url_present": bool(narration_audio_url),
+            },
+        )
+    return ready, narration_audio_url
+
+
+def _should_queue_stitch_for_mode(
+    *,
+    cinematic_mode: bool,
+    all_scene_videos_completed: bool,
+    narration_ready: bool,
+    all_required_lipsync_completed: bool,
+) -> tuple[bool, str]:
+    if not all_scene_videos_completed:
+        return False, "scene_videos_incomplete"
+    if cinematic_mode:
+        if not narration_ready:
+            return False, "waiting_for_narration"
+        return True, "cinematic_ready"
+    if not all_required_lipsync_completed:
+        return False, "waiting_for_lipsync"
+    return True, "speaking_ready"
 
 
 def _create_storyboard_completion_notification(
@@ -449,6 +571,22 @@ def _maybe_advance_storyboard_production_after_scene(
         return
 
     logger.info("storyboard_all_scene_videos_completed", extra={"project_id": project_id, "scene_count": len(required)})
+    cinematic_mode = _is_cinematic_narration_mode(project)
+    logger.info(
+        "storyboard_stitch_gate_mode",
+        extra={
+            "project_id": project_id,
+            "ad_category": str(getattr(project, "ad_category", "") or ""),
+            "mode": "cinematic_narration" if cinematic_mode else "speaking_avatar",
+            "videos_completed": len(completed),
+            "videos_required": len(required),
+        },
+    )
+    if cinematic_mode:
+        logger.info(
+            "storyboard_cinematic_narration_detected",
+            extra={"project_id": project_id, "ad_category": str(getattr(project, "ad_category", "") or "")},
+        )
 
     lipsync_required_scenes: list[Any] = []
     for scene in required:
@@ -515,6 +653,73 @@ def _maybe_advance_storyboard_production_after_scene(
             }
         )
         logger.info("storyboard_stitching_skipped_until_lipsync_complete", extra={"project_id": project_id, "reason": "tts_queued"})
+        return
+
+    # Cinematic narration mode: no lipsync, but narration audio is still required.
+    if cinematic_mode:
+        narration_ready, narration_audio_url = _narration_audio_ready(project)
+        if narration_ready:
+            logger.info(
+                "storyboard_cinematic_stitch_ready",
+                extra={
+                    "project_id": project_id,
+                    "ad_category": str(getattr(project, "ad_category", "") or ""),
+                    "videos_completed": len(completed),
+                    "narration_ready": True,
+                    "lipsync_required_count": 0,
+                    "lipsync_completed_count": 0,
+                },
+            )
+            _queue_stitching_once(
+                db=db,
+                project_id=project_id,
+                user_id=user_id,
+                required_scenes=completed,
+                narration_audio_url=narration_audio_url,
+            )
+            return
+        tts_status = str(getattr(project, "tts_status", "") or "").strip().lower()
+        if tts_status in {"queued", "in_progress"}:
+            logger.info(
+                "storyboard_stitching_waiting_for_narration",
+                extra={"project_id": project_id, "reason": "narration_tts_running"},
+            )
+            return
+        language_code = (
+            str(getattr(project, "selected_tts_provider_language_code", "") or "").strip()
+            or str(getattr(project, "selected_tts_language_label", "") or "").strip()
+            or str(getattr(project, "language", "") or "").strip()
+            or "English (India)"
+        )
+        selected_voice = (
+            str(getattr(project, "selected_tts_provider_voice_name", "") or "").strip()
+            or str(getattr(project, "selected_voice", "") or "").strip()
+            or "Kore"
+        )
+        tts_script = str(getattr(project, "tts_script", "") or getattr(project, "display_script", "") or "").strip()
+        if not tts_script:
+            raise RuntimeError("TTS script missing for cinematic narration production flow")
+        db.update_project(
+            project_id,
+            production_substage="tts_in_progress",
+            tts_status="queued",
+            tts_error=None,
+        )
+        logger.info("storyboard_tts_stage_queued", extra={"project_id": project_id, "mode": "narration_combined"})
+        generate_tts_task.apply_async(
+            kwargs={
+                "project_id": project_id,
+                "user_id": user_id,
+                "tts_script": tts_script,
+                "selected_voice": selected_voice,
+                "language_code": language_code,
+                "generation_mode": "narration_combined",
+            }
+        )
+        logger.info(
+            "storyboard_stitching_waiting_for_narration",
+            extra={"project_id": project_id, "reason": "narration_tts_queued"},
+        )
         return
 
     final_video_url: str | None = None
@@ -641,20 +846,57 @@ def _maybe_advance_storyboard_after_lipsync(*, project_id: str, user_id: str) ->
         logger.info("storyboard_stitching_skipped_until_lipsync_complete", extra={"project_id": project_id, "pending_scene_ids": pending})
         return
     logger.info("storyboard_lipsync_stage_completed", extra={"project_id": project_id, "scene_count": len(required)})
-    _queue_stitching_once(db=db, project_id=project_id, user_id=user_id, required_scenes=required)
+    narration_audio_url = str(getattr(project, "tts_audio_url", "") or "").strip() if _is_cinematic_narration_mode(project) else None
+    _queue_stitching_once(
+        db=db,
+        project_id=project_id,
+        user_id=user_id,
+        required_scenes=required,
+        narration_audio_url=narration_audio_url or None,
+    )
 
 
-def _queue_stitching_once(*, db: StoryboardRepository, project_id: str, user_id: str, required_scenes: list[Any]) -> bool:
+def _queue_stitching_once(
+    *,
+    db: StoryboardRepository,
+    project_id: str,
+    user_id: str,
+    required_scenes: list[Any],
+    narration_audio_url: str | None = None,
+) -> bool:
     if not required_scenes:
         return False
+    project_fresh = db.get_project(project_id)
+    cinematic_mode = _is_cinematic_narration_mode(project_fresh)
+    logger.info(
+        "storyboard_stitch_gate_mode",
+        extra={
+            "project_id": project_id,
+            "ad_category": str(getattr(project_fresh, "ad_category", "") or "") if project_fresh else "",
+            "mode": "cinematic_narration" if cinematic_mode else "speaking_avatar",
+            "videos_required": len(required_scenes),
+        },
+    )
     pending_scene_numbers: list[int] = []
+    lipsync_required_count = 0
+    lipsync_completed_count = 0
     for scene in required_scenes:
         requires_lipsync, _ = scene_requires_lipsync(scene)
         status = str(getattr(scene, "lipsync_status", "") or "").strip().lower()
         final_scene_video_url = str(getattr(scene, "final_scene_video_url", "") or "").strip()
-        if requires_lipsync:
+        if cinematic_mode:
+            if not final_scene_video_url:
+                fallback_scene_video_url = str(getattr(scene, "scene_video_url", "") or scene.video_url or "").strip()
+                if fallback_scene_video_url:
+                    db.update_scene(project_id, scene.id, final_scene_video_url=fallback_scene_video_url, lipsync_status="skipped")
+                else:
+                    pending_scene_numbers.append(int(getattr(scene, "scene_number", 0) or 0))
+        elif requires_lipsync:
+            lipsync_required_count += 1
             if status not in {"completed", "skipped"} or not final_scene_video_url:
                 pending_scene_numbers.append(int(getattr(scene, "scene_number", 0) or 0))
+            else:
+                lipsync_completed_count += 1
         else:
             if not final_scene_video_url:
                 fallback_scene_video_url = str(getattr(scene, "scene_video_url", "") or scene.video_url or "").strip()
@@ -664,12 +906,61 @@ def _queue_stitching_once(*, db: StoryboardRepository, project_id: str, user_id:
                     pending_scene_numbers.append(int(getattr(scene, "scene_number", 0) or 0))
     if pending_scene_numbers:
         logger.info(
-            "storyboard_stitching_skipped_until_lipsync_complete",
+            "storyboard_stitching_waiting_for_narration" if cinematic_mode else "storyboard_stitching_skipped_until_lipsync_complete",
             extra={"project_id": project_id, "pending_scene_numbers": pending_scene_numbers},
         )
         return False
 
-    project_fresh = db.get_project(project_id)
+    if cinematic_mode:
+        narration_ready, resolved_narration_audio_url = _narration_audio_ready(project_fresh)
+        narration_audio_url = narration_audio_url or resolved_narration_audio_url
+        gate_ready, gate_reason = _should_queue_stitch_for_mode(
+            cinematic_mode=True,
+            all_scene_videos_completed=True,
+            narration_ready=narration_ready,
+            all_required_lipsync_completed=True,
+        )
+        if not gate_ready:
+            logger.info(
+                "storyboard_stitching_waiting_for_narration",
+                extra={"project_id": project_id, "reason": gate_reason},
+            )
+            return False
+        logger.info(
+            "storyboard_cinematic_stitch_ready",
+            extra={
+                "project_id": project_id,
+                "ad_category": str(getattr(project_fresh, "ad_category", "") or "") if project_fresh else "",
+                "videos_completed": len(required_scenes),
+                "narration_ready": True,
+                "lipsync_required_count": 0,
+                "lipsync_completed_count": 0,
+            },
+        )
+    else:
+        gate_ready, gate_reason = _should_queue_stitch_for_mode(
+            cinematic_mode=False,
+            all_scene_videos_completed=True,
+            narration_ready=False,
+            all_required_lipsync_completed=(lipsync_required_count == lipsync_completed_count),
+        )
+        if not gate_ready:
+            logger.info(
+                "storyboard_stitching_skipped_until_lipsync_complete",
+                extra={"project_id": project_id, "reason": gate_reason},
+            )
+            return False
+        logger.info(
+            "storyboard_stitch_gate_mode",
+            extra={
+                "project_id": project_id,
+                "ad_category": str(getattr(project_fresh, "ad_category", "") or "") if project_fresh else "",
+                "mode": "speaking_avatar",
+                "videos_completed": len(required_scenes),
+                "lipsync_required_count": lipsync_required_count,
+                "lipsync_completed_count": lipsync_completed_count,
+            },
+        )
     stitching_status = str(getattr(project_fresh, "stitching_status", "") or "").strip().lower() if project_fresh else ""
     stitching_lock = bool(getattr(project_fresh, "stitching_lock", False)) if project_fresh else False
     stitching_task_id = str(getattr(project_fresh, "stitching_task_id", "") or "").strip() if project_fresh else ""
@@ -721,7 +1012,9 @@ def _queue_stitching_once(*, db: StoryboardRepository, project_id: str, user_id:
         stitching_task_id=None,
         stitching_queued_at=utcnow(),
     )
-    task = stitch_final_video_task.apply_async(kwargs={"project_id": project_id, "user_id": user_id, "audio_url": None})
+    task = stitch_final_video_task.apply_async(
+        kwargs={"project_id": project_id, "user_id": user_id, "audio_url": narration_audio_url}
+    )
     db.update_project(project_id, stitching_task_id=str(getattr(task, "id", "") or ""))
     logger.info("storyboard_stitching_stage_queued", extra={"project_id": project_id, "task_id": str(getattr(task, "id", "") or "")})
     return True
@@ -1188,6 +1481,7 @@ def generate_base_image_task(
     user_id: str,
     model_tier: str = "fast",
     storyboard_image_quality_mode: str | None = None,
+    custom_prompt: str | None = None,
 ) -> dict:
     """
     Generate base image for a scene.
@@ -1250,23 +1544,57 @@ def generate_base_image_task(
             if requires_product_reference and not product_reference_images:
                 raise ValueError("Product reference image is required for this storyboard flow.")
 
-        # Build prompt from visual description and metadata
-        image_prompt = _build_image_prompt(
-            scene,
-            avatar_name=avatar_name if avatar_led_scene else None,
-            character_lock_text=(
-                "Use the exact same woman from the provided reference photos. Preserve identical face structure, skin tone, hairstyle, and identity across all scenes."
-                if avatar_led_scene and strong_avatar_references
-                else None
-            ),
-            product_lock_text=(
-                "Preserve exact watch shape, dial, band color, proportions, and materials from provided product reference. Do not alter branding or product geometry."
-                if product_reference_images
-                else None
-            ),
-            reference_strength=float(settings.storyboard_reference_strength or 0.85),
-            cultural_guidance=cultural_guidance,
+        custom_prompt_value = str(custom_prompt or "").strip() or None
+        edited_prompt_value = str(getattr(scene, "edited_image_prompt", "") or "").strip() or None
+        base_prompt_value = str(getattr(scene, "base_image_prompt", "") or "").strip() or None
+        prompt_source = (
+            "custom_prompt"
+            if custom_prompt_value
+            else "edited_image_prompt"
+            if edited_prompt_value
+            else "base_image_prompt"
+            if base_prompt_value
+            else "auto_build"
         )
+        logger.info(
+            "storyboard_scene_effective_prompt_resolved",
+            extra={
+                "project_id": project_id,
+                "scene_id": scene_id,
+                "source": prompt_source,
+                "has_custom_prompt": bool(custom_prompt_value),
+                "has_edited_prompt": bool(edited_prompt_value),
+                "has_base_prompt": bool(base_prompt_value),
+            },
+        )
+
+        # Build prompt from visual description and metadata
+        # Priority: custom_prompt > persisted edited_image_prompt > base_image_prompt > auto-build
+        if custom_prompt_value:
+            image_prompt = custom_prompt_value
+        elif edited_prompt_value:
+            image_prompt = edited_prompt_value
+        elif base_prompt_value:
+            image_prompt = base_prompt_value
+        else:
+            image_prompt = _build_image_prompt(
+                scene,
+                avatar_name=avatar_name if avatar_led_scene else None,
+                character_lock_text=(
+                    "Use the exact same woman from the provided reference photos. Preserve identical face structure, skin tone, hairstyle, and identity across all scenes."
+                    if avatar_led_scene and strong_avatar_references
+                    else None
+                ),
+                product_lock_text=(
+                    "Preserve exact watch shape, dial, band color, proportions, and materials from provided product reference. Do not alter branding or product geometry."
+                    if product_reference_images
+                    else None
+                ),
+                reference_strength=float(settings.storyboard_reference_strength or 0.85),
+                cultural_guidance=cultural_guidance,
+            )
+        image_prompt = _append_text_intent_safety_if_needed(image_prompt)
+        image_prompt = _append_no_text_prompt_safety(image_prompt)
 
         # Determine model and dimensions based on tier
         # 9:16 aspect ratio = 720x1280 pixels
@@ -1560,6 +1888,8 @@ def generate_base_image_task(
             scene_id,
             base_image_url=image_url,
             base_image_prompt=image_prompt,
+            last_regeneration_prompt=image_prompt,
+            last_regenerated_at=utcnow(),
             image_generation_status="completed",
             image_generation_error=None,
             state=SceneState.AWAITING_APPROVAL,
@@ -1593,6 +1923,16 @@ def generate_base_image_task(
                 workflow_state=StoryboardWorkflowState.IMAGES_AWAITING_APPROVAL,
                 image_generation_started_at=None,
             )
+
+        logger.info(
+            "storyboard_scene_regen_prompt_used",
+            extra={
+                "project_id": project_id,
+                "scene_id": scene_id,
+                "source": prompt_source,
+                "prompt_length": len(image_prompt),
+            },
+        )
 
         logger.info(
             "generate_base_image_task_completed",
@@ -1737,10 +2077,9 @@ def _build_image_prompt(
     if cultural_guidance:
         parts.append(f"Style: {cultural_guidance}")
     parts.append("Style: contemporary urban lifestyle photography, natural lighting, realistic candid ad frame.")
-    parts.append("Avoid: no text/subtitles/logo overlays, no distorted hands, no identity drift, no changed product design.")
+    parts.append(f"Avoid: {NO_TEXT_VISUAL_RULE} Also avoid distorted hands, identity drift, and changed product design.")
     parts.append(f"Reference fidelity: {reference_strength:.2f}.")
-
-    return ". ".join(parts)
+    return _append_no_text_prompt_safety(". ".join(parts))
 
 
 @app.task(bind=True, name="storyboard.generate_production", max_retries=0)
@@ -2203,7 +2542,10 @@ def _build_storyboard_video_prompt(
             "Do not animate the mouth as if speaking. No talking lips, no dialogue mouth movement, no lip-sync motion. Keep lips naturally closed or with only subtle expression changes. A separate lipsync model will add speech later."
         )
 
-    return ". ".join(parts)
+    parts.append(NO_TEXT_VISUAL_RULE)
+    final_prompt = ". ".join(parts)
+    final_prompt = _append_text_intent_safety_if_needed(final_prompt)
+    return _append_no_text_prompt_safety(final_prompt)
 
 
 @app.task(bind=True, name="storyboard.apply_lipsync", max_retries=2)
@@ -2240,8 +2582,17 @@ def apply_lipsync_task(
             },
         )
         logger.info("storyboard_lipsync_scene_started", extra={"project_id": project_id, "scene_id": scene_id})
-
         db = StoryboardRepository()
+        scene_row = db.get_scene(project_id, scene_id)
+        logger.info(
+            "storyboard_scene_lipsync_started",
+            extra={
+                "project_id": project_id,
+                "scene_id": scene_id,
+                "scene_number": int(getattr(scene_row, "scene_number", 0) or 0) if scene_row else 0,
+                "requires_lipsync": bool(lipsync_required),
+            },
+        )
 
         # If lipsync not required, skip and return original video
         if not lipsync_required or not audio_url:
@@ -2250,6 +2601,18 @@ def apply_lipsync_task(
                 extra={
                     "project_id": project_id,
                     "scene_id": scene_id,
+                    "scene_number": int(getattr(scene_row, "scene_number", 0) or 0) if scene_row else 0,
+                    "requires_lipsync": bool(lipsync_required),
+                    "reason": "not_required" if not lipsync_required else "no_audio",
+                },
+            )
+            logger.info(
+                "storyboard_scene_lipsync_skipped",
+                extra={
+                    "project_id": project_id,
+                    "scene_id": scene_id,
+                    "scene_number": int(getattr(scene_row, "scene_number", 0) or 0) if scene_row else 0,
+                    "requires_lipsync": bool(lipsync_required),
                     "reason": "not_required" if not lipsync_required else "no_audio",
                 },
             )
@@ -2410,6 +2773,7 @@ def generate_tts_task(
     tts_script: str,
     selected_voice: str,
     language_code: str,
+    generation_mode: str = "scene_lipsync",
 ) -> dict:
     """
     Generate scene-wise TTS audio for project.
@@ -2429,6 +2793,7 @@ def generate_tts_task(
                 "voice": selected_voice,
                 "language": language_code,
                 "script_length": len(tts_script),
+                "generation_mode": generation_mode,
                 "task_id": self.request.id,
             },
         )
@@ -2480,50 +2845,76 @@ def generate_tts_task(
 
         scene_audio_map: dict[str, str] = {}
         total_audio_duration = 0.0
-        split_chunks = _split_script(tts_script, max(1, len(lipsync_required_scenes)))
 
-        for idx, scene in enumerate(lipsync_required_scenes):
-            scene_id = str(scene.id)
-            scene_text = (
-                str(getattr(scene, "tts_text", "") or "").strip()
-                or str(getattr(scene, "voice_line", "") or "").strip()
-                or str(getattr(scene, "spoken_line", "") or "").strip()
-                or str(getattr(scene, "dialogue", "") or "").strip()
-                or str(getattr(scene, "narration", "") or "").strip()
-                or str(getattr(scene, "script_line", "") or "").strip()
-                or (split_chunks[idx] if idx < len(split_chunks) else "")
-            ).strip()
-            if not scene_text:
-                raise ValueError(f"Missing scene-level TTS text for scene {scene.scene_number}")
-            logger.info("storyboard_tts_scene_text_selected", extra={"project_id": project_id, "scene_id": scene_id, "text_length": len(scene_text)})
-            logger.info("storyboard_tts_scene_started", extra={"project_id": project_id, "scene_id": scene_id})
-
-            scene_audio_url, _meta = fal_service.generate_gemini_flash_tts(
-                text=scene_text,
+        narration_audio_url: str | None = None
+        if generation_mode == "narration_combined":
+            narration_text = str(tts_script or "").strip()
+            if not narration_text:
+                raise ValueError("Missing narration script for cinematic narration mode")
+            narration_audio_url, _meta = fal_service.generate_gemini_flash_tts(
+                text=narration_text,
                 voice=selected_voice,
                 language_code=language_code,
-                style_instructions=f"Generate scene-level TTS for {language_code} language using voice {selected_voice}",
+                style_instructions=f"Generate cinematic narration TTS for {language_code} language using voice {selected_voice}",
             )
-            scene_audio_duration = _estimate_audio_duration_seconds(scene_text)
-            scene_duration = float(getattr(scene, "duration_seconds", 0) or 0)
-            if scene_audio_duration > (scene_duration + 0.5):
-                raise ValueError(
-                    f"scene_audio_too_long: Scene {scene.scene_number} audio is {scene_audio_duration:.1f}s but scene duration is {scene_duration:.1f}s. Please shorten scene dialogue."
-                )
-            db.update_scene(
+            total_audio_duration = _estimate_audio_duration_seconds(narration_text)
+            db.update_project(
                 project_id,
-                scene_id,
-                tts_text=scene_text,
-                tts_audio_url=scene_audio_url,
-                tts_audio_duration_seconds=scene_audio_duration,
-                tts_status="completed",
-                tts_error=None,
-                tts_completed_at=utcnow(),
+                tts_audio_url=narration_audio_url,
+                tts_audio_duration_seconds=total_audio_duration,
             )
-            logger.info("storyboard_tts_scene_audio_generated", extra={"project_id": project_id, "scene_id": scene_id, "audio_url_present": bool(scene_audio_url)})
-            logger.info("storyboard_tts_scene_audio_duration", extra={"project_id": project_id, "scene_id": scene_id, "duration_seconds": scene_audio_duration})
-            scene_audio_map[scene_id] = scene_audio_url
-            total_audio_duration += scene_audio_duration
+            logger.info(
+                "storyboard_tts_narration_audio_generated",
+                extra={"project_id": project_id, "audio_url_present": bool(narration_audio_url), "duration_seconds": total_audio_duration},
+            )
+            logger.info(
+                "storyboard_narration_audio_persisted",
+                extra={"project_id": project_id, "audio_url_present": bool(narration_audio_url)},
+            )
+        else:
+            split_chunks = _split_script(tts_script, max(1, len(lipsync_required_scenes)))
+            for idx, scene in enumerate(lipsync_required_scenes):
+                scene_id = str(scene.id)
+                scene_text = (
+                    str(getattr(scene, "tts_text", "") or "").strip()
+                    or str(getattr(scene, "voice_line", "") or "").strip()
+                    or str(getattr(scene, "spoken_line", "") or "").strip()
+                    or str(getattr(scene, "dialogue", "") or "").strip()
+                    or str(getattr(scene, "narration", "") or "").strip()
+                    or str(getattr(scene, "script_line", "") or "").strip()
+                    or (split_chunks[idx] if idx < len(split_chunks) else "")
+                ).strip()
+                if not scene_text:
+                    raise ValueError(f"Missing scene-level TTS text for scene {scene.scene_number}")
+                logger.info("storyboard_tts_scene_text_selected", extra={"project_id": project_id, "scene_id": scene_id, "text_length": len(scene_text)})
+                logger.info("storyboard_tts_scene_started", extra={"project_id": project_id, "scene_id": scene_id})
+
+                scene_audio_url, _meta = fal_service.generate_gemini_flash_tts(
+                    text=scene_text,
+                    voice=selected_voice,
+                    language_code=language_code,
+                    style_instructions=f"Generate scene-level TTS for {language_code} language using voice {selected_voice}",
+                )
+                scene_audio_duration = _estimate_audio_duration_seconds(scene_text)
+                scene_duration = float(getattr(scene, "duration_seconds", 0) or 0)
+                if scene_audio_duration > (scene_duration + 0.5):
+                    raise ValueError(
+                        f"scene_audio_too_long: Scene {scene.scene_number} audio is {scene_audio_duration:.1f}s but scene duration is {scene_duration:.1f}s. Please shorten scene dialogue."
+                    )
+                db.update_scene(
+                    project_id,
+                    scene_id,
+                    tts_text=scene_text,
+                    tts_audio_url=scene_audio_url,
+                    tts_audio_duration_seconds=scene_audio_duration,
+                    tts_status="completed",
+                    tts_error=None,
+                    tts_completed_at=utcnow(),
+                )
+                logger.info("storyboard_tts_scene_audio_generated", extra={"project_id": project_id, "scene_id": scene_id, "audio_url_present": bool(scene_audio_url)})
+                logger.info("storyboard_tts_scene_audio_duration", extra={"project_id": project_id, "scene_id": scene_id, "duration_seconds": scene_audio_duration})
+                scene_audio_map[scene_id] = scene_audio_url
+                total_audio_duration += scene_audio_duration
 
         # Deduct credits
         credit_service = CreditService()
@@ -2550,7 +2941,7 @@ def generate_tts_task(
         db.update_project(
             project_id,
             selected_voice=selected_voice,
-            tts_audio_url=None,
+            tts_audio_url=narration_audio_url if generation_mode == "narration_combined" else None,
             tts_status="completed",
             tts_error=None,
             tts_completed_at=utcnow(),
@@ -2558,7 +2949,16 @@ def generate_tts_task(
         logger.info("storyboard_tts_all_scenes_completed", extra={"project_id": project_id, "scene_count": len(scene_audio_map)})
 
         # Queue lipsync stage for scenes that require it.
-        if project and scene_audio_map:
+        if project and generation_mode == "narration_combined":
+            narration_audio_url = str(getattr(db.get_project(project_id), "tts_audio_url", "") or "").strip()
+            _queue_stitching_once(
+                db=db,
+                project_id=project_id,
+                user_id=user_id,
+                required_scenes=required,
+                narration_audio_url=narration_audio_url or None,
+            )
+        elif project and scene_audio_map:
             _queue_lipsync_stage(
                 db=db,
                 project=project,
@@ -2573,7 +2973,7 @@ def generate_tts_task(
             "generate_tts_task_completed",
             extra={
                 "project_id": project_id,
-                "audio_url": "scene_level",
+                "audio_url": narration_audio_url if generation_mode == "narration_combined" else "scene_level",
                 "duration": total_audio_duration,
                 "voice": selected_voice,
                 "credits_deducted": CREDIT_COSTS.tts_full_script,
@@ -2584,7 +2984,7 @@ def generate_tts_task(
         return {
             "project_id": project_id,
             "status": "completed",
-            "audio_url": None,
+            "audio_url": narration_audio_url if generation_mode == "narration_combined" else None,
             "duration_seconds": total_audio_duration,
             "voice": selected_voice,
             "credits_deducted": CREDIT_COSTS.tts_full_script,
@@ -2687,18 +3087,49 @@ def stitch_final_video_task(
         )
         if not hasattr(pipeline_service, "stitch_videos"):
             raise AttributeError("VideoPipelineService missing stitch_videos")
+        transition_type = str(getattr(project, "transition_type", "") or "crossfade").strip().lower()
+        if transition_type not in {"none", "crossfade", "fade_black"}:
+            transition_type = "crossfade"
+        transition_duration = float(getattr(project, "transition_duration", 0.3) or 0.3)
+        logger.info(
+            "storyboard_transition_config_selected",
+            extra={
+                "project_id": project_id,
+                "ad_category": str(getattr(project, "ad_category", "") or ""),
+                "transition_type": transition_type,
+                "transition_duration": transition_duration,
+                "scene_count": len(approved_scenes),
+            },
+        )
         stitched_output = pipeline_service.stitch_videos(
             video_urls=video_urls,
             project_id=project_id,
-            transition_type="crossfade",
-            transition_duration=0.3,
+            transition_type=transition_type,
+            transition_duration=transition_duration,
         )
-        transition_probe = pipeline_service.inspect_media(stitched_output)
+        narration_audio_url = str(audio_url or getattr(project, "tts_audio_url", "") or "").strip()
+        stitched_final_source = stitched_output
+        if narration_audio_url:
+            logger.info(
+                "storyboard_narration_audio_overlay_started",
+                extra={"project_id": project_id, "audio_url_present": True},
+            )
+            stitched_final_source = pipeline_service.mux_audio_to_video(
+                video_path=stitched_output,
+                audio_path=narration_audio_url,
+                output_path=str((Path("data/renders") / f"storyboard-{project_id}-narrated.mp4").resolve()),
+                trim_audio_to_video=True,
+            )
+            logger.info(
+                "storyboard_narration_audio_overlay_completed",
+                extra={"project_id": project_id, "output_path": str(stitched_final_source)},
+            )
+        transition_probe = pipeline_service.inspect_media(stitched_final_source)
         logger.info("storyboard_ffprobe_transition_output", extra={"project_id": project_id, "probe": transition_probe})
-        final_video_url = _normalize_storyboard_final_video_url(stitched_output)
+        final_video_url = _normalize_storyboard_final_video_url(stitched_final_source)
         logger.info("storyboard_final_media_validation_started", extra={"project_id": project_id})
-        final_local = pipeline_service.ensure_local_media_path(stitched_output)
-        final_probe = pipeline_service.inspect_media(str(final_local or stitched_output))
+        final_local = pipeline_service.ensure_local_media_path(stitched_final_source)
+        final_probe = pipeline_service.inspect_media(str(final_local or stitched_final_source))
         has_video_stream = bool(final_probe.get("has_video"))
         has_audio_stream = bool(final_probe.get("has_audio"))
         final_duration = float(final_probe.get("duration_seconds") or 0.0)

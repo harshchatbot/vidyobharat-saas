@@ -94,7 +94,9 @@ export default function BriefCheckpoint({ project, onApprove }: BriefCheckpointP
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-        
+        <span className="text-xs font-semibold uppercase tracking-widest text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+          TOW · Stage 1 of 13
+        </span>
         <h2 className="text-2xl font-bold text-gray-900 mt-3">📋 Brand Brief</h2>
         <p className="text-gray-500 mt-1">
           Provide structured information about your brand and campaign. This brief

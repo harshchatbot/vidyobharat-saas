@@ -97,8 +97,10 @@ def run_stitch_only(args: argparse.Namespace) -> dict[str, Any]:
         "scene_video_urls": resolved_video_paths,
         "transition_type": args.transition_type,
         "transition_duration": float(args.transition_duration),
+        "transition_filter_applied": bool(str(args.transition_type or "none").strip().lower() != "none" and len(resolved_video_paths) > 1),
         "final_video_path": final_path,
         "final_has_audio": bool(inspected.get("has_audio")),
+        "final_has_video": bool(inspected.get("has_video")),
         "final_duration_seconds": float(inspected.get("duration_seconds") or 0.0),
     }
 
@@ -204,9 +206,55 @@ def run_stitch_with_audio(args: argparse.Namespace) -> dict[str, Any]:
         "audio_url": resolved_audio,
         "transition_type": args.transition_type,
         "transition_duration": float(args.transition_duration),
+        "transition_filter_applied": bool(str(args.transition_type or "none").strip().lower() != "none" and len(resolved_video_paths) > 1),
         "stitched_video_path": stitched_video,
         "final_video_path": final_video,
         "final_inspection": details,
+    }
+
+
+def run_stitch_cinematic_with_narration(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.scene_video_url:
+        raise ValueError("stitch_cinematic_with_narration requires at least one --scene-video-url")
+    if not args.audio_url:
+        raise ValueError("stitch_cinematic_with_narration requires --audio-url")
+    pipeline = VideoPipelineService()
+    resolved_scene_videos: list[dict[str, str]] = []
+    resolved_video_paths: list[str] = []
+    for item in list(args.scene_video_url):
+        resolved = resolve_media_input(pipeline, item)
+        resolved_scene_videos.append({"input": item, "resolved_path": resolved})
+        resolved_video_paths.append(resolved)
+    _print("resolved_scene_videos", resolved_scene_videos)
+    resolved_audio = resolve_media_input(pipeline, str(args.audio_url))
+    _print("resolved_audio", {"input": str(args.audio_url), "resolved_path": resolved_audio})
+
+    stitched_video = pipeline.stitch_videos(
+        video_urls=resolved_video_paths,
+        project_id=args.project_id or "qa-cinematic-broll-narration",
+        transition_type=args.transition_type,
+        transition_duration=float(args.transition_duration),
+    )
+    muxed_output = pipeline.renders_dir / f"storyboard-{args.project_id or 'qa-cinematic-broll-narration'}-cinematic-narration.mp4"
+    final_video = pipeline.mux_audio_to_video(
+        video_path=stitched_video,
+        audio_path=resolved_audio,
+        output_path=str(muxed_output),
+        trim_audio_to_video=True,
+    )
+    details = _inspect_media_details(pipeline, final_video)
+    return {
+        "mode": "stitch_cinematic_with_narration",
+        "project_id": args.project_id,
+        "transition_type": args.transition_type,
+        "transition_duration": float(args.transition_duration),
+        "transition_filter_applied": bool(str(args.transition_type or "none").strip().lower() != "none" and len(resolved_video_paths) > 1),
+        "resolved_scene_videos": resolved_scene_videos,
+        "resolved_audio": {"input": str(args.audio_url), "resolved_path": resolved_audio},
+        "final_video_path": final_video,
+        "has_video": bool(details.get("has_video")),
+        "has_audio": bool(details.get("has_audio")),
+        "duration_seconds": float(details.get("duration_seconds") or 0.0),
     }
 
 
@@ -491,12 +539,14 @@ def build_parser() -> argparse.ArgumentParser:
             "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode stitch_with_audio --project-id qa-firebase-test --transition-type crossfade --transition-duration 0.3 --scene-video-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1001.mp4\" --scene-video-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1002.mp4\" --audio-url \"gs://rangmanch-ai-backend.firebasestorage.app/test/test1001_1002_audio.mp3\"\n\n"
             "5) Re-stitch existing project scenes only (no generation):\n"
             "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode restitch_project --project-id 14d6dbd3-4960-4f69-a7b0-7f020eb04f7e --transition-type crossfade --transition-duration 0.3\n\n"
-            "6) Generate one low-cost storyboard frame with Flux Subject:\n"
+            "6) Stitch cinematic scene videos with narration (no generation):\n"
+            "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode stitch_cinematic_with_narration --project-id qa-cinematic-broll-narration --transition-type crossfade --transition-duration 0.3 --scene-video-url \"https://...scene1.mp4\" --scene-video-url \"https://...scene2.mp4\" --audio-url \"https://...narration.mp3\"\n\n"
+            "7) Generate one low-cost storyboard frame with Flux Subject:\n"
             "PYTHONPATH=. ./venv/bin/python scripts/storyboard_post_video_qa.py --mode generate_storyboard_image --image-model storyboard_flux_subject --subject-image-url \"https://example.com/avatar.jpg\" --prompt \"Cinematic vertical storyboard frame of the same person holding the product\" --width 512 --height 896"
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "restitch_project", "tts_only", "lipsync_one", "full_existing_videos", "inspect_media", "generate_storyboard_image"])
+    parser.add_argument("--mode", choices=["stitch_only", "stitch_with_audio", "stitch_cinematic_with_narration", "restitch_project", "tts_only", "lipsync_one", "full_existing_videos", "inspect_media", "generate_storyboard_image"])
     parser.add_argument("--list-tts-options", action="store_true")
     parser.add_argument("--project-id", dest="project_id")
     parser.add_argument("--scene-id", dest="scene_id")
@@ -540,6 +590,8 @@ def main() -> int:
           result = run_stitch_only(args)
       elif args.mode == "stitch_with_audio":
           result = run_stitch_with_audio(args)
+      elif args.mode == "stitch_cinematic_with_narration":
+          result = run_stitch_cinematic_with_narration(args)
       elif args.mode == "restitch_project":
           result = run_restitch_project(args)
       elif args.mode == "tts_only":

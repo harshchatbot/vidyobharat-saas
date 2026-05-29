@@ -51,7 +51,7 @@ const TONES = [
 const DURATIONS = [10, 15, 20, 30];
 const SECTION_COUNT = 3;
 
-export default function StoryAdForm({ preselectedCategory, onComplete, onCancel, estimatedCost = 150 }: StoryAdFormProps) {
+export default function StoryAdForm({ preselectedCategory, onComplete, onCancel, estimatedCost = 50 }: StoryAdFormProps) {
   const [section, setSection] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [agreed, setAgreed] = useState(false);

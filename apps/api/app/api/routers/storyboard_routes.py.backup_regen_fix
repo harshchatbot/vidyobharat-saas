@@ -26,7 +26,6 @@ from app.services.storyboard_pipeline_service import (
 from app.services.storyboard_library_reconcile_service import StoryboardLibraryReconcileService
 from app.services.voice_preview_service import normalize_storyboard_tts_literals
 from app.services.avatar_product_tts_catalog import list_storyboard_tts_catalog, resolve_storyboard_gemini_language
-from app.db.firestore_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,6 @@ class StoryboardImageQualityRequest(BaseModel):
     """Optional request payload for scene image quality selection."""
 
     storyboard_image_quality_mode: str | None = Field(None, description="Storyboard image quality: draft, standard, premium")
-    custom_prompt: str | None = Field(None, description="Custom image generation prompt (overrides base_image_prompt)")
 
 
 class ApproveSceneRequest(BaseModel):
@@ -107,8 +105,6 @@ class UpdateSceneRequest(BaseModel):
     avatar_action: str | None = None
     duration_seconds: int | None = None
     lipsync_this_scene: bool | None = None
-    edited_image_prompt: str | None = None
-    prompt_edit_source: str | None = None
 
 
 class GenerateVoicePreviewRequest(BaseModel):
@@ -480,11 +476,6 @@ async def get_storyboard(
                     "image_url": s.base_image_url,
                     "frame_url": s.base_image_url,
                     "base_image_prompt": s.base_image_prompt,
-                    "edited_image_prompt": getattr(s, "edited_image_prompt", None),
-                    "prompt_last_edited_at": getattr(s, "prompt_last_edited_at", None),
-                    "prompt_edit_source": getattr(s, "prompt_edit_source", None),
-                    "last_regeneration_prompt": getattr(s, "last_regeneration_prompt", None),
-                    "last_regenerated_at": getattr(s, "last_regenerated_at", None),
                     "image_generation_model_key": getattr(s, "image_generation_model_key", None),
                     "image_generation_provider": getattr(s, "image_generation_provider", None),
                     "image_generation_quality_mode": getattr(s, "image_generation_quality_mode", None),
@@ -607,31 +598,6 @@ async def update_scene(
             )
         if payload.get("duration_seconds") is not None:
             payload["normalized_scene_duration_seconds"] = int(payload["duration_seconds"])
-        if payload.get("lipsync_this_scene") is not None:
-            logger.info(
-                "storyboard_scene_lipsync_enabled",
-                extra={
-                    "project_id": project_id,
-                    "scene_id": scene_id,
-                    "scene_number": int(getattr(scene, "scene_number", 0) or 0),
-                    "requires_lipsync": bool(payload.get("lipsync_this_scene")),
-                    "source": "motion_toggle",
-                },
-            )
-        if payload.get("edited_image_prompt") is not None:
-            edited = str(payload.get("edited_image_prompt") or "").strip()
-            payload["edited_image_prompt"] = edited or None
-            payload["prompt_last_edited_at"] = utcnow()
-            payload["prompt_edit_source"] = str(payload.get("prompt_edit_source") or "user").strip() or "user"
-            logger.info(
-                "storyboard_scene_prompt_persisted",
-                extra={
-                    "project_id": project_id,
-                    "scene_id": scene_id,
-                    "source": payload["prompt_edit_source"],
-                    "has_edited_prompt": bool(payload["edited_image_prompt"]),
-                },
-            )
 
         updated = db.update_scene(project_id, scene_id, **payload)
         logger.info("storyboard_scene_update_completed", extra={"project_id": project_id, "scene_id": scene_id})
@@ -674,7 +640,6 @@ async def regenerate_scene_image(
             user_id=user_id,
             model_tier="fast",
             storyboard_image_quality_mode=request.storyboard_image_quality_mode if request else None,
-            custom_prompt=request.custom_prompt if request else None,
         )
         return {"status": "success", "result": result}
     except Exception as e:

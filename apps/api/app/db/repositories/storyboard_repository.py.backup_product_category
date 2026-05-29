@@ -370,9 +370,6 @@ class StoryboardScene:
         environment: str | None = None,
         mood: str | None = None,
         product_visibility: str | None = None,
-        product_category: str | None = None,
-        scene_index: int | None = None,
-        total_scenes: int | None = None,
         original_llm_duration_seconds: int | None = None,
         normalized_scene_duration_seconds: int | None = None,
         target_duration_seconds: int | None = None,
@@ -381,11 +378,6 @@ class StoryboardScene:
         lipsync_this_scene: bool = False,
         base_image_url: str | None = None,
         base_image_prompt: str | None = None,
-        edited_image_prompt: str | None = None,
-        prompt_last_edited_at: datetime | None = None,
-        prompt_edit_source: str | None = None,
-        last_regeneration_prompt: str | None = None,
-        last_regenerated_at: datetime | None = None,
         image_generation_model_key: str | None = None,
         image_generation_provider: str | None = None,
         image_generation_quality_mode: str | None = None,
@@ -423,8 +415,6 @@ class StoryboardScene:
         self.id = id
         self.project_id = project_id
         self.scene_number = scene_number
-        self.scene_index = scene_index
-        self.total_scenes = total_scenes
         self.scene_type = scene_type
         self.state = state
         self.spoken_line = spoken_line
@@ -440,7 +430,6 @@ class StoryboardScene:
         self.environment = environment
         self.mood = mood
         self.product_visibility = product_visibility
-        self.product_category = product_category
         self.original_llm_duration_seconds = original_llm_duration_seconds
         self.normalized_scene_duration_seconds = normalized_scene_duration_seconds
         self.target_duration_seconds = target_duration_seconds
@@ -449,11 +438,6 @@ class StoryboardScene:
         self.lipsync_this_scene = lipsync_this_scene
         self.base_image_url = base_image_url
         self.base_image_prompt = base_image_prompt
-        self.edited_image_prompt = edited_image_prompt
-        self.prompt_last_edited_at = prompt_last_edited_at
-        self.prompt_edit_source = prompt_edit_source
-        self.last_regeneration_prompt = last_regeneration_prompt
-        self.last_regenerated_at = last_regenerated_at
         self.image_generation_model_key = image_generation_model_key
         self.image_generation_provider = image_generation_provider
         self.image_generation_quality_mode = image_generation_quality_mode
@@ -494,8 +478,6 @@ class StoryboardScene:
             'id': self.id,
             'project_id': self.project_id,
             'scene_number': self.scene_number,
-            'scene_index': self.scene_index,
-            'total_scenes': self.total_scenes,
             'scene_type': self.scene_type,
             'state': self.state,
             'spoken_line': self.spoken_line,
@@ -511,7 +493,6 @@ class StoryboardScene:
             'environment': self.environment,
             'mood': self.mood,
             'product_visibility': self.product_visibility,
-            'product_category': self.product_category,
             'original_llm_duration_seconds': self.original_llm_duration_seconds,
             'normalized_scene_duration_seconds': self.normalized_scene_duration_seconds,
             'target_duration_seconds': self.target_duration_seconds,
@@ -520,11 +501,6 @@ class StoryboardScene:
             'lipsync_this_scene': self.lipsync_this_scene,
             'base_image_url': self.base_image_url,
             'base_image_prompt': self.base_image_prompt,
-            'edited_image_prompt': self.edited_image_prompt,
-            'prompt_last_edited_at': self.prompt_last_edited_at,
-            'prompt_edit_source': self.prompt_edit_source,
-            'last_regeneration_prompt': self.last_regeneration_prompt,
-            'last_regenerated_at': self.last_regenerated_at,
             'image_generation_model_key': self.image_generation_model_key,
             'image_generation_provider': self.image_generation_provider,
             'image_generation_quality_mode': self.image_generation_quality_mode,
@@ -590,11 +566,6 @@ class StoryboardScene:
             lipsync_this_scene=data.get('lipsync_this_scene', False),
             base_image_url=data.get('base_image_url'),
             base_image_prompt=data.get('base_image_prompt'),
-            edited_image_prompt=data.get('edited_image_prompt'),
-            prompt_last_edited_at=coerce_datetime(data.get('prompt_last_edited_at')),
-            prompt_edit_source=data.get('prompt_edit_source'),
-            last_regeneration_prompt=data.get('last_regeneration_prompt'),
-            last_regenerated_at=coerce_datetime(data.get('last_regenerated_at')),
             image_generation_model_key=data.get('image_generation_model_key'),
             image_generation_provider=data.get('image_generation_provider'),
             image_generation_quality_mode=data.get('image_generation_quality_mode'),

@@ -12,58 +12,62 @@ import {
 import { Check, Loader2 } from 'lucide-react';
 
 // Map workflow states to step numbers
+// Rule: _approved states = step is done, user is NOW at next step
+// So 'script_approved' → user is at Step 5 Character (belongs in Step 5 states)
 const WORKFLOW_STEPS = [
   {
     step: 1,
     label: 'Brief',
-    states: ['initialized', 'brief_collecting', 'brief_approved', 'category_selected'],
+    states: ['brief_collecting', 'category_selected'],
   },
   {
     step: 2,
     label: 'Foundation',
     states: [
+      'initialized',
+      'brief_approved',
       'project_state_pack_generating',
       'project_state_pack_awaiting_approval',
       'project_state_pack_approved',
       'foundation_generating',
       'foundation_awaiting_approval',
-      'foundation_approved',
     ],
   },
   {
     step: 3,
     label: 'Format',
-    states: ['format_selecting', 'format_approved'],
+    states: ['foundation_approved', 'format_selecting'],
   },
   {
     step: 4,
     label: 'Script',
-    states: ['script_generating', 'script_awaiting_approval', 'script_generated', 'script_approved'],
+    states: ['format_approved', 'script_generating', 'script_awaiting_approval', 'script_generated'],
   },
   {
     step: 5,
     label: 'Character',
-    states: ['character_lock_selecting', 'character_lock_approved'],
+    states: ['script_approved', 'character_lock_selecting', 'character_lock_approved'],
   },
   {
     step: 6,
     label: 'Storyboard',
     states: [
+      'character_lock_approved',
       'storyboard_generating',
       'storyboard_awaiting_approval',
       'storyboard_generated',
-      'storyboard_approved',
     ],
   },
   {
     step: 7,
     label: 'Images',
-    states: ['images_generating', 'images_awaiting_approval', 'images_generated', 'images_approved'],
+    states: ['storyboard_approved', 'images_generating', 'images_awaiting_approval', 'images_generated'],
   },
   {
     step: 8,
     label: 'Video',
     states: [
+      'images_approved',
       'video_prompts_generating',
       'video_prompts_awaiting_approval',
       'video_prompts_approved',
@@ -72,22 +76,30 @@ const WORKFLOW_STEPS = [
   {
     step: 9,
     label: 'Voice',
-    states: ['voice_approved', 'voice_confirmed'],
+    states: ['video_prompts_approved', 'voice_approved', 'voice_confirmed'],
   },
   {
     step: 10,
     label: 'Production',
-    states: ['production_starting', 'production_in_progress', 'production_completed'],
+    states: [
+      'voice_approved',
+      'production_starting',
+      'production_in_progress',
+      'production_failed',
+      'video_generating',
+      'stitching',
+      'production_completed',
+    ],
   },
   {
     step: 11,
     label: 'QC',
-    states: ['qc_in_progress', 'qc_awaiting_approval', 'qc_approved'],
+    states: ['production_completed', 'qc_in_progress', 'qc_awaiting_approval', 'qc_approved'],
   },
   {
     step: 12,
     label: 'Done',
-    states: ['final_packaging', 'completed', 'final_video_ready'],
+    states: ['qc_approved', 'final_packaging', 'completed', 'final_video_ready'],
   },
 ];
 
@@ -97,6 +109,15 @@ function getActiveStep(workflowState: string): number {
     if (step.states.some((s) => normalizedState.includes(s))) {
       return step.step;
     }
+  }
+  if (normalizedState.includes('production') || normalizedState.includes('video_generating') || normalizedState.includes('stitching')) {
+    return 10;
+  }
+  if (normalizedState.includes('qc')) {
+    return 11;
+  }
+  if (normalizedState.includes('completed') || normalizedState.includes('final')) {
+    return 12;
   }
   return 1;
 }
