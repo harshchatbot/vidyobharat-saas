@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     editor_guest_max_image_pixels: int = 40_000_000
     editor_guest_upload_timeout_seconds: int = 600
     editor_guest_rate_limit_secret: str | None = None
+    editor_timeline_max_clips: int = 12
+    editor_timeline_max_duration_seconds: int = 60
+    editor_timeline_max_source_bytes: int = 500 * 1024 * 1024
+    editor_timeline_max_workspace_bytes: int = 1024 * 1024 * 1024
+    editor_timeline_max_output_bytes: int = 250 * 1024 * 1024
+    editor_timeline_max_source_pixels: int = 40_000_000
+    editor_timeline_max_output_width: int = 720
+    editor_timeline_max_output_height: int = 1280
+    editor_timeline_max_fps: int = 30
+    editor_timeline_ffmpeg_timeout_seconds: int = 300
+    editor_timeline_max_concurrent_renders: int = 1
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'
