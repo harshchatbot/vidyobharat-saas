@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     env: str = 'development'
     api_host: str = '0.0.0.0'
     api_port: int = 8000
+    local_editor_mode: bool = False
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'
