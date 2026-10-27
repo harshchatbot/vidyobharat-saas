@@ -11,7 +11,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.editor import TimelineClip, TimelineComposition, TimelineCropMode
+from app.schemas.editor import (
+    TimelineAudioItem,
+    TimelineClip,
+    TimelineComposition,
+    TimelineCropMode,
+    TimelineEffect,
+    TimelineTextOverlay,
+)
 from app.services.timeline_render_service import (
     ResolvedTimelineMedia,
     TimelineProcessError,
@@ -25,6 +32,7 @@ from app.services.timeline_render_service import (
 RED = 'a' * 32
 GREEN = 'b' * 32
 BLUE = 'c' * 32
+AUDIO = 'd' * 32
 
 
 def _run(command: list[str]) -> None:
@@ -53,6 +61,14 @@ def _video(path: Path, color: str, *, with_audio: bool, duration: float = 1.2) -
         command.extend(['-c:a', 'aac', '-shortest'])
     command.append(str(path))
     _run(command)
+
+
+def _audio(path: Path, *, duration: float = 1.2) -> None:
+    _run([
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+        '-f', 'lavfi', '-i', f'sine=frequency=880:sample_rate=48000:duration={duration}',
+        '-c:a', 'aac', str(path),
+    ])
 
 
 def _two_color_video(path: Path) -> None:
@@ -181,6 +197,97 @@ def test_mixed_audio_and_silent_media_produces_normalized_aac_audio(tmp_path: Pa
         assert (video['width'], video['height']) == (180, 320)
         assert video['avg_frame_rate'] == '10/1'
         assert audio['codec_name'] == 'aac'
+
+
+def test_text_audio_and_effects_render_into_browser_compatible_output(tmp_path: Path) -> None:
+    image = tmp_path / 'image.png'
+    audio = tmp_path / 'music.m4a'
+    _image(image, 'red')
+    _audio(audio)
+    timeline = TimelineComposition(
+        width=180,
+        height=320,
+        fps=10,
+        clips=[_clip(RED, 0, 1)],
+        text_overlays=[TimelineTextOverlay(
+            id='title', text='RangManch', start_seconds=0, duration_seconds=1,
+            font_family='Inter', font_size=28, color='#ffffff', bold=True, position='center',
+        )],
+        audio_items=[TimelineAudioItem(
+            id='music', media_id=AUDIO, kind='music', start_seconds=0.2,
+            duration_seconds=0.7, source_start_seconds=0.1, volume=0.5,
+        )],
+        effects=[
+            TimelineEffect(id='contrast', preset='contrast', start_seconds=0, duration_seconds=1, amount=1.2),
+            TimelineEffect(id='vignette', preset='vignette', start_seconds=0, duration_seconds=1, amount=0.5),
+        ],
+    )
+
+    with TimelineRenderService().render(
+        timeline,
+        [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
+    ) as result:
+        payload = _probe(result.path)
+        assert any(stream['codec_type'] == 'audio' and stream['codec_name'] == 'aac' for stream in payload['streams'])
+        assert result.metadata.duration_seconds == pytest.approx(1, abs=0.15)
+
+
+def test_freeform_text_style_and_rotation_render_successfully(tmp_path: Path) -> None:
+    image = tmp_path / 'image.png'
+    _image(image, 'blue')
+    timeline = TimelineComposition(
+        width=180,
+        height=320,
+        fps=10,
+        clips=[_clip(RED, 0, 0.5)],
+        text_overlays=[TimelineTextOverlay(
+            id='title', text='Freeform', start_seconds=0, duration_seconds=0.5,
+            font_family='Inter', font_size=24, color='#ffffff', bold=True,
+            x=0.3, y=0.22, width=0.5, rotation_degrees=-14, alignment='left',
+            outline_color='#000000', outline_width=2, shadow=False,
+            background_color='#ff0000', background_opacity=0.5,
+        )],
+    )
+
+    with TimelineRenderService().render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert result.metadata.video_codec == 'h264'
+        assert result.metadata.duration_seconds == pytest.approx(0.5, abs=0.15)
+
+
+def test_freeform_text_schema_rejects_unsafe_coordinates_and_non_finite_rotation() -> None:
+    base = dict(id='title', text='Title', start_seconds=0.0, duration_seconds=0.5)
+    with pytest.raises(ValidationError):
+        TimelineTextOverlay(**base, x=0.0, y=0.5)
+    with pytest.raises(ValidationError):
+        TimelineTextOverlay(**base, x=0.5, y=0.5, rotation_degrees=float('nan'))
+
+
+def test_enhanced_timeline_rejects_items_past_visual_duration() -> None:
+    with pytest.raises(ValidationError, match='beyond the visual timeline'):
+        TimelineComposition(
+            clips=[_clip(RED, 0, 1)],
+            effects=[TimelineEffect(id='late', preset='grayscale', start_seconds=0.8, duration_seconds=0.3)],
+        )
+
+
+@pytest.mark.parametrize(
+    'preset,amount',
+    [
+        ('fade-in', 1), ('fade-out', 1), ('zoom-in', 1), ('grayscale', 1),
+        ('blur', 0.4), ('brightness', 1.1), ('contrast', 1.2),
+        ('vibrance', 1.2), ('vignette', 0.6), ('saturation', 1.3),
+    ],
+)
+def test_each_supported_effect_has_an_ffmpeg_render_mapping(tmp_path: Path, preset: str, amount: float) -> None:
+    image = tmp_path / f'{preset}.png'
+    _image(image, 'green')
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 0.4)],
+        effects=[TimelineEffect(id=preset, preset=preset, start_seconds=0, duration_seconds=0.4, amount=amount)],
+    )
+    with TimelineRenderService().render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert result.metadata.video_codec == 'h264'
 
 
 def test_cover_and_contain_apply_expected_geometry(tmp_path: Path) -> None:

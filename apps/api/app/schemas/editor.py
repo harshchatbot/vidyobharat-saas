@@ -50,9 +50,69 @@ class GuestMediaListResponse(BaseModel):
     items: list[GuestMediaResponse]
 
 
+class PublicGuestAppConfig(BaseModel):
+    max_uploads: int
+    max_exports: int
+
+
+class PublicMediaAppConfig(BaseModel):
+    max_file_bytes: int
+    max_video_duration_seconds: float
+
+
+class PublicEditorAppConfig(BaseModel):
+    max_clips: int
+    max_duration_seconds: float
+
+
+class PublicFeatureAppConfig(BaseModel):
+    guest_editor_enabled: bool
+
+
+class PublicAppConfigResponse(BaseModel):
+    guest: PublicGuestAppConfig
+    media: PublicMediaAppConfig
+    editor: PublicEditorAppConfig
+    features: PublicFeatureAppConfig
+
+
 class TimelineCropMode(str, Enum):
     cover = 'cover'
     contain = 'contain'
+
+
+class TimelineTextPosition(str, Enum):
+    top = 'top'
+    center = 'center'
+    bottom = 'bottom'
+
+
+class TimelineTextAlignment(str, Enum):
+    left = 'left'
+    center = 'center'
+    right = 'right'
+
+
+class TimelineAudioKind(str, Enum):
+    music = 'music'
+    sfx = 'sfx'
+    voice = 'voice'
+
+
+class TimelineEffectPreset(str, Enum):
+    fade_in = 'fade-in'
+    fade_out = 'fade-out'
+    zoom_in = 'zoom-in'
+    grayscale = 'grayscale'
+    blur = 'blur'
+    brightness = 'brightness'
+    contrast = 'contrast'
+    vibrance = 'vibrance'
+    vignette = 'vignette'
+    saturation = 'saturation'
+
+
+TimelineFontFamily = Literal['Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif']
 
 
 class TimelineClip(BaseModel):
@@ -61,6 +121,60 @@ class TimelineClip(BaseModel):
     start_seconds: Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)] = 0
     duration_seconds: Annotated[float, Field(gt=0, le=120, allow_inf_nan=False, strict=True)]
     crop_mode: TimelineCropMode = TimelineCropMode.cover
+    muted: bool = False
+    volume: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 1
+
+
+class TimelineTextOverlay(BaseModel):
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    text: Annotated[str, Field(min_length=1, max_length=500)]
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    font_family: TimelineFontFamily = 'Inter'
+    font_size: Annotated[int, Field(ge=12, le=120, strict=True)] = 44
+    color: Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$')] = '#ffffff'
+    bold: bool = False
+    position: TimelineTextPosition | None = None
+    x: Annotated[float | None, Field(ge=0.02, le=0.98, allow_inf_nan=False, strict=True)] = None
+    y: Annotated[float | None, Field(ge=0.02, le=0.98, allow_inf_nan=False, strict=True)] = None
+    width: Annotated[float, Field(ge=0.1, le=0.96, allow_inf_nan=False, strict=True)] = 0.8
+    rotation_degrees: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False, strict=True)] = 0
+    alignment: TimelineTextAlignment = TimelineTextAlignment.center
+    outline_color: Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$')] = '#000000'
+    outline_width: Annotated[int, Field(ge=0, le=12, strict=True)] = 0
+    shadow: bool = True
+    background_color: Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$')] = '#000000'
+    background_opacity: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 0
+
+    @model_validator(mode='after')
+    def normalize_coordinates(self) -> 'TimelineTextOverlay':
+        if self.x is None:
+            self.x = 0.5
+        if self.y is None:
+            self.y = {
+                TimelineTextPosition.top: 0.12,
+                TimelineTextPosition.bottom: 0.88,
+            }.get(self.position, 0.5)
+        return self
+
+
+class TimelineAudioItem(BaseModel):
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    media_id: Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
+    kind: TimelineAudioKind
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    source_start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)] = 0
+    volume: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 1
+    muted: bool = False
+
+
+class TimelineEffect(BaseModel):
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    preset: TimelineEffectPreset
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    amount: Annotated[float, Field(ge=0, le=2, allow_inf_nan=False, strict=True)] = 1
 
 
 class TimelineComposition(BaseModel):
@@ -69,6 +183,9 @@ class TimelineComposition(BaseModel):
     height: Annotated[int, Field(ge=2, le=3840, multiple_of=2, strict=True)] = 1280
     fps: Annotated[int, Field(ge=1, le=60, strict=True)] = 30
     clips: Annotated[list[TimelineClip], Field(min_length=1, max_length=100)]
+    text_overlays: Annotated[list[TimelineTextOverlay], Field(max_length=50)] = Field(default_factory=list)
+    audio_items: Annotated[list[TimelineAudioItem], Field(max_length=24)] = Field(default_factory=list)
+    effects: Annotated[list[TimelineEffect], Field(max_length=50)] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def validate_timeline(self) -> 'TimelineComposition':
@@ -77,6 +194,29 @@ class TimelineComposition(BaseModel):
         orders = sorted(clip.order for clip in self.clips)
         if orders != list(range(len(self.clips))):
             raise ValueError('Clip order values must be unique and contiguous from zero.')
-        if math.fsum(clip.duration_seconds for clip in self.clips) > 120:
+        timeline_duration = math.fsum(clip.duration_seconds for clip in self.clips)
+        if timeline_duration > 120:
             raise ValueError('Timeline duration exceeds the schema maximum of 120 seconds.')
+        item_ids = [item.id for item in (*self.text_overlays, *self.audio_items, *self.effects)]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError('Timeline overlay, audio, and effect IDs must be unique.')
+        for item in (*self.text_overlays, *self.audio_items, *self.effects):
+            if item.start_seconds + item.duration_seconds > timeline_duration + 1e-6:
+                raise ValueError('Timeline item extends beyond the visual timeline duration.')
         return self
+
+
+class GuestExportResponse(BaseModel):
+    job_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    progress_stage: str
+    status_url: str
+    output: dict | None = None
+    error_code: str | None = None
+
+
+class GuestExportListResponse(BaseModel):
+    items: list[GuestExportResponse]

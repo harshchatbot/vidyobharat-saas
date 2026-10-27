@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     editor_guest_session_hours: int = 24
     editor_guest_csrf_header: str = 'X-RangManch-Editor-CSRF'
     editor_guest_csrf_value: str = '1'
-    editor_guest_max_uploads: int = 3
+    editor_guest_max_uploads: int = 20
     editor_guest_max_exports: int = 3
     editor_guest_max_uploaded_bytes: int = 250 * 1024 * 1024
     editor_guest_max_storage_bytes: int = 500 * 1024 * 1024
@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     editor_timeline_max_fps: int = 30
     editor_timeline_ffmpeg_timeout_seconds: int = 300
     editor_timeline_max_concurrent_renders: int = 1
+    editor_export_worker_poll_seconds: float = 2.0
+    editor_export_worker_lease_seconds: int = 120
+    editor_export_worker_max_attempts: int = 3
+    editor_export_worker_retry_base_seconds: int = 5
+    editor_export_list_limit: int = 50
+    app_config_cache_ttl_seconds: int = Field(default=45, ge=30, le=60)
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'

@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from app.schemas.editor import TimelineClip, TimelineComposition, TimelineCropMode
+from app.schemas.editor import (
+    TimelineClip,
+    TimelineComposition,
+    TimelineCropMode,
+    TimelineEffectPreset,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -200,8 +205,8 @@ class TimelineRenderService:
         for item in media:
             if item.media_id in provided:
                 raise TimelineValidationError('Resolved media IDs must be unique.')
-            if item.media_type not in {'image', 'video'}:
-                raise TimelineValidationError('Resolved media type must be image or video.')
+            if item.media_type not in {'image', 'video', 'audio'}:
+                raise TimelineValidationError('Resolved media type must be image, video, or audio.')
             source = self._require_regular_file(item.path)
             actual_size = source.stat().st_size
             if item.file_size != actual_size or actual_size <= 0:
@@ -213,13 +218,18 @@ class TimelineRenderService:
 
         source_by_id: dict[str, tuple[ResolvedTimelineMedia, dict[str, Any]]] = {}
         requested_ids = {clip.media_id for clip in composition.clips}
+        requested_ids.update(item.media_id for item in composition.audio_items)
         if requested_ids != set(provided):
             raise TimelineValidationError('Every timeline media ID must resolve exactly once.')
         for media_id, item in provided.items():
-            probe = self._probe(item.path)
-            width, height = self._probe_dimensions(probe)
-            if width * height > self.limits.max_source_pixels:
-                raise TimelineValidationError('Timeline source dimensions exceed the configured pixel limit.')
+            probe = self._probe(item.path, require_visual=item.media_type != 'audio')
+            if item.media_type == 'audio':
+                if not self._has_audio(probe):
+                    raise TimelineValidationError('Timeline audio media has no decodable audio stream.')
+            else:
+                width, height = self._probe_dimensions(probe)
+                if width * height > self.limits.max_source_pixels:
+                    raise TimelineValidationError('Timeline source dimensions exceed the configured pixel limit.')
             source_by_id[media_id] = (item, probe)
         for clip in composition.clips:
             frame_count = clip.duration_seconds * composition.fps
@@ -233,6 +243,13 @@ class TimelineRenderService:
                 duration = self._probe_visual_duration(probe)
                 if clip.start_seconds + clip.duration_seconds > duration + 1e-6:
                     raise TimelineValidationError('A video clip exceeds its source duration.')
+        for audio in composition.audio_items:
+            item, probe = source_by_id[audio.media_id]
+            if item.media_type != 'audio':
+                raise TimelineValidationError('Timeline audio items must reference uploaded audio media.')
+            duration = self._probe_audio_duration(probe)
+            if audio.source_start_seconds + audio.duration_seconds > duration + 1e-6:
+                raise TimelineValidationError('An audio item exceeds its source duration.')
         return sorted(composition.clips, key=lambda clip: clip.order), source_by_id
 
     def _build_command(
@@ -249,6 +266,11 @@ class TimelineRenderService:
                 command.extend(['-loop', '1', '-framerate', str(composition.fps), '-i', str(source.path)])
             else:
                 command.extend(['-i', str(source.path)])
+        audio_input_indices: dict[str, int] = {}
+        for audio_offset, audio in enumerate(composition.audio_items):
+            source, _ = source_by_id[audio.media_id]
+            audio_input_indices[audio.id] = len(clips) + audio_offset
+            command.extend(['-i', str(source.path)])
 
         filters: list[str] = []
         concat_inputs: list[str] = []
@@ -271,11 +293,11 @@ class TimelineRenderService:
                     f'[{index}:v:0]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,{scale},'
                     f'fps={composition.fps},format=yuv420p,setsar=1[v{index}]'
                 )
-                if self._has_audio(probe):
+                if self._has_audio(probe) and not clip.muted and clip.volume > 0:
                     filters.append(
                         f'[{index}:a:0]atrim=start={start}:duration={duration},asetpts=PTS-STARTPTS,'
                         f'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,'
-                        f'apad,atrim=duration={duration}[a{index}]'
+                        f'volume={clip.volume:.6f},apad,atrim=duration={duration}[a{index}]'
                     )
                 else:
                     filters.append(
@@ -283,11 +305,87 @@ class TimelineRenderService:
                         f'asetpts=PTS-STARTPTS[a{index}]'
                     )
             concat_inputs.extend([f'[v{index}]', f'[a{index}]'])
-        filters.append(''.join(concat_inputs) + f'concat=n={len(clips)}:v=1:a=1[vout][aout]')
+        filters.append(''.join(concat_inputs) + f'concat=n={len(clips)}:v=1:a=1[vbase][abase]')
+        video_label = 'vbase'
+        filter_index = 0
+        for effect in composition.effects:
+            next_label = f've{filter_index}'
+            expression = self._effect_filter(effect, composition)
+            filters.append(f'[{video_label}]{expression}[{next_label}]')
+            video_label = next_label
+            filter_index += 1
+        for overlay in composition.text_overlays:
+            text_path = output.parent / f'text-{filter_index:03d}.txt'
+            text_path.write_text(overlay.text, encoding='utf-8')
+            layer_width = max(2, round(composition.width * overlay.width))
+            layer_width += layer_width % 2
+            layer_height = max(2, min(composition.height, round(overlay.font_size * 4)))
+            layer_height += layer_height % 2
+            layer_label = f'textlayer{filter_index}'
+            rotated_label = f'textrot{filter_index}'
+            next_label = f'vt{filter_index}'
+            alignment_x = {
+                'left': '0',
+                'center': '(w-text_w)/2',
+                'right': 'w-text_w',
+            }[overlay.alignment.value]
+            background = self._ffmpeg_color(overlay.background_color, overlay.background_opacity)
+            shadow_options = (
+                'shadowcolor=black@0.55:shadowx=0:shadowy=2'
+                if overlay.shadow
+                else 'shadowcolor=black@0:shadowx=0:shadowy=0'
+            )
+            filters.append(
+                f'nullsrc=s={layer_width}x{layer_height}:r={composition.fps}:d='
+                f'{format_seconds(composition_duration(composition))},format=rgba,'
+                f'colorchannelmixer=aa=0,drawtext=textfile={self._escape_filter_value(str(text_path))}:'
+                f"font={self._escape_filter_value(overlay.font_family + (' Bold' if overlay.bold else ''))}:"
+                f'fontsize={overlay.font_size}:fontcolor={overlay.color}:'
+                f'borderw={overlay.outline_width}:bordercolor={overlay.outline_color}:'
+                f'{shadow_options}:box={1 if overlay.background_opacity > 0 else 0}:'
+                f'boxcolor={background}:boxborderw=8:expansion=none:'
+                f'x={alignment_x}:y=(h-text_h)/2[{layer_label}]'
+            )
+            filters.append(
+                f'[{layer_label}]rotate=angle={math.radians(overlay.rotation_degrees):.10f}:'
+                f'ow=rotw(iw):oh=roth(ih):c=none[{rotated_label}]'
+            )
+            filters.append(
+                f'[{video_label}][{rotated_label}]overlay='
+                f"x='W*{overlay.x:.10f}-w/2':y='H*{overlay.y:.10f}-h/2':"
+                f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
+                f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
+            )
+            video_label = next_label
+            filter_index += 1
+
+        audio_labels = ['[abase]']
+        for index, audio in enumerate(composition.audio_items):
+            if audio.muted or audio.volume <= 0:
+                continue
+            input_index = audio_input_indices[audio.id]
+            label = f'aext{index}'
+            delay_ms = round(audio.start_seconds * 1000)
+            filters.append(
+                f'[{input_index}:a:0]atrim=start={format_seconds(audio.source_start_seconds)}:'
+                f'duration={format_seconds(audio.duration_seconds)},asetpts=PTS-STARTPTS,'
+                f'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,'
+                f'volume={audio.volume:.6f},adelay={delay_ms}|{delay_ms},'
+                f'apad,atrim=duration={format_seconds(composition_duration(composition))}[{label}]'
+            )
+            audio_labels.append(f'[{label}]')
+        audio_label = 'abase'
+        if len(audio_labels) > 1:
+            audio_label = 'amixed'
+            filters.append(
+                ''.join(audio_labels)
+                + f'amix=inputs={len(audio_labels)}:duration=first:dropout_transition=0:normalize=0,'
+                + f'atrim=duration={format_seconds(composition_duration(composition))}[{audio_label}]'
+            )
         command.extend(
             [
                 '-filter_complex', ';'.join(filters),
-                '-map', '[vout]', '-map', '[aout]',
+                '-map', f'[{video_label}]', '-map', f'[{audio_label}]',
                 '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
                 '-movflags', '+faststart', '-threads', '1',
@@ -341,7 +439,7 @@ class TimelineRenderService:
         if not output.is_file() or output.is_symlink() or output.stat().st_size <= 0:
             raise TimelineProcessError('FFmpeg did not create a valid output file.')
 
-    def _probe(self, path: Path) -> dict[str, Any]:
+    def _probe(self, path: Path, *, require_visual: bool = True) -> dict[str, Any]:
         command = [
             self.ffprobe_binary, '-v', 'error', '-print_format', 'json',
             '-show_entries',
@@ -372,10 +470,11 @@ class TimelineRenderService:
                 self._stop_process(process)
             raise
         streams = payload.get('streams')
-        if not isinstance(streams, list) or not any(
-            isinstance(stream, dict) and stream.get('codec_type') == 'video' for stream in streams
-        ):
-            raise TimelineValidationError('Timeline media has no decodable visual stream.')
+        if not isinstance(streams, list):
+            raise TimelineValidationError('Timeline media has no decodable streams.')
+        required_type = 'video' if require_visual else 'audio'
+        if not any(isinstance(stream, dict) and stream.get('codec_type') == required_type for stream in streams):
+            raise TimelineValidationError(f'Timeline media has no decodable {required_type} stream.')
         return payload
 
     def _validate_output(self, output: Path, composition: TimelineComposition) -> TimelineOutputMetadata:
@@ -444,6 +543,49 @@ class TimelineRenderService:
         )
 
     @staticmethod
+    def _escape_filter_value(value: str) -> str:
+        return value.replace('\\', '\\\\').replace(':', '\\:').replace("'", "\\'")
+
+    @staticmethod
+    def _ffmpeg_color(value: str, opacity: float) -> str:
+        return f'0x{value[1:]}@{opacity:.6f}'
+
+    @staticmethod
+    def _effect_filter(effect: Any, composition: TimelineComposition) -> str:
+        start = format_seconds(effect.start_seconds)
+        end = format_seconds(effect.start_seconds + effect.duration_seconds)
+        duration = format_seconds(effect.duration_seconds)
+        amount = float(effect.amount)
+        enable = f"enable='between(t,{start},{end})'"
+        if effect.preset == TimelineEffectPreset.fade_in:
+            return f'fade=t=in:st={start}:d={duration}'
+        if effect.preset == TimelineEffectPreset.fade_out:
+            return f'fade=t=out:st={start}:d={duration}'
+        if effect.preset == TimelineEffectPreset.zoom_in:
+            factor = 0.12 * amount
+            clock = f'(on/{composition.fps})'
+            zoom = f'max(0,min(1,({clock}-{start})/{duration}))*between({clock},{start},{end})'
+            return (
+                f"zoompan=z='1+{factor:.6f}*{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                f'd=1:s={composition.width}x{composition.height}:fps={composition.fps}'
+            )
+        if effect.preset == TimelineEffectPreset.grayscale:
+            return f'hue=s={max(0.0, 1.0 - min(1.0, amount)):.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.blur:
+            return f'boxblur=luma_radius={max(0.1, amount * 5):.3f}:luma_power=1:{enable}'
+        if effect.preset == TimelineEffectPreset.brightness:
+            return f'eq=brightness={max(-1.0, min(1.0, amount - 1)):.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.contrast:
+            return f'eq=contrast={max(0.0, min(2.0, amount)):.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.saturation:
+            return f'eq=saturation={max(0.0, min(2.0, amount)):.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.vibrance:
+            return f'vibrance=intensity={max(-1.0, min(1.0, amount - 1)):.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.vignette:
+            return f'vignette=angle={0.15 + min(2.0, amount) * 0.35:.6f}:{enable}'
+        raise TimelineValidationError(f'Unsupported timeline effect: {effect.preset}.')
+
+    @staticmethod
     def _has_audio(payload: dict[str, Any]) -> bool:
         return any(stream.get('codec_type') == 'audio' for stream in payload.get('streams', []))
 
@@ -475,6 +617,19 @@ class TimelineRenderService:
             if math.isfinite(value) and value > 0:
                 return value
         raise TimelineValidationError('Timeline video duration is missing or invalid.')
+
+    @staticmethod
+    def _probe_audio_duration(payload: dict[str, Any]) -> float:
+        audio = next(stream for stream in payload['streams'] if stream.get('codec_type') == 'audio')
+        values = [audio.get('duration'), (payload.get('format') or {}).get('duration')]
+        for raw in values:
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(value) and value > 0:
+                return value
+        raise TimelineValidationError('Timeline audio duration is missing or invalid.')
 
     @staticmethod
     def _stream_duration(stream: dict[str, Any], payload: dict[str, Any]) -> float:

@@ -40,6 +40,12 @@ _ALLOWED_DECLARED_TYPES = {
     'video/mp4',
     'video/quicktime',
     'video/webm',
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/aac',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/ogg',
     'application/octet-stream',
 }
 
@@ -70,14 +76,32 @@ class GuestMediaService:
         self.storage = storage
         self.ffmpeg_binary = ffmpeg_binary
         self.ffprobe_binary = ffprobe_binary
-        self.max_file_bytes = settings.editor_guest_max_file_bytes
-        self.max_video_duration = float(settings.editor_guest_max_video_duration_seconds)
-        self.max_image_pixels = settings.editor_guest_max_image_pixels
+        self._max_file_bytes = settings.editor_guest_max_file_bytes
+        self._max_video_duration = float(settings.editor_guest_max_video_duration_seconds)
+        self._max_image_pixels = settings.editor_guest_max_image_pixels
         self.operation_timeout = float(settings.editor_guest_upload_timeout_seconds)
         if min(self.max_file_bytes, self.max_video_duration, self.max_image_pixels, self.operation_timeout) <= 0:
             raise RuntimeError('Guest media limits must be positive.')
         if self.operation_timeout >= sessions.config.reservation_lease.total_seconds():
             raise RuntimeError('Guest upload timeout must be shorter than the quota reservation lease.')
+
+    @property
+    def max_file_bytes(self) -> int:
+        if self.sessions.app_config is None:
+            return self._max_file_bytes
+        return self.sessions.app_config.get().media.max_file_bytes
+
+    @property
+    def max_video_duration(self) -> float:
+        if self.sessions.app_config is None:
+            return self._max_video_duration
+        return self.sessions.app_config.get().media.max_video_duration_seconds
+
+    @property
+    def max_image_pixels(self) -> int:
+        if self.sessions.app_config is None:
+            return self._max_image_pixels
+        return self.sessions.app_config.get().media.max_image_pixels
 
     def upload(
         self,
@@ -417,15 +441,34 @@ class GuestMediaService:
             self._decode_first_frame(path, deadline)
             return ValidatedMedia('image', canonical_type, None, width, height)
 
+        if declared.startswith('image/'):
+            raise media_error('guest_media_unsupported', 'The uploaded file is not a supported image.', status_code=415)
+
+        result = self._probe(path, deadline)
+        streams = result.get('streams', [])
+        has_video = any(stream.get('codec_type') == 'video' for stream in streams)
+        has_audio = any(stream.get('codec_type') == 'audio' for stream in streams)
+        if not has_video and has_audio:
+            audio_type = self._audio_type(result)
+            if not audio_type:
+                raise media_error('guest_media_unsupported', 'The uploaded audio format is not supported.', status_code=415)
+            declared_aliases = {'audio/wav', 'audio/x-wav'} if audio_type == 'audio/wav' else {audio_type}
+            if declared not in {'', 'application/octet-stream', *declared_aliases}:
+                raise media_error('guest_media_type_mismatch', 'The declared media type does not match the file.', status_code=415)
+            duration = self._duration(result)
+            if duration > self.max_video_duration:
+                raise media_error('guest_audio_too_long', f'Guest audio is limited to {self.max_video_duration:g} seconds.', status_code=422)
+            self._decode_audio(path, deadline)
+            return ValidatedMedia('audio', audio_type, duration, 0, 0)
+
         video_type = self._video_type(header, declared)
-        if not video_type:
-            raise media_error('guest_media_unsupported', 'The uploaded file is not a supported image or video.', status_code=415)
+        if not has_video or not video_type:
+            raise media_error('guest_media_unsupported', 'The uploaded file is not a supported image, video, or audio file.', status_code=415)
         if declared not in {'', 'application/octet-stream', video_type} and not (
             video_type in {'video/mp4', 'video/quicktime'}
             and declared in {'video/mp4', 'video/quicktime'}
         ):
             raise media_error('guest_media_type_mismatch', 'The declared media type does not match the file.', status_code=415)
-        result = self._probe(path, deadline)
         width, height = self._dimensions(result)
         if width * height > self.max_image_pixels:
             raise media_error('guest_video_dimensions_too_large', 'The video dimensions are too large.', status_code=422)
@@ -457,10 +500,8 @@ class GuestMediaService:
         )
         payload = json.loads(completed.stdout or '{}')
         streams = payload.get('streams')
-        if not isinstance(streams, list) or not any(
-            isinstance(stream, dict) and stream.get('codec_type') == 'video' for stream in streams
-        ):
-            raise media_error('guest_media_invalid', 'The file has no valid visual media stream.', status_code=422)
+        if not isinstance(streams, list) or not any(isinstance(stream, dict) for stream in streams):
+            raise media_error('guest_media_invalid', 'The file has no valid media stream.', status_code=422)
         return payload
 
     def _decode_first_frame(self, path: Path, deadline: float) -> None:
@@ -477,6 +518,36 @@ class GuestMediaService:
             ],
             deadline,
         )
+
+    def _decode_audio(self, path: Path, deadline: float) -> None:
+        self._run(
+            [
+                self.ffmpeg_binary,
+                '-hide_banner', '-loglevel', 'error', '-nostdin',
+                '-threads', '1', '-i', str(path), '-map', '0:a:0',
+                '-t', '1', '-f', 'null', '-',
+            ],
+            deadline,
+        )
+
+    @staticmethod
+    def _audio_type(payload: dict[str, Any]) -> str | None:
+        audio_stream = next((stream for stream in payload.get('streams', []) if stream.get('codec_type') == 'audio'), None)
+        if not audio_stream:
+            return None
+        codec = str(audio_stream.get('codec_name') or '').lower()
+        formats = set(str((payload.get('format') or {}).get('format_name') or '').lower().split(','))
+        if codec == 'mp3' or 'mp3' in formats:
+            return 'audio/mpeg'
+        if codec.startswith('pcm_') and ('wav' in formats or 'wave' in formats):
+            return 'audio/wav'
+        if codec == 'aac' and formats.intersection({'mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2'}):
+            return 'audio/mp4'
+        if codec == 'aac':
+            return 'audio/aac'
+        if codec in {'vorbis', 'opus'} and formats.intersection({'ogg', 'opus'}):
+            return 'audio/ogg'
+        return None
 
     def _run(self, command: list[str], deadline: float) -> subprocess.CompletedProcess[str]:
         remaining = deadline - time.monotonic()

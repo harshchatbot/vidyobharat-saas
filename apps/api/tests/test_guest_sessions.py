@@ -21,6 +21,7 @@ from app.providers.firebase import get_firestore_client
 from app.providers.firebase_emulator import validate_firebase_emulator_environment
 from app.services.guest_session_errors import GuestSessionError
 from app.services.guest_session_service import GuestSessionConfig, GuestSessionService
+from app.services.app_config_service import AppConfigService, defaults_from_settings
 
 
 pytestmark = pytest.mark.skipif(
@@ -251,6 +252,37 @@ def test_atomic_concurrent_quota_reservations(client: TestClient, service: Guest
     usage = client.get('/api/editor/guest/usage').json()
     assert usage['reserved']['uploads'] == 2
     assert usage['remaining']['uploads'] == 0
+
+
+def test_app_config_limit_is_enforced_by_quota_transaction(
+    client: TestClient,
+    service: GuestSessionService,
+    firestore_client,
+) -> None:
+    reference = firestore_client.collection('app_config').document('guest')
+    reference.set({'max_uploads': 1})
+    service.app_config = AppConfigService(
+        firestore_client,
+        defaults=defaults_from_settings(Settings(_env_file=None)),
+        cache_ttl_seconds=30,
+    )
+    try:
+        _create(client)
+        token = client.cookies.get(service.config.cookie_name)
+        service.reserve_quota(
+            raw_token=token,
+            reservation_id='configured-one',
+            reservation=GuestQuotaReservation(uploads=1),
+        )
+        with pytest.raises(GuestSessionError) as captured:
+            service.reserve_quota(
+                raw_token=token,
+                reservation_id='configured-two',
+                reservation=GuestQuotaReservation(uploads=1),
+            )
+        assert captured.value.error == 'guest_quota_exceeded'
+    finally:
+        reference.delete()
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from fastapi import Request
 
 from app.core.config import Settings, get_settings
+from app.providers.firebase import get_firestore_client
 from app.db.repositories.guest_session_repository import (
     GuestQuotaLimits,
     GuestQuotaReservation,
@@ -23,6 +24,7 @@ from app.services.guest_session_errors import (
     session_required,
     session_revoked,
 )
+from app.services.app_config_service import AppConfigService, get_app_config_service
 
 
 @dataclass(frozen=True)
@@ -97,9 +99,24 @@ class GuestSessionConfig:
 
 
 class GuestSessionService:
-    def __init__(self, *, repository: GuestSessionRepository, config: GuestSessionConfig) -> None:
+    def __init__(self, *, repository: GuestSessionRepository, config: GuestSessionConfig, app_config: AppConfigService | None = None) -> None:
         self.repository = repository
         self.config = config
+        self.app_config = app_config
+
+    @property
+    def limits(self) -> GuestQuotaLimits:
+        if self.app_config is None:
+            return self.config.limits
+        configured = self.app_config.get().guest
+        return GuestQuotaLimits(
+            uploads=configured.max_uploads,
+            exports=configured.max_exports,
+            uploaded_bytes=configured.max_uploaded_bytes,
+            storage_bytes=configured.max_storage_bytes,
+            processing_seconds=configured.max_processing_seconds,
+            concurrent_processing=configured.max_concurrent_processing,
+        )
 
     def create_session(self, request: Request, raw_token: str | None) -> tuple[dict[str, Any], str | None]:
         self.validate_mutating_request(request)
@@ -148,7 +165,7 @@ class GuestSessionService:
             guest_id=session['guest_id'],
             reservation_id=reservation_id,
             reservation=reservation,
-            limits=self.config.limits,
+            limits=self.limits,
             now=now,
             lease_expires_at=min(session['expires_at'], now + self.config.reservation_lease),
         )
@@ -180,11 +197,18 @@ class GuestSessionService:
             guest_id=session['guest_id'],
             reservation_id=reservation_id,
             additional=additional,
-            limits=self.config.limits,
+            limits=self.limits,
             now=datetime.now(UTC),
         )
 
     def validate_mutating_request(self, request: Request) -> None:
+        if self.app_config is not None and not self.app_config.get().features.guest_editor_enabled:
+            raise GuestSessionError(
+                'guest_editor_disabled',
+                'The guest editor is temporarily unavailable.',
+                status_code=503,
+                recoverable=True,
+            )
         origin = (request.headers.get('origin') or '').rstrip('/')
         if origin not in self.config.allowed_origins:
             raise GuestSessionError(
@@ -234,13 +258,14 @@ class GuestSessionService:
             'processing_seconds': float(session.get('reserved_processing_seconds', 0.0)),
             'concurrent_processing': int(session.get('active_processing', 0)),
         }
+        effective_limits = self.limits
         limits = {
-            'uploads': self.config.limits.uploads,
-            'exports': self.config.limits.exports,
-            'uploaded_bytes': self.config.limits.uploaded_bytes,
-            'storage_bytes': self.config.limits.storage_bytes,
-            'processing_seconds': self.config.limits.processing_seconds,
-            'concurrent_processing': self.config.limits.concurrent_processing,
+            'uploads': effective_limits.uploads,
+            'exports': effective_limits.exports,
+            'uploaded_bytes': effective_limits.uploaded_bytes,
+            'storage_bytes': effective_limits.storage_bytes,
+            'processing_seconds': effective_limits.processing_seconds,
+            'concurrent_processing': effective_limits.concurrent_processing,
         }
         remaining = {
             key: max(0, limits[key] - used[key] - reserved[key])
@@ -281,7 +306,9 @@ class GuestSessionService:
 
 def build_guest_session_service() -> GuestSessionService:
     settings = get_settings()
+    firestore = get_firestore_client()
     return GuestSessionService(
-        repository=GuestSessionRepository(),
+        repository=GuestSessionRepository(firestore),
         config=GuestSessionConfig.from_settings(settings),
+        app_config=get_app_config_service(),
     )

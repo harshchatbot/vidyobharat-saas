@@ -160,6 +160,28 @@ class FirebaseStorageEmulatorClient:
             )
         response.raise_for_status()
 
+    def upload_file_if_absent(
+        self,
+        object_name: str,
+        path: str | Path,
+        *,
+        content_type: str,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        with Path(path).open('rb') as source:
+            response = httpx.post(
+                self.base_url,
+                params={'name': self._object_name(object_name), 'ifGenerationMatch': '0'},
+                content=source,
+                headers={**self._headers, 'Content-Type': content_type},
+                timeout=timeout_seconds or self.timeout_seconds,
+            )
+        response.raise_for_status()
+        generation = response.json().get('generation')
+        if not generation:
+            raise RuntimeError('Storage emulator upload response omitted the object generation.')
+        return str(generation)
+
     def download_bytes(self, object_name: str) -> bytes:
         response = httpx.get(
             self._object_url(object_name),
@@ -181,6 +203,26 @@ class FirebaseStorageEmulatorClient:
         return response.content
 
     def delete(self, object_name: str) -> None:
+        response = httpx.delete(
+            self._object_url(object_name),
+            headers=self._headers,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+
+    def delete_generation(self, object_name: str, generation: str) -> None:
+        metadata = httpx.get(
+            self._object_url(object_name),
+            headers=self._headers,
+            timeout=self.timeout_seconds,
+        )
+        if metadata.status_code == 404:
+            return
+        metadata.raise_for_status()
+        if str(metadata.json().get('generation')) != str(generation):
+            return
+        # The emulator ignores the production ifGenerationMatch delete precondition,
+        # so compare metadata first to preserve parity as closely as it permits.
         response = httpx.delete(
             self._object_url(object_name),
             headers=self._headers,

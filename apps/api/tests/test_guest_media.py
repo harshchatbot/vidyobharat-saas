@@ -150,6 +150,18 @@ def _make_video(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def _make_audio(path: Path) -> bytes:
+    subprocess.run(
+        [
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+            '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
+            '-c:a', 'libmp3lame', str(path),
+        ],
+        check=True,
+    )
+    return path.read_bytes()
+
+
 def _upload(
     client: TestClient,
     content: bytes,
@@ -225,6 +237,34 @@ def test_successful_video_upload_and_range_preview(media_environment) -> None:
     assert ranged.status_code == 206
     assert ranged.content == content[:32]
     assert ranged.headers['content-range'] == f'bytes 0-31/{len(content)}'
+
+
+def test_successful_audio_upload_is_probed_and_private(media_environment) -> None:
+    client, _, _, _, tmp_path = media_environment
+    _create_session(client)
+    content = _make_audio(tmp_path / 'music.mp3')
+
+    response = _upload(client, content, 'music.mp3', 'audio/mpeg')
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body['media_type'] == 'audio'
+    assert body['content_type'] == 'audio/mpeg'
+    assert body['duration_seconds'] == pytest.approx(1.0, abs=0.1)
+    assert body['width'] == 0
+    assert body['height'] == 0
+    downloaded = client.get(f"/api/editor/media/{body['media_id']}/content")
+    assert downloaded.status_code == 200
+    assert downloaded.content == content
+
+
+def test_audio_mime_spoofing_is_rejected(media_environment, tmp_path: Path) -> None:
+    client, _, _, _, _ = media_environment
+    _create_session(client)
+    content = _make_audio(tmp_path / 'spoofed.mp3')
+    response = _upload(client, content, 'spoofed.mp4', 'video/mp4')
+    assert response.status_code == 415
+    assert response.json()['error'] == 'guest_media_type_mismatch'
 
 
 @pytest.mark.parametrize(

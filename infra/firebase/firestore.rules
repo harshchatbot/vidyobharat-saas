@@ -33,6 +33,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Runtime configuration is managed through the Firebase Console/Admin SDK.
+    // Public clients receive only an allowlisted subset through the API.
+    match /app_config/{document=**} {
+      allow read, write: if false;
+    }
+
     // Top-level source-of-truth collections used by the backend runtime.
     match /credit_wallets/{walletId} {
       allow read: if existingOwnerFieldMatches();

@@ -14,6 +14,7 @@ from app.providers.firebase_emulator import (
     get_firebase_storage_emulator_client,
     validate_firebase_emulator_environment,
 )
+from app.services.app_config_service import AppConfigService, defaults_from_settings
 
 
 def test_emulator_guard_rejects_missing_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,3 +90,27 @@ def test_firestore_and_storage_emulator_smoke() -> None:
         # Avoid leaking cached emulator state into another test configuration.
         get_firebase_app.cache_clear()
         get_settings.cache_clear()
+
+
+@pytest.mark.skipif(
+    os.environ.get('RUN_FIREBASE_EMULATOR_TESTS') != '1',
+    reason='Set RUN_FIREBASE_EMULATOR_TESTS=1 inside firebase emulators:exec.',
+)
+def test_app_config_reads_validated_firestore_override_from_emulator() -> None:
+    validate_firebase_emulator_environment()
+    firestore = get_firestore_client()
+    reference = firestore.collection('app_config').document('guest')
+    try:
+        reference.set({'max_uploads': 27})
+        service = AppConfigService(
+            firestore,
+            defaults=defaults_from_settings(get_settings()),
+            cache_ttl_seconds=30,
+        )
+        assert service.get().guest.max_uploads == 27
+        reference.update({'max_uploads': 28})
+        assert service.get().guest.max_uploads == 27
+        service.invalidate()
+        assert service.get().guest.max_uploads == 28
+    finally:
+        reference.delete()

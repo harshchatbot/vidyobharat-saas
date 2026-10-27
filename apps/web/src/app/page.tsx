@@ -6,17 +6,16 @@ import { buildMetadata } from '@/lib/seo';
 export const dynamic = 'force-static';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'AI Video Generation and AI Image Generation for India-First Creators',
+  title: 'Create Beautiful Reels from Your Photos and Videos',
   description:
-    'Create AI videos, AI images, avatar product ads, and anime lofi reels with a guided India-first creator workflow built for fast production.',
+    'Upload your photos and videos, arrange your story, and create a beautiful vertical reel with RangManch AI.',
   path: '/',
   keywords: [
-    'AI video generation India',
-    'AI image generation India',
-    'AI SaaS platform India',
-    'avatar product ad generator',
-    'anime lofi reel generator',
-    'AI creator platform',
+    'online reel editor',
+    'photo video editor',
+    'vertical video editor',
+    'create reels online',
+    'RangManch AI editor',
   ],
 });
 

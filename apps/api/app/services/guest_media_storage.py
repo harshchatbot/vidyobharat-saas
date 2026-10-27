@@ -27,7 +27,20 @@ class GuestMediaStorage:
     def read_range(self, object_name: str, *, start: int, end: int) -> bytes:
         raise NotImplementedError
 
+    def upload_file_if_absent(
+        self,
+        object_name: str,
+        path: Path,
+        *,
+        content_type: str,
+        timeout_seconds: float,
+    ) -> str:
+        raise NotImplementedError
+
     def delete(self, object_name: str) -> None:
+        raise NotImplementedError
+
+    def delete_generation(self, object_name: str, generation: str) -> None:
         raise NotImplementedError
 
     def iter_content(
@@ -74,11 +87,26 @@ class EmulatorGuestMediaStorage(GuestMediaStorage):
     def read_range(self, object_name: str, *, start: int, end: int) -> bytes:
         return self.client.download_range(object_name, start=start, end=end)
 
+    def upload_file_if_absent(self, object_name: str, path: Path, *, content_type: str, timeout_seconds: float) -> str:
+        return self.client.upload_file_if_absent(
+            object_name,
+            path,
+            content_type=content_type,
+            timeout_seconds=timeout_seconds,
+        )
+
     def delete(self, object_name: str) -> None:
         try:
             self.client.delete(object_name)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code != 404:
+                raise
+
+    def delete_generation(self, object_name: str, generation: str) -> None:
+        try:
+            self.client.delete_generation(object_name, generation)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {404, 412}:
                 raise
 
 
@@ -115,12 +143,38 @@ class FirebaseGuestMediaStorage(GuestMediaStorage):
             timeout=self.timeout_seconds,
         )
 
+    def upload_file_if_absent(self, object_name: str, path: Path, *, content_type: str, timeout_seconds: float) -> str:
+        blob = self.bucket.blob(object_name)
+        blob.cache_control = 'private,no-store,max-age=0'
+        blob.upload_from_filename(
+            str(path),
+            content_type=content_type,
+            timeout=min(self.timeout_seconds, timeout_seconds),
+            if_generation_match=0,
+        )
+        if blob.generation is None:
+            blob.reload(timeout=self.timeout_seconds)
+        if blob.generation is None:
+            raise RuntimeError('Firebase Storage upload omitted the object generation.')
+        return str(blob.generation)
+
     def delete(self, object_name: str) -> None:
         from google.api_core.exceptions import NotFound
 
         try:
             self.bucket.blob(object_name).delete(timeout=self.timeout_seconds)
         except NotFound:
+            pass
+
+    def delete_generation(self, object_name: str, generation: str) -> None:
+        from google.api_core.exceptions import NotFound, PreconditionFailed
+
+        try:
+            self.bucket.blob(object_name).delete(
+                timeout=self.timeout_seconds,
+                if_generation_match=int(generation),
+            )
+        except (NotFound, PreconditionFailed):
             pass
 
 
