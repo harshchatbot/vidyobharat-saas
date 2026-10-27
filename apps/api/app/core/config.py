@@ -21,6 +21,22 @@ class Settings(BaseSettings):
     api_host: str = '0.0.0.0'
     api_port: int = 8000
     local_editor_mode: bool = False
+    editor_guest_cookie_name: str = 'rangmanch_guest_session'
+    editor_guest_cookie_secure: bool | None = None
+    editor_guest_cookie_samesite: str = 'lax'
+    editor_guest_session_hours: int = 24
+    editor_guest_csrf_header: str = 'X-RangManch-Editor-CSRF'
+    editor_guest_csrf_value: str = '1'
+    editor_guest_max_uploads: int = 3
+    editor_guest_max_exports: int = 3
+    editor_guest_max_uploaded_bytes: int = 250 * 1024 * 1024
+    editor_guest_max_storage_bytes: int = 500 * 1024 * 1024
+    editor_guest_max_processing_seconds: int = 600
+    editor_guest_max_concurrent_processing: int = 1
+    editor_guest_session_rate_limit: int = 10
+    editor_guest_session_rate_window_seconds: int = 3600
+    editor_guest_reservation_lease_seconds: int = 900
+    editor_guest_rate_limit_secret: str | None = None
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'
@@ -184,6 +200,12 @@ class Settings(BaseSettings):
     @property
     def admin_user_emails_list(self) -> list[str]:
         return [value.strip().lower() for value in self.admin_user_emails.split(',') if value.strip()]
+
+    @property
+    def editor_guest_cookie_is_secure(self) -> bool:
+        if self.editor_guest_cookie_secure is not None:
+            return self.editor_guest_cookie_secure
+        return self.env == 'production'
 
 
 @lru_cache(maxsize=1)
