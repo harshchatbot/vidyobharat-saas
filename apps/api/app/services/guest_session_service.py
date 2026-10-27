@@ -168,6 +168,22 @@ class GuestSessionService:
             commit=commit,
         )
 
+    def increase_quota_reservation(
+        self,
+        *,
+        raw_token: str | None,
+        reservation_id: str,
+        additional: GuestQuotaReservation,
+    ) -> dict[str, Any]:
+        session = self.get_session(raw_token)
+        return self.repository.increase_quota_reservation(
+            guest_id=session['guest_id'],
+            reservation_id=reservation_id,
+            additional=additional,
+            limits=self.config.limits,
+            now=datetime.now(UTC),
+        )
+
     def validate_mutating_request(self, request: Request) -> None:
         origin = (request.headers.get('origin') or '').rstrip('/')
         if origin not in self.config.allowed_origins:

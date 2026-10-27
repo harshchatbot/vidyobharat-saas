@@ -91,3 +91,18 @@ def reservation_conflict() -> GuestSessionError:
         status_code=409,
         recoverable=False,
     )
+
+
+def media_error(
+    error: str,
+    message: str,
+    *,
+    status_code: int,
+    recoverable: bool = False,
+) -> GuestSessionError:
+    return GuestSessionError(
+        error,
+        message,
+        status_code=status_code,
+        recoverable=recoverable,
+    )

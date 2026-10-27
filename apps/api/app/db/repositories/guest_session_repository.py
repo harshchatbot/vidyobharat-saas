@@ -242,6 +242,7 @@ class GuestSessionRepository:
             lease_expires_at = data.get('lease_expires_at')
             if (
                 data.get('status') == 'active'
+                and data.get('kind') != 'media_upload'
                 and isinstance(lease_expires_at, datetime)
                 and lease_expires_at <= now
             ):
@@ -253,6 +254,67 @@ class GuestSessionRepository:
                 )
                 released += 1
         return released
+
+    def increase_quota_reservation(
+        self,
+        *,
+        guest_id: str,
+        reservation_id: str,
+        additional: GuestQuotaReservation,
+        limits: GuestQuotaLimits,
+        now: datetime,
+    ) -> dict[str, Any]:
+        additional.validate()
+        limits.validate()
+        session_ref = self.sessions.document(guest_id)
+        reservation_ref = session_ref.collection('reservations').document(reservation_id)
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _increase(txn):
+            session_snapshot = session_ref.get(transaction=txn)
+            reservation_snapshot = reservation_ref.get(transaction=txn)
+            session = self._require_active(session_snapshot, now)
+            if not reservation_snapshot.exists:
+                raise reservation_conflict()
+            reservation = reservation_snapshot.to_dict() or {}
+            lease_expires_at = reservation.get('lease_expires_at')
+            if (
+                reservation.get('status') != 'active'
+                or not isinstance(lease_expires_at, datetime)
+                or lease_expires_at <= now
+            ):
+                raise reservation_conflict()
+
+            mappings = (
+                ('uploads', 'uploads_count', 'reserved_uploads_count'),
+                ('exports', 'exports_count', 'reserved_exports_count'),
+                ('uploaded_bytes', 'uploaded_bytes', 'reserved_uploaded_bytes'),
+                ('storage_bytes', 'storage_bytes', 'reserved_storage_bytes'),
+                ('processing_seconds', 'processing_seconds', 'reserved_processing_seconds'),
+                ('concurrent_processing', None, 'active_processing'),
+            )
+            session_updates: dict[str, int | float | datetime] = {'updated_at': now}
+            reservation_updates: dict[str, int | float] = {}
+            for quota_name, used_field, reserved_field in mappings:
+                delta = getattr(additional, quota_name)
+                used = float(session.get(used_field, 0)) if used_field else 0.0
+                reserved_total = float(session.get(reserved_field, 0))
+                if used + reserved_total + delta > getattr(limits, quota_name):
+                    raise quota_exceeded(quota_name)
+                session_updates[reserved_field] = session.get(reserved_field, 0) + delta
+                reservation_updates[quota_name] = reservation.get(quota_name, 0) + delta
+
+            txn.update(session_ref, session_updates)
+            txn.update(reservation_ref, reservation_updates)
+            return {**session, **session_updates}
+
+        try:
+            return _increase(transaction)
+        except ValueError as exc:
+            if 'Failed to commit transaction' in str(exc):
+                raise quota_transaction_busy() from exc
+            raise
 
     def release_quota(
         self,

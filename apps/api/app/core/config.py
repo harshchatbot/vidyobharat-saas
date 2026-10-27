@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     editor_guest_session_rate_limit: int = 10
     editor_guest_session_rate_window_seconds: int = 3600
     editor_guest_reservation_lease_seconds: int = 900
+    editor_guest_max_file_bytes: int = 100 * 1024 * 1024
+    editor_guest_max_video_duration_seconds: int = 600
+    editor_guest_max_image_pixels: int = 40_000_000
+    editor_guest_upload_timeout_seconds: int = 600
     editor_guest_rate_limit_secret: str | None = None
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'

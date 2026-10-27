@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
@@ -141,11 +142,39 @@ class FirebaseStorageEmulatorClient:
         )
         response.raise_for_status()
 
+    def upload_file(
+        self,
+        object_name: str,
+        path: str | Path,
+        *,
+        content_type: str,
+        timeout_seconds: float | None = None,
+    ) -> None:
+        with Path(path).open('rb') as source:
+            response = httpx.post(
+                self.base_url,
+                params={'name': self._object_name(object_name)},
+                content=source,
+                headers={**self._headers, 'Content-Type': content_type},
+                timeout=timeout_seconds or self.timeout_seconds,
+            )
+        response.raise_for_status()
+
     def download_bytes(self, object_name: str) -> bytes:
         response = httpx.get(
             self._object_url(object_name),
             params={'alt': 'media'},
             headers=self._headers,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.content
+
+    def download_range(self, object_name: str, *, start: int, end: int) -> bytes:
+        response = httpx.get(
+            self._object_url(object_name),
+            params={'alt': 'media'},
+            headers={**self._headers, 'Range': f'bytes={start}-{end}'},
             timeout=self.timeout_seconds,
         )
         response.raise_for_status()

@@ -27,3 +27,21 @@ class GuestSessionResponse(BaseModel):
     expires_at: datetime
     status: str
     usage: GuestUsageResponse
+
+
+class GuestMediaResponse(BaseModel):
+    media_id: str
+    media_type: str
+    content_type: str
+    original_filename: str
+    file_size: int
+    duration_seconds: float | None
+    width: int
+    height: int
+    created_at: datetime
+    expires_at: datetime
+    status: str
+
+
+class GuestMediaListResponse(BaseModel):
+    items: list[GuestMediaResponse]
