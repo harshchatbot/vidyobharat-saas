@@ -46,6 +46,10 @@ class TimelineProcessError(TimelineRenderError):
     """Raised when FFmpeg or FFprobe fails."""
 
 
+class TimelineOutputValidationError(TimelineProcessError):
+    """Raised when a completed render violates the deterministic output contract."""
+
+
 @dataclass(frozen=True)
 class TimelineRenderLimits:
     max_clips: int = 12
@@ -126,11 +130,13 @@ class TimelineRenderService:
         limits: TimelineRenderLimits | None = None,
         ffmpeg_binary: str = 'ffmpeg',
         ffprobe_binary: str = 'ffprobe',
+        watermark_text: str | None = None,
     ) -> None:
         self.limits = limits or TimelineRenderLimits()
         self.limits.validate()
         self.ffmpeg_binary = ffmpeg_binary
         self.ffprobe_binary = ffprobe_binary
+        self.watermark_text = watermark_text
         global _PROCESS_CAPACITY, _PROCESS_CAPACITY_LIMIT
         with _CAPACITY_LOCK:
             if _PROCESS_CAPACITY is None:
@@ -432,6 +438,18 @@ class TimelineRenderService:
             video_label = next_label
             filter_index += 1
 
+        if self.watermark_text:
+            watermark_label = f'vwatermark{filter_index}'
+            margin = max(12, round(min(composition.width, composition.height) * 0.02))
+            font_size = max(16, round(min(composition.width, composition.height) * 0.026))
+            filters.append(
+                f'[{video_label}]drawtext=text={self._escape_filter_value(self.watermark_text)}:'
+                f'font=Inter:fontsize={font_size}:fontcolor=white@0.52:'
+                f'shadowcolor=black@0.55:shadowx=1:shadowy=1:'
+                f'x=w-text_w-{margin}:y=h-text_h-{margin}[{watermark_label}]'
+            )
+            video_label = watermark_label
+
         audio_labels = ['[abase]']
         for index, audio in enumerate(composition.audio_items):
             if audio.muted or audio.volume <= 0:
@@ -569,7 +587,7 @@ class TimelineRenderService:
     def _validate_output(self, output: Path, composition: TimelineComposition) -> TimelineOutputMetadata:
         size = output.stat().st_size
         if size > self.limits.max_output_bytes:
-            raise TimelineProcessError('Timeline render exceeded the output byte limit.')
+            raise TimelineOutputValidationError('Timeline render exceeded the output byte limit.')
         payload = self._probe(output)
         streams = payload['streams']
         video = next(stream for stream in streams if stream.get('codec_type') == 'video')
@@ -580,33 +598,33 @@ class TimelineRenderService:
         audio_duration = self._stream_duration(audio, payload) if audio is not None else 0
         expected_duration = composition_duration(composition)
         if video.get('codec_name') != 'h264' or audio is None or audio.get('codec_name') != 'aac':
-            raise TimelineProcessError('Rendered timeline does not contain H.264 video and AAC audio.')
+            raise TimelineOutputValidationError('Rendered timeline does not contain H.264 video and AAC audio.')
         if video.get('pix_fmt') != 'yuv420p':
-            raise TimelineProcessError('Rendered timeline does not use the browser-compatible yuv420p pixel format.')
+            raise TimelineOutputValidationError('Rendered timeline does not use the browser-compatible yuv420p pixel format.')
         if str(audio.get('sample_rate')) != '48000':
-            raise TimelineProcessError('Rendered timeline audio does not use a 48 kHz sample rate.')
+            raise TimelineOutputValidationError('Rendered timeline audio does not use a 48 kHz sample rate.')
         if int(video.get('width') or 0) != composition.width or int(video.get('height') or 0) != composition.height:
-            raise TimelineProcessError('Rendered timeline dimensions are incorrect.')
+            raise TimelineOutputValidationError('Rendered timeline dimensions are incorrect.')
         if abs(fps - composition.fps) > 0.01:
-            raise TimelineProcessError('Rendered timeline frame rate is incorrect.')
+            raise TimelineOutputValidationError('Rendered timeline frame rate is incorrect.')
         duration_tolerance = max(2 / composition.fps, 0.03)
         start_tolerance = max(1 / composition.fps, 1 / 48000)
         format_start = self._timestamp(payload.get('format') or {}, 'start_time')
         video_start = self._timestamp(video, 'start_time')
         audio_start = self._timestamp(audio, 'start_time')
         if any(abs(value) > start_tolerance for value in (format_start, video_start, audio_start)):
-            raise TimelineProcessError('Rendered timeline streams do not start at zero.')
+            raise TimelineOutputValidationError('Rendered timeline streams do not start at zero.')
         if abs(duration - expected_duration) > duration_tolerance:
-            raise TimelineProcessError('Rendered timeline duration is incorrect.')
+            raise TimelineOutputValidationError('Rendered timeline duration is incorrect.')
         if (
             abs(video_duration - expected_duration) > duration_tolerance
             or abs(audio_duration - expected_duration) > duration_tolerance
             or abs(video_duration - audio_duration) > duration_tolerance
         ):
-            raise TimelineProcessError('Rendered timeline audio and video durations are not synchronized.')
+            raise TimelineOutputValidationError('Rendered timeline audio and video durations are not synchronized.')
         faststart = has_faststart(output)
         if not faststart:
-            raise TimelineProcessError('Rendered timeline is not optimized for progressive playback.')
+            raise TimelineOutputValidationError('Rendered timeline is not optimized for progressive playback.')
         return TimelineOutputMetadata(
             duration_seconds=duration,
             width=composition.width,
@@ -624,9 +642,9 @@ class TimelineRenderService:
         try:
             value = float(raw)
         except (TypeError, ValueError) as exc:
-            raise TimelineProcessError(f'Rendered timeline {field} is invalid.') from exc
+            raise TimelineOutputValidationError(f'Rendered timeline {field} is invalid.') from exc
         if not math.isfinite(value):
-            raise TimelineProcessError(f'Rendered timeline {field} is invalid.')
+            raise TimelineOutputValidationError(f'Rendered timeline {field} is invalid.')
         return value
 
     @staticmethod
@@ -746,7 +764,7 @@ class TimelineRenderService:
                 continue
             if math.isfinite(value) and value > 0:
                 return value
-        raise TimelineProcessError('Rendered timeline stream duration is missing or invalid.')
+        raise TimelineOutputValidationError('Rendered timeline stream duration is missing or invalid.')
 
     @staticmethod
     def _probe_dimensions(payload: dict[str, Any]) -> tuple[int, int]:

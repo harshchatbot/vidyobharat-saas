@@ -45,7 +45,7 @@ export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in',
 export function createEmptyProject(): TimelineProject {
   return {
     id: 'guest-reel', duration: 0, extensionExplicit: false, aspectRatio: '9:16',
-    exportSettings: { filename: 'rangmanch-export.mp4', resolution: '720p', fps: 30, quality: 'high' },
+    exportSettings: { filename: 'rangmanch-export.mp4', resolution: '720p', fps: 30, quality: 'standard' },
     tracks: [
       { id: 'text', type: 'text', name: 'Text', items: [] },
       { id: 'video', type: 'video', name: 'Visuals', items: [] },

@@ -31,7 +31,7 @@ from app.services.guest_media_storage import EmulatorGuestMediaStorage
 from app.services.guest_media_storage import GuestMediaStorage
 from app.services.guest_session_service import GuestSessionConfig, GuestSessionService
 from app.services.guest_timeline_service import GuestTimelineService
-from app.services.timeline_render_service import TimelineRenderLimits, TimelineRenderService
+from app.services.timeline_render_service import TimelineOutputValidationError, TimelineRenderLimits, TimelineRenderService
 
 
 pytestmark = pytest.mark.skipif(
@@ -348,6 +348,41 @@ def test_worker_does_not_retry_permanently_missing_source(export_environment) ->
     assert usage['reserved']['exports'] == 0
     assert usage['reserved']['concurrent_processing'] == 0
     assert client.delete(f'/api/editor/media/{media_id}', headers=MUTATING).status_code == 204
+
+
+def test_worker_does_not_retry_deterministic_output_validation_failure(export_environment, monkeypatch) -> None:
+    client, _, _, exports, repository, timeline, storage, settings, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'deterministic-output-failure'},
+        json=_timeline(media_id),
+    ).json()
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+
+    def fail_render(*_args, **_kwargs):
+        raise TimelineOutputValidationError('Rendered timeline duration is incorrect.')
+
+    monkeypatch.setattr(timeline, 'render_for_worker', fail_render)
+    worker = GuestExportWorker(
+        settings=settings, repository=repository, timeline=timeline,
+        storage=storage, worker_id='deterministic-failure-worker',
+    )
+
+    assert worker.run_once() is True
+    job = repository.get(guest_id, submitted['job_id'])
+    assert job is not None
+    assert job['status'] == 'failed'
+    assert job['attempt_count'] == 1
+    assert job['error_code'] == 'invalid_render_output'
+    assert exports.public_payload(job)['retryable'] is False
+
+
+def test_guest_export_rejects_non_v1_output_settings() -> None:
+    base = TimelineComposition(clips=[_clip('a' * 32, 0, 1)])
+    GuestExportService.validate_output_settings(base)
+    with pytest.raises(Exception, match='30 FPS'):
+        GuestExportService.validate_output_settings(base.model_copy(update={'fps': 60}))
 
 
 def test_deletion_between_export_validation_and_transaction_fences_job_creation(

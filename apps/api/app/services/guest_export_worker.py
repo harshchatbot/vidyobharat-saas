@@ -20,7 +20,7 @@ from app.services.guest_timeline_service import (
     GuestTimelineService,
     build_guest_timeline_service,
 )
-from app.services.timeline_render_service import TimelineRenderError, TimelineValidationError
+from app.services.timeline_render_service import TimelineOutputValidationError, TimelineRenderError, TimelineValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -208,7 +208,10 @@ class GuestExportWorker:
                 except Exception:
                     cleanup_failed = True
                     logger.exception('guest_export_output_cleanup_failed')
-            transient = not isinstance(exc, (TimelineValidationError, GuestSessionError, ExportFenceError))
+            transient = not isinstance(
+                exc,
+                (TimelineValidationError, TimelineOutputValidationError, GuestSessionError, ExportFenceError),
+            )
             error_code = self._error_code(exc, cleanup_failed)
             try:
                 attempt = int(job.get('attempt_count', 1))
@@ -250,6 +253,8 @@ class GuestExportWorker:
             return 'media_unavailable'
         if isinstance(exc, TimelineValidationError):
             return 'invalid_timeline_media'
+        if isinstance(exc, TimelineOutputValidationError):
+            return 'invalid_render_output'
         if isinstance(exc, ExportFenceError):
             return 'worker_lease_lost'
         if isinstance(exc, TimelineRenderError):

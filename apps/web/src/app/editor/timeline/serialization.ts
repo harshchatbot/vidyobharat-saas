@@ -12,16 +12,21 @@ export type ExportTimelinePayload = {
 export function serializeTimelineProject(project: TimelineProject): ExportTimelinePayload {
   const items = project.tracks.flatMap((track) => track.items);
   const videos = items.filter((item) => item.kind === 'video').sort((a, b) => a.startTime - b.startTime);
-  const dimensions = exportDimensions(project.aspectRatio, project.exportSettings.resolution);
-  const frame = (value: number) => Math.round(value * project.exportSettings.fps) / project.exportSettings.fps;
+  const settings = normalizeV1ExportSettings(project.exportSettings);
+  const dimensions = exportDimensions(project.aspectRatio, settings.resolution);
+  const frame = (value: number) => Math.round(value * settings.fps) / settings.fps;
   return {
-    aspect_ratio: project.aspectRatio, ...dimensions, fps: project.exportSettings.fps,
-    quality: project.exportSettings.quality, output_filename: normalizeExportFilename(project.exportSettings.filename), duration_seconds: frame(project.duration),
+    aspect_ratio: project.aspectRatio, ...dimensions, fps: settings.fps,
+    quality: settings.quality, output_filename: normalizeExportFilename(settings.filename), duration_seconds: frame(project.duration),
     clips: videos.map((item, order) => ({ media_id: item.mediaId, order, start_seconds: frame(item.sourceStart), timeline_start_seconds: frame(item.startTime), duration_seconds: frame(item.duration), crop_mode: item.cropMode, muted: item.muted, volume: item.volume })),
     text_overlays: items.filter((item) => item.kind === 'text').map((item) => ({ id: item.id, text: item.text, start_seconds: frame(item.startTime), duration_seconds: frame(item.duration), font_family: item.fontFamily, font_size: Math.round(item.fontSize), color: item.color, bold: item.bold, x: item.x, y: item.y, width: item.width, rotation_degrees: item.rotation, alignment: item.alignment, outline_color: item.outlineColor, outline_width: item.outlineWidth, shadow: item.shadow, background_color: item.backgroundColor, background_opacity: item.backgroundOpacity, in_animation: item.inAnimation, out_animation: item.outAnimation, loop_animation: item.loopAnimation, in_animation_duration: item.inAnimationDuration, out_animation_duration: item.outAnimationDuration })),
     audio_items: items.filter((item) => item.kind === 'audio').map((item) => ({ id: item.id, media_id: item.mediaId, kind: item.trackId, start_seconds: frame(item.startTime), duration_seconds: frame(item.duration), source_start_seconds: frame(item.sourceStart), volume: item.volume, muted: item.muted })),
     effects: items.filter((item) => item.kind === 'effect').map((item) => ({ id: item.id, preset: item.preset, start_seconds: frame(item.startTime), duration_seconds: frame(item.duration), amount: item.amount })),
   };
+}
+
+export function normalizeV1ExportSettings(settings: TimelineProject['exportSettings']): TimelineProject['exportSettings'] {
+  return { ...settings, resolution: '720p', fps: 30, quality: 'standard' };
 }
 
 export function exportDimensions(aspectRatio: TimelineProject['aspectRatio'], resolution: TimelineProject['exportSettings']['resolution']): { width: number; height: number } {

@@ -79,7 +79,7 @@ test('serialization quantizes timeline values to the selected output frame', () 
   assert.equal(payload.duration_seconds, 1.0333333333333334);
 });
 
-test('export settings serialize dimensions, ratio, fps, quality and filename consistently', () => {
+test('legacy export settings normalize to the V1 preset during serialization', () => {
   const project = {
     ...createEmptyProject(),
     aspectRatio: '16:9' as const,
@@ -88,7 +88,7 @@ test('export settings serialize dimensions, ratio, fps, quality and filename con
   const payload = serializeTimelineProject(project);
   assert.deepEqual(
     { ratio: payload.aspect_ratio, width: payload.width, height: payload.height, fps: payload.fps, quality: payload.quality, filename: payload.output_filename },
-    { ratio: '16:9', width: 1920, height: 1080, fps: 60, quality: 'standard', filename: 'Client Cut.mp4' },
+    { ratio: '16:9', width: 1280, height: 720, fps: 30, quality: 'standard', filename: 'Client Cut.mp4' },
   );
 });
 

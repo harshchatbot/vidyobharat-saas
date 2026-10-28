@@ -218,7 +218,7 @@ class TimelineComposition(BaseModel):
     width: Annotated[int, Field(ge=2, le=2160, multiple_of=2, strict=True)] = 720
     height: Annotated[int, Field(ge=2, le=3840, multiple_of=2, strict=True)] = 1280
     fps: Annotated[int, Field(ge=1, le=60, strict=True)] = 30
-    quality: Literal['standard', 'high'] = 'high'
+    quality: Literal['standard', 'high'] = 'standard'
     output_filename: Annotated[str, Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$')] = 'rangmanch-export.mp4'
     duration_seconds: Annotated[float | None, Field(gt=0, le=60, allow_inf_nan=False, strict=True)] = None
     clips: Annotated[list[TimelineClip], Field(min_length=1, max_length=100)]
@@ -290,6 +290,7 @@ class GuestExportResponse(BaseModel):
     output: dict | None = None
     error_code: str | None = None
     message: str | None = None
+    retryable: bool = False
 
 
 class GuestExportListResponse(BaseModel):

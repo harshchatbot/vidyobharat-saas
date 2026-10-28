@@ -150,6 +150,7 @@ class GuestExportService:
             'output': job.get('output') if job.get('status') == 'completed' else None,
             'error_code': job.get('error_code'),
             'message': cls.error_message(job.get('error_code')) if job.get('status') == 'failed' else None,
+            'retryable': job.get('status') == 'failed' and cls.is_retryable(job.get('error_code')),
         }
 
     @staticmethod
@@ -159,7 +160,13 @@ class GuestExportService:
             'invalid_timeline_media': 'One or more timeline files are no longer available.',
             'guest_session_expired': 'This guest session has expired.',
             'output_cleanup_failed': 'The export failed and temporary output cleanup is pending.',
+            'invalid_render_output': 'The exported file did not pass playback checks. Review the timeline before exporting again.',
+            'media_unavailable': 'One or more timeline files are unavailable. Remove or replace them before exporting.',
         }.get(error_code, 'The export did not complete. Please try again.')
+
+    @staticmethod
+    def is_retryable(error_code: str | None) -> bool:
+        return error_code in {'render_failed', 'export_transient_failure', 'worker_lease_lost'}
 
     @staticmethod
     def validate_idempotency_key(value: str | None) -> None:
@@ -169,21 +176,21 @@ class GuestExportService:
     @staticmethod
     def validate_output_settings(composition: TimelineComposition) -> None:
         supported = {
-            '9:16': {(720, 1280), (1080, 1920)},
-            '16:9': {(1280, 720), (1920, 1080)},
-            '1:1': {(720, 720), (1080, 1080)},
-            '4:5': {(720, 900), (1080, 1350)},
+            '9:16': (720, 1280),
+            '16:9': (1280, 720),
+            '1:1': (720, 720),
+            '4:5': (720, 900),
         }
-        if (composition.width, composition.height) not in supported[composition.aspect_ratio]:
+        if (composition.width, composition.height) != supported[composition.aspect_ratio]:
             raise media_error(
                 'guest_export_settings_invalid',
-                'Choose a supported 720p or 1080p output preset for the selected aspect ratio.',
+                'Guest exports use the 720p preset for the selected aspect ratio.',
                 status_code=422,
             )
-        if composition.fps not in {24, 30, 60}:
+        if composition.fps != 30 or composition.quality != 'standard':
             raise media_error(
                 'guest_export_settings_invalid',
-                'Choose a supported frame rate: 24, 30, or 60 FPS.',
+                'Guest exports currently support 30 FPS at Standard quality.',
                 status_code=422,
             )
 

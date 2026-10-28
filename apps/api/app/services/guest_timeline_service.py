@@ -238,5 +238,5 @@ def build_guest_timeline_service(settings: Settings | None = None) -> GuestTimel
     )
     return GuestTimelineService(
         media_service=media_service,
-        renderer=TimelineRenderService(limits=limits),
+        renderer=TimelineRenderService(limits=limits, watermark_text='Made with RangManch AI'),
     )

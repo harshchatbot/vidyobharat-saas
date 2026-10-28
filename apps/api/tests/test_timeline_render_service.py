@@ -597,6 +597,23 @@ def test_default_timeline_contract() -> None:
     assert timeline.aspect_ratio == '9:16'
     assert (timeline.width, timeline.height, timeline.fps) == (720, 1280, 30)
     assert timeline.clips[0].crop_mode == TimelineCropMode.cover
+    assert timeline.quality == 'standard'
+
+
+def test_guest_watermark_is_injected_by_server_render_policy(tmp_path: Path) -> None:
+    image = tmp_path / 'image.png'
+    output = tmp_path / 'output.mp4'
+    _image(image, 'red')
+    timeline = _composition(_clip(RED, 0, 0.4))
+    source = _resolved(RED, 'image', image)
+    renderer = TimelineRenderService(watermark_text='Made with RangManch AI')
+    clips, sources = renderer._validate_inputs(timeline, [source])
+
+    command = renderer._build_command(timeline, clips, sources, output)
+
+    filter_graph = command[command.index('-filter_complex') + 1]
+    assert 'drawtext=text=Made with RangManch AI' in filter_graph
+    assert 'fontcolor=white@0.52' in filter_graph
 
 
 @pytest.mark.parametrize(
