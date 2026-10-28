@@ -93,6 +93,25 @@ class TimelineTextAlignment(str, Enum):
     right = 'right'
 
 
+class TimelineTextInAnimation(str, Enum):
+    none = 'none'
+    fade_in = 'fade-in'
+    slide_up = 'slide-up'
+    pop_in = 'pop-in'
+
+
+class TimelineTextOutAnimation(str, Enum):
+    none = 'none'
+    fade_out = 'fade-out'
+    slide_down = 'slide-down'
+
+
+class TimelineTextLoopAnimation(str, Enum):
+    none = 'none'
+    pulse = 'pulse'
+    float = 'float'
+
+
 class TimelineAudioKind(str, Enum):
     music = 'music'
     sfx = 'sfx'
@@ -145,6 +164,11 @@ class TimelineTextOverlay(BaseModel):
     shadow: bool = True
     background_color: Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$')] = '#000000'
     background_opacity: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 0
+    in_animation: TimelineTextInAnimation = TimelineTextInAnimation.none
+    out_animation: TimelineTextOutAnimation = TimelineTextOutAnimation.none
+    loop_animation: TimelineTextLoopAnimation = TimelineTextLoopAnimation.none
+    in_animation_duration: Annotated[float, Field(ge=0.1, le=3, allow_inf_nan=False, strict=True)] = 0.5
+    out_animation_duration: Annotated[float, Field(ge=0.1, le=3, allow_inf_nan=False, strict=True)] = 0.5
 
     @model_validator(mode='after')
     def normalize_coordinates(self) -> 'TimelineTextOverlay':
@@ -155,6 +179,16 @@ class TimelineTextOverlay(BaseModel):
                 TimelineTextPosition.top: 0.12,
                 TimelineTextPosition.bottom: 0.88,
             }.get(self.position, 0.5)
+        if self.in_animation_duration > self.duration_seconds:
+            raise ValueError('Text in-animation duration exceeds the text duration.')
+        if self.out_animation_duration > self.duration_seconds:
+            raise ValueError('Text out-animation duration exceeds the text duration.')
+        if (
+            self.in_animation != TimelineTextInAnimation.none
+            and self.out_animation != TimelineTextOutAnimation.none
+            and self.in_animation_duration + self.out_animation_duration > self.duration_seconds
+        ):
+            raise ValueError('Text in and out animations overlap.')
         return self
 
 
@@ -178,10 +212,12 @@ class TimelineEffect(BaseModel):
 
 
 class TimelineComposition(BaseModel):
-    aspect_ratio: Literal['9:16'] = '9:16'
+    aspect_ratio: Literal['9:16', '16:9', '1:1', '4:5'] = '9:16'
     width: Annotated[int, Field(ge=2, le=2160, multiple_of=2, strict=True)] = 720
     height: Annotated[int, Field(ge=2, le=3840, multiple_of=2, strict=True)] = 1280
     fps: Annotated[int, Field(ge=1, le=60, strict=True)] = 30
+    quality: Literal['standard', 'high'] = 'high'
+    output_filename: Annotated[str, Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$')] = 'rangmanch-export.mp4'
     clips: Annotated[list[TimelineClip], Field(min_length=1, max_length=100)]
     text_overlays: Annotated[list[TimelineTextOverlay], Field(max_length=50)] = Field(default_factory=list)
     audio_items: Annotated[list[TimelineAudioItem], Field(max_length=24)] = Field(default_factory=list)
@@ -189,8 +225,12 @@ class TimelineComposition(BaseModel):
 
     @model_validator(mode='after')
     def validate_timeline(self) -> 'TimelineComposition':
-        if self.width * 16 != self.height * 9:
-            raise ValueError('Output dimensions must use an exact 9:16 aspect ratio.')
+        ratios = {'9:16': (9, 16), '16:9': (16, 9), '1:1': (1, 1), '4:5': (4, 5)}
+        ratio_width, ratio_height = ratios[self.aspect_ratio]
+        if self.width * ratio_height != self.height * ratio_width:
+            raise ValueError('Output dimensions do not match the selected aspect ratio.')
+        if not self.output_filename.lower().endswith('.mp4'):
+            self.output_filename += '.mp4'
         orders = sorted(clip.order for clip in self.clips)
         if orders != list(range(len(self.clips))):
             raise ValueError('Clip order values must be unique and contiguous from zero.')
@@ -216,6 +256,7 @@ class GuestExportResponse(BaseModel):
     status_url: str
     output: dict | None = None
     error_code: str | None = None
+    message: str | None = None
 
 
 class GuestExportListResponse(BaseModel):

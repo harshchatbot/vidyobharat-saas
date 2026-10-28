@@ -67,3 +67,31 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
 
 Do not set those variables in production. Do not substitute a real Firebase
 project id for `demo-rangmanch-editor`.
+
+### Local guest export worker
+
+The FastAPI development server and the Celery worker do not process guest export
+documents. While the emulators are running, start the durable export worker in a
+separate terminal with the same guarded demo-project environment:
+
+```bash
+cd apps/api
+ENV=development \
+LOCAL_EDITOR_MODE=false \
+FIREBASE_PROJECT_ID=demo-rangmanch-editor \
+GCLOUD_PROJECT=demo-rangmanch-editor \
+FIREBASE_STORAGE_BUCKET=demo-rangmanch-editor.appspot.com \
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
+FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+GOOGLE_APPLICATION_CREDENTIALS= \
+FIREBASE_SERVICE_ACCOUNT_JSON= \
+FIREBASE_SERVICE_ACCOUNT_JSON_B64= \
+FIREBASE_SERVICE_ACCOUNT_PATH= \
+FIREBASE_PRIVATE_KEY_ID= \
+FIREBASE_PRIVATE_KEY= \
+FIREBASE_CLIENT_EMAIL= \
+FIREBASE_CLIENT_ID= \
+FIREBASE_CLIENT_X509_CERT_URL= \
+./.venv/bin/python -m app.services.guest_export_worker
+```

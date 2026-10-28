@@ -47,9 +47,9 @@ class Settings(BaseSettings):
     editor_timeline_max_workspace_bytes: int = 1024 * 1024 * 1024
     editor_timeline_max_output_bytes: int = 250 * 1024 * 1024
     editor_timeline_max_source_pixels: int = 40_000_000
-    editor_timeline_max_output_width: int = 720
-    editor_timeline_max_output_height: int = 1280
-    editor_timeline_max_fps: int = 30
+    editor_timeline_max_output_width: int = 1920
+    editor_timeline_max_output_height: int = 1920
+    editor_timeline_max_fps: int = 60
     editor_timeline_ffmpeg_timeout_seconds: int = 300
     editor_timeline_max_concurrent_renders: int = 1
     editor_export_worker_poll_seconds: float = 2.0

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addItem, activeItems, moveItem, reorderVideo, resizeItem } from './model.ts';
+import { addItem, activeItems, moveItem, reorderVideo, resizeItem, updateItem } from './model.ts';
 import { browserEffectStyle, effectsWithTemporaryPreview, validateFilterAmount } from './filters.ts';
 import { serializeTimelineProject } from './serialization.ts';
 import { moveTextGeometry, resizeTextGeometry } from './textGeometry.ts';
+import { textAnimationStyle } from './textAnimations.ts';
+import { applyTextTemplate, TEXT_TEMPLATES } from './textTemplates.ts';
 import { createEmptyProject } from './types.ts';
 
 const textItem = {
@@ -12,6 +14,8 @@ const textItem = {
   x: 0.5, y: 0.5, width: 0.8, rotation: 0, alignment: 'center' as const,
   outlineColor: '#000000', outlineWidth: 0, shadow: true,
   backgroundColor: '#000000', backgroundOpacity: 0,
+  inAnimation: 'none' as const, outAnimation: 'none' as const, loopAnimation: 'none' as const,
+  inAnimationDuration: 0.5, outAnimationDuration: 0.5,
 };
 
 test('overlay movement and resize are clamped to the 60 second limit', () => {
@@ -56,6 +60,19 @@ test('timeline serialization preserves export-relevant text audio and effects', 
   assert.equal(payload.effects[0].preset, 'vibrance');
 });
 
+test('export settings serialize dimensions, ratio, fps, quality and filename consistently', () => {
+  const project = {
+    ...createEmptyProject(),
+    aspectRatio: '16:9' as const,
+    exportSettings: { filename: 'Client Cut', resolution: '1080p' as const, fps: 60 as const, quality: 'standard' as const },
+  };
+  const payload = serializeTimelineProject(project);
+  assert.deepEqual(
+    { ratio: payload.aspect_ratio, width: payload.width, height: payload.height, fps: payload.fps, quality: payload.quality, filename: payload.output_filename },
+    { ratio: '16:9', width: 1920, height: 1080, fps: 60, quality: 'standard', filename: 'Client Cut.mp4' },
+  );
+});
+
 test('browser filter values are bounded and produce live preview filters', () => {
   assert.equal(validateFilterAmount('grayscale', 4), 1);
   assert.equal(validateFilterAmount('contrast', -1), 0);
@@ -84,4 +101,28 @@ test('text resizing remains normalized and bounded', () => {
   const geometry = { x: 0.5, y: 0.5, width: 0.4, fontSize: 40 };
   assert.deepEqual(resizeTextGeometry(geometry, 72, 720), { width: 0.5, fontSize: 50 });
   assert.deepEqual(resizeTextGeometry(geometry, -1000, 720), { width: 0.12, fontSize: 12 });
+});
+
+test('text template preview leaves the serialized project unchanged until commit', () => {
+  const project = addItem(createEmptyProject(), textItem);
+  const before = serializeTimelineProject(project);
+  const preview = applyTextTemplate(textItem, TEXT_TEMPLATES[3]);
+  assert.equal(preview.color, '#67e8f9');
+  assert.deepEqual(serializeTimelineProject(project), before);
+  const committed = updateItem(project, textItem.id, preview);
+  assert.equal(serializeTimelineProject(committed).text_overlays[0].color, '#67e8f9');
+});
+
+test('text animation timing and serialization preserve committed animation choices', () => {
+  const animated = { ...textItem, inAnimation: 'fade-in' as const, outAnimation: 'slide-down' as const, loopAnimation: 'float' as const, inAnimationDuration: 1, outAnimationDuration: 1 };
+  const start = textAnimationStyle(animated, 0);
+  const middle = textAnimationStyle(animated, 2.5);
+  assert.equal(start.opacity, 0);
+  assert.equal(middle.opacity, 1);
+  assert.match(String(middle.transform), /translateY/);
+  const payload = serializeTimelineProject(addItem(createEmptyProject(), animated)).text_overlays[0];
+  assert.deepEqual(
+    { in: payload.in_animation, out: payload.out_animation, loop: payload.loop_animation, inDuration: payload.in_animation_duration, outDuration: payload.out_animation_duration },
+    { in: 'fade-in', out: 'slide-down', loop: 'float', inDuration: 1, outDuration: 1 },
+  );
 });

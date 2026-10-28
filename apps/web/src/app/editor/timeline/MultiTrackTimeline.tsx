@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Minus, Plus } from 'lucide-react';
+import { Magnet, Minus, Plus, Scissors, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { TimelineTrack } from './TimelineTrack';
 import type { TimelineProject } from './types';
@@ -19,6 +19,7 @@ type Props = {
     time: number
   ) => void;
   onReorderVideo: (itemId: string, targetIndex: number) => void;
+  onDeleteSelected: () => void;
 };
 
 const LABEL_WIDTH = 112;
@@ -32,6 +33,7 @@ export function MultiTrackTimeline({
   onMoveItem,
   onResizeItem,
   onReorderVideo,
+  onDeleteSelected,
 }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(48);
 
@@ -108,13 +110,12 @@ export function MultiTrackTimeline({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg bg-[#141b2b] text-white">
-      <div className="flex min-h-12 items-center justify-between gap-4 border-b border-white/10 px-4 py-2">
-        <div>
-          <h3 className="text-sm font-semibold">Timeline</h3>
-          <span className="text-xs text-white/55">
-            Drag clips, overlays, audio and effects
-          </span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#141b2b] text-white">
+      <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3">
+        <div className="flex items-center gap-1" aria-label="Timeline editing controls">
+          <button type="button" disabled title="Split is not available yet" className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/30"><Scissors className="h-3.5 w-3.5" />Split</button>
+          <button type="button" disabled={!selectedItemId} onClick={onDeleteSelected} title={selectedItemId ? 'Delete selected item' : 'Select an item to delete'} className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/70 hover:bg-white/10 disabled:text-white/30"><Trash2 className="h-3.5 w-3.5" />Delete</button>
+          <button type="button" disabled title="Timeline snapping is not available yet" className="hidden h-8 items-center gap-1.5 rounded px-2 text-xs text-white/30 sm:inline-flex"><Magnet className="h-3.5 w-3.5" />Snap</button>
         </div>
 
         <div
@@ -149,7 +150,7 @@ export function MultiTrackTimeline({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         <div
           className="relative"
           style={{ width: LABEL_WIDTH + timelineWidth }}

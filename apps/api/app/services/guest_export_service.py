@@ -33,6 +33,7 @@ class GuestExportService:
     def submit(self, request, raw_token: str | None, composition: TimelineComposition, idempotency_key: str | None) -> tuple[dict[str, Any], bool]:
         self.sessions.validate_mutating_request(request)
         self.validate_idempotency_key(idempotency_key)
+        self.validate_output_settings(composition)
         session = self.sessions.get_session(raw_token)
         assert idempotency_key is not None
         job_id = hashlib.sha256(f"{session['guest_id']}\0{idempotency_key}".encode()).hexdigest()[:32]
@@ -100,8 +101,8 @@ class GuestExportService:
         start, end = self._parse_range(range_header, size)
         return job, start, end, size
 
-    @staticmethod
-    def public_payload(job: dict[str, Any]) -> dict[str, Any]:
+    @classmethod
+    def public_payload(cls, job: dict[str, Any]) -> dict[str, Any]:
         return {
             'job_id': job['job_id'],
             'status': job['status'],
@@ -112,12 +113,43 @@ class GuestExportService:
             'status_url': f"/api/editor/exports/{job['job_id']}",
             'output': job.get('output') if job.get('status') == 'completed' else None,
             'error_code': job.get('error_code'),
+            'message': cls.error_message(job.get('error_code')) if job.get('status') == 'failed' else None,
         }
+
+    @staticmethod
+    def error_message(error_code: str | None) -> str:
+        return {
+            'render_failed': 'The video could not be rendered. Review the timeline and try again.',
+            'invalid_timeline_media': 'One or more timeline files are no longer available.',
+            'guest_session_expired': 'This guest session has expired.',
+            'output_cleanup_failed': 'The export failed and temporary output cleanup is pending.',
+        }.get(error_code, 'The export did not complete. Please try again.')
 
     @staticmethod
     def validate_idempotency_key(value: str | None) -> None:
         if value is None or not _IDEMPOTENCY_PATTERN.fullmatch(value):
             raise media_error('guest_export_idempotency_key_invalid', 'Idempotency-Key must be 8-128 safe ASCII characters.', status_code=400)
+
+    @staticmethod
+    def validate_output_settings(composition: TimelineComposition) -> None:
+        supported = {
+            '9:16': {(720, 1280), (1080, 1920)},
+            '16:9': {(1280, 720), (1920, 1080)},
+            '1:1': {(720, 720), (1080, 1080)},
+            '4:5': {(720, 900), (1080, 1350)},
+        }
+        if (composition.width, composition.height) not in supported[composition.aspect_ratio]:
+            raise media_error(
+                'guest_export_settings_invalid',
+                'Choose a supported 720p or 1080p output preset for the selected aspect ratio.',
+                status_code=422,
+            )
+        if composition.fps not in {24, 30, 60}:
+            raise media_error(
+                'guest_export_settings_invalid',
+                'Choose a supported frame rate: 24, 30, or 60 FPS.',
+                status_code=422,
+            )
 
     @staticmethod
     def _parse_range(value: str | None, size: int) -> tuple[int, int]:

@@ -74,15 +74,31 @@ function normalizeItem<T extends TimelineItem>(item: T): T {
   const duration = clampTime(item.duration, MIN_ITEM_DURATION, MAX_TIMELINE_SECONDS - startTime);
   const common = { ...item, startTime, duration };
   if (item.kind === 'audio' || item.kind === 'video') return { ...common, sourceStart: clampTime(item.sourceStart), volume: clampTime(item.volume, 0, 1) } as T;
-  if (item.kind === 'text') return {
-    ...common,
-    fontSize: clampTime(item.fontSize, 12, 120),
-    x: clampTime(item.x, 0.02, 0.98),
-    y: clampTime(item.y, 0.02, 0.98),
-    width: clampTime(item.width, 0.1, 0.96),
-    rotation: clampTime(item.rotation, -180, 180),
-    outlineWidth: clampTime(item.outlineWidth, 0, 12),
-    backgroundOpacity: clampTime(item.backgroundOpacity, 0, 1),
-  } as T;
+  if (item.kind === 'text') {
+    const inAnimation = item.inAnimation ?? 'none';
+    const outAnimation = item.outAnimation ?? 'none';
+    let inAnimationDuration = clampTime(item.inAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
+    let outAnimationDuration = clampTime(item.outAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
+    if (inAnimation !== 'none' && outAnimation !== 'none' && inAnimationDuration + outAnimationDuration > duration) {
+      const ratio = duration / (inAnimationDuration + outAnimationDuration);
+      inAnimationDuration = clampTime(inAnimationDuration * ratio, 0.1, duration);
+      outAnimationDuration = clampTime(duration - inAnimationDuration, 0.1, duration);
+    }
+    return {
+      ...common,
+      fontSize: clampTime(item.fontSize, 12, 120),
+      x: clampTime(item.x, 0.02, 0.98),
+      y: clampTime(item.y, 0.02, 0.98),
+      width: clampTime(item.width, 0.1, 0.96),
+      rotation: clampTime(item.rotation, -180, 180),
+      outlineWidth: clampTime(item.outlineWidth, 0, 12),
+      backgroundOpacity: clampTime(item.backgroundOpacity, 0, 1),
+      inAnimation,
+      outAnimation,
+      loopAnimation: item.loopAnimation ?? 'none',
+      inAnimationDuration,
+      outAnimationDuration,
+    } as T;
+  }
   return { ...common, amount: clampTime(item.amount, 0, 2) } as T;
 }

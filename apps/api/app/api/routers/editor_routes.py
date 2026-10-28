@@ -292,11 +292,12 @@ def get_guest_export_content(
             job_id,
             request.headers.get('range'),
         )
+        filename = str((job.get('output') or {}).get('filename') or f'rangmanch-{job_id}.mp4')
         headers = {
             'Accept-Ranges': 'bytes',
             'Content-Length': str(end - start + 1),
             'Cache-Control': 'private,no-store,max-age=0',
-            'Content-Disposition': f'inline; filename="rangmanch-{job_id}.mp4"',
+            'Content-Disposition': f'attachment; filename="{filename}"',
         }
         status_code = 200
         if request.headers.get('range'):

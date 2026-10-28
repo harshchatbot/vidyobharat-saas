@@ -262,6 +262,57 @@ def test_freeform_text_schema_rejects_unsafe_coordinates_and_non_finite_rotation
         TimelineTextOverlay(**base, x=0.5, y=0.5, rotation_degrees=float('nan'))
 
 
+@pytest.mark.parametrize(
+    ('in_animation', 'out_animation', 'loop_animation'),
+    [
+        ('fade-in', 'none', 'none'),
+        ('slide-up', 'none', 'none'),
+        ('pop-in', 'none', 'none'),
+        ('none', 'fade-out', 'none'),
+        ('none', 'slide-down', 'none'),
+        ('none', 'none', 'pulse'),
+        ('none', 'none', 'float'),
+    ],
+)
+def test_text_animations_have_working_ffmpeg_mappings(
+    tmp_path: Path,
+    in_animation: str,
+    out_animation: str,
+    loop_animation: str,
+) -> None:
+    image = tmp_path / f'{in_animation}-{out_animation}-{loop_animation}.png'
+    _image(image, 'blue')
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 0.6)],
+        text_overlays=[TimelineTextOverlay(
+            id='animated-title', text='Animate', start_seconds=0, duration_seconds=0.6,
+            font_size=24, x=0.5, y=0.5,
+            in_animation=in_animation, out_animation=out_animation, loop_animation=loop_animation,
+            in_animation_duration=0.2, out_animation_duration=0.2,
+        )],
+    )
+    with TimelineRenderService().render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert result.metadata.video_codec == 'h264'
+        assert result.metadata.duration_seconds == pytest.approx(0.6, abs=0.15)
+
+
+def test_text_animation_defaults_preserve_legacy_payload_compatibility() -> None:
+    overlay = TimelineTextOverlay(id='legacy', text='Legacy', start_seconds=0, duration_seconds=1)
+    assert overlay.in_animation.value == 'none'
+    assert overlay.out_animation.value == 'none'
+    assert overlay.loop_animation.value == 'none'
+
+
+def test_text_schema_rejects_overlapping_in_and_out_animations() -> None:
+    with pytest.raises(ValidationError, match='overlap'):
+        TimelineTextOverlay(
+            id='overlap', text='Overlap', start_seconds=0, duration_seconds=0.5,
+            in_animation='fade-in', out_animation='fade-out',
+            in_animation_duration=0.4, out_animation_duration=0.4,
+        )
+
+
 def test_enhanced_timeline_rejects_items_past_visual_duration() -> None:
     with pytest.raises(ValidationError, match='beyond the visual timeline'):
         TimelineComposition(
@@ -482,6 +533,46 @@ def test_default_timeline_contract() -> None:
     assert timeline.aspect_ratio == '9:16'
     assert (timeline.width, timeline.height, timeline.fps) == (720, 1280, 30)
     assert timeline.clips[0].crop_mode == TimelineCropMode.cover
+
+
+@pytest.mark.parametrize(
+    ('aspect_ratio', 'width', 'height', 'fps', 'quality'),
+    [
+        ('9:16', 720, 1280, 24, 'standard'),
+        ('16:9', 1920, 1080, 30, 'high'),
+        ('1:1', 720, 720, 60, 'standard'),
+        ('4:5', 1080, 1350, 24, 'high'),
+    ],
+)
+def test_supported_export_presets_render_with_requested_geometry_and_fps(
+    tmp_path: Path,
+    aspect_ratio: str,
+    width: int,
+    height: int,
+    fps: int,
+    quality: str,
+) -> None:
+    image = tmp_path / f'{aspect_ratio.replace(":", "-")}.png'
+    _image(image, 'red')
+    timeline = TimelineComposition(
+        aspect_ratio=aspect_ratio,
+        width=width,
+        height=height,
+        fps=fps,
+        quality=quality,
+        clips=[_clip(RED, 0, 0.25)],
+    )
+    renderer = TimelineRenderService(limits=TimelineRenderLimits(
+        max_output_width=1920,
+        max_output_height=1920,
+        max_fps=60,
+        ffmpeg_timeout_seconds=60,
+    ))
+
+    with renderer.render(timeline, [_resolved(RED, 'image', image)]) as rendered:
+        assert (rendered.metadata.width, rendered.metadata.height) == (width, height)
+        assert rendered.metadata.fps == pytest.approx(fps, abs=0.01)
+        assert rendered.metadata.faststart is True
 
 
 def test_timeout_terminates_ffmpeg_process_group(tmp_path: Path) -> None:

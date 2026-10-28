@@ -66,13 +66,27 @@ class GuestExportWorker:
             fence_token=fence,
             now=datetime.now(UTC),
             lease_duration=self.lease_duration,
+            concurrent_processing_limit=self.timeline.media_service.sessions.limits.concurrent_processing,
         )
         if not job:
             return False
+        logger.info(
+            'guest_export_job_claimed',
+            extra={'job_id': job['job_id'], 'guest_id': job['guest_id'], 'attempt': job.get('attempt_count')},
+        )
         self._execute(job, fence)
         return True
 
     def run_forever(self) -> None:
+        logger.info(
+            'guest_export_worker_ready',
+            extra={
+                'worker_id': self.worker_id,
+                'poll_seconds': self.settings.editor_export_worker_poll_seconds,
+                'lease_seconds': self.lease_duration.total_seconds(),
+                'max_attempts': self.settings.editor_export_worker_max_attempts,
+            },
+        )
         while not self.stop_event.is_set():
             worked = self.run_once()
             if not worked:
@@ -84,6 +98,11 @@ class GuestExportWorker:
     def _execute(self, job: dict, fence: str) -> None:
         guest_id = job['guest_id']
         job_id = job['job_id']
+        started_at = time.monotonic()
+        logger.info(
+            'guest_export_job_started',
+            extra={'job_id': job_id, 'guest_id': guest_id, 'attempt': job.get('attempt_count')},
+        )
         output_path = f'guest-editor/{guest_id}/outputs/{job_id}/final.mp4'
         heartbeat_stop = threading.Event()
         lease_lost = threading.Event()
@@ -148,13 +167,27 @@ class GuestExportWorker:
                     job_id=job_id,
                     worker_id=self.worker_id,
                     fence_token=fence,
-                    output=asdict(rendered.metadata),
+                    output={**asdict(rendered.metadata), 'filename': composition.output_filename},
                     object_path=output_path,
                     actual_processing_seconds=rendered.metadata.duration_seconds,
                     now=datetime.now(UTC),
                 )
+                logger.info(
+                    'guest_export_job_completed',
+                    extra={
+                        'job_id': job_id,
+                        'guest_id': guest_id,
+                        'elapsed_seconds': round(time.monotonic() - started_at, 3),
+                        'output_bytes': rendered.metadata.file_size,
+                        'duration_seconds': rendered.metadata.duration_seconds,
+                    },
+                )
                 uploaded = False
         except Exception as exc:
+            logger.exception(
+                'guest_export_job_execution_failed',
+                extra={'job_id': job_id, 'guest_id': guest_id, 'error_type': type(exc).__name__},
+            )
             if uploaded:
                 try:
                     if uploaded_generation:
@@ -170,7 +203,7 @@ class GuestExportWorker:
             try:
                 attempt = int(job.get('attempt_count', 1))
                 delay = timedelta(seconds=self.settings.editor_export_worker_retry_base_seconds * (2 ** max(0, attempt - 1)))
-                self.repository.fail_or_retry(
+                next_status = self.repository.fail_or_retry(
                     guest_id=guest_id,
                     job_id=job_id,
                     worker_id=self.worker_id,
@@ -182,6 +215,10 @@ class GuestExportWorker:
                     now=datetime.now(UTC),
                     cleanup_object_path=output_path if cleanup_failed else None,
                     cleanup_object_generation=uploaded_generation if cleanup_failed else None,
+                )
+                logger.warning(
+                    'guest_export_job_retried' if next_status == 'queued' else 'guest_export_job_failed',
+                    extra={'job_id': job_id, 'guest_id': guest_id, 'status': next_status, 'error_code': error_code},
                 )
             except ExportFenceError:
                 logger.warning('guest_export_stale_worker_discarded', extra={'job_id': job_id})
@@ -217,7 +254,9 @@ def build_guest_export_worker(settings: Settings | None = None) -> GuestExportWo
 def main() -> None:
     parser = argparse.ArgumentParser(description='Run the RangManch durable guest export worker.')
     parser.parse_args()
+    logging.basicConfig(level=get_settings().log_level.upper())
     worker = build_guest_export_worker()
+    logger.info('guest_export_worker_starting', extra={'worker_id': worker.worker_id, 'environment': worker.settings.env})
     signal.signal(signal.SIGTERM, worker.stop)
     signal.signal(signal.SIGINT, worker.stop)
     worker.run_forever()

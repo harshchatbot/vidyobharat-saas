@@ -55,7 +55,6 @@ class GuestExportRepository:
             checks = (
                 ('exports', 'exports_count', 'reserved_exports_count'),
                 ('processing_seconds', 'processing_seconds', 'reserved_processing_seconds'),
-                ('concurrent_processing', None, 'active_processing'),
             )
             updates: dict[str, Any] = {'updated_at': now}
             for quota_name, used_field, reserved_field in checks:
@@ -98,6 +97,10 @@ class GuestExportRepository:
                     'created_at': now,
                     'lease_expires_at': expires_at,
                     **asdict(reservation),
+                    # A queued export reserves durable usage, but it is not
+                    # actively consuming render capacity until a worker claims it.
+                    'concurrent_processing': 0,
+                    'requested_concurrent_processing': reservation.concurrent_processing,
                 },
             )
             txn.create(job_ref, payload)
@@ -129,6 +132,7 @@ class GuestExportRepository:
         fence_token: str,
         now: datetime,
         lease_duration: timedelta,
+        concurrent_processing_limit: int,
     ) -> dict[str, Any] | None:
         candidates: list[tuple[str, str]] = []
         for session in self.sessions.stream():
@@ -165,6 +169,7 @@ class GuestExportRepository:
                 fence_token=fence_token,
                 now=now,
                 lease_duration=lease_duration,
+                concurrent_processing_limit=concurrent_processing_limit,
             )
             if claimed:
                 return claimed
@@ -271,7 +276,7 @@ class GuestExportRepository:
 
         _expire(transaction)
 
-    def _claim(self, *, guest_id: str, job_id: str, worker_id: str, fence_token: str, now: datetime, lease_duration: timedelta) -> dict[str, Any] | None:
+    def _claim(self, *, guest_id: str, job_id: str, worker_id: str, fence_token: str, now: datetime, lease_duration: timedelta, concurrent_processing_limit: int) -> dict[str, Any] | None:
         session_ref = self.sessions.document(guest_id)
         job_ref = session_ref.collection('exports').document(job_id)
         transaction = self.firestore.transaction(max_attempts=10)
@@ -291,6 +296,24 @@ class GuestExportRepository:
                 return None
             if job.get('status') not in {'queued', 'running'}:
                 return None
+            reservation_ref = session_ref.collection('reservations').document(job['reservation_id'])
+            reservation_snapshot = reservation_ref.get(transaction=txn)
+            reservation = reservation_snapshot.to_dict() or {}
+            if reservation.get('status') != 'active':
+                return None
+            held_slots = int(reservation.get('concurrent_processing', 0))
+            requested_slots = int(reservation.get('requested_concurrent_processing', 1))
+            if requested_slots <= 0:
+                requested_slots = 1
+            if held_slots == 0:
+                active_processing = int(session.get('active_processing', 0))
+                if active_processing + requested_slots > concurrent_processing_limit:
+                    return None
+                txn.update(session_ref, {
+                    'active_processing': active_processing + requested_slots,
+                    'updated_at': now,
+                })
+                txn.update(reservation_ref, {'concurrent_processing': requested_slots})
             updates = {
                 'status': 'running',
                 'worker_id': worker_id,
@@ -388,6 +411,8 @@ class GuestExportRepository:
                 'output': output,
                 'storage_object_path': object_path,
                 'lease_expires_at': None,
+                'worker_id': None,
+                'fence_token': None,
                 'error_code': None,
             }
             txn.update(job_ref, job_updates)
@@ -411,6 +436,16 @@ class GuestExportRepository:
             self._require_fence(True, job, worker_id, fence_token)
             can_retry = transient and int(job.get('attempt_count', 0)) < max_attempts and session.get('status') == 'active' and session.get('expires_at') > now
             if can_retry:
+                reservation_ref = session_ref.collection('reservations').document(job['reservation_id'])
+                reservation_snapshot = reservation_ref.get(transaction=txn)
+                reservation = reservation_snapshot.to_dict() or {}
+                held_slots = int(reservation.get('concurrent_processing', 0))
+                if reservation.get('status') == 'active' and held_slots:
+                    txn.update(session_ref, {
+                        'active_processing': max(0, int(session.get('active_processing', 0)) - held_slots),
+                        'updated_at': now,
+                    })
+                    txn.update(reservation_ref, {'concurrent_processing': 0})
                 txn.update(job_ref, {
                     'status': 'queued', 'updated_at': now, 'retry_at': now + retry_delay,
                     'lease_expires_at': None, 'worker_id': None, 'fence_token': None,
@@ -431,6 +466,7 @@ class GuestExportRepository:
             status = 'cleanup_pending' if cleanup_object_path else ('expired' if session.get('expires_at') <= now else 'failed')
             txn.update(job_ref, {
                 'status': status, 'updated_at': now, 'lease_expires_at': None,
+                'worker_id': None, 'fence_token': None,
                 'progress_stage': status, 'error_code': error_code,
                 'cleanup_object_path': cleanup_object_path,
                 'cleanup_object_generation': cleanup_object_generation,

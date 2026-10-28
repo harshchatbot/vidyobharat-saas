@@ -346,13 +346,56 @@ class TimelineRenderService:
                 f'boxcolor={background}:boxborderw=8:expansion=none:'
                 f'x={alignment_x}:y=(h-text_h)/2[{layer_label}]'
             )
+            animated_label = layer_label
+            animation_filters: list[str] = []
+            start = overlay.start_seconds
+            end = overlay.start_seconds + overlay.duration_seconds
+            out_start = end - overlay.out_animation_duration
+            if overlay.in_animation.value in {'fade-in', 'pop-in'}:
+                animation_filters.append(
+                    f'fade=t=in:st={format_seconds(start)}:d={format_seconds(overlay.in_animation_duration)}:alpha=1'
+                )
+            if overlay.out_animation.value == 'fade-out':
+                animation_filters.append(
+                    f'fade=t=out:st={format_seconds(out_start)}:d={format_seconds(overlay.out_animation_duration)}:alpha=1'
+                )
+            scale_parts: list[str] = []
+            if overlay.in_animation.value == 'pop-in':
+                scale_parts.append(
+                    f"if(lt(t,{start:.6f}),0.72,if(lt(t,{start + overlay.in_animation_duration:.6f}),"
+                    f"0.72+0.28*(t-{start:.6f})/{overlay.in_animation_duration:.6f},1))"
+                )
+            if overlay.loop_animation.value == 'pulse':
+                scale_parts.append(f'(1+0.04*sin(2*PI*(t-{start:.6f})))')
+            if scale_parts:
+                scale = '*'.join(f'({part})' for part in scale_parts)
+                animation_filters.append(
+                    f"scale=w='max(2,trunc(iw*({scale})/2)*2)':h='max(2,trunc(ih*({scale})/2)*2)':eval=frame"
+                )
+            if animation_filters:
+                animated_label = f'textanim{filter_index}'
+                filters.append(f'[{layer_label}]' + ','.join(animation_filters) + f'[{animated_label}]')
             filters.append(
-                f'[{layer_label}]rotate=angle={math.radians(overlay.rotation_degrees):.10f}:'
+                f'[{animated_label}]rotate=angle={math.radians(overlay.rotation_degrees):.10f}:'
                 f'ow=rotw(iw):oh=roth(ih):c=none[{rotated_label}]'
             )
+            y_offsets: list[str] = []
+            if overlay.in_animation.value == 'slide-up':
+                y_offsets.append(
+                    f"48*max(0,1-(t-{start:.6f})/{overlay.in_animation_duration:.6f})"
+                )
+            if overlay.out_animation.value == 'slide-down':
+                y_offsets.append(
+                    f"48*max(0,(t-{out_start:.6f})/{overlay.out_animation_duration:.6f})"
+                )
+            if overlay.loop_animation.value == 'float':
+                y_offsets.append(f"8*sin(1.5*PI*(t-{start:.6f}))")
+            y_expression = f'H*{overlay.y:.10f}-h/2'
+            if y_offsets:
+                y_expression += '+' + '+'.join(f'({offset})' for offset in y_offsets)
             filters.append(
                 f'[{video_label}][{rotated_label}]overlay='
-                f"x='W*{overlay.x:.10f}-w/2':y='H*{overlay.y:.10f}-h/2':"
+                f"x='W*{overlay.x:.10f}-w/2':y='{y_expression}':"
                 f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
                 f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
             )
@@ -382,11 +425,18 @@ class TimelineRenderService:
                 + f'amix=inputs={len(audio_labels)}:duration=first:dropout_transition=0:normalize=0,'
                 + f'atrim=duration={format_seconds(composition_duration(composition))}[{audio_label}]'
             )
+        final_video_label = 'vfinal'
+        filters.append(f'[{video_label}]scale=in_range=auto:out_range=tv,format=yuv420p[{final_video_label}]')
+        quality_args = (
+            ['-preset', 'slow', '-crf', '18']
+            if composition.quality == 'high'
+            else ['-preset', 'medium', '-crf', '23']
+        )
         command.extend(
             [
                 '-filter_complex', ';'.join(filters),
-                '-map', f'[{video_label}]', '-map', f'[{audio_label}]',
-                '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+                '-map', f'[{final_video_label}]', '-map', f'[{audio_label}]',
+                '-c:v', 'libx264', *quality_args,
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
                 '-movflags', '+faststart', '-threads', '1',
                 str(output),
@@ -429,6 +479,7 @@ class TimelineRenderService:
                     time.sleep(0.05)
             if process.returncode != 0:
                 detail = log_path.read_text(errors='replace')[-2000:]
+                logger.error('timeline_ffmpeg_failed', extra={'summary': detail.strip()[-500:]})
                 raise TimelineProcessError(f'FFmpeg timeline render failed: {detail.strip()}')
         except FileNotFoundError as exc:
             raise TimelineProcessError(f'Required media binary was not found: {command[0]}') from exc

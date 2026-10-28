@@ -293,12 +293,12 @@ def test_empty_and_invalid_media_rejected(
 def test_oversized_upload_and_mime_spoofing_are_rejected(media_environment) -> None:
     client, _, media, _, tmp_path = media_environment
     _create_session(client)
-    media.max_file_bytes = 8
+    media._max_file_bytes = 8
     oversized = _upload(client, b'123456789', 'large.jpg', 'image/jpeg')
     assert oversized.status_code == 413
     assert oversized.json()['error'] == 'guest_media_too_large'
 
-    media.max_file_bytes = 1024 * 1024
+    media._max_file_bytes = 1024 * 1024
     image = _make_image(tmp_path / 'spoof.jpg')
     spoofed = _upload(client, image, 'spoof.mp4', 'video/mp4')
     assert spoofed.status_code == 415

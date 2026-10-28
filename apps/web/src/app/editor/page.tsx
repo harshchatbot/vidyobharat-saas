@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { getApiUrl } from '@/lib/env';
 import { GuestEditorWorkspace } from './GuestEditorWorkspace';
 
@@ -99,45 +98,7 @@ export default function GuestEditorPage() {
         };
     }, []);
 
-    return (
-        <main className="min-h-screen overflow-x-hidden bg-[#f6f4ec] px-3 py-5 text-[#071d4a] sm:px-6 sm:py-8">
-            <header className="mx-auto flex max-w-5xl items-center justify-between">
-                <Link href="/" className="text-lg font-bold">
-                    RangManch AI
-                </Link>
-
-                <span className="text-sm">Guest editor</span>
-            </header>
-
-            <section className="mx-auto min-w-0 max-w-7xl py-5 sm:py-8">
-                <div className="text-center">
-                    <h1 className="text-4xl font-bold">
-                        Create your reel
-                    </h1>
-
-                    <p className="mt-4 text-[#526078]">
-                        Upload your favorite moments and turn them into a story.
-                    </p>
-                </div>
-
-                {/* Guest session status */}
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="mt-10 rounded-xl border border-[#d9d7ce] bg-white p-6 text-center"
-                >
-                    <p className="font-medium">{status}</p>
-
-                    {ready && (
-                        <p className="mt-3 text-sm text-[#526078]">
-                            Your media library is connected.
-                        </p>
-                    )}
-                </div>
-
-                {/* Visual reel editor */}
-                {ready && <GuestEditorWorkspace media={media} uploadUsage={uploadUsage} />}
-            </section>
-        </main>
-    );
+    return <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#0a0a0f] text-slate-100">
+        {ready ? <GuestEditorWorkspace media={media} uploadUsage={uploadUsage} /> : <div className="grid min-h-screen place-items-center px-6"><div role="status" aria-live="polite" className="text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-amber-400" /><p className="mt-4 text-sm font-medium text-slate-200">{status}</p><p className="mt-2 text-xs text-slate-500">Preparing your private guest workspace</p></div></div>}
+    </main>;
 }

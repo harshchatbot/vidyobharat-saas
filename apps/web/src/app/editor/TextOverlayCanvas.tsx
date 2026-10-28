@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { Maximize2, RotateCw } from 'lucide-react';
 import { moveTextGeometry, resizeTextGeometry } from './timeline/textGeometry';
+import { textAnimationStyle } from './timeline/textAnimations';
 import type { TextTimelineItem, TimelineItem } from './timeline/types';
 
 type Props = {
@@ -10,9 +11,10 @@ type Props = {
   selected: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<TimelineItem>) => void;
+  animationTime: number;
 };
 
-export function TextOverlayCanvas({ item, selected, onSelect, onUpdate }: Props) {
+export function TextOverlayCanvas({ item, selected, onSelect, onUpdate, animationTime }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(720);
   const [editing, setEditing] = useState(false);
@@ -78,9 +80,10 @@ export function TextOverlayCanvas({ item, selected, onSelect, onUpdate }: Props)
     WebkitTextStroke: item.outlineWidth > 0 ? `${item.outlineWidth * canvasWidth / 720}px ${item.outlineColor}` : undefined,
     textShadow: item.shadow ? `0 ${2 * canvasWidth / 720}px ${8 * canvasWidth / 720}px rgba(0,0,0,.55)` : undefined,
     backgroundColor: hexToRgba(item.backgroundColor, item.backgroundOpacity),
+    ...textAnimationStyle(item, animationTime),
   };
 
-  return <div ref={rootRef} className={`absolute z-20 touch-none ${selected ? 'cursor-move' : 'cursor-pointer'}`} style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%`, width: `${item.width * 100}%`, transform: `translate(-50%, -50%) rotate(${item.rotation}deg)` }} onPointerDown={beginDrag} onDoubleClick={(event) => { event.stopPropagation(); setEditing(true); }}>
+  return <div ref={rootRef} data-testid="text-overlay" className={`absolute z-20 touch-none ${selected ? 'cursor-move' : 'cursor-pointer'}`} style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%`, width: `${item.width * 100}%`, transform: `translate(-50%, -50%) rotate(${item.rotation}deg)` }} onPointerDown={beginDrag} onDoubleClick={(event) => { event.stopPropagation(); setEditing(true); }}>
     <div className={`relative px-2 py-1 ${selected ? 'outline outline-1 outline-[#f4c30f]' : ''}`} style={textStyle}>
       {editing ? <textarea autoFocus value={item.text} onChange={(event) => onUpdate({ text: event.target.value, label: event.target.value || 'Text' })} onBlur={() => setEditing(false)} onPointerDown={(event) => event.stopPropagation()} className="block min-h-16 w-full resize-none bg-white/90 p-2 text-[#071d4a] outline-none" style={{ font: 'inherit', textAlign: item.alignment }} /> : item.text}
       {selected && <>

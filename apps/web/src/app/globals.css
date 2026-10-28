@@ -12,6 +12,27 @@ body {
   overflow-x: clip;
 }
 
+@keyframes rm-text-fade-in { 0%, 20% { opacity: 0; } 60%, 100% { opacity: 1; } }
+@keyframes rm-text-slide-up { 0%, 20% { opacity: 0; transform: translateY(8px); } 60%, 100% { opacity: 1; transform: translateY(0); } }
+@keyframes rm-text-pop-in { 0%, 20% { opacity: 0; transform: scale(.72); } 65% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes rm-text-fade-out { 0%, 45% { opacity: 1; } 85%, 100% { opacity: 0; } }
+@keyframes rm-text-slide-down { 0%, 45% { opacity: 1; transform: translateY(0); } 85%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes rm-text-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes rm-text-float { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-3px); } }
+
+.rm-animation-thumbnail { display: inline-block; font-weight: 700; }
+.rm-animation-fade-in { animation: rm-text-fade-in 1.6s ease-in-out infinite; }
+.rm-animation-slide-up { animation: rm-text-slide-up 1.6s ease-in-out infinite; }
+.rm-animation-pop-in { animation: rm-text-pop-in 1.6s ease-in-out infinite; }
+.rm-animation-fade-out { animation: rm-text-fade-out 1.6s ease-in-out infinite; }
+.rm-animation-slide-down { animation: rm-text-slide-down 1.6s ease-in-out infinite; }
+.rm-animation-pulse { animation: rm-text-pulse 1.2s ease-in-out infinite; }
+.rm-animation-float { animation: rm-text-float 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-animation-thumbnail { animation: none !important; }
+}
+
 body {
   @apply bg-bg text-text antialiased font-sans;
   line-height: 1.5;

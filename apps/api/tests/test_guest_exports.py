@@ -94,8 +94,8 @@ def export_environment(tmp_path: Path):
     renderer = TimelineRenderService(limits=TimelineRenderLimits(
         max_clips=4, max_total_duration_seconds=5, max_source_bytes=4 * 1024 * 1024,
         max_workspace_bytes=32 * 1024 * 1024, max_output_bytes=8 * 1024 * 1024,
-        max_source_pixels=2_000_000, max_output_width=180, max_output_height=320,
-        max_fps=10, ffmpeg_timeout_seconds=30, max_concurrent_renders=1,
+        max_source_pixels=2_000_000, max_output_width=1080, max_output_height=1920,
+        max_fps=60, ffmpeg_timeout_seconds=60, max_concurrent_renders=1,
     ))
     timeline = GuestTimelineService(media_service=media, renderer=renderer)
     repository = GuestExportRepository(firestore)
@@ -135,7 +135,7 @@ def _create_and_upload(client: TestClient, tmp_path: Path) -> str:
 
 def _timeline(media_id: str, duration: float = 0.4) -> dict:
     return {
-        'aspect_ratio': '9:16', 'width': 180, 'height': 320, 'fps': 10,
+        'aspect_ratio': '9:16', 'width': 720, 'height': 1280, 'fps': 30,
         'clips': [{'media_id': media_id, 'order': 0, 'start_seconds': 0.0,
                    'duration_seconds': duration, 'crop_mode': 'cover'}],
     }
@@ -179,6 +179,84 @@ def test_submit_is_durable_idempotent_and_worker_completes_after_reconnect(expor
     assert usage['reserved']['concurrent_processing'] == 0
 
 
+def test_queued_exports_do_not_consume_active_processing_capacity(export_environment) -> None:
+    client, sessions, _, _, _, _, _, _, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+
+    first = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'queued-capacity-one'},
+        json=_timeline(media_id),
+    )
+    second = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'queued-capacity-two'},
+        json=_timeline(media_id),
+    )
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    usage = sessions.usage(client.cookies.get(sessions.config.cookie_name))
+    assert usage['reserved']['exports'] == 2
+    assert usage['reserved']['concurrent_processing'] == 0
+
+
+def test_transient_retry_releases_processing_slot_before_requeue(export_environment) -> None:
+    client, sessions, _, _, repository, _, _, _, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'retry-releases-slot'},
+        json=_timeline(media_id),
+    ).json()
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    now = datetime.now(UTC)
+    claimed = repository.claim_next(
+        worker_id='retry-worker', fence_token='retry-fence', now=now,
+        lease_duration=timedelta(seconds=30), concurrent_processing_limit=1,
+    )
+    assert claimed and claimed['job_id'] == submitted['job_id']
+    assert sessions.repository.get(guest_id)['active_processing'] == 1
+
+    status = repository.fail_or_retry(
+        guest_id=guest_id, job_id=submitted['job_id'], worker_id='retry-worker',
+        fence_token='retry-fence', error_code='export_transient_failure', transient=True,
+        max_attempts=3, retry_delay=timedelta(seconds=1), now=now,
+    )
+
+    assert status == 'queued'
+    assert sessions.repository.get(guest_id)['active_processing'] == 0
+    reservation = (
+        repository.sessions.document(guest_id).collection('reservations')
+        .document(f"export-{submitted['job_id']}").get().to_dict()
+    )
+    assert reservation and reservation['concurrent_processing'] == 0
+
+
+def test_legacy_queued_slot_is_recovered_and_released(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, firestore, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'legacy-queued-slot'},
+        json=_timeline(media_id),
+    ).json()
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    session_ref = firestore.collection('editor_guest_sessions').document(guest_id)
+    reservation_ref = session_ref.collection('reservations').document(f"export-{submitted['job_id']}")
+    session_ref.update({'active_processing': 1})
+    reservation_ref.update({'concurrent_processing': 1})
+
+    worker = GuestExportWorker(
+        settings=settings, repository=repository, timeline=timeline,
+        storage=storage, worker_id='legacy-recovery-worker',
+    )
+    assert worker.run_once() is True
+
+    assert repository.get(guest_id, submitted['job_id'])['status'] == 'completed'
+    assert sessions.repository.get(guest_id)['active_processing'] == 0
+
+
 def test_conflicting_idempotency_and_cross_guest_access(export_environment) -> None:
     client, sessions, _, _, _, _, _, _, _, tmp_path = export_environment
     media_id = _create_and_upload(client, tmp_path)
@@ -208,15 +286,18 @@ def test_worker_lease_recovery_and_stale_fencing(export_environment) -> None:
     first = repository.claim_next(
         worker_id='worker-a', fence_token='fence-a', now=now,
         lease_duration=timedelta(seconds=1),
+        concurrent_processing_limit=1,
     )
     assert first and first['job_id'] == job_id
     assert repository.claim_next(
         worker_id='worker-b', fence_token='fence-b', now=now,
         lease_duration=timedelta(seconds=1),
+        concurrent_processing_limit=1,
     ) is None
     recovered = repository.claim_next(
         worker_id='worker-b', fence_token='fence-b', now=now + timedelta(seconds=2),
         lease_duration=timedelta(seconds=10),
+        concurrent_processing_limit=1,
     )
     assert recovered and recovered['attempt_count'] == 2
     with pytest.raises(ExportFenceError):
@@ -290,6 +371,29 @@ def test_permanent_storage_failure_releases_export_reservation(export_environmen
     assert usage['reserved']['concurrent_processing'] == 0
 
 
+def test_worker_cancellation_releases_processing_slot(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'worker-cancellation-key'},
+        json=_timeline(media_id),
+    ).json()
+    worker = GuestExportWorker(
+        settings=settings, repository=repository, timeline=timeline,
+        storage=storage, worker_id='cancelled-worker',
+    )
+    worker.stop()
+
+    assert worker.run_once() is True
+
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    assert repository.get(guest_id, submitted['job_id'])['status'] == 'failed'
+    usage = sessions.usage(client.cookies.get(sessions.config.cookie_name))
+    assert usage['reserved']['exports'] == 0
+    assert usage['reserved']['concurrent_processing'] == 0
+
+
 def test_cleanup_pending_retains_storage_accounting_until_retry_succeeds(export_environment) -> None:
     client, sessions, _, _, repository, timeline, storage, settings, _, tmp_path = export_environment
     media_id = _create_and_upload(client, tmp_path)
@@ -303,6 +407,7 @@ def test_cleanup_pending_retains_storage_accounting_until_retry_succeeds(export_
     claimed = repository.claim_next(
         worker_id='cleanup-owner', fence_token='cleanup-fence', now=now,
         lease_duration=timedelta(seconds=30),
+        concurrent_processing_limit=1,
     )
     assert claimed
     repository.reserve_storage(
