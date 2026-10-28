@@ -6,6 +6,12 @@ import { getApiUrl } from '@/lib/env';
 type CachedMedia = { promise: Promise<string>; url?: string };
 const mediaUrlCache = new Map<string, CachedMedia>();
 
+export function invalidateGuestMediaUrl(mediaId: string) {
+  const cached = mediaUrlCache.get(mediaId);
+  if (cached?.url) URL.revokeObjectURL(cached.url);
+  mediaUrlCache.delete(mediaId);
+}
+
 function cachedGuestMediaUrl(mediaId: string): Promise<string> {
   const cached = mediaUrlCache.get(mediaId);
   if (cached?.url) return Promise.resolve(cached.url);

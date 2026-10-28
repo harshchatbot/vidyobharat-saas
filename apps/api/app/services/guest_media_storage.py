@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterator
 
 import httpx
+from google.api_core.exceptions import NotFound
 
 from app.core.config import Settings, get_settings
 from app.providers.firebase import get_firebase_app, normalize_firebase_bucket
@@ -11,6 +12,10 @@ from app.providers.firebase_emulator import (
     firebase_emulator_requested,
     get_firebase_storage_emulator_client,
 )
+
+
+class GuestMediaObjectMissing(RuntimeError):
+    pass
 
 
 class GuestMediaStorage:
@@ -41,6 +46,9 @@ class GuestMediaStorage:
         raise NotImplementedError
 
     def delete_generation(self, object_name: str, generation: str) -> None:
+        raise NotImplementedError
+
+    def object_size(self, object_name: str) -> int:
         raise NotImplementedError
 
     def iter_content(
@@ -85,7 +93,20 @@ class EmulatorGuestMediaStorage(GuestMediaStorage):
         )
 
     def read_range(self, object_name: str, *, start: int, end: int) -> bytes:
-        return self.client.download_range(object_name, start=start, end=end)
+        try:
+            return self.client.download_range(object_name, start=start, end=end)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise GuestMediaObjectMissing(object_name) from exc
+            raise
+
+    def object_size(self, object_name: str) -> int:
+        try:
+            return self.client.object_size(object_name)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise GuestMediaObjectMissing(object_name) from exc
+            raise
 
     def upload_file_if_absent(self, object_name: str, path: Path, *, content_type: str, timeout_seconds: float) -> str:
         return self.client.upload_file_if_absent(
@@ -137,11 +158,24 @@ class FirebaseGuestMediaStorage(GuestMediaStorage):
         )
 
     def read_range(self, object_name: str, *, start: int, end: int) -> bytes:
-        return self.bucket.blob(object_name).download_as_bytes(
-            start=start,
-            end=end,
-            timeout=self.timeout_seconds,
-        )
+        try:
+            return self.bucket.blob(object_name).download_as_bytes(
+                start=start,
+                end=end,
+                timeout=self.timeout_seconds,
+            )
+        except NotFound as exc:
+            raise GuestMediaObjectMissing(object_name) from exc
+
+    def object_size(self, object_name: str) -> int:
+        blob = self.bucket.blob(object_name)
+        try:
+            blob.reload(timeout=self.timeout_seconds)
+        except NotFound as exc:
+            raise GuestMediaObjectMissing(object_name) from exc
+        if blob.size is None:
+            raise RuntimeError('Firebase Storage object metadata omitted its size.')
+        return int(blob.size)
 
     def upload_file_if_absent(self, object_name: str, path: Path, *, content_type: str, timeout_seconds: float) -> str:
         blob = self.bucket.blob(object_name)
@@ -159,8 +193,6 @@ class FirebaseGuestMediaStorage(GuestMediaStorage):
         return str(blob.generation)
 
     def delete(self, object_name: str) -> None:
-        from google.api_core.exceptions import NotFound
-
         try:
             self.bucket.blob(object_name).delete(timeout=self.timeout_seconds)
         except NotFound:

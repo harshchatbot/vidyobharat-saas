@@ -8,7 +8,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.config import Settings, get_settings
-from app.db.repositories.guest_export_repository import ExportConflictError, GuestExportRepository
+from app.db.repositories.guest_export_repository import (
+    ExportConflictError,
+    ExportMediaUnavailableError,
+    GuestExportRepository,
+)
 from app.db.repositories.guest_session_repository import GuestQuotaReservation
 from app.providers.firebase import get_firestore_client
 from app.schemas.editor import TimelineComposition
@@ -16,6 +20,7 @@ from app.services.guest_media_storage import GuestMediaStorage, build_guest_medi
 from app.services.guest_session_errors import GuestSessionError, media_error
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
 from app.services.guest_timeline_service import GuestTimelineService, build_guest_timeline_service
+from app.services.timeline_render_service import TimelineRenderError, TimelineValidationError
 
 
 _IDEMPOTENCY_PATTERN = re.compile(r'^[A-Za-z0-9._:-]{8,128}$')
@@ -38,6 +43,10 @@ class GuestExportService:
         assert idempotency_key is not None
         job_id = hashlib.sha256(f"{session['guest_id']}\0{idempotency_key}".encode()).hexdigest()[:32]
         timeline_payload = composition.model_dump(mode='json')
+        media_ids = list(dict.fromkeys(
+            [clip.media_id for clip in composition.clips]
+            + [item.media_id for item in composition.audio_items]
+        ))
         digest = hashlib.sha256(json.dumps(timeline_payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         existing = self.repository.get(session['guest_id'], job_id)
         if existing:
@@ -48,11 +57,30 @@ class GuestExportService:
                     status_code=409,
                 )
             return existing, False
-        self.timeline.validate_sources(raw_token, composition)
+        try:
+            self.timeline.validate_sources(raw_token, composition)
+        except TimelineValidationError as exc:
+            raise media_error(
+                'guest_export_media_unavailable',
+                str(exc),
+                status_code=409,
+                recoverable=False,
+            ) from exc
+        except TimelineRenderError as exc:
+            raise media_error(
+                'guest_media_storage_unavailable',
+                'Private media storage is temporarily unavailable.',
+                status_code=503,
+                recoverable=True,
+            ) from exc
         now = datetime.now(UTC)
-        reserved_processing = math.fsum(
-            math.ceil(clip.duration_seconds * composition.fps - 1e-9) / composition.fps
-            for clip in composition.clips
+        reserved_processing = (
+            math.ceil(
+                max(
+                    clip.timeline_start_seconds + clip.duration_seconds
+                    for clip in composition.clips
+                ) * composition.fps - 1e-9
+            ) / composition.fps
         )
         try:
             return self.repository.create_or_get(
@@ -60,6 +88,7 @@ class GuestExportService:
                 job_id=job_id,
                 timeline=timeline_payload,
                 timeline_digest=digest,
+                media_ids=media_ids,
                 reservation=GuestQuotaReservation(
                     exports=1,
                     processing_seconds=reserved_processing,
@@ -71,6 +100,13 @@ class GuestExportService:
             )
         except ExportConflictError as exc:
             raise media_error('guest_export_idempotency_conflict', str(exc), status_code=409) from exc
+        except ExportMediaUnavailableError as exc:
+            raise media_error(
+                'guest_export_media_unavailable',
+                str(exc),
+                status_code=409,
+                recoverable=False,
+            ) from exc
 
     def list_jobs(self, raw_token: str | None) -> list[dict[str, Any]]:
         session = self.sessions.get_session(raw_token)

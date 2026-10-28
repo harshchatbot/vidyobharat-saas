@@ -14,6 +14,10 @@ class ExportConflictError(RuntimeError):
     pass
 
 
+class ExportMediaUnavailableError(RuntimeError):
+    pass
+
+
 class ExportFenceError(RuntimeError):
     pass
 
@@ -30,6 +34,7 @@ class GuestExportRepository:
         job_id: str,
         timeline: dict[str, Any],
         timeline_digest: str,
+        media_ids: list[str],
         reservation: GuestQuotaReservation,
         limits: GuestQuotaLimits,
         now: datetime,
@@ -45,12 +50,27 @@ class GuestExportRepository:
         def _create(txn):
             session_snapshot = session_ref.get(transaction=txn)
             job_snapshot = job_ref.get(transaction=txn)
+            media_snapshots = [
+                session_ref.collection('media').document(media_id).get(transaction=txn)
+                for media_id in media_ids
+            ]
             session = self._require_active(session_snapshot, now)
             if job_snapshot.exists:
                 existing = job_snapshot.to_dict() or {}
                 if existing.get('timeline_digest') != timeline_digest:
                     raise ExportConflictError('Idempotency-Key was already used for a different timeline.')
                 return existing, False
+
+            for media_id, media_snapshot in zip(media_ids, media_snapshots, strict=True):
+                media = media_snapshot.to_dict() or {}
+                expected_path = f'guest-editor/{guest_id}/sources/{media_id}/original'
+                if (
+                    not media_snapshot.exists
+                    or media.get('guest_id') != guest_id
+                    or media.get('status') != 'active'
+                    or media.get('storage_object_path') != expected_path
+                ):
+                    raise ExportMediaUnavailableError('A timeline source is unavailable or being deleted.')
 
             checks = (
                 ('exports', 'exports_count', 'reserved_exports_count'),
@@ -70,6 +90,7 @@ class GuestExportRepository:
                 'guest_id': guest_id,
                 'timeline': timeline,
                 'timeline_digest': timeline_digest,
+                'media_ids': media_ids,
                 'created_at': now,
                 'updated_at': now,
                 'expires_at': expires_at,
@@ -133,14 +154,22 @@ class GuestExportRepository:
         now: datetime,
         lease_duration: timedelta,
         concurrent_processing_limit: int,
+        max_attempts: int = 3,
     ) -> dict[str, Any] | None:
         candidates: list[tuple[str, str]] = []
         for session in self.sessions.stream():
             session_data = session.to_dict() or {}
             for job in session.reference.collection('exports').stream():
                 data = job.to_dict() or {}
+                lease = data.get('lease_expires_at')
+                exhausted = int(data.get('attempt_count', 0)) >= max_attempts
+                abandoned_running = (
+                    data.get('status') == 'running'
+                    and isinstance(lease, datetime)
+                    and lease <= now
+                )
                 if (
-                    data.get('status') == 'queued'
+                    (data.get('status') == 'queued' or abandoned_running)
                     and (
                         not isinstance(session_data.get('expires_at'), datetime)
                         or session_data.get('expires_at') <= now
@@ -149,9 +178,11 @@ class GuestExportRepository:
                         or session_data.get('status') != 'active'
                     )
                 ):
-                    self._expire_queued(session.id, job.id, now)
+                    self._expire_inactive(session.id, job.id, now)
                     continue
-                lease = data.get('lease_expires_at')
+                if exhausted and (data.get('status') == 'queued' or abandoned_running):
+                    self._fail_exhausted(session.id, job.id, now)
+                    continue
                 retry_at = data.get('retry_at')
                 recoverable = data.get('status') == 'queued' or (
                     data.get('status') == 'running'
@@ -174,6 +205,49 @@ class GuestExportRepository:
             if claimed:
                 return claimed
         return None
+
+    def _fail_exhausted(self, guest_id: str, job_id: str, now: datetime) -> None:
+        session_ref = self.sessions.document(guest_id)
+        job_ref = session_ref.collection('exports').document(job_id)
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _finish(txn):
+            session_snapshot = session_ref.get(transaction=txn)
+            job_snapshot = job_ref.get(transaction=txn)
+            if not session_snapshot.exists or not job_snapshot.exists:
+                return
+            session = session_snapshot.to_dict() or {}
+            job = job_snapshot.to_dict() or {}
+            lease = job.get('lease_expires_at')
+            abandoned_running = (
+                job.get('status') == 'running'
+                and isinstance(lease, datetime)
+                and lease <= now
+            )
+            if job.get('status') != 'queued' and not abandoned_running:
+                return
+            reservation_ref = session_ref.collection('reservations').document(job['reservation_id'])
+            reservation_snapshot = reservation_ref.get(transaction=txn)
+            reservation = reservation_snapshot.to_dict() or {}
+            if reservation.get('status') == 'active':
+                txn.update(session_ref, self._quota_release_updates(session, reservation, commit=False))
+                txn.update(reservation_ref, {'status': 'released', 'released_at': now})
+            txn.update(
+                job_ref,
+                {
+                    'status': 'failed',
+                    'progress_stage': 'failed',
+                    'updated_at': now,
+                    'lease_expires_at': None,
+                    'worker_id': None,
+                    'fence_token': None,
+                    'terminal_reason': 'attempts_exhausted',
+                    'error_code': job.get('error_code') or 'export_attempts_exhausted',
+                },
+            )
+
+        _finish(transaction)
 
     def claim_cleanup(self, *, worker_id: str, fence_token: str, now: datetime, lease_duration: timedelta) -> dict[str, Any] | None:
         for session in self.sessions.stream():
@@ -248,7 +322,7 @@ class GuestExportRepository:
 
         _finish(transaction)
 
-    def _expire_queued(self, guest_id: str, job_id: str, now: datetime) -> None:
+    def _expire_inactive(self, guest_id: str, job_id: str, now: datetime) -> None:
         session_ref = self.sessions.document(guest_id)
         job_ref = session_ref.collection('exports').document(job_id)
         transaction = self.firestore.transaction(max_attempts=10)
@@ -261,7 +335,13 @@ class GuestExportRepository:
                 return
             session = session_snapshot.to_dict() or {}
             job = job_snapshot.to_dict() or {}
-            if job.get('status') != 'queued':
+            lease = job.get('lease_expires_at')
+            abandoned_running = (
+                job.get('status') == 'running'
+                and isinstance(lease, datetime)
+                and lease <= now
+            )
+            if job.get('status') != 'queued' and not abandoned_running:
                 return
             reservation_ref = session_ref.collection('reservations').document(job['reservation_id'])
             reservation_snapshot = reservation_ref.get(transaction=txn)

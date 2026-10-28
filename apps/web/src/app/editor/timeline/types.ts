@@ -20,6 +20,7 @@ export type GuestMedia = {
   media_type: 'image' | 'video' | 'audio';
   content_type: string;
   duration_seconds?: number | null;
+  availability?: 'available' | 'unavailable' | 'unknown';
 };
 
 type BaseTimelineItem = { id: string; trackId: TrackType; startTime: number; duration: number; label: string };

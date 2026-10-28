@@ -1,24 +1,21 @@
-import type { MetadataRoute } from 'next';
+import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/seo";
 
-import { getSiteUrl } from '@/lib/seo';
+
+const SITE_URL = "https://rangmanchai.com";
 
 const publicRoutes = [
-  '/',
-  '/images',
-  '/videos',
-  '/pricing',
-  '/learning',
-  '/sarvam-ai-voiceovers',
+  {
+    path: "/",
+    priority: 1,
+    changeFrequency: "weekly" as const,
+  },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
-  const siteUrl = getSiteUrl();
-
-  return publicRoutes.map((path) => ({
-    url: `${siteUrl}${path}`,
-    lastModified: now,
-    changeFrequency: path === '/' ? 'weekly' : 'monthly',
-    priority: path === '/' ? 1 : path === '/images' || path === '/videos' ? 0.9 : 0.7,
+  return publicRoutes.map((route) => ({
+    url: `${SITE_URL}${route.path}`,
+    changeFrequency: route.changeFrequency,
+    priority: route.priority,
   }));
 }

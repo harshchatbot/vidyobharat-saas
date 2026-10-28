@@ -273,39 +273,58 @@ class TimelineRenderService:
             command.extend(['-i', str(source.path)])
 
         filters: list[str] = []
-        concat_inputs: list[str] = []
+        total_duration = format_seconds(composition_duration(composition))
+        filters.append(
+            f'color=c=black:s={composition.width}x{composition.height}:r={composition.fps}:'
+            f'd={total_duration},format=yuv420p[vcanvas0]'
+        )
+        filters.append(
+            f'anullsrc=channel_layout=stereo:sample_rate=48000,'
+            f'atrim=duration={total_duration},asetpts=PTS-STARTPTS[asilence]'
+        )
+        embedded_audio_labels: list[str] = ['[asilence]']
         for index, clip in enumerate(clips):
             source, probe = source_by_id[clip.media_id]
             duration = format_seconds(clip.duration_seconds)
-            start = format_seconds(clip.start_seconds)
+            source_start = format_seconds(clip.start_seconds)
+            timeline_start = format_seconds(clip.timeline_start_seconds)
+            timeline_end = format_seconds(clip.timeline_start_seconds + clip.duration_seconds)
             scale = self._scale_filter(composition.width, composition.height, clip.crop_mode)
             if source.media_type == 'image':
                 filters.append(
-                    f'[{index}:v:0]trim=duration={duration},setpts=PTS-STARTPTS,{scale},'
-                    f'fps={composition.fps},format=yuv420p,setsar=1[v{index}]'
-                )
-                filters.append(
-                    f'anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration={duration},'
-                    f'asetpts=PTS-STARTPTS[a{index}]'
+                    f'[{index}:v:0]trim=duration={duration},setpts=PTS-STARTPTS,'
+                    f'{scale},fps={composition.fps},format=yuv420p,setsar=1,'
+                    f'setpts=PTS+{timeline_start}/TB[v{index}]'
                 )
             else:
                 filters.append(
-                    f'[{index}:v:0]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,{scale},'
-                    f'fps={composition.fps},format=yuv420p,setsar=1[v{index}]'
+                    f'[{index}:v:0]trim=start={source_start}:duration={duration},'
+                    f'setpts=PTS-STARTPTS,{scale},fps={composition.fps},'
+                    f'format=yuv420p,setsar=1,setpts=PTS+{timeline_start}/TB[v{index}]'
                 )
                 if self._has_audio(probe) and not clip.muted and clip.volume > 0:
+                    delay_ms = round(clip.timeline_start_seconds * 1000)
                     filters.append(
-                        f'[{index}:a:0]atrim=start={start}:duration={duration},asetpts=PTS-STARTPTS,'
-                        f'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,'
-                        f'volume={clip.volume:.6f},apad,atrim=duration={duration}[a{index}]'
+                        f'[{index}:a:0]atrim=start={source_start}:duration={duration},'
+                        f'asetpts=PTS-STARTPTS,aresample=48000,'
+                        f'aformat=sample_fmts=fltp:channel_layouts=stereo,'
+                        f'volume={clip.volume:.6f},adelay={delay_ms}|{delay_ms},'
+                        f'apad,atrim=duration={total_duration}[a{index}]'
                     )
-                else:
-                    filters.append(
-                        f'anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration={duration},'
-                        f'asetpts=PTS-STARTPTS[a{index}]'
-                    )
-            concat_inputs.extend([f'[v{index}]', f'[a{index}]'])
-        filters.append(''.join(concat_inputs) + f'concat=n={len(clips)}:v=1:a=1[vbase][abase]')
+                    embedded_audio_labels.append(f'[a{index}]')
+            filters.append(
+                f'[vcanvas{index}][v{index}]overlay=eof_action=pass:repeatlast=0:'
+                f"enable='gte(t,{timeline_start})*lt(t,{timeline_end})'[vcanvas{index + 1}]"
+            )
+        if len(embedded_audio_labels) == 1:
+            filters.append('[asilence]anull[abase]')
+        else:
+            filters.append(
+                ''.join(embedded_audio_labels)
+                + f'amix=inputs={len(embedded_audio_labels)}:duration=first:'
+                + f'dropout_transition=0:normalize=0,atrim=duration={total_duration}[abase]'
+            )
+        filters.append(f'[vcanvas{len(clips)}]null[vbase]')
         video_label = 'vbase'
         filter_index = 0
         for effect in composition.effects:
@@ -771,7 +790,7 @@ class TimelineRenderService:
 
 
 def composition_duration(composition: TimelineComposition) -> float:
-    return math.fsum(clip.duration_seconds for clip in composition.clips)
+    return max(clip.timeline_start_seconds + clip.duration_seconds for clip in composition.clips)
 
 
 def format_seconds(value: float) -> str:

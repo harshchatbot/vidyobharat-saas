@@ -9,7 +9,8 @@ import type { EffectTimelineItem } from './timeline/types';
 type Props = {
   mediaId?: string;
   contentType?: string;
-  timelineDuration: number;
+  effectStartTime: number;
+  effectDuration: number;
   initialSection: EffectSection;
   onPreview: (effect?: EffectTimelineItem) => void;
   onApply: (effect: EffectTimelineItem) => void;
@@ -18,7 +19,10 @@ type Props = {
 
 const sections: Array<{ id: EffectSection; label: string }> = [{ id: 'filters', label: 'Color filters' }, { id: 'effects', label: 'Visual effects' }, { id: 'transitions', label: 'Transitions' }];
 
-export function FilterGallery({ mediaId, contentType, timelineDuration, initialSection, onPreview, onApply, onCancel }: Props) {
+export function FilterGallery({
+  mediaId, contentType, effectStartTime, effectDuration,
+  initialSection, onPreview, onApply, onCancel,
+}: Props) {
   const [section, setSection] = useState<EffectSection>(initialSection);
   const [selected, setSelected] = useState<FilterDefinition | null>(null);
   const [intensity, setIntensity] = useState(1);
@@ -26,7 +30,16 @@ export function FilterGallery({ mediaId, contentType, timelineDuration, initialS
   const visible = useMemo(() => FILTER_DEFINITIONS.filter((filter) => filter.section === section), [section]);
 
   function draft(filter: FilterDefinition, amount = intensity): EffectTimelineItem {
-    return { id: 'filter-preview', kind: 'effect', trackId: 'effects', label: filter.name, preset: filter.preset, amount, startTime: 0, duration: Math.max(0.25, timelineDuration) };
+    return {
+      id: 'filter-preview',
+      kind: 'effect',
+      trackId: 'effects',
+      label: filter.name,
+      preset: filter.preset,
+      amount,
+      startTime: effectStartTime,
+      duration: Math.max(0.25, effectDuration),
+    };
   }
 
   function choose(filter: FilterDefinition) {

@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     editor_export_worker_lease_seconds: int = 120
     editor_export_worker_max_attempts: int = 3
     editor_export_worker_retry_base_seconds: int = 5
+    editor_export_worker_retry_max_seconds: int = 300
     editor_export_list_limit: int = 50
     app_config_cache_ttl_seconds: int = Field(default=45, ge=30, le=60)
 

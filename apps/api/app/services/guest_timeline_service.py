@@ -8,6 +8,7 @@ from pathlib import Path
 from app.core.config import Settings, get_settings
 from app.schemas.editor import TimelineComposition
 from app.services.guest_media_service import GuestMediaService, build_guest_media_service
+from app.services.guest_media_storage import GuestMediaObjectMissing
 from app.services.timeline_render_service import (
     ResolvedTimelineMedia,
     TemporaryTimelineRender,
@@ -20,6 +21,10 @@ from app.services.guest_session_errors import session_expired, session_invalid, 
 
 
 logger = logging.getLogger(__name__)
+
+
+class GuestTimelineMediaUnavailableError(TimelineValidationError):
+    pass
 
 
 class GuestTimelineService:
@@ -143,6 +148,17 @@ class GuestTimelineService:
                 raise TimelineValidationError('Timeline source media exceeds the configured byte limit.')
             if total_bytes + self.renderer.limits.max_output_bytes > self.renderer.limits.max_workspace_bytes:
                 raise TimelineValidationError('Timeline sources exceed the configured workspace limit.')
+            try:
+                size_reader = getattr(self.media_service.storage, 'object_size', None)
+                stored_size = size_reader(record['storage_object_path']) if callable(size_reader) else None
+                if stored_size is not None and stored_size != file_size:
+                    raise GuestTimelineMediaUnavailableError('A timeline source is unavailable or incomplete.')
+            except GuestMediaObjectMissing as exc:
+                raise GuestTimelineMediaUnavailableError('A timeline source is unavailable.') from exc
+            except TimelineValidationError:
+                raise
+            except Exception as exc:
+                raise TimelineRenderError('Private media storage is temporarily unavailable.') from exc
         return checked
 
     def _download_records(self, records: list[dict], root: Path) -> list[ResolvedTimelineMedia]:
@@ -165,6 +181,8 @@ class GuestTimelineService:
                         if downloaded > file_size or downloaded > self.renderer.limits.max_source_bytes:
                             raise TimelineValidationError('Downloaded guest media exceeded its recorded size.')
                         target.write(chunk)
+            except GuestMediaObjectMissing as exc:
+                raise GuestTimelineMediaUnavailableError('A timeline source is unavailable.') from exc
             except TimelineRenderError:
                 raise
             except Exception as exc:

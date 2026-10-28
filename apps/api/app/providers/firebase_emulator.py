@@ -202,6 +202,18 @@ class FirebaseStorageEmulatorClient:
         response.raise_for_status()
         return response.content
 
+    def object_size(self, object_name: str) -> int:
+        response = httpx.get(
+            self._object_url(object_name),
+            headers=self._headers,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        size = response.json().get('size')
+        if size is None:
+            raise RuntimeError('Storage emulator object metadata omitted its size.')
+        return int(size)
+
     def delete(self, object_name: str) -> None:
         response = httpx.delete(
             self._object_url(object_name),

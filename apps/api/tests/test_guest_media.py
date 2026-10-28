@@ -29,7 +29,11 @@ from app.db.repositories.guest_session_repository import GuestQuotaReservation
 from app.providers.firebase import get_firestore_client
 from app.providers.firebase_emulator import validate_firebase_emulator_environment
 from app.services.guest_media_service import GuestMediaService
-from app.services.guest_media_storage import EmulatorGuestMediaStorage, GuestMediaStorage
+from app.services.guest_media_storage import (
+    EmulatorGuestMediaStorage,
+    GuestMediaObjectMissing,
+    GuestMediaStorage,
+)
 from app.services.guest_session_errors import GuestSessionError, media_error
 from app.services.guest_session_service import GuestSessionConfig, GuestSessionService
 
@@ -217,6 +221,43 @@ def test_successful_image_upload_metadata_and_private_content(media_environment)
     assert usage['used']['uploads'] == 1
     assert usage['used']['uploaded_bytes'] == len(content)
     assert usage['reserved']['concurrent_processing'] == 0
+
+
+def test_delete_media_removes_storage_and_record_without_refunding_upload_quota(media_environment) -> None:
+    client, sessions, media, _, tmp_path = media_environment
+    _create_session(client)
+    uploaded = _upload(client, _make_image(tmp_path / 'delete.jpg'), 'delete.jpg', 'image/jpeg').json()
+    token = client.cookies.get(sessions.config.cookie_name)
+    record = media.get_media(token, uploaded['media_id'])
+    before = sessions.usage(token)
+
+    response = client.delete(f"/api/editor/media/{uploaded['media_id']}", headers=MUTATING_HEADERS)
+
+    assert response.status_code == 204
+    assert client.get('/api/editor/media').json()['items'] == []
+    with pytest.raises(GuestMediaObjectMissing):
+        media.storage.object_size(record['storage_object_path'])
+    after = sessions.usage(token)
+    assert after['used']['uploads'] == before['used']['uploads'] == 1
+    assert after['used']['uploaded_bytes'] == before['used']['uploaded_bytes']
+    assert after['used']['storage_bytes'] == 0
+
+
+def test_delete_media_succeeds_when_storage_object_is_already_missing(media_environment) -> None:
+    client, sessions, media, _, tmp_path = media_environment
+    _create_session(client)
+    uploaded = _upload(client, _make_image(tmp_path / 'missing.jpg'), 'missing.jpg', 'image/jpeg').json()
+    token = client.cookies.get(sessions.config.cookie_name)
+    record = media.get_media(token, uploaded['media_id'])
+    media.storage.delete(record['storage_object_path'])
+
+    listed = client.get('/api/editor/media').json()['items']
+    assert listed[0]['availability'] == 'unavailable'
+    assert client.get(f"/api/editor/media/{uploaded['media_id']}/content").status_code == 410
+    response = client.delete(f"/api/editor/media/{uploaded['media_id']}", headers=MUTATING_HEADERS)
+
+    assert response.status_code == 204
+    assert client.get('/api/editor/media').json()['items'] == []
 
 
 def test_successful_video_upload_and_range_preview(media_environment) -> None:
@@ -597,8 +638,8 @@ def test_missing_storage_object_fails_before_streaming_success(media_environment
     media.storage.delete(stored['storage_object_path'])
 
     response = client.get(f"/api/editor/media/{uploaded['media_id']}/content")
-    assert response.status_code == 503
-    assert response.json()['error'] == 'guest_media_storage_unavailable'
+    assert response.status_code == 410
+    assert response.json()['error'] == 'guest_media_unavailable'
 
 
 def test_malformed_range_is_rejected_without_storage_read(media_environment) -> None:
@@ -613,7 +654,7 @@ def test_malformed_range_is_rejected_without_storage_read(media_environment) -> 
     assert response.json()['error'] == 'guest_media_range_invalid'
 
 
-def test_stale_crashed_upload_is_cleaned_before_new_quota_reservation(media_environment) -> None:
+def test_stale_crashed_upload_is_fenced_before_storage_cleanup(media_environment, monkeypatch) -> None:
     client, sessions, media, _, tmp_path = media_environment
     created = _create_session(client)
     token = client.cookies.get(sessions.config.cookie_name)
@@ -651,6 +692,16 @@ def test_stale_crashed_upload_is_cleaned_before_new_quota_reservation(media_envi
     sessions.repository.sessions.document(created['guest_id']).collection('reservations').document(
         reservation_id
     ).update({'lease_expires_at': datetime.now(UTC) - timedelta(seconds=1)})
+
+    real_delete = media.storage.delete
+
+    def assert_fenced_before_delete(path: str) -> None:
+        record = media.repository.get_for_guest(created['guest_id'], media_id)
+        assert record is not None
+        assert record['status'] == 'stale_cleanup'
+        real_delete(path)
+
+    monkeypatch.setattr(media.storage, 'delete', assert_fenced_before_delete)
 
     replacement = _upload(client, content, 'replacement.jpg', 'image/jpeg')
 

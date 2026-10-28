@@ -19,6 +19,7 @@ from app.schemas.editor import (
 from app.services.app_config_service import AppConfigService, get_app_config_service
 from app.services.guest_export_service import GuestExportService, build_guest_export_service
 from app.services.guest_media_service import GuestMediaService, build_guest_media_service
+from app.services.guest_media_storage import GuestMediaObjectMissing
 from app.services.guest_upload_parser import parse_guest_media_upload
 from app.services.guest_session_errors import GuestSessionError
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
@@ -107,7 +108,7 @@ def get_guest_usage(
 
 
 def _public_media(media: dict) -> dict:
-    return {
+    payload = {
         key: media[key]
         for key in (
             'media_id',
@@ -123,6 +124,8 @@ def _public_media(media: dict) -> dict:
             'status',
         )
     }
+    payload['availability'] = media.get('availability', 'available')
+    return payload
 
 
 @router.post('/media/upload', response_model=GuestMediaResponse, status_code=201)
@@ -214,6 +217,13 @@ def get_guest_media_content(
         )
         try:
             first_chunk = next(content)
+        except GuestMediaObjectMissing as exc:
+            raise GuestSessionError(
+                'guest_media_unavailable',
+                'This media file is no longer available.',
+                status_code=410,
+                recoverable=False,
+            ) from exc
         except Exception as exc:
             raise GuestSessionError(
                 'guest_media_storage_unavailable',
@@ -227,6 +237,21 @@ def get_guest_media_content(
             status_code=status_code,
             headers=headers,
         )
+    except GuestSessionError as exc:
+        return _guest_error(exc)
+
+
+@router.delete('/media/{media_id}', status_code=204)
+def delete_guest_media(
+    media_id: str,
+    request: Request,
+    session_service: GuestSessionService = Depends(get_guest_session_service),
+    media_service: GuestMediaService = Depends(get_guest_media_service),
+):
+    try:
+        token = _guest_token(request, session_service)
+        media_service.delete_media(request, token, media_id)
+        return Response(status_code=204)
     except GuestSessionError as exc:
         return _guest_error(exc)
 

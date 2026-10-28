@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.db.repositories.guest_session_repository import GuestQuotaReservation
 from app.services.guest_session_errors import (
@@ -129,10 +130,116 @@ class GuestMediaRepository:
         def _delete(txn):
             snapshot = reference.get(transaction=txn)
             data = snapshot.to_dict() or {}
-            if snapshot.exists and data.get('status') == 'uploading' and data.get('reservation_id') == reservation_id:
+            if snapshot.exists and data.get('status') in {'uploading', 'stale_cleanup'} and data.get('reservation_id') == reservation_id:
                 txn.delete(reference)
 
         _delete(transaction)
+
+    def claim_stale_upload_cleanup(
+        self,
+        *,
+        guest_id: str,
+        media_id: str,
+        reservation_id: str,
+        now: datetime,
+    ) -> bool:
+        media_ref = self.sessions.document(guest_id).collection('media').document(media_id)
+        reservation_ref = self.sessions.document(guest_id).collection('reservations').document(reservation_id)
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _claim(txn):
+            media_snapshot = media_ref.get(transaction=txn)
+            reservation_snapshot = reservation_ref.get(transaction=txn)
+            media = media_snapshot.to_dict() or {}
+            reservation = reservation_snapshot.to_dict() or {}
+            lease_expires_at = reservation.get('lease_expires_at')
+            if (
+                not media_snapshot.exists
+                or media.get('status') != 'uploading'
+                or media.get('reservation_id') != reservation_id
+                or (
+                    reservation_snapshot.exists
+                    and reservation.get('status') == 'active'
+                    and isinstance(lease_expires_at, datetime)
+                    and lease_expires_at > now
+                )
+            ):
+                return False
+            txn.update(media_ref, {'status': 'stale_cleanup', 'cleanup_updated_at': now})
+            return True
+
+        return bool(_claim(transaction))
+
+    def begin_delete(self, *, guest_id: str, media_id: str, now: datetime) -> dict[str, Any]:
+        session_ref = self.sessions.document(guest_id)
+        media_ref = session_ref.collection('media').document(media_id)
+        active_exports_query = session_ref.collection('exports').where(
+            filter=FieldFilter('status', 'in', ['queued', 'running'])
+        )
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _begin(txn):
+            session_snapshot = session_ref.get(transaction=txn)
+            media_snapshot = media_ref.get(transaction=txn)
+            export_snapshots = list(txn.get(active_exports_query))
+            self._require_active(session_snapshot, now)
+            if not media_snapshot.exists:
+                raise media_error('guest_media_not_found', 'Media was not found.', status_code=404)
+            media = media_snapshot.to_dict() or {}
+            if media.get('guest_id') != guest_id or media.get('status') not in {'active', 'deleting'}:
+                raise media_error('guest_media_not_found', 'Media was not found.', status_code=404)
+            expected_path = f'guest-editor/{guest_id}/sources/{media_id}/original'
+            if media.get('storage_object_path') != expected_path:
+                raise media_error('guest_media_invalid_record', 'The media record is invalid.', status_code=500)
+            if media.get('status') == 'deleting':
+                return media
+            for snapshot in export_snapshots:
+                export = snapshot.to_dict() or {}
+                timeline = export.get('timeline') or {}
+                referenced_ids = {
+                    item.get('media_id')
+                    for item in [*(timeline.get('clips') or []), *(timeline.get('audio_items') or [])]
+                }
+                if media_id in referenced_ids:
+                    raise media_error(
+                        'guest_media_in_active_export',
+                        'This media is being used by an active export.',
+                        status_code=409,
+                        recoverable=True,
+                    )
+            txn.update(media_ref, {'status': 'deleting', 'delete_started_at': now})
+            return {**media, 'status': 'deleting', 'delete_started_at': now}
+
+        return _begin(transaction)
+
+    def finalize_delete(self, *, guest_id: str, media_id: str, now: datetime) -> None:
+        session_ref = self.sessions.document(guest_id)
+        media_ref = session_ref.collection('media').document(media_id)
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _finalize(txn):
+            session_snapshot = session_ref.get(transaction=txn)
+            media_snapshot = media_ref.get(transaction=txn)
+            if not media_snapshot.exists:
+                return
+            media = media_snapshot.to_dict() or {}
+            if media.get('guest_id') != guest_id or media.get('status') != 'deleting':
+                raise media_error('guest_media_delete_conflict', 'Media deletion state changed.', status_code=409)
+            session = session_snapshot.to_dict() or {}
+            if session_snapshot.exists:
+                txn.update(
+                    session_ref,
+                    {
+                        'storage_bytes': max(0, int(session.get('storage_bytes', 0)) - int(media.get('file_size', 0))),
+                        'updated_at': now,
+                    },
+                )
+            txn.delete(media_ref)
+
+        _finalize(transaction)
 
     def mark_cleanup_pending(
         self,

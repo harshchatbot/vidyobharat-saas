@@ -15,7 +15,11 @@ from app.providers.firebase import get_firestore_client
 from app.schemas.editor import TimelineComposition
 from app.services.guest_media_storage import GuestMediaStorage, build_guest_media_storage
 from app.services.guest_session_errors import GuestSessionError
-from app.services.guest_timeline_service import GuestTimelineService, build_guest_timeline_service
+from app.services.guest_timeline_service import (
+    GuestTimelineMediaUnavailableError,
+    GuestTimelineService,
+    build_guest_timeline_service,
+)
 from app.services.timeline_render_service import TimelineRenderError, TimelineValidationError
 
 
@@ -31,8 +35,13 @@ class GuestExportWorker:
         self.worker_id = worker_id or f'worker-{secrets.token_hex(8)}'
         self.lease_duration = timedelta(seconds=settings.editor_export_worker_lease_seconds)
         self.stop_event = threading.Event()
-        if self.lease_duration.total_seconds() <= 0 or settings.editor_export_worker_max_attempts <= 0:
-            raise RuntimeError('Export worker lease and attempt settings must be positive.')
+        if (
+            self.lease_duration.total_seconds() <= 0
+            or settings.editor_export_worker_max_attempts <= 0
+            or settings.editor_export_worker_retry_base_seconds <= 0
+            or settings.editor_export_worker_retry_max_seconds <= 0
+        ):
+            raise RuntimeError('Export worker lease, attempt, and retry settings must be positive.')
 
     def run_once(self) -> bool:
         fence = secrets.token_hex(16)
@@ -67,6 +76,7 @@ class GuestExportWorker:
             now=datetime.now(UTC),
             lease_duration=self.lease_duration,
             concurrent_processing_limit=self.timeline.media_service.sessions.limits.concurrent_processing,
+            max_attempts=self.settings.editor_export_worker_max_attempts,
         )
         if not job:
             return False
@@ -202,7 +212,11 @@ class GuestExportWorker:
             error_code = self._error_code(exc, cleanup_failed)
             try:
                 attempt = int(job.get('attempt_count', 1))
-                delay = timedelta(seconds=self.settings.editor_export_worker_retry_base_seconds * (2 ** max(0, attempt - 1)))
+                delay_seconds = min(
+                    self.settings.editor_export_worker_retry_max_seconds,
+                    self.settings.editor_export_worker_retry_base_seconds * (2 ** max(0, attempt - 1)),
+                )
+                delay = timedelta(seconds=delay_seconds)
                 next_status = self.repository.fail_or_retry(
                     guest_id=guest_id,
                     job_id=job_id,
@@ -232,6 +246,8 @@ class GuestExportWorker:
             return 'output_cleanup_failed'
         if isinstance(exc, GuestSessionError):
             return exc.error
+        if isinstance(exc, GuestTimelineMediaUnavailableError):
+            return 'media_unavailable'
         if isinstance(exc, TimelineValidationError):
             return 'invalid_timeline_media'
         if isinstance(exc, ExportFenceError):

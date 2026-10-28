@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Magnet, Minus, Plus, Scissors, Trash2 } from 'lucide-react';
@@ -18,8 +17,8 @@ type Props = {
     edge: 'left' | 'right',
     time: number
   ) => void;
-  onReorderVideo: (itemId: string, targetIndex: number) => void;
   onDeleteSelected: () => void;
+  onSplitSelected: () => void;
 };
 
 const LABEL_WIDTH = 112;
@@ -32,13 +31,16 @@ export function MultiTrackTimeline({
   onSeek,
   onMoveItem,
   onResizeItem,
-  onReorderVideo,
   onDeleteSelected,
+  onSplitSelected,
 }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(48);
+  const [snapEnabled, setSnapEnabled] = useState(true);
 
   const cleanupSeekRef = useRef<(() => void) | null>(null);
 
+  const snapTargets = [0, ...project.tracks.flatMap((track) => track.items.flatMap((item) =>
+    [item.startTime, item.startTime + item.duration]))];
   const duration = Math.max(project.duration, 60);
   const timelineWidth = Math.max(duration * pixelsPerSecond, 600);
 
@@ -55,6 +57,19 @@ export function MultiTrackTimeline({
     return () => {
       cleanupSeekRef.current?.();
     };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, button, [contenteditable="true"], [role="dialog"]')) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key.toLowerCase() === 'n') { event.preventDefault(); setSnapEnabled((value) => !value); }
+      if (event.key === '+' || event.key === '=') { event.preventDefault(); setPixelsPerSecond((value) => Math.min(120, value + 10)); }
+      if (event.key === '-') { event.preventDefault(); setPixelsPerSecond((value) => Math.max(20, value - 10)); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   function beginSeek(event: PointerEvent<HTMLDivElement>) {
@@ -113,9 +128,9 @@ export function MultiTrackTimeline({
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#141b2b] text-white">
       <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3">
         <div className="flex items-center gap-1" aria-label="Timeline editing controls">
-          <button type="button" disabled title="Split is not available yet" className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/30"><Scissors className="h-3.5 w-3.5" />Split</button>
+          <button type="button" disabled={!selectedItemId} onClick={onSplitSelected} title="Split selected video/audio at playhead (S)" className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/70 hover:bg-white/10 disabled:text-white/30"><Scissors className="h-3.5 w-3.5" />Split</button>
           <button type="button" disabled={!selectedItemId} onClick={onDeleteSelected} title={selectedItemId ? 'Delete selected item' : 'Select an item to delete'} className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/70 hover:bg-white/10 disabled:text-white/30"><Trash2 className="h-3.5 w-3.5" />Delete</button>
-          <button type="button" disabled title="Timeline snapping is not available yet" className="hidden h-8 items-center gap-1.5 rounded px-2 text-xs text-white/30 sm:inline-flex"><Magnet className="h-3.5 w-3.5" />Snap</button>
+          <button type="button" onClick={() => setSnapEnabled((value) => !value)} title="Toggle snapping (N)" aria-pressed={snapEnabled} className={`hidden h-8 items-center gap-1.5 rounded px-2 text-xs sm:inline-flex ${snapEnabled ? 'bg-amber-400/15 text-amber-300' : 'text-white/50 hover:bg-white/10'}`}><Magnet className="h-3.5 w-3.5" />Snap</button>
         </div>
 
         <div
@@ -185,7 +200,9 @@ export function MultiTrackTimeline({
               onSelectItem={onSelectItem}
               onMoveItem={onMoveItem}
               onResizeItem={onResizeItem}
-              onReorderVideo={onReorderVideo}
+              snapEnabled={snapEnabled}
+              snapTargets={snapTargets}
+
             />
           ))}
 

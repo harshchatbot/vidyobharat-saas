@@ -44,6 +44,7 @@ class GuestMediaResponse(BaseModel):
     created_at: datetime
     expires_at: datetime
     status: str
+    availability: Literal['available', 'unavailable', 'unknown'] = 'available'
 
 
 class GuestMediaListResponse(BaseModel):
@@ -138,6 +139,7 @@ class TimelineClip(BaseModel):
     media_id: Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
     order: Annotated[int, Field(ge=0, strict=True)]
     start_seconds: Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)] = 0
+    timeline_start_seconds: Annotated[float | None, Field(ge=0, le=60, allow_inf_nan=False, strict=True)] = None
     duration_seconds: Annotated[float, Field(gt=0, le=120, allow_inf_nan=False, strict=True)]
     crop_mode: TimelineCropMode = TimelineCropMode.cover
     muted: bool = False
@@ -234,9 +236,19 @@ class TimelineComposition(BaseModel):
         orders = sorted(clip.order for clip in self.clips)
         if orders != list(range(len(self.clips))):
             raise ValueError('Clip order values must be unique and contiguous from zero.')
-        timeline_duration = math.fsum(clip.duration_seconds for clip in self.clips)
-        if timeline_duration > 120:
-            raise ValueError('Timeline duration exceeds the schema maximum of 120 seconds.')
+        # Older API clients only send clip order; preserve their sequential behavior.
+        cursor = 0.0
+        ordered_clips = sorted(self.clips, key=lambda clip: clip.order)
+        for clip in ordered_clips:
+            if clip.timeline_start_seconds is None:
+                clip.timeline_start_seconds = cursor
+            cursor = clip.timeline_start_seconds + clip.duration_seconds
+        for previous, current in zip(ordered_clips, ordered_clips[1:]):
+            if current.timeline_start_seconds < previous.timeline_start_seconds + previous.duration_seconds - 1e-6:
+                raise ValueError('Overlapping visual clips require transition support.')
+        timeline_duration = max(clip.timeline_start_seconds + clip.duration_seconds for clip in ordered_clips)
+        if timeline_duration > 60 + 1e-6:
+            raise ValueError('Timeline duration exceeds the 60-second editor limit.')
         item_ids = [item.id for item in (*self.text_overlays, *self.audio_items, *self.effects)]
         if len(item_ids) != len(set(item_ids)):
             raise ValueError('Timeline overlay, audio, and effect IDs must be unique.')

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -177,6 +179,212 @@ def test_submit_is_durable_idempotent_and_worker_completes_after_reconnect(expor
     assert usage['used']['exports'] == 1
     assert usage['used']['processing_seconds'] == pytest.approx(0.4, abs=0.2)
     assert usage['reserved']['concurrent_processing'] == 0
+    deleted = client.delete(f'/api/editor/media/{media_id}', headers=MUTATING)
+    assert deleted.status_code == 204
+
+
+def test_active_export_blocks_source_deletion(export_environment) -> None:
+    client, _, _, _, _, _, _, _, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'export-delete-lock'},
+        json=_timeline(media_id),
+    )
+    assert submitted.status_code == 202
+
+    deleted = client.delete(f'/api/editor/media/{media_id}', headers=MUTATING)
+
+    assert deleted.status_code == 409
+    assert deleted.json()['error'] == 'guest_media_in_active_export'
+    assert client.get(f'/api/editor/media/{media_id}').status_code == 200
+
+
+def test_missing_source_is_rejected_before_export_job_creation(export_environment) -> None:
+    client, sessions, media, _, repository, _, storage, _, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    token = client.cookies.get(sessions.config.cookie_name)
+    record = media.get_media(token, media_id)
+    storage.delete(record['storage_object_path'])
+
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'missing-source-export'},
+        json=_timeline(media_id),
+    )
+
+    assert submitted.status_code == 409
+    assert submitted.json()['error'] == 'guest_export_media_unavailable'
+    assert repository.list_for_guest(record['guest_id'], limit=10) == []
+    usage = sessions.usage(token)
+    assert usage['reserved']['exports'] == 0
+    assert usage['reserved']['concurrent_processing'] == 0
+    deleted = client.delete(f'/api/editor/media/{media_id}', headers=MUTATING)
+    assert deleted.status_code == 204
+
+
+def test_exhausted_queued_export_is_reconciled_and_stops_blocking_deletion(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, firestore, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'exhausted-queued-export'},
+        json=_timeline(media_id),
+    )
+    assert submitted.status_code == 202
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    job_ref = (
+        firestore.collection('editor_guest_sessions')
+        .document(guest_id)
+        .collection('exports')
+        .document(submitted.json()['job_id'])
+    )
+    job_ref.update(
+        {
+            'attempt_count': settings.editor_export_worker_max_attempts,
+            'retry_at': datetime.now(UTC) + timedelta(hours=12),
+            'updated_at': datetime.now(UTC) - timedelta(hours=1),
+            'error_code': 'render_failed',
+        }
+    )
+    worker = GuestExportWorker(
+        settings=settings,
+        repository=repository,
+        timeline=timeline,
+        storage=storage,
+        worker_id='reconciliation-worker',
+    )
+
+    assert worker.run_once() is False
+
+    job = repository.get(guest_id, submitted.json()['job_id'])
+    assert job is not None
+    assert job['status'] == 'failed'
+    assert job['terminal_reason'] == 'attempts_exhausted'
+    assert job['error_code'] == 'render_failed'
+    token = client.cookies.get(sessions.config.cookie_name)
+    usage = sessions.usage(token)
+    assert usage['reserved']['exports'] == 0
+    assert usage['reserved']['concurrent_processing'] == 0
+    assert client.delete(f'/api/editor/media/{media_id}', headers=MUTATING).status_code == 204
+
+
+def test_exhausted_abandoned_running_export_releases_slot_and_deletion_lock(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, firestore, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'abandoned-running-export'},
+        json=_timeline(media_id),
+    )
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    claimed = repository.claim_next(
+        worker_id='crashed-worker',
+        fence_token='crashed-fence',
+        now=datetime.now(UTC),
+        lease_duration=timedelta(seconds=1),
+        concurrent_processing_limit=1,
+        max_attempts=settings.editor_export_worker_max_attempts,
+    )
+    assert claimed is not None
+    job_ref = (
+        firestore.collection('editor_guest_sessions')
+        .document(guest_id)
+        .collection('exports')
+        .document(submitted.json()['job_id'])
+    )
+    job_ref.update(
+        {
+            'attempt_count': settings.editor_export_worker_max_attempts,
+            'lease_expires_at': datetime.now(UTC) - timedelta(seconds=1),
+        }
+    )
+    worker = GuestExportWorker(
+        settings=settings,
+        repository=repository,
+        timeline=timeline,
+        storage=storage,
+        worker_id='reconciliation-worker',
+    )
+
+    assert worker.run_once() is False
+
+    job = repository.get(guest_id, submitted.json()['job_id'])
+    assert job is not None and job['status'] == 'failed'
+    token = client.cookies.get(sessions.config.cookie_name)
+    usage = sessions.usage(token)
+    assert usage['reserved']['concurrent_processing'] == 0
+    assert client.delete(f'/api/editor/media/{media_id}', headers=MUTATING).status_code == 204
+
+
+def test_worker_does_not_retry_permanently_missing_source(export_environment) -> None:
+    client, sessions, media, _, repository, timeline, storage, settings, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'worker-missing-source'},
+        json=_timeline(media_id),
+    )
+    assert submitted.status_code == 202
+    token = client.cookies.get(sessions.config.cookie_name)
+    record = media.get_media(token, media_id)
+    storage.delete(record['storage_object_path'])
+    worker = GuestExportWorker(
+        settings=settings,
+        repository=repository,
+        timeline=timeline,
+        storage=storage,
+        worker_id='missing-source-worker',
+    )
+
+    assert worker.run_once() is True
+
+    job = repository.get(record['guest_id'], submitted.json()['job_id'])
+    assert job is not None
+    assert job['status'] == 'failed'
+    assert job['attempt_count'] == 1
+    assert job['error_code'] == 'media_unavailable'
+    usage = sessions.usage(token)
+    assert usage['reserved']['exports'] == 0
+    assert usage['reserved']['concurrent_processing'] == 0
+    assert client.delete(f'/api/editor/media/{media_id}', headers=MUTATING).status_code == 204
+
+
+def test_deletion_between_export_validation_and_transaction_fences_job_creation(
+    export_environment,
+    monkeypatch,
+) -> None:
+    client, _, _, _, _, timeline, _, _, firestore, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    validated = threading.Event()
+    continue_submission = threading.Event()
+    original_validate = timeline.validate_sources
+
+    def pause_after_validation(*args, **kwargs):
+        result = original_validate(*args, **kwargs)
+        validated.set()
+        assert continue_submission.wait(timeout=5)
+        return result
+
+    monkeypatch.setattr(timeline, 'validate_sources', pause_after_validation)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(
+            client.post,
+            '/api/editor/exports',
+            headers={**MUTATING, 'Idempotency-Key': 'delete-export-race'},
+            json=_timeline(media_id),
+        )
+        assert validated.wait(timeout=5)
+        deleted = client.delete(f'/api/editor/media/{media_id}', headers=MUTATING)
+        continue_submission.set()
+        submitted = pending.result(timeout=5)
+
+    assert deleted.status_code == 204
+    assert submitted.status_code == 409
+    assert submitted.json()['error'] == 'guest_export_media_unavailable'
+    sessions = list(firestore.collection('editor_guest_sessions').stream())
+    assert len(sessions) == 1
+    assert list(sessions[0].reference.collection('exports').stream()) == []
 
 
 def test_queued_exports_do_not_consume_active_processing_capacity(export_environment) -> None:

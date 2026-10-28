@@ -1,17 +1,22 @@
 import type { MetadataRoute } from 'next';
 
-import { getSiteUrl } from '@/lib/seo';
+const SITE_URL = 'https://rangmanchai.com';
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl = getSiteUrl();
-
   return {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/dashboard', '/settings', '/billing', '/library', '/projects', '/profile', '/create-ai-video'],
+      disallow: [
+        '/dashboard',
+        '/settings',
+        '/billing',
+        '/library',
+        '/projects',
+        '/profile',
+        '/create-ai-video',
+      ],
     },
-    sitemap: `${siteUrl}/sitemap.xml`,
-    host: siteUrl,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

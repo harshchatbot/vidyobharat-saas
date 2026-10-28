@@ -96,6 +96,32 @@ test('media thumbnails, visual inspector variants, and timeline delete remain fu
   await expect(inspector.getByText('Select a clip, text, effect, or audio item to edit it.')).toBeVisible();
 });
 
+test('media deletion is confirmed and blocked while the media is on the timeline', async ({ page }) => {
+  await mockGuestEditor(page);
+  let deletedMediaId = '';
+  await page.route(`**/api/editor/media/${IMAGE_ID}`, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      deletedMediaId = IMAGE_ID;
+      await route.fulfill({ status: 204, body: '' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/editor');
+
+  const deleteMedia = page.getByRole('button', { name: 'Delete a-very-long-photo-filename-for-truncation.png' });
+  await page.getByRole('button', { name: 'Add a-very-long-photo-filename-for-truncation.png to timeline' }).click();
+  await expect(deleteMedia).toBeDisabled();
+  await page.getByRole('button', { name: 'Remove selected timeline item' }).click();
+  await expect(deleteMedia).toBeEnabled();
+  page.once('dialog', (dialog) => dialog.accept());
+  await deleteMedia.click();
+
+  await expect(page.getByText('a-very-long-photo-filename-for-truncation.png')).toHaveCount(0);
+  expect(deletedMediaId).toBe(IMAGE_ID);
+});
+
 test('filter selection opens uncommitted and Cancel closes the preview panel', async ({ page }) => {
   await mockGuestEditor(page);
   await page.setViewportSize({ width: 1440, height: 900 });

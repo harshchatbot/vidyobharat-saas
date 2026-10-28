@@ -20,7 +20,11 @@ from app.core.config import Settings, get_settings
 from app.db.repositories.guest_media_repository import GuestMediaRepository
 from app.db.repositories.guest_session_repository import GuestQuotaReservation
 from app.providers.firebase import get_firestore_client
-from app.services.guest_media_storage import GuestMediaStorage, build_guest_media_storage
+from app.services.guest_media_storage import (
+    GuestMediaObjectMissing,
+    GuestMediaStorage,
+    build_guest_media_storage,
+)
 from app.services.guest_session_errors import GuestSessionError, media_error
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
 
@@ -215,6 +219,14 @@ class GuestMediaService:
                         recoverable=True,
                     ) from exc
                 object_uploaded = True
+                stored_size = self._stored_size(object_name)
+                if stored_size is not None and stored_size != file_size:
+                    raise media_error(
+                        'guest_media_storage_incomplete',
+                        'The uploaded media was not stored completely.',
+                        status_code=503,
+                        recoverable=True,
+                    )
 
             now = datetime.now(UTC)
             media = {
@@ -306,12 +318,31 @@ class GuestMediaService:
 
     def list_media(self, raw_token: str | None) -> list[dict[str, Any]]:
         session = self.sessions.get_session(raw_token)
-        return [item for item in self.repository.list_for_guest(session['guest_id']) if item.get('status') == 'active']
+        items = [item for item in self.repository.list_for_guest(session['guest_id']) if item.get('status') == 'active']
+        for item in items:
+            try:
+                stored_size = self._stored_size(item['storage_object_path'])
+                item['availability'] = (
+                    'available'
+                    if stored_size is None or stored_size == int(item['file_size'])
+                    else 'unavailable'
+                )
+            except GuestMediaObjectMissing:
+                item['availability'] = 'unavailable'
+            except Exception:
+                logger.warning(
+                    'guest_media_availability_check_failed',
+                    extra={'guest_id': session['guest_id'], 'media_id': item.get('media_id')},
+                    exc_info=True,
+                )
+                item['availability'] = 'unknown'
+        return items
 
     def _recover_stale_uploads(self, session: dict[str, Any], raw_token: str | None) -> None:
         now = datetime.now(UTC)
         for media in self.repository.list_for_guest(session['guest_id']):
-            if media.get('status') != 'uploading':
+            status = media.get('status')
+            if status not in {'uploading', 'stale_cleanup'}:
                 continue
             reservation_id = media.get('reservation_id')
             if not isinstance(reservation_id, str):
@@ -321,7 +352,7 @@ class GuestMediaService:
                 reservation_id=reservation_id,
             )
             lease_expires_at = (reservation or {}).get('lease_expires_at')
-            if (
+            if status == 'uploading' and (
                 reservation
                 and reservation.get('status') == 'active'
                 and isinstance(lease_expires_at, datetime)
@@ -334,6 +365,14 @@ class GuestMediaService:
             object_name = self._object_name(session['guest_id'], media_id)
             if media.get('storage_object_path') != object_name:
                 continue
+            if status == 'uploading':
+                if not self.repository.claim_stale_upload_cleanup(
+                    guest_id=session['guest_id'],
+                    media_id=media_id,
+                    reservation_id=reservation_id,
+                    now=now,
+                ):
+                    continue
             try:
                 self.storage.delete(object_name)
             except Exception:
@@ -354,6 +393,40 @@ class GuestMediaService:
                 media_id=media_id,
                 reservation_id=reservation_id,
             )
+
+    def delete_media(self, request, raw_token: str | None, media_id: str) -> None:
+        if not _MEDIA_ID_PATTERN.fullmatch(media_id):
+            raise self._not_found()
+        self.sessions.validate_mutating_request(request)
+        session = self.sessions.get_session(raw_token)
+        media = self.repository.begin_delete(
+            guest_id=session['guest_id'],
+            media_id=media_id,
+            now=datetime.now(UTC),
+        )
+        expected_path = self._object_name(session['guest_id'], media_id)
+        if media.get('storage_object_path') != expected_path:
+            raise media_error('guest_media_invalid_record', 'The media record is invalid.', status_code=500)
+        try:
+            self.storage.delete(expected_path)
+        except Exception as exc:
+            raise media_error(
+                'guest_media_delete_pending',
+                'Media deletion could not be completed. Retry shortly.',
+                status_code=503,
+                recoverable=True,
+            ) from exc
+        self.repository.finalize_delete(
+            guest_id=session['guest_id'],
+            media_id=media_id,
+            now=datetime.now(UTC),
+        )
+
+    def _stored_size(self, object_name: str) -> int | None:
+        implementation = getattr(type(self.storage), 'object_size', None)
+        if implementation is None or implementation is GuestMediaStorage.object_size:
+            return None
+        return self.storage.object_size(object_name)
 
     def get_media(self, raw_token: str | None, media_id: str) -> dict[str, Any]:
         if not _MEDIA_ID_PATTERN.fullmatch(media_id):
