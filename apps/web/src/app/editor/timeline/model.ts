@@ -65,6 +65,12 @@ export function activeItems(project: TimelineProject, time: number): TimelineIte
   return project.tracks.flatMap((track) => track.items).filter((item) => time >= item.startTime && time < item.startTime + item.duration);
 }
 
+export function visualTimelineEnd(project: TimelineProject): number {
+  return project.tracks.find((track) => track.id === 'video')?.items.reduce(
+    (end, item) => Math.max(end, item.startTime + item.duration), 0,
+  ) ?? 0;
+}
+
 export function normalizeProject(project: TimelineProject): TimelineProject {
   const tracks = project.tracks.map((track) => ({ ...track, items: track.items.map(normalizeItem) }));
   const videoTrack = tracks.find((track) => track.id === 'video');
@@ -74,8 +80,10 @@ export function normalizeProject(project: TimelineProject): TimelineProject {
     .sort((a, b) => a.startTime - b.startTime);
   const videoEnd = videoTrack?.items.reduce((end, item) =>
     Math.max(end, item.startTime + item.duration), 0) ?? 0;
-  const furthestEnd = tracks.flatMap((track) => track.items).reduce((max, item) => Math.max(max, item.startTime + item.duration), 0);
-  return { ...project, tracks, duration: clampTime(Math.max(videoEnd, furthestEnd)) };
+  const overlayEnd = tracks.filter((track) => track.id !== 'video').flatMap((track) => track.items)
+    .reduce((max, item) => Math.max(max, item.startTime + item.duration), 0);
+  const duration = clampTime(Math.max(videoEnd, overlayEnd));
+  return { ...project, tracks, duration, extensionExplicit: overlayEnd > videoEnd + 0.001 };
 }
 
 function normalizeItem<T extends TimelineItem>(item: T): T {

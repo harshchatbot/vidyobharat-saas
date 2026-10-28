@@ -283,12 +283,21 @@ class TimelineRenderService:
             f'atrim=duration={total_duration},asetpts=PTS-STARTPTS[asilence]'
         )
         embedded_audio_labels: list[str] = ['[asilence]']
+        visual_duration = max(clip.timeline_start_seconds + clip.duration_seconds for clip in clips)
         for index, clip in enumerate(clips):
             source, probe = source_by_id[clip.media_id]
             duration = format_seconds(clip.duration_seconds)
             source_start = format_seconds(clip.start_seconds)
             timeline_start = format_seconds(clip.timeline_start_seconds)
-            timeline_end = format_seconds(clip.timeline_start_seconds + clip.duration_seconds)
+            extends_final_visual = (
+                index == len(clips) - 1
+                and composition_duration(composition) > visual_duration + 1e-9
+            )
+            timeline_end = format_seconds(
+                composition_duration(composition)
+                if extends_final_visual
+                else clip.timeline_start_seconds + clip.duration_seconds
+            )
             scale = self._scale_filter(composition.width, composition.height, clip.crop_mode)
             if source.media_type == 'image':
                 filters.append(
@@ -313,7 +322,9 @@ class TimelineRenderService:
                     )
                     embedded_audio_labels.append(f'[a{index}]')
             filters.append(
-                f'[vcanvas{index}][v{index}]overlay=eof_action=pass:repeatlast=0:'
+                f'[vcanvas{index}][v{index}]overlay='
+                f'eof_action={"repeat" if extends_final_visual else "pass"}:'
+                f'repeatlast={1 if extends_final_visual else 0}:'
                 f"enable='gte(t,{timeline_start})*lt(t,{timeline_end})'[vcanvas{index + 1}]"
             )
         if len(embedded_audio_labels) == 1:
@@ -578,7 +589,7 @@ class TimelineRenderService:
             raise TimelineProcessError('Rendered timeline dimensions are incorrect.')
         if abs(fps - composition.fps) > 0.01:
             raise TimelineProcessError('Rendered timeline frame rate is incorrect.')
-        duration_tolerance = max(2 / composition.fps, 0.03, expected_duration * 0.01)
+        duration_tolerance = max(2 / composition.fps, 0.03)
         start_tolerance = max(1 / composition.fps, 1 / 48000)
         format_start = self._timestamp(payload.get('format') or {}, 'start_time')
         video_start = self._timestamp(video, 'start_time')
@@ -815,6 +826,8 @@ class TimelineRenderService:
 
 
 def composition_duration(composition: TimelineComposition) -> float:
+    if composition.duration_seconds is not None:
+        return composition.duration_seconds
     return max(clip.timeline_start_seconds + clip.duration_seconds for clip in composition.clips)
 
 

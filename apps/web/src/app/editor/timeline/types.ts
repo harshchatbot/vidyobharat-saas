@@ -37,14 +37,14 @@ export type AudioTimelineItem = BaseTimelineItem & { kind: 'audio'; trackId: 'mu
 export type EffectTimelineItem = BaseTimelineItem & { kind: 'effect'; trackId: 'effects'; preset: EffectPreset; amount: number };
 export type TimelineItem = VideoTimelineItem | TextTimelineItem | AudioTimelineItem | EffectTimelineItem;
 export type TimelineTrack = { id: TrackType; type: TrackType; name: string; items: TimelineItem[] };
-export type TimelineProject = { id: string; duration: number; aspectRatio: ProjectAspectRatio; exportSettings: ProjectExportSettings; tracks: TimelineTrack[] };
+export type TimelineProject = { id: string; duration: number; extensionExplicit: boolean; aspectRatio: ProjectAspectRatio; exportSettings: ProjectExportSettings; tracks: TimelineTrack[] };
 
 export const EDITOR_FONTS = ['Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif'] as const;
 export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation'];
 
 export function createEmptyProject(): TimelineProject {
   return {
-    id: 'guest-reel', duration: 0, aspectRatio: '9:16',
+    id: 'guest-reel', duration: 0, extensionExplicit: false, aspectRatio: '9:16',
     exportSettings: { filename: 'rangmanch-export.mp4', resolution: '720p', fps: 30, quality: 'high' },
     tracks: [
       { id: 'text', type: 'text', name: 'Text', items: [] },

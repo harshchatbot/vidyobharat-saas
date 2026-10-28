@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addItem, activeItems, moveItem, reorderVideo, resizeItem, updateItem } from './model.ts';
+import { addItem, activeItems, moveItem, reorderVideo, resizeItem, updateItem, visualTimelineEnd } from './model.ts';
 import { browserEffectStyle, effectsWithTemporaryPreview, validateFilterAmount } from './filters.ts';
 import { serializeTimelineProject } from './serialization.ts';
 import { moveTextGeometry, resizeTextGeometry } from './textGeometry.ts';
@@ -58,6 +58,25 @@ test('timeline serialization preserves export-relevant text audio and effects', 
   );
   assert.equal(payload.audio_items[0].kind, 'music');
   assert.equal(payload.effects[0].preset, 'vibrance');
+  assert.equal(payload.duration_seconds, 4);
+});
+
+test('manual overlay extension is explicit and preserves the visual boundary', () => {
+  let project = addItem(createEmptyProject(), { id: 'visual', kind: 'video', trackId: 'video', label: 'Still', mediaId: 'a'.repeat(32), contentType: 'image/png', startTime: 0, duration: 3, sourceStart: 0, cropMode: 'cover', muted: true, volume: 0 });
+  project = addItem(project, { ...textItem, startTime: 2, duration: 3 });
+  assert.equal(visualTimelineEnd(project), 3);
+  assert.equal(project.duration, 5);
+  assert.equal(project.extensionExplicit, true);
+  assert.equal(serializeTimelineProject(project).duration_seconds, 5);
+});
+
+test('serialization quantizes timeline values to the selected output frame', () => {
+  let project = addItem(createEmptyProject(), { id: 'visual', kind: 'video', trackId: 'video', label: 'Clip', mediaId: 'a'.repeat(32), contentType: 'video/mp4', startTime: 0.01, duration: 1.01, sourceStart: 0.01, cropMode: 'cover', muted: false, volume: 1 });
+  project = { ...project, exportSettings: { ...project.exportSettings, fps: 30 } };
+  const payload = serializeTimelineProject(project);
+  assert.equal(payload.clips[0].timeline_start_seconds, 0);
+  assert.equal(payload.clips[0].duration_seconds, 1);
+  assert.equal(payload.duration_seconds, 1.0333333333333334);
 });
 
 test('export settings serialize dimensions, ratio, fps, quality and filename consistently', () => {

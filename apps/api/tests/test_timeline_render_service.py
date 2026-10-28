@@ -351,11 +351,41 @@ def test_text_schema_rejects_overlapping_in_and_out_animations() -> None:
 
 
 def test_enhanced_timeline_rejects_items_past_visual_duration() -> None:
-    with pytest.raises(ValidationError, match='beyond the visual timeline'):
+    with pytest.raises(ValidationError, match='beyond the project duration'):
         TimelineComposition(
             clips=[_clip(RED, 0, 1)],
             effects=[TimelineEffect(id='late', preset='grayscale', start_seconds=0.8, duration_seconds=0.3)],
         )
+
+
+def test_explicit_project_extension_holds_final_visual_frame(tmp_path: Path) -> None:
+    image = tmp_path / 'final.png'
+    _image(image, 'red')
+    timeline = TimelineComposition(
+        width=180, height=320, fps=30, duration_seconds=2.0,
+        clips=[_clip(RED, 0, 1.0)],
+        text_overlays=[TimelineTextOverlay(
+            id='extended-title', text='Extended', start_seconds=1.0, duration_seconds=1.0,
+        )],
+    )
+
+    with TimelineRenderService().render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert _pixel(result.path, 1.7)[0] > 180
+        assert result.metadata.duration_seconds == pytest.approx(2.0, abs=2 / 30)
+
+
+def test_timeline_times_quantize_deterministically_to_output_frames() -> None:
+    timeline = TimelineComposition(
+        width=180, height=320, fps=30, duration_seconds=1.016,
+        clips=[TimelineClip(
+            media_id=RED, order=0, start_seconds=0.016,
+            timeline_start_seconds=0.016, duration_seconds=1.0,
+        )],
+    )
+
+    assert timeline.clips[0].start_seconds == 0.016
+    assert timeline.clips[0].timeline_start_seconds == 0
+    assert timeline.duration_seconds == 1
 
 
 @pytest.mark.parametrize(
@@ -492,11 +522,8 @@ def test_render_rejects_clip_shorter_than_one_output_frame(tmp_path: Path) -> No
     image = tmp_path / 'image.png'
     _image(image, 'red')
 
-    with pytest.raises(TimelineValidationError, match='one output frame'):
-        TimelineRenderService().render(
-            _composition(_clip(RED, 0, 0.01), fps=30),
-            [_resolved(RED, 'image', image)],
-        )
+    with pytest.raises(ValidationError, match='one output frame'):
+        _composition(_clip(RED, 0, 0.01), fps=30)
 
 
 def test_reserved_workspace_bytes_count_toward_render_disk_limit(tmp_path: Path) -> None:

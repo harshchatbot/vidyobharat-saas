@@ -3,6 +3,7 @@
 import { Magnet, Minus, Plus, Scissors, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { TimelineTrack } from './TimelineTrack';
+import { visualTimelineEnd } from './model';
 import type { TimelineProject } from './types';
 
 type Props = {
@@ -43,6 +44,7 @@ export function MultiTrackTimeline({
     [item.startTime, item.startTime + item.duration]))];
   const duration = Math.max(project.duration, 60);
   const timelineWidth = Math.max(duration * pixelsPerSecond, 600);
+  const visualEnd = visualTimelineEnd(project);
 
   const rulerStep =
     pixelsPerSecond >= 60 ? 1 : pixelsPerSecond >= 30 ? 2 : 5;
@@ -205,6 +207,12 @@ export function MultiTrackTimeline({
 
             />
           ))}
+
+          {project.extensionExplicit && <div
+            className="pointer-events-none absolute bottom-0 top-9 z-[1] border-l border-dashed border-amber-300/60 bg-amber-300/5"
+            style={{ left: LABEL_WIDTH + visualEnd * pixelsPerSecond, width: (project.duration - visualEnd) * pixelsPerSecond }}
+            title="Explicit extension: the final visual frame is held"
+          ><span className="absolute left-2 top-1 text-[9px] font-semibold uppercase text-amber-300/70">Held frame extension</span></div>}
 
           <div
             className="absolute bottom-0 top-9 z-10 w-[2px] cursor-ew-resize touch-none bg-[#f4c30f]"

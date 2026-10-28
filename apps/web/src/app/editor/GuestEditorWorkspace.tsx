@@ -13,7 +13,7 @@ import { invalidateGuestMediaUrl } from './useGuestMediaUrl';
 import { TextOverlayCanvas } from './TextOverlayCanvas';
 import { TextLibrary } from './TextLibrary';
 import { MultiTrackTimeline } from './timeline/MultiTrackTimeline';
-import { activeItems, addItem, moveItem, projectItem, removeItem, resizeItem, splitItem, updateItem } from './timeline/model';
+import { activeItems, addItem, moveItem, projectItem, removeItem, resizeItem, splitItem, updateItem, visualTimelineEnd } from './timeline/model';
 import { browserEffectStyle, effectsWithTemporaryPreview, vignetteOpacity } from './timeline/filters';
 import type { EffectSection } from './timeline/filters';
 import { serializeTimelineProject } from './timeline/serialization';
@@ -61,7 +61,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const selectedItem = selectedItemId ? projectItem(project, selectedItemId) : undefined;
   const selectedText = selectedItem?.kind === 'text' ? selectedItem : undefined;
   const itemsAtPlayhead = useMemo(() => activeItems(project, playbackTime), [playbackTime, project]);
-  const previewClip = itemsAtPlayhead.find((item): item is VideoTimelineItem => item.kind === 'video');
+  const visuals = project.tracks.find((track) => track.id === 'video')?.items.filter((item): item is VideoTimelineItem => item.kind === 'video') ?? [];
+  const visualEnd = visualTimelineEnd(project);
+  const heldFinalClip = project.extensionExplicit && playbackTime >= visualEnd
+    ? [...visuals].sort((a, b) => a.startTime - b.startTime).at(-1)
+    : undefined;
+  const previewClip = itemsAtPlayhead.find((item): item is VideoTimelineItem => item.kind === 'video') ?? heldFinalClip;
   const activeTexts = itemsAtPlayhead.filter((item): item is TextTimelineItem => item.kind === 'text');
   const activeEffects = itemsAtPlayhead.filter((item): item is EffectTimelineItem => item.kind === 'effect');
   const audioItems = project.tracks.flatMap((track) => track.items).filter((item): item is AudioTimelineItem => item.kind === 'audio');
@@ -224,18 +229,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   function addVisual(item: GuestMedia) {
-    if (item.availability === 'unavailable' || !['image', 'video'].includes(item.media_type) || clipCount >= MAX_CLIPS || project.duration >= MAX_TIMELINE_SECONDS) return;
+    if (item.availability === 'unavailable' || !['image', 'video'].includes(item.media_type) || clipCount >= MAX_CLIPS || visualTimelineEnd(project) >= MAX_TIMELINE_SECONDS) return;
     const requested = item.media_type === 'image' ? 3 : Math.min(item.duration_seconds || 3, 8);
-    const duration = Math.min(requested, MAX_TIMELINE_SECONDS - project.duration);
+    const startTime = visualTimelineEnd(project);
+    const duration = Math.min(requested, MAX_TIMELINE_SECONDS - startTime);
     if (duration < 0.25) return;
-    const clip: VideoTimelineItem = { id: crypto.randomUUID(), kind: 'video', trackId: 'video', mediaId: item.media_id, contentType: item.content_type, label: item.original_filename, startTime: project.duration, duration, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
-    mutate(addItem(project, clip)); setSelectedItemId(clip.id); setPlaybackTime(project.duration); setIsPlaying(false);
+    const clip: VideoTimelineItem = { id: crypto.randomUUID(), kind: 'video', trackId: 'video', mediaId: item.media_id, contentType: item.content_type, label: item.original_filename, startTime, duration, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
+    mutate(addItem(project, clip)); setSelectedItemId(clip.id); setPlaybackTime(startTime); setIsPlaying(false);
   }
 
   function addAudio(item: GuestMedia, trackId: 'music' | 'sfx' = audioTarget) {
     if (item.availability === 'unavailable' || item.media_type !== 'audio') return;
     const startTime = Math.min(playbackTime, MAX_TIMELINE_SECONDS - 0.25);
-    const duration = Math.min(item.duration_seconds || 5, MAX_TIMELINE_SECONDS - startTime);
+    const boundary = visualTimelineEnd(project) || MAX_TIMELINE_SECONDS;
+    const duration = Math.min(item.duration_seconds || 5, Math.max(0.25, boundary - startTime));
     const audio: AudioTimelineItem = { id: crypto.randomUUID(), kind: 'audio', trackId, mediaId: item.media_id, contentType: item.content_type, label: item.original_filename, startTime, duration, sourceStart: 0, muted: false, volume: trackId === 'music' ? 0.65 : 1 };
     mutate(addItem(project, audio)); setSelectedItemId(audio.id);
   }
@@ -347,7 +354,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   function removeSelected() { if (!selectedItemId) return; mutate(removeItem(project, selectedItemId)); setSelectedItemId(null); }
   function previewText(item?: TextTimelineItem) { setTextPreview(item ? { item, targetId: selectedText?.id } : undefined); }
   function applyTextDraft(item: TextTimelineItem, targetId?: string) {
-    const committed = targetId ? { ...item, id: targetId } : item;
+    const boundary = visualTimelineEnd(project) || project.duration || MAX_TIMELINE_SECONDS;
+    const committed = targetId
+      ? { ...item, id: targetId }
+      : { ...item, duration: Math.max(0.25, Math.min(item.duration, boundary - item.startTime)) };
     const next = targetId ? updateItem(project, targetId, committed) : addItem(project, committed);
     mutate(next); setSelectedItemId(targetId ?? item.id); setTextPreview(undefined); setMobilePanel(null);
   }
@@ -550,12 +560,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </div>
           <section className="flex min-h-[180px] min-w-0 flex-1 items-center justify-center overflow-hidden p-3 sm:min-h-[220px] sm:p-5 lg:min-h-0">
             <div className={`relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl shadow-black/50 ${project.aspectRatio === '9:16' || project.aspectRatio === '4:5' ? 'h-full w-auto' : 'h-auto w-full'}`} style={{ aspectRatio: project.aspectRatio.replace(':', ' / ') }} data-testid="editor-preview-canvas" onPointerDown={() => setSelectedItemId(null)}>
-              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying} localTime={previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
+              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / project.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
               {vignette > 0 && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: `inset 0 0 100px rgba(0,0,0,${vignette})` }} />}
               {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates) => { if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate(updateItem(project, text.id, updates)); }} />)}
             </div>
           </section>
-          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{project.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
+          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{project.extensionExplicit ? 'Extended · final frame held · ' : ''}{project.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
           {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} />)}
         </main>
 
