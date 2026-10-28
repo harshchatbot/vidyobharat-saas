@@ -1,3 +1,4 @@
+
 name: rangmanch
 
 services:
@@ -21,7 +22,7 @@ services:
       - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     mem_limit: 384m
 
-    export-worker:
+  export-worker:
     image: rangmanch-api:latest
     restart: unless-stopped
     command: python -m app.services.guest_export_worker
@@ -35,6 +36,6 @@ services:
       - rangmanch-data:/app/data
       - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     mem_limit: 768m
-    
+
 volumes:
   rangmanch-data:
