@@ -445,7 +445,14 @@ class TimelineRenderService:
                 + f'atrim=duration={format_seconds(composition_duration(composition))}[{audio_label}]'
             )
         final_video_label = 'vfinal'
-        filters.append(f'[{video_label}]scale=in_range=auto:out_range=tv,format=yuv420p[{final_video_label}]')
+        final_audio_label = 'afinal'
+        filters.append(
+            f'[{video_label}]trim=duration={total_duration},setpts=PTS-STARTPTS,'
+            f'scale=in_range=auto:out_range=tv,format=yuv420p[{final_video_label}]'
+        )
+        filters.append(
+            f'[{audio_label}]atrim=duration={total_duration},asetpts=PTS-STARTPTS[{final_audio_label}]'
+        )
         quality_args = (
             ['-preset', 'slow', '-crf', '18']
             if composition.quality == 'high'
@@ -454,10 +461,11 @@ class TimelineRenderService:
         command.extend(
             [
                 '-filter_complex', ';'.join(filters),
-                '-map', f'[{final_video_label}]', '-map', f'[{audio_label}]',
+                '-map', f'[{final_video_label}]', '-map', f'[{final_audio_label}]',
                 '-c:v', 'libx264', *quality_args,
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
                 '-movflags', '+faststart', '-threads', '1',
+                '-t', total_duration,
                 str(output),
             ]
         )
@@ -513,8 +521,8 @@ class TimelineRenderService:
         command = [
             self.ffprobe_binary, '-v', 'error', '-print_format', 'json',
             '-show_entries',
-            'stream=codec_type,codec_name,width,height,duration,avg_frame_rate,pix_fmt,sample_rate:'
-            'format=duration',
+            'stream=codec_type,codec_name,width,height,start_time,duration,avg_frame_rate,pix_fmt,sample_rate:'
+            'format=start_time,duration',
             '-show_streams', '-show_format', str(path),
         ]
         timeout = min(30.0, self.limits.ffmpeg_timeout_seconds)
@@ -571,6 +579,12 @@ class TimelineRenderService:
         if abs(fps - composition.fps) > 0.01:
             raise TimelineProcessError('Rendered timeline frame rate is incorrect.')
         duration_tolerance = max(2 / composition.fps, 0.03, expected_duration * 0.01)
+        start_tolerance = max(1 / composition.fps, 1 / 48000)
+        format_start = self._timestamp(payload.get('format') or {}, 'start_time')
+        video_start = self._timestamp(video, 'start_time')
+        audio_start = self._timestamp(audio, 'start_time')
+        if any(abs(value) > start_tolerance for value in (format_start, video_start, audio_start)):
+            raise TimelineProcessError('Rendered timeline streams do not start at zero.')
         if abs(duration - expected_duration) > duration_tolerance:
             raise TimelineProcessError('Rendered timeline duration is incorrect.')
         if (
@@ -592,6 +606,17 @@ class TimelineRenderService:
             file_size=size,
             faststart=True,
         )
+
+    @staticmethod
+    def _timestamp(payload: dict[str, Any], field: str) -> float:
+        raw = payload.get(field, 0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise TimelineProcessError(f'Rendered timeline {field} is invalid.') from exc
+        if not math.isfinite(value):
+            raise TimelineProcessError(f'Rendered timeline {field} is invalid.')
+        return value
 
     @staticmethod
     def _require_regular_file(path: Path) -> Path:

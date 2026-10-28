@@ -71,6 +71,14 @@ def _audio(path: Path, *, duration: float = 1.2) -> None:
     ])
 
 
+def _audio_with_timestamp_offset(path: Path, *, duration: float = 36.5, offset: float = 30.5) -> None:
+    _run([
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+        '-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000:duration={duration}',
+        '-output_ts_offset', str(offset), '-c:a', 'aac', str(path),
+    ])
+
+
 def _two_color_video(path: Path) -> None:
     _run(
         [
@@ -230,6 +238,35 @@ def test_text_audio_and_effects_render_into_browser_compatible_output(tmp_path: 
         payload = _probe(result.path)
         assert any(stream['codec_type'] == 'audio' and stream['codec_name'] == 'aac' for stream in payload['streams'])
         assert result.metadata.duration_seconds == pytest.approx(1, abs=0.15)
+
+
+def test_long_offset_background_music_cannot_extend_mp4_container(tmp_path: Path) -> None:
+    first = tmp_path / 'first.png'
+    second = tmp_path / 'second.png'
+    music = tmp_path / 'offset-music.m4a'
+    _image(first, 'red')
+    _image(second, 'blue')
+    _audio_with_timestamp_offset(music)
+    timeline = TimelineComposition(
+        width=180,
+        height=320,
+        fps=30,
+        clips=[_clip(RED, 0, 3), _clip(BLUE, 1, 3)],
+        audio_items=[TimelineAudioItem(
+            id='music', media_id=AUDIO, kind='music', start_seconds=0,
+            duration_seconds=6, source_start_seconds=0, volume=0.5,
+        )],
+    )
+
+    with TimelineRenderService().render(
+        timeline,
+        [_resolved(RED, 'image', first), _resolved(BLUE, 'image', second), _resolved(AUDIO, 'audio', music)],
+    ) as result:
+        payload = _probe(result.path)
+        assert float(payload['format']['duration']) == pytest.approx(6, abs=0.067)
+        for stream in payload['streams']:
+            assert float(stream.get('start_time', 0)) == pytest.approx(0, abs=1 / 30)
+            assert float(stream['duration']) == pytest.approx(6, abs=0.067)
 
 
 def test_freeform_text_style_and_rotation_render_successfully(tmp_path: Path) -> None:
