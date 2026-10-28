@@ -252,6 +252,11 @@ def test_long_offset_background_music_cannot_extend_mp4_container(tmp_path: Path
         height=320,
         fps=30,
         clips=[_clip(RED, 0, 3), _clip(BLUE, 1, 3)],
+        text_overlays=[TimelineTextOverlay(
+            id='title', text='RangManch', start_seconds=0.5, duration_seconds=5,
+            font_family='Inter', font_size=28, color='#ffffff', bold=True,
+            position='center',
+        )],
         audio_items=[TimelineAudioItem(
             id='music', media_id=AUDIO, kind='music', start_seconds=0,
             duration_seconds=6, source_start_seconds=0, volume=0.5,
@@ -263,10 +268,37 @@ def test_long_offset_background_music_cannot_extend_mp4_container(tmp_path: Path
         [_resolved(RED, 'image', first), _resolved(BLUE, 'image', second), _resolved(AUDIO, 'audio', music)],
     ) as result:
         payload = _probe(result.path)
+        video = next(stream for stream in payload['streams'] if stream['codec_type'] == 'video')
+        assert video['avg_frame_rate'] == '30/1'
+        assert video['r_frame_rate'] == '30/1'
+        assert int(video['nb_frames']) == 180
+        assert float(video['duration']) == pytest.approx(6, abs=0.067)
         assert float(payload['format']['duration']) == pytest.approx(6, abs=0.067)
         for stream in payload['streams']:
             assert float(stream.get('start_time', 0)) == pytest.approx(0, abs=1 / 30)
             assert float(stream['duration']) == pytest.approx(6, abs=0.067)
+
+
+def test_render_command_enforces_constant_output_frame_rate(tmp_path: Path) -> None:
+    image = tmp_path / 'image.png'
+    output = tmp_path / 'output.mp4'
+    _image(image, 'red')
+    timeline = TimelineComposition(
+        width=180, height=320, fps=30,
+        clips=[_clip(RED, 0, 1)],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(
+        timeline,
+        [_resolved(RED, 'image', image)],
+    )
+
+    command = renderer._build_command(timeline, clips, sources, output)
+    filter_graph = command[command.index('-filter_complex') + 1]
+
+    assert 'fps=fps=30:start_time=0:round=near' in filter_graph
+    assert command[command.index('-r') + 1] == '30'
+    assert command[command.index('-vsync') + 1] == 'cfr'
 
 
 def test_freeform_text_style_and_rotation_render_successfully(tmp_path: Path) -> None:

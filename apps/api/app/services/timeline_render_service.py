@@ -477,6 +477,7 @@ class TimelineRenderService:
         final_audio_label = 'afinal'
         filters.append(
             f'[{video_label}]trim=duration={total_duration},setpts=PTS-STARTPTS,'
+            f'fps=fps={composition.fps}:start_time=0:round=near,'
             f'scale=in_range=auto:out_range=tv,format=yuv420p[{final_video_label}]'
         )
         filters.append(
@@ -493,6 +494,7 @@ class TimelineRenderService:
                 '-map', f'[{final_video_label}]', '-map', f'[{final_audio_label}]',
                 '-c:v', 'libx264', *quality_args,
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+                '-r', str(composition.fps), '-vsync', 'cfr',
                 '-movflags', '+faststart', '-threads', '1',
                 '-t', total_duration,
                 str(output),
@@ -550,7 +552,8 @@ class TimelineRenderService:
         command = [
             self.ffprobe_binary, '-v', 'error', '-print_format', 'json',
             '-show_entries',
-            'stream=codec_type,codec_name,width,height,start_time,duration,avg_frame_rate,pix_fmt,sample_rate:'
+            'stream=codec_type,codec_name,width,height,start_time,duration,avg_frame_rate,r_frame_rate,'
+            'nb_frames,pix_fmt,sample_rate:'
             'format=start_time,duration',
             '-show_streams', '-show_format', str(path),
         ]
@@ -593,6 +596,7 @@ class TimelineRenderService:
         video = next(stream for stream in streams if stream.get('codec_type') == 'video')
         audio = next((stream for stream in streams if stream.get('codec_type') == 'audio'), None)
         fps = parse_frame_rate(video.get('avg_frame_rate'))
+        nominal_fps = parse_frame_rate(video.get('r_frame_rate'))
         duration = self._probe_duration(payload)
         video_duration = self._stream_duration(video, payload)
         audio_duration = self._stream_duration(audio, payload) if audio is not None else 0
@@ -605,7 +609,24 @@ class TimelineRenderService:
             raise TimelineOutputValidationError('Rendered timeline audio does not use a 48 kHz sample rate.')
         if int(video.get('width') or 0) != composition.width or int(video.get('height') or 0) != composition.height:
             raise TimelineOutputValidationError('Rendered timeline dimensions are incorrect.')
-        if abs(fps - composition.fps) > 0.01:
+        expected_frame_count = round(expected_duration * composition.fps)
+        frame_count = self._frame_count(video)
+        if (
+            abs(fps - composition.fps) > 0.01
+            or abs(nominal_fps - composition.fps) > 0.01
+            or frame_count != expected_frame_count
+        ):
+            logger.error(
+                'timeline_output_frame_rate_invalid',
+                extra={
+                    'expected_fps': composition.fps,
+                    'avg_frame_rate': video.get('avg_frame_rate'),
+                    'r_frame_rate': video.get('r_frame_rate'),
+                    'expected_frames': expected_frame_count,
+                    'actual_frames': frame_count,
+                    'video_duration': video.get('duration'),
+                },
+            )
             raise TimelineOutputValidationError('Rendered timeline frame rate is incorrect.')
         duration_tolerance = max(2 / composition.fps, 0.03)
         start_tolerance = max(1 / composition.fps, 1 / 48000)
@@ -645,6 +666,17 @@ class TimelineRenderService:
             raise TimelineOutputValidationError(f'Rendered timeline {field} is invalid.') from exc
         if not math.isfinite(value):
             raise TimelineOutputValidationError(f'Rendered timeline {field} is invalid.')
+        return value
+
+    @staticmethod
+    def _frame_count(video: dict[str, Any]) -> int:
+        raw = video.get('nb_frames')
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise TimelineOutputValidationError('Rendered timeline frame count is missing or invalid.') from exc
+        if value <= 0:
+            raise TimelineOutputValidationError('Rendered timeline frame count is missing or invalid.')
         return value
 
     @staticmethod
