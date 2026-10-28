@@ -39,6 +39,7 @@ class GuestExportRepository:
         limits: GuestQuotaLimits,
         now: datetime,
         expires_at: datetime,
+        network_subject: str | None = None,
     ) -> tuple[dict[str, Any], bool]:
         session_ref = self.sessions.document(guest_id)
         job_ref = session_ref.collection('exports').document(job_id)
@@ -105,6 +106,7 @@ class GuestExportRepository:
                 'storage_object_path': None,
                 'reservation_id': reservation_id,
                 'error_code': None,
+                'network_subject': network_subject,
                 'cleanup_object_path': None,
                 'cleanup_object_generation': None,
             }

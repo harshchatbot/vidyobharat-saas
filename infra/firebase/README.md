@@ -95,3 +95,23 @@ FIREBASE_CLIENT_ID= \
 FIREBASE_CLIENT_X509_CERT_URL= \
 ./.venv/bin/python -m app.services.guest_export_worker
 ```
+
+### Guest quota compatibility
+
+Guest sessions remain valid for 24 hours and keep their existing Firestore
+counter fields. No migration or destructive rewrite is required for existing
+`editor_guest_sessions` documents. Those counters continue to enforce the
+per-session limits and to track active `storage_bytes`.
+
+New uploads and exports also create bounded entries in
+`editor_guest_network_usage`. Document IDs are HMAC verifiers derived from the
+client network; raw IP addresses are never stored. These entries enforce rolling
+24-hour upload/export counts, uploaded bytes, and processing seconds across new
+guest sessions. Existing sessions begin participating on their next upload or
+export, while their current session counters are preserved unchanged.
+
+Network limits are independently configurable in Firestore `app_config/guest`
+with `network_max_uploads`, `network_max_exports`,
+`network_max_uploaded_bytes`, and `network_max_processing_seconds`. Configure
+`EDITOR_GUEST_TRUSTED_PROXY_CIDRS` only for known reverse proxies; forwarded IP
+headers from other peers are ignored.

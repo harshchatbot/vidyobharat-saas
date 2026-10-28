@@ -36,6 +36,7 @@ from app.services.guest_media_storage import (
 )
 from app.services.guest_session_errors import GuestSessionError, media_error
 from app.services.guest_session_service import GuestSessionConfig, GuestSessionService
+from app.db.repositories.guest_network_quota_repository import GuestNetworkQuotaRepository
 
 
 pytestmark = pytest.mark.skipif(
@@ -54,6 +55,8 @@ def _delete_guest_data(client) -> None:
             reservation.reference.delete()
         session.reference.delete()
     for row in client.collection('editor_guest_rate_limits').stream():
+        row.reference.delete()
+    for row in client.collection(GuestNetworkQuotaRepository.collection_name).stream():
         row.reference.delete()
 
 

@@ -172,7 +172,7 @@ class GuestExportWorker:
                 uploaded = True
                 if lease_lost.is_set():
                     raise ExportFenceError('Export worker lease was lost during upload.')
-                self.repository.complete(
+                completed = self.repository.complete(
                     guest_id=guest_id,
                     job_id=job_id,
                     worker_id=self.worker_id,
@@ -182,6 +182,14 @@ class GuestExportWorker:
                     actual_processing_seconds=rendered.metadata.duration_seconds,
                     now=datetime.now(UTC),
                 )
+                try:
+                    self.timeline.media_service.sessions.finish_network_quota(
+                        subject=completed.get('network_subject'),
+                        reservation_id=completed['reservation_id'],
+                        commit=True,
+                    )
+                except Exception:
+                    logger.exception('guest_export_network_quota_commit_failed', extra={'job_id': job_id})
                 logger.info(
                     'guest_export_job_completed',
                     extra={
@@ -233,6 +241,15 @@ class GuestExportWorker:
                     cleanup_object_path=output_path if cleanup_failed else None,
                     cleanup_object_generation=uploaded_generation if cleanup_failed else None,
                 )
+                if next_status != 'queued':
+                    try:
+                        self.timeline.media_service.sessions.finish_network_quota(
+                            subject=job.get('network_subject'),
+                            reservation_id=job['reservation_id'],
+                            commit=False,
+                        )
+                    except Exception:
+                        logger.exception('guest_export_network_quota_release_failed', extra={'job_id': job_id})
                 logger.warning(
                     'guest_export_job_retried' if next_status == 'queued' else 'guest_export_job_failed',
                     extra={'job_id': job_id, 'guest_id': guest_id, 'status': next_status, 'error_code': error_code},

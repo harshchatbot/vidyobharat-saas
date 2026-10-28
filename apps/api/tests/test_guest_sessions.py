@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from math import inf, nan
 
@@ -17,6 +18,7 @@ from app.db.repositories.guest_session_repository import (
     GuestQuotaReservation,
     GuestSessionRepository,
 )
+from app.db.repositories.guest_network_quota_repository import GuestNetworkQuotaRepository
 from app.providers.firebase import get_firestore_client
 from app.providers.firebase_emulator import validate_firebase_emulator_environment
 from app.services.guest_session_errors import GuestSessionError
@@ -45,11 +47,13 @@ def firestore_client():
     client = get_firestore_client()
     _delete_collection(client.collection(GuestSessionRepository.collection_name))
     _delete_collection(client.collection(GuestSessionRepository.rate_limits_collection_name))
+    _delete_collection(client.collection(GuestNetworkQuotaRepository.collection_name))
     try:
         yield client
     finally:
         _delete_collection(client.collection(GuestSessionRepository.collection_name))
         _delete_collection(client.collection(GuestSessionRepository.rate_limits_collection_name))
+        _delete_collection(client.collection(GuestNetworkQuotaRepository.collection_name))
 
 
 @pytest.fixture()
@@ -392,6 +396,47 @@ def test_session_creation_rate_limit(service: GuestSessionService) -> None:
         with TestClient(app) as fresh_client:
             statuses.append(_create(fresh_client).status_code)
     assert statuses == [200, 200, 429]
+
+
+def test_network_subject_ignores_spoofed_forwarded_ip_unless_peer_is_trusted(service: GuestSessionService) -> None:
+    direct = service.network_subject(_request(peer='198.51.100.10'))
+    spoofed = service.network_subject(_request(peer='198.51.100.10', forwarded_for='203.0.113.50'))
+    assert spoofed == direct
+
+    trusted_service = GuestSessionService(
+        repository=service.repository,
+        config=replace(service.config, trusted_proxy_cidrs=('10.0.0.0/8',)),
+    )
+    proxied = trusted_service.network_subject(_request(peer='10.1.2.3', forwarded_for='203.0.113.50'))
+    proxy_peer = trusted_service.network_subject(_request(peer='10.1.2.3'))
+    assert proxied != proxy_peer
+
+
+def test_network_quota_is_shared_across_sessions_and_expires_after_24_hours(service: GuestSessionService) -> None:
+    assert service.network_quotas is not None
+    now = datetime.now(UTC)
+    limits = GuestQuotaLimits(
+        uploads=1, exports=2, uploaded_bytes=1_000,
+        storage_bytes=2_000, processing_seconds=60, concurrent_processing=1,
+    )
+    service.network_quotas.reserve(
+        subject='shared-network', guest_id='guest-one', reservation_id='upload-one',
+        reservation=GuestQuotaReservation(uploads=1), limits=limits, now=now,
+    )
+    service.network_quotas.finish(
+        subject='shared-network', reservation_id='upload-one', commit=True, now=now,
+    )
+
+    with pytest.raises(GuestSessionError) as exceeded:
+        service.network_quotas.reserve(
+            subject='shared-network', guest_id='guest-two', reservation_id='upload-two',
+            reservation=GuestQuotaReservation(uploads=1), limits=limits, now=now,
+        )
+    assert exceeded.value.error == 'guest_quota_exceeded'
+    assert 'network_uploads' in exceeded.value.message
+    assert service.network_quotas.usage(
+        subject='shared-network', now=now + timedelta(hours=24, microseconds=1),
+    )['uploads'] == 0
 
 
 def test_concurrent_session_creation_rate_limit_ignores_forwarded_ip_spoofing(

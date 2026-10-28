@@ -102,7 +102,7 @@ def get_guest_usage(
     service: GuestSessionService = Depends(get_guest_session_service),
 ):
     try:
-        return service.usage(_guest_token(request, service))
+        return service.usage(_guest_token(request, service), request=request)
     except GuestSessionError as exc:
         return _guest_error(exc)
 

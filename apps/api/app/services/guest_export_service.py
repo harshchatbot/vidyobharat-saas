@@ -82,7 +82,18 @@ class GuestExportService:
                 ) * composition.fps - 1e-9
             ) / composition.fps
         )
+        reservation_id = f'export-{job_id}'
+        network_subject: str | None = None
         try:
+            network_subject = self.sessions.reserve_network_quota(
+                request=request,
+                guest_id=session['guest_id'],
+                reservation_id=reservation_id,
+                reservation=GuestQuotaReservation(
+                    exports=1,
+                    processing_seconds=reserved_processing,
+                ),
+            )
             return self.repository.create_or_get(
                 guest_id=session['guest_id'],
                 job_id=job_id,
@@ -97,16 +108,22 @@ class GuestExportService:
                 limits=self.sessions.limits,
                 now=now,
                 expires_at=session['expires_at'],
+                network_subject=network_subject,
             )
         except ExportConflictError as exc:
+            self.sessions.finish_network_quota(subject=network_subject, reservation_id=reservation_id, commit=False)
             raise media_error('guest_export_idempotency_conflict', str(exc), status_code=409) from exc
         except ExportMediaUnavailableError as exc:
+            self.sessions.finish_network_quota(subject=network_subject, reservation_id=reservation_id, commit=False)
             raise media_error(
                 'guest_export_media_unavailable',
                 str(exc),
                 status_code=409,
                 recoverable=False,
             ) from exc
+        except Exception:
+            self.sessions.finish_network_quota(subject=network_subject, reservation_id=reservation_id, commit=False)
+            raise
 
     def list_jobs(self, raw_token: str | None) -> list[dict[str, Any]]:
         session = self.sessions.get_session(raw_token)

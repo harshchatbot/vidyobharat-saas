@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from app.db.repositories.guest_session_repository import (
     GuestQuotaReservation,
     GuestSessionRepository,
 )
+from app.db.repositories.guest_network_quota_repository import GuestNetworkQuotaRepository
 from app.services.guest_session_errors import (
     GuestSessionError,
     session_expired,
@@ -41,6 +43,8 @@ class GuestSessionConfig:
     creation_rate_window: timedelta
     reservation_lease: timedelta
     rate_limit_secret: bytes
+    network_limits: GuestQuotaLimits | None = None
+    trusted_proxy_cidrs: tuple[str, ...] = ()
 
     @classmethod
     def from_settings(cls, settings: Settings) -> GuestSessionConfig:
@@ -73,14 +77,32 @@ class GuestSessionConfig:
             processing_seconds=float(settings.editor_guest_max_processing_seconds),
             concurrent_processing=settings.editor_guest_max_concurrent_processing,
         )
+        network_limits = GuestQuotaLimits(
+            uploads=settings.editor_guest_network_max_uploads,
+            exports=settings.editor_guest_network_max_exports,
+            uploaded_bytes=settings.editor_guest_network_max_uploaded_bytes,
+            storage_bytes=settings.editor_guest_max_storage_bytes,
+            processing_seconds=float(settings.editor_guest_network_max_processing_seconds),
+            concurrent_processing=settings.editor_guest_max_concurrent_processing,
+        )
         try:
             limits.validate()
+            network_limits.validate()
         except ValueError as exc:
             raise RuntimeError('Guest quota limits must all be positive finite values.') from exc
         if settings.editor_guest_session_rate_limit <= 0 or settings.editor_guest_session_rate_window_seconds <= 0:
             raise RuntimeError('Guest session rate-limit settings must be positive.')
         if settings.editor_guest_reservation_lease_seconds <= 0:
             raise RuntimeError('Guest quota reservation lease must be positive.')
+
+        trusted_proxy_cidrs = tuple(
+            value.strip() for value in settings.editor_guest_trusted_proxy_cidrs.split(',') if value.strip()
+        )
+        try:
+            for cidr in trusted_proxy_cidrs:
+                ipaddress.ip_network(cidr, strict=False)
+        except ValueError as exc:
+            raise RuntimeError('EDITOR_GUEST_TRUSTED_PROXY_CIDRS contains an invalid network.') from exc
 
         return cls(
             cookie_name=settings.editor_guest_cookie_name,
@@ -95,6 +117,8 @@ class GuestSessionConfig:
             creation_rate_window=timedelta(seconds=settings.editor_guest_session_rate_window_seconds),
             reservation_lease=timedelta(seconds=settings.editor_guest_reservation_lease_seconds),
             rate_limit_secret=secret,
+            network_limits=network_limits,
+            trusted_proxy_cidrs=trusted_proxy_cidrs,
         )
 
 
@@ -103,6 +127,8 @@ class GuestSessionService:
         self.repository = repository
         self.config = config
         self.app_config = app_config
+        firestore_client = getattr(repository, 'firestore', None)
+        self.network_quotas = GuestNetworkQuotaRepository(firestore_client) if firestore_client is not None else None
 
     @property
     def limits(self) -> GuestQuotaLimits:
@@ -116,6 +142,20 @@ class GuestSessionService:
             storage_bytes=configured.max_storage_bytes,
             processing_seconds=configured.max_processing_seconds,
             concurrent_processing=configured.max_concurrent_processing,
+        )
+
+    @property
+    def network_limits(self) -> GuestQuotaLimits:
+        if self.app_config is None:
+            return self.config.network_limits or self.config.limits
+        configured = self.app_config.get().guest
+        return GuestQuotaLimits(
+            uploads=configured.network_max_uploads,
+            exports=configured.network_max_exports,
+            uploaded_bytes=configured.network_max_uploaded_bytes,
+            storage_bytes=self.limits.storage_bytes,
+            processing_seconds=configured.network_max_processing_seconds,
+            concurrent_processing=self.limits.concurrent_processing,
         )
 
     def create_session(self, request: Request, raw_token: str | None) -> tuple[dict[str, Any], str | None]:
@@ -148,8 +188,78 @@ class GuestSessionService:
             raise session_invalid()
         return self._require_active(session)
 
-    def usage(self, raw_token: str | None) -> dict[str, Any]:
-        return self.usage_payload(self.get_session(raw_token))
+    def usage(self, raw_token: str | None, request: Request | None = None) -> dict[str, Any]:
+        session = self.get_session(raw_token)
+        network_usage = None
+        if request is not None:
+            assert self.network_quotas is not None
+            network_usage = self.network_quotas.usage(
+                subject=self.network_subject(request),
+                now=datetime.now(UTC),
+            )
+        return self.usage_payload(session, network_usage=network_usage)
+
+    def reserve_network_quota(
+        self,
+        *,
+        request: Request,
+        guest_id: str,
+        reservation_id: str,
+        reservation: GuestQuotaReservation,
+    ) -> str:
+        subject = self.network_subject(request)
+        assert self.network_quotas is not None
+        self.network_quotas.reserve(
+            subject=subject,
+            guest_id=guest_id,
+            reservation_id=reservation_id,
+            reservation=reservation,
+            limits=self.network_limits,
+            now=datetime.now(UTC),
+        )
+        return subject
+
+    def increase_network_quota(self, *, subject: str, reservation_id: str, additional: GuestQuotaReservation) -> None:
+        assert self.network_quotas is not None
+        self.network_quotas.increase(
+            subject=subject,
+            reservation_id=reservation_id,
+            additional=additional,
+            limits=self.network_limits,
+            now=datetime.now(UTC),
+        )
+
+    def finish_network_quota(self, *, subject: str | None, reservation_id: str, commit: bool) -> None:
+        if not subject:
+            return
+        assert self.network_quotas is not None
+        self.network_quotas.finish(
+            subject=subject,
+            reservation_id=reservation_id,
+            commit=commit,
+            now=datetime.now(UTC),
+        )
+
+    def network_subject(self, request: Request) -> str:
+        peer = request.client.host if request.client else 'unknown'
+        client_address = peer
+        try:
+            peer_ip = ipaddress.ip_address(peer)
+            trusted = any(peer_ip in ipaddress.ip_network(cidr, strict=False) for cidr in self.config.trusted_proxy_cidrs)
+        except ValueError:
+            trusted = False
+        if trusted:
+            forwarded = (request.headers.get('x-forwarded-for') or '').split(',', 1)[0].strip()
+            try:
+                client_address = str(ipaddress.ip_address(forwarded))
+            except ValueError:
+                client_address = peer
+        digest = hmac.new(
+            self.config.rate_limit_secret,
+            f'network-quota\0{client_address}'.encode('utf-8'),
+            hashlib.sha256,
+        ).hexdigest()
+        return digest
 
     def reserve_quota(
         self,
@@ -241,7 +351,7 @@ class GuestSessionService:
             'usage': self.usage_payload(session),
         }
 
-    def usage_payload(self, session: dict[str, Any]) -> dict[str, Any]:
+    def usage_payload(self, session: dict[str, Any], *, network_usage: dict[str, int | float] | None = None) -> dict[str, Any]:
         used = {
             'uploads': int(session.get('uploads_count', 0)),
             'exports': int(session.get('exports_count', 0)),
@@ -271,7 +381,24 @@ class GuestSessionService:
             key: max(0, limits[key] - used[key] - reserved[key])
             for key in limits
         }
-        return {'used': used, 'reserved': reserved, 'remaining': remaining, 'limits': limits}
+        payload: dict[str, Any] = {'used': used, 'reserved': reserved, 'remaining': remaining, 'limits': limits}
+        if network_usage is not None:
+            network_limits = {
+                'uploads': self.network_limits.uploads,
+                'exports': self.network_limits.exports,
+                'uploaded_bytes': self.network_limits.uploaded_bytes,
+                'processing_seconds': self.network_limits.processing_seconds,
+            }
+            network_remaining = {
+                key: max(0, network_limits[key] - network_usage.get(key, 0))
+                for key in network_limits
+            }
+            for key in network_remaining:
+                remaining[key] = min(remaining[key], network_remaining[key])
+            payload['network_used'] = network_usage
+            payload['network_remaining'] = network_remaining
+            payload['network_limits'] = network_limits
+        return payload
 
     def _find_session(self, raw_token: str) -> dict[str, Any] | None:
         return self.repository.find_by_token_hash(self.hash_token(raw_token))

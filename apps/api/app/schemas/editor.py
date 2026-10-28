@@ -22,6 +22,9 @@ class GuestUsageResponse(BaseModel):
     reserved: GuestQuotaValues
     remaining: GuestQuotaValues
     limits: GuestQuotaValues
+    network_used: dict[str, int | float] | None = None
+    network_remaining: dict[str, int | float] | None = None
+    network_limits: dict[str, int | float] | None = None
 
 
 class GuestSessionResponse(BaseModel):

@@ -151,6 +151,8 @@ class GuestMediaService:
                 ) from exc
         deadline = time.monotonic() + self.operation_timeout
         reserved = False
+        network_reserved = False
+        network_subject: str | None = None
         claimed = False
         object_uploaded = False
         file_size = 0
@@ -166,6 +168,13 @@ class GuestMediaService:
                 ),
             )
             reserved = True
+            network_subject = self.sessions.reserve_network_quota(
+                request=request,
+                guest_id=session['guest_id'],
+                reservation_id=reservation_id,
+                reservation=GuestQuotaReservation(uploads=1),
+            )
+            network_reserved = True
             claimed = self.repository.claim_upload(
                 guest_id=session['guest_id'],
                 media_id=media_id,
@@ -201,6 +210,11 @@ class GuestMediaService:
                         uploaded_bytes=file_size,
                         storage_bytes=file_size,
                     ),
+                )
+                self.sessions.increase_network_quota(
+                    subject=network_subject,
+                    reservation_id=reservation_id,
+                    additional=GuestQuotaReservation(uploaded_bytes=file_size),
                 )
                 validated = self._validate_media(source, upload.content_type, deadline)
                 self._check_deadline(deadline)
@@ -258,6 +272,15 @@ class GuestMediaService:
             )
             reserved = False
             claimed = False
+            try:
+                self.sessions.finish_network_quota(
+                    subject=network_subject,
+                    reservation_id=reservation_id,
+                    commit=True,
+                )
+            except Exception:
+                logger.exception('guest_media_network_quota_commit_failed')
+            network_reserved = False
             logger.info('guest_media_upload_completed', extra={'guest_id': session['guest_id'], 'media_id': media_id})
             return committed
         except GuestSessionError:
@@ -315,6 +338,15 @@ class GuestMediaService:
                     )
                 except Exception:
                     logger.exception('guest_media_claim_cleanup_failed')
+            if network_reserved:
+                try:
+                    self.sessions.finish_network_quota(
+                        subject=network_subject,
+                        reservation_id=reservation_id,
+                        commit=False,
+                    )
+                except Exception:
+                    logger.exception('guest_media_network_quota_rollback_failed')
 
     def list_media(self, raw_token: str | None) -> list[dict[str, Any]]:
         session = self.sessions.get_session(raw_token)

@@ -22,8 +22,10 @@ from app.core.config import Settings
 from app.db.repositories.guest_export_repository import ExportFenceError, GuestExportRepository
 from app.db.repositories.guest_media_repository import GuestMediaRepository
 from app.db.repositories.guest_session_repository import GuestQuotaLimits, GuestSessionRepository
+from app.db.repositories.guest_network_quota_repository import GuestNetworkQuotaRepository
 from app.providers.firebase import get_firestore_client
 from app.providers.firebase_emulator import validate_firebase_emulator_environment
+from app.schemas.editor import TimelineClip, TimelineComposition
 from app.services.guest_export_service import GuestExportService
 from app.services.guest_export_worker import GuestExportWorker
 from app.services.guest_media_service import GuestMediaService
@@ -56,6 +58,8 @@ def _clear(client, storage) -> None:
                 item.reference.delete()
         session.reference.delete()
     for row in client.collection('editor_guest_rate_limits').stream():
+        row.reference.delete()
+    for row in client.collection(GuestNetworkQuotaRepository.collection_name).stream():
         row.reference.delete()
 
 
@@ -379,7 +383,7 @@ def test_worker_does_not_retry_deterministic_output_validation_failure(export_en
 
 
 def test_guest_export_rejects_non_v1_output_settings() -> None:
-    base = TimelineComposition(clips=[_clip('a' * 32, 0, 1)])
+    base = TimelineComposition(clips=[TimelineClip(media_id='a' * 32, order=0, duration_seconds=1)])
     GuestExportService.validate_output_settings(base)
     with pytest.raises(Exception, match='30 FPS'):
         GuestExportService.validate_output_settings(base.model_copy(update={'fps': 60}))

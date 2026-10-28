@@ -25,6 +25,10 @@ class GuestAppConfig(_ConfigModel):
     max_storage_bytes: int = Field(default=500 * 1024 * 1024, ge=1024 * 1024, le=20 * 1024 * 1024 * 1024)
     max_processing_seconds: float = Field(default=600, ge=1, le=7200, allow_inf_nan=False)
     max_concurrent_processing: int = Field(default=1, ge=1, le=4)
+    network_max_uploads: int = Field(default=100, ge=1, le=1000)
+    network_max_exports: int = Field(default=15, ge=1, le=200)
+    network_max_uploaded_bytes: int = Field(default=1250 * 1024 * 1024, ge=1024 * 1024, le=50 * 1024 * 1024 * 1024)
+    network_max_processing_seconds: float = Field(default=3000, ge=1, le=100_000, allow_inf_nan=False)
 
 
 class MediaAppConfig(_ConfigModel):
@@ -91,6 +95,10 @@ def defaults_from_settings(settings: Settings) -> AppConfigSnapshot:
             max_storage_bytes=settings.editor_guest_max_storage_bytes,
             max_processing_seconds=float(settings.editor_guest_max_processing_seconds),
             max_concurrent_processing=settings.editor_guest_max_concurrent_processing,
+            network_max_uploads=settings.editor_guest_network_max_uploads,
+            network_max_exports=settings.editor_guest_network_max_exports,
+            network_max_uploaded_bytes=settings.editor_guest_network_max_uploaded_bytes,
+            network_max_processing_seconds=float(settings.editor_guest_network_max_processing_seconds),
         ),
         media=MediaAppConfig(
             max_file_bytes=settings.editor_guest_max_file_bytes,

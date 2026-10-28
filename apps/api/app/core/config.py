@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     editor_guest_max_storage_bytes: int = 500 * 1024 * 1024
     editor_guest_max_processing_seconds: int = 600
     editor_guest_max_concurrent_processing: int = 1
+    editor_guest_network_max_uploads: int = 100
+    editor_guest_network_max_exports: int = 15
+    editor_guest_network_max_uploaded_bytes: int = 1250 * 1024 * 1024
+    editor_guest_network_max_processing_seconds: int = 3000
+    editor_guest_trusted_proxy_cidrs: str = ''
     editor_guest_session_rate_limit: int = 10
     editor_guest_session_rate_window_seconds: int = 3600
     editor_guest_reservation_lease_seconds: int = 900
