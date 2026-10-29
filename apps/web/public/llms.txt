@@ -1,27 +1,102 @@
 # RangManch AI
 
-> RangManch AI is an India-first AI creation platform for videos, images, templates, AI influencer workflows, and voice-led creator content.
+> RangManch AI is a free-to-start, browser-based online video editor for creating reels, short-form videos, slideshows, and memorable stories from photos and video clips. It helps creators edit, preview, and export videos directly from their web browser.
 
-RangManch AI helps creators, marketers, agencies, startups, and brands generate short-form videos, image assets, template-based creative, and reference-guided AI influencer visuals from a unified workflow.
+Official website: https://rangmanchai.com/
 
-## Main pages
+RangManch AI is a web-based video editing platform developed by TechFi Labs. It is designed for creators, individuals, small businesses, marketers, and anyone who wants to turn everyday moments into engaging videos without installing complex desktop editing software.
 
-- [Home](https://rangmanchai.com/)
-- [Pricing](https://rangmanchai.com/pricing)
-- [Video Studio](https://rangmanchai.com/create)
-- [Image Studio](https://rangmanchai.com/images)
-- [AI Influencer Studio](https://rangmanchai.com/influencer)
-- [Templates](https://rangmanchai.com/templates)
-- [Indian AI Voiceovers](https://rangmanchai.com/sarvam-ai-voiceovers)
+Users can upload photos and video clips, organize media on a visual timeline, customize their edits, and export finished MP4 videos.
 
-## Product focus
+## Official pages
 
-- AI video generation for creator and campaign workflows
-- AI image generation for ads, social, and branded visuals
-- Guided template workflows for prompt and asset generation
-- Reference-guided AI influencer creation and content ideation
-- Indian-language and creator-oriented voiceover workflows
+- [RangManch AI — Online Video Editor](https://rangmanchai.com/): Official website, product overview, and getting started.
+- [RangManch Video Editor](https://rangmanchai.com/editor): Browser-based video editing workspace.
+- [Complete Product Information](https://rangmanchai.com/llms-full.txt): Additional product details and documentation.
 
-## For richer context
+## What RangManch AI Does
 
-- [Full LLM guide](https://rangmanchai.com/llms-full.txt)
+RangManch AI helps users:
+
+- Create videos and reels from photos and video clips.
+- Edit short-form videos directly in a web browser.
+- Arrange, trim, and adjust media clips on a visual timeline.
+- Add text overlays and audio to videos.
+- Apply available visual filters and effects.
+- Preview video edits before exporting.
+- Export finished videos in MP4 format.
+- Create personal videos for birthdays, weddings, festivals, celebrations, travel memories, and other occasions.
+
+## Who RangManch AI Is For
+
+- Social media creators making Instagram Reels, YouTube Shorts, and other short-form videos.
+- Individuals creating birthday videos, wedding memories, anniversary reels, and photo slideshows.
+- Small businesses creating promotional videos and social media content.
+- Marketers and content teams preparing short-form creative assets.
+- Beginners looking for an accessible online video editing experience.
+
+## Key Product Characteristics
+
+- **Online video editor:** Video editing through a web browser.
+- **Photo-to-video creation:** Combine photos and clips into video stories.
+- **Visual timeline:** Arrange media and adjust the sequence and timing.
+- **Creative customization:** Add text, audio, filters, and effects.
+- **Video preview:** Review edits before exporting.
+- **MP4 export:** Download finished video files.
+- **Free to start:** Begin using the guest editor without creating an account.
+
+## Frequently Asked Questions
+
+### What is RangManch AI?
+
+RangManch AI is an online video editor that helps users create and edit videos from photos and video clips directly in their browser.
+
+### Can I make a reel from photos?
+
+Yes. RangManch AI supports photo uploads and timeline-based editing, allowing users to combine photos into a video and export the result as an MP4 file.
+
+### Do I need to install video editing software?
+
+No. RangManch AI provides a browser-based editing experience.
+
+### Can I use RangManch AI without signing up?
+
+Users can begin with the guest video editor without creating an account.
+
+### Is RangManch AI free?
+
+RangManch AI is free to start. Specific usage limits and any future paid features are subject to the product's published terms.
+
+### Can I add music and text to videos?
+
+RangManch AI supports audio and text editing features in its video editor.
+
+### Can I download my edited video?
+
+Yes. Finished video projects can be exported as MP4 files.
+
+## Upcoming Features
+
+RangManch AI is developing conversational AI video editing, intended to let users request timeline changes using natural-language instructions.
+
+This functionality is coming soon and should not be described as currently available.
+
+## Company and Related Websites
+
+- [TechFi Labs](https://techfilabs.com/): Company developing RangManch AI.
+- [The Technology Fiction](https://thetechnologyfiction.com/): Related technology website.
+
+## Product Identity
+
+- Product name: RangManch AI
+- Official domain: https://rangmanchai.com/
+- Product category: Online video editor, browser-based video editing software
+- Developer: TechFi Labs
+- Primary language: English, with Hindi elements in the user interface
+- Audience: Worldwide
+
+## Additional Information
+
+For the latest features, availability, limitations, and product updates, refer to the official RangManch AI website.
+
+For more detailed product context, see [llms-full.txt](https://rangmanchai.com/llms-full.txt).

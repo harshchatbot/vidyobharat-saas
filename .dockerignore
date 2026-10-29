@@ -1,0 +1,20 @@
+# Backup and temporary files
+**/*.bak
+**/*.backup
+**/*.tmp
+**/__pycache__/
+**/*.pyc
+
+# Local environments and secrets
+**/.venv/
+**/node_modules/
+**/.env
+**/.env.*
+!.env.example
+
+# Development artifacts
+.git/
+**/.pytest_cache/
+**/.next/
+**/coverage/
+apply_gap_export_patch.py

@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 import logging
 from urllib.parse import urlparse
+from threading import Lock
 
 from app.core.config import get_settings
 
@@ -15,7 +16,7 @@ class FirebaseNotConfiguredError(RuntimeError):
 
 
 logger = logging.getLogger(__name__)
-
+_firebase_init_lock = Lock()
 
 def normalize_firebase_bucket(raw_bucket: str | None) -> str | None:
     """Normalize bucket env values like gs://bucket or https://.../bucket."""
@@ -65,8 +66,22 @@ def get_firebase_app():
 
     cred = None
     try:
-        payload = _load_service_account_payload(settings)
-        source = _resolve_credential_source(settings, payload)
+        from app.providers.firebase_emulator import (
+            firebase_emulator_requested,
+            validate_firebase_emulator_environment,
+        )
+
+        emulator_mode = firebase_emulator_requested()
+        if emulator_mode:
+            from google.auth.credentials import AnonymousCredentials
+
+            validate_firebase_emulator_environment(settings)
+            payload = None
+            source = 'emulator_anonymous'
+            cred = AnonymousCredentials()
+        else:
+            payload = _load_service_account_payload(settings)
+            source = _resolve_credential_source(settings, payload)
         logger.info(
             'firebase_admin_credential_source',
             extra={
@@ -77,7 +92,9 @@ def get_firebase_app():
             },
         )
 
-        if payload:
+        if cred is not None:
+            pass
+        elif payload:
             cred = credentials.Certificate(payload)
         elif settings.firebase_service_account_path:
             cred = credentials.Certificate(Path(settings.firebase_service_account_path))
@@ -103,7 +120,11 @@ def get_firebase_app():
         options['storageBucket'] = normalized_bucket
 
     try:
-        return firebase_admin.initialize_app(cred, options)
+        with _firebase_init_lock:
+            try:
+                return firebase_admin.get_app()
+            except ValueError:
+                return firebase_admin.initialize_app(cred, options)
     except Exception as exc:  # pragma: no cover - config/runtime specific
         logger.exception('firebase_admin_initialize_failed')
         raise FirebaseNotConfiguredError(

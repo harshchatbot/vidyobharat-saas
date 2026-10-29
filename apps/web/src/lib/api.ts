@@ -380,6 +380,21 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   return response.json() as Promise<T>;
 }
 
+async function adminProxyRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  const isFormData = init.body instanceof FormData;
+  if (!isFormData) headers.set('Content-Type', 'application/json');
+  if (!['GET', 'HEAD'].includes((init.method || 'GET').toUpperCase())) {
+    headers.set('X-RangManch-Admin-CSRF', '1');
+  }
+  const response = await fetch(`/api/admin/backend/${path.replace(/^\//, '')}`, {
+    ...init, headers, credentials: 'same-origin', cache: 'no-store',
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : 'Admin request failed.');
+  return body as T;
+}
+
 export const api = {
   async primeDashboardWarmCache(userId: string) {
     if (!userId) return;
@@ -543,6 +558,26 @@ export const api = {
       request<Template[]>(path, {}, { userId, cache: 'no-store', timeoutMs: 30_000 }),
     );
   },
+  listAdminTemplates(params?: {
+    type?: 'image' | 'video';
+    category?: string;
+    trending?: boolean;
+    featured?: boolean;
+    active?: boolean;
+    aspect_ratio?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.type) query.set('type', params.type);
+    if (params?.category) query.set('category', params.category);
+    if (params?.trending !== undefined) query.set('trending', String(params.trending));
+    if (params?.featured !== undefined) query.set('featured', String(params.featured));
+    if (params?.active !== undefined) query.set('active', String(params.active));
+    if (params?.aspect_ratio) query.set('aspect_ratio', params.aspect_ratio);
+    if (params?.search) query.set('search', params.search);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return adminProxyRequest<Template[]>(`templates${suffix}`);
+  },
   listRecipes(
     userId: string,
     params?: {
@@ -582,36 +617,36 @@ export const api = {
     });
   },
   createAdminTemplate(payload: Template, userId: string) {
-    return request<Template>('/api/admin/templates', {
+    return adminProxyRequest<Template>('templates', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    });
   },
   updateAdminTemplate(templateId: string, payload: Template, userId: string) {
-    return request<Template>(`/api/admin/templates/${templateId}`, {
+    return adminProxyRequest<Template>(`templates/${templateId}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    });
   },
   updateAdminTemplateStatus(templateId: string, payload: { active: boolean; trending?: boolean; featured?: boolean }, userId: string) {
-    return request<Template>(`/api/admin/templates/${templateId}/status`, {
+    return adminProxyRequest<Template>(`templates/${templateId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
-    }, { userId, cache: 'no-store' });
+    });
   },
   deleteAdminTemplate(templateId: string, userId: string) {
-    return request<Template>(`/api/admin/templates/${templateId}`, {
+    return adminProxyRequest<Template>(`templates/${templateId}`, {
       method: 'DELETE',
       body: JSON.stringify({}),
-    }, { userId, cache: 'no-store' });
+    });
   },
   uploadTemplatePreview(file: File, userId: string) {
     const body = new FormData();
     body.append('file', file);
-    return request<{ url: string }>('/api/admin/templates/upload-preview', {
+    return adminProxyRequest<{ url: string }>('templates/upload-preview', {
       method: 'POST',
       body,
-    }, { userId, cache: 'no-store' });
+    });
   },
   createProject(payload: {
     user_id: string;

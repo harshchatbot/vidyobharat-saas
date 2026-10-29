@@ -1,0 +1,41 @@
+
+name: rangmanch
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: rangmanch-api:latest
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      ENV: production
+      LOCAL_EDITOR_MODE: "false"
+      PORT: "8000"
+      FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+    ports:
+      - "127.0.0.1:8002:8000"
+    volumes:
+      - rangmanch-data:/app/data
+      - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    mem_limit: 384m
+
+  export-worker:
+    image: rangmanch-api:latest
+    restart: unless-stopped
+    command: python -m app.services.guest_export_worker
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      ENV: production
+      LOCAL_EDITOR_MODE: "false"
+      FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+    volumes:
+      - rangmanch-data:/app/data
+      - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    mem_limit: 768m
+
+volumes:
+  rangmanch-data:

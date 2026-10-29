@@ -20,6 +20,50 @@ class Settings(BaseSettings):
     env: str = 'development'
     api_host: str = '0.0.0.0'
     api_port: int = 8000
+    local_editor_mode: bool = False
+    editor_guest_cookie_name: str = 'rangmanch_guest_session'
+    editor_guest_cookie_secure: bool | None = None
+    editor_guest_cookie_samesite: str = 'lax'
+    editor_guest_session_hours: int = 24
+    editor_guest_csrf_header: str = 'X-RangManch-Editor-CSRF'
+    editor_guest_csrf_value: str = '1'
+    editor_guest_max_uploads: int = 20
+    editor_guest_max_exports: int = 3
+    editor_guest_max_uploaded_bytes: int = 250 * 1024 * 1024
+    editor_guest_max_storage_bytes: int = 500 * 1024 * 1024
+    editor_guest_max_processing_seconds: int = 600
+    editor_guest_max_concurrent_processing: int = 1
+    editor_guest_network_max_uploads: int = 100
+    editor_guest_network_max_exports: int = 15
+    editor_guest_network_max_uploaded_bytes: int = 1250 * 1024 * 1024
+    editor_guest_network_max_processing_seconds: int = 3000
+    editor_guest_trusted_proxy_cidrs: str = ''
+    editor_guest_session_rate_limit: int = 10
+    editor_guest_session_rate_window_seconds: int = 3600
+    editor_guest_reservation_lease_seconds: int = 900
+    editor_guest_max_file_bytes: int = 100 * 1024 * 1024
+    editor_guest_max_video_duration_seconds: int = 600
+    editor_guest_max_image_pixels: int = 40_000_000
+    editor_guest_upload_timeout_seconds: int = 600
+    editor_guest_rate_limit_secret: str | None = None
+    editor_timeline_max_clips: int = 12
+    editor_timeline_max_duration_seconds: int = 60
+    editor_timeline_max_source_bytes: int = 500 * 1024 * 1024
+    editor_timeline_max_workspace_bytes: int = 1024 * 1024 * 1024
+    editor_timeline_max_output_bytes: int = 250 * 1024 * 1024
+    editor_timeline_max_source_pixels: int = 40_000_000
+    editor_timeline_max_output_width: int = 1920
+    editor_timeline_max_output_height: int = 1920
+    editor_timeline_max_fps: int = 60
+    editor_timeline_ffmpeg_timeout_seconds: int = 300
+    editor_timeline_max_concurrent_renders: int = 1
+    editor_export_worker_poll_seconds: float = 2.0
+    editor_export_worker_lease_seconds: int = 120
+    editor_export_worker_max_attempts: int = 3
+    editor_export_worker_retry_base_seconds: int = 5
+    editor_export_worker_retry_max_seconds: int = 300
+    editor_export_list_limit: int = 50
+    app_config_cache_ttl_seconds: int = Field(default=45, ge=30, le=60)
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'
     redis_url: str = 'redis://redis:6379/0'
@@ -183,6 +227,12 @@ class Settings(BaseSettings):
     @property
     def admin_user_emails_list(self) -> list[str]:
         return [value.strip().lower() for value in self.admin_user_emails.split(',') if value.strip()]
+
+    @property
+    def editor_guest_cookie_is_secure(self) -> bool:
+        if self.editor_guest_cookie_secure is not None:
+            return self.editor_guest_cookie_secure
+        return self.env == 'production'
 
 
 @lru_cache(maxsize=1)

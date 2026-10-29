@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lato:wght@400;700&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans:wght@400;700&family=Noto+Sans+Bengali:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gujarati:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Sans+Kannada:wght@400;700&family=Noto+Sans+Malayalam:wght@400;700&family=Noto+Sans+Tamil:wght@400;700&family=Noto+Sans+Telugu:wght@400;700&family=Noto+Serif:wght@400;700&family=Roboto:wght@400;700&family=Sora:wght@400;600;700;800&display=swap');
 @import '../styles/theme.css';
 
 @tailwind base;
@@ -10,6 +10,27 @@ body {
   min-height: 100%;
   width: 100%;
   overflow-x: clip;
+}
+
+@keyframes rm-text-fade-in { 0%, 20% { opacity: 0; } 60%, 100% { opacity: 1; } }
+@keyframes rm-text-slide-up { 0%, 20% { opacity: 0; transform: translateY(8px); } 60%, 100% { opacity: 1; transform: translateY(0); } }
+@keyframes rm-text-pop-in { 0%, 20% { opacity: 0; transform: scale(.72); } 65% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes rm-text-fade-out { 0%, 45% { opacity: 1; } 85%, 100% { opacity: 0; } }
+@keyframes rm-text-slide-down { 0%, 45% { opacity: 1; transform: translateY(0); } 85%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes rm-text-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes rm-text-float { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-3px); } }
+
+.rm-animation-thumbnail { display: inline-block; font-weight: 700; }
+.rm-animation-fade-in { animation: rm-text-fade-in 1.6s ease-in-out infinite; }
+.rm-animation-slide-up { animation: rm-text-slide-up 1.6s ease-in-out infinite; }
+.rm-animation-pop-in { animation: rm-text-pop-in 1.6s ease-in-out infinite; }
+.rm-animation-fade-out { animation: rm-text-fade-out 1.6s ease-in-out infinite; }
+.rm-animation-slide-down { animation: rm-text-slide-down 1.6s ease-in-out infinite; }
+.rm-animation-pulse { animation: rm-text-pulse 1.2s ease-in-out infinite; }
+.rm-animation-float { animation: rm-text-float 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-animation-thumbnail { animation: none !important; }
 }
 
 body {
