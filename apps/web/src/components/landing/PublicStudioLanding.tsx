@@ -106,13 +106,13 @@ function Hero() {
       <div className={styles.heroCopy}>
         <div className={styles.heroTopline}><span className={styles.pulse} /> FREE ONLINE VIDEO EDITOR <span className={styles.toplineRule} /></div>
 
-        <h1 id="hero-title">{hindi ? <>अपनी फ़ोटो और क्लिप्स से<br /><em>बनाएं शानदार रील।</em></> : <>Edit your photos and clips<br /><em>into a reel.</em></>}</h1>
+        <h1 id="hero-title">{hindi ? <>अपनी फ़ोटो और क्लिप्स से<br /><em>बनाएं शानदार रील।</em></> : <>Create stunning videos<br /><em>with AI — free.</em></>}</h1>
 
-        <p className={styles.heroDescription}>{hindi ? 'अपना म्यूज़िक, टेक्स्ट, इफ़ेक्ट और ट्रांज़िशन जोड़ें और इंस्टाग्राम या शॉर्ट्स के लिए एक्सपोर्ट करें। सीधे ब्राउज़र में।' : 'Add your own music, text, effects and transitions right in your browser, then export for Instagram or Shorts.'}</p>
+        <p className={styles.heroDescription}>{hindi ? 'अपनी फ़ोटो से सुंदर इंस्टाग्राम रील बनाएं — म्यूज़िक, टेक्स्ट और ट्रांज़िशन के साथ। सीधे ब्राउज़र में।' : 'Turn your photos into beautiful Instagram Reels with AI-powered editing, music, transitions, and text. No editing skills required.'}</p>
         <div className={styles.languageSwitch} aria-label="Headline language"><button type="button" aria-pressed={!hindi} onClick={() => setHindi(false)}>English</button><span>/</span><button type="button" aria-pressed={hindi} onClick={() => setHindi(true)}>हिंदी</button></div>
-        <a className={styles.primaryCta} href="/editor">Make my reel <ArrowRight size={19} aria-hidden="true" /></a>
-        <p className={styles.heroNote}><Check size={14} /> Free to start · No account needed</p>
-        <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> AI chat editing coming soon</span>
+        <a className={styles.primaryCta} href="/editor">Start Editing for Free <ArrowRight size={19} aria-hidden="true" /></a>
+        <p className={styles.heroNote}><Check size={14} /> Browser-based · Free to start</p>
+        <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> Local AI Copilot + Auto Edit</span>
       </div>
       <div className={styles.heroVisual} aria-label={`${occasion.label} themed reel inspiration`}>
         <div className={styles.orbitOne} aria-hidden="true" /><div className={styles.orbitTwo} aria-hidden="true" />
@@ -217,7 +217,7 @@ function ComingSoon() {
     { request: 'Add a soft fade at the end', response: 'Fade-out transition added', duration: '00:20' },
     { request: 'Make it feel more cinematic', response: 'Suggested pacing and color adjustments', duration: '00:20' },
   ];
-  return <section id="future" className={styles.future} aria-labelledby="future-title"><div className={styles.futureInner}><div className={styles.futureCopy}><span className={styles.soonPill}><Sparkles size={14} /> COMING SOON</span><h2 id="future-title">What if editing<br />was as easy as<br /><em>asking?</em></h2><p>We're imagining a new way to create. Tell RangManch what you want, and let your timeline respond. Conversational editing is in development.</p><a href="/editor" className={styles.futureLink}>Try today's editor <ArrowRight size={18} /></a></div><motion.div className={styles.chatStage} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.7, ease: "easeOut" }} aria-label="Concept preview of future conversational editing"><div className={styles.chatTop}><span><WandSparkles size={17} /> RANGMANCH ASSISTANT</span><small>CONCEPT PREVIEW</small></div><div className={styles.chatPrompt}><span>You</span><p>“{prompts[example].request}”</p></div><div className={styles.chatReply}><span><Sparkles size={14} /> RangManch</span><p><Check size={15} /> {prompts[example].response}</p></div><MiniTimeline animated /><div className={styles.promptOptions}>{prompts.map((prompt, i) => <button type="button" aria-pressed={example === i} key={prompt.request} onClick={() => setExample(i)}>{i + 1}</button>)}</div></motion.div></div></section>;
+  return <section id="future" className={styles.future} aria-labelledby="future-title"><div className={styles.futureInner}><div className={styles.futureCopy}><span className={styles.soonPill}><Sparkles size={14} /> AVAILABLE NOW</span><h2 id="future-title">Describe it.<br />Preview it.<br /><em>Make it yours.</em></h2><p>Use the local AI Copilot or Auto Edit to turn uploaded photos into an editable reel. Review every change before applying it.</p><a href="/editor" className={styles.futureLink}>Open the editor <ArrowRight size={18} /></a></div><motion.div className={styles.chatStage} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.7, ease: "easeOut" }} aria-label="Preview of browser AI editing"><div className={styles.chatTop}><span><WandSparkles size={17} /> RANGMANCH COPILOT</span><small>LOCAL BROWSER AI</small></div><div className={styles.chatPrompt}><span>You</span><p>“{prompts[example].request}”</p></div><div className={styles.chatReply}><span><Sparkles size={14} /> RangManch</span><p><Check size={15} /> {prompts[example].response}</p></div><MiniTimeline animated /><div className={styles.promptOptions}>{prompts.map((prompt, i) => <button type="button" aria-pressed={example === i} key={prompt.request} onClick={() => setExample(i)}>{i + 1}</button>)}</div></motion.div></div></section>;
 }
 
 function FinalCTA() {

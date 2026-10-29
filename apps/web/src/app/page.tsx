@@ -6,13 +6,13 @@ import { buildMetadata } from '@/lib/seo';
 export const dynamic = 'force-static';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Online Video Editor – Photo to Video Maker & Reel Creator',
+  title: 'Create Stunning Videos with AI — Free',
   description:
-    'Create reels and videos from photos and clips with RangManch AI. Edit online with a visual timeline, music, text, effects and MP4 export. Free to start.',
+    'Turn your photos into beautiful Instagram Reels with AI-powered editing, music, transitions, and text. Edit in your browser with RangManch AI.',
   path: '/',
   keywords: [
     'online video editor',
-    'free online video editor',
+    'free AI video editor',
     'photo to video maker',
     'reel maker online',
     'create reels from photos',
@@ -45,7 +45,7 @@ export default function LandingPage() {
           '@id': 'https://techfilabs.com/#organization',
         },
         featureList: [
-          'Browser-based video editing',
+          'Local browser-based AI editing',
           'Photo and video uploads',
           'Visual timeline editing',
           'Text and audio editing',

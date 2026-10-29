@@ -20,6 +20,7 @@ import {
   type TimelineItem,
   type TimelineProject,
   type VideoTimelineItem,
+  type AudioTimelineItem,
 } from './types.ts';
 
 export const COPILOT_EDIT_PLAN_VERSION = '1.0' as const;
@@ -27,6 +28,8 @@ export const MAX_COPILOT_OPERATIONS = 20;
 
 type ReorderVisualsOperation = { op: 'reorder_visuals'; orderedItemIds: string[] };
 type AddTextOperation = { op: 'add_text'; item: TextTimelineItem };
+type AddMediaOperation = { op: 'add_media'; item: VideoTimelineItem };
+type AddAudioOperation = { op: 'add_audio'; item: AudioTimelineItem };
 type AddEffectOperation = { op: 'add_effect'; item: EffectTimelineItem };
 type UpdateItemOperation = { op: 'update_item'; itemId: string; changes: Partial<TimelineItem> };
 type MoveItemOperation = { op: 'move_item'; itemId: string; startTime: number };
@@ -38,6 +41,8 @@ type SetAspectRatioOperation = { op: 'set_aspect_ratio'; aspectRatio: ProjectAsp
 export type CopilotEditOperation =
   | ReorderVisualsOperation
   | AddTextOperation
+  | AddMediaOperation
+  | AddAudioOperation
   | AddEffectOperation
   | UpdateItemOperation
   | MoveItemOperation
@@ -154,6 +159,8 @@ function applyOperation(
 ): { project: TimelineProject; summary: EditSummary } {
   validateOperationShape(operation, operationIndex);
   switch (operation.op) {
+    case 'add_media':
+    case 'add_audio':
     case 'add_text':
     case 'add_effect': {
       if (projectItem(project, operation.item.id)) fail('duplicate_item_id', 'The new item ID is already in use.', operationIndex);
@@ -235,7 +242,7 @@ function validatePlanEnvelope(plan: CopilotEditPlan): void {
 function validateOperationShape(operation: CopilotEditOperation, index: number): void {
   if (!isRecord(operation) || typeof operation.op !== 'string') fail('invalid_operation', 'The edit operation is invalid.', index);
   const keys: Record<CopilotEditOperation['op'], string[]> = {
-    reorder_visuals: ['op', 'orderedItemIds'], add_text: ['op', 'item'], add_effect: ['op', 'item'],
+    reorder_visuals: ['op', 'orderedItemIds'], add_media: ['op', 'item'], add_audio: ['op', 'item'], add_text: ['op', 'item'], add_effect: ['op', 'item'],
     update_item: ['op', 'itemId', 'changes'], move_item: ['op', 'itemId', 'startTime'],
     resize_item: ['op', 'itemId', 'edge', 'time'], split_item: ['op', 'itemId', 'time', 'newItemId'],
     remove_item: ['op', 'itemId'], set_aspect_ratio: ['op', 'aspectRatio'],
@@ -255,10 +262,17 @@ function validateNewItem(item: TimelineItem, index: number): void {
     if (item.trackId !== 'text' || !EDITOR_FONTS.includes(item.fontFamily as typeof EDITOR_FONTS[number])) fail('invalid_operation', 'The text font or track is unsupported.', index);
     if (!nonEmpty(item.text, 500) || !['left', 'center', 'right'].includes(item.alignment) || !['none', 'fade-in', 'slide-up', 'pop-in'].includes(item.inAnimation) || !['none', 'fade-out', 'slide-down'].includes(item.outAnimation) || !['none', 'pulse', 'float'].includes(item.loopAnimation)) fail('invalid_operation', 'The text content or style is unsupported.', index);
     if (![item.color, item.outlineColor, item.backgroundColor].every(validColor)) fail('invalid_operation', 'Text colors must use six-digit hex values.', index);
+  } else if (item.kind === 'audio') {
+    exactKeys(item, ['id', 'kind', 'trackId', 'label', 'startTime', 'duration', 'mediaId', 'contentType', 'sourceStart', 'muted', 'volume'], index);
+    if (!['music', 'sfx', 'voice'].includes(item.trackId) || !nonEmpty(item.mediaId, 256) || !nonEmpty(item.contentType, 256) || item.volume < 0 || item.volume > 1) fail('invalid_operation', 'The audio media item is invalid.', index);
+  } else if (item.kind === 'video') {
+    exactKeys(item, ['id', 'kind', 'trackId', 'label', 'startTime', 'duration', 'mediaId', 'contentType', 'sourceStart', 'cropMode', 'muted', 'volume', 'transitionOut'], index);
+    if (item.trackId !== 'video' || item.cropMode !== 'cover' && item.cropMode !== 'contain' || !nonEmpty(item.mediaId, 256) || !nonEmpty(item.contentType, 256)) fail('invalid_operation', 'The image media item is invalid.', index);
+    if (item.transitionOut && (!['none', 'crossfade', 'slide-left', 'slide-right'].includes(item.transitionOut.type) || !Number.isFinite(item.transitionOut.duration) || item.transitionOut.duration <= 0 || item.transitionOut.duration > Math.min(2, item.duration))) fail('invalid_operation', 'The clip transition is invalid.', index);
   } else if (item.kind === 'effect') {
     exactKeys(item, ['id', 'kind', 'trackId', 'label', 'startTime', 'duration', 'preset', 'amount'], index);
     if (item.trackId !== 'effects' || !EFFECT_PRESETS.includes(item.preset)) fail('invalid_operation', 'The effect preset or track is unsupported.', index);
-  } else fail('unsupported_operation', 'Only text and effects can be added by a Phase A plan.', index);
+  } else fail('unsupported_operation', 'Only images, text, and effects can be added by a plan.', index);
   for (const [key, value] of Object.entries(item)) if (typeof value === 'number') finite(value, key, index);
   if (item.startTime < 0 || item.duration <= 0 || item.startTime + item.duration > MAX_TIMELINE_SECONDS + 1e-9) fail('invalid_operation', 'The new item timing is outside the timeline bounds.', index);
 }

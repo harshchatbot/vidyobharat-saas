@@ -40,6 +40,8 @@ export function operationDescription(operation: CopilotEditOperation): string {
   switch (operation.op) {
     case 'reorder_visuals': return `Reorder ${operation.orderedItemIds.length} visual clips`;
     case 'add_text': return `Add text: ${operation.item.label}`;
+    case 'add_media': return `Add image: ${operation.item.label}`;
+    case 'add_audio': return `Add audio: ${operation.item.label}`;
     case 'add_effect': return `Add effect: ${operation.item.label}`;
     case 'update_item': return `Update item ${operation.itemId}`;
     case 'move_item': return `Move item to ${operation.startTime.toFixed(2)}s`;

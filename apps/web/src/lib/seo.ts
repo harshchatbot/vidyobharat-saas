@@ -41,12 +41,14 @@ export function buildMetadata({
       title: socialTitle,
       description,
       siteName: SITE_NAME,
+      images: [{ url: '/brand/logo-dark.png', alt: 'RangManch AI' }],
     },
 
     twitter: {
       card: 'summary_large_image',
       title: socialTitle,
       description,
+      images: ['/brand/logo-dark.png'],
     },
   };
 }

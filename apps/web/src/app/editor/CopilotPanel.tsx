@@ -21,9 +21,10 @@ type Props = {
   onCancel: () => void;
   onApply: () => void;
   onAbort: () => void;
+  browserProvider?: boolean;
 };
 
-export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCancel, onApply, onAbort }: Props) {
+export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCancel, onApply, onAbort, browserProvider = false }: Props) {
   const [prompt, setPrompt] = useState('');
   const submit = () => {
     const value = prompt.trim();
@@ -41,7 +42,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
     <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
       <div className="flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><Bot className="h-4 w-4" /></span>
-        <div><h2 className="text-sm font-semibold text-white">AI Editing Copilot</h2><p className="text-[11px] text-slate-500">Proposes edits. You stay in control.</p></div>
+        <div><h2 className="text-sm font-semibold text-white">AI Editing Copilot</h2><p className="text-[11px] text-slate-500">{browserProvider ? 'Local WebLLM · browser only' : 'Proposes edits. You stay in control.'}</p></div>
       </div>
 
       {history.length === 0 && !proposal && <section className="mt-5" aria-label="Suggested prompts">

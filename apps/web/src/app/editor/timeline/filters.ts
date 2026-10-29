@@ -12,6 +12,11 @@ export type FilterDefinition = {
   defaultIntensity: number;
 };
 
+export function transitionProgress(boundary: number, duration: number, time: number): number {
+  if (!Number.isFinite(duration) || duration <= 0) return 1;
+  return Math.max(0, Math.min(1, (time - (boundary - duration / 2)) / duration));
+}
+
 export const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
   { id: 'natural-pop', name: 'Natural Pop', section: 'filters', category: 'Natural', preset: 'vibrance', defaultIntensity: 1.25 },
   { id: 'clean-light', name: 'Clean Light', section: 'filters', category: 'Natural', preset: 'brightness', defaultIntensity: 1.08 },
@@ -28,6 +33,7 @@ export const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
   { id: 'negative', name: 'Negative', section: 'effects', category: 'Creative', preset: 'invert', defaultIntensity: 1 },
   { id: 'soft-blur', name: 'Soft Blur', section: 'effects', category: 'Creative', preset: 'blur', defaultIntensity: 0.45 },
   { id: 'slow-zoom', name: 'Slow Zoom', section: 'effects', category: 'Cinematic', preset: 'zoom-in', defaultIntensity: 1 },
+  { id: 'slow-zoom-out', name: 'Slow Zoom Out', section: 'effects', category: 'Cinematic', preset: 'zoom-out', defaultIntensity: 1 },
   { id: 'fade-in', name: 'Fade In', section: 'transitions', category: 'Cinematic', preset: 'fade-in', defaultIntensity: 1 },
   { id: 'fade-out', name: 'Fade Out', section: 'transitions', category: 'Cinematic', preset: 'fade-out', defaultIntensity: 1 },
 ] as const;
@@ -39,6 +45,11 @@ export function validateFilterAmount(preset: EffectPreset, amount: number): numb
 }
 
 export function browserEffectStyle(effects: EffectTimelineItem[], time: number): CSSProperties {
+  const state = browserEffectState(effects, time);
+  return { opacity: state.opacity, transform: `scale(${state.scale})`, filter: state.filter || undefined };
+}
+
+export function browserEffectState(effects: EffectTimelineItem[], time: number): { opacity: number; scale: number; filter: string } {
   const filters: string[] = [];
   let opacity = 1;
   let scale = 1;
@@ -48,6 +59,7 @@ export function browserEffectStyle(effects: EffectTimelineItem[], time: number):
     if (effect.preset === 'fade-in') opacity *= progress;
     if (effect.preset === 'fade-out') opacity *= 1 - progress;
     if (effect.preset === 'zoom-in') scale *= 1 + 0.12 * amount * progress;
+    if (effect.preset === 'zoom-out') scale *= 1.12 - 0.12 * amount * progress;
     if (effect.preset === 'grayscale') filters.push(`grayscale(${amount})`);
     if (effect.preset === 'blur') filters.push(`blur(${amount * 5}px)`);
     if (effect.preset === 'brightness') filters.push(`brightness(${amount})`);
@@ -60,7 +72,7 @@ export function browserEffectStyle(effects: EffectTimelineItem[], time: number):
     if (effect.preset === 'warm') filters.push(`sepia(${Math.min(0.3, amount * 0.12)}) saturate(${1 + amount * 0.15}) hue-rotate(${-amount * 8}deg)`);
     if (effect.preset === 'cool') filters.push(`saturate(${1 + amount * 0.08}) hue-rotate(${amount * 12}deg)`);
   }
-  return { opacity, transform: `scale(${scale})`, filter: filters.join(' ') || undefined };
+  return { opacity, scale, filter: filters.join(' ') };
 }
 
 export function vignetteOpacity(effects: EffectTimelineItem[]): number {
