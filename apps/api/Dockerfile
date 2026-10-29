@@ -11,7 +11,6 @@ COPY apps/api/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY apps/api/app ./app
-COPY apps/api/.env.example ./.env
 COPY shared ./shared
 
 RUN mkdir -p data/uploads data/renders
