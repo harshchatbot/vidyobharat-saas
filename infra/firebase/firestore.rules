@@ -39,6 +39,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /app_config_audit/{document=**} {
+      allow read, write: if false;
+    }
+
     // Top-level source-of-truth collections used by the backend runtime.
     match /credit_wallets/{walletId} {
       allow read: if existingOwnerFieldMatches();

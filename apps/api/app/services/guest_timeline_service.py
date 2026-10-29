@@ -40,6 +40,7 @@ class GuestTimelineService:
         self.renderer = renderer
 
     def render(self, raw_token: str | None, composition: TimelineComposition) -> TemporaryTimelineRender:
+        self._validate_effective_limits(composition)
         workspace = tempfile.TemporaryDirectory(prefix='rangmanch-timeline-sources-')
         result: TemporaryTimelineRender | None = None
         try:
@@ -62,11 +63,14 @@ class GuestTimelineService:
             workspace.cleanup()
 
     def validate_sources(self, raw_token: str | None, composition: TimelineComposition) -> dict:
+        self._validate_effective_limits(composition)
         session = self.media_service.sessions.get_session(raw_token)
         self._resolve_records(raw_token, composition, guest_id=session['guest_id'])
         return session
 
     def render_for_worker(self, guest_id: str, composition: TimelineComposition) -> TemporaryTimelineRender:
+        # Limits are enforced when the job is accepted. Do not invalidate an
+        # accepted export if an administrator lowers a quota while it is queued.
         self._require_worker_session(guest_id)
         workspace = tempfile.TemporaryDirectory(prefix='rangmanch-timeline-sources-')
         result: TemporaryTimelineRender | None = None
@@ -87,6 +91,21 @@ class GuestTimelineService:
             raise
         finally:
             workspace.cleanup()
+
+    def _validate_effective_limits(self, composition: TimelineComposition) -> None:
+        app_config = getattr(self.media_service.sessions, 'app_config', None)
+        if app_config is None:
+            max_clips = self.renderer.limits.max_clips
+            max_duration = self.renderer.limits.max_total_duration_seconds
+        else:
+            current = app_config.get().editor
+            max_clips = current.max_clips
+            max_duration = current.max_duration_seconds
+        if len(composition.clips) > max_clips:
+            raise TimelineValidationError(f'Timeline exceeds the current {max_clips}-clip limit.')
+        duration = float(composition.duration_seconds or 0)
+        if duration > max_duration + 1e-6:
+            raise TimelineValidationError(f'Timeline exceeds the current {max_duration:g}-second limit.')
 
     def _download_sources(
         self,
@@ -215,17 +234,11 @@ class GuestTimelineService:
 def build_guest_timeline_service(settings: Settings | None = None) -> GuestTimelineService:
     current = settings or get_settings()
     media_service = build_guest_media_service()
-    editor_config = (
-        media_service.sessions.app_config.get().editor
-        if media_service.sessions.app_config is not None
-        else None
-    )
     limits = TimelineRenderLimits(
-        max_clips=editor_config.max_clips if editor_config else current.editor_timeline_max_clips,
-        max_total_duration_seconds=(
-            editor_config.max_duration_seconds
-            if editor_config else current.editor_timeline_max_duration_seconds
-        ),
+        # Deployment-independent hard safety ceilings. Effective AppConfig
+        # values are enforced when a new request is accepted.
+        max_clips=50,
+        max_total_duration_seconds=60,
         max_source_bytes=current.editor_timeline_max_source_bytes,
         max_workspace_bytes=current.editor_timeline_max_workspace_bytes,
         max_output_bytes=current.editor_timeline_max_output_bytes,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -166,3 +167,21 @@ def test_guest_timeline_rejects_noncanonical_private_object_path(tmp_path: Path)
         service.render('owner-token', _timeline())
 
     assert media.storage.requested == []
+
+
+def test_dynamic_limits_apply_to_new_requests_but_not_accepted_worker_jobs(tmp_path: Path) -> None:
+    service, media = _service(tmp_path)
+
+    class RestrictiveConfig:
+        def get(self):
+            return SimpleNamespace(editor=SimpleNamespace(max_clips=1, max_duration_seconds=0.2))
+
+    media.sessions.app_config = RestrictiveConfig()  # type: ignore[attr-defined]
+    with pytest.raises(TimelineValidationError, match='current 0.2-second limit'):
+        service.validate_sources('owner-token', _timeline())
+
+    service._require_worker_session = lambda guest_id: {'guest_id': guest_id}  # type: ignore[method-assign]
+    service._resolve_records = lambda *args, **kwargs: [media.record]  # type: ignore[method-assign]
+    result = service.render_for_worker('owner-guest', _timeline())
+    assert result.metadata.duration_seconds == pytest.approx(0.4, abs=0.1)
+    result.close()

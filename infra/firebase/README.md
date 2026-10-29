@@ -20,6 +20,28 @@ Use the same Firebase project id configured in:
 - `FIREBASE_PROJECT_ID` for the backend
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID` for the frontend
 
+Deploy the checked-in indexes before enabling the production admin dashboard:
+
+```bash
+firebase deploy --only firestore:indexes --project YOUR_FIREBASE_PROJECT_ID --config firebase.json
+```
+
+## Admin dashboard prerequisites
+
+- Set at least one backend allowlist: `ADMIN_USER_IDS` and/or
+  `ADMIN_USER_EMAILS`. An empty allowlist disables all admin access.
+- Enable Firebase Authentication email/password sign-in. Email-allowlisted
+  administrators must have a verified email; UID allowlisting remains available
+  for accounts whose verification policy is managed separately.
+- Configure the existing frontend `NEXT_PUBLIC_FIREBASE_*` variables and API URL.
+- Deploy API and guest export worker from the same revision so runtime settings
+  and enforcement behavior match.
+- Runtime changes are stored in `app_config`, take effect in the writer process
+  immediately, and propagate to other processes after their 30–60 second cache
+  TTL. Already accepted exports keep their original reservations and limits.
+- Metrics cover retained guest-session/export documents. They do not identify
+  unique people and are not a replacement for historical event analytics.
+
 ## Local Emulator Suite
 
 Guest editor integration tests must run only against the fixed demo project. The

@@ -168,11 +168,9 @@ This guide is for avatars available to all users through `/api/avatars/library`,
 
 ## Admin Access For Template Management
 
-There is no separate admin login screen.
-
-Admin mode currently works by:
-1. logging in normally with the existing app auth flow
-2. allowing that user at the backend through environment configuration
+The separate admin login is available at `/admin/login`. It uses Firebase
+email/password authentication, verifies the ID token against the API allowlist,
+and then keeps the short-lived ID token in an HttpOnly, SameSite=Strict cookie.
 
 Backend admin access is checked using:
 - `ADMIN_USER_EMAILS`
@@ -208,9 +206,9 @@ After changing these values, redeploy the API service.
 
 ### How to log in as admin
 
-1. Add your email or Firebase UID to the backend admin allowlist
+1. Add your verified email or Firebase UID to the backend admin allowlist
 2. Redeploy the API
-3. Log in normally from the app
+3. Open `/admin/login` and authenticate with Firebase
 4. Open:
 
 ```text
@@ -222,6 +220,11 @@ Example production URL:
 - `/admin/templates`
 
 ### What admin mode can do today
+
+From `/admin`, an allowed admin can review retained guest metrics and activity.
+`/admin/guests` provides bounded guest/export history, `/admin/settings` manages
+validated runtime settings with revision fencing and an audit trail, and
+`/admin/templates` retains template management.
 
 From `/admin/templates`, an allowed admin user can:
 - create new templates
@@ -240,5 +243,7 @@ This is the current path for:
 ### Important behavior
 
 - Admin access is backend-guarded, not purely hidden by frontend UI
-- If `ADMIN_USER_EMAILS` / `ADMIN_USER_IDS` are not configured, admin protection is only placeholder-level and should be tightened before wider team usage
+- If `ADMIN_USER_EMAILS` / `ADMIN_USER_IDS` are not configured, all admin API access fails closed
+- Email allowlisting requires Firebase's `email_verified` claim; UID allowlisting does not depend on email
+- Dashboard figures cover retained guest-session records, not unique people or complete historical analytics
 - Existing video/image create flows continue to work even if the new template admin flow is unused

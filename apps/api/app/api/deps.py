@@ -1,5 +1,6 @@
 import json
 import time
+from dataclasses import dataclass
 from typing import Any
 from urllib.request import urlopen
 
@@ -9,12 +10,19 @@ import logging
 
 from app.core.config import get_settings
 from app.db.repositories.user_repository import UserRepository
+from app.providers.firebase import FirebaseNotConfiguredError, get_firebase_app
 from app.services.firestore_sync_service import FirestoreSyncService
 
 
 _FIREBASE_CERTS_CACHE: dict[str, Any] = {'expires_at': 0.0, 'certs': {}}
 _FIREBASE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AdminPrincipal:
+    uid: str
+    email: str | None
 
 
 def _derive_display_name(claims: dict[str, Any], email: str | None) -> str | None:
@@ -137,23 +145,56 @@ async def get_user_id(
 
 async def require_admin_user(
     request: Request,
-    user_id: str = Depends(get_user_id),
+    authorization: str | None = Header(default=None),
 ) -> str:
+    return (await require_admin_principal(request, authorization)).uid
+
+
+async def require_admin_principal(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> AdminPrincipal:
     settings = get_settings()
-    claims = getattr(request.state, 'user_claims', {}) if hasattr(request.state, 'user_claims') else {}
-    email = claims.get('email') if isinstance(claims, dict) else None
     admin_ids = set(settings.admin_user_ids_list)
     admin_emails = set(settings.admin_user_emails_list)
-
-    # Placeholder guard for future role-based admin auth.
-    # If no explicit admin list is configured, allow authenticated users so admin tooling
-    # remains usable in development/staging without a separate role system.
     if not admin_ids and not admin_emails:
-        logger.warning('admin_guard_open_mode_enabled')
-        return user_id
+        logger.error('admin_allowlist_missing')
+        raise HTTPException(status_code=503, detail='Admin access is not configured')
+    if not authorization or not authorization.lower().startswith('bearer '):
+        raise HTTPException(status_code=401, detail='Verified Firebase authentication is required')
+    token = authorization.split(' ', 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail='Verified Firebase authentication is required')
+    try:
+        from firebase_admin import auth
 
-    if user_id in admin_ids:
-        return user_id
-    if isinstance(email, str) and email.lower() in admin_emails:
-        return user_id
+        claims = auth.verify_id_token(token, app=get_firebase_app(), check_revoked=True)
+    except FirebaseNotConfiguredError as exc:
+        logger.exception('admin_firebase_unavailable')
+        raise HTTPException(status_code=503, detail='Admin authentication is unavailable') from exc
+    except (
+        auth.InvalidIdTokenError,
+        auth.ExpiredIdTokenError,
+        auth.RevokedIdTokenError,
+        auth.UserDisabledError,
+    ) as exc:
+        logger.warning('admin_token_verification_failed', exc_info=True)
+        raise HTTPException(status_code=401, detail='Invalid or expired Firebase token') from exc
+    except Exception as exc:
+        logger.exception('admin_firebase_verification_unavailable')
+        raise HTTPException(status_code=503, detail='Admin authentication is unavailable') from exc
+
+    user_id = claims.get('uid') or claims.get('sub')
+    if not isinstance(user_id, str) or not user_id:
+        raise HTTPException(status_code=401, detail='Firebase token is missing its subject')
+    email = claims.get('email')
+    normalized_email = email.lower() if isinstance(email, str) else None
+    email_authorized = (
+        normalized_email in admin_emails
+        and claims.get('email_verified') is True
+    )
+    if user_id in admin_ids or email_authorized:
+        principal = AdminPrincipal(uid=user_id, email=normalized_email)
+        request.state.admin_principal = principal
+        return principal
     raise HTTPException(status_code=403, detail='Admin access required')

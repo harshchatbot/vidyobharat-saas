@@ -66,7 +66,7 @@ export function AdminTemplatesClient({ userId }: { userId: string }) {
   async function loadTemplates() {
     setLoading(true);
     try {
-      const data = await api.listUnifiedTemplates(userId, { active: undefined, search: search || undefined });
+      const data = await api.listAdminTemplates({ active: undefined, search: search || undefined });
       setTemplates(data);
     } catch (err) {
       show(err instanceof Error ? err.message : 'Failed to load templates.');

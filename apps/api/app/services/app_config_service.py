@@ -3,8 +3,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from datetime import UTC, datetime
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Any
+from uuid import uuid4
+
+from google.cloud import firestore
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.config import Settings, get_settings
@@ -39,7 +44,7 @@ class MediaAppConfig(_ConfigModel):
 
 class EditorAppConfig(_ConfigModel):
     max_clips: int = Field(default=12, ge=1, le=50)
-    max_duration_seconds: float = Field(default=60, ge=1, le=120, allow_inf_nan=False)
+    max_duration_seconds: float = Field(default=60, ge=1, le=60, allow_inf_nan=False)
 
 
 class ExportAppConfig(_ConfigModel):
@@ -48,6 +53,14 @@ class ExportAppConfig(_ConfigModel):
 
 class FeatureAppConfig(_ConfigModel):
     guest_editor_enabled: bool = True
+
+
+class AppConfigConflictError(RuntimeError):
+    pass
+
+
+class AppConfigUpdateError(RuntimeError):
+    pass
 
 
 class AppConfigSnapshot(_ConfigModel):
@@ -116,6 +129,7 @@ def defaults_from_settings(settings: Settings) -> AppConfigSnapshot:
 
 class AppConfigService:
     collection_name = 'app_config'
+    audit_collection_name = 'app_config_audit'
     _models = {
         'guest': GuestAppConfig,
         'media': MediaAppConfig,
@@ -169,6 +183,88 @@ class AppConfigService:
             ),
             features=current.features,
         )
+
+    def admin(self) -> tuple[AppConfigSnapshot, int]:
+        if self.firestore is None:
+            raise AppConfigUpdateError('Firestore configuration is unavailable.')
+        value = self._load()
+        meta = self.firestore.collection(self.collection_name).document('_meta').get()
+        payload = meta.to_dict() or {}
+        return value, max(0, int(payload.get('revision', 0)))
+
+    def update(
+        self,
+        *,
+        changes: dict[str, dict[str, Any]],
+        expected_revision: int,
+        actor_uid: str,
+        actor_email: str | None,
+        reason: str | None,
+    ) -> tuple[AppConfigSnapshot, int]:
+        if self.firestore is None:
+            raise AppConfigUpdateError('Firestore configuration is unavailable.')
+        if not changes:
+            raise AppConfigUpdateError('At least one configuration value must change.')
+        unsupported = set(changes) - set(self._models)
+        if unsupported:
+            raise AppConfigUpdateError(f'Unsupported configuration categories: {", ".join(sorted(unsupported))}.')
+        now = datetime.now(UTC)
+        collection = self.firestore.collection(self.collection_name)
+        meta_ref = collection.document('_meta')
+        audit_ref = self.firestore.collection(self.audit_collection_name).document(uuid4().hex)
+        transaction = self.firestore.transaction(max_attempts=10)
+
+        @firestore.transactional
+        def _update(txn):
+            meta_snapshot = meta_ref.get(transaction=txn)
+            current_revision = int((meta_snapshot.to_dict() or {}).get('revision', 0))
+            if current_revision != expected_revision:
+                raise AppConfigConflictError('Application configuration changed; reload before saving.')
+
+            before: dict[str, BaseModel] = {}
+            after: dict[str, BaseModel] = {}
+            for category, model in self._models.items():
+                ref = collection.document(category)
+                snapshot = ref.get(transaction=txn)
+                default = getattr(self.defaults, category)
+                current_payload = {**default.model_dump(), **(snapshot.to_dict() or {})}
+                try:
+                    current = model.model_validate(current_payload)
+                    patch = changes.get(category, {})
+                    unknown = set(patch) - set(model.model_fields)
+                    if unknown:
+                        raise AppConfigUpdateError(
+                            f'Unsupported {category} settings: {", ".join(sorted(unknown))}.'
+                        )
+                    updated = model.model_validate({**current.model_dump(), **patch})
+                except ValidationError as exc:
+                    raise AppConfigUpdateError(f'Invalid {category} configuration.') from exc
+                before[category] = current
+                after[category] = updated
+
+            next_revision = current_revision + 1
+            changed_before: dict[str, Any] = {}
+            changed_after: dict[str, Any] = {}
+            for category in changes:
+                changed_before[category] = before[category].model_dump()
+                changed_after[category] = after[category].model_dump()
+                txn.set(collection.document(category), after[category].model_dump())
+            txn.set(meta_ref, {'revision': next_revision, 'updated_at': now})
+            txn.create(audit_ref, {
+                'audit_id': audit_ref.id,
+                'actor_uid': actor_uid,
+                'actor_email': actor_email,
+                'created_at': now,
+                'reason': reason,
+                'revision': next_revision,
+                'before': changed_before,
+                'after': changed_after,
+            })
+            return AppConfigSnapshot.model_validate(after), next_revision
+
+        result = _update(transaction)
+        self.invalidate()
+        return result
 
     def _load(self) -> AppConfigSnapshot:
         values: dict[str, BaseModel] = {}
