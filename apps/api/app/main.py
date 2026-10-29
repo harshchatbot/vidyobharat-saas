@@ -26,6 +26,7 @@ from app.providers.firebase import (
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 from app.api.routers.editor_routes import router as editor_router
 from app.api.routers.admin_routes import router as admin_router
+from app.api.routers.editor_copilot_routes import router as editor_copilot_router
 
 
 settings = get_settings()
@@ -340,3 +341,4 @@ app.include_router(storyboard_router)
 app.include_router(tts_router)
 app.include_router(editor_router)
 app.include_router(admin_router)
+app.include_router(editor_copilot_router)

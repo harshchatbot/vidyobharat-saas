@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type CSSProperties } from 'react';
+import { flushSync } from 'react-dom';
 import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Sparkles, Type, Undo2, Upload } from 'lucide-react';
 import { getApiUrl } from '@/lib/env';
 import { EditorInspector } from './EditorInspector';
+import { CopilotPanel } from './CopilotPanel';
+import { CopilotClientError, isAbortError, requestCopilotPlan, type CopilotHistoryMessage, type CopilotProposal } from './copilot';
 import { ExportDialog, type ExportJobView } from './ExportDialog';
 import { FilterGallery } from './FilterGallery';
 import { GuestAudioLayer } from './GuestAudioLayer';
@@ -18,6 +21,7 @@ import { browserEffectStyle, effectsWithTemporaryPreview, vignetteOpacity } from
 import type { EffectSection } from './timeline/filters';
 import { serializeTimelineProject } from './timeline/serialization';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
+import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
 import { createEmptyProject, MAX_TIMELINE_SECONDS, type AudioTimelineItem, type EffectTimelineItem, type GuestMedia, type TextTimelineItem, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './timeline/types';
 
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
@@ -47,7 +51,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [textPreview, setTextPreview] = useState<{ item: TextTimelineItem; targetId?: string }>();
   const [textPreviewTime, setTextPreviewTime] = useState(0);
   const [activeTool, setActiveTool] = useState<WorkspaceTool>('media');
-  const [mobilePanel, setMobilePanel] = useState<'library' | 'inspector' | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'library' | 'inspector' | 'copilot' | null>(null);
+  const [rightPanel, setRightPanel] = useState<'inspector' | 'copilot'>('inspector');
+  const [copilotHistory, setCopilotHistory] = useState<CopilotHistoryMessage[]>([]);
+  const [copilotProposal, setCopilotProposal] = useState<CopilotProposal | null>(null);
+  const [copilotError, setCopilotError] = useState<CopilotClientError | null>(null);
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const copilotEpochRef = useRef(0);
+  const copilotAbortRef = useRef<AbortController | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [exportStatus, setExportStatus] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
@@ -64,19 +75,23 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const downloadedExportIdsRef = useRef<Set<string>>(new Set());
   const lastProjectRef = useRef(project);
   const projectRevisionRef = useRef(0);
-  const selectedItem = selectedItemId ? projectItem(project, selectedItemId) : undefined;
+  const committedProjectRef = useRef(project);
+  committedProjectRef.current = project;
+  const displayProject = copilotProposal?.applied.project ?? project;
+  const proposalActive = Boolean(copilotProposal);
+  const selectedItem = selectedItemId ? projectItem(displayProject, selectedItemId) : undefined;
   const selectedText = selectedItem?.kind === 'text' ? selectedItem : undefined;
-  const itemsAtPlayhead = useMemo(() => activeItems(project, playbackTime), [playbackTime, project]);
-  const visuals = project.tracks.find((track) => track.id === 'video')?.items.filter((item): item is VideoTimelineItem => item.kind === 'video') ?? [];
-  const visualEnd = visualTimelineEnd(project);
-  const heldFinalClip = project.extensionExplicit && playbackTime >= visualEnd
+  const itemsAtPlayhead = useMemo(() => activeItems(displayProject, playbackTime), [playbackTime, displayProject]);
+  const visuals = displayProject.tracks.find((track) => track.id === 'video')?.items.filter((item): item is VideoTimelineItem => item.kind === 'video') ?? [];
+  const visualEnd = visualTimelineEnd(displayProject);
+  const heldFinalClip = displayProject.extensionExplicit && playbackTime >= visualEnd
     ? [...visuals].sort((a, b) => a.startTime - b.startTime).at(-1)
     : undefined;
   const previewClip = itemsAtPlayhead.find((item): item is VideoTimelineItem => item.kind === 'video') ?? heldFinalClip;
   const activeTexts = itemsAtPlayhead.filter((item): item is TextTimelineItem => item.kind === 'text');
   const activeEffects = itemsAtPlayhead.filter((item): item is EffectTimelineItem => item.kind === 'effect');
-  const audioItems = project.tracks.flatMap((track) => track.items).filter((item): item is AudioTimelineItem => item.kind === 'audio');
-  const clipCount = project.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
+  const audioItems = displayProject.tracks.flatMap((track) => track.items).filter((item): item is AudioTimelineItem => item.kind === 'audio');
+  const clipCount = displayProject.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
 
   // A completed export represents a snapshot, not the current editable project.
   // Any timeline, aspect-ratio, or export-settings change makes that snapshot stale.
@@ -89,6 +104,11 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setExportError('');
   }, [project]);
 
+  useEffect(() => () => {
+    copilotEpochRef.current += 1;
+    copilotAbortRef.current?.abort();
+  }, []);
+
   useEffect(() => {
     if (exportOpen) void refreshExportUsage();
   }, [exportOpen]);
@@ -99,13 +119,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     let frame = 0;
     const tick = (now: number) => {
       const next = playbackStartedRef.current.timelineTime + (now - playbackStartedRef.current.wallTime) / 1000;
-      if (next >= project.duration) { setPlaybackTime(project.duration); setIsPlaying(false); return; }
+      if (next >= displayProject.duration) { setPlaybackTime(displayProject.duration); setIsPlaying(false); return; }
       setPlaybackTime(next);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [isPlaying, project.duration]);
+  }, [isPlaying, displayProject.duration]);
 
   useEffect(() => {
     if (!textPreview) { setTextPreviewTime(0); return; }
@@ -175,16 +195,17 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const redoShortcut = commandKey && ((key === 'z' && event.shiftKey) || (event.ctrlKey && key === 'y'));
       if (!event.altKey && (undoShortcut || redoShortcut)) {
         event.preventDefault();
+        if (proposalActive) return;
         if (redoShortcut) redoProject(); else undoProject();
         return;
       }
       if (isEditing || event.altKey || commandKey || exportOpen || showFilters || mobilePanel) return;
       if (event.code === 'Space' && !event.repeat) {
         event.preventDefault();
-        if (project.duration <= 0) return;
-        if (!isPlaying && playbackTime >= project.duration) setPlaybackTime(0);
+        if (displayProject.duration <= 0) return;
+        if (!isPlaying && playbackTime >= displayProject.duration) setPlaybackTime(0);
         setIsPlaying((current) => !current);
-      } else if (event.key.toLowerCase() === 's' && selectedItemId && !event.repeat) {
+      } else if (event.key.toLowerCase() === 's' && selectedItemId && !event.repeat && !proposalActive) {
         const item = projectItem(project, selectedItemId);
         if (item && (item.kind === 'video' || item.kind === 'audio')) {
           event.preventDefault();
@@ -194,13 +215,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       } else if (event.key === 'Home') {
         event.preventDefault(); setPlaybackTime(0); setIsPlaying(false);
       } else if (event.key === 'End') {
-        event.preventDefault(); setPlaybackTime(project.duration); setIsPlaying(false);
+        event.preventDefault(); setPlaybackTime(displayProject.duration); setIsPlaying(false);
       } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault(); setIsPlaying(false);
         const step = event.shiftKey ? 5 : 1 / 30;
-        setPlaybackTime((time) => Math.max(0, Math.min(project.duration,
+        setPlaybackTime((time) => Math.max(0, Math.min(displayProject.duration,
           time + (event.key === 'ArrowRight' ? step : -step))));
-      } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedItemId) {
+      } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedItemId && !proposalActive) {
         event.preventDefault();
         setIsPlaying(false);
         const next = removeItem(project, selectedItemId);
@@ -211,12 +232,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [exportOpen, showFilters, mobilePanel, project, selectedItemId, isPlaying, playbackTime]);
+  }, [exportOpen, showFilters, mobilePanel, project, displayProject, selectedItemId, isPlaying, playbackTime, proposalActive]);
 
   useEffect(() => {
-    setPlaybackTime((time) => Math.min(time, Math.max(project.duration, 0)));
-    if (selectedItemId && !projectItem(project, selectedItemId)) setSelectedItemId(null);
-  }, [project, selectedItemId]);
+    setPlaybackTime((time) => Math.min(time, Math.max(displayProject.duration, 0)));
+    if (selectedItemId && !projectItem(displayProject, selectedItemId)) setSelectedItemId(null);
+  }, [displayProject, selectedItemId]);
 
   function startTimelineResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
@@ -235,8 +256,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   function stopTimelineResize() { timelineResizeRef.current = null; }
 
   function togglePlayback() {
-    if (project.duration <= 0) return;
-    if (!isPlaying && playbackTime >= project.duration) setPlaybackTime(0);
+    if (displayProject.duration <= 0) return;
+    if (!isPlaying && playbackTime >= displayProject.duration) setPlaybackTime(0);
     setIsPlaying((current) => !current);
   }
 
@@ -251,16 +272,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   function mutate(next: TimelineProject | ((current: TimelineProject) => TimelineProject), transactionKey?: string) {
+    if (proposalActive) return;
+    invalidateCopilot();
     setProjectHistory((history) => applyProjectChange(history,
       typeof next === 'function' ? next(history.present) : next,
       transactionKey));
   }
 
   function beginProjectEdit(key: string) {
+    if (proposalActive) return;
     setProjectHistory((history) => beginProjectTransaction(history, key));
   }
 
   function endProjectEdit(key: string) {
+    if (proposalActive) return;
     setProjectHistory((history) => commitProjectTransaction(history, key));
   }
 
@@ -271,13 +296,98 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   function undoProject() {
+    if (proposalActive) return;
+    invalidateCopilot();
     clearProjectPreviews();
     setProjectHistory((history) => undoProjectChange(history));
   }
 
   function redoProject() {
+    if (proposalActive) return;
+    invalidateCopilot();
     clearProjectPreviews();
     setProjectHistory((history) => redoProjectChange(history));
+  }
+
+  function invalidateCopilot(reason?: 'stale') {
+    copilotEpochRef.current += 1;
+    copilotAbortRef.current?.abort();
+    copilotAbortRef.current = null;
+    setCopilotLoading(false);
+    setCopilotProposal(null);
+    if (reason === 'stale') {
+      setCopilotError(new CopilotClientError('stale', 'The project changed. Generate a new proposal.', true));
+    }
+  }
+
+  async function submitCopilotPrompt(prompt: string) {
+    invalidateCopilot();
+    const epoch = copilotEpochRef.current;
+    const baseProject = committedProjectRef.current;
+    const controller = new AbortController();
+    copilotAbortRef.current = controller;
+    setCopilotError(null);
+    setCopilotLoading(true);
+    setCopilotHistory((current) => [...current, { role: 'user' as const, content: prompt }].slice(-12));
+    try {
+      const baseRevision = await calculateProjectRevision(baseProject);
+      if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject) return;
+      const response = await requestCopilotPlan({
+        project: baseProject,
+        projectRevision: baseRevision,
+        prompt,
+        history: copilotHistory.slice(-6),
+        signal: controller.signal,
+      });
+      if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject) return;
+      const applied = await applyEditPlan(baseProject, response.plan);
+      if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject || applied.previousRevision !== baseRevision) return;
+      setCopilotProposal({ epoch, baseProject, baseRevision, applied, response });
+      setCopilotHistory((current) => [...current, { role: 'assistant' as const, content: response.plan.summary }].slice(-12));
+      setPlaybackTime((time) => Math.min(time, applied.project.duration));
+      setIsPlaying(false);
+    } catch (error) {
+      if (epoch !== copilotEpochRef.current || isAbortError(error)) return;
+      setCopilotError(error instanceof CopilotClientError
+        ? error
+        : new CopilotClientError('invalid', error instanceof Error ? error.message : 'Copilot could not create a safe proposal.'));
+    } finally {
+      if (epoch === copilotEpochRef.current) {
+        setCopilotLoading(false);
+        copilotAbortRef.current = null;
+      }
+    }
+  }
+
+  async function applyCopilotProposal() {
+    const proposal = copilotProposal;
+    if (!proposal || proposal.epoch !== copilotEpochRef.current) return;
+    const latest = committedProjectRef.current;
+    try {
+      const applied = await applyEditPlan(latest, proposal.response.plan);
+      if (proposal.epoch !== copilotEpochRef.current || committedProjectRef.current !== latest) {
+        invalidateCopilot('stale');
+        return;
+      }
+      let committed = false;
+      flushSync(() => {
+        setProjectHistory((history) => {
+          if (proposal.epoch !== copilotEpochRef.current || history.present !== latest) return history;
+          committed = true;
+          return applyProjectChange(history, applied.project);
+        });
+      });
+      if (!committed) {
+        invalidateCopilot('stale');
+        return;
+      }
+      copilotEpochRef.current += 1;
+      setCopilotProposal(null);
+      setCopilotError(null);
+      setPlaybackTime((time) => Math.min(time, applied.project.duration));
+    } catch {
+      invalidateCopilot('stale');
+    }
   }
 
   function addVisual(item: GuestMedia) {
@@ -405,7 +515,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   function seek(time: number) { const next = quantizeTimelineTime(time, 0, MAX_TIMELINE_SECONDS); setPlaybackTime(next); if (isPlaying) playbackStartedRef.current = { wallTime: performance.now(), timelineTime: next }; }
-  function selectItem(itemId: string) { setSelectedItemId(itemId); const item = projectItem(project, itemId); if (item) seek(item.startTime); setIsPlaying(false); }
+  function selectItem(itemId: string) { setSelectedItemId(itemId); const item = projectItem(displayProject, itemId); if (item) seek(item.startTime); setIsPlaying(false); }
   function patchSelected(updates: Partial<TimelineItem>) { if (!selectedItemId) return; mutate((current) => updateItem(current, selectedItemId, updates), `inspector:${selectedItemId}`); }
   function removeSelected() { if (!selectedItemId) return; mutate((current) => removeItem(current, selectedItemId)); setSelectedItemId(null); }
   function reorderSelectedVisual(direction: -1 | 1) {
@@ -614,13 +724,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
         <button type="button" onClick={() => setSidebarOpen((value) => !value)} className="hidden h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 md:grid lg:hidden" aria-label={sidebarOpen ? 'Hide tools' : 'Show tools'}>{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
         <div className="min-w-0"><p className="truncate text-sm font-semibold">Untitled reel</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p></div>
-        <div className="ml-2 flex items-center gap-1"><button type="button" disabled={!canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={!canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
-        <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {project.duration.toFixed(1)}s</span><button type="button" disabled={project.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={!selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button></div>
+        <div className="ml-2 flex items-center gap-1"><button type="button" disabled={proposalActive || !canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
+        <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {displayProject.duration.toFixed(1)}s</span><button type="button" disabled={displayProject.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" onClick={() => setMobilePanel('copilot')} className="grid h-9 w-9 place-items-center rounded-md text-amber-300 hover:bg-amber-400/10 lg:hidden" aria-label="Open AI Copilot"><Sparkles className="h-4 w-4" /></button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button></div>
       </header>
       {(uploadError || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs"><span role={uploadError ? 'alert' : 'status'} className={uploadError ? 'text-red-300' : 'text-amber-300'}>{uploadError || exportStatus}</span></div>}
 
       <div className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${sidebarOpen ? 'md:grid-cols-[240px_minmax(0,1fr)]' : 'md:grid-cols-[minmax(0,1fr)]'} lg:grid-cols-[352px_minmax(0,1fr)_288px]`}>
-        <aside className={`${sidebarOpen ? 'hidden md:flex' : 'hidden'} min-h-0 min-w-0 overflow-hidden border-r border-white/10 bg-[#111118] lg:flex`}>
+        <aside inert={proposalActive ? true : undefined} aria-disabled={proposalActive} className={`${sidebarOpen ? 'hidden md:flex' : 'hidden'} min-h-0 min-w-0 overflow-hidden border-r border-white/10 bg-[#111118] lg:flex ${proposalActive ? 'opacity-50' : ''}`}>
           <nav aria-label="Editor tools" className="flex w-[72px] shrink-0 flex-col border-r border-white/10 py-2">{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={(event) => chooseTool(id, event.currentTarget)} className={`flex min-h-[58px] flex-col items-center justify-center gap-1 text-[10px] font-medium ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><Icon className="h-5 w-5" />{label}</button>)}</nav>
           {(activeTool === 'media' || activeTool === 'audio') ? mediaLibrary : activeTool === 'text' ? <TextLibrary key={selectedText?.id ?? 'new-text'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setActiveTool('media'); }} /> : <div className="p-4 text-xs leading-5 text-slate-400">Choose an option to open its editing panel.</div>}
         </aside>
@@ -630,7 +740,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <label htmlFor="editor-aspect-ratio" className="text-xs text-slate-400">Canvas</label>
             <select
               id="editor-aspect-ratio"
-              value={project.aspectRatio}
+              value={displayProject.aspectRatio}
+              disabled={proposalActive}
               onChange={(event) => mutate((current) => ({ ...current, aspectRatio: event.target.value as TimelineProject['aspectRatio'] }))}
               className="rounded-md border border-white/15 bg-[#1c1c26] px-2 py-1 text-xs text-white"
               aria-label="Video aspect ratio"
@@ -642,17 +753,23 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             </select>
           </div>
           <section className="flex min-h-[180px] min-w-0 flex-1 items-center justify-center overflow-hidden p-3 sm:min-h-[220px] sm:p-5 lg:min-h-0">
-            <div className={`relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl shadow-black/50 ${project.aspectRatio === '9:16' || project.aspectRatio === '4:5' ? 'h-full w-auto' : 'h-auto w-full'}`} style={{ aspectRatio: project.aspectRatio.replace(':', ' / ') }} data-testid="editor-preview-canvas" onPointerDown={() => setSelectedItemId(null)}>
-              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / project.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
+            <div className={`relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl shadow-black/50 ${displayProject.aspectRatio === '9:16' || displayProject.aspectRatio === '4:5' ? 'h-full w-auto' : 'h-auto w-full'}`} style={{ aspectRatio: displayProject.aspectRatio.replace(':', ' / ') }} data-testid="editor-preview-canvas" onPointerDown={() => setSelectedItemId(null)}>
+              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / displayProject.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
               {vignette > 0 && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: `inset 0 0 100px rgba(0,0,0,${vignette})` }} />}
-              {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates, transactionKey) => { if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate((current) => updateItem(current, text.id, updates), transactionKey); }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />)}
+              {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!proposalActive && !textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates, transactionKey) => { if (proposalActive) return; if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate((current) => updateItem(current, text.id, updates), transactionKey); }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />)}
             </div>
           </section>
-          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{project.extensionExplicit ? 'Extended · final frame held · ' : ''}{project.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
+          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{proposalActive ? 'Temporary Copilot preview · ' : ''}{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{displayProject.extensionExplicit ? 'Extended · final frame held · ' : ''}{displayProject.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
           {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} />)}
         </main>
 
-        <EditorInspector className="hidden min-h-0 overflow-y-auto border-l border-white/10 lg:block" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />
+        <aside className="hidden min-h-0 overflow-hidden border-l border-white/10 bg-[#111118] lg:flex lg:flex-col" aria-label="Editor side panel">
+          <div className="grid h-11 shrink-0 grid-cols-2 border-b border-white/10 p-1">
+            <button type="button" onClick={() => setRightPanel('inspector')} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
+            <button type="button" onClick={() => setRightPanel('copilot')} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-amber-300' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
+          </div>
+          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} proposal={copilotProposal} error={copilotError} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
+        </aside>
       </div>
       <div className="relative shrink-0 border-t border-white/10" style={{ height: timelineHeight }}>
         <div
@@ -681,13 +798,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </span>
         </div>
         <div className="h-full overflow-hidden">
-          <MultiTrackTimeline project={project} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start, transactionKey) => mutate((current) => moveItem(current, id, start), transactionKey)} onResizeItem={(id, edge, time, transactionKey) => mutate((current) => resizeItem(current, id, edge, time), transactionKey)} onDeleteSelected={removeSelected} onReorderSelected={reorderSelectedVisual} onSplitSelected={() => { if (selectedItemId) { setIsPlaying(false); mutate((current) => splitItem(current, selectedItemId, playbackTime, crypto.randomUUID())); } }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />
+          <MultiTrackTimeline project={displayProject} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start, transactionKey) => { if (!proposalActive) mutate((current) => moveItem(current, id, start), transactionKey); }} onResizeItem={(id, edge, time, transactionKey) => { if (!proposalActive) mutate((current) => resizeItem(current, id, edge, time), transactionKey); }} onDeleteSelected={() => { if (!proposalActive) removeSelected(); }} onReorderSelected={(direction) => { if (!proposalActive) reorderSelectedVisual(direction); }} onSplitSelected={() => { if (!proposalActive && selectedItemId) { setIsPlaying(false); mutate((current) => splitItem(current, selectedItemId, playbackTime, crypto.randomUUID())); } }} onEditStart={(key) => { if (!proposalActive) beginProjectEdit(key); }} onEditEnd={(key) => { if (!proposalActive) endProjectEdit(key); }} />
         </div>
       </div>
 
-      <nav aria-label="Mobile editor tools" className="flex shrink-0 gap-1 overflow-x-auto border-t border-white/10 bg-[#111118] px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => chooseTool(id)} className={`flex min-h-12 min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-md text-[10px] ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
+      <nav inert={proposalActive ? true : undefined} aria-disabled={proposalActive} aria-label="Mobile editor tools" className={`flex shrink-0 gap-1 overflow-x-auto border-t border-white/10 bg-[#111118] px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden ${proposalActive ? 'opacity-50' : ''}`}>{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => chooseTool(id)} className={`flex min-h-12 min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-md text-[10px] ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
 
-      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" onPointerDown={() => { setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className="absolute inset-x-0 bottom-0 flex max-h-[72vh] min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>{activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} /> : mediaLibrary}</>}</section></div>}
+      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/25 lg:hidden" onPointerDown={() => { if (mobilePanel === 'copilot' && copilotProposal) return; setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className={`absolute inset-x-0 bottom-0 flex min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl ${mobilePanel === 'copilot' ? 'max-h-[62dvh]' : 'max-h-[72vh]'}`} onPointerDown={(event) => event.stopPropagation()}>{mobilePanel === 'copilot' ? <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold text-amber-300">AI Copilot</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div><div className="min-h-0 flex-1"><CopilotPanel history={copilotHistory} loading={copilotLoading} proposal={copilotProposal} error={copilotError} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /></div></> : activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} /> : mediaLibrary}</>}</section></div>}
       {hoveredMedia && !showFilters && (
         <div
           className="pointer-events-none fixed z-40 hidden w-[310px] rounded-lg border border-white/15 bg-[#171720] p-3 shadow-2xl md:block"
@@ -723,7 +840,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
               mediaId={previewClip?.mediaId}
               contentType={previewClip?.contentType}
               effectStartTime={previewClip?.startTime ?? 0}
-              effectDuration={previewClip?.duration ?? project.duration}
+              effectDuration={previewClip?.duration ?? displayProject.duration}
               initialSection={effectSection}
               onPreview={setFilterPreview}
               onApply={(effect) => { mutate((current) => addItem(current, effect)); setSelectedItemId(effect.id); setShowFilters(false); }}

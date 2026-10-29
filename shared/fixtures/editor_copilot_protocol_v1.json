@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "projectRevision": "sha256:382489070e9d17d159fb2db612791238e962df22f998d419ad2331efa8127458",
+  "project": {
+    "id": "guest-reel",
+    "duration": 7,
+    "extensionExplicit": false,
+    "aspectRatio": "9:16",
+    "exportSettings": {
+      "filename": "rangmanch-export.mp4",
+      "resolution": "720p",
+      "fps": 30,
+      "quality": "standard"
+    },
+    "tracks": [
+      {"id": "text", "type": "text", "name": "Text", "items": []},
+      {
+        "id": "video",
+        "type": "video",
+        "name": "Visuals",
+        "items": [
+          {"id": "clip-a", "kind": "video", "trackId": "video", "mediaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "contentType": "image/png", "sourceStart": 0, "cropMode": "cover", "muted": true, "volume": 0, "startTime": 1, "duration": 2, "label": "First"},
+          {"id": "clip-b", "kind": "video", "trackId": "video", "mediaId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "contentType": "image/png", "sourceStart": 0, "cropMode": "cover", "muted": true, "volume": 0, "startTime": 4, "duration": 3, "label": "Second"}
+        ]
+      },
+      {"id": "effects", "type": "effects", "name": "Effects", "items": []},
+      {"id": "music", "type": "music", "name": "Music", "items": []},
+      {"id": "sfx", "type": "sfx", "name": "SFX", "items": []},
+      {"id": "voice", "type": "voice", "name": "Voice", "items": []}
+    ]
+  },
+  "deliberateDifferences": [
+    "The Copilot protocol uses camelCase editor state; export schemas remain snake_case.",
+    "The backend validates plans but Phase A remains the authoritative project executor.",
+    "Frontend serialization compatibility does not replace backend export validation."
+  ]
+}

@@ -18,6 +18,7 @@ import {
   persistAppSession,
   signInWithGooglePopup,
   signInWithPassword,
+  signOutFirebaseUser,
   signUpWithPassword,
 } from '@/lib/firebase-auth';
 
@@ -150,6 +151,7 @@ export function AuthFormClient({ mode }: Props) {
 
       const user = await getUserForIdToken(session.idToken);
       if (isLogin && !user.emailVerified) {
+        await signOutFirebaseUser();
         setMessage(`Verify your email before signing in. We already sent a confirmation email to ${email.trim()}.`);
         setAwaitingConfirmation(true);
         throw new Error('Verify your email before signing in.');

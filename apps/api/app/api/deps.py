@@ -25,6 +25,12 @@ class AdminPrincipal:
     email: str | None
 
 
+@dataclass(frozen=True)
+class VerifiedFirebasePrincipal:
+    uid: str
+    email: str | None
+
+
 def _derive_display_name(claims: dict[str, Any], email: str | None) -> str | None:
     for key in ('name', 'display_name', 'full_name'):
         value = claims.get(key)
@@ -148,6 +154,54 @@ async def require_admin_user(
     authorization: str | None = Header(default=None),
 ) -> str:
     return (await require_admin_principal(request, authorization)).uid
+
+
+async def require_verified_firebase_principal(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> VerifiedFirebasePrincipal:
+    """Strict Firebase authentication for paid or sensitive new features.
+
+    This intentionally never accepts X-User-ID and uses the Admin SDK so the
+    Firebase Auth emulator and revoked-token checks share one path.
+    """
+    if not authorization or not authorization.lower().startswith('bearer '):
+        raise HTTPException(status_code=401, detail='Verified Firebase authentication is required')
+    token = authorization.split(' ', 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail='Verified Firebase authentication is required')
+    try:
+        from firebase_admin import auth as firebase_auth
+    except Exception as exc:
+        logger.exception('firebase_user_auth_import_failed')
+        raise HTTPException(status_code=503, detail='Firebase authentication is unavailable') from exc
+    try:
+        claims = firebase_auth.verify_id_token(token, app=get_firebase_app(), check_revoked=True)
+    except FirebaseNotConfiguredError as exc:
+        logger.exception('firebase_user_auth_unavailable')
+        raise HTTPException(status_code=503, detail='Firebase authentication is unavailable') from exc
+    except (
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.ExpiredIdTokenError,
+        firebase_auth.RevokedIdTokenError,
+        firebase_auth.UserDisabledError,
+    ) as exc:
+        logger.warning('firebase_user_token_rejected', exc_info=True)
+        raise HTTPException(status_code=401, detail='Invalid or expired Firebase token') from exc
+    except Exception as exc:
+        logger.exception('firebase_user_verification_unavailable')
+        raise HTTPException(status_code=503, detail='Firebase authentication is unavailable') from exc
+
+    uid = claims.get('uid') or claims.get('sub')
+    if not isinstance(uid, str) or not uid:
+        raise HTTPException(status_code=401, detail='Firebase token is missing its subject')
+    email = claims.get('email')
+    principal = VerifiedFirebasePrincipal(
+        uid=uid,
+        email=email.lower() if isinstance(email, str) else None,
+    )
+    request.state.firebase_principal = principal
+    return principal
 
 
 async def require_admin_principal(

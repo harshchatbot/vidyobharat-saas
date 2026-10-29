@@ -63,6 +63,25 @@ class Settings(BaseSettings):
     editor_export_worker_retry_base_seconds: int = 5
     editor_export_worker_retry_max_seconds: int = 300
     editor_export_list_limit: int = 50
+    editor_copilot_enabled: bool = False
+    editor_copilot_provider: str = 'openai'
+    editor_copilot_model: str = 'gpt-4.1-mini'
+    editor_copilot_ollama_base_url: str = 'http://127.0.0.1:11434'
+    editor_copilot_ollama_model: str = 'qwen2.5:3b'
+    editor_copilot_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    editor_copilot_max_prompt_chars: int = Field(default=2000, ge=100, le=2000)
+    editor_copilot_max_context_bytes: int = Field(default=65536, ge=4096, le=262144)
+    editor_copilot_max_history_messages: int = Field(default=6, ge=0, le=6)
+    editor_copilot_max_operations: int = Field(default=20, ge=1, le=20)
+    editor_copilot_max_output_tokens: int = Field(default=2500, ge=256, le=8192)
+    editor_copilot_user_requests_24h: int = Field(default=10, ge=1, le=1000)
+    editor_copilot_user_tokens_24h: int = Field(default=50000, ge=1000)
+    editor_copilot_global_requests_24h: int = Field(default=500, ge=1)
+    editor_copilot_user_cost_usd_24h: float = Field(default=0, ge=0)
+    editor_copilot_global_cost_usd_24h: float = Field(default=0, ge=0)
+    editor_copilot_input_cost_per_1m: float = Field(default=0, ge=0)
+    editor_copilot_output_cost_per_1m: float = Field(default=0, ge=0)
+    editor_copilot_reservation_lease_seconds: int = Field(default=300, ge=30, le=1800)
     app_config_cache_ttl_seconds: int = Field(default=45, ge=30, le=60)
 
     database_url: str = 'sqlite:///./data/vidyobharat.db'

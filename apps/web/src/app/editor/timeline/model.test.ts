@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { addItem, activeItems, moveItem, projectItem, quantizeTimelineTime, removeItem, reorderVideo, resizeItem, snapTimelineTime, splitItem, updateItem, visualTimelineEnd } from './model.ts';
 import { browserEffectStyle, effectsWithTemporaryPreview, validateFilterAmount } from './filters.ts';
@@ -9,6 +10,8 @@ import { applyTextTemplate, TEXT_TEMPLATES } from './textTemplates.ts';
 import { createEmptyProject, EDITOR_FONTS, editorFontStack } from './types.ts';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './history.ts';
 import { effectLaneGroup, packEffectLanes } from './effectLanes.ts';
+import { applyEditPlan, calculateProjectRevision, COPILOT_EDIT_PLAN_VERSION, EditPlanValidationError, type CopilotEditPlan } from './editPlan.ts';
+import { mapCopilotError, operationDescription } from '../copilotUi.ts';
 
 const textItem = {
   id: 'text-1', kind: 'text' as const, trackId: 'text' as const, label: 'Title', text: 'Hello',
@@ -347,3 +350,177 @@ test('stale transaction updates and completion callbacks cannot close a newer tr
   assert.equal((projectItem(history.present, 'text-1') as typeof textItem).x, 0.6);
   assert.equal((projectItem(history.present, 'text-1') as typeof textItem).width, 0.6);
 });
+
+function copilotProject() {
+  let project = createEmptyProject();
+  project = addItem(project, { id: 'clip-a', kind: 'video', trackId: 'video', label: 'First', mediaId: 'a'.repeat(32), contentType: 'image/png', startTime: 1, duration: 2, sourceStart: 0, cropMode: 'cover', muted: true, volume: 0 });
+  project = addItem(project, { id: 'clip-b', kind: 'video', trackId: 'video', label: 'Second', mediaId: 'b'.repeat(32), contentType: 'image/png', startTime: 4, duration: 3, sourceStart: 0, cropMode: 'cover', muted: true, volume: 0 });
+  return project;
+}
+
+async function copilotPlan(project = copilotProject(), operations: CopilotEditPlan['operations']): Promise<CopilotEditPlan> {
+  return {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: 'request-1',
+    projectRevision: await calculateProjectRevision(project),
+    summary: 'Apply requested edits',
+    warnings: [],
+    operations,
+  };
+}
+
+test('copilot plan applies valid operations and permits references to earlier additions', async () => {
+  const project = copilotProject();
+  const addedText = { ...textItem, id: 'ai-title', startTime: 1.02, duration: 1.02 };
+  const plan = await copilotPlan(project, [
+    { op: 'add_text', item: addedText },
+    { op: 'update_item', itemId: 'ai-title', changes: { text: 'Edited by Copilot', fontSize: 52 } },
+    { op: 'add_effect', item: { id: 'ai-effect', kind: 'effect', trackId: 'effects', label: 'Warm', preset: 'warm', amount: 0.8, startTime: 1.02, duration: 1.02 } },
+    { op: 'set_aspect_ratio', aspectRatio: '1:1' },
+  ]);
+  const applied = await applyEditPlan(project, plan);
+  const title = projectItem(applied.project, 'ai-title');
+  assert.equal(title?.kind, 'text');
+  assert.equal(title?.kind === 'text' ? title.text : '', 'Edited by Copilot');
+  assert.equal(title?.startTime, 31 / 30);
+  assert.equal(applied.project.aspectRatio, '1:1');
+  assert.equal(applied.summaries.length, 4);
+  assert.equal(projectItem(project, 'ai-title'), undefined);
+  assert.equal(serializeTimelineProject(applied.project).effects[0].preset, 'warm');
+});
+
+test('copilot plan rejects missing and duplicate IDs atomically', async () => {
+  const project = copilotProject();
+  const missing = await copilotPlan(project, [{ op: 'remove_item', itemId: 'missing' }]);
+  await assert.rejects(() => applyEditPlan(project, missing), (error: unknown) => error instanceof EditPlanValidationError && error.code === 'invalid_item_id');
+
+  const duplicate = await copilotPlan(project, [
+    { op: 'add_text', item: { ...textItem, id: 'new-text' } },
+    { op: 'add_effect', item: { id: 'new-text', kind: 'effect', trackId: 'effects', label: 'Fade', preset: 'fade-in', amount: 1, startTime: 1, duration: 1 } },
+  ]);
+  await assert.rejects(() => applyEditPlan(project, duplicate), (error: unknown) => error instanceof EditPlanValidationError && error.code === 'duplicate_item_id' && error.operationIndex === 1);
+  assert.equal(projectItem(project, 'new-text'), undefined);
+});
+
+test('copilot plan rejects visual overlap without exposing earlier operations', async () => {
+  const project = copilotProject();
+  const plan = await copilotPlan(project, [
+    { op: 'add_text', item: { ...textItem, id: 'temporary-title' } },
+    { op: 'move_item', itemId: 'clip-b', startTime: 2.5 },
+  ]);
+  await assert.rejects(() => applyEditPlan(project, plan), (error: unknown) => error instanceof EditPlanValidationError && error.code === 'visual_overlap' && error.operationIndex === 1);
+  assert.equal(projectItem(project, 'temporary-title'), undefined);
+  assert.equal(projectItem(project, 'clip-b')?.startTime, 4);
+});
+
+test('copilot plan quantizes edits to frames and reports committed values', async () => {
+  const project = copilotProject();
+  const plan = await copilotPlan(project, [
+    { op: 'move_item', itemId: 'clip-b', startTime: 4.019 },
+    { op: 'update_item', itemId: 'clip-b', changes: { duration: 2.019, sourceStart: 0.019 } },
+  ]);
+  const applied = await applyEditPlan(project, plan);
+  const clip = projectItem(applied.project, 'clip-b');
+  assert.equal(clip?.startTime, 4 + 1 / 30);
+  assert.equal(clip?.duration, 2 + 1 / 30);
+  assert.equal(clip?.kind === 'video' ? clip.sourceStart : -1, 1 / 30);
+  assert.equal(applied.summaries[1].after?.duration, 2 + 1 / 30);
+});
+
+test('copilot visual reorder preserves leading and inter-clip gaps', async () => {
+  const project = copilotProject();
+  const plan = await copilotPlan(project, [{ op: 'reorder_visuals', orderedItemIds: ['clip-b', 'clip-a'] }]);
+  const applied = await applyEditPlan(project, plan);
+  const clips = applied.project.tracks.find((track) => track.id === 'video')!.items;
+  assert.deepEqual(clips.map((clip) => [clip.id, clip.startTime]), [['clip-b', 1], ['clip-a', 5]]);
+  assert.equal(applied.project.duration, 7);
+});
+
+test('copilot revision is deterministic and stale plans are rejected', async () => {
+  const project = copilotProject();
+  const equivalent = structuredClone(project);
+  assert.equal(await calculateProjectRevision(project), await calculateProjectRevision(equivalent));
+  const plan = await copilotPlan(project, [{ op: 'set_aspect_ratio', aspectRatio: '16:9' }]);
+  const changed = updateItem(project, 'clip-a', { duration: 2.5 });
+  assert.notEqual(await calculateProjectRevision(project), await calculateProjectRevision(changed));
+  await assert.rejects(() => applyEditPlan(changed, plan), (error: unknown) => error instanceof EditPlanValidationError && error.code === 'stale_project_revision');
+});
+
+test('copilot canonical revision matches the shared Python compatibility fixture', async () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../../../../shared/fixtures/editor_copilot_protocol_v1.json', import.meta.url), 'utf8'));
+  assert.equal(await calculateProjectRevision(fixture.project), fixture.projectRevision);
+});
+
+test('copilot proposal is one undoable and redoable history entry', async () => {
+  const project = copilotProject();
+  const plan = await copilotPlan(project, [
+    { op: 'update_item', itemId: 'clip-a', changes: { duration: 1.5 } },
+    { op: 'set_aspect_ratio', aspectRatio: '4:5' },
+  ]);
+  const applied = await applyEditPlan(project, plan);
+  let history = applyProjectChange(createProjectHistory(project), applied.project);
+  assert.equal(history.past.length, 1);
+  assert.equal(history.present.aspectRatio, '4:5');
+  history = undoProjectChange(history);
+  assert.deepEqual(history.present, project);
+  history = redoProjectChange(history);
+  assert.deepEqual(history.present, applied.project);
+});
+
+test('copilot UI maps safe backend states without exposing provider details', () => {
+  assert.equal(mapCopilotError(401, {}).code, 'signed_out');
+  assert.equal(mapCopilotError(403, {}).code, 'disabled');
+  assert.equal(mapCopilotError(409, {}).code, 'stale');
+  assert.equal(mapCopilotError(429, { message: 'internal quota subject' }).message.includes('internal'), false);
+  assert.equal(mapCopilotError(504, {}).retryable, true);
+});
+
+test('copilot operation summaries use the validated operation envelope', () => {
+  assert.equal(operationDescription({ op: 'set_aspect_ratio', aspectRatio: '16:9' }), 'Change canvas to 16:9');
+  assert.equal(operationDescription({ op: 'move_item', itemId: 'title', startTime: 1.5 }), 'Move item to 1.50s');
+});
+
+for (const contentType of ['image/png', 'video/mp4']) {
+  test(`copilot null placeholders allow safe ${contentType} slideshow updates and animated title`, async () => {
+    let project = copilotProject();
+    project = updateItem(project, 'clip-a', { contentType });
+    project = updateItem(project, 'clip-b', { contentType });
+    const placeholders = { text: null, fontSize: null, shadow: null, inAnimation: null, muted: null, volume: null };
+    const title = { ...textItem, id: 'ai-title', text: 'My First AI Video', startTime: 0, duration: 3, x: 0.5, y: 0.5, inAnimation: 'fade-in' as const, inAnimationDuration: 1 };
+    const plan = await copilotPlan(project, [
+      { op: 'update_item', itemId: 'clip-a', changes: { ...placeholders, startTime: 0, duration: 3 } },
+      { op: 'update_item', itemId: 'clip-b', changes: { ...placeholders, startTime: 3, duration: 3 } },
+      { op: 'add_text', item: title },
+    ] as unknown as CopilotEditPlan['operations']);
+    const original = JSON.stringify(plan);
+    const applied = await applyEditPlan(project, plan);
+    assert.deepEqual(['clip-a', 'clip-b'].map((id) => {
+      const item = projectItem(applied.project, id)!;
+      assert.equal('text' in item, false);
+      return [item.startTime, item.duration];
+    }), [[0, 3], [3, 3]]);
+    assert.deepEqual(projectItem(applied.project, 'ai-title'), title);
+    assert.equal(JSON.stringify(plan), original);
+    assert.equal(projectItem(project, 'ai-title'), undefined);
+    let history = createProjectHistory(project);
+    history = applyProjectChange(history, applied.project);
+    assert.equal(projectItem(history.present, 'ai-title')?.kind, 'text');
+    assert.deepEqual(undoProjectChange(history).present, project);
+  });
+}
+
+for (const changes of [
+  { duration: 3, text: 'Do not silently discard' },
+  { duration: 3, fontSize: 42 },
+  { duration: 3, shadow: false },
+  { duration: 3, inAnimation: 'fade-in' },
+  { duration: 3, unknown: null },
+  { duration: 3, mediaId: null },
+  { text: null, fontSize: null },
+]) {
+  test(`copilot rejects unsupported or empty changes ${JSON.stringify(changes)}`, async () => {
+    const project = copilotProject();
+    const plan = await copilotPlan(project, [{ op: 'update_item', itemId: 'clip-a', changes }] as unknown as CopilotEditPlan['operations']);
+    await assert.rejects(applyEditPlan(project, plan), EditPlanValidationError);
+  });
+}
