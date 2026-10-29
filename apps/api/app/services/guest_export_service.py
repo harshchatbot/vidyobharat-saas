@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -20,7 +19,11 @@ from app.services.guest_media_storage import GuestMediaStorage, build_guest_medi
 from app.services.guest_session_errors import GuestSessionError, media_error
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
 from app.services.guest_timeline_service import GuestTimelineService, build_guest_timeline_service
-from app.services.timeline_render_service import TimelineRenderError, TimelineValidationError
+from app.services.timeline_render_service import (
+    TimelineRenderError,
+    TimelineValidationError,
+    composition_duration,
+)
 
 
 _IDEMPOTENCY_PATTERN = re.compile(r'^[A-Za-z0-9._:-]{8,128}$')
@@ -74,14 +77,11 @@ class GuestExportService:
                 recoverable=True,
             ) from exc
         now = datetime.now(UTC)
-        reserved_processing = (
-            math.ceil(
-                max(
-                    clip.timeline_start_seconds + clip.duration_seconds
-                    for clip in composition.clips
-                ) * composition.fps - 1e-9
-            ) / composition.fps
-        )
+        # Reserve the renderer's canonical, frame-aligned project duration. The
+        # timeline can intentionally extend beyond its last visual clip for
+        # overlays or background audio, and completion fences against the same
+        # rendered duration.
+        reserved_processing = composition_duration(composition)
         reservation_id = f'export-{job_id}'
         network_subject: str | None = None
         try:

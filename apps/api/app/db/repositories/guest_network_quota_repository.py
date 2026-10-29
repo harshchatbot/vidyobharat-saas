@@ -56,7 +56,9 @@ class GuestNetworkQuotaRepository:
                 'expires_at': now + timedelta(hours=24),
                 **requested,
             }
-            txn.set(ref, {'entries': entries, 'updated_at': now}, merge=True)
+            # Replace the entries map atomically. A recursive merge retains map
+            # keys removed by expiry or rollback and can leave phantom quota.
+            txn.set(ref, {'entries': entries, 'updated_at': now})
 
         _reserve(transaction)
 
@@ -87,7 +89,7 @@ class GuestNetworkQuotaRepository:
                     raise quota_exceeded(f'network_{field}')
                 entry[field] = entry.get(field, 0) + requested[field]
             entries[reservation_id] = entry
-            txn.set(ref, {'entries': entries, 'updated_at': now}, merge=True)
+            txn.set(ref, {'entries': entries, 'updated_at': now})
 
         _increase(transaction)
 
@@ -109,7 +111,7 @@ class GuestNetworkQuotaRepository:
                 entries[reservation_id] = entry
             else:
                 entries.pop(reservation_id, None)
-            txn.set(ref, {'entries': entries, 'updated_at': now}, merge=True)
+            txn.set(ref, {'entries': entries, 'updated_at': now})
 
         _finish(transaction)
 

@@ -128,12 +128,39 @@ def _image(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def _audio(path: Path, *, duration: float) -> bytes:
+    subprocess.run(
+        ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi',
+         '-i', f'sine=frequency=440:sample_rate=48000:duration={duration}',
+         '-c:a', 'aac', str(path)],
+        check=True, capture_output=True,
+    )
+    return path.read_bytes()
+
+
 def _create_and_upload(client: TestClient, tmp_path: Path) -> str:
     assert client.post('/api/editor/guest/session', headers=MUTATING).status_code == 200
     response = client.post(
         '/api/editor/media/upload',
         headers={**MUTATING, 'Idempotency-Key': f'upload-{uuid4().hex}'},
         files={'file': ('source.png', _image(tmp_path / f'{uuid4().hex}.png'), 'image/png')},
+    )
+    assert response.status_code == 201
+    return response.json()['media_id']
+
+
+def _upload_audio(client: TestClient, tmp_path: Path, *, duration: float) -> str:
+    assert client.post('/api/editor/guest/session', headers=MUTATING).status_code == 200
+    response = client.post(
+        '/api/editor/media/upload',
+        headers={**MUTATING, 'Idempotency-Key': f'upload-{uuid4().hex}'},
+        files={
+            'file': (
+                'music.m4a',
+                _audio(tmp_path / f'{uuid4().hex}.m4a', duration=duration),
+                'audio/mp4',
+            ),
+        },
     )
     assert response.status_code == 201
     return response.json()['media_id']
@@ -185,6 +212,126 @@ def test_submit_is_durable_idempotent_and_worker_completes_after_reconnect(expor
     assert usage['reserved']['concurrent_processing'] == 0
     deleted = client.delete(f'/api/editor/media/{media_id}', headers=MUTATING)
     assert deleted.status_code == 204
+
+
+def test_extended_music_timeline_reserves_and_commits_full_processing_duration(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, _, tmp_path = export_environment
+    first_id = _create_and_upload(client, tmp_path)
+    second_id = _create_and_upload(client, tmp_path)
+    audio_id = _upload_audio(client, tmp_path, duration=1.2)
+    payload = {
+        'aspect_ratio': '9:16', 'width': 720, 'height': 1280, 'fps': 30,
+        'duration_seconds': 1.2,
+        'clips': [
+            {'media_id': first_id, 'order': 0, 'start_seconds': 0.0,
+             'duration_seconds': 0.4, 'crop_mode': 'cover'},
+            {'media_id': second_id, 'order': 1, 'start_seconds': 0.0,
+             'duration_seconds': 0.4, 'crop_mode': 'cover'},
+        ],
+        'text_overlays': [{
+            'id': 'title', 'text': 'RangManch', 'start_seconds': 0.0,
+            'duration_seconds': 1.2,
+        }],
+        'audio_items': [{
+            'id': 'music', 'media_id': audio_id, 'kind': 'music',
+            'start_seconds': 0.0, 'duration_seconds': 1.2,
+            'source_start_seconds': 0.0, 'volume': 0.5,
+        }],
+    }
+
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'extended-music-reservation'},
+        json=payload,
+    )
+
+    assert submitted.status_code == 202
+    job = submitted.json()
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    reservation = (
+        repository.sessions.document(guest_id)
+        .collection('reservations').document(f"export-{job['job_id']}").get().to_dict()
+    )
+    assert reservation and reservation['processing_seconds'] == pytest.approx(1.2)
+    stored_job = repository.get(guest_id, job['job_id'])
+    assert stored_job and stored_job['network_subject']
+    network_before = sessions.network_quotas.usage(
+        subject=stored_job['network_subject'], now=datetime.now(UTC),
+    )
+    assert network_before['processing_seconds'] == pytest.approx(1.2)
+
+    worker = GuestExportWorker(
+        settings=settings, repository=repository, timeline=timeline,
+        storage=storage, worker_id='extended-music-worker',
+    )
+    assert worker.run_once() is True
+
+    completed = repository.get(guest_id, job['job_id'])
+    assert completed and completed['status'] == 'completed'
+    usage = sessions.usage(client.cookies.get(sessions.config.cookie_name))
+    assert usage['used']['processing_seconds'] == pytest.approx(1.2, abs=0.04)
+    assert usage['reserved']['processing_seconds'] == 0
+    network_after = sessions.network_quotas.usage(
+        subject=stored_job['network_subject'], now=datetime.now(UTC),
+    )
+    assert network_after['processing_seconds'] == pytest.approx(1.2)
+
+
+def test_explicit_timeline_extension_reserves_and_commits_full_duration(export_environment) -> None:
+    client, sessions, _, _, repository, timeline, storage, settings, _, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    payload = _timeline(media_id, duration=0.4)
+    # The schema quantizes this request to exactly 30 frames / 1 second.
+    payload['duration_seconds'] = 1.01
+
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'explicit-extension-reservation'},
+        json=payload,
+    )
+
+    assert submitted.status_code == 202
+    job = submitted.json()
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    reservation = (
+        repository.sessions.document(guest_id)
+        .collection('reservations').document(f"export-{job['job_id']}").get().to_dict()
+    )
+    assert reservation and reservation['processing_seconds'] == pytest.approx(1.0)
+    worker = GuestExportWorker(
+        settings=settings, repository=repository, timeline=timeline,
+        storage=storage, worker_id='explicit-extension-worker',
+    )
+    assert worker.run_once() is True
+    assert repository.get(guest_id, job['job_id'])['status'] == 'completed'
+    usage = sessions.usage(client.cookies.get(sessions.config.cookie_name))
+    assert usage['used']['processing_seconds'] == pytest.approx(1.0, abs=0.04)
+    assert usage['reserved']['processing_seconds'] == 0
+
+
+def test_full_extended_duration_is_used_for_processing_quota_enforcement(export_environment) -> None:
+    client, sessions, _, _, repository, _, _, _, firestore, tmp_path = export_environment
+    media_id = _create_and_upload(client, tmp_path)
+    guest_id = client.get('/api/editor/guest/session').json()['guest_id']
+    firestore.collection('editor_guest_sessions').document(guest_id).update(
+        {'processing_seconds': 59.1}
+    )
+    payload = _timeline(media_id, duration=0.4)
+    payload['duration_seconds'] = 1.01
+
+    submitted = client.post(
+        '/api/editor/exports',
+        headers={**MUTATING, 'Idempotency-Key': 'extended-duration-quota'},
+        json=payload,
+    )
+
+    assert submitted.status_code == 429
+    assert submitted.json()['error'] == 'guest_quota_exceeded'
+    assert repository.list_for_guest(guest_id, limit=10) == []
+    usage = sessions.usage(client.cookies.get(sessions.config.cookie_name))
+    assert usage['reserved']['processing_seconds'] == 0
+    network_usage = client.get('/api/editor/guest/usage').json()['network_used']
+    assert network_usage['processing_seconds'] == 0
 
 
 def test_active_export_blocks_source_deletion(export_environment) -> None:
