@@ -1,8 +1,46 @@
-import { MAX_TIMELINE_SECONDS, MIN_ITEM_DURATION, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './types.ts';
+import { MAX_TIMELINE_SECONDS, MIN_ITEM_DURATION, V1_TIMELINE_FPS, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './types.ts';
 
 export function clampTime(value: number, minimum = 0, maximum = MAX_TIMELINE_SECONDS): number {
   if (!Number.isFinite(value)) return minimum;
   return Math.min(maximum, Math.max(minimum, Math.round(value * 100) / 100));
+}
+
+export function quantizeTimelineTime(
+  value: number,
+  minimum = 0,
+  maximum = MAX_TIMELINE_SECONDS,
+): number {
+  if (!Number.isFinite(value)) return minimum;
+  const bounded = Math.min(maximum, Math.max(minimum, value));
+  return Math.min(maximum, Math.max(minimum, Math.round(bounded * V1_TIMELINE_FPS) / V1_TIMELINE_FPS));
+}
+
+export function snapTimelineTime(
+  value: number,
+  item: Pick<TimelineItem, 'startTime' | 'duration'>,
+  mode: 'move' | 'left' | 'right',
+  targets: readonly number[],
+  thresholdSeconds: number,
+): number {
+  const quantized = quantizeTimelineTime(value);
+  const ownStart = quantizeTimelineTime(item.startTime);
+  const ownEnd = quantizeTimelineTime(item.startTime + item.duration);
+  const available = targets
+    .map((target) => quantizeTimelineTime(target))
+    .filter((target) => target !== ownStart && target !== ownEnd);
+  const candidates = mode === 'move'
+    ? [quantized, quantizeTimelineTime(quantized + item.duration)]
+    : [quantized];
+  let bestDelta: number | undefined;
+  for (const candidate of candidates) {
+    for (const target of available) {
+      const delta = target - candidate;
+      if (Math.abs(delta) <= thresholdSeconds && (bestDelta === undefined || Math.abs(delta) < Math.abs(bestDelta))) {
+        bestDelta = delta;
+      }
+    }
+  }
+  return quantizeTimelineTime(quantized + (bestDelta ?? 0));
 }
 
 export function projectItem(project: TimelineProject, itemId: string): TimelineItem | undefined {
@@ -26,7 +64,7 @@ export function moveItem(project: TimelineProject, itemId: string, startTime: nu
   const item = projectItem(project, itemId);
   if (!item) return project;
   if (item.kind === 'video') return updateItem(project, itemId, { startTime: nearestVideoStart(project, itemId, startTime, item.duration) });
-  return updateItem(project, itemId, { startTime: clampTime(startTime, 0, MAX_TIMELINE_SECONDS - item.duration) });
+  return updateItem(project, itemId, { startTime: quantizeTimelineTime(startTime, 0, MAX_TIMELINE_SECONDS - item.duration) });
 }
 
 export function resizeItem(project: TimelineProject, itemId: string, edge: 'left' | 'right', time: number): TimelineProject {
@@ -34,7 +72,7 @@ export function resizeItem(project: TimelineProject, itemId: string, edge: 'left
   if (!item) return project;
   if (edge === 'left' && item.kind !== 'video') {
     const end = item.startTime + item.duration;
-    const startTime = clampTime(time, 0, end - MIN_ITEM_DURATION);
+    const startTime = quantizeTimelineTime(time, 0, end - MIN_ITEM_DURATION);
     return updateItem(project, itemId, { startTime, duration: end - startTime });
   }
   const nextVideo = item.kind === 'video'
@@ -42,7 +80,7 @@ export function resizeItem(project: TimelineProject, itemId: string, edge: 'left
         .filter((other) => other.id !== itemId && other.startTime >= item.startTime)
         .sort((a, b) => a.startTime - b.startTime)[0]
     : undefined;
-  const end = clampTime(time, item.startTime + MIN_ITEM_DURATION,
+  const end = quantizeTimelineTime(time, item.startTime + MIN_ITEM_DURATION,
     Math.min(MAX_TIMELINE_SECONDS, nextVideo?.startTime ?? MAX_TIMELINE_SECONDS));
   return updateItem(project, itemId, { duration: end - item.startTime });
 }
@@ -53,11 +91,18 @@ export function reorderVideo(project: TimelineProject, itemId: string, targetInd
   const videos = track.items.filter((item): item is VideoTimelineItem => item.kind === 'video');
   const sourceIndex = videos.findIndex((item) => item.id === itemId);
   if (sourceIndex < 0) return project;
+  const gaps = videos.map((item, index) => index === 0
+    ? item.startTime
+    : Math.max(0, item.startTime - (videos[index - 1].startTime + videos[index - 1].duration)));
   const reordered = [...videos];
   const [moved] = reordered.splice(sourceIndex, 1);
   reordered.splice(Math.max(0, Math.min(videos.length - 1, targetIndex)), 0, moved);
-  let cursor = 0;
-  const sequential = reordered.map((item) => { const next = { ...item, startTime: cursor }; cursor += item.duration; return next; });
+  let cursor = gaps[0] ?? 0;
+  const sequential = reordered.map((item, index) => {
+    const next = { ...item, startTime: quantizeTimelineTime(cursor) };
+    cursor = next.startTime + item.duration + (gaps[index + 1] ?? 0);
+    return next;
+  });
   return normalizeProject({ ...project, tracks: project.tracks.map((entry) => entry.id === 'video' ? { ...entry, items: sequential } : entry) });
 }
 
@@ -82,24 +127,25 @@ export function normalizeProject(project: TimelineProject): TimelineProject {
     Math.max(end, item.startTime + item.duration), 0) ?? 0;
   const overlayEnd = tracks.filter((track) => track.id !== 'video').flatMap((track) => track.items)
     .reduce((max, item) => Math.max(max, item.startTime + item.duration), 0);
-  const duration = clampTime(Math.max(videoEnd, overlayEnd));
+  const duration = quantizeTimelineTime(Math.max(videoEnd, overlayEnd));
   return { ...project, tracks, duration, extensionExplicit: overlayEnd > videoEnd + 0.001 };
 }
 
 function normalizeItem<T extends TimelineItem>(item: T): T {
-  const startTime = clampTime(item.startTime);
-  const duration = clampTime(item.duration, MIN_ITEM_DURATION, MAX_TIMELINE_SECONDS - startTime);
+  const minimumDuration = Math.ceil(MIN_ITEM_DURATION * V1_TIMELINE_FPS) / V1_TIMELINE_FPS;
+  const startTime = quantizeTimelineTime(item.startTime, 0, MAX_TIMELINE_SECONDS - minimumDuration);
+  const duration = quantizeTimelineTime(item.duration, minimumDuration, MAX_TIMELINE_SECONDS - startTime);
   const common = { ...item, startTime, duration };
-  if (item.kind === 'audio' || item.kind === 'video') return { ...common, sourceStart: clampTime(item.sourceStart), volume: clampTime(item.volume, 0, 1) } as T;
+  if (item.kind === 'audio' || item.kind === 'video') return { ...common, sourceStart: quantizeTimelineTime(item.sourceStart), volume: clampTime(item.volume, 0, 1) } as T;
   if (item.kind === 'text') {
     const inAnimation = item.inAnimation ?? 'none';
     const outAnimation = item.outAnimation ?? 'none';
-    let inAnimationDuration = clampTime(item.inAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
-    let outAnimationDuration = clampTime(item.outAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
+    let inAnimationDuration = quantizeTimelineTime(item.inAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
+    let outAnimationDuration = quantizeTimelineTime(item.outAnimationDuration ?? 0.5, 0.1, Math.min(3, duration));
     if (inAnimation !== 'none' && outAnimation !== 'none' && inAnimationDuration + outAnimationDuration > duration) {
       const ratio = duration / (inAnimationDuration + outAnimationDuration);
-      inAnimationDuration = clampTime(inAnimationDuration * ratio, 0.1, duration);
-      outAnimationDuration = clampTime(duration - inAnimationDuration, 0.1, duration);
+      inAnimationDuration = quantizeTimelineTime(inAnimationDuration * ratio, 0.1, duration);
+      outAnimationDuration = quantizeTimelineTime(duration - inAnimationDuration, 0.1, duration);
     }
     return {
       ...common,
@@ -124,7 +170,7 @@ function normalizeItem<T extends TimelineItem>(item: T): T {
 /** Find the closest non-overlapping location for a video clip. */
 function nearestVideoStart(project: TimelineProject, itemId: string, requested: number, length: number): number {
   const maxStart = MAX_TIMELINE_SECONDS - length;
-  const target = clampTime(requested, 0, maxStart);
+  const target = quantizeTimelineTime(requested, 0, maxStart);
   const occupied = (project.tracks.find((track) => track.id === 'video')?.items ?? [])
     .filter((item) => item.id !== itemId)
     .sort((a, b) => a.startTime - b.startTime);
@@ -137,7 +183,7 @@ function nearestVideoStart(project: TimelineProject, itemId: string, requested: 
   }
   if (previousEnd <= maxStart) candidates.push(Math.max(previousEnd, target));
   if (!candidates.length) return projectItem(project, itemId)?.startTime ?? 0;
-  return clampTime(candidates.reduce((best, candidate) =>
+  return quantizeTimelineTime(candidates.reduce((best, candidate) =>
     Math.abs(candidate - target) < Math.abs(best - target) ? candidate : best));
 }
 
@@ -145,11 +191,11 @@ function nearestVideoStart(project: TimelineProject, itemId: string, requested: 
 export function splitItem(project: TimelineProject, itemId: string, time: number, newId: string): TimelineProject {
   const item = projectItem(project, itemId);
   if (!item || (item.kind !== 'video' && item.kind !== 'audio')) return project;
-  const offset = clampTime(time - item.startTime);
+  const offset = quantizeTimelineTime(time - item.startTime);
   if (offset < MIN_ITEM_DURATION || item.duration - offset < MIN_ITEM_DURATION) return project;
   const left = { ...item, duration: offset };
-  const right = { ...item, id: newId, startTime: clampTime(item.startTime + offset),
-    duration: clampTime(item.duration - offset), sourceStart: clampTime(item.sourceStart + offset) };
+  const right = { ...item, id: newId, startTime: quantizeTimelineTime(item.startTime + offset),
+    duration: quantizeTimelineTime(item.duration - offset), sourceStart: quantizeTimelineTime(item.sourceStart + offset) };
   return normalizeProject({ ...project, tracks: project.tracks.map((track) => ({ ...track,
     items: track.items.flatMap((entry) => entry.id === itemId ? [left, right] : [entry])
   })) });

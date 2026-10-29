@@ -1,5 +1,6 @@
 export const MAX_TIMELINE_SECONDS = 60;
 export const MIN_ITEM_DURATION = 0.25;
+export const V1_TIMELINE_FPS = 30;
 
 export type TrackType = 'video' | 'text' | 'effects' | 'music' | 'sfx' | 'voice';
 export type CropMode = 'cover' | 'contain';
@@ -7,7 +8,7 @@ export type TextAlignment = 'left' | 'center' | 'right';
 export type TextInAnimation = 'none' | 'fade-in' | 'slide-up' | 'pop-in';
 export type TextOutAnimation = 'none' | 'fade-out' | 'slide-down';
 export type TextLoopAnimation = 'none' | 'pulse' | 'float';
-export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation';
+export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation' | 'sepia' | 'hue-rotate' | 'invert' | 'warm' | 'cool';
 export type ProjectAspectRatio = '9:16' | '16:9' | '1:1' | '4:5';
 export type ExportResolution = '720p' | '1080p';
 export type ExportFrameRate = 24 | 30 | 60;
@@ -39,8 +40,17 @@ export type TimelineItem = VideoTimelineItem | TextTimelineItem | AudioTimelineI
 export type TimelineTrack = { id: TrackType; type: TrackType; name: string; items: TimelineItem[] };
 export type TimelineProject = { id: string; duration: number; extensionExplicit: boolean; aspectRatio: ProjectAspectRatio; exportSettings: ProjectExportSettings; tracks: TimelineTrack[] };
 
-export const EDITOR_FONTS = ['Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif'] as const;
-export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation'];
+export const EDITOR_FONTS = [
+  'Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif',
+  'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu',
+  'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam',
+] as const;
+export type EditorFontFamily = typeof EDITOR_FONTS[number];
+export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation', 'sepia', 'hue-rotate', 'invert', 'warm', 'cool'];
+
+export function editorFontStack(fontFamily: string): string {
+  return `"${fontFamily.replace(/["\\]/g, '')}", "Noto Sans", sans-serif`;
+}
 
 export function createEmptyProject(): TimelineProject {
   return {

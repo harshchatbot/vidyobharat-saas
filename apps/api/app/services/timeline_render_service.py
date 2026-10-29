@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -28,6 +29,33 @@ _PROCESS_CAPACITY: threading.BoundedSemaphore | None = None
 _PROCESS_CAPACITY_LIMIT: int | None = None
 _MAX_PROBE_OUTPUT_BYTES = 1024 * 1024
 _MAX_PROBE_ERROR_BYTES = 64 * 1024
+
+
+@lru_cache(maxsize=32)
+def _resolve_font_file(font_family: str, bold: bool) -> Path | None:
+    style = 'Bold' if bold else 'Regular'
+    for family in (font_family, 'Noto Sans', 'sans-serif'):
+        try:
+            result = subprocess.run(
+                ['fc-match', '-f', '%{family}\n%{file}', f'{family}:style={style}'],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        value = result.stdout[:4096].decode('utf-8', errors='replace').strip()
+        matched_family, separator, matched_file = value.partition('\n')
+        requested = family.casefold()
+        available_families = {item.strip().casefold() for item in matched_family.split(',')}
+        if family != 'sans-serif' and requested not in available_families:
+            continue
+        if result.returncode == 0 and separator and matched_file:
+            candidate = Path(matched_file)
+            if candidate.is_file():
+                return candidate
+    return None
 
 
 class TimelineRenderError(RuntimeError):
@@ -347,7 +375,38 @@ class TimelineRenderService:
         for effect in composition.effects:
             next_label = f've{filter_index}'
             expression = self._effect_filter(effect, composition)
-            filters.append(f'[{video_label}]{expression}[{next_label}]')
+            if effect.preset in {TimelineEffectPreset.fade_in, TimelineEffectPreset.fade_out}:
+                # FFmpeg's fade-in filter emits black before its start time. Applying it
+                # directly to the full composition would therefore black out every clip
+                # preceding a later fade. Keep an untouched branch and composite the
+                # faded branch only while this timeline effect is active.
+                base_label = f'vebase{filter_index}'
+                fade_source_label = f'vefadesource{filter_index}'
+                faded_label = f'vefaded{filter_index}'
+                fade_black_label = f'vefadeblack{filter_index}'
+                fade_composite_label = f'vefadecomposite{filter_index}'
+                start = format_seconds(effect.start_seconds)
+                end = format_seconds(effect.start_seconds + effect.duration_seconds)
+                filters.append(
+                    f'[{video_label}]split=2[{base_label}][{fade_source_label}]'
+                )
+                filters.append(
+                    f'color=c=black:s={composition.width}x{composition.height}:'
+                    f'r={composition.fps}:d={total_duration},format=rgba[{fade_black_label}]'
+                )
+                filters.append(
+                    f'[{fade_source_label}]format=rgba,{expression}[{faded_label}]'
+                )
+                filters.append(
+                    f'[{fade_black_label}][{faded_label}]overlay=eof_action=pass:'
+                    f'repeatlast=0[{fade_composite_label}]'
+                )
+                filters.append(
+                    f'[{base_label}][{fade_composite_label}]overlay=eof_action=pass:repeatlast=0:'
+                    f"enable='gte(t,{start})*lt(t,{end})'[{next_label}]"
+                )
+            else:
+                filters.append(f'[{video_label}]{expression}[{next_label}]')
             video_label = next_label
             filter_index += 1
         for overlay in composition.text_overlays:
@@ -366,6 +425,7 @@ class TimelineRenderService:
                 'right': 'w-text_w',
             }[overlay.alignment.value]
             background = self._ffmpeg_color(overlay.background_color, overlay.background_opacity)
+            font_option = self._drawtext_font_option(overlay.font_family, overlay.bold)
             shadow_options = (
                 'shadowcolor=black@0.55:shadowx=0:shadowy=2'
                 if overlay.shadow
@@ -375,7 +435,7 @@ class TimelineRenderService:
                 f'nullsrc=s={layer_width}x{layer_height}:r={composition.fps}:d='
                 f'{format_seconds(composition_duration(composition))},format=rgba,'
                 f'colorchannelmixer=aa=0,drawtext=textfile={self._escape_filter_value(str(text_path))}:'
-                f"font={self._escape_filter_value(overlay.font_family + (' Bold' if overlay.bold else ''))}:"
+                f'{font_option}:'
                 f'fontsize={overlay.font_size}:fontcolor={overlay.color}:'
                 f'borderw={overlay.outline_width}:bordercolor={overlay.outline_color}:'
                 f'{shadow_options}:box={1 if overlay.background_opacity > 0 else 0}:'
@@ -706,6 +766,16 @@ class TimelineRenderService:
     def _ffmpeg_color(value: str, opacity: float) -> str:
         return f'0x{value[1:]}@{opacity:.6f}'
 
+    @classmethod
+    def _drawtext_font_option(cls, font_family: str, bold: bool) -> str:
+        font_file = _resolve_font_file(font_family, bold)
+        if font_file is not None:
+            return f'fontfile={cls._escape_filter_value(str(font_file))}'
+        # drawtext uses fontconfig and falls back to its default sans family if
+        # the requested family is unavailable. The API allowlist prevents an
+        # arbitrary client-controlled font pattern from reaching FFmpeg.
+        return f'font={cls._escape_filter_value("Noto Sans Bold" if bold else "Noto Sans")}'
+
     @staticmethod
     def _effect_filter(effect: Any, composition: TimelineComposition) -> str:
         start = format_seconds(effect.start_seconds)
@@ -714,9 +784,9 @@ class TimelineRenderService:
         amount = float(effect.amount)
         enable = f"enable='between(t,{start},{end})'"
         if effect.preset == TimelineEffectPreset.fade_in:
-            return f'fade=t=in:st={start}:d={duration}'
+            return f'fade=t=in:st={start}:d={duration}:alpha=1'
         if effect.preset == TimelineEffectPreset.fade_out:
-            return f'fade=t=out:st={start}:d={duration}'
+            return f'fade=t=out:st={start}:d={duration}:alpha=1'
         if effect.preset == TimelineEffectPreset.zoom_in:
             factor = 0.12 * amount
             clock = f'(on/{composition.fps})'
@@ -739,6 +809,27 @@ class TimelineRenderService:
             return f'vibrance=intensity={max(-1.0, min(1.0, amount - 1)):.6f}:{enable}'
         if effect.preset == TimelineEffectPreset.vignette:
             return f'vignette=angle={0.15 + min(2.0, amount) * 0.35:.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.sepia:
+            strength = max(0.0, min(1.0, amount))
+            return (
+                f'colorchannelmixer=rr={1 - 0.607 * strength:.6f}:rg={0.769 * strength:.6f}:'
+                f'rb={0.189 * strength:.6f}:gr={0.349 * strength:.6f}:'
+                f'gg={1 - 0.314 * strength:.6f}:gb={0.168 * strength:.6f}:'
+                f'br={0.272 * strength:.6f}:bg={0.534 * strength:.6f}:'
+                f'bb={1 - 0.869 * strength:.6f}:{enable}'
+            )
+        if effect.preset == TimelineEffectPreset.hue_rotate:
+            return f'hue=h={max(0.0, min(2.0, amount)) * 180:.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.invert:
+            strength = max(0.0, min(1.0, amount))
+            expression = f'val*(1-{2 * strength:.6f})+255*{strength:.6f}'
+            return f"lutrgb=r='{expression}':g='{expression}':b='{expression}':{enable}"
+        if effect.preset == TimelineEffectPreset.warm:
+            strength = max(0.0, min(2.0, amount))
+            return f'colorbalance=rs={0.12 * strength:.6f}:gs={0.03 * strength:.6f}:bs={-0.12 * strength:.6f}:{enable}'
+        if effect.preset == TimelineEffectPreset.cool:
+            strength = max(0.0, min(2.0, amount))
+            return f'colorbalance=rs={-0.10 * strength:.6f}:gs={0.02 * strength:.6f}:bs={0.12 * strength:.6f}:{enable}'
         raise TimelineValidationError(f'Unsupported timeline effect: {effect.preset}.')
 
     @staticmethod

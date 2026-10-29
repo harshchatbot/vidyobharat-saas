@@ -21,6 +21,11 @@ export const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
   { id: 'silver', name: 'Silver', section: 'filters', category: 'Vintage', preset: 'grayscale', defaultIntensity: 1 },
   { id: 'color-punch', name: 'Color Punch', section: 'filters', category: 'Creative', preset: 'saturation', defaultIntensity: 1.45 },
   { id: 'high-key', name: 'High Key', section: 'filters', category: 'Creative', preset: 'brightness', defaultIntensity: 1.18 },
+  { id: 'warm-glow', name: 'Warm Glow', section: 'filters', category: 'Natural', preset: 'warm', defaultIntensity: 1 },
+  { id: 'cool-air', name: 'Cool Air', section: 'filters', category: 'Cinematic', preset: 'cool', defaultIntensity: 1 },
+  { id: 'classic-sepia', name: 'Classic Sepia', section: 'filters', category: 'Vintage', preset: 'sepia', defaultIntensity: 0.75 },
+  { id: 'hue-shift', name: 'Hue Shift', section: 'filters', category: 'Creative', preset: 'hue-rotate', defaultIntensity: 0.15 },
+  { id: 'negative', name: 'Negative', section: 'effects', category: 'Creative', preset: 'invert', defaultIntensity: 1 },
   { id: 'soft-blur', name: 'Soft Blur', section: 'effects', category: 'Creative', preset: 'blur', defaultIntensity: 0.45 },
   { id: 'slow-zoom', name: 'Slow Zoom', section: 'effects', category: 'Cinematic', preset: 'zoom-in', defaultIntensity: 1 },
   { id: 'fade-in', name: 'Fade In', section: 'transitions', category: 'Cinematic', preset: 'fade-in', defaultIntensity: 1 },
@@ -29,7 +34,7 @@ export const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
 
 export function validateFilterAmount(preset: EffectPreset, amount: number): number {
   if (!Number.isFinite(amount)) return 1;
-  if (preset === 'grayscale') return Math.max(0, Math.min(1, amount));
+  if (preset === 'grayscale' || preset === 'sepia' || preset === 'invert') return Math.max(0, Math.min(1, amount));
   return Math.max(0, Math.min(2, amount));
 }
 
@@ -49,6 +54,11 @@ export function browserEffectStyle(effects: EffectTimelineItem[], time: number):
     if (effect.preset === 'contrast') filters.push(`contrast(${amount})`);
     if (effect.preset === 'saturation') filters.push(`saturate(${amount})`);
     if (effect.preset === 'vibrance') filters.push(`saturate(${amount}) contrast(${1 + (amount - 1) * 0.12})`);
+    if (effect.preset === 'sepia') filters.push(`sepia(${amount})`);
+    if (effect.preset === 'hue-rotate') filters.push(`hue-rotate(${amount * 180}deg)`);
+    if (effect.preset === 'invert') filters.push(`invert(${amount})`);
+    if (effect.preset === 'warm') filters.push(`sepia(${Math.min(0.3, amount * 0.12)}) saturate(${1 + amount * 0.15}) hue-rotate(${-amount * 8}deg)`);
+    if (effect.preset === 'cool') filters.push(`saturate(${1 + amount * 0.08}) hue-rotate(${amount * 12}deg)`);
   }
   return { opacity, transform: `scale(${scale})`, filter: filters.join(' ') || undefined };
 }

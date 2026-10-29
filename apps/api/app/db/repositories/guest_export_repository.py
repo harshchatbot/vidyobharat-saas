@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -480,10 +481,13 @@ class GuestExportRepository:
             reservation_ref = session_ref.collection('reservations').document(job['reservation_id'])
             reservation_snapshot = reservation_ref.get(transaction=txn)
             reservation = reservation_snapshot.to_dict() or {}
-            if reservation.get('status') != 'active' or actual_processing_seconds > float(reservation.get('processing_seconds', 0)) + 1e-6:
-                raise ExportFenceError('Export reservation cannot be committed.')
+            committed_processing_seconds = self._processing_seconds_to_commit(
+                job=job,
+                reservation=reservation,
+                actual_processing_seconds=actual_processing_seconds,
+            )
             updates = self._quota_release_updates(session, reservation, commit=True)
-            updates['processing_seconds'] = float(session.get('processing_seconds', 0)) + actual_processing_seconds
+            updates['processing_seconds'] = float(session.get('processing_seconds', 0)) + committed_processing_seconds
             txn.update(session_ref, updates)
             txn.update(reservation_ref, {'status': 'committed', 'released_at': now})
             job_updates = {
@@ -501,6 +505,38 @@ class GuestExportRepository:
             return {**job, **job_updates}
 
         return _complete(transaction)
+
+    @staticmethod
+    def _processing_seconds_to_commit(
+        *,
+        job: dict[str, Any],
+        reservation: dict[str, Any],
+        actual_processing_seconds: float,
+    ) -> float:
+        if reservation.get('status') != 'active':
+            raise ExportFenceError('Export reservation cannot be committed.')
+        try:
+            reserved_processing_seconds = float(reservation['processing_seconds'])
+            actual = float(actual_processing_seconds)
+            fps = int((job.get('timeline') or {}).get('fps', 30))
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise ExportFenceError('Export reservation cannot be committed.') from exc
+        if (
+            not math.isfinite(reserved_processing_seconds)
+            or reserved_processing_seconds <= 0
+            or not math.isfinite(actual)
+            or actual < 0
+            or fps < 1
+            or fps > 60
+        ):
+            raise ExportFenceError('Export reservation cannot be committed.')
+        # FFprobe container duration can exceed the frame-aligned composition
+        # by a small muxing/timestamp delta. Match the renderer's validation
+        # tolerance, while committing only the amount already quota-reserved.
+        duration_tolerance = max(2 / fps, 0.03)
+        if actual > reserved_processing_seconds + duration_tolerance:
+            raise ExportFenceError('Export reservation cannot be committed.')
+        return reserved_processing_seconds
 
     def fail_or_retry(self, *, guest_id: str, job_id: str, worker_id: str, fence_token: str, error_code: str, transient: bool, max_attempts: int, retry_delay: timedelta, now: datetime, cleanup_object_path: str | None = None, cleanup_object_generation: str | None = None) -> str:
         session_ref = self.sessions.document(guest_id)

@@ -110,7 +110,7 @@ function Hero() {
 
         <p className={styles.heroDescription}>{hindi ? 'अपना म्यूज़िक, टेक्स्ट, इफ़ेक्ट और ट्रांज़िशन जोड़ें और इंस्टाग्राम या शॉर्ट्स के लिए एक्सपोर्ट करें। सीधे ब्राउज़र में।' : 'Add your own music, text, effects and transitions right in your browser, then export for Instagram or Shorts.'}</p>
         <div className={styles.languageSwitch} aria-label="Headline language"><button type="button" aria-pressed={!hindi} onClick={() => setHindi(false)}>English</button><span>/</span><button type="button" aria-pressed={hindi} onClick={() => setHindi(true)}>हिंदी</button></div>
-        <a className={styles.primaryCta} href="#start">Make my reel <ArrowRight size={19} aria-hidden="true" /></a>
+        <a className={styles.primaryCta} href="/editor">Make my reel <ArrowRight size={19} aria-hidden="true" /></a>
         <p className={styles.heroNote}><Check size={14} /> Free to start · No account needed</p>
         <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> AI chat editing coming soon</span>
       </div>
@@ -179,7 +179,7 @@ function Inspiration() {
       >
         {occasions.map((item, index) => (
           <a
-            href="#start"
+            href="/editor"
             className={styles.inspirationReel}
             key={item.label}
           >
@@ -221,7 +221,7 @@ function ComingSoon() {
 }
 
 function FinalCTA() {
-  return <section className={styles.finalCta}><p className={styles.kicker}>READY WHEN YOU ARE</p><h2>Don't just save the moment.<br /><em>Tell the story.</em></h2><a href="#start">Start creating <ArrowRight size={20} /></a><p>Made for moments big and small.</p></section>;
+  return <section className={styles.finalCta}><p className={styles.kicker}>READY WHEN YOU ARE</p><h2>Don't just save the moment.<br /><em>Tell the story.</em></h2><a href="/editor">Start creating <ArrowRight size={20} /></a><p>Made for moments big and small.</p></section>;
 }
 
 function Footer() {
@@ -269,5 +269,5 @@ function Footer() {
 }
 
 export function PublicStudioLanding() {
-  return <main className={styles.page}><Header /><Hero /><StartSection /><HowItWorks /><Inspiration /><ComingSoon /><FinalCTA /><Footer /><a className={styles.mobileSticky} href="#start">Make my reel <ChevronRight size={19} /></a></main>;
+  return <main className={styles.page}><Header /><Hero /><StartSection /><HowItWorks /><Inspiration /><ComingSoon /><FinalCTA /><Footer /><a className={styles.mobileSticky} href="/editor">Make my reel <ChevronRight size={19} /></a></main>;
 }

@@ -17,7 +17,7 @@ type Props = {
   onCancel: () => void;
 };
 
-const sections: Array<{ id: EffectSection; label: string }> = [{ id: 'filters', label: 'Color filters' }, { id: 'effects', label: 'Visual effects' }, { id: 'transitions', label: 'Transitions' }];
+const sections: Array<{ id: EffectSection; label: string }> = [{ id: 'filters', label: 'Color filters' }, { id: 'effects', label: 'Visual effects' }, { id: 'transitions', label: 'Fades' }];
 
 export function FilterGallery({
   mediaId, contentType, effectStartTime, effectDuration,

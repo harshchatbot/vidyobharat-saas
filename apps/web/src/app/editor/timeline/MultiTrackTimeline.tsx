@@ -1,9 +1,9 @@
 'use client';
 
-import { Magnet, Minus, Plus, Scissors, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Magnet, Minus, Plus, Scissors, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { TimelineTrack } from './TimelineTrack';
-import { visualTimelineEnd } from './model';
+import { projectItem, quantizeTimelineTime, snapTimelineTime, visualTimelineEnd } from './model';
 import type { TimelineProject } from './types';
 
 type Props = {
@@ -12,14 +12,18 @@ type Props = {
   selectedItemId?: string | null;
   onSelectItem: (itemId: string) => void;
   onSeek: (time: number) => void;
-  onMoveItem: (itemId: string, startTime: number) => void;
+  onMoveItem: (itemId: string, startTime: number, transactionKey?: string) => void;
   onResizeItem: (
     itemId: string,
     edge: 'left' | 'right',
-    time: number
+    time: number,
+    transactionKey?: string,
   ) => void;
   onDeleteSelected: () => void;
   onSplitSelected: () => void;
+  onReorderSelected: (direction: -1 | 1) => void;
+  onEditStart: (key: string) => void;
+  onEditEnd: (key: string) => void;
 };
 
 const LABEL_WIDTH = 112;
@@ -34,14 +38,23 @@ export function MultiTrackTimeline({
   onResizeItem,
   onDeleteSelected,
   onSplitSelected,
+  onReorderSelected,
+  onEditStart,
+  onEditEnd,
 }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(48);
   const [snapEnabled, setSnapEnabled] = useState(true);
 
   const cleanupSeekRef = useRef<(() => void) | null>(null);
 
-  const snapTargets = [0, ...project.tracks.flatMap((track) => track.items.flatMap((item) =>
+  const editBoundaries = [0, ...project.tracks.flatMap((track) => track.items.flatMap((item) =>
     [item.startTime, item.startTime + item.duration]))];
+  const snapTargets = [...editBoundaries, playbackTime];
+  const selectedItem = selectedItemId ? projectItem(project, selectedItemId) : undefined;
+  const visualItems = project.tracks.find((track) => track.id === 'video')?.items ?? [];
+  const selectedVisualIndex = selectedItem?.kind === 'video'
+    ? visualItems.findIndex((item) => item.id === selectedItem.id)
+    : -1;
   const duration = Math.max(project.duration, 60);
   const timelineWidth = Math.max(duration * pixelsPerSecond, 600);
   const visualEnd = visualTimelineEnd(project);
@@ -89,10 +102,13 @@ export function MultiTrackTimeline({
     const rect = element.getBoundingClientRect();
 
     const seekToClientX = (clientX: number) => {
-      const time = (clientX - rect.left) / pixelsPerSecond;
+      const time = quantizeTimelineTime((clientX - rect.left) / pixelsPerSecond, 0, duration);
+      const snapped = snapEnabled
+        ? snapTimelineTime(time, { startTime: time, duration: 0 }, 'left', editBoundaries, 8 / pixelsPerSecond)
+        : time;
 
       onSeek(
-        Math.max(0, Math.min(duration, time))
+        Math.max(0, Math.min(duration, snapped))
       );
     };
 
@@ -132,6 +148,8 @@ export function MultiTrackTimeline({
         <div className="flex items-center gap-1" aria-label="Timeline editing controls">
           <button type="button" disabled={!selectedItemId} onClick={onSplitSelected} title="Split selected video/audio at playhead (S)" className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/70 hover:bg-white/10 disabled:text-white/30"><Scissors className="h-3.5 w-3.5" />Split</button>
           <button type="button" disabled={!selectedItemId} onClick={onDeleteSelected} title={selectedItemId ? 'Delete selected item' : 'Select an item to delete'} className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs text-white/70 hover:bg-white/10 disabled:text-white/30"><Trash2 className="h-3.5 w-3.5" />Delete</button>
+          <button type="button" disabled={selectedVisualIndex <= 0} onClick={() => onReorderSelected(-1)} title="Move selected visual earlier" aria-label="Move selected visual earlier" className="grid h-8 w-8 place-items-center rounded text-white/70 hover:bg-white/10 disabled:text-white/30"><ArrowLeft className="h-3.5 w-3.5" /></button>
+          <button type="button" disabled={selectedVisualIndex < 0 || selectedVisualIndex >= visualItems.length - 1} onClick={() => onReorderSelected(1)} title="Move selected visual later" aria-label="Move selected visual later" className="grid h-8 w-8 place-items-center rounded text-white/70 hover:bg-white/10 disabled:text-white/30"><ArrowRight className="h-3.5 w-3.5" /></button>
           <button type="button" onClick={() => setSnapEnabled((value) => !value)} title="Toggle snapping (N)" aria-pressed={snapEnabled} className={`hidden h-8 items-center gap-1.5 rounded px-2 text-xs sm:inline-flex ${snapEnabled ? 'bg-amber-400/15 text-amber-300' : 'text-white/50 hover:bg-white/10'}`}><Magnet className="h-3.5 w-3.5" />Snap</button>
         </div>
 
@@ -204,6 +222,8 @@ export function MultiTrackTimeline({
               onResizeItem={onResizeItem}
               snapEnabled={snapEnabled}
               snapTargets={snapTargets}
+              onEditStart={onEditStart}
+              onEditEnd={onEditEnd}
 
             />
           ))}

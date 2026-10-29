@@ -13,10 +13,11 @@ import { invalidateGuestMediaUrl } from './useGuestMediaUrl';
 import { TextOverlayCanvas } from './TextOverlayCanvas';
 import { TextLibrary } from './TextLibrary';
 import { MultiTrackTimeline } from './timeline/MultiTrackTimeline';
-import { activeItems, addItem, moveItem, projectItem, removeItem, resizeItem, splitItem, updateItem, visualTimelineEnd } from './timeline/model';
+import { activeItems, addItem, moveItem, projectItem, quantizeTimelineTime, removeItem, reorderVideo, resizeItem, splitItem, updateItem, visualTimelineEnd } from './timeline/model';
 import { browserEffectStyle, effectsWithTemporaryPreview, vignetteOpacity } from './timeline/filters';
 import type { EffectSection } from './timeline/filters';
 import { serializeTimelineProject } from './timeline/serialization';
+import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { createEmptyProject, MAX_TIMELINE_SECONDS, type AudioTimelineItem, type EffectTimelineItem, type GuestMedia, type TextTimelineItem, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './timeline/types';
 
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
@@ -25,7 +26,8 @@ type WorkspaceTool = 'media' | 'audio' | 'text' | EffectSection;
 
 export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props) {
   const [media, setMedia] = useState(initialMedia);
-  const [project, setProject] = useState<TimelineProject>(() => createEmptyProject());
+  const [projectHistory, setProjectHistory] = useState(() => createProjectHistory(createEmptyProject()));
+  const project = projectHistory.present;
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -53,6 +55,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [exportSubmitting, setExportSubmitting] = useState(false);
   const [exportError, setExportError] = useState('');
   const [remainingUploads, setRemainingUploads] = useState(uploadUsage?.remaining.uploads ?? 0);
+  const [exportUsage, setExportUsage] = useState<{
+    remaining: { exports: number };
+    limits: { exports: number };
+  } | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const playbackStartedRef = useRef({ wallTime: 0, timelineTime: 0 });
   const downloadedExportIdsRef = useRef<Set<string>>(new Set());
@@ -82,6 +88,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setExportStatus('');
     setExportError('');
   }, [project]);
+
+  useEffect(() => {
+    if (exportOpen) void refreshExportUsage();
+  }, [exportOpen]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -120,6 +130,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         if (cancelled || revision !== projectRevisionRef.current) return;
         if (!response.ok) throw new Error(body.message || 'Export status is unavailable.');
         setExportJob(body as ExportJobView);
+        if (body.status === 'completed' || body.status === 'failed') {
+          void refreshExportUsage();
+        }
         if (body.status === 'completed') setExportStatus('Export completed.');
         if (body.status === 'failed') setExportStatus('Export failed.');
       } catch (error) {
@@ -156,7 +169,16 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const isEditing = target instanceof HTMLElement && (
         target.isContentEditable || Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="textbox"]'))
       );
-      if (isEditing || event.altKey || event.ctrlKey || event.metaKey || exportOpen || showFilters || mobilePanel) return;
+      const key = event.key.toLowerCase();
+      const commandKey = event.metaKey || event.ctrlKey;
+      const undoShortcut = commandKey && key === 'z' && !event.shiftKey;
+      const redoShortcut = commandKey && ((key === 'z' && event.shiftKey) || (event.ctrlKey && key === 'y'));
+      if (!event.altKey && (undoShortcut || redoShortcut)) {
+        event.preventDefault();
+        if (redoShortcut) redoProject(); else undoProject();
+        return;
+      }
+      if (isEditing || event.altKey || commandKey || exportOpen || showFilters || mobilePanel) return;
       if (event.code === 'Space' && !event.repeat) {
         event.preventDefault();
         if (project.duration <= 0) return;
@@ -167,7 +189,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         if (item && (item.kind === 'video' || item.kind === 'audio')) {
           event.preventDefault();
           setIsPlaying(false);
-          setProject(splitItem(project, selectedItemId, playbackTime, crypto.randomUUID()));
+          mutate(splitItem(project, selectedItemId, playbackTime, crypto.randomUUID()));
         }
       } else if (event.key === 'Home') {
         event.preventDefault(); setPlaybackTime(0); setIsPlaying(false);
@@ -182,7 +204,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         event.preventDefault();
         setIsPlaying(false);
         const next = removeItem(project, selectedItemId);
-        setProject(next);
+        mutate(next);
         setPlaybackTime((time) => Math.min(time, next.duration));
         setSelectedItemId(null);
       }
@@ -190,6 +212,11 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [exportOpen, showFilters, mobilePanel, project, selectedItemId, isPlaying, playbackTime]);
+
+  useEffect(() => {
+    setPlaybackTime((time) => Math.min(time, Math.max(project.duration, 0)));
+    if (selectedItemId && !projectItem(project, selectedItemId)) setSelectedItemId(null);
+  }, [project, selectedItemId]);
 
   function startTimelineResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
@@ -223,9 +250,34 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     });
   }
 
-  function mutate(next: TimelineProject) {
-    setProject(next);
-    setPlaybackTime((time) => Math.min(time, Math.max(next.duration, 0)));
+  function mutate(next: TimelineProject | ((current: TimelineProject) => TimelineProject), transactionKey?: string) {
+    setProjectHistory((history) => applyProjectChange(history,
+      typeof next === 'function' ? next(history.present) : next,
+      transactionKey));
+  }
+
+  function beginProjectEdit(key: string) {
+    setProjectHistory((history) => beginProjectTransaction(history, key));
+  }
+
+  function endProjectEdit(key: string) {
+    setProjectHistory((history) => commitProjectTransaction(history, key));
+  }
+
+  function clearProjectPreviews() {
+    setFilterPreview(undefined);
+    setTextPreview(undefined);
+    setIsPlaying(false);
+  }
+
+  function undoProject() {
+    clearProjectPreviews();
+    setProjectHistory((history) => undoProjectChange(history));
+  }
+
+  function redoProject() {
+    clearProjectPreviews();
+    setProjectHistory((history) => redoProjectChange(history));
   }
 
   function addVisual(item: GuestMedia) {
@@ -241,10 +293,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   function addAudio(item: GuestMedia, trackId: 'music' | 'sfx' = audioTarget) {
     if (item.availability === 'unavailable' || item.media_type !== 'audio') return;
     const startTime = Math.min(playbackTime, MAX_TIMELINE_SECONDS - 0.25);
-    const boundary = visualTimelineEnd(project) || MAX_TIMELINE_SECONDS;
-    const duration = Math.min(item.duration_seconds || 5, Math.max(0.25, boundary - startTime));
-    const audio: AudioTimelineItem = { id: crypto.randomUUID(), kind: 'audio', trackId, mediaId: item.media_id, contentType: item.content_type, label: item.original_filename, startTime, duration, sourceStart: 0, muted: false, volume: trackId === 'music' ? 0.65 : 1 };
-    mutate(addItem(project, audio)); setSelectedItemId(audio.id);
+    const id = crypto.randomUUID();
+    mutate((current) => {
+      const boundary = visualTimelineEnd(current) || MAX_TIMELINE_SECONDS;
+      const duration = Math.min(item.duration_seconds || 5, Math.max(0.25, boundary - startTime));
+      const audio: AudioTimelineItem = { id, kind: 'audio', trackId, mediaId: item.media_id, contentType: item.content_type, label: item.original_filename, startTime, duration, sourceStart: 0, muted: false, volume: trackId === 'music' ? 0.65 : 1 };
+      return addItem(current, audio);
+    });
+    setSelectedItemId(id);
   }
 
   function openEffectPicker(section: EffectSection, anchor?: HTMLElement) {
@@ -348,18 +404,42 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     finally { setUploadingAudio(false); }
   }
 
-  function seek(time: number) { setPlaybackTime(Math.max(0, Math.min(time, MAX_TIMELINE_SECONDS))); if (isPlaying) playbackStartedRef.current = { wallTime: performance.now(), timelineTime: time }; }
+  function seek(time: number) { const next = quantizeTimelineTime(time, 0, MAX_TIMELINE_SECONDS); setPlaybackTime(next); if (isPlaying) playbackStartedRef.current = { wallTime: performance.now(), timelineTime: next }; }
   function selectItem(itemId: string) { setSelectedItemId(itemId); const item = projectItem(project, itemId); if (item) seek(item.startTime); setIsPlaying(false); }
-  function patchSelected(updates: Partial<TimelineItem>) { if (!selectedItemId) return; mutate(updateItem(project, selectedItemId, updates)); }
-  function removeSelected() { if (!selectedItemId) return; mutate(removeItem(project, selectedItemId)); setSelectedItemId(null); }
+  function patchSelected(updates: Partial<TimelineItem>) { if (!selectedItemId) return; mutate((current) => updateItem(current, selectedItemId, updates), `inspector:${selectedItemId}`); }
+  function removeSelected() { if (!selectedItemId) return; mutate((current) => removeItem(current, selectedItemId)); setSelectedItemId(null); }
+  function reorderSelectedVisual(direction: -1 | 1) {
+    if (!selectedItemId) return;
+    mutate((current) => {
+      const visuals = current.tracks.find((track) => track.id === 'video')?.items ?? [];
+      const index = visuals.findIndex((item) => item.id === selectedItemId);
+      return index < 0 ? current : reorderVideo(current, selectedItemId, index + direction);
+    });
+  }
   function previewText(item?: TextTimelineItem) { setTextPreview(item ? { item, targetId: selectedText?.id } : undefined); }
   function applyTextDraft(item: TextTimelineItem, targetId?: string) {
     const boundary = visualTimelineEnd(project) || project.duration || MAX_TIMELINE_SECONDS;
     const committed = targetId
       ? { ...item, id: targetId }
       : { ...item, duration: Math.max(0.25, Math.min(item.duration, boundary - item.startTime)) };
-    const next = targetId ? updateItem(project, targetId, committed) : addItem(project, committed);
-    mutate(next); setSelectedItemId(targetId ?? item.id); setTextPreview(undefined); setMobilePanel(null);
+    mutate((current) => targetId ? updateItem(current, targetId, committed) : addItem(current, committed));
+    setSelectedItemId(targetId ?? item.id); setTextPreview(undefined); setMobilePanel(null);
+  }
+
+  async function refreshExportUsage() {
+    try {
+      const response = await fetch(`${getApiUrl()}/api/editor/guest/usage`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) throw new Error('Usage unavailable');
+
+      const usage = await response.json();
+      setExportUsage(usage);
+    } catch {
+      setExportUsage(null);
+    }
   }
 
   async function submitExport() {
@@ -391,7 +471,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         setExportError(message); setExportStatus(message);
       }
     }
-    finally { setExportSubmitting(false); }
+    finally {
+      setExportSubmitting(false);
+      void refreshExportUsage();
+    }
   }
 
   function isMediaReferenced(mediaId: string) {
@@ -436,7 +519,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const tools: Array<{ id: WorkspaceTool; label: string; icon: typeof Film }> = [
     { id: 'media', label: 'Media', icon: Film }, { id: 'audio', label: 'Audio', icon: AudioLines },
     { id: 'text', label: 'Text', icon: Type }, { id: 'filters', label: 'Filters', icon: SlidersHorizontal },
-    { id: 'effects', label: 'Effects', icon: Sparkles }, { id: 'transitions', label: 'Transitions', icon: BetweenHorizontalStart },
+    { id: 'effects', label: 'Effects', icon: Sparkles }, { id: 'transitions', label: 'Fades', icon: BetweenHorizontalStart },
   ];
   const libraryItems = media.filter((item) => activeTool === 'audio' ? item.media_type === 'audio' : item.media_type !== 'audio');
   const mediaLibrary = <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -531,7 +614,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
         <button type="button" onClick={() => setSidebarOpen((value) => !value)} className="hidden h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 md:grid lg:hidden" aria-label={sidebarOpen ? 'Hide tools' : 'Show tools'}>{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
         <div className="min-w-0"><p className="truncate text-sm font-semibold">Untitled reel</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p></div>
-        <div className="ml-2 hidden items-center gap-1 sm:flex"><button type="button" disabled title="Undo history is not available yet" aria-label="Undo unavailable" className="grid h-9 w-9 place-items-center rounded-md text-slate-600"><Undo2 className="h-4 w-4" /></button><button type="button" disabled title="Redo history is not available yet" aria-label="Redo unavailable" className="grid h-9 w-9 place-items-center rounded-md text-slate-600"><Redo2 className="h-4 w-4" /></button></div>
+        <div className="ml-2 flex items-center gap-1"><button type="button" disabled={!canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={!canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
         <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {project.duration.toFixed(1)}s</span><button type="button" disabled={project.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={!selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button></div>
       </header>
       {(uploadError || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs"><span role={uploadError ? 'alert' : 'status'} className={uploadError ? 'text-red-300' : 'text-amber-300'}>{uploadError || exportStatus}</span></div>}
@@ -548,7 +631,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <select
               id="editor-aspect-ratio"
               value={project.aspectRatio}
-              onChange={(event) => setProject((current) => ({ ...current, aspectRatio: event.target.value as TimelineProject['aspectRatio'] }))}
+              onChange={(event) => mutate((current) => ({ ...current, aspectRatio: event.target.value as TimelineProject['aspectRatio'] }))}
               className="rounded-md border border-white/15 bg-[#1c1c26] px-2 py-1 text-xs text-white"
               aria-label="Video aspect ratio"
             >
@@ -562,14 +645,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <div className={`relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl shadow-black/50 ${project.aspectRatio === '9:16' || project.aspectRatio === '4:5' ? 'h-full w-auto' : 'h-auto w-full'}`} style={{ aspectRatio: project.aspectRatio.replace(':', ' / ') }} data-testid="editor-preview-canvas" onPointerDown={() => setSelectedItemId(null)}>
               <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / project.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
               {vignette > 0 && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: `inset 0 0 100px rgba(0,0,0,${vignette})` }} />}
-              {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates) => { if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate(updateItem(project, text.id, updates)); }} />)}
+              {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates, transactionKey) => { if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate((current) => updateItem(current, text.id, updates), transactionKey); }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />)}
             </div>
           </section>
           <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{project.extensionExplicit ? 'Extended · final frame held · ' : ''}{project.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
           {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} />)}
         </main>
 
-        <EditorInspector className="hidden min-h-0 overflow-y-auto border-l border-white/10 lg:block" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} />
+        <EditorInspector className="hidden min-h-0 overflow-y-auto border-l border-white/10 lg:block" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />
       </div>
       <div className="relative shrink-0 border-t border-white/10" style={{ height: timelineHeight }}>
         <div
@@ -598,13 +681,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </span>
         </div>
         <div className="h-full overflow-hidden">
-          <MultiTrackTimeline project={project} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start) => mutate(moveItem(project, id, start))} onResizeItem={(id, edge, time) => mutate(resizeItem(project, id, edge, time))} onDeleteSelected={removeSelected} onSplitSelected={() => { if (selectedItemId) { setIsPlaying(false); mutate(splitItem(project, selectedItemId, playbackTime, crypto.randomUUID())); } }} />
+          <MultiTrackTimeline project={project} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start, transactionKey) => mutate((current) => moveItem(current, id, start), transactionKey)} onResizeItem={(id, edge, time, transactionKey) => mutate((current) => resizeItem(current, id, edge, time), transactionKey)} onDeleteSelected={removeSelected} onReorderSelected={reorderSelectedVisual} onSplitSelected={() => { if (selectedItemId) { setIsPlaying(false); mutate((current) => splitItem(current, selectedItemId, playbackTime, crypto.randomUUID())); } }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />
         </div>
       </div>
 
       <nav aria-label="Mobile editor tools" className="flex shrink-0 gap-1 overflow-x-auto border-t border-white/10 bg-[#111118] px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => chooseTool(id)} className={`flex min-h-12 min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-md text-[10px] ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
 
-      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" onPointerDown={() => { setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className="absolute inset-x-0 bottom-0 flex max-h-[72vh] min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>{activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} /> : mediaLibrary}</>}</section></div>}
+      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" onPointerDown={() => { setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className="absolute inset-x-0 bottom-0 flex max-h-[72vh] min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>{activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} /> : mediaLibrary}</>}</section></div>}
       {hoveredMedia && !showFilters && (
         <div
           className="pointer-events-none fixed z-40 hidden w-[310px] rounded-lg border border-white/15 bg-[#171720] p-3 shadow-2xl md:block"
@@ -643,13 +726,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
               effectDuration={previewClip?.duration ?? project.duration}
               initialSection={effectSection}
               onPreview={setFilterPreview}
-              onApply={(effect) => { mutate(addItem(project, effect)); setSelectedItemId(effect.id); setShowFilters(false); }}
+              onApply={(effect) => { mutate((current) => addItem(current, effect)); setSelectedItemId(effect.id); setShowFilters(false); }}
               onCancel={() => { setFilterPreview(undefined); setShowFilters(false); }}
             />
           </div>
         </div>
       )}
-      <ExportDialog open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} onClose={() => setExportOpen(false)} onAspectRatio={(aspectRatio) => setProject((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => setProject((current) => ({ ...current, exportSettings }))} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={exportJob?.status === 'completed' ? `${getApiUrl()}/api/editor/exports/${exportJob.job_id}/content` : undefined} />
+      <ExportDialog open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={exportJob?.status === 'completed' ? `${getApiUrl()}/api/editor/exports/${exportJob.job_id}/content` : undefined} />
     </div>
   );
 }

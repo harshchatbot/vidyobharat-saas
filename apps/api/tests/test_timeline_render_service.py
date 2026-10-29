@@ -27,6 +27,7 @@ from app.services.timeline_render_service import (
     TimelineRenderService,
     TimelineValidationError,
 )
+from app.services import timeline_render_service as timeline_render_module
 
 
 RED = 'a' * 32
@@ -240,6 +241,89 @@ def test_text_audio_and_effects_render_into_browser_compatible_output(tmp_path: 
         assert result.metadata.duration_seconds == pytest.approx(1, abs=0.15)
 
 
+def test_later_clip_fade_does_not_black_out_earlier_image(tmp_path: Path) -> None:
+    first = tmp_path / 'first.png'
+    second = tmp_path / 'second.png'
+    music = tmp_path / 'music.m4a'
+    _image(first, 'red')
+    _image(second, 'blue')
+    _audio(music, duration=4)
+    timeline = TimelineComposition(
+        width=180,
+        height=320,
+        fps=30,
+        clips=[
+            TimelineClip(
+                media_id=RED, order=0, start_seconds=0,
+                timeline_start_seconds=0, duration_seconds=2, crop_mode='cover',
+            ),
+            TimelineClip(
+                media_id=BLUE, order=1, start_seconds=0,
+                timeline_start_seconds=2, duration_seconds=2, crop_mode='cover',
+            ),
+        ],
+        text_overlays=[TimelineTextOverlay(
+            id='hindi-title', text='रंगमंच', start_seconds=2.2, duration_seconds=1.4,
+            font_family='Noto Sans Devanagari', font_size=28, color='#ffffff', bold=True,
+            x=0.5, y=0.5, width=0.8,
+        )],
+        audio_items=[TimelineAudioItem(
+            id='music', media_id=AUDIO, kind='music', start_seconds=0,
+            duration_seconds=4, source_start_seconds=0, volume=0.5,
+        )],
+        effects=[
+            TimelineEffect(
+                id='second-fade', preset='fade-in', start_seconds=2,
+                duration_seconds=0.5, amount=1,
+            ),
+            TimelineEffect(
+                id='second-negative', preset='invert', start_seconds=2,
+                duration_seconds=2, amount=1,
+            ),
+        ],
+    )
+
+    with TimelineRenderService().render(
+        timeline,
+        [_resolved(RED, 'image', first), _resolved(BLUE, 'image', second), _resolved(AUDIO, 'audio', music)],
+    ) as result:
+        # Fade In belongs to the second clip. It must not alter earlier frames.
+        first_early = _pixel(result.path, 1 / 30, x=20, y=280)
+        first_middle = _pixel(result.path, 1.0, x=20, y=280)
+        first_late = _pixel(result.path, 1.9, x=20, y=280)
+        assert first_early[0] > 180 and first_early[1] < 80 and first_early[2] < 80
+        assert first_middle[0] > 180 and first_middle[1] < 80 and first_middle[2] < 80
+        assert first_late[0] > 180 and first_late[1] < 80 and first_late[2] < 80
+
+        # The second blue image is inverted to yellow after its fade interval.
+        second_middle = _pixel(result.path, 3.0, x=20, y=280)
+        assert second_middle[0] > 180 and second_middle[1] > 180 and second_middle[2] < 80
+        payload = _probe(result.path)
+        assert any(stream['codec_type'] == 'audio' and stream['codec_name'] == 'aac' for stream in payload['streams'])
+
+
+def test_scoped_fade_out_progresses_monotonically_to_black(tmp_path: Path) -> None:
+    image = tmp_path / 'green.png'
+    _image(image, 'green')
+    timeline = TimelineComposition(
+        width=180,
+        height=320,
+        fps=30,
+        clips=[_clip(GREEN, 0, 1)],
+        effects=[TimelineEffect(
+            id='fade-out', preset='fade-out', start_seconds=0.5,
+            duration_seconds=0.5, amount=1,
+        )],
+    )
+
+    with TimelineRenderService().render(timeline, [_resolved(GREEN, 'image', image)]) as result:
+        before = _pixel(result.path, 0.5)
+        middle = _pixel(result.path, 0.75)
+        near_end = _pixel(result.path, 0.95)
+        assert before[1] > middle[1] > near_end[1]
+        assert near_end[1] < 20
+
+
 def test_long_offset_background_music_cannot_extend_mp4_container(tmp_path: Path) -> None:
     first = tmp_path / 'first.png'
     second = tmp_path / 'second.png'
@@ -426,6 +510,8 @@ def test_timeline_times_quantize_deterministically_to_output_frames() -> None:
         ('fade-in', 1), ('fade-out', 1), ('zoom-in', 1), ('grayscale', 1),
         ('blur', 0.4), ('brightness', 1.1), ('contrast', 1.2),
         ('vibrance', 1.2), ('vignette', 0.6), ('saturation', 1.3),
+        ('sepia', 0.75), ('hue-rotate', 0.15), ('invert', 1),
+        ('warm', 1), ('cool', 1),
     ],
 )
 def test_each_supported_effect_has_an_ffmpeg_render_mapping(tmp_path: Path, preset: str, amount: float) -> None:
@@ -438,6 +524,31 @@ def test_each_supported_effect_has_an_ffmpeg_render_mapping(tmp_path: Path, pres
     )
     with TimelineRenderService().render(timeline, [_resolved(RED, 'image', image)]) as result:
         assert result.metadata.video_codec == 'h264'
+
+
+@pytest.mark.parametrize(
+    'font_family',
+    [
+        'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil',
+        'Noto Sans Telugu', 'Noto Sans Gujarati', 'Noto Sans Gurmukhi',
+        'Noto Sans Kannada', 'Noto Sans Malayalam',
+    ],
+)
+def test_supported_noto_fonts_validate_and_resolve_safely(font_family: str) -> None:
+    overlay = TimelineTextOverlay(
+        id='localized-title', text='RangManch', start_seconds=0,
+        duration_seconds=1, font_family=font_family,
+    )
+
+    option = TimelineRenderService._drawtext_font_option(overlay.font_family, overlay.bold)
+    assert option.startswith(('fontfile=', 'font=Noto Sans'))
+
+
+def test_missing_backend_font_uses_noto_sans_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(timeline_render_module, '_resolve_font_file', lambda _family, _bold: None)
+
+    assert TimelineRenderService._drawtext_font_option('Noto Sans Bengali', False) == 'font=Noto Sans'
+    assert TimelineRenderService._drawtext_font_option('Noto Sans Bengali', True) == 'font=Noto Sans Bold'
 
 
 def test_cover_and_contain_apply_expected_geometry(tmp_path: Path) -> None:

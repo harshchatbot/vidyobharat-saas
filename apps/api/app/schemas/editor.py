@@ -133,9 +133,18 @@ class TimelineEffectPreset(str, Enum):
     vibrance = 'vibrance'
     vignette = 'vignette'
     saturation = 'saturation'
+    sepia = 'sepia'
+    hue_rotate = 'hue-rotate'
+    invert = 'invert'
+    warm = 'warm'
+    cool = 'cool'
 
 
-TimelineFontFamily = Literal['Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif']
+TimelineFontFamily = Literal[
+    'Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif',
+    'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu',
+    'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam',
+]
 
 
 class TimelineClip(BaseModel):
