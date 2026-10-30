@@ -2,7 +2,7 @@ export const EXPORT_WIDTH = 720;
 export const EXPORT_HEIGHT = 1280;
 export const EXPORT_FPS = 30;
 export const EXPORT_DURATION_SECONDS = 30;
-import type { EffectTimelineItem, GuestMedia, TextTimelineItem, TimelineProject, VideoTimelineItem } from '../../app/editor/timeline/types.ts';
+import type { EffectTimelineItem, GuestMedia, TextTimelineItem, TimelineItem, TimelineProject, VideoTimelineItem } from '../../app/editor/timeline/types.ts';
 import { browserEffectState, transitionProgress } from '../../app/editor/timeline/filters.ts';
 
 export function titleOpacity(time: number, fadeSeconds = 2): number {
@@ -47,7 +47,7 @@ export function supportedTimelineItems(project: TimelineProject, assets: Browser
   const effects = items.filter((item): item is EffectTimelineItem => item.kind === 'effect');
   if (effects.some((effect) => !['fade-in', 'fade-out', 'zoom-in', 'zoom-out'].includes(effect.preset))) throw new Error('This browser export does not support one or more visual effects.');
   for (const item of audio) if (!assets.audio?.[item.mediaId]) throw new Error(`Unsupported or missing audio media for timeline item ${item.id}.`);
-  for (const item of items) if (item.kind !== 'video' && item.kind !== 'text' && item.kind !== 'audio') throw new Error(`Unsupported timeline element: ${item.kind}.`);
+  for (const item of items) if (item.kind !== 'video' && item.kind !== 'text' && item.kind !== 'audio' && item.kind !== 'effect') throw new Error(`Unsupported timeline element: ${(item as TimelineItem).kind}.`);
   return { videos: [...videos].sort((a, b) => a.startTime - b.startTime), texts: items.filter((item): item is TextTimelineItem => item.kind === 'text'), audio, effects };
 }
 

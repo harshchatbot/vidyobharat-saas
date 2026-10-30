@@ -95,3 +95,9 @@ test('adds a supported video effect atomically', async () => {
   assert.equal(effect.kind, 'effect');
   if (effect.kind === 'effect') assert.equal(effect.preset, 'fade-in');
 });
+
+test('rejects an explicitly overlapping generated visual clip before apply', async () => {
+  const project = projectWith([{ id: 'a', mediaId: 'a', startTime: 0, duration: 3 }]);
+  const revision = await calculateProjectRevision(project);
+  assert.throws(() => buildBrowserCopilotPlanFromIntents(project, revision, [{ op: 'add_media', mediaReference: 'second_image', start: 2, duration: 3 }], [image('a'), image('b')]), /overlap an existing visual clip/);
+});

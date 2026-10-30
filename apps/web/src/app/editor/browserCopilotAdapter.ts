@@ -52,6 +52,13 @@ export function buildBrowserCopilotPlanFromIntents(
       if (!source) throw new Error(`Missing uploaded media reference: ${intent.mediaReference}.`);
       const startTime = intent.start ?? visualTimelineEnd(working);
       const duration = intent.duration ?? 3;
+      if (!Number.isFinite(startTime) || !Number.isFinite(duration) || startTime < 0 || duration <= 0 || startTime + duration > MAX_TIMELINE_SECONDS) {
+        throw new Error('The requested image timing is outside the timeline bounds. Nothing was applied.');
+      }
+      const existingVisuals = working.tracks.find((track) => track.id === 'video')?.items.filter((entry): entry is VideoTimelineItem => entry.kind === 'video') ?? [];
+      if (existingVisuals.some((entry) => startTime < entry.startTime + entry.duration - 1e-9 && startTime + duration > entry.startTime + 1e-9)) {
+        throw new Error('The requested image would overlap an existing visual clip. Choose a gap or omit the start time. Nothing was applied.');
+      }
       const item = { id: crypto.randomUUID(), kind: 'video' as const, trackId: 'video' as const, label: source.original_filename, mediaId: source.media_id, contentType: source.content_type, startTime, duration, sourceStart: 0, cropMode: 'cover' as const, muted: false, volume: 1 };
       operations.push({ op: 'add_media', item });
       working = addItem(working, item);

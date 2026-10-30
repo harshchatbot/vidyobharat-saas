@@ -100,6 +100,14 @@ test('uses shared effect interpolation for fade and zoom preview/export state', 
   assert.equal(state.scale, 1.03);
 });
 
+test('accepts effect timeline items in the browser export contract', () => {
+  let project = createEmptyProject();
+  project = addItem(project, { id: 'image', kind: 'video', trackId: 'video', label: 'Image', mediaId: 'a', contentType: 'image/png', startTime: 0, duration: 5, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 });
+  project = addItem(project, { id: 'zoom', kind: 'effect', trackId: 'effects', label: 'Zoom', preset: 'zoom-in', amount: 1, startTime: 0, duration: 5 });
+  const assets = { media: [{ media_id: 'a', original_filename: 'a.png', media_type: 'image' as const, content_type: 'image/png' }], images: { a: { naturalWidth: 1, naturalHeight: 1 } as HTMLImageElement } };
+  assert.equal(supportedTimelineItems(project, assets).effects[0].preset, 'zoom-in');
+});
+
 test('transition boundaries use the same interpolation for preview and export', () => {
   assert.equal(transitionProgress(5, 0.6, 4.7), 0);
   assert.ok(Math.abs(transitionProgress(5, 0.6, 5) - 0.5) < 1e-9);
