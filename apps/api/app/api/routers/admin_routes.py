@@ -26,7 +26,7 @@ from app.services.app_config_service import (
     get_app_config_service,
 )
 from app.services.template_management_service import TemplateManagementService
-from app.services.editor_audio_library import AudioLibraryEntry, build_audio_library_repository, upload_audio_library_asset
+from app.services.editor_audio_library import AudioLibraryEntry, build_audio_library_repository, register_existing_audio_asset, upload_audio_library_asset
 
 
 router = APIRouter(prefix='/api/admin', tags=['RangManch Admin'])
@@ -42,6 +42,11 @@ class AudioLibraryMetadata(BaseModel):
     source: str = Field(min_length=1, max_length=500)
     evidence_reference: str = Field(min_length=1, max_length=500)
     redistribution_confirmed: bool
+
+class ExistingAudioRegistration(AudioLibraryMetadata):
+    storage_path: str = Field(min_length=1, max_length=500)
+    duration_seconds: float = Field(gt=0, le=3600)
+    content_type: str = Field(pattern=r'^audio/[a-z0-9.+-]+$')
 
 
 @router.get('/audio-library')
@@ -71,6 +76,24 @@ async def admin_upload_audio_library(
             evidence_reference=payload.evidence_reference, storage_path=storage_path, status='draft',
         )
         build_audio_library_repository().save(entry)
+        return entry.model_dump(exclude={'evidence_reference'})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post('/audio-library/register', status_code=201)
+def admin_register_existing_audio_library(
+    payload: ExistingAudioRegistration,
+    _: AdminPrincipal = Depends(require_admin_principal),
+):
+    try:
+        entry = register_existing_audio_asset(
+            storage_path=payload.storage_path, title=payload.title, category=payload.category,
+            kind=payload.type, duration_seconds=payload.duration_seconds, content_type=payload.content_type,
+            tags=payload.tags, license_name=payload.license, attribution=payload.attribution,
+            source=payload.source, evidence_reference=payload.evidence_reference,
+            redistribution_confirmed=payload.redistribution_confirmed,
+        )
         return entry.model_dump(exclude={'evidence_reference'})
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
