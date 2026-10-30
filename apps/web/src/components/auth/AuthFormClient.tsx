@@ -11,6 +11,18 @@ import { safeReturnPath } from '@/lib/auth-return';
 
 type Props = { mode: 'login' | 'signup'; next?: string };
 
+async function establishAdminSessionIfRequested(nextPath: string, idToken: string): Promise<void> {
+  if (!nextPath.startsWith('/admin')) return;
+  const response = await fetch('/api/admin/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-RangManch-Admin-CSRF': '1' },
+    body: JSON.stringify({ idToken }),
+    cache: 'no-store',
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : 'Admin access denied.');
+}
+
 export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -32,6 +44,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
     }
     const profile = getProfileFields(user);
     await persistAppSession({ accessToken: idToken, userId: user.id, ...profile });
+    await establishAdminSessionIfRequested(returnPath, idToken);
     router.replace(returnPath);
     router.refresh();
   }

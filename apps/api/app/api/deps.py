@@ -127,17 +127,8 @@ async def get_user_id(
         return user.id
 
     settings = get_settings()
-    if (
-        x_user_id
-        and settings.allow_legacy_user_id_header
-        and settings.env.lower() in {'development', 'test'}
-    ):
-        user = UserRepository(None).get_or_create_auth_user(
-            user_id=x_user_id,
-            email=None,
-            display_name=None,
-            avatar_url=None,
-        )
+    if x_user_id and settings.allow_legacy_user_id_header and settings.env.lower() in {'development', 'test'}:
+        user = UserRepository(None).get_or_create_auth_user(user_id=x_user_id, email=None, display_name=None, avatar_url=None)
         FirestoreSyncService().sync_user(user)
         return user.id
 

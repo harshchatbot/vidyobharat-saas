@@ -44,7 +44,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
     <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
       <div className="flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><Bot className="h-4 w-4" /></span>
-        <div><h2 className="text-sm font-semibold text-white">AI Editing Copilot</h2><p className="text-[11px] text-slate-500">{browserProvider ? 'Local WebLLM · browser only' : 'Proposes edits. You stay in control.'}</p></div>
+        <div><h2 className="text-sm font-semibold text-white">AI Editing Copilot</h2><p className="text-[11px] text-slate-500">{browserProvider ? 'Local WebLLM · browser only' : 'Proposes edits. You stay in control.'}</p><p className="mt-1 text-[10px] text-slate-600">Server AI requires sign-in and is limited by your configured daily quota.</p></div>
       </div>
 
       {history.length === 0 && !proposal && <section className="mt-5" aria-label="Suggested prompts">

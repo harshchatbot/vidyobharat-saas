@@ -12,13 +12,14 @@ function sameOrigin(request: NextRequest): boolean {
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(COOKIE)?.value;
-  if (!token) return NextResponse.json({ authenticated: false }, { status: 401 });
+  if (!token) return NextResponse.json({ authenticated: false, admin: null }, { status: 401 });
   const verified = await fetch(`${getApiUrl()}/api/admin/me`, {
     headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   }).catch(() => null);
-  if (!verified) return NextResponse.json({ authenticated: false }, { status: 503 });
-  if (!verified.ok) return NextResponse.json({ authenticated: false }, { status: 401 });
-  return NextResponse.json({ authenticated: true }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+  if (!verified) return NextResponse.json({ detail: 'Admin authentication is unavailable.' }, { status: 503 });
+  const body = await verified.json().catch(() => ({}));
+  if (!verified.ok) return NextResponse.json({ authenticated: false, admin: null }, { status: verified.status });
+  return NextResponse.json({ authenticated: true, admin: body }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
 }
 
 export async function POST(request: NextRequest) {
