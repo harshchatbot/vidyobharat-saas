@@ -33,6 +33,10 @@ export function buildAutoEditPlan(project: TimelineProject, media: GuestMedia[],
   if (images.length === 0) throw new Error('Upload at least one available image before using Auto Edit.');
   const config = styleConfig[options.style];
   const operations: CopilotEditPlan['operations'] = [];
+  const existingVisuals = (project.tracks.find((track) => track.id === 'video')?.items ?? []).filter((item) => item.kind === 'video').sort((a, b) => a.startTime - b.startTime);
+  if (options.mode === 'add' && existingVisuals.some((item, index) => index > 0 && item.startTime < existingVisuals[index - 1].startTime + existingVisuals[index - 1].duration - 1e-9)) {
+    throw new Error('The current timeline contains overlapping visual clips. Choose Replace current to generate a valid Auto Edit proposal.');
+  }
   let cursor = options.mode === 'add' ? visualTimelineEnd(project) : 0;
   const targetDuration = options.targetDuration ?? config.duration * images.length;
   if (!Number.isFinite(targetDuration) || targetDuration <= 0 || targetDuration > MAX_TIMELINE_SECONDS) throw new Error('The requested reel duration is invalid or exceeds the timeline limit.');

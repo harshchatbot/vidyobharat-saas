@@ -29,10 +29,10 @@ export const isBrowserCopilotEnabled =
   process.env.NEXT_PUBLIC_BROWSER_AI_COPILOT === 'true';
 
 export const COPILOT_SUGGESTIONS = [
-  'Make the opening faster and keep the existing gaps.',
-  'Add a warm title near the beginning.',
-  'Reorder the visuals for a stronger story flow.',
-  'Apply a cinematic look without changing my text.',
+  'Create an Instagram Reel from my uploaded photos.',
+  'How can I make my reel more engaging?',
+  'Add the title "My Story" near the beginning.',
+  'Make a short cinematic highlight.',
 ] as const;
 
 export async function requestCopilotPlan(input: {

@@ -27,6 +27,7 @@ import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename } from './timeline/serialization';
 import { exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditMode, type AutoEditStyle } from './autoEdit';
+import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
 import { createEmptyProject, MAX_TIMELINE_SECONDS, type AudioTimelineItem, type EffectTimelineItem, type GuestMedia, type TextTimelineItem, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './timeline/types';
@@ -80,6 +81,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [authHydrated, setAuthHydrated] = useState(false);
   const copilotEpochRef = useRef(0);
   const copilotAbortRef = useRef<AbortController | null>(null);
+  const copilotSubmittingRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [exportStatus, setExportStatus] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
@@ -376,7 +378,17 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   async function submitCopilotPrompt(prompt: string) {
+    if (copilotSubmittingRef.current) return;
+    copilotSubmittingRef.current = true;
     invalidateCopilot();
+    const conversational = classifyBrowserConversation(prompt, committedProjectRef.current, media);
+    if (conversational) {
+      setCopilotError(null);
+      setCopilotProgress(null);
+      setCopilotHistory((current) => [...current, { role: 'user' as const, content: prompt }, { role: 'assistant' as const, content: conversational.message }].slice(-12));
+      copilotSubmittingRef.current = false;
+      return;
+    }
     const epoch = copilotEpochRef.current;
     const baseProject = committedProjectRef.current;
     const controller = new AbortController();
@@ -415,6 +427,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         setCopilotProgress(null);
         copilotAbortRef.current = null;
       }
+      copilotSubmittingRef.current = false;
     }
   }
 
