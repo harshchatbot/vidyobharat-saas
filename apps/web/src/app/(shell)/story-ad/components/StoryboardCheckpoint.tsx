@@ -5,7 +5,7 @@ import { StoryboardProject, useStoryboardProject } from '../hooks/useStoryboardP
 import { isTestModeEnabled } from '../utils/testModeHelper';
 import { generateMockScenes, simulateDelay } from '../services/mockDataService';
 import styles from './StoryboardCheckpoint.module.css';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+import { getFirebaseAuthHeaders } from '@/lib/api';
 
 interface SceneCard {
   id: string;
@@ -110,7 +110,7 @@ export default function StoryboardCheckpoint({
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const response = await fetch(`${apiUrl}/api/storyboard/${projectId}/storyboard`, {
       headers: {
-        'X-User-ID': getCurrentUserIdOrThrow('Storyboard scene fetch'),
+        ...(await getFirebaseAuthHeaders()),
       },
     });
     if (!response.ok) {
