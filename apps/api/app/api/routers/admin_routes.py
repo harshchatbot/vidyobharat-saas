@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from pydantic import BaseModel, Field
 
 from app.api.deps import AdminPrincipal, require_admin_principal
 from app.db.repositories.admin_repository import AdminCursorError, AdminGuestRepository
@@ -25,9 +26,78 @@ from app.services.app_config_service import (
     get_app_config_service,
 )
 from app.services.template_management_service import TemplateManagementService
+from app.services.editor_audio_library import AudioLibraryEntry, build_audio_library_repository, upload_audio_library_asset
 
 
 router = APIRouter(prefix='/api/admin', tags=['RangManch Admin'])
+
+
+class AudioLibraryMetadata(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=80)
+    type: str = Field(pattern='^(music|sfx)$')
+    tags: list[str] = Field(default_factory=list, max_length=20)
+    license: str = Field(min_length=1, max_length=120)
+    attribution: str | None = Field(default=None, max_length=500)
+    source: str = Field(min_length=1, max_length=500)
+    evidence_reference: str = Field(min_length=1, max_length=500)
+    redistribution_confirmed: bool
+
+
+@router.get('/audio-library')
+def admin_audio_library(_: AdminPrincipal = Depends(require_admin_principal)):
+    return {'items': [entry.model_dump() for entry in build_audio_library_repository().list(include_unpublished=True)]}
+
+
+@router.post('/audio-library', status_code=201)
+async def admin_upload_audio_library(
+    metadata: str,
+    file: UploadFile = File(...),
+    _: AdminPrincipal = Depends(require_admin_principal),
+):
+    try:
+        payload = AudioLibraryMetadata.model_validate_json(metadata)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail='Invalid audio library metadata.') from exc
+    if not payload.redistribution_confirmed:
+        raise HTTPException(status_code=422, detail='Redistribution permission must be explicitly confirmed.')
+    content = await file.read()
+    try:
+        storage_path, _, duration = upload_audio_library_asset(file.filename or 'audio', content, file.content_type or '', payload.type)
+        entry = AudioLibraryEntry(
+            id=storage_path.rsplit('/', 1)[-1].rsplit('.', 1)[0], title=payload.title, category=payload.category,
+            type=payload.type, duration_seconds=duration, content_type=file.content_type or 'audio/mpeg', tags=payload.tags,
+            license=payload.license, attribution=payload.attribution, source=payload.source,
+            evidence_reference=payload.evidence_reference, storage_path=storage_path, status='draft',
+        )
+        build_audio_library_repository().save(entry)
+        return entry.model_dump(exclude={'evidence_reference'})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.patch('/audio-library/{asset_id}')
+def admin_update_audio_library(asset_id: str, payload: AudioLibraryMetadata, _: AdminPrincipal = Depends(require_admin_principal)):
+    repository = build_audio_library_repository(); entry = repository.get(asset_id)
+    if not entry: raise HTTPException(status_code=404, detail='Audio library asset not found.')
+    if not payload.redistribution_confirmed: raise HTTPException(status_code=422, detail='Redistribution permission must be explicitly confirmed.')
+    updated = entry.model_copy(update=payload.model_dump(exclude={'redistribution_confirmed'}))
+    repository.save(updated)
+    return updated.model_dump(exclude={'evidence_reference'})
+
+
+@router.post('/audio-library/{asset_id}/publish')
+def admin_publish_audio_library(asset_id: str, _: AdminPrincipal = Depends(require_admin_principal)):
+    repository = build_audio_library_repository(); entry = repository.get(asset_id)
+    if not entry: raise HTTPException(status_code=404, detail='Audio library asset not found.')
+    updated = entry.model_copy(update={'status': 'published'}); repository.save(updated); return updated.model_dump(exclude={'evidence_reference'})
+
+
+@router.post('/audio-library/{asset_id}/retire')
+def admin_retire_audio_library(asset_id: str, _: AdminPrincipal = Depends(require_admin_principal)):
+    repository = build_audio_library_repository(); entry = repository.get(asset_id)
+    if not entry: raise HTTPException(status_code=404, detail='Audio library asset not found.')
+    updated = entry.model_copy(update={'status': 'retired'}); repository.save(updated); return updated.model_dump(exclude={'evidence_reference'})
 _EDITABLE_FIELDS = {
     'guest': {
         'max_uploads', 'max_exports', 'max_uploaded_bytes', 'max_storage_bytes',

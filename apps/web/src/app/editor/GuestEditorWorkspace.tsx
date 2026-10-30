@@ -14,6 +14,7 @@ import type { BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 import { ExportDialog, type ExportJobView } from './ExportDialog';
 import { FilterGallery } from './FilterGallery';
 import { GuestAudioLayer } from './GuestAudioLayer';
+import { catalogMediaId, catalogPlaybackUrl, fetchAudioLibrary, type AudioLibraryEntry } from './audioLibrary';
 import { GuestMediaPreview } from './GuestMediaPreview';
 import { GuestMediaThumbnail } from './GuestMediaThumbnail';
 import { invalidateGuestMediaUrl } from './useGuestMediaUrl';
@@ -44,6 +45,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [audioTarget, setAudioTarget] = useState<'music' | 'sfx'>('music');
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [audioLibrary, setAudioLibrary] = useState<AudioLibraryEntry[]>([]);
+  const [audioLibraryQuery, setAudioLibraryQuery] = useState('');
+  const [audioLibraryLoading, setAudioLibraryLoading] = useState(false);
+  const [audioLibraryError, setAudioLibraryError] = useState('');
+  const [audioLibraryTab, setAudioLibraryTab] = useState<'music' | 'sfx'>('music');
+  const [previewingCatalogId, setPreviewingCatalogId] = useState<string | null>(null);
+  const catalogAudioRef = useRef<HTMLAudioElement | null>(null);
   const [deletingMediaIds, setDeletingMediaIds] = useState<Set<string>>(() => new Set());
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
@@ -109,6 +117,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const activeTexts = itemsAtPlayhead.filter((item): item is TextTimelineItem => item.kind === 'text');
   const activeEffects = itemsAtPlayhead.filter((item): item is EffectTimelineItem => item.kind === 'effect');
   const audioItems = displayProject.tracks.flatMap((track) => track.items).filter((item): item is AudioTimelineItem => item.kind === 'audio');
+  useEffect(() => {
+    if (activeTool !== 'audio') return;
+    let cancelled = false;
+    setAudioLibraryLoading(true); setAudioLibraryError('');
+    void fetchAudioLibrary(undefined, audioLibraryQuery).then((items) => { if (!cancelled) setAudioLibrary(items); }).catch((error) => { if (!cancelled) setAudioLibraryError(error instanceof Error ? error.message : 'Audio library unavailable.'); }).finally(() => { if (!cancelled) setAudioLibraryLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTool, audioLibraryQuery, audioLibraryTab]);
   const clipCount = displayProject.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
 
   // A completed export represents a snapshot, not the current editable project.
@@ -453,6 +468,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setSelectedItemId(id);
   }
 
+  function addCatalogAudio(entry: AudioLibraryEntry) {
+    const startTime = Math.min(playbackTime, MAX_TIMELINE_SECONDS - 0.25);
+    const duration = Math.min(entry.duration_seconds, Math.max(0.25, (visualTimelineEnd(project) || MAX_TIMELINE_SECONDS) - startTime));
+    if (duration < 0.25) return;
+    mutate((current) => addItem(current, { id: crypto.randomUUID(), kind: 'audio', trackId: entry.type, mediaId: catalogMediaId(entry.id), contentType: entry.content_type, label: entry.title, startTime, duration, sourceStart: 0, muted: false, volume: entry.type === 'music' ? 0.65 : 1 }));
+  }
+
+  function toggleCatalogPreview(entry: AudioLibraryEntry) {
+    if (!catalogAudioRef.current) catalogAudioRef.current = new Audio();
+    if (previewingCatalogId === entry.id) { catalogAudioRef.current.pause(); setPreviewingCatalogId(null); return; }
+    catalogAudioRef.current.src = catalogPlaybackUrl(entry); catalogAudioRef.current.currentTime = 0;
+    void catalogAudioRef.current.play().then(() => setPreviewingCatalogId(entry.id)).catch(() => setAudioLibraryError('Audio preview could not start.'));
+  }
+
   function openEffectPicker(section: EffectSection, anchor?: HTMLElement) {
     if (anchor && typeof window !== 'undefined') {
       const rect = anchor.getBoundingClientRect();
@@ -615,6 +644,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         const audio: Record<string, HTMLAudioElement> = {};
         for (const mediaId of referencedMedia) {
           const entry = media.find((item) => item.media_id === mediaId);
+          const catalogEntry = mediaId.startsWith('catalog:') ? audioLibrary.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
+          if (catalogEntry) {
+            const url = catalogPlaybackUrl(catalogEntry);
+            audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded.`)); element.src = url; });
+            continue;
+          }
           if (!entry || !['image', 'audio'].includes(entry.media_type)) throw new Error('This browser export supports image and audio media only; remove unsupported timeline media.');
           const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`, { credentials: 'include', cache: 'no-store' });
           if (!response.ok) throw new Error(`Media request failed (${response.status}).`);
@@ -784,7 +819,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         </div>
       ))}
     </div>
-    {activeTool === 'audio' && <div className="border-t border-white/10 p-3"><button type="button" disabled={uploadingAudio || remainingUploads <= 0} onClick={() => audioInputRef.current?.click()} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-white/15 text-xs font-semibold text-white disabled:opacity-40"><Upload className="h-4 w-4" />{uploadingAudio ? 'Uploading...' : 'Upload audio'}</button><p className="mt-2 text-[11px] leading-4 text-slate-500">Use audio you own or are licensed to use.</p></div>}
+    {activeTool === 'audio' && <div className="border-t border-white/10 p-3"><button type="button" disabled={uploadingAudio || remainingUploads <= 0} onClick={() => audioInputRef.current?.click()} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-white/15 text-xs font-semibold text-white disabled:opacity-40"><Upload className="h-4 w-4" />{uploadingAudio ? 'Uploading...' : 'Upload audio'}</button><p className="mt-2 text-[11px] leading-4 text-slate-500">Use audio you own or are licensed to use.</p><div className="mt-4 border-t border-white/10 pt-3"><div className="flex gap-1"><button type="button" onClick={() => setAudioLibraryTab('music')} className={`flex-1 rounded px-2 py-1.5 text-[11px] ${audioLibraryTab === 'music' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Music</button><button type="button" onClick={() => setAudioLibraryTab('sfx')} className={`flex-1 rounded px-2 py-1.5 text-[11px] ${audioLibraryTab === 'sfx' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>SFX</button></div><input value={audioLibraryQuery} onChange={(event) => setAudioLibraryQuery(event.target.value)} placeholder="Search library" className="mt-2 h-8 w-full rounded border border-white/10 bg-black/20 px-2 text-xs text-white" />{audioLibraryLoading ? <p className="mt-3 text-xs text-slate-500">Loading library…</p> : audioLibraryError ? <p role="alert" className="mt-3 text-xs text-rose-300">{audioLibraryError}</p> : audioLibrary.filter((entry) => entry.type === audioLibraryTab).length === 0 ? <p className="mt-3 text-xs leading-5 text-slate-500">No licensed {audioLibraryTab} is available yet. Library assets will appear after licensing is verified.</p> : <div className="mt-2 space-y-2">{audioLibrary.filter((entry) => entry.type === audioLibraryTab).map((entry) => <div key={entry.id} className="rounded border border-white/10 bg-white/[0.03] p-2"><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="truncate text-xs text-white">{entry.title}</p><p className="text-[10px] text-slate-500">{entry.duration_seconds.toFixed(1)}s · {entry.license}</p></div><button type="button" onClick={() => toggleCatalogPreview(entry)} className="rounded px-2 py-1 text-[10px] text-amber-300">{previewingCatalogId === entry.id ? 'Pause' : 'Preview'}</button><button type="button" onClick={() => addCatalogAudio(entry)} className="rounded bg-amber-400 px-2 py-1 text-[10px] font-semibold text-slate-950">Add</button></div></div>)}</div>}</div></div>}
   </div>;
   return (
     <div className="flex min-h-dvh min-w-0 flex-col overflow-hidden bg-[#0a0a0f] text-slate-100 lg:h-dvh lg:min-h-0">
@@ -840,7 +875,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             </div>
           </section>
           <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{proposalActive ? 'Temporary Copilot preview · ' : ''}{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{displayProject.extensionExplicit ? 'Extended · final frame held · ' : ''}{displayProject.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
-          {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} />)}
+          {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} catalogEntry={item.mediaId.startsWith('catalog:') ? audioLibrary.find((entry) => catalogMediaId(entry.id) === item.mediaId) : undefined} />)}
         </main>
 
         <aside className="hidden min-h-0 overflow-hidden border-l border-white/10 bg-[#111118] lg:flex lg:flex-col" aria-label="Editor side panel">

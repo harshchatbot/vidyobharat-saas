@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, FileSliders, LayoutTemplate, LogOut, Users } from 'lucide-react';
+import { BarChart3, FileSliders, LayoutTemplate, LogOut, Users, Music2 } from 'lucide-react';
 
 const links = [
   { href: '/admin', label: 'Overview', icon: BarChart3 },
   { href: '/admin/guests', label: 'Guest sessions', icon: Users },
   { href: '/admin/settings', label: 'Settings', icon: FileSliders },
   { href: '/admin/templates', label: 'Templates', icon: LayoutTemplate },
+  { href: '/admin/audio-library', label: 'Audio library', icon: Music2 },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

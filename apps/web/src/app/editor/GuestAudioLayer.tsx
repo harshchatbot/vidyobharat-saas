@@ -3,9 +3,11 @@
 import { useEffect, useRef } from 'react';
 import type { AudioTimelineItem } from './timeline/types';
 import { useGuestMediaUrl } from './useGuestMediaUrl';
+import { isCatalogMediaId, catalogPlaybackUrl, type AudioLibraryEntry } from './audioLibrary';
 
-export function GuestAudioLayer({ item, playbackTime, isPlaying }: { item: AudioTimelineItem; playbackTime: number; isPlaying: boolean }) {
-  const { url } = useGuestMediaUrl(item.mediaId);
+export function GuestAudioLayer({ item, playbackTime, isPlaying, catalogEntry }: { item: AudioTimelineItem; playbackTime: number; isPlaying: boolean; catalogEntry?: AudioLibraryEntry }) {
+  const { url: uploadedUrl } = useGuestMediaUrl(isCatalogMediaId(item.mediaId) ? undefined : item.mediaId);
+  const url = catalogEntry ? catalogPlaybackUrl(catalogEntry) : uploadedUrl;
   const ref = useRef<HTMLAudioElement>(null);
   const active = playbackTime >= item.startTime && playbackTime < item.startTime + item.duration;
   useEffect(() => {

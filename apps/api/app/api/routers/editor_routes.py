@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from itertools import chain
 
-from fastapi import APIRouter, Depends, Header, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.schemas.editor import (
@@ -15,7 +15,9 @@ from app.schemas.editor import (
     GuestExportResponse,
     PublicAppConfigResponse,
     TimelineComposition,
+    AudioLibraryResponse,
 )
+from app.services.editor_audio_library import build_audio_library_repository, list_audio_library, upload_audio_library_asset
 from app.services.app_config_service import AppConfigService, get_app_config_service
 from app.services.guest_export_service import GuestExportService, build_guest_export_service
 from app.services.guest_media_service import GuestMediaService, build_guest_media_service
@@ -34,6 +36,22 @@ def editor_health():
         "service": "rangmanch-editor",
         "mode": "local",
     }
+
+
+@router.get('/audio-library', response_model=AudioLibraryResponse)
+def get_audio_library(
+    category: str | None = Query(default=None, pattern='^(music|sfx)$'),
+    query: str | None = Query(default=None, min_length=1, max_length=80),
+):
+    return {'items': list_audio_library(category=category, query=query)}
+
+
+@router.get('/audio-library/{asset_id}/content')
+def get_audio_library_content(asset_id: str):
+    entry = build_audio_library_repository().get(asset_id)
+    if not entry or entry.status != 'published' or not entry.playback_url:
+        raise HTTPException(status_code=404, detail='Audio library asset is unavailable.')
+    return RedirectResponse(entry.playback_url, status_code=307)
 
 
 @router.get('/config', response_model=PublicAppConfigResponse)
