@@ -19,6 +19,13 @@ class SignedUpload:
     method: str = 'PUT'
     headers: dict[str, str] = field(default_factory=dict)
 
+@dataclass(frozen=True)
+class StorageObjectMetadata:
+    path: str
+    content_type: str | None
+    size: int | None
+    metadata: dict[str, str]
+
 
 class StorageProvider:
     def sign_upload(self, filename: str, *, kind: str = 'asset') -> SignedUpload:
@@ -28,6 +35,9 @@ class StorageProvider:
         raise NotImplementedError
 
     def delete(self, path: str) -> bool:
+        raise NotImplementedError
+
+    def inspect_object(self, path: str) -> StorageObjectMetadata | None:
         raise NotImplementedError
 
 
@@ -61,6 +71,11 @@ class LocalStorageProvider(StorageProvider):
             target.unlink()
             return True
         return False
+
+    def inspect_object(self, path: str) -> StorageObjectMetadata | None:
+        target = Path(path)
+        if not target.is_file(): return None
+        return StorageObjectMetadata(path=path, content_type=None, size=target.stat().st_size, metadata={})
 
 
 class SupabaseStorageProvider(StorageProvider):
@@ -120,6 +135,9 @@ class SupabaseStorageProvider(StorageProvider):
             timeout=20.0,
         )
         return response.status_code in {200, 204}
+
+    def inspect_object(self, path: str) -> StorageObjectMetadata | None:
+        raise RuntimeError('Existing object registration is only supported for Firebase Storage.')
 
 
 class FirebaseStorageProvider(StorageProvider):
@@ -183,6 +201,22 @@ class FirebaseStorageProvider(StorageProvider):
             return True
         except Exception:
             return False
+
+    def inspect_object(self, path: str) -> StorageObjectMetadata | None:
+        clean_path = path.strip('/')
+        if not clean_path or '..' in Path(clean_path).parts:
+            return None
+        blob = self.bucket.blob(clean_path)
+        try:
+            blob.reload()
+        except Exception:
+            return None
+        return StorageObjectMetadata(
+            path=clean_path,
+            content_type=blob.content_type,
+            size=int(blob.size) if blob.size is not None else None,
+            metadata={str(k): str(v) for k, v in (blob.metadata or {}).items()},
+        )
 
 
 def build_storage_provider(settings: Settings | None = None) -> StorageProvider:

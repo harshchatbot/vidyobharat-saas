@@ -101,7 +101,7 @@ export function TimelineTrack({ track, pixelsPerSecond, duration, selectedItemId
             onPointerDown={(event) => beginPointer(event, item, 'move')}
             onKeyDown={(event) => handleKey(event, item)}
             title={`${item.label}. Drag to move; use arrow keys for precision.`}
-            className={`group absolute z-[1] flex h-7 touch-none items-center overflow-hidden rounded border px-2 text-left text-[11px] font-medium text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4c30f] ${trackColors[track.type]} ${selectedItemId === item.id ? 'z-10 border-[#f4c30f] ring-1 ring-[#f4c30f]' : 'border-white/20'}`}
+            className={`group absolute z-[1] flex h-7 touch-none items-center overflow-hidden rounded border px-2 text-left text-[11px] font-medium text-white transition-[filter,box-shadow,border-color] duration-150 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4c30f] hover:brightness-110 ${trackColors[track.type]} ${selectedItemId === item.id ? 'z-10 border-[#f4c30f] ring-1 ring-[#f4c30f] shadow-[0_0_0_2px_rgba(244,195,15,0.14)]' : 'border-white/20 hover:border-white/40'}`}
             style={{ top, left: item.startTime * pixelsPerSecond, width: Math.max(item.duration * pixelsPerSecond, 24) }}
           >
             {item.kind !== 'video' && <span role="presentation" onPointerDown={(event) => beginPointer(event, item, 'left')} className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-black/15 opacity-0 group-hover:opacity-100" />}

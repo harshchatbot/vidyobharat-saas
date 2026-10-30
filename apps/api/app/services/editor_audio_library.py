@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import hashlib
+from urllib.parse import quote
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -56,6 +58,12 @@ class AudioLibraryRepository:
         self.collection.document(entry.id).set(entry.model_dump(exclude={'id'}))
         return entry
 
+    def find_by_storage_path(self, storage_path: str) -> AudioLibraryEntry | None:
+        for entry in self.list(include_unpublished=True):
+            if entry.storage_path == storage_path:
+                return entry
+        return None
+
 
 def validate_audio_file(content: bytes, content_type: str, filename: str, max_bytes: int) -> float:
     if len(content) == 0 or len(content) > max_bytes:
@@ -91,3 +99,44 @@ def upload_audio_library_asset(filename: str, content: bytes, content_type: str,
     duration = validate_audio_file(content, content_type, filename, get_settings().editor_guest_max_file_bytes)
     signed = build_storage_provider().upload_bytes(filename, content, content_type=content_type, kind=f'audio-library/{kind}')
     return signed.storage_path, signed.public_url, duration
+
+
+def register_existing_audio_asset(*, storage_path: str, title: str, category: str, kind: str,
+                                  duration_seconds: float, content_type: str, tags: list[str],
+                                  license_name: str, attribution: str | None, source: str,
+                                  evidence_reference: str, redistribution_confirmed: bool) -> AudioLibraryEntry:
+    clean_path = storage_path.strip('/')
+    if not clean_path.startswith(f'audio-library/{kind}/') or '..' in Path(clean_path).parts:
+        raise ValueError('Storage path must be inside the audio-library music or sfx namespace.')
+    if not redistribution_confirmed:
+        raise ValueError('Redistribution permission must be explicitly confirmed.')
+    if duration_seconds <= 0 or duration_seconds > 3600:
+        raise ValueError('Audio duration must be greater than zero and at most one hour.')
+    if not content_type.startswith('audio/'):
+        raise ValueError('Catalog registration requires an audio MIME type.')
+    repository = build_audio_library_repository()
+    existing = repository.find_by_storage_path(clean_path)
+    if existing:
+        return existing
+    storage = build_storage_provider()
+    metadata = storage.inspect_object(clean_path)
+    if metadata is None:
+        raise ValueError('The Firebase Storage audio object was not found.')
+    if metadata.content_type and metadata.content_type != content_type:
+        raise ValueError('Declared MIME type does not match the stored object.')
+    asset_id = hashlib.sha256(clean_path.encode('utf-8')).hexdigest()[:40]
+    playback_url = ''
+    token = metadata.metadata.get('firebaseStorageDownloadTokens')
+    bucket = getattr(storage, 'bucket_name', None)
+    if token and bucket:
+        playback_url = f'https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{quote(clean_path, safe="")}?alt=media&token={quote(token, safe="")}'
+    if not playback_url:
+        raise ValueError('The stored object has no controlled playback token. Set a Firebase download token before registration.')
+    entry = AudioLibraryEntry(
+        id=asset_id, title=title, category=category, type=kind, duration_seconds=duration_seconds,
+        content_type=content_type, tags=tags, license=license_name, attribution=attribution,
+        source=source, evidence_reference=evidence_reference, playback_url=playback_url,
+        storage_path=clean_path, status='draft',
+    )
+    repository.save(entry)
+    return entry

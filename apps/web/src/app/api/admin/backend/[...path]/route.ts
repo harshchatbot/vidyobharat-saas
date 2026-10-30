@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getApiUrl } from '@/lib/env';
+import { MUTATING, SAFE_PATH } from '../routeSecurity';
 
 const COOKIE = 'rangmanch_admin_session';
-const SAFE_PATH = /^(me|dashboard|guests(?:\/[A-Za-z0-9_-]{1,128}\/exports)?|config(?:\/audit)?|templates(?:\/[A-Za-z0-9_-]{1,128}(?:\/status)?)?|templates\/upload-preview|audio-library(?:\/[A-Za-z0-9_-]{1,128}\/(?:publish|retire))?)$/;
-const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path: segments } = await context.params;

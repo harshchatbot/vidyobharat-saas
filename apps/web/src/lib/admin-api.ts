@@ -54,13 +54,29 @@ export async function adminRequest<T>(path: string, init: RequestInit = {}): Pro
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   if (!['GET', 'HEAD'].includes(method)) headers.set('X-RangManch-Admin-CSRF', '1');
-  const response = await fetch(`/api/admin/backend/${path.replace(/^\//, '')}`, {
+  const request = () => fetch(`/api/admin/backend/${path.replace(/^\//, '')}`, {
     ...init,
     method,
     headers,
     credentials: 'same-origin',
     cache: 'no-store',
   });
+  let response = await request();
+  if (response.status === 401) {
+    const { getFirebaseAuth } = await import('@/lib/firebase-client');
+    const user = getFirebaseAuth().currentUser;
+    if (user) {
+      const token = await user.getIdToken(true);
+      const refreshed = await fetch('/api/admin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-RangManch-Admin-CSRF': '1' },
+        body: JSON.stringify({ idToken: token }),
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      if (refreshed.ok) response = await request();
+    }
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = typeof body?.detail === 'string' ? body.detail : 'Admin request failed.';

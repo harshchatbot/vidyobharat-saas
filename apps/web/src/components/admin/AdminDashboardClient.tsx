@@ -10,8 +10,9 @@ export function AdminDashboardClient() {
   const [data, setData] = useState<AdminDashboard | null>(null);
   const [error, setError] = useState('');
   useEffect(() => { adminRequest<AdminDashboard>('dashboard').then(setData).catch((caught) => {
-    if (caught instanceof AdminApiError && [401, 403].includes(caught.status)) router.replace('/admin/login');
-    else setError(caught instanceof Error ? caught.message : 'Dashboard unavailable.');
+    if (caught instanceof AdminApiError && caught.status === 401) router.replace('/login?next=%2Fadmin');
+    else if (caught instanceof AdminApiError && caught.status === 403) setError('Your account is signed in but is not authorized for admin access.');
+    else setError(caught instanceof Error ? caught.message : 'Admin service is temporarily unavailable.');
   }); }, [router]);
   if (error) return <AdminState title="Dashboard unavailable" detail={error} />;
   if (!data) return <AdminState title="Loading dashboard" detail="Reading bounded Firestore metrics…" />;
