@@ -12,10 +12,8 @@ import { ToggleTheme } from '@/components/ui/ToggleTheme';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 const navLinks = [
-  { href: '/create', label: 'Create' },
-  { href: '/videos', label: 'Videos' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/learning', label: 'Learn' },
+  { href: '/editor', label: 'Create Reel' },
+  { href: '/dashboard', label: 'My Studio' },
 ];
 const compactNavLinks = navLinks;
 
@@ -37,7 +35,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [clientLoggedOut, setClientLoggedOut] = useState(false);
-  const [serverVerifiedAdmin, setServerVerifiedAdmin] = useState(false);
+  const [adminVerified, setAdminVerified] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const effectiveUserId = clientLoggedOut ? null : userId;
   const effectiveAccountLabel = clientLoggedOut ? null : accountLabel;
@@ -53,15 +51,12 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   }, [userId]);
 
   useEffect(() => {
+    if (!effectiveUserId) { setAdminVerified(false); return; }
     let active = true;
-    if (!effectiveUserId) {
-      setServerVerifiedAdmin(false);
-      return () => { active = false; };
-    }
-    fetch('/api/admin/session', { cache: 'no-store' })
+    fetch('/api/admin/session', { credentials: 'include' })
       .then((response) => response.ok ? response.json() : null)
-      .then((body) => { if (active) setServerVerifiedAdmin(Boolean(body?.admin)); })
-      .catch(() => { if (active) setServerVerifiedAdmin(false); });
+      .then((payload: { authenticated?: boolean } | null) => { if (active) setAdminVerified(Boolean(payload?.authenticated)); })
+      .catch(() => { if (active) setAdminVerified(false); });
     return () => { active = false; };
   }, [effectiveUserId]);
 
@@ -142,7 +137,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
             {!effectiveUserId && (
               <>
-                <Link href="/login" className="ml-2 inline-flex items-center gap-1 rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-text))]">
+                <Link href={`/login?next=${encodeURIComponent(pathname || '/dashboard')}`} className="ml-2 inline-flex items-center gap-1 rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--color-text))]">
                   Sign in
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -163,12 +158,12 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
                     {effectiveAccountEmail ?? effectiveAccountLabel ?? 'Account'}
                   </span>
                 </Link>
-                {serverVerifiedAdmin && <Link href="/admin" className="inline-flex min-h-8 items-center rounded-[12px] border border-amber-400/30 px-2.5 text-xs font-semibold text-amber-300">Admin Dashboard</Link>}
                 <LogoutButton
                   className="rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))] disabled:opacity-70"
                   onBeforeNavigate={() => setOpen(false)}
                   icon="none"
                 />
+                {adminVerified ? <Link href="/admin" className="ml-1 text-xs font-medium text-amber-300 hover:text-amber-200">Admin Dashboard</Link> : null}
               </>
             )}
 
@@ -210,14 +205,15 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
 
           {effectiveUserId && (
             <div className="mt-1 flex gap-2">
-              <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-primary)/0.3)] bg-[hsl(var(--color-primary)/0.1)] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
-                {effectiveAccountEmail ?? 'Account'}
+                <Link href="/dashboard" className="rounded-[var(--radius-md)] border border-[hsl(var(--color-primary)/0.3)] bg-[hsl(var(--color-primary)/0.1)] px-3 py-1 text-sm text-[hsl(var(--color-text))]" onClick={() => setOpen(false)}>
+                My Studio
               </Link>
               <LogoutButton
                 className="rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] px-3 py-1 text-sm text-[hsl(var(--color-text))] disabled:opacity-70"
                 onBeforeNavigate={() => setOpen(false)}
                 icon="none"
               />
+              {adminVerified ? <Link href="/admin" className="rounded-[var(--radius-md)] border border-amber-300/30 px-3 py-1 text-sm text-amber-200" onClick={() => setOpen(false)}>Admin Dashboard</Link> : null}
             </div>
           )}
         </div>
