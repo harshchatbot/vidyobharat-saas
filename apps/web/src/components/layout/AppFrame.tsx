@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, Suspense } from 'react';
-import { ChevronDown, Compass, FolderKanban, FolderPlus, HelpCircle, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, MessageCircle, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
+import { ChevronDown, Compass, Film, FolderKanban, FolderPlus, HelpCircle, Image as ImageIcon, LayoutTemplate, LoaderCircle, Mail, Menu, MessageCircle, Settings, Sparkles, User, Video, Wand2, X } from 'lucide-react';
 
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -34,7 +34,7 @@ function isAppRoute(pathname: string) {
 }
 
 function getPageTitle(pathname: string) {
-  if (pathname.startsWith('/dashboard')) return 'Dashboard';
+  if (pathname.startsWith('/dashboard')) return 'My Studio';
   if (pathname.startsWith('/library')) return 'Library';
   if (pathname === '/videos') return 'Library';
   if (pathname.startsWith('/templates')) return 'Template Browser';
@@ -227,50 +227,27 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     };
     const navItems = [
       {
-        href: '/create',
-        label: 'Create',
-        hint: 'Unified creation hub',
+        href: '/editor',
+        label: 'Create Reel',
+        hint: 'Open the browser editor',
         icon: Sparkles,
         glow: 'from-[hsl(var(--color-accent)/0.2)] to-transparent',
         kind: 'group',
         groupKey: 'create',
       },
       {
-        href: '/projects',
-        label: 'Projects',
-        hint: 'Organize outputs',
-        icon: FolderKanban,
-        glow: 'from-emerald-500/15 to-transparent',
+        href: '/dashboard',
+        label: 'My Studio',
+        hint: 'Your creator home',
+        icon: Film,
+        glow: 'from-violet-500/15 to-transparent',
         kind: 'link',
         groupKey: 'projects',
-      },
-      {
-        href: '/billing',
-        label: 'Billing',
-        hint: 'Credits and plans',
-        icon: Sparkles,
-        glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
-        kind: 'group',
-        groupKey: 'billing',
-      },
-      {
-        href: '/help',
-        label: 'More',
-        hint: 'Settings and help',
-        icon: Settings,
-        glow: 'from-[hsl(var(--color-accent)/0.16)] to-transparent',
-        kind: 'group',
-        groupKey: 'more',
       },
     ] as const;
 
     const navGroups = {
-      create: [
-        { href: '/create', label: 'Unified studio', icon: Video },
-        { href: '/videos', label: 'Video library', icon: Video },
-        { href: '/templates', label: 'Template browser', icon: LayoutTemplate },
-        { href: '/influencer', label: 'AI Influencer', icon: Wand2 },
-      ],
+      create: [{ href: '/editor', label: 'Browser editor', icon: Video }],
       billing: [
         { href: '/billing', label: 'Billing', icon: Sparkles },
         { href: '/pricing', label: 'Pricing', icon: Sparkles },
@@ -284,10 +261,8 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
     } as const;
 
     const mobileNavItems = [
-      { href: '/create', label: 'Explore', hint: 'Recipe-led creation', icon: Compass, active: pathname.startsWith('/create') || pathname.startsWith('/templates') || pathname.startsWith('/influencer') },
-      { href: '/projects', label: 'Projects', hint: projectsNavPending ? 'Loading workspace…' : 'Organize renders', icon: FolderKanban, active: pathname.startsWith('/projects') },
-      { href: '/library', label: 'Library', hint: 'Revisit outputs', icon: Video, active: pathname.startsWith('/library') },
-      { href: '/billing', label: 'Billing', hint: 'Credits and plans', icon: Sparkles, active: pathname.startsWith('/billing') || pathname.startsWith('/pricing') || pathname.startsWith('/credits') },
+      { href: '/editor', label: 'Create Reel', hint: 'Browser video editor', icon: Video, active: pathname.startsWith('/editor') },
+      { href: '/dashboard', label: 'My Studio', hint: 'Your creator home', icon: Film, active: pathname.startsWith('/dashboard') },
       { href: '/help', label: 'More', hint: 'Help and settings', icon: Settings, active: isMoreRoute(pathname) },
     ] as const;
 
@@ -490,17 +465,7 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                       <span className="min-w-0">
                         <span className="block truncate text-[12px] font-medium leading-tight">{groupItem.label}</span>
                         <span className="block truncate text-[10px] text-muted">
-                          {groupItem.href === '/create'
-                            ? 'Unified creation hub'
-                            : groupItem.href === '/templates'
-                              ? 'Guided workflows'
-                              : groupItem.href === '/influencer'
-                                ? 'Consistent avatar creation'
-                                : groupItem.href === '/billing'
-                                    ? 'Credits and plans'
-                                    : groupItem.href === '/help'
-                                      ? 'Quick answers'
-                                    : 'Workspace settings'}
+                          {groupItem.href === '/editor' ? 'Browser video editor' : 'Workspace'}
                         </span>
                       </span>
                     </Link>
@@ -685,33 +650,6 @@ export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, ch
                             ? 'border-[hsl(var(--color-accent)/0.35)] bg-[hsl(var(--color-accent)/0.14)] text-[hsl(var(--color-accent))]'
                             : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-text'
                         }`;
-
-                        if (item.href === '/projects') {
-                          return (
-                            <button
-                              key={item.label}
-                              type="button"
-                              onClick={() => {
-                                if (mobileNavTapLocked || isPending) return;
-                                setMobileNavTapLocked(true);
-                                openProjectsWorkspace();
-                              }}
-                              className={baseClass}
-                            >
-                              <span className={iconClass}>
-                                {projectsNavPending ? (
-                                  <LoaderCircle className="h-3.5 w-3.5 animate-spin sm:h-4 sm:w-4" />
-                                ) : (
-                                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                )}
-                              </span>
-                              <span className="min-w-0 flex-1 text-left">
-                                <span className="block font-semibold text-text">{item.label}</span>
-                                <span className="block text-xs text-muted">{projectsNavPending ? 'Loading workspace…' : item.hint}</span>
-                              </span>
-                            </button>
-                          );
-                        }
 
                         return (
                           <button
