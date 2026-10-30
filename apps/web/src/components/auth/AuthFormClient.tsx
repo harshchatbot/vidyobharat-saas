@@ -11,8 +11,7 @@ import { safeReturnPath } from '@/lib/auth-return';
 
 type Props = { mode: 'login' | 'signup'; next?: string };
 
-async function establishAdminSessionIfRequested(nextPath: string, idToken: string): Promise<void> {
-  if (!nextPath.startsWith('/admin')) return;
+async function establishAdminSession(idToken: string): Promise<boolean> {
   const response = await fetch('/api/admin/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-RangManch-Admin-CSRF': '1' },
@@ -20,7 +19,9 @@ async function establishAdminSessionIfRequested(nextPath: string, idToken: strin
     cache: 'no-store',
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : 'Admin access denied.');
+  if (response.ok) return true;
+  if (response.status === 401 || response.status === 403) return false;
+  throw new Error(typeof body?.detail === 'string' ? body.detail : 'Admin authorization is unavailable.');
 }
 
 export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
@@ -44,8 +45,8 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
     }
     const profile = getProfileFields(user);
     await persistAppSession({ accessToken: idToken, userId: user.id, ...profile });
-    await establishAdminSessionIfRequested(returnPath, idToken);
-    router.replace(returnPath);
+    const isAdmin = await establishAdminSession(idToken);
+    router.replace(returnPath === '/dashboard' && isAdmin ? '/admin' : returnPath);
     router.refresh();
   }
 
