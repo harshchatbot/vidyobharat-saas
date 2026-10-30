@@ -65,7 +65,7 @@ class AudioLibraryEntryResponse(BaseModel):
     license: str
     attribution: str | None
     source: str
-    evidence_reference: str
+    evidence_reference: str | None = None
     playback_url: str
 
 
