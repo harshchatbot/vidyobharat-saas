@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from itertools import chain
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -15,7 +15,9 @@ from app.schemas.editor import (
     GuestExportResponse,
     PublicAppConfigResponse,
     TimelineComposition,
+    AudioLibraryResponse,
 )
+from app.services.editor_audio_library import list_audio_library
 from app.services.app_config_service import AppConfigService, get_app_config_service
 from app.services.guest_export_service import GuestExportService, build_guest_export_service
 from app.services.guest_media_service import GuestMediaService, build_guest_media_service
@@ -34,6 +36,14 @@ def editor_health():
         "service": "rangmanch-editor",
         "mode": "local",
     }
+
+
+@router.get('/audio-library', response_model=AudioLibraryResponse)
+def get_audio_library(
+    category: str | None = Query(default=None, pattern='^(music|sfx)$'),
+    query: str | None = Query(default=None, min_length=1, max_length=80),
+):
+    return {'items': [entry.model_dump() for entry in list_audio_library(category=category, query=query)]}
 
 
 @router.get('/config', response_model=PublicAppConfigResponse)

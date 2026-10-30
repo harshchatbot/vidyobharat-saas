@@ -54,6 +54,25 @@ class GuestMediaListResponse(BaseModel):
     items: list[GuestMediaResponse]
 
 
+class AudioLibraryEntryResponse(BaseModel):
+    id: str
+    title: str
+    category: str
+    type: Literal['music', 'sfx']
+    duration_seconds: float
+    content_type: str
+    tags: list[str]
+    license: str
+    attribution: str | None
+    source: str
+    evidence_reference: str
+    playback_url: str
+
+
+class AudioLibraryResponse(BaseModel):
+    items: list[AudioLibraryEntryResponse]
+
+
 class PublicGuestAppConfig(BaseModel):
     max_uploads: int
     max_exports: int
