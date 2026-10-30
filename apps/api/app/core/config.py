@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     app_name: str = 'RangManch AI API'
     env: str = 'development'
+    allow_legacy_user_id_header: bool = False
     api_host: str = '0.0.0.0'
     api_port: int = 8000
     local_editor_mode: bool = False

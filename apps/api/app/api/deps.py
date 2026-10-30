@@ -109,42 +109,24 @@ async def get_user_id(
     authorization: str | None = Header(default=None),
     x_user_id: str | None = Header(default=None),
 ) -> str:
-    if x_user_id:
-        # Transitional fast path for current web app flows. The frontend already
-        # forwards X-User-ID on authenticated requests, and using it first avoids
-        # blocking the full app on external Firebase cert fetches during local or
-        # degraded-network sessions.
+    if authorization and authorization.lower().startswith('bearer '):
+        principal = await require_verified_firebase_principal(request, authorization)
         user = UserRepository(None).get_or_create_auth_user(
-            user_id=x_user_id,
-            email=None,
+            user_id=principal.uid,
+            email=principal.email,
             display_name=None,
             avatar_url=None,
         )
         FirestoreSyncService().sync_user(user)
+        if x_user_id and x_user_id not in {principal.uid, user.id}:
+            raise HTTPException(status_code=403, detail='User identity does not match authentication token')
         return user.id
 
-    if authorization and authorization.lower().startswith('bearer '):
-        token = authorization.split(' ', 1)[1].strip()
-        try:
-            claims = _verify_firebase_token(token)
-            user_id = claims['sub']
-            email = claims.get('email')
-            user = UserRepository(None).get_or_create_auth_user(
-                user_id=user_id,
-                email=email if isinstance(email, str) else None,
-                display_name=_derive_display_name(claims, email if isinstance(email, str) else None),
-                avatar_url=_derive_avatar_url(claims),
-            )
-            FirestoreSyncService().sync_user(user)
-            request.state.user_claims = claims
-            return user.id
-        except HTTPException as exc:
-            if not x_user_id:
-                raise
-            logger.warning(
-                'firebase_token_verification_failed_falling_back_to_user_id',
-                extra={'request_id': getattr(request.state, 'request_id', 'system'), 'detail': exc.detail},
-            )
+    settings = get_settings()
+    if x_user_id and settings.allow_legacy_user_id_header and settings.env.lower() in {'development', 'test'}:
+        user = UserRepository(None).get_or_create_auth_user(user_id=x_user_id, email=None, display_name=None, avatar_url=None)
+        FirestoreSyncService().sync_user(user)
+        return user.id
 
     raise HTTPException(status_code=401, detail='Authentication required')
 

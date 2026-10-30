@@ -37,6 +37,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [clientLoggedOut, setClientLoggedOut] = useState(false);
+  const [serverVerifiedAdmin, setServerVerifiedAdmin] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const effectiveUserId = clientLoggedOut ? null : userId;
   const effectiveAccountLabel = clientLoggedOut ? null : accountLabel;
@@ -50,6 +51,19 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
   useEffect(() => {
     setClientLoggedOut(false);
   }, [userId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!effectiveUserId) {
+      setServerVerifiedAdmin(false);
+      return () => { active = false; };
+    }
+    fetch('/api/admin/session', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((body) => { if (active) setServerVerifiedAdmin(Boolean(body?.admin)); })
+      .catch(() => { if (active) setServerVerifiedAdmin(false); });
+    return () => { active = false; };
+  }, [effectiveUserId]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -149,6 +163,7 @@ export function TopNav({ userId, accountLabel, accountEmail }: TopNavProps) {
                     {effectiveAccountEmail ?? effectiveAccountLabel ?? 'Account'}
                   </span>
                 </Link>
+                {serverVerifiedAdmin && <Link href="/admin" className="inline-flex min-h-8 items-center rounded-[12px] border border-amber-400/30 px-2.5 text-xs font-semibold text-amber-300">Admin Dashboard</Link>}
                 <LogoutButton
                   className="rounded-[12px] border border-[hsl(var(--glass-border))] px-3 py-1 text-sm font-medium text-[hsl(var(--color-text))] disabled:opacity-70"
                   onBeforeNavigate={() => setOpen(false)}
