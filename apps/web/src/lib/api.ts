@@ -278,6 +278,13 @@ async function getPreferredAccessToken(): Promise<string | null> {
   return getBrowserCookie('vidyo_access_token') ?? getStoredAccessToken();
 }
 
+export async function getFirebaseAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
+  const { getFreshFirebaseIdToken } = await import('@/lib/firebase-client');
+  const token = await getFreshFirebaseIdToken(forceRefresh);
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+  return { Authorization: `Bearer ${token}` };
+}
+
 function buildInspirationQuery(options?: InspirationListOptions): string {
   const params = new URLSearchParams();
   if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
@@ -340,7 +347,12 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     if (timeoutId) clearTimeout(timeoutId);
 
     if (response.ok) break;
-    if (response.status === 401 && !refreshedAfterUnauthorized && !options.accessToken && typeof window !== 'undefined') {
+    if (
+      response.status === 401 &&
+      !refreshedAfterUnauthorized &&
+      !options.accessToken &&
+      typeof window !== 'undefined'
+    ) {
       try {
         const { getFreshFirebaseIdToken } = await import('@/lib/firebase-client');
         const refreshed = await getFreshFirebaseIdToken(true);
@@ -351,7 +363,7 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
           continue;
         }
       } catch {
-        // Preserve the original authentication failure.
+        // The original 401 is returned below as an authentication failure.
       }
     }
     if (![502, 503, 504].includes(response.status)) break;

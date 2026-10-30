@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     app_name: str = 'RangManch AI API'
     env: str = 'development'
+    # Header identity is retained only for explicitly opted-in local/test
+    # clients. It must never be enabled in a deployed environment.
     allow_legacy_user_id_header: bool = False
     api_host: str = '0.0.0.0'
     api_port: int = 8000

@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+import { getFreshFirebaseIdToken } from '@/lib/firebase-client';
+
+async function getProductionAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getFreshFirebaseIdToken();
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+  return { Authorization: `Bearer ${token}` };
+}
 
 export interface SceneProductionStatus {
   scene_id: string;
@@ -107,7 +113,7 @@ export function useProductionPolling(projectId?: string) {
       const response = await fetch(`${apiUrl}/api/storyboard/${projectId}`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getCurrentUserIdOrThrow('Production polling'),
+          ...(await getProductionAuthHeaders()),
         },
       });
 

@@ -111,14 +111,18 @@ async def get_user_id(
 ) -> str:
     if authorization and authorization.lower().startswith('bearer '):
         principal = await require_verified_firebase_principal(request, authorization)
+        firebase_uid = principal.uid
         user = UserRepository(None).get_or_create_auth_user(
-            user_id=principal.uid,
+            # Firebase UID is the stable external identity key used by the
+            # existing Firestore user repository. Keep the resolved record
+            # ID as the value passed to ownership services.
+            user_id=firebase_uid,
             email=principal.email,
             display_name=None,
             avatar_url=None,
         )
         FirestoreSyncService().sync_user(user)
-        if x_user_id and x_user_id not in {principal.uid, user.id}:
+        if x_user_id and x_user_id not in {firebase_uid, user.id}:
             raise HTTPException(status_code=403, detail='User identity does not match authentication token')
         return user.id
 
