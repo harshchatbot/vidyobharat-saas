@@ -48,7 +48,8 @@ export function buildAutoEditPlan(project: TimelineProject, media: GuestMedia[],
     if (duration <= 0) throw new Error('The generated reel exceeds the timeline limit.');
     const id = crypto.randomUUID(); clipIds.push(id);
     operations.push({ op: 'add_media', item: { id, kind: 'video', trackId: 'video', label: image.original_filename, mediaId: image.media_id, contentType: image.content_type, startTime: cursor, duration, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1, ...(index < images.length - 1 ? { transitionOut: { type: options.transition ?? config.transition, duration: Math.min(0.6, duration / 2) } } : {}) } });
-    operations.push({ op: 'add_effect', item: { id: crypto.randomUUID(), kind: 'effect', trackId: 'effects', label: config.zoom, preset: config.zoom, amount: config.amount, startTime: cursor, duration } });
+    const zoomDuration = Math.min(duration, options.style === 'energetic' ? 2.5 : 3.5);
+    operations.push({ op: 'add_effect', item: { id: crypto.randomUUID(), kind: 'effect', trackId: 'effects', label: config.zoom, preset: config.zoom, amount: config.amount, startTime: cursor, duration: zoomDuration } });
     cursor += duration;
   });
   if (clipIds.length > 0) {

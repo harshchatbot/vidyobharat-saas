@@ -17,6 +17,8 @@ export function GuestUpload() {
 
     const router = useRouter();
     const [uploading, setUploading] = useState(false);
+    const [completedUploads, setCompletedUploads] = useState(0);
+    const [fileStatuses, setFileStatuses] = useState<Record<string, 'queued' | 'uploading' | 'uploaded' | 'failed'>>({});
 
     useEffect(() => {
         let active = true;
@@ -39,6 +41,9 @@ export function GuestUpload() {
 
         setUploading(true);
         setError('');
+        const previousStatuses = fileStatuses;
+        setCompletedUploads(files.reduce((count, file, index) => count + (previousStatuses[`${file.name}-${index}`] === 'uploaded' ? 1 : 0), 0));
+        setFileStatuses(Object.fromEntries(files.map((file, index) => [`${file.name}-${index}`, previousStatuses[`${file.name}-${index}`] === 'uploaded' ? 'uploaded' : 'queued'])));
 
         try {
             const base = getApiUrl();
@@ -72,7 +77,10 @@ export function GuestUpload() {
             }
 
             // Upload each file individually.
-            for (const file of files) {
+            for (const [index, file] of files.entries()) {
+                const fileKey = `${file.name}-${index}`;
+                if (previousStatuses[fileKey] === 'uploaded') continue;
+                setFileStatuses((current) => ({ ...current, [fileKey]: 'uploading' }));
                 const form = new FormData();
                 form.append('file', file);
 
@@ -91,10 +99,13 @@ export function GuestUpload() {
                     if (body.error === 'guest_quota_exceeded') {
                         throw new Error('You have reached the upload limit for this guest session.');
                     }
+                    setFileStatuses((current) => ({ ...current, [fileKey]: 'failed' }));
                     throw new Error(body.message || `Upload failed for ${file.name} (${response.status})`);
                 }
                 effectiveRemaining -= 1;
                 setRemainingUploads(Math.max(0, effectiveRemaining));
+                setCompletedUploads((count) => count + 1);
+                setFileStatuses((current) => ({ ...current, [fileKey]: 'uploaded' }));
             }
 
             router.push('/editor');
@@ -174,7 +185,7 @@ export function GuestUpload() {
                 </small>
             </div>
 
-            {error && <p role="alert" className={styles.uploadError}>{error}</p>}
+            {error && <div role="alert" className={styles.uploadError}><p>{error}</p><button type="button" onClick={() => void uploadFiles()} disabled={uploading}>Retry upload</button></div>}
 
             {files.length > 0 && (
                 <div className={styles.selectedFiles}>
@@ -191,7 +202,7 @@ export function GuestUpload() {
                                 ? <Film size={18} />
                                 : <ImageIcon size={18} />}
                             <span>{file.name}</span>
-                            <small>{(file.size / 1024 / 1024).toFixed(1)} MB</small>
+                            <small>{fileStatuses[`${file.name}-${index}`] === 'uploaded' ? 'Uploaded' : fileStatuses[`${file.name}-${index}`] === 'uploading' ? 'Uploading…' : `${(file.size / 1024 / 1024).toFixed(1)} MB`}</small>
                         </div>
                     ))}
 
@@ -201,7 +212,7 @@ export function GuestUpload() {
                         disabled={uploading}
                         onClick={uploadFiles}
                     >
-                        {uploading ? 'Uploading...' : 'Continue to editor'}
+                        {uploading ? `Uploading ${completedUploads}/${files.length}` : 'Continue to editor'}
                     </button>
                 </div>
             )}

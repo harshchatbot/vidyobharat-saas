@@ -21,12 +21,14 @@ import {
   signOutFirebaseUser,
   signUpWithPassword,
 } from '@/lib/firebase-auth';
+import { safeReturnPath } from '@/lib/auth-return';
 
 type Props = {
   mode: 'login' | 'signup';
+  next?: string;
 };
 
-export function AuthFormClient({ mode }: Props) {
+export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { show } = useToast();
@@ -165,7 +167,7 @@ export function AuthFormClient({ mode }: Props) {
         avatarUrl: profile.avatarUrl,
       });
       void api.primeDashboardWarmCache(user.id);
-      router.replace('/dashboard');
+      router.replace(safeReturnPath(next));
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Authentication failed');
@@ -189,7 +191,7 @@ export function AuthFormClient({ mode }: Props) {
         avatarUrl: profile.avatarUrl,
       });
       void api.primeDashboardWarmCache(user.id);
-      router.replace('/dashboard');
+      router.replace(safeReturnPath(next));
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Google sign-in failed');
@@ -331,7 +333,7 @@ export function AuthFormClient({ mode }: Props) {
             onResetPassword={() =>
               setMessage('Password reset is not available in-app yet. Please use Google sign-in or contact support.')
             }
-            onCreateAccount={() => router.push('/signup')}
+            onCreateAccount={() => router.push(`/signup?next=${encodeURIComponent(safeReturnPath(next))}`)}
             footer={
               <p className="text-center text-[11px] text-[hsl(var(--color-muted)/0.6)]">
                 Protected by Firebase Authentication &amp; end-to-end encryption.
@@ -517,7 +519,7 @@ export function AuthFormClient({ mode }: Props) {
                   {isLogin ? 'New here?' : 'Already have an account?'}
                 </p>
                 <Link
-                  href={isLogin ? '/signup' : '/login'}
+                  href={`${isLogin ? '/signup' : '/login'}?next=${encodeURIComponent(safeReturnPath(next))}`}
                   className="text-xs font-semibold text-[hsl(var(--color-accent))] transition-opacity hover:opacity-80"
                 >
                   {isLogin ? 'Create account →' : 'Sign in →'}

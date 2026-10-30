@@ -7,6 +7,7 @@ import { getApiUrl } from '@/lib/env';
 import { EditorInspector } from './EditorInspector';
 import { CopilotPanel } from './CopilotPanel';
 import { analyzeUploadedMusic, CopilotClientError, isAbortError, isBrowserCopilotEnabled, requestBrowserCopilotPlan, requestCopilotPlan, type CopilotHistoryMessage, type CopilotProposal } from './copilot';
+import type { BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 import { ExportDialog, type ExportJobView } from './ExportDialog';
 import { FilterGallery } from './FilterGallery';
 import { GuestAudioLayer } from './GuestAudioLayer';
@@ -59,6 +60,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [copilotProposal, setCopilotProposal] = useState<CopilotProposal | null>(null);
   const [copilotError, setCopilotError] = useState<CopilotClientError | null>(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotProgress, setCopilotProgress] = useState<BrowserAiProgress | null>(null);
   const copilotEpochRef = useRef(0);
   const copilotAbortRef = useRef<AbortController | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -334,13 +336,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     const controller = new AbortController();
     copilotAbortRef.current = controller;
     setCopilotError(null);
+    setCopilotProgress(null);
     setCopilotLoading(true);
     setCopilotHistory((current) => [...current, { role: 'user' as const, content: prompt }].slice(-12));
     try {
       const baseRevision = await calculateProjectRevision(baseProject);
       if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject) return;
       const response = isBrowserCopilotEnabled
-        ? await requestBrowserCopilotPlan({ project: baseProject, projectRevision: baseRevision, prompt, media })
+        ? await requestBrowserCopilotPlan({ project: baseProject, projectRevision: baseRevision, prompt, media, onProgress: setCopilotProgress })
         : await requestCopilotPlan({
             project: baseProject,
             projectRevision: baseRevision,
@@ -363,6 +366,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     } finally {
       if (epoch === copilotEpochRef.current) {
         setCopilotLoading(false);
+        setCopilotProgress(null);
         copilotAbortRef.current = null;
       }
     }
@@ -817,7 +821,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <button type="button" onClick={() => setRightPanel('inspector')} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
             <button type="button" onClick={() => setRightPanel('copilot')} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-amber-300' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
           </div>
-          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} proposal={copilotProposal} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
+          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
         </aside>
       </div>
       <div className="relative shrink-0 border-t border-white/10" style={{ height: timelineHeight }}>

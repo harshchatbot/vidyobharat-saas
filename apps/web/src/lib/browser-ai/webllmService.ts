@@ -4,6 +4,7 @@ const MODEL_ID = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
 
 let engine: MLCEngine | null = null;
 let loadingPromise: Promise<MLCEngine> | null = null;
+export type BrowserAiProgress = { phase: 'checking' | 'downloading' | 'initializing' | 'generating' | 'validating'; progress?: number; message: string };
 
 export function isModelReady(): boolean {
   return engine !== null;
@@ -255,13 +256,18 @@ export async function generateCommands(
 }
 
 export async function generateCommandsWithDiagnostics(
-  instruction: string
+  instruction: string,
+  onProgress?: (progress: BrowserAiProgress) => void,
 ): Promise<BrowserGenerationResult> {
   if (!instruction.trim()) {
     throw new Error('Please enter an editing instruction.');
   }
 
-  const model = await loadModel();
+  onProgress?.({ phase: 'checking', message: 'Checking local AI support…' });
+  const model = await loadModel((progress, message) => {
+    onProgress?.({ phase: progress < 100 ? 'downloading' : 'initializing', progress, message: message || 'Preparing your AI Copilot…' });
+  });
+  onProgress?.({ phase: 'generating', message: 'Generating a safe edit plan locally…' });
 
   const response = await model.chat.completions.create({
     messages: [
@@ -282,6 +288,7 @@ export async function generateCommandsWithDiagnostics(
     throw new Error('The model returned an empty response.');
   }
 
+  onProgress?.({ phase: 'validating', message: 'Validating the proposed edits…' });
   return parseAndValidateModelJson(content, instruction);
 }
 

@@ -11,6 +11,7 @@ import {
   type CopilotHistoryMessage,
   type CopilotProposal,
 } from './copilot';
+import type { BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 
 type Props = {
   history: CopilotHistoryMessage[];
@@ -22,9 +23,10 @@ type Props = {
   onApply: () => void;
   onAbort: () => void;
   browserProvider?: boolean;
+  progress?: BrowserAiProgress | null;
 };
 
-export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCancel, onApply, onAbort, browserProvider = false }: Props) {
+export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCancel, onApply, onAbort, browserProvider = false, progress }: Props) {
   const [prompt, setPrompt] = useState('');
   const submit = () => {
     const value = prompt.trim();
@@ -52,7 +54,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
 
       {history.length > 0 && <div className="mt-4 space-y-2" aria-label="Copilot conversation">{history.map((message, index) => <div key={`${message.role}-${index}`} className={`rounded-lg px-3 py-2 text-xs leading-5 ${message.role === 'user' ? 'ml-5 bg-amber-400/10 text-amber-100' : 'mr-5 bg-white/5 text-slate-300'}`}>{message.content}</div>)}</div>}
 
-      {loading && <div role="status" aria-live="polite" className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300"><span className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin text-amber-300" />Creating a safe edit proposal…</span><button type="button" onClick={onAbort} className="mt-3 min-h-10 text-xs font-semibold text-slate-300 underline">Cancel request</button></div>}
+      {loading && <div role="status" aria-live="polite" className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300"><span className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin text-amber-300" />{progress?.message ?? (browserProvider ? 'Preparing your AI Copilot…' : 'Creating a safe edit proposal…')}</span>{browserProvider && !progress && <p className="mt-2 text-[11px] leading-4 text-slate-500">The first request may take longer while the local model is prepared.</p>}{typeof progress?.progress === 'number' && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-amber-400 transition-[width]" style={{ width: `${Math.max(0, Math.min(100, progress.progress))}%` }} /></div>}<button type="button" onClick={onAbort} className="mt-3 min-h-10 text-xs font-semibold text-slate-300 underline">Cancel request</button></div>}
 
       {error && <div role="alert" className="mt-4 rounded-lg border border-red-400/20 bg-red-500/10 p-3 text-xs leading-5 text-red-100"><span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{error.message}</span>{error.code === 'signed_out' && <Link href="/login?next=%2Feditor" className="mt-3 inline-flex min-h-10 items-center font-semibold text-amber-300 underline">Sign in to continue</Link>}{error.retryable && prompt.trim() && <button type="button" onClick={submit} className="mt-3 block min-h-10 font-semibold text-amber-300 underline">Retry request</button>}</div>}
 

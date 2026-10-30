@@ -75,3 +75,13 @@ test('uses confident music beats without changing duration or transition validit
   assert.ok(Math.abs(clips[0].duration - 4.08) < 0.05);
   assert.ok(clips[0].kind === 'video' && (clips[0].transitionOut?.duration ?? 0) <= clips[0].duration / 2);
 });
+
+test('adds transitions at every clip boundary and bounds zoom effects', async () => {
+  const project = createEmptyProject();
+  const plan = buildAutoEditPlan(project, images, await calculateProjectRevision(project), { style: 'energetic', mode: 'replace', targetDuration: 18 });
+  const mediaOps = plan.operations.filter((operation) => operation.op === 'add_media');
+  const effectOps = plan.operations.filter((operation) => operation.op === 'add_effect');
+  assert.equal(mediaOps.length, 3);
+  assert.equal(mediaOps.filter((operation) => operation.op === 'add_media' && operation.item.transitionOut).length, 2);
+  assert.ok(effectOps.filter((operation) => operation.op === 'add_effect' && operation.item.preset === 'zoom-in').every((operation) => operation.item.duration <= 2.5));
+});

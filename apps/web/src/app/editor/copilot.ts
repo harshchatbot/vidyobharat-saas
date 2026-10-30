@@ -4,7 +4,7 @@ import { getFreshFirebaseIdToken } from '@/lib/firebase-client';
 import type { AppliedEditPlan, CopilotEditPlan } from './timeline/editPlan';
 import type { TimelineProject } from './timeline/types';
 import { CopilotClientError, mapCopilotError } from './copilotUi';
-import { generateCommandsWithDiagnostics } from '@/lib/browser-ai/webllmService';
+import { generateCommandsWithDiagnostics, type BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 import { buildBrowserCopilotPlan, buildBrowserCopilotPlanFromIntents } from './browserCopilotAdapter';
 import { parseBrowserIntent } from '@/lib/browser-ai/browserIntent';
 import { routeBrowserRequest } from '@/lib/browser-ai/browserIntent';
@@ -82,6 +82,7 @@ export async function requestBrowserCopilotPlan(input: {
   projectRevision: string;
   prompt: string;
   media: GuestMedia[];
+  onProgress?: (progress: BrowserAiProgress) => void;
 }): Promise<CopilotPlanResponse> {
   const route = routeBrowserRequest(input.prompt);
   if (route.kind === 'CLARIFICATION') throw new Error(route.message);
@@ -101,7 +102,7 @@ export async function requestBrowserCopilotPlan(input: {
       usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
     };
   }
-  const result = await generateCommandsWithDiagnostics(input.prompt);
+  const result = await generateCommandsWithDiagnostics(input.prompt, input.onProgress);
   const plan = buildBrowserCopilotPlan(
     input.project,
     input.projectRevision,
