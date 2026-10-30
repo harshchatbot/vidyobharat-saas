@@ -98,7 +98,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const localExportUrlRef = useRef<string | null>(null);
   localExportUrlRef.current = localExportUrl;
   const [remainingUploads, setRemainingUploads] = useState(uploadUsage?.remaining.uploads ?? 0);
-  const [exportUsage, setExportUsage] = useState<{
+  const [exportUsage] = useState<{
     remaining: { exports: number };
     limits: { exports: number };
   } | null>(null);

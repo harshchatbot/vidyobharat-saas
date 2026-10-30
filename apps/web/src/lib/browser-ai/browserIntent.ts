@@ -30,7 +30,7 @@ export function classifyBrowserConversation(instruction: string, project: Timeli
   }
   const asksForTitle = /\b(add|create|show)\b[^.]{0,80}\btitle\b/i.test(text);
   const hasExactTitle = /title[^"']*["'][^"']+["']/i.test(text) || /title\s*:\s*\S+/i.test(text);
-  if (asksForTitle && !hasExactTitle) {
+  if (asksForTitle && !hasExactTitle && routeBrowserRequest(text).kind !== 'CREATE_REEL') {
     return { kind: 'chat', message: 'What should the title say? Put the exact text in quotation marks so I can propose it safely.' };
   }
   return null;

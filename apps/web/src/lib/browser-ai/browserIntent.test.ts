@@ -26,3 +26,9 @@ test('asks for title copy when a title request has no usable text', () => {
 test('does not intercept a quoted executable title request', () => {
   assert.equal(classifyBrowserConversation('Add the title "Warm Welcome" near the beginning.', createEmptyProject(), [image]), null);
 });
+
+test('does not intercept valid editing and complete-reel requests', () => {
+  assert.equal(classifyBrowserConversation('Add title: Warm Welcome at the beginning.', createEmptyProject(), [image]), null);
+  assert.equal(classifyBrowserConversation('Make my reel more engaging.', createEmptyProject(), [image]), null);
+  assert.equal(classifyBrowserConversation('Create a reel with the title Handmade With Love.', createEmptyProject(), [image]), null);
+});

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
+    "lint:stabilization": "eslint src/app/editor/CopilotPanel.tsx src/app/editor/GuestEditorWorkspace.tsx src/app/editor/autoEdit.ts src/app/editor/autoEdit.test.ts src/app/editor/page.tsx src/components/admin/AdminDashboardClient.tsx src/lib/browser-ai/browserIntent.ts src/lib/browser-ai/browserIntent.test.ts",
     "test:editor": "node --experimental-strip-types --test src/app/editor/timeline/model.test.ts",
     "test:stabilization": "node --experimental-strip-types --test src/lib/browser-ai/browserIntent.test.ts src/app/editor/autoEdit.test.ts src/app/editor/browserCopilotAdapter.test.ts src/app/editor/timeline/model.test.ts src/app/editor/audioLibrary.test.ts src/lib/browser-ai/webllmService.test.ts src/lib/browser-ai/browserMp4Export.test.ts",
     "test:e2e": "playwright test",
@@ -36,6 +37,8 @@
     "@types/react": "19.0.3",
     "@types/react-dom": "19.0.2",
     "autoprefixer": "10.4.20",
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.1.11",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17",
     "typescript": "5.7.3"
