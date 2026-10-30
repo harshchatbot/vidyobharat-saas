@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/env';
+import { IndeterminateProgress, MotionReveal, StatusTransition } from '@/components/ui/MotionPrimitives';
 import { GuestEditorWorkspace } from './GuestEditorWorkspace';
 
 type GuestMedia = {
@@ -18,6 +19,7 @@ type UploadUsage = { limits: { uploads: number }; remaining: { uploads: number }
 export default function GuestEditorPage() {
     const [status, setStatus] = useState('Connecting to editor...');
     const [ready, setReady] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [media, setMedia] = useState<GuestMedia[]>([]);
     const [uploadUsage, setUploadUsage] = useState<UploadUsage | null>(null);
 
@@ -54,6 +56,7 @@ export default function GuestEditorPage() {
                     );
                 }
                 const sessionData = await response.json();
+                if (active) setStatus('Loading uploaded media…');
 
                 // Step 3: Retrieve media uploaded by this guest.
                 const mediaResponse = await fetch(
@@ -82,7 +85,7 @@ export default function GuestEditorPage() {
             } catch (error) {
                 if (active) {
                     setReady(false);
-                    setStatus(
+                    setError(
                         error instanceof Error
                             ? error.message
                             : 'Connection failed'
@@ -99,6 +102,6 @@ export default function GuestEditorPage() {
     }, []);
 
     return <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#0a0a0f] text-slate-100">
-        {ready ? <GuestEditorWorkspace media={media} uploadUsage={uploadUsage} /> : <div className="grid min-h-screen place-items-center px-6"><div role="status" aria-live="polite" className="text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-amber-400" /><p className="mt-4 text-sm font-medium text-slate-200">{status}</p><p className="mt-2 text-xs text-slate-500">Preparing your private guest workspace</p></div></div>}
+        {ready ? <GuestEditorWorkspace media={media} uploadUsage={uploadUsage} /> : <div className="grid min-h-screen place-items-center px-6"><MotionReveal className="w-full max-w-sm"><div className="rounded-2xl border border-white/10 bg-[#111118] p-6 shadow-2xl shadow-black/30">{error ? <StatusTransition tone="error" label="Editor could not start" detail={error} /> : <><p className="text-sm font-semibold text-white">Preparing your editing workspace</p><p className="mt-2 text-xs leading-5 text-slate-400">Restoring your private guest session and uploaded media.</p><IndeterminateProgress label={status} className="mt-5" /><div aria-hidden="true" className="mt-5 space-y-2"><div className="h-3 w-3/4 animate-pulse rounded bg-white/[0.07] motion-reduce:animate-none" /><div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.05] motion-reduce:animate-none" /></div></>}</div></MotionReveal></div>}
     </main>;
 }

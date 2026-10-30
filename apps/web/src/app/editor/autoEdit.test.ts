@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildAutoEditPlan } from './autoEdit.ts';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan.ts';
-import { createEmptyProject, type GuestMedia } from './timeline/types.ts';
+import { addItem } from './timeline/model.ts';
+import { createEmptyProject, type GuestMedia, type VideoTimelineItem } from './timeline/types.ts';
 import { routeBrowserRequest } from '../../lib/browser-ai/browserIntent.ts';
 
 const images: GuestMedia[] = [1, 2, 3].map((id) => ({ media_id: `img-${id}`, original_filename: `image-${id}.png`, media_type: 'image', content_type: 'image/png' }));
 const music: GuestMedia = { media_id: 'music', original_filename: 'music.mp3', media_type: 'audio', content_type: 'audio/mpeg', duration_seconds: 20 };
+const uploadedVideo: GuestMedia = { media_id: 'video-1', original_filename: 'existing.mp4', media_type: 'video', content_type: 'video/mp4', duration_seconds: 8 };
 
 for (const style of ['elegant', 'energetic', 'cinematic'] as const) test(`builds ${style} deterministic plan`, async () => {
   const project = createEmptyProject();
@@ -84,4 +86,35 @@ test('adds transitions at every clip boundary and bounds zoom effects', async ()
   assert.equal(mediaOps.length, 3);
   assert.equal(mediaOps.filter((operation) => operation.op === 'add_media' && operation.item.transitionOut).length, 2);
   assert.ok(effectOps.filter((operation) => operation.op === 'add_effect' && operation.item.preset === 'zoom-in').every((operation) => operation.item.duration <= 2.5));
+});
+
+test('replaces an existing invalid overlapping visual timeline atomically', async () => {
+  const first: VideoTimelineItem = { id: 'old-1', kind: 'video', trackId: 'video', label: 'old 1', mediaId: 'old-1', contentType: 'image/png', startTime: 0, duration: 4, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
+  const second: VideoTimelineItem = { ...first, id: 'old-2', label: 'old 2', mediaId: 'old-2', startTime: 3 };
+  const invalid = addItem(addItem(createEmptyProject(), first), second);
+  const plan = buildAutoEditPlan(invalid, images, await calculateProjectRevision(invalid), { style: 'elegant', mode: 'replace', targetDuration: 12 });
+  const applied = await applyEditPlan(invalid, plan);
+  const clips = applied.project.tracks.find((track) => track.id === 'video')!.items;
+  assert.equal(applied.project.duration, 12);
+  assert.ok(clips.every((clip, index) => index === 0 || clip.startTime >= clips[index - 1].startTime + clips[index - 1].duration - 1e-9));
+});
+
+test('rejects add mode clearly when the existing visual timeline already overlaps', async () => {
+  const first: VideoTimelineItem = { id: 'old-1', kind: 'video', trackId: 'video', label: 'old 1', mediaId: 'old-1', contentType: 'image/png', startTime: 0, duration: 4, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
+  const invalid = addItem(addItem(createEmptyProject(), first), { ...first, id: 'old-2', mediaId: 'old-2', startTime: 3 });
+  assert.throws(() => buildAutoEditPlan(invalid, images, 'sha256:test', { style: 'elegant', mode: 'add' }), /overlapping visual clips.*Replace current/i);
+});
+
+test('adds image Auto Edit after a valid existing timeline and safely ignores unsupported uploaded video media', async () => {
+  const existing: VideoTimelineItem = { id: 'existing', kind: 'video', trackId: 'video', label: 'existing', mediaId: 'existing-media', contentType: 'image/png', startTime: 0, duration: 4, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
+  const project = addItem(createEmptyProject(), existing);
+  const plan = buildAutoEditPlan(project, [uploadedVideo, images[0], music], await calculateProjectRevision(project), { style: 'elegant', mode: 'add', targetDuration: 5 });
+  const applied = await applyEditPlan(project, plan);
+  const clips = applied.project.tracks.find((track) => track.id === 'video')!.items;
+  assert.equal(clips.length, 2);
+  assert.equal(clips[0].id, 'existing');
+  assert.equal(clips[1].startTime, 4);
+  assert.equal(clips[1].duration, 5);
+  assert.equal(clips[1].kind === 'video' ? clips[1].mediaId : '', images[0].media_id);
+  assert.ok(plan.operations.every((operation) => operation.op !== 'add_media' || operation.item.mediaId !== uploadedVideo.media_id));
 });

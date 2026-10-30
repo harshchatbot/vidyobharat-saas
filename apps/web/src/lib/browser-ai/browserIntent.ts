@@ -10,6 +10,31 @@ export type BrowserIntent =
 
 export type ResolvedBrowserIntent = BrowserIntent & { resolvedItemIds?: string[]; resolvedMediaId?: string };
 export type BrowserRequestRoute = { kind: 'CREATE_REEL'; duration?: number; style: 'elegant' | 'energetic' | 'cinematic'; title?: string; musicVolume?: number; transition?: 'crossfade' | 'slide-left' | 'slide-right' } | { kind: 'EDIT_TIMELINE' } | { kind: 'CLARIFICATION'; message: string };
+export type BrowserConversationResponse = { kind: 'chat' | 'advice'; message: string };
+
+export function classifyBrowserConversation(instruction: string, project: TimelineProject, media: GuestMedia[]): BrowserConversationResponse | null {
+  const text = instruction.trim();
+  const lower = text.toLowerCase();
+  if (/^(hi|hello|hey|namaste|नमस्ते)[!. ]*$/.test(lower)) {
+    return { kind: 'chat', message: "Hey! I'm your AI video editing assistant. What would you like to create today?" };
+  }
+  if (/\b(how|suggest|advice|ideas?|what can you do)\b/.test(lower) && /\b(reel|video|edit|engag|story|pacing|feature)\b/.test(lower)) {
+    const visualCount = project.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
+    const availableImages = media.filter((item) => item.media_type === 'image' && item.availability !== 'unavailable').length;
+    const message = visualCount > 0
+      ? `Your timeline has ${visualCount} visual ${visualCount === 1 ? 'clip' : 'clips'}. Try a clear opening title, varied pacing, and one restrained transition style; I can propose supported edits for you to review.`
+      : availableImages > 0
+        ? `You have ${availableImages} uploaded ${availableImages === 1 ? 'image' : 'images'}. Add them to the timeline or ask me to create a reel, then use a short title and consistent pacing.`
+        : 'Upload photos or video clips first. Then I can help with pacing, titles, transitions, music, and a complete Auto Edit reel.';
+    return { kind: 'advice', message };
+  }
+  const asksForTitle = /\b(add|create|show)\b[^.]{0,80}\btitle\b/i.test(text);
+  const hasExactTitle = /title[^"']*["'][^"']+["']/i.test(text) || /title\s*:\s*\S+/i.test(text);
+  if (asksForTitle && !hasExactTitle && routeBrowserRequest(text).kind !== 'CREATE_REEL') {
+    return { kind: 'chat', message: 'What should the title say? Put the exact text in quotation marks so I can propose it safely.' };
+  }
+  return null;
+}
 
 export function routeBrowserRequest(instruction: string): BrowserRequestRoute {
   const lower = instruction.toLowerCase();
