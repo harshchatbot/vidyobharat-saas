@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Upload, X, Check, Loader2, User } from 'lucide-react'
 import { getCurrentUserId } from '@/lib/authUser'
+import { getFirebaseAuthHeaders } from '@/lib/api'
 
 interface CustomAvatarCreatorProps {
   onCreated: (avatar: { id: string; name: string; referenceImages: string[] }) => void
@@ -174,9 +175,7 @@ export function CustomAvatarCreator({ onCreated, onCancel, userId: propUserId }:
 
       const res = await fetch(`${API_BASE}/api/actors/create`, {
         method: 'POST',
-        headers: {
-          'X-User-ID': userIdStr,
-        },
+        headers: await getFirebaseAuthHeaders(),
         body: formData,
       })
 

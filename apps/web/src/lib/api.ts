@@ -1,5 +1,4 @@
 import { getApiFallbackUrl, getApiUrl } from '@/lib/env';
-import { getCurrentUserId } from '@/lib/authUser';
 import type {
   Avatar,
   AvatarLibraryResponse,
@@ -279,6 +278,13 @@ async function getPreferredAccessToken(): Promise<string | null> {
   return getBrowserCookie('vidyo_access_token') ?? getStoredAccessToken();
 }
 
+export async function getFirebaseAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
+  const { getFreshFirebaseIdToken } = await import('@/lib/firebase-client');
+  const token = await getFreshFirebaseIdToken(forceRefresh);
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+  return { Authorization: `Bearer ${token}` };
+}
+
 function buildInspirationQuery(options?: InspirationListOptions): string {
   const params = new URLSearchParams();
   if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
@@ -294,14 +300,11 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   if (!isFormData) {
     headers.set('Content-Type', 'application/json');
   }
-  const accessToken = options.accessToken ?? await getPreferredAccessToken();
+  let accessToken = options.accessToken ?? await getPreferredAccessToken();
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  const resolvedUserId = options.userId ?? getCurrentUserId();
-  if (resolvedUserId) {
-    headers.set('X-User-ID', resolvedUserId);
-  }
+  let refreshedAfterUnauthorized = false;
 
   const baseCandidates = [getApiUrl(), getApiFallbackUrl()].filter(Boolean);
   const tried: string[] = [];
@@ -344,6 +347,25 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
     if (timeoutId) clearTimeout(timeoutId);
 
     if (response.ok) break;
+    if (
+      response.status === 401 &&
+      !refreshedAfterUnauthorized &&
+      !options.accessToken &&
+      typeof window !== 'undefined'
+    ) {
+      try {
+        const { getFreshFirebaseIdToken } = await import('@/lib/firebase-client');
+        const refreshed = await getFreshFirebaseIdToken(true);
+        if (refreshed) {
+          accessToken = refreshed;
+          headers.set('Authorization', `Bearer ${refreshed}`);
+          refreshedAfterUnauthorized = true;
+          continue;
+        }
+      } catch {
+        // The original 401 is returned below as an authentication failure.
+      }
+    }
     if (![502, 503, 504].includes(response.status)) break;
   }
 

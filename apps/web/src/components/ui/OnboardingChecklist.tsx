@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check, X, UserRound, Clapperboard, Sparkles, Mic2, FolderOpen } from 'lucide-react';
 import { VoicePreviewModal } from './VoicePreviewModal';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
 
 const CHECKLIST_ITEMS = [
   {
@@ -276,11 +275,11 @@ function triggerConfetti() {
 
 async function claimOnboardingReward(): Promise<boolean> {
   try {
-    const userId = getCurrentUserIdOrThrow('onboarding reward');
+    const { getFirebaseAuthHeaders } = await import('@/lib/api');
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${apiUrl}/api/onboarding/complete`, {
       method: 'POST',
-      headers: { 'X-User-ID': userId },
+      headers: await getFirebaseAuthHeaders(),
     });
     const data = await res.json();
     if (data.success) {

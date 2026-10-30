@@ -28,6 +28,20 @@ type Props = {
   next?: string;
 };
 
+async function establishAdminSessionIfRequested(nextPath: string, idToken: string): Promise<void> {
+  if (!nextPath.startsWith('/admin')) return;
+  const response = await fetch('/api/admin/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-RangManch-Admin-CSRF': '1' },
+    body: JSON.stringify({ idToken }),
+    cache: 'no-store',
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Admin access denied.');
+  }
+}
+
 export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -166,6 +180,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
         email: profile.email,
         avatarUrl: profile.avatarUrl,
       });
+      await establishAdminSessionIfRequested(safeReturnPath(next), session.idToken);
       void api.primeDashboardWarmCache(user.id);
       router.replace(safeReturnPath(next));
       router.refresh();
@@ -190,6 +205,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
         email: profile.email,
         avatarUrl: profile.avatarUrl,
       });
+      await establishAdminSessionIfRequested(safeReturnPath(next), session.idToken);
       void api.primeDashboardWarmCache(user.id);
       router.replace(safeReturnPath(next));
       router.refresh();

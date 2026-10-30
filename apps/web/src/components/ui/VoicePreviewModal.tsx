@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Mic2, Volume2, Loader } from 'lucide-react';
 import { markOnboardingComplete } from './OnboardingChecklist';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+import { getFirebaseAuthHeaders } from '@/lib/api';
 
 // Backend API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -86,11 +86,10 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
   const fetchVoices = async () => {
     try {
       setLoading(true);
-      const userId = getCurrentUserIdOrThrow('Voice preview');
       const response = await fetch(`${API_BASE_URL}/api/tts/voices`, {
         method: 'GET',
         headers: {
-          'X-User-ID': userId,
+          ...(await getFirebaseAuthHeaders()),
         },
       });
       if (!response.ok) throw new Error('Failed to load voices');
@@ -118,12 +117,11 @@ export function VoicePreviewModal({ isOpen, onClose }: VoicePreviewModalProps) {
       setPreviewing(true);
       setAudioLoading(true);
       setError(null);
-      const userId = getCurrentUserIdOrThrow('Voice preview');
       const response = await fetch(`${API_BASE_URL}/api/tts/preview`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': userId,
+          ...(await getFirebaseAuthHeaders()),
         },
         body: JSON.stringify({
           text: previewText,
