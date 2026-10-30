@@ -10,3 +10,7 @@
 .inspirationReel video{transition:transform .7s}
 .inspirationReel:hover video{transform:scale(1.07)}
 @media(prefers-reduced-motion:reduce){.inspirationReel:hover video{transform:none}}
+
+.heroActions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px}.heroActions .primaryCta{margin-top:0}.secondaryCta{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 18px;border:1px solid #b6a99288;border-radius:100px;color:#182037;font-size:13px;font-weight:800;transition:transform .2s,background .2s}.secondaryCta:hover{background:#ffffff99;transform:translateY(-2px)}
+@media(max-width:760px){.heroActions{justify-content:center}.heroActions a{width:100%}}
+@media(prefers-reduced-motion:reduce){.secondaryCta{transition:none}}

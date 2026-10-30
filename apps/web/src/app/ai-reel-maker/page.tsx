@@ -1,0 +1,6 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'AI Reel Maker from Photos | RangManch AI', description: 'Make a reel from photos with a free browser-based AI reel maker built for quick, editable stories.', alternates: { canonical: 'https://rangmanchai.com/ai-reel-maker' } };
+
+export default function AiReelMakerPage() { return <main className="min-h-screen bg-[#0a0a0f] px-6 py-20 text-white"><div className="mx-auto max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">AI reel maker</p><h1 className="mt-5 text-5xl font-semibold tracking-tight">Turn photos into reels without starting from a blank timeline.</h1><p className="mt-6 text-lg leading-8 text-slate-300">RangManch AI combines one-click Auto Edit with a browser-based editor for timing, titles, transitions, music, and local MP4 export.</p><h2 className="mt-16 text-2xl font-semibold">How it works</h2><ol className="mt-4 space-y-3 text-slate-400"><li>1. Upload your photos.</li><li>2. Run Auto Edit and preview the timeline.</li><li>3. Refine the result and export when ready.</li></ol><Link className="mt-10 inline-flex rounded-full bg-amber-300 px-6 py-3 font-semibold text-slate-950" href="/editor">Create My Reel for Free</Link></div></main>; }

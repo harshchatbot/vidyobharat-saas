@@ -216,30 +216,41 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         </div>
       </section>
 
-      {heroImageSrc ? (
-        <section className="relative hidden flex-1 p-4 md:block">
-          <div
-            className="animate-slide-right animate-delay-300 absolute inset-4 rounded-[2rem] bg-cover bg-center"
-            style={{ backgroundImage: `url(${heroImageSrc})` }}
-          />
-          <div className="absolute inset-4 rounded-[2rem] bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.1),hsl(var(--color-bg)/0.16)_28%,hsl(var(--color-bg)/0.88)_92%)]" />
-          {testimonials.length > 0 ? (
-            <div className="absolute bottom-8 left-1/2 flex w-full -translate-x-1/2 justify-center gap-4 px-8">
-              <TestimonialCard testimonial={testimonials[0]} delay="animate-delay-1000" />
-              {testimonials[1] ? (
-                <div className="hidden xl:flex">
-                  <TestimonialCard testimonial={testimonials[1]} delay="animate-delay-1200" />
+      <section className="relative hidden flex-1 overflow-hidden p-4 md:block">
+        {heroImageSrc ? (
+          <>
+            <div
+              className="animate-slide-right animate-delay-300 absolute inset-4 rounded-[2rem] bg-cover bg-center"
+              style={{ backgroundImage: `url(${heroImageSrc})` }}
+            />
+            <div className="absolute inset-4 rounded-[2rem] bg-[linear-gradient(180deg,hsl(var(--color-bg)/0.1),hsl(var(--color-bg)/0.16)_28%,hsl(var(--color-bg)/0.88)_92%)]" />
+          </>
+        ) : (
+          <div className="relative flex h-full min-h-[620px] items-end overflow-hidden rounded-[2rem] border border-[hsl(var(--color-border)/0.7)] bg-[radial-gradient(circle_at_72%_18%,hsl(var(--color-accent)/0.22),transparent_34%),linear-gradient(145deg,hsl(var(--color-surface)),hsl(var(--color-bg)))] p-8">
+            <div className="absolute inset-x-10 top-14 h-px bg-[hsl(var(--color-border)/0.6)]" />
+            <div className="absolute left-1/2 top-14 h-[420px] w-px bg-[linear-gradient(180deg,hsl(var(--color-accent)),transparent)] opacity-70" />
+            <div className="absolute inset-x-10 top-28 grid gap-3 opacity-80">
+              {['Photo 01', 'Photo 02', 'Title card', 'Music'].map((label, index) => (
+                <div key={label} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-[hsl(var(--color-muted))]" style={{ marginLeft: `${index * 18}px` }}>
+                  <span className="h-2 w-2 rounded-full bg-[hsl(var(--color-accent))]" />{label}<span className="ml-auto font-mono text-[10px]">0{index + 1}:2{index}</span>
                 </div>
-              ) : null}
-              {testimonials[2] ? (
-                <div className="hidden 2xl:flex">
-                  <TestimonialCard testimonial={testimonials[2]} delay="animate-delay-1400" />
-                </div>
-              ) : null}
+              ))}
             </div>
-          ) : null}
-        </section>
-      ) : null}
+            <div className="relative z-10 max-w-sm">
+              <div className="mb-4 inline-flex rounded-full border border-[hsl(var(--color-accent)/0.3)] bg-[hsl(var(--color-accent)/0.1)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--color-accent))]">Your creative workspace</div>
+              <h2 className="font-heading text-4xl font-extrabold tracking-tight text-[hsl(var(--color-text))]">Turn a camera roll into a story.</h2>
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-[hsl(var(--color-muted))]">Upload your moments, shape the rhythm, and keep every edit under your control.</p>
+            </div>
+          </div>
+        )}
+        {testimonials.length > 0 && heroImageSrc ? (
+          <div className="absolute bottom-8 left-1/2 flex w-full -translate-x-1/2 justify-center gap-4 px-8">
+            <TestimonialCard testimonial={testimonials[0]} delay="animate-delay-1000" />
+            {testimonials[1] ? <div className="hidden xl:flex"><TestimonialCard testimonial={testimonials[1]} delay="animate-delay-1200" /></div> : null}
+            {testimonials[2] ? <div className="hidden 2xl:flex"><TestimonialCard testimonial={testimonials[2]} delay="animate-delay-1400" /></div> : null}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 };

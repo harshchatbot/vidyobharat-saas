@@ -106,13 +106,13 @@ function Hero() {
       <div className={styles.heroCopy}>
         <div className={styles.heroTopline}><span className={styles.pulse} /> FREE ONLINE VIDEO EDITOR <span className={styles.toplineRule} /></div>
 
-        <h1 id="hero-title">{hindi ? <>अपनी फ़ोटो और क्लिप्स से<br /><em>बनाएं शानदार रील।</em></> : <>Create stunning videos<br /><em>with AI — free.</em></>}</h1>
+        <h1 id="hero-title">{hindi ? <>अपनी फ़ोटो। एक क्लिक।<br /><em>शानदार रील।</em></> : <>Your photos. One click.<br /><em>Beautiful reels.</em></>}</h1>
 
-        <p className={styles.heroDescription}>{hindi ? 'अपनी फ़ोटो से सुंदर इंस्टाग्राम रील बनाएं — म्यूज़िक, टेक्स्ट और ट्रांज़िशन के साथ। सीधे ब्राउज़र में।' : 'Turn your photos into beautiful Instagram Reels with AI-powered editing, music, transitions, and text. No editing skills required.'}</p>
+        <p className={styles.heroDescription}>{hindi ? 'अपनी फ़ोटो अपलोड करें, Auto Edit दबाएं और कुछ ही मिनटों में शेयर करने लायक रील बनाएं। फिर हमारे मुफ़्त AI वीडियो एडिटर से उसे और बेहतर बनाएं।' : 'Upload your photos, hit Auto Edit, and create a ready-to-share reel in minutes. Want to make it even better? Fine-tune it with our free AI video editor.'}</p>
         <div className={styles.languageSwitch} aria-label="Headline language"><button type="button" aria-pressed={!hindi} onClick={() => setHindi(false)}>English</button><span>/</span><button type="button" aria-pressed={hindi} onClick={() => setHindi(true)}>हिंदी</button></div>
-        <a className={styles.primaryCta} href="/editor">Start Editing for Free <ArrowRight size={19} aria-hidden="true" /></a>
+        <div className={styles.heroActions}><a className={styles.primaryCta} href="/editor">Create My Reel for Free <ArrowRight size={19} aria-hidden="true" /></a><a className={styles.secondaryCta} href="#how-it-works">See Auto Edit in Action <Play size={16} aria-hidden="true" /></a></div>
         <p className={styles.heroNote}><Check size={14} /> Browser-based · Free to start</p>
-        <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> Local AI Copilot + Auto Edit</span>
+        <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> Auto Edit first. AI Copilot when you want the final touch.</span>
       </div>
       <div className={styles.heroVisual} aria-label={`${occasion.label} themed reel inspiration`}>
         <div className={styles.orbitOne} aria-hidden="true" /><div className={styles.orbitTwo} aria-hidden="true" />

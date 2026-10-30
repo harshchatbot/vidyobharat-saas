@@ -315,7 +315,6 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
           <SignInPage
             title="Welcome back"
             description="Sign in with Google or use your verified email account to continue into RangManch AI."
-            heroImageSrc="/rangmanciai_login.jpg"
             testimonials={loginTestimonials}
             error={error}
             notice={message}

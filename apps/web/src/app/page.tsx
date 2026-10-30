@@ -6,18 +6,18 @@ import { buildMetadata } from '@/lib/seo';
 export const dynamic = 'force-static';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Create Stunning Videos with AI — Free',
+  title: 'Free AI Video Editor & Reel Maker | RangManch AI',
   description:
-    'Turn your photos into beautiful Instagram Reels with AI-powered editing, music, transitions, and text. Edit in your browser with RangManch AI.',
+    'Create beautiful reels from photos with one-click Auto Edit. Save editing time and enhance your videos with our free AI video editor.',
   path: '/',
   keywords: [
-    'online video editor',
     'free AI video editor',
-    'photo to video maker',
-    'reel maker online',
-    'create reels from photos',
-    'browser based video editor',
-    'online slideshow maker',
+    'AI video editor free',
+    'free AI reels editor',
+    'AI reel maker',
+    'free AI reel generator',
+    'automatic video editor',
+    'turn photos into reels',
     'RangManch AI',
   ],
 });
