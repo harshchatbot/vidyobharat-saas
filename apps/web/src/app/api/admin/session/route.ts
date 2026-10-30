@@ -10,6 +10,17 @@ function sameOrigin(request: NextRequest): boolean {
   return Boolean(origin && origin === new URL(request.url).origin);
 }
 
+export async function GET(request: NextRequest) {
+  const token = request.cookies.get(COOKIE)?.value;
+  if (!token) return NextResponse.json({ authenticated: false }, { status: 401 });
+  const verified = await fetch(`${getApiUrl()}/api/admin/me`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  }).catch(() => null);
+  if (!verified) return NextResponse.json({ authenticated: false }, { status: 503 });
+  if (!verified.ok) return NextResponse.json({ authenticated: false }, { status: 401 });
+  return NextResponse.json({ authenticated: true }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+}
+
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request) || request.headers.get('x-rangmanch-admin-csrf') !== '1') {
     return NextResponse.json({ detail: 'Admin session request was rejected.' }, { status: 403 });
