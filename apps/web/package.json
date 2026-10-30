@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "test:editor": "node --experimental-strip-types --test src/app/editor/timeline/model.test.ts",
+    "test:stabilization": "node --experimental-strip-types --test src/lib/browser-ai/browserIntent.test.ts src/app/editor/autoEdit.test.ts src/app/editor/browserCopilotAdapter.test.ts src/app/editor/timeline/model.test.ts src/app/editor/audioLibrary.test.ts src/lib/browser-ai/webllmService.test.ts src/lib/browser-ai/browserMp4Export.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:app": "PLAYWRIGHT_STATEFUL=1 playwright test tests/e2e/billing-smoke.spec.ts",
     "test:e2e:image": "playwright test tests/e2e/image-studio-smoke.spec.ts",
