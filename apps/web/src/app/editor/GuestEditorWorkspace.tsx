@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { flushSync } from 'react-dom';
 import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Sparkles, Type, Undo2, Upload } from 'lucide-react';
 import Link from 'next/link';
+import { generateChatResponse } from '@/lib/browser-ai/webllmService';
 import { getFirebaseAuth } from '@/lib/firebase-client';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getApiUrl } from '@/lib/env';
@@ -382,10 +383,56 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     copilotSubmittingRef.current = true;
     invalidateCopilot();
     const conversational = classifyBrowserConversation(prompt, committedProjectRef.current, media);
+    if (conversational && isBrowserCopilotEnabled) {
+      const epoch = copilotEpochRef.current;
+      const history = [
+        ...copilotHistory.slice(-8),
+        { role: 'user' as const, content: prompt },
+      ];
+
+      setCopilotError(null);
+      setCopilotProgress(null);
+      setCopilotLoading(true);
+      setCopilotHistory(history);
+
+      try {
+        const answer = await generateChatResponse(history);
+
+        if (epoch !== copilotEpochRef.current) return;
+
+        setCopilotHistory((current) => [
+          ...current,
+          { role: 'assistant' as const, content: answer },
+        ].slice(-12));
+      } catch (error) {
+        if (epoch !== copilotEpochRef.current) return;
+
+        setCopilotError(
+          new CopilotClientError(
+            'invalid',
+            error instanceof Error
+              ? error.message
+              : 'RangManch AI could not respond.'
+          )
+        );
+      } finally {
+        if (epoch === copilotEpochRef.current) {
+          setCopilotLoading(false);
+          setCopilotProgress(null);
+        }
+        copilotSubmittingRef.current = false;
+      }
+
+      return;
+    }
     if (conversational) {
       setCopilotError(null);
       setCopilotProgress(null);
-      setCopilotHistory((current) => [...current, { role: 'user' as const, content: prompt }, { role: 'assistant' as const, content: conversational.message }].slice(-12));
+      setCopilotHistory((current) => [
+        ...current,
+        { role: 'user' as const, content: prompt },
+        { role: 'assistant' as const, content: conversational.message },
+      ].slice(-12));
       copilotSubmittingRef.current = false;
       return;
     }
@@ -403,12 +450,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const response = isBrowserCopilotEnabled
         ? await requestBrowserCopilotPlan({ project: baseProject, projectRevision: baseRevision, prompt, media, onProgress: setCopilotProgress })
         : await requestCopilotPlan({
-            project: baseProject,
-            projectRevision: baseRevision,
-            prompt,
-            history: copilotHistory.slice(-6),
-            signal: controller.signal,
-          });
+          project: baseProject,
+          projectRevision: baseRevision,
+          prompt,
+          history: copilotHistory.slice(-6),
+          signal: controller.signal,
+        });
       if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject) return;
       const applied = await applyEditPlan(baseProject, response.plan);
       if (epoch !== copilotEpochRef.current || committedProjectRef.current !== baseProject || applied.previousRevision !== baseRevision) return;
