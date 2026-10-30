@@ -1,3 +1,5 @@
-import { AdminLoginClient } from '@/components/admin/AdminLoginClient';
+import { redirect } from 'next/navigation';
 
-export default function AdminLoginPage() { return <AdminLoginClient />; }
+export default function AdminLoginPage() {
+  redirect('/login?next=%2Fadmin');
+}

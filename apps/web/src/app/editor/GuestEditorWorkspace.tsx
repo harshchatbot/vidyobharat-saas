@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Sparkles, Type, Undo2, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { getFirebaseAuth } from '@/lib/firebase-client';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getApiUrl } from '@/lib/env';
 import { EditorInspector } from './EditorInspector';
 import { CopilotPanel } from './CopilotPanel';
@@ -61,6 +64,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [copilotError, setCopilotError] = useState<CopilotClientError | null>(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
   const [copilotProgress, setCopilotProgress] = useState<BrowserAiProgress | null>(null);
+  const [serverVerifiedAdmin, setServerVerifiedAdmin] = useState(false);
+  const [authenticatedCreator, setAuthenticatedCreator] = useState(false);
   const copilotEpochRef = useRef(0);
   const copilotAbortRef = useRef<AbortController | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -121,6 +126,28 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     copilotEpochRef.current += 1;
     copilotAbortRef.current?.abort();
     if (localExportUrlRef.current) URL.revokeObjectURL(localExportUrlRef.current);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    try {
+      const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => {
+        if (active) setAuthenticatedCreator(Boolean(user));
+      });
+      return () => { active = false; unsubscribe(); };
+    } catch {
+      setAuthenticatedCreator(false);
+      return () => { active = false; };
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/session', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((body) => { if (active) setServerVerifiedAdmin(Boolean(body?.admin)); })
+      .catch(() => { if (active) setServerVerifiedAdmin(false); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -776,9 +803,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       />
       <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
         <button type="button" onClick={() => setSidebarOpen((value) => !value)} className="hidden h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 md:grid lg:hidden" aria-label={sidebarOpen ? 'Hide tools' : 'Show tools'}>{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
-        <div className="min-w-0"><p className="truncate text-sm font-semibold">Untitled reel</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p></div>
+        <div className="min-w-0"><p className="truncate text-sm font-semibold">Untitled reel</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p>{authenticatedCreator && <Link href="/dashboard" className="text-[10px] text-slate-400 hover:text-white">Account</Link>}</div>
         <div className="ml-2 flex items-center gap-1"><button type="button" disabled={proposalActive || !canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
-        <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {displayProject.duration.toFixed(1)}s</span><button type="button" disabled={displayProject.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" disabled={proposalActive || media.filter((item) => item.media_type === 'image').length === 0} onClick={() => { setAutoEditError(''); setAutoEditOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-violet-500 px-3 text-xs font-bold text-white disabled:opacity-40"><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Auto Edit</span></button><button type="button" onClick={() => setMobilePanel('copilot')} className="grid h-9 w-9 place-items-center rounded-md text-amber-300 hover:bg-amber-400/10 lg:hidden" aria-label="Open AI Copilot"><Sparkles className="h-4 w-4" /></button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button></div>
+        <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {displayProject.duration.toFixed(1)}s</span><button type="button" disabled={displayProject.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" disabled={proposalActive || media.filter((item) => item.media_type === 'image').length === 0} onClick={() => { setAutoEditError(''); setAutoEditOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-violet-500 px-3 text-xs font-bold text-white disabled:opacity-40"><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Auto Edit</span></button><button type="button" onClick={() => setMobilePanel('copilot')} className="grid h-9 w-9 place-items-center rounded-md text-amber-300 hover:bg-amber-400/10 lg:hidden" aria-label="Open AI Copilot"><Sparkles className="h-4 w-4" /></button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button><Link href="/login?next=%2Feditor" className="hidden min-h-9 items-center rounded-md border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 sm:inline-flex">Sign in</Link>{serverVerifiedAdmin && <Link href="/admin" className="hidden min-h-9 items-center rounded-md border border-amber-400/30 px-3 text-xs font-semibold text-amber-300 sm:inline-flex">Admin</Link>}</div>
       </header>
       {(uploadError || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs"><span role={uploadError ? 'alert' : 'status'} className={uploadError ? 'text-red-300' : 'text-amber-300'}>{uploadError || exportStatus}</span></div>}
 

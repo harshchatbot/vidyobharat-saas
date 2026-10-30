@@ -38,6 +38,18 @@ export async function POST(request: NextRequest) {
   return response;
 }
 
+export async function GET(request: NextRequest) {
+  const token = request.cookies.get(COOKIE)?.value;
+  if (!token) return NextResponse.json({ admin: null }, { status: 401 });
+  const verified = await fetch(`${getApiUrl()}/api/admin/me`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  }).catch(() => null);
+  if (!verified) return NextResponse.json({ detail: 'Admin authentication is unavailable.' }, { status: 503 });
+  const body = await verified.json().catch(() => ({}));
+  if (!verified.ok) return NextResponse.json({ admin: null }, { status: verified.status });
+  return NextResponse.json({ admin: body }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+}
+
 export async function DELETE(request: NextRequest) {
   if (!sameOrigin(request) || request.headers.get('x-rangmanch-admin-csrf') !== '1') {
     return NextResponse.json({ detail: 'Admin logout was rejected.' }, { status: 403 });
