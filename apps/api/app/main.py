@@ -48,6 +48,9 @@ _always_allowed_origins = {
     'https://www.rangmanchai.com',
     'https://api.rangmanchai.com',
     'https://vidyobharat-saas.vercel.app',
+    # Explicit Vercel preview used by the current production review deployment.
+    # Keep this allowlist exact; do not broaden credentialed CORS to all previews.
+    'https://vidyobharat-saas-p29ibldyd-harsh-veers-projects.vercel.app',
 }
 
 _configured_origins = {
