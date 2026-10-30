@@ -267,6 +267,18 @@ function getStoredAccessToken(): string | null {
   }
 }
 
+async function getPreferredAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const { getFreshFirebaseIdToken } = await import('@/lib/firebase-client');
+    const token = await getFreshFirebaseIdToken();
+    if (token) return token;
+  } catch {
+    // Existing sessions may predate SDK persistence; retain migration fallback.
+  }
+  return getBrowserCookie('vidyo_access_token') ?? getStoredAccessToken();
+}
+
 function buildInspirationQuery(options?: InspirationListOptions): string {
   const params = new URLSearchParams();
   if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
@@ -282,10 +294,7 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
   if (!isFormData) {
     headers.set('Content-Type', 'application/json');
   }
-  const accessToken =
-    options.accessToken ??
-    getBrowserCookie('vidyo_access_token') ??
-    getStoredAccessToken();
+  const accessToken = options.accessToken ?? await getPreferredAccessToken();
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }

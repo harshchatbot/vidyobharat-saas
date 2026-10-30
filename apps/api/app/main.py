@@ -26,6 +26,7 @@ from app.providers.firebase import (
 from app.services.video_pipeline import BUILTIN_MUSIC_TRACKS
 from app.api.routers.editor_routes import router as editor_router
 from app.api.routers.admin_routes import router as admin_router
+from app.api.routers.editor_copilot_routes import router as editor_copilot_router
 
 
 settings = get_settings()
@@ -47,6 +48,9 @@ _always_allowed_origins = {
     'https://www.rangmanchai.com',
     'https://api.rangmanchai.com',
     'https://vidyobharat-saas.vercel.app',
+    # Explicit Vercel preview used by the current production review deployment.
+    # Keep this allowlist exact; do not broaden credentialed CORS to all previews.
+    'https://vidyobharat-saas-p29ibldyd-harsh-veers-projects.vercel.app',
 }
 
 _configured_origins = {
@@ -340,3 +344,4 @@ app.include_router(storyboard_router)
 app.include_router(tts_router)
 app.include_router(editor_router)
 app.include_router(admin_router)
+app.include_router(editor_copilot_router)

@@ -1,5 +1,7 @@
 'use client';
 
+import { signOutFirebaseUser } from '@/lib/firebase-auth';
+
 const LOCAL_AUTH_KEYS = [
   'vidyo_access_token',
   'vidyo_user_id',
@@ -42,6 +44,7 @@ export function clearLocalAuthState() {
 }
 
 export async function clearServerSession() {
+  await signOutFirebaseUser();
   try {
     await fetch('/api/session', {
       method: 'DELETE',

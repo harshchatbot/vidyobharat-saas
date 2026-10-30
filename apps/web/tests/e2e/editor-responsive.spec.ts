@@ -193,3 +193,127 @@ test('export dialog keeps preview ratio and serialized output settings aligned',
   await expect.poll(() => submitted).toBeTruthy();
   expect(submitted).toMatchObject({ aspect_ratio: '16:9', width: 1920, height: 1080, fps: 60, output_filename: 'Client Launch.mp4' });
 });
+
+test('Copilot signed-out state does not send a model request', async ({ page }) => {
+  await mockGuestEditor(page);
+  let planRequests = 0;
+  await page.route('**/api/editor/copilot/plan', async (route) => {
+    planRequests += 1;
+    await route.fulfill({ status: 500, body: '{}' });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/editor');
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  await page.getByLabel('Ask AI Copilot to edit the project').fill('Make this cinematic');
+  await page.getByRole('button', { name: 'Propose' }).click();
+  await expect(page.getByRole('link', { name: 'Sign in to continue' })).toBeVisible();
+  expect(planRequests).toBe(0);
+});
+
+test('Copilot proposal previews without export and Cancel or Apply remain atomic', async ({ page }) => {
+  await mockGuestEditor(page);
+  await page.addInitScript(() => window.localStorage.setItem('vidyo_access_token', 'test-firebase-id-token'));
+  let exportRequests = 0;
+  await page.route('**/api/editor/exports', async (route) => {
+    exportRequests += 1;
+    await route.fulfill({ status: 500, body: '{}' });
+  });
+  await page.route('**/api/editor/copilot/plan', async (route) => {
+    const request = route.request().postDataJSON() as { projectRevision: string };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        plan: {
+          schemaVersion: '1.0', requestId: 'copilot-test', projectRevision: request.projectRevision,
+          summary: 'Change the canvas to widescreen.', warnings: [],
+          operations: [{ op: 'set_aspect_ratio', aspectRatio: '16:9' }],
+        },
+        usage: { inputTokens: 20, outputTokens: 10, estimatedCostUsd: 0.0001 },
+      }),
+    });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/editor');
+  await page.getByRole('button', { name: 'Add a-very-long-photo-filename-for-truncation.png to timeline' }).click();
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const prompt = page.getByLabel('Ask AI Copilot to edit the project');
+  await prompt.fill('Make it widescreen');
+  await page.getByRole('button', { name: 'Propose' }).click();
+  await expect(page.getByRole('region', { name: 'Proposed edits' })).toBeVisible();
+  await expect(page.getByText(/Temporary Copilot preview/)).toBeVisible();
+  expect(exportRequests).toBe(0);
+  let ratio = await page.getByTestId('editor-preview-canvas').evaluate((element) => {
+    const bounds = element.getBoundingClientRect(); return bounds.width / bounds.height;
+  });
+  expect(Math.abs(ratio - 16 / 9)).toBeLessThan(0.02);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  ratio = await page.getByTestId('editor-preview-canvas').evaluate((element) => {
+    const bounds = element.getBoundingClientRect(); return bounds.width / bounds.height;
+  });
+  expect(Math.abs(ratio - 9 / 16)).toBeLessThan(0.02);
+
+  await prompt.fill('Make it widescreen');
+  await page.getByRole('button', { name: 'Propose' }).click();
+  await expect(page.getByRole('region', { name: 'Proposed edits' })).toBeVisible();
+  await page.getByRole('button', { name: 'Apply edits' }).click();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  ratio = await page.getByTestId('editor-preview-canvas').evaluate((element) => {
+    const bounds = element.getBoundingClientRect(); return bounds.width / bounds.height;
+  });
+  expect(Math.abs(ratio - 9 / 16)).toBeLessThan(0.02);
+  expect(exportRequests).toBe(0);
+});
+
+test('mobile Copilot uses the existing bottom sheet and keeps preview visible', async ({ page }) => {
+  await mockGuestEditor(page);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/editor');
+  await page.getByRole('button', { name: 'Open AI Copilot' }).click();
+  const sheet = page.getByTestId('mobile-editor-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(page.getByTestId('editor-preview-canvas')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('Copilot null update placeholders preview and apply an animated slideshow title', async ({ page }) => {
+  await mockGuestEditor(page);
+  await page.addInitScript(() => window.localStorage.setItem('vidyo_access_token', 'test-firebase-id-token'));
+  await page.route('**/api/editor/copilot/plan', async (route) => {
+    const request = route.request().postDataJSON() as { projectRevision: string; project: { tracks: { id: string; items: { id: string }[] }[] } };
+    const clips = request.project.tracks.find((track) => track.id === 'video')!.items;
+    expect(clips).toHaveLength(2);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      plan: {
+        schemaVersion: '1.0', requestId: 'null-placeholder-test', projectRevision: request.projectRevision,
+        summary: 'Two images and an animated title.', warnings: [], operations: [
+          ...clips.map((clip, index) => ({ op: 'update_item', itemId: clip.id, changes: { startTime: index * 3, duration: 3, text: null, fontSize: null, shadow: null, inAnimation: null } })),
+          { op: 'add_text', item: {
+            id: 'ai-title', kind: 'text', trackId: 'text', label: 'My First AI Video', text: 'My First AI Video',
+            startTime: 0, duration: 3, fontFamily: 'Inter', fontSize: 40, color: '#ffffff', bold: false,
+            x: 0.5, y: 0.5, width: 0.8, rotation: 0, alignment: 'center', outlineColor: '#000000',
+            outlineWidth: 0, shadow: true, backgroundColor: '#000000', backgroundOpacity: 0,
+            inAnimation: 'fade-in', outAnimation: 'none', loopAnimation: 'none', inAnimationDuration: 1, outAnimationDuration: 0.5,
+          } },
+        ],
+      }, usage: { inputTokens: 20, outputTokens: 10, estimatedCostUsd: 0 },
+    }) });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/editor');
+  // Two image clips can reference the same uploaded image; their item IDs differ.
+  const add = page.getByRole('button', { name: 'Add a-very-long-photo-filename-for-truncation.png to timeline' });
+  await add.click();
+  await add.click();
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  await page.getByLabel('Ask AI Copilot to edit the project').fill('Keep order, three seconds each, add My First AI Video with a one-second fade-in.');
+  await page.getByRole('button', { name: 'Propose' }).click();
+  await expect(page.getByRole('region', { name: 'Proposed edits' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Apply edits' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Apply edits' }).click();
+  await expect(page.getByRole('region', { name: 'Proposed edits' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'My First AI Video', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('button', { name: 'My First AI Video', exact: true })).toHaveCount(0);
+});

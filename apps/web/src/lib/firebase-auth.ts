@@ -1,4 +1,14 @@
 import { FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, GOOGLE_CLIENT_ID, getApiUrl } from '@/lib/env';
+import {
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithCredential,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile as updateFirebaseProfile,
+} from 'firebase/auth';
+import { getFirebaseAuth, waitForFirebaseAuth } from '@/lib/firebase-client';
 
 export type FirebaseAuthSession = {
   idToken: string;
@@ -72,6 +82,13 @@ function ensureConfigured() {
 
 function firebaseRestUrl(path: string) {
   ensureConfigured();
+
+  const emulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
+
+  if (emulatorUrl) {
+    return `${emulatorUrl.replace(/\/$/, "")}/identitytoolkit.googleapis.com/v1/${path}?key=${FIREBASE_API_KEY}`;
+  }
+
   return `https://identitytoolkit.googleapis.com/v1/${path}?key=${FIREBASE_API_KEY}`;
 }
 
@@ -99,86 +116,34 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
-async function sendVerifyEmail(idToken: string) {
-  const response = await fetchWithTimeout(firebaseRestUrl('accounts:sendOobCode'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requestType: 'VERIFY_EMAIL',
-      idToken,
-    }),
-  });
-  await parseJson(response);
-}
-
 export async function signInWithPassword(email: string, password: string): Promise<FirebaseAuthSession> {
-  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signInWithPassword'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email,
-      password,
-      returnSecureToken: true,
-    }),
-  });
-  const body = await parseJson<{
-    idToken: string;
-    refreshToken: string;
-    localId: string;
-    email?: string;
-    displayName?: string;
-  }>(response);
+  const auth = await waitForFirebaseAuth();
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const idToken = await credential.user.getIdToken();
   return {
-    idToken: body.idToken,
-    refreshToken: body.refreshToken,
-    localId: body.localId,
-    email: body.email,
-    displayName: body.displayName,
+    idToken,
+    localId: credential.user.uid,
+    email: credential.user.email ?? undefined,
+    displayName: credential.user.displayName ?? undefined,
+    photoUrl: credential.user.photoURL ?? undefined,
   };
 }
 
 export async function signUpWithPassword(email: string, password: string, fullName?: string): Promise<FirebaseAuthSession | null> {
-  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signUp'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email,
-      password,
-      returnSecureToken: true,
-    }),
-  });
-  const body = await parseJson<{
-    idToken: string;
-    refreshToken: string;
-    localId: string;
-    email?: string;
-  }>(response);
-
+  const auth = await waitForFirebaseAuth();
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
   if (fullName?.trim()) {
-    await updateProfile(body.idToken, { displayName: fullName.trim() });
+    await updateFirebaseProfile(credential.user, { displayName: fullName.trim() });
   }
 
   try {
-    await sendVerifyEmail(body.idToken);
+    await sendEmailVerification(credential.user);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send verification email';
     throw new Error(`Account created, but verification email could not be sent. ${message}`);
   }
+  await signOut(auth);
   return null;
-}
-
-async function updateProfile(idToken: string, payload: { displayName?: string; photoUrl?: string }) {
-  const response = await fetchWithTimeout(firebaseRestUrl('accounts:update'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      idToken,
-      displayName: payload.displayName,
-      photoUrl: payload.photoUrl,
-      returnSecureToken: false,
-    }),
-  });
-  await parseJson(response);
 }
 
 export async function getUserForIdToken(idToken: string): Promise<FirebaseUserProfile> {
@@ -291,32 +256,24 @@ async function loadGoogleIdentityScript() {
 }
 
 async function signInWithGoogleCredential(credential: string): Promise<FirebaseAuthSession> {
-  const response = await fetchWithTimeout(firebaseRestUrl('accounts:signInWithIdp'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      postBody: `id_token=${encodeURIComponent(credential)}&providerId=google.com`,
-      requestUri: typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
-      returnIdpCredential: true,
-      returnSecureToken: true,
-    }),
-  });
-  const body = await parseJson<{
-    idToken: string;
-    refreshToken: string;
-    localId: string;
-    email?: string;
-    displayName?: string;
-    photoUrl?: string;
-  }>(response);
+  const auth = await waitForFirebaseAuth();
+  const result = await signInWithCredential(auth, GoogleAuthProvider.credential(credential));
+  const idToken = await result.user.getIdToken();
   return {
-    idToken: body.idToken,
-    refreshToken: body.refreshToken,
-    localId: body.localId,
-    email: body.email,
-    displayName: body.displayName,
-    photoUrl: body.photoUrl,
+    idToken,
+    localId: result.user.uid,
+    email: result.user.email ?? undefined,
+    displayName: result.user.displayName ?? undefined,
+    photoUrl: result.user.photoURL ?? undefined,
   };
+}
+
+export async function signOutFirebaseUser(): Promise<void> {
+  try {
+    await signOut(getFirebaseAuth());
+  } catch {
+    // Compatibility session cleanup must continue even if Auth is unavailable.
+  }
 }
 
 export async function signInWithGooglePopup(): Promise<FirebaseAuthSession> {

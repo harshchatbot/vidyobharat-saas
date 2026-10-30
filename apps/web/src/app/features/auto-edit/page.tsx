@@ -1,0 +1,6 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'Auto Edit for Reels | RangManch AI', description: 'Turn uploaded photos into a polished reel with one-click Auto Edit in RangManch AI.', alternates: { canonical: 'https://rangmanchai.com/features/auto-edit' } };
+
+export default function AutoEditPage() { return <main className="min-h-screen bg-[#0a0a0f] px-6 py-20 text-white"><div className="mx-auto max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Auto Edit</p><h1 className="mt-5 text-5xl font-semibold tracking-tight">From camera roll to ready-to-share reel.</h1><p className="mt-6 text-lg leading-8 text-slate-300">Upload your photos, choose a creative style, and let RangManch AI arrange timing, transitions, text, and music into an editable timeline.</p><h2 className="mt-16 text-2xl font-semibold">A faster first draft</h2><p className="mt-3 leading-7 text-slate-400">Auto Edit keeps the result editable. Preview the proposal, apply it when it feels right, undo when it does not, then export locally in your browser.</p><Link className="mt-10 inline-flex rounded-full bg-amber-300 px-6 py-3 font-semibold text-slate-950" href="/editor">Create My Reel for Free</Link></div></main>; }

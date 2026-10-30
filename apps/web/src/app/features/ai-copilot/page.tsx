@@ -1,0 +1,6 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'AI Copilot for Video Editing | RangManch AI', description: 'Refine your reel with natural-language editing through the browser-based RangManch AI Copilot.', alternates: { canonical: 'https://rangmanchai.com/features/ai-copilot' } };
+
+export default function AiCopilotPage() { return <main className="min-h-screen bg-[#0a0a0f] px-6 py-20 text-white"><div className="mx-auto max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">AI Copilot</p><h1 className="mt-5 text-5xl font-semibold tracking-tight">Describe the change. Preview the edit.</h1><p className="mt-6 text-lg leading-8 text-slate-300">Once Auto Edit has shaped your reel, use natural language to adjust timing, titles, transitions, and music. Every proposal is validated before you apply it.</p><h2 className="mt-16 text-2xl font-semibold">Local-first creative control</h2><p className="mt-3 leading-7 text-slate-400">The browser Copilot is designed for supported devices and keeps the editing workflow inside the editor. You remain in control through Preview, Apply, and Undo.</p><Link className="mt-10 inline-flex rounded-full bg-amber-300 px-6 py-3 font-semibold text-slate-950" href="/editor">Open the Editor</Link></div></main>; }
