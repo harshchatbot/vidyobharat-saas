@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+import { getFreshFirebaseIdToken } from '@/lib/firebase-client';
 
-function getUserId(): string {
-  return getCurrentUserIdOrThrow('Storyboard API request');
+async function getStoryboardAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getFreshFirebaseIdToken();
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+  return { Authorization: `Bearer ${token}` };
 }
 
 // Backend API base URL
@@ -384,7 +386,7 @@ export function useStoryboardProject() {
       const response = await fetch(`${API_BASE_URL}/api/storyboard/${projectId}`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
       });
       if (!response.ok) {
@@ -421,7 +423,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify(input),
       });
@@ -476,7 +478,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
       });
 
@@ -546,7 +548,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -574,7 +576,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({
           target_ad_duration_seconds: targetDurationSeconds,
@@ -604,7 +606,7 @@ export function useStoryboardProject() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ script_text: updatedScript, source: 'manual_edit' }),
       });
@@ -632,7 +634,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -660,7 +662,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
       });
       if (!response.ok) {
@@ -688,7 +690,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -716,7 +718,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ user_approved: true }),
       });
@@ -742,7 +744,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ user_approved: false, user_feedback: feedback }),
       });
@@ -787,7 +789,7 @@ export function useStoryboardProject() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify(payload),
       });
@@ -821,7 +823,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify(body),
       });
@@ -856,7 +858,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({
           voice,
@@ -890,7 +892,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ voice, language_code: language }),
       });
@@ -917,7 +919,7 @@ export function useStoryboardProject() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-User-ID': getUserId(),
+        ...(await getStoryboardAuthHeaders()),
       },
       body: JSON.stringify(settings),
     });
@@ -941,7 +943,7 @@ export function useStoryboardProject() {
     const response = await fetch(`${API_BASE_URL}/api/storyboard/${projectId}/production/estimate?${query.toString()}`, {
       headers: {
         'Content-Type': 'application/json',
-        'X-User-ID': getUserId(),
+        ...(await getStoryboardAuthHeaders()),
       },
     });
     const payload = await response.json().catch(() => ({}));
@@ -961,7 +963,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
       });
       const payload = await response.json().catch(() => ({}));
@@ -989,7 +991,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation, storyboard_image_quality_mode: storyboardImageQualityMode }),
       });
@@ -1023,7 +1025,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -1050,7 +1052,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -1076,7 +1078,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -1102,7 +1104,7 @@ export function useStoryboardProject() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
         body: JSON.stringify({ confirmation }),
       });
@@ -1124,7 +1126,7 @@ export function useStoryboardProject() {
       const response = await fetch(`${API_BASE_URL}/api/storyboard/${projectId}/credit-estimate?stage=${stage}`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': getUserId(),
+          ...(await getStoryboardAuthHeaders()),
         },
       });
       if (!response.ok) {

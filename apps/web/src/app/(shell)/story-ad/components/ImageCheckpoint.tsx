@@ -21,7 +21,7 @@ import { useStoryboardProject } from '../hooks/useStoryboardProject';
 import { isTestModeEnabled } from '../utils/testModeHelper';
 import BeautifulLoadingScreen from './BeautifulLoadingScreen';
 import { generateMockScenes, simulateDelay } from '../services/mockDataService';
-import { getCurrentUserIdOrThrow } from '@/lib/authUser';
+import { getFirebaseAuthHeaders } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Scene {
@@ -112,7 +112,6 @@ export default function ImageCheckpoint({
 
   const isMockMode = isTestModeEnabled();
   const showDebug = process.env.NODE_ENV !== 'production';
-  const getUserId = () => getCurrentUserIdOrThrow('Image checkpoint');
   const getSceneSpokenLine = (scene: Partial<Scene>): string =>
     String(scene.tts_text || '').trim() ||
     String(scene.voice_line || '').trim() ||
@@ -217,7 +216,7 @@ export default function ImageCheckpoint({
     try {
       if (showSpinner) setScenesLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/storyboard/${project.id}/storyboard`, {
-        headers: { 'X-User-ID': getUserId() },
+        headers: await getFirebaseAuthHeaders(),
       });
       if (!response.ok) return;
       const data = await response.json();
@@ -395,7 +394,7 @@ export default function ImageCheckpoint({
         attempts += 1;
         await new Promise((resolve) => setTimeout(resolve, 2000));
         const response = await fetch(`${API_BASE_URL}/api/storyboard/${project.id}/scenes/${sceneId}`, {
-          headers: { 'X-User-ID': getUserId() },
+          headers: await getFirebaseAuthHeaders(),
         });
         if (!response.ok) {
           continue;
@@ -437,7 +436,7 @@ export default function ImageCheckpoint({
         return;
       }
       const estimateRes = await fetch(`${API_BASE_URL}/api/storyboard/${project.id}/credit-estimate?operation=generate_base_images&storyboard_image_quality_mode=${encodeURIComponent(imageQualityMode)}`, {
-        headers: { 'X-User-ID': getUserId() },
+        headers: await getFirebaseAuthHeaders(),
       });
       if (estimateRes.ok) {
         const { estimate } = await estimateRes.json();

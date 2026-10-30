@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getFirebaseAuthHeaders } from '@/lib/api';
 import Link from 'next/link';
 import { AlertTriangle, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -23,7 +24,7 @@ export function PlanExpiryBanner() {
     const fetchPlanStatus = async () => {
       try {
         const response = await fetch('/api/plan', {
-          headers: { 'X-User-ID': 'current-user' },
+          headers: await getFirebaseAuthHeaders(),
         });
         if (response.ok) {
           const data = await response.json();

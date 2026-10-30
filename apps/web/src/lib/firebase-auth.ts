@@ -209,7 +209,6 @@ export async function persistAppSession(payload: {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${payload.accessToken}`,
-      'X-User-ID': payload.userId,
     },
     body: JSON.stringify({
       display_name: payload.name,

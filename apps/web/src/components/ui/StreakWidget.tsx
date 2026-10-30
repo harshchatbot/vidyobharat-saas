@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCurrentUserIdOrThrow } from '@/lib/authUser'
+import { getFirebaseAuthHeaders } from '@/lib/api'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -18,9 +18,8 @@ export function StreakWidget() {
   useEffect(() => {
     async function load() {
       try {
-        const userId = getCurrentUserIdOrThrow('streak')
         const res = await fetch(`${API_BASE_URL}/api/streak`, {
-          headers: { 'X-User-ID': userId }
+          headers: await getFirebaseAuthHeaders()
         })
         if (res.ok) {
           const data = await res.json()
