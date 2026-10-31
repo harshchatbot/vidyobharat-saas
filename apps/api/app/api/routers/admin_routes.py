@@ -68,12 +68,12 @@ async def admin_upload_audio_library(
         raise HTTPException(status_code=422, detail='Redistribution permission must be explicitly confirmed.')
     content = await file.read()
     try:
-        storage_path, _, duration = upload_audio_library_asset(file.filename or 'audio', content, file.content_type or '', payload.type)
+        storage_path, playback_url, duration = upload_audio_library_asset(file.filename or 'audio', content, file.content_type or '', payload.type)
         entry = AudioLibraryEntry(
             id=storage_path.rsplit('/', 1)[-1].rsplit('.', 1)[0], title=payload.title, category=payload.category,
             type=payload.type, duration_seconds=duration, content_type=file.content_type or 'audio/mpeg', tags=payload.tags,
             license=payload.license, attribution=payload.attribution, source=payload.source,
-            evidence_reference=payload.evidence_reference, storage_path=storage_path, status='draft',
+            evidence_reference=payload.evidence_reference, playback_url=playback_url, storage_path=storage_path, status='draft',
         )
         build_audio_library_repository().save(entry)
         return entry.model_dump(exclude={'evidence_reference'})
