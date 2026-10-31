@@ -88,6 +88,22 @@ test('adds transitions at every clip boundary and bounds zoom effects', async ()
   assert.ok(effectOps.filter((operation) => operation.op === 'add_effect' && operation.item.preset === 'zoom-in').every((operation) => operation.item.duration <= 2.5));
 });
 
+test('accepts only supplied AI decisions and keeps beat data factual', async () => {
+  const project = createEmptyProject();
+  const plan = buildAutoEditPlan(project, images, await calculateProjectRevision(project), {
+    style: 'elegant', mode: 'replace', targetDuration: 12,
+    // This is the complete beat input: planning must not manufacture additional beats.
+    beatCandidates: [{ time: 4, confidence: 0.9 }],
+    aiDirection: { transition: 'slide-right', effectPattern: ['zoom-in', 'none', 'zoom-out'] },
+  });
+  const applied = await applyEditPlan(project, plan);
+  const clips = applied.project.tracks.find((track) => track.id === 'video')!.items;
+  const effects = applied.project.tracks.find((track) => track.id === 'effects')!.items;
+  assert.equal(clips[0].kind === 'video' && clips[0].transitionOut?.type, 'slide-right');
+  assert.equal(effects.filter((item) => item.kind === 'effect' && ['zoom-in', 'zoom-out'].includes(item.preset)).length, 2);
+  assert.equal(clips[0].duration, 4);
+});
+
 test('replaces an existing invalid overlapping visual timeline atomically', async () => {
   const first: VideoTimelineItem = { id: 'old-1', kind: 'video', trackId: 'video', label: 'old 1', mediaId: 'old-1', contentType: 'image/png', startTime: 0, duration: 4, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
   const second: VideoTimelineItem = { ...first, id: 'old-2', label: 'old 2', mediaId: 'old-2', startTime: 3 };

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseAndValidateModelJson, validateCommands, BrowserAiValidationError } from './webllmService.ts';
+import { parseAndValidateModelJson, parseAutoEditDirection, validateCommands, BrowserAiValidationError } from './webllmService.ts';
 
 const instruction = "Set all images to 5 seconds. Add the title 'Hello RangManch' at the beginning, centered, with a 2-second fade-in.";
 
@@ -16,6 +16,14 @@ test('rejects duplicate set_duration commands', () => {
     { op: 'set_duration', target: 'all_images', seconds: 5 },
     { op: 'set_duration', target: 'all_images', seconds: 5 },
   ] }));
+});
+
+test('accepts supported per-clip AI directions and rejects malformed output for Quick fallback', () => {
+  assert.deepEqual(parseAutoEditDirection({ transition: 'slide-right', effectPattern: ['zoom-in', 'none', 'zoom-out'] }, 3), {
+    transition: 'slide-right', effectPattern: ['zoom-in', 'none', 'zoom-out'],
+  });
+  assert.throws(() => parseAutoEditDirection({ transition: 'spin', effectPattern: ['zoom-in'] }, 1), /unsupported/);
+  assert.throws(() => parseAutoEditDirection({ transition: 'crossfade', effectPattern: ['zoom-in'] }, 2), /unsupported/);
 });
 
 test('rejects missing explicitly requested title and animation', () => {

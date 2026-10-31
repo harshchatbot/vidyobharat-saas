@@ -1,6 +1,9 @@
 import { CreateMLCEngine, type MLCEngine } from "@mlc-ai/web-llm";
 
 const MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+// This WebLLM model is a text-only instruction model. It never receives pixels.
+export const BROWSER_AI_MODALITY = "text" as const;
+export const BROWSER_AI_DOWNLOAD_NOTE = "About 900 MB download; stored locally by your browser. Requires a compatible WebGPU device.";
 
 let engine: MLCEngine | null = null;
 let loadingPromise: Promise<MLCEngine> | null = null;
@@ -14,6 +17,13 @@ export type BrowserAiProgress = {
   progress?: number;
   message: string;
 };
+
+function friendlyPreparationLabel(phase: BrowserAiProgress['phase']): string {
+  if (phase === 'generating') return 'Planning your edit…';
+  if (phase === 'validating') return 'Checking your edit plan…';
+  if (phase === 'initializing') return 'Setting up your creative assistant…';
+  return 'Preparing your AI workspace…';
+}
 
 export function isModelReady(): boolean {
   return engine !== null;
@@ -33,7 +43,7 @@ export async function loadModel(
       initProgressCallback: (event) => {
         onProgress?.(
           Math.round(event.progress * 100),
-          event.text || "Loading model…"
+          'Preparing your AI workspace…'
         );
       },
     })
@@ -379,17 +389,14 @@ export async function generateCommandsWithDiagnostics(
     throw new Error("Please enter an editing instruction.");
   }
 
-  onProgress?.({ phase: "checking", message: "Checking local AI support…" });
+  onProgress?.({ phase: "checking", message: friendlyPreparationLabel('checking') });
   const model = await loadModel((progress, message) => {
-    onProgress?.({
-      phase: progress < 100 ? "downloading" : "initializing",
-      progress,
-      message: message || "Preparing your AI Copilot…",
-    });
+    const phase = progress < 100 ? 'downloading' : 'initializing';
+    onProgress?.({ phase, ...(phase === 'downloading' && { progress }), message: friendlyPreparationLabel(phase) });
   });
   onProgress?.({
     phase: "generating",
-    message: "Generating a safe edit plan locally…",
+    message: friendlyPreparationLabel('generating'),
   });
 
   const response = await model.chat.completions.create({
@@ -413,9 +420,50 @@ export async function generateCommandsWithDiagnostics(
 
   onProgress?.({
     phase: "validating",
-    message: "Validating the proposed edits…",
+    message: friendlyPreparationLabel('validating'),
   });
   return parseAndValidateModelJson(content, instruction);
+}
+
+export type AutoEditAiDirection = {
+  transition: 'crossfade' | 'slide-left' | 'slide-right';
+  effectPattern: Array<'zoom-in' | 'zoom-out' | 'none'>;
+};
+
+export function parseAutoEditDirection(value: unknown, clipCount: number): AutoEditAiDirection {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('The local model returned an invalid AI edit direction.');
+  const record = value as Record<string, unknown>;
+  if (!['crossfade', 'slide-left', 'slide-right'].includes(String(record.transition)) || !Array.isArray(record.effectPattern) || record.effectPattern.length !== clipCount || record.effectPattern.some((effect) => !['zoom-in', 'zoom-out', 'none'].includes(String(effect)))) throw new Error('The local model proposed unsupported edit decisions.');
+  return { transition: record.transition as AutoEditAiDirection['transition'], effectPattern: record.effectPattern as AutoEditAiDirection['effectPattern'] };
+}
+
+/**
+ * Uses the already-cached text model to choose among supported edit primitives.
+ * No image pixels or media bytes are sent to the model; beat timestamps are facts
+ * supplied by the application and remain the only source for beat-aligned cuts.
+ */
+export async function generateAutoEditDirection(input: {
+  instruction: string;
+  style: string;
+  clipCount: number;
+  beatTimes: number[];
+  onProgress?: (progress: BrowserAiProgress) => void;
+}): Promise<AutoEditAiDirection> {
+  const clipCount = Math.max(1, Math.min(12, Math.floor(input.clipCount)));
+  input.onProgress?.({ phase: 'checking', message: friendlyPreparationLabel('checking') });
+  const model = await loadModel((progress) => {
+    const phase = progress < 100 ? 'downloading' : 'initializing';
+    input.onProgress?.({ phase, ...(phase === 'downloading' && { progress }), message: friendlyPreparationLabel(phase) });
+  });
+  input.onProgress?.({ phase: 'generating', message: friendlyPreparationLabel('generating') });
+  const response = await model.chat.completions.create({
+    messages: [{ role: 'system', content: `Return only JSON: {"transition":"crossfade"|"slide-left"|"slide-right","effectPattern":["zoom-in"|"zoom-out"|"none"]}. Choose a coherent, non-repetitive pattern with exactly ${clipCount} entries. You are text-only: use only these facts, never claim visual understanding. Style: ${input.style}. User direction: ${input.instruction.slice(0, 500) || 'none'}. Beat timestamps (may be empty; do not invent beats): ${JSON.stringify(input.beatTimes.slice(0, 24))}.` }],
+    temperature: 0.2, max_tokens: 160, response_format: { type: 'json_object' },
+  });
+  input.onProgress?.({ phase: 'validating', message: friendlyPreparationLabel('validating') });
+  const raw = response.choices[0]?.message.content;
+  if (typeof raw !== 'string') throw new Error('The local model returned no AI edit direction.');
+  return parseAutoEditDirection(JSON.parse(raw), clipCount);
 }
 
 export function parseAndValidateModelJson(
