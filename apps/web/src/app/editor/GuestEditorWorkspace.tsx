@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { flushSync } from 'react-dom';
 import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Sparkles, Type, Undo2, Upload } from 'lucide-react';
 import Link from 'next/link';
-import { generateChatResponse } from '@/lib/browser-ai/webllmService';
+import { generateAutoEditDirection, generateChatResponse, isModelReady } from '@/lib/browser-ai/webllmService';
 import { getFirebaseAuth } from '@/lib/firebase-client';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getApiUrl } from '@/lib/env';
@@ -33,6 +33,8 @@ import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoPro
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
 import { createEmptyProject, MAX_TIMELINE_SECONDS, type AudioTimelineItem, type EffectTimelineItem, type GuestMedia, type TextTimelineItem, type TimelineItem, type TimelineProject, type VideoTimelineItem } from './timeline/types';
 import { IndeterminateProgress, StatusTransition } from '@/components/ui/MotionPrimitives';
+import { BrandLoading } from './BrandLoading';
+import { prepareVisualUpload, uploadVisualWithProgress, type PendingVisualUpload } from './mediaUpload';
 
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
 const MAX_CLIPS = 12;
@@ -47,7 +49,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioTarget, setAudioTarget] = useState<'music' | 'sfx'>('music');
   const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [pendingVisualUploads, setPendingVisualUploads] = useState<PendingVisualUpload[]>([]);
+  const uploadingMedia = pendingVisualUploads.some(
+    (upload) =>
+      upload.state === 'queued' ||
+      upload.state === 'uploading' ||
+      upload.state === 'processing'
+  );
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryEntry[]>([]);
   const [audioLibraryQuery, setAudioLibraryQuery] = useState('');
   const [audioLibraryLoading, setAudioLibraryLoading] = useState(false);
@@ -96,6 +104,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [autoEditMode, setAutoEditMode] = useState<AutoEditMode>('add');
   const [autoEditTitle, setAutoEditTitle] = useState('');
   const [autoEditError, setAutoEditError] = useState('');
+  const [autoEditAiMode, setAutoEditAiMode] = useState(false);
+  const [autoEditPrompt, setAutoEditPrompt] = useState('');
+  const [autoEditProgress, setAutoEditProgress] = useState<BrowserAiProgress | null>(null);
+  const autoEditEpochRef = useRef(0);
   const localExportUrlRef = useRef<string | null>(null);
   localExportUrlRef.current = localExportUrl;
   const [remainingUploads, setRemainingUploads] = useState(uploadUsage?.remaining.uploads ?? 0);
@@ -104,6 +116,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     limits: { exports: number };
   } | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const pendingVisualUploadsRef = useRef<PendingVisualUpload[]>([]);
+  const visualQueueRunningRef = useRef(false);
   const playbackStartedRef = useRef({ wallTime: 0, timelineTime: 0 });
   const downloadedExportIdsRef = useRef<Set<string>>(new Set());
   const lastProjectRef = useRef(project);
@@ -132,6 +146,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     return () => { cancelled = true; };
   }, [activeTool, audioLibraryQuery, audioLibraryTab]);
   const clipCount = displayProject.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
+  pendingVisualUploadsRef.current = pendingVisualUploads;
 
   // A completed export represents a snapshot, not the current editable project.
   // Any timeline, aspect-ratio, or export-settings change makes that snapshot stale.
@@ -148,6 +163,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     copilotEpochRef.current += 1;
     copilotAbortRef.current?.abort();
     if (localExportUrlRef.current) URL.revokeObjectURL(localExportUrlRef.current);
+    pendingVisualUploadsRef.current.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
   }, []);
 
   useEffect(() => {
@@ -564,9 +580,36 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setMobilePanel('library');
   }
 
+  function updatePendingVisualUploads(update: (uploads: PendingVisualUpload[]) => PendingVisualUpload[]) {
+    pendingVisualUploadsRef.current = update(pendingVisualUploadsRef.current);
+    setPendingVisualUploads(pendingVisualUploadsRef.current);
+  }
+
+  async function runVisualUploadQueue() {
+    if (visualQueueRunningRef.current) return;
+    visualQueueRunningRef.current = true;
+    try {
+      while (true) {
+        const next = pendingVisualUploadsRef.current.find((upload) => upload.state === 'queued');
+        if (!next) break;
+        updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'uploading', progress: 0, error: undefined } : upload));
+        try {
+          const response = await uploadVisualWithProgress({ file: next.uploadFile, url: `${getApiUrl()}/api/editor/media/upload`, onProgress: (progress) => updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, progress } : upload)) });
+          updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'processing', progress: null } : upload));
+          const uploaded = response as GuestMedia;
+          setMedia((current) => [uploaded, ...current]);
+          setRemainingUploads((current) => Math.max(0, current - 1));
+          updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'ready', progress: 100 } : upload));
+          URL.revokeObjectURL(next.previewUrl);
+        } catch (error) {
+          updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'failed', progress: null, error: error instanceof Error ? error.message : 'Upload failed.' } : upload));
+        }
+      }
+    } finally { visualQueueRunningRef.current = false; }
+  }
 
   async function uploadVisualMedia(files: File[]) {
-    if (!files.length || uploadingMedia) return;
+    if (!files.length) return;
 
     const allowedTypes = new Set([
       'image/jpeg',
@@ -582,58 +625,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       return;
     }
 
-    if (files.length > remainingUploads) {
+    const activeUploads = pendingVisualUploadsRef.current.filter((upload) => ['queued', 'uploading', 'processing'].includes(upload.state)).length;
+    if (files.length > Math.max(0, remainingUploads - activeUploads)) {
       setUploadError(
         `You can upload ${remainingUploads} more files in this guest session.`
       );
       return;
     }
 
-    setUploadingMedia(true);
     setUploadError(''); setUploadNotice('');
-
-    try {
-      for (const file of files) {
-        setUploadingFilename(file.name);
-        const form = new FormData();
-        form.append('file', file);
-
-        const response = await fetch(
-          `${getApiUrl()}/api/editor/media/upload`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'X-RangManch-Editor-CSRF': '1',
-              'Idempotency-Key': crypto.randomUUID(),
-            },
-            body: form,
-          }
-        );
-
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-
-          throw new Error(
-            body.error === 'guest_quota_exceeded'
-              ? 'You have reached the guest upload limit.'
-              : body.message || `Upload failed: ${file.name}`
-          );
-        }
-
-        const uploaded = (await response.json()) as GuestMedia;
-
-        setMedia((current) => [uploaded, ...current]);
-        setRemainingUploads((current) => Math.max(0, current - 1));
-      }
-      setUploadNotice(`${files.length} ${files.length === 1 ? 'file' : 'files'} uploaded and ready.`);
-    } catch (error) {
-      setUploadError(
-        error instanceof Error ? error.message : 'Media upload failed.'
-      );
-    } finally {
-      setUploadingMedia(false); setUploadingFilename('');
-    }
+    const additions = files.map((file) => ({ id: crypto.randomUUID(), file, uploadFile: file, previewUrl: URL.createObjectURL(file), state: 'queued' as const, progress: null }));
+    updatePendingVisualUploads((current) => [...current, ...additions]);
+    const prepared = await Promise.all(additions.map(async (upload) => ({ id: upload.id, uploadFile: await prepareVisualUpload(upload.file) })));
+    updatePendingVisualUploads((current) => current.map((upload) => ({ ...upload, uploadFile: prepared.find((item) => item.id === upload.id)?.uploadFile ?? upload.uploadFile })));
+    await runVisualUploadQueue();
   }
 
 
@@ -746,16 +751,35 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   async function previewAutoEdit() {
+    const epoch = ++autoEditEpochRef.current;
     setAutoEditError('');
     try {
+      setAutoEditProgress(autoEditAiMode ? { phase: 'checking', message: 'Preparing your AI workspace…' } : null);
       const revision = await calculateProjectRevision(project);
       const music = media.filter((item) => item.media_type === 'audio' && item.availability !== 'unavailable');
       const beatCandidates = music.length === 1 ? await analyzeUploadedMusic(music[0].media_id) : undefined;
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: autoEditMode, title: autoEditTitle, beatCandidates });
+      if (epoch !== autoEditEpochRef.current) return;
+      let aiDirection;
+      let usedQuickFallback = false;
+      if (autoEditAiMode) {
+        try {
+          aiDirection = await generateAutoEditDirection({ instruction: autoEditPrompt, style: autoEditStyle, clipCount: media.filter((item) => item.media_type === 'image' && item.availability !== 'unavailable').length, beatTimes: (beatCandidates ?? []).map((beat) => beat.time), onProgress: setAutoEditProgress });
+        } catch {
+          // AI planning is optional: retain a safe, editable Quick plan when WebGPU/model is unavailable.
+          usedQuickFallback = true;
+        }
+      }
+      if (epoch !== autoEditEpochRef.current) return;
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: autoEditMode, title: autoEditTitle, beatCandidates, aiDirection });
+      if (usedQuickFallback) plan.warnings = [...plan.warnings, 'AI planning was unavailable. This preview uses Quick Auto Edit.'];
+      else if (autoEditAiMode) plan.warnings = [...plan.warnings, 'AI-selected effects and transitions were planned locally. Review before applying.'];
+      setAutoEditProgress({ phase: 'validating', message: 'Preparing your preview…' });
       const applied = await applyEditPlan(project, plan);
+      if (epoch !== autoEditEpochRef.current || committedProjectRef.current !== project) return;
       setCopilotProposal({ epoch: copilotEpochRef.current, baseProject: project, baseRevision: revision, applied, response: { plan, usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 } } });
       setAutoEditOpen(false); setPlaybackTime(0); setIsPlaying(false);
     } catch (error) { setAutoEditError(error instanceof Error ? error.message : 'Auto Edit could not create a safe proposal.'); }
+    finally { if (epoch === autoEditEpochRef.current) setAutoEditProgress(null); }
   }
 
   function isMediaReferenced(mediaId: string) {
@@ -814,29 +838,35 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     { id: 'effects', label: 'Effects', icon: Sparkles }, { id: 'transitions', label: 'Fades', icon: BetweenHorizontalStart },
   ];
   const libraryItems = media.filter((item) => activeTool === 'audio' ? item.media_type === 'audio' : item.media_type !== 'audio');
+  const activeVisualUploads = pendingVisualUploads.filter((upload) => upload.state !== 'ready');
   const mediaLibrary = <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     <div className="border-b border-white/10 px-4 py-3"><h2 className="text-sm font-semibold text-white">{activeTool === 'audio' ? 'My Audio' : 'Media'}</h2><p className="mt-1 text-xs text-slate-400">{activeTool === 'audio' ? 'Upload and arrange your own licensed audio' : 'Photos and video clips'}</p></div>
     {activeTool === 'audio' && <label className="border-b border-white/10 px-3 py-3 text-[11px] text-slate-400">Add uploaded audio to<select aria-label="Uploaded audio destination" value={audioTarget} onChange={(event) => setAudioTarget(event.target.value as 'music' | 'sfx')} className="mt-2 h-9 w-full rounded-md border border-white/10 bg-[#1a1a2e] px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><option value="music">Music track</option><option value="sfx">Sound effects track</option></select></label>}
     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-      {libraryItems.length === 0 && <div className="border border-dashed border-white/15 p-4 text-center text-xs leading-5 text-slate-400">No {activeTool === 'audio' ? 'audio' : 'visual media'} uploaded yet.</div>}
+      {libraryItems.length === 0 && activeVisualUploads.length === 0 && <div className="border border-dashed border-white/15 p-4 text-center text-xs leading-5 text-slate-400">No {activeTool === 'audio' ? 'audio' : 'visual media'} uploaded yet.</div>}
       {activeTool === 'media' && (
         <div className="border-b border-white/10 p-3">
           <button
             type="button"
-            disabled={uploadingMedia || remainingUploads <= 0}
+            disabled={remainingUploads <= 0}
             onClick={() => mediaInputRef.current?.click()}
             className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Upload className="h-4 w-4" />
-            {uploadingMedia ? 'Uploading...' : 'Upload Photos & Videos'}
+            Upload Photos & Videos
           </button>
 
-          <p className="mt-2 text-center text-[11px] text-slate-500">
-            {remainingUploads} uploads remaining
+          <p className="mt-2 text-center text-[11px] text-slate-500" role="status">
+            Guest uploads remaining: {remainingUploads}
           </p>
-          {uploadingMedia && <IndeterminateProgress label={`Uploading ${uploadingFilename || 'media'}…`} className="mt-3" />}
+          {activeVisualUploads.some((upload) => upload.state !== 'failed') && <p className="mt-2 text-center text-[11px] text-amber-200" role="status">Uploading {Math.min(pendingVisualUploads.length, pendingVisualUploads.filter((upload) => upload.state === 'ready').length + 1)} of {pendingVisualUploads.length}</p>}
         </div>
       )}
+      {activeTool === 'media' && activeVisualUploads.map((upload) => <div key={upload.id} className="animate-in fade-in slide-in-from-bottom-1 flex min-w-0 items-center gap-2 border-b border-white/10 py-2.5 duration-200 motion-reduce:animate-none">
+        {upload.file.type.startsWith('video/') ? <video muted playsInline src={upload.previewUrl} className="h-12 w-12 shrink-0 rounded-sm bg-white/5 object-cover" /> : <img src={upload.previewUrl} alt="" className="h-12 w-12 shrink-0 rounded-sm bg-white/5 object-cover" />}
+        <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-200">{upload.file.name}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">{upload.state === 'processing' ? 'Processing…' : upload.state === 'queued' ? 'Waiting to upload…' : upload.state === 'failed' ? 'Upload failed' : upload.progress === null ? 'Uploading…' : `Uploading ${upload.progress}%`}</p>{upload.state === 'uploading' && <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-400 transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${upload.progress ?? 0}%` }} /></div>}{upload.state === 'processing' && <IndeterminateProgress label="" className="mt-1.5" />}{upload.error && <p className="mt-1 text-[10px] text-rose-300">{upload.error}</p>}</div>
+        {upload.state === 'failed' && <button type="button" aria-label={`Retry ${upload.file.name}`} onClick={() => { updatePendingVisualUploads((current) => current.map((item) => item.id === upload.id ? { ...item, state: 'queued', error: undefined } : item)); void runVisualUploadQueue(); }} className="min-h-8 rounded px-2 text-[10px] font-semibold text-amber-300 hover:bg-amber-400/10">Retry</button>}
+      </div>)}
       {libraryItems.map((item) => (
         <div
           key={item.media_id}
@@ -942,7 +972,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
               {visibleTexts.map((text) => <TextOverlayCanvas key={`${text.id}-${textPreview?.item === text ? 'preview' : 'saved'}`} item={text} selected={!proposalActive && !textPreview && selectedItemId === text.id} animationTime={textPreview?.item === text ? textPreviewTime : playbackTime - text.startTime} onSelect={() => { if (textPreview) return; setSelectedItemId(text.id); setIsPlaying(false); }} onUpdate={(updates, transactionKey) => { if (proposalActive) return; if (textPreview?.item === text) setTextPreview({ ...textPreview, item: { ...text, ...updates } as TextTimelineItem }); else mutate((current) => updateItem(current, text.id, updates), transactionKey); }} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />)}
             </div>
           </section>
-          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{proposalActive ? 'Temporary Copilot preview · ' : ''}{remainingUploads}/{uploadUsage?.limits.uploads ?? 0} uploads · {clipCount}/{MAX_CLIPS} clips</span><span>{displayProject.extensionExplicit ? 'Extended · final frame held · ' : ''}{displayProject.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
+          <div className="flex h-10 shrink-0 items-center justify-between border-t border-white/10 px-3 text-[11px] text-slate-500"><span>{proposalActive ? 'Temporary Copilot preview · ' : ''}Timeline clips: {clipCount}/{MAX_CLIPS}</span><span>{displayProject.extensionExplicit ? 'Extended · final frame held · ' : ''}{displayProject.duration.toFixed(1)}/{MAX_TIMELINE_SECONDS}s</span></div>
           {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} catalogEntry={item.mediaId.startsWith('catalog:') ? audioLibrary.find((entry) => catalogMediaId(entry.id) === item.mediaId) : undefined} />)}
         </main>
 
@@ -1033,7 +1063,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </div>
         </div>
       )}
-      {autoEditOpen && <div className="fixed inset-0 z-[160] grid place-items-center bg-black/70 p-4"><section className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111118] p-5 text-white"><h2 className="text-base font-semibold">Auto Edit</h2><p className="mt-1 text-xs text-slate-400">Choose a style and preview a polished, editable reel.</p><div className="mt-4 grid gap-2">{(['elegant', 'energetic', 'cinematic'] as AutoEditStyle[]).map((style) => <button key={style} type="button" onClick={() => setAutoEditStyle(style)} className={`rounded-lg border px-3 py-3 text-left text-sm capitalize ${autoEditStyle === style ? 'border-violet-400 bg-violet-400/10' : 'border-white/10 bg-white/5'}`}>{style}<span className="mt-1 block text-xs text-slate-400">{style === 'elegant' ? 'Slower pacing and subtle movement' : style === 'energetic' ? 'Faster pacing and dynamic zoom' : 'Longer shots with smooth opening and ending'}</span></button>)}</div><label className="mt-4 block text-xs text-slate-400">Optional opening title<input value={autoEditTitle} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white" placeholder="Your title" /></label>{project.duration > 0 && <div className="mt-4"><p className="text-xs text-amber-200">This project already has timeline content.</p><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => setAutoEditMode('add')} className={`min-h-10 rounded-lg border text-xs ${autoEditMode === 'add' ? 'border-violet-400 bg-violet-400/10' : 'border-white/10'}`}>Add to current</button><button type="button" onClick={() => setAutoEditMode('replace')} className={`min-h-10 rounded-lg border text-xs ${autoEditMode === 'replace' ? 'border-violet-400 bg-violet-400/10' : 'border-white/10'}`}>Replace current</button></div></div>}{autoEditError && <p role="alert" className="mt-3 text-xs text-red-300">{autoEditError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setAutoEditOpen(false)} className="min-h-10 rounded-lg px-4 text-sm text-slate-300">Cancel</button><button type="button" onClick={() => void previewAutoEdit()} className="min-h-10 rounded-lg bg-violet-500 px-4 text-sm font-semibold">Preview Auto Edit</button></div></section></div>}
+      {autoEditOpen && <div className="fixed inset-0 z-[160] grid place-items-center bg-black/70 p-4"><section className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111118] p-5 text-white"><h2 className="text-base font-semibold">Auto Edit</h2><p className="mt-1 text-xs text-slate-400">Choose a style and preview a polished, editable reel.</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setAutoEditAiMode(false)} className={`min-h-11 rounded-lg border text-xs font-semibold ${!autoEditAiMode ? 'border-violet-400 bg-violet-400/10 text-white' : 'border-white/10 text-slate-400'}`}>Quick Auto Edit</button><button type="button" onClick={() => setAutoEditAiMode(true)} className={`min-h-11 rounded-lg border text-xs font-semibold ${autoEditAiMode ? 'border-violet-400 bg-violet-400/10 text-white' : 'border-white/10 text-slate-400'}`}>AI Auto Edit</button></div>{autoEditAiMode && <div className="mt-3 rounded-lg bg-white/[0.03] p-3"><p className="text-[11px] leading-4 text-slate-400">AI plans supported effects and transitions from timing, beat data, and your direction. It does not analyse your images.</p>{!isModelReady() && <p className="mt-2 text-[10px] leading-4 text-slate-500">About 900 MB downloads once and is stored locally in this browser. Requires a compatible WebGPU device.</p>}<label className="mt-3 block text-xs text-slate-400">Creative direction (optional)<input value={autoEditPrompt} maxLength={500} onChange={(event) => setAutoEditPrompt(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white" placeholder="e.g. calm product reveal with gentle pacing" /></label></div>}<div className="mt-4 grid gap-2">{(['elegant', 'energetic', 'cinematic'] as AutoEditStyle[]).map((style) => <button key={style} type="button" onClick={() => setAutoEditStyle(style)} className={`rounded-lg border px-3 py-3 text-left text-sm capitalize ${autoEditStyle === style ? 'border-violet-400 bg-violet-400/10' : 'border-white/10 bg-white/5'}`}>{style}<span className="mt-1 block text-xs text-slate-400">{style === 'elegant' ? 'Slower pacing and subtle movement' : style === 'energetic' ? 'Faster pacing and dynamic zoom' : 'Longer shots with smooth opening and ending'}</span></button>)}</div><label className="mt-4 block text-xs text-slate-400">Optional opening title<input value={autoEditTitle} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white" placeholder="Your title" /></label>{project.duration > 0 && <div className="mt-4"><p className="text-xs text-amber-200">This project already has timeline content.</p><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => setAutoEditMode('add')} className={`min-h-10 rounded-lg border text-xs ${autoEditMode === 'add' ? 'border-violet-400 bg-violet-400/10' : 'border-white/10'}`}>Add to current</button><button type="button" onClick={() => setAutoEditMode('replace')} className={`min-h-10 rounded-lg border text-xs ${autoEditMode === 'replace' ? 'border-violet-400 bg-violet-400/10' : 'border-white/10'}`}>Replace current</button></div></div>}{autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={!isModelReady()} /> : autoEditError && <p role="alert" className="mt-3 text-xs text-red-300">{autoEditError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => { autoEditEpochRef.current += 1; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-10 rounded-lg px-4 text-sm text-slate-300">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="min-h-10 rounded-lg bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">Preview {autoEditAiMode ? 'AI ' : ''}Auto Edit</button></div></section></div>}
       <ExportDialog open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? undefined} />
     </div>
   );

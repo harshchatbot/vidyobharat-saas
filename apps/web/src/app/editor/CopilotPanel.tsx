@@ -13,6 +13,7 @@ import {
 } from './copilot';
 import type { BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 import { AIActivityIndicator, MotionReveal, StatusTransition } from '@/components/ui/MotionPrimitives';
+import { BrandLoading } from './BrandLoading';
 
 type Props = {
   history: CopilotHistoryMessage[];
@@ -58,7 +59,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
 
       {history.length > 0 && <div className="mt-4 space-y-2" aria-label="Copilot conversation">{history.map((message, index) => <MotionReveal key={`${message.role}-${index}`} delay={index === history.length - 1 ? 0.03 : 0}><div className={`rounded-lg px-3 py-2 text-xs leading-5 ${message.role === 'user' ? 'ml-5 border border-amber-400/10 bg-amber-400/10 text-amber-100' : 'mr-5 border border-white/5 bg-white/5 text-slate-300'}`}><span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{message.role === 'user' ? 'You' : 'RangManch AI'}</span>{message.content}</div></MotionReveal>)}</div>}
 
-      {loading && <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300"><AIActivityIndicator label={progress?.message ?? (browserProvider ? 'Preparing your AI Copilot…' : 'Creating a safe edit proposal…')} />{browserProvider && !progress && <p className="mt-2 text-[11px] leading-4 text-slate-500">The first request may take longer while the local model is prepared.</p>}{typeof progress?.progress === 'number' && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-amber-400 transition-[width]" style={{ width: `${Math.max(0, Math.min(100, progress.progress))}%` }} /></div>}<button type="button" onClick={onAbort} className="mt-3 min-h-10 text-xs font-semibold text-slate-300 underline">Cancel request</button></div>}
+      {loading && <div className="mt-4 text-xs text-slate-300">{browserProvider ? <BrandLoading size="contextual" label={progress?.message ?? 'Getting everything ready…'} progress={progress?.progress} firstRun={!progress || progress.phase === 'checking'} /> : <AIActivityIndicator label="Creating a safe edit proposal…" />}<button type="button" onClick={onAbort} className="mt-3 min-h-10 text-xs font-semibold text-slate-300 underline">Cancel request</button></div>}
 
       {error && <StatusTransition tone="error" label="Copilot could not complete that request" detail={error.message} className="mt-4">{error.code === 'signed_out' && <Link href="/login?next=%2Feditor" className="mt-3 inline-flex min-h-10 items-center font-semibold text-amber-300 underline">Sign in to continue</Link>}{error.retryable && prompt.trim() && <button type="button" onClick={submit} className="mt-3 block min-h-10 font-semibold text-amber-300 underline">Retry request</button>}</StatusTransition>}
 

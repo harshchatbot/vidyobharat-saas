@@ -30,6 +30,11 @@ export type AutoEditOptions = {
   includeMusic?: boolean;
   transition?: TransitionType;
   beatCandidates?: BeatCandidate[];
+  /** Validated local-AI choices. This is intentionally limited to supported primitives. */
+  aiDirection?: {
+    transition: TransitionType;
+    effectPattern: Array<'zoom-in' | 'zoom-out' | 'none'>;
+  };
 };
 
 const MIN_CLIP_DURATION = 1;
@@ -400,9 +405,7 @@ export function buildAutoEditPlan(
         ...(index < images.length - 1
           ? {
               transitionOut: {
-                type:
-                  options.transition ??
-                  config.transition,
+                type: options.aiDirection?.transition ?? options.transition ?? config.transition,
                 duration: Math.min(
                   0.6,
                   duration / 2
@@ -413,6 +416,9 @@ export function buildAutoEditPlan(
       },
     });
 
+    const effectPreset = options.aiDirection?.effectPattern[index] ??
+      // Alternating the deterministic movement avoids a row of identical zooms.
+      (index % 2 === 0 ? config.zoom : (config.zoom === 'zoom-in' ? 'zoom-out' : 'zoom-in'));
     const zoomDuration = Math.min(
       duration,
       options.style === 'energetic'
@@ -420,17 +426,12 @@ export function buildAutoEditPlan(
         : 3.5
     );
 
-    operations.push({
+    if (effectPreset !== 'none') operations.push({
       op: 'add_effect',
       item: {
-        id: crypto.randomUUID(),
-        kind: 'effect',
-        trackId: 'effects',
-        label: config.zoom,
-        preset: config.zoom,
-        amount: config.amount,
-        startTime: cursor,
-        duration: zoomDuration,
+        id: crypto.randomUUID(), kind: 'effect', trackId: 'effects',
+        label: effectPreset, preset: effectPreset, amount: config.amount,
+        startTime: cursor, duration: zoomDuration,
       },
     });
 

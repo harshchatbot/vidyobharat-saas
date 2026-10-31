@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.deps import AdminPrincipal, require_admin_principal
@@ -56,7 +56,7 @@ def admin_audio_library(_: AdminPrincipal = Depends(require_admin_principal)):
 
 @router.post('/audio-library', status_code=201)
 async def admin_upload_audio_library(
-    metadata: str,
+    metadata: str = Form(...),
     file: UploadFile = File(...),
     _: AdminPrincipal = Depends(require_admin_principal),
 ):
