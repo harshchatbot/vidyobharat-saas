@@ -7,7 +7,6 @@ from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, Respo
 from fastapi.responses import FileResponse
 
 from app.services.music_studio_service import (
-    MAX_UPLOAD_BYTES,
     MusicStudioConcurrencyError,
     MusicStudioOwnershipError,
     MusicStudioRateLimitError,
@@ -46,16 +45,6 @@ def _set_guest_session_cookie(response: Response, request: Request, session_toke
         path="/api/music-studio",
     )
 
-
-async def _read_upload_limited(upload: UploadFile) -> bytes:
-    chunks: list[bytes] = []
-    total = 0
-    while chunk := await upload.read(1024 * 1024):
-        total += len(chunk)
-        if total > MAX_UPLOAD_BYTES:
-            raise ValueError("Each audio file must be 100 MB or smaller")
-        chunks.append(chunk)
-    return b"".join(chunks)
 
 
 
