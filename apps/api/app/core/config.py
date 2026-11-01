@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     editor_guest_max_image_pixels: int = 40_000_000
     editor_guest_upload_timeout_seconds: int = 600
     editor_guest_rate_limit_secret: str | None = None
+    music_studio_turnstile_site_key: str | None = None
+    music_studio_turnstile_secret_key: str | None = None
+    music_studio_turnstile_required: bool | None = None
     editor_timeline_max_clips: int = 12
     editor_timeline_max_duration_seconds: int = 60
     editor_timeline_max_source_bytes: int = 500 * 1024 * 1024
@@ -237,6 +240,13 @@ class Settings(BaseSettings):
     pricing_default_country: str = 'IN'
     admin_user_ids: str = ''
     admin_user_emails: str = ''
+
+    music_studio_database_url: str | None = None
+    music_studio_worker_poll_seconds: float = 2.0
+    music_studio_worker_timeout_seconds: int = 300
+    music_studio_max_duration_seconds: int = 120
+    music_studio_max_concurrent_jobs: int = 1
+    music_studio_retention_seconds: int = 3600
 
     @property
     def allowed_origins_list(self) -> list[str]:
