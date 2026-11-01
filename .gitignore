@@ -67,3 +67,27 @@ infra/firebase-migration/service-account.json
 apps/api/service-account.json
 
 apps/api/service-account.json
+
+# Rangmanch AI Music Lab
+apps/music-lab/.venv/
+apps/music-lab/samples/
+apps/music-lab/outputs/
+apps/music-lab/models/
+EOFcat >> ../../.gitignore <<'EOF'
+
+# Rangmanch AI Music Lab
+apps/music-lab/.venv/
+apps/music-lab/samples/
+apps/music-lab/outputs/
+apps/music-lab/models/
+
+# Rangmanch AI Music Lab
+apps/music-lab/.venv/
+apps/music-lab/samples/
+apps/music-lab/outputs/
+apps/music-lab/models/
+apps/music-lab/.venv-deepfilter/
+apps/music-lab/.venv-ai/
+
+# Rangmanch Music Studio — private user uploads and generated audio
+/apps/api/data/music_studio/

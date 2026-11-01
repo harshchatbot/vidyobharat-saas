@@ -20,6 +20,9 @@ services:
     volumes:
       - rangmanch-data:/app/data
       - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    networks:
+      - default
+      - music-db
     mem_limit: 384m
 
   export-worker:
@@ -37,5 +40,26 @@ services:
       - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     mem_limit: 768m
 
+  music-worker:
+    image: rangmanch-api:latest
+    restart: unless-stopped
+    command: python -m app.services.music_studio_worker
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      ENV: production
+      LOCAL_EDITOR_MODE: "false"
+    volumes:
+      - rangmanch-data:/app/data
+    networks:
+      - default
+      - music-db
+    mem_limit: 512m
+
 volumes:
   rangmanch-data:
+
+networks:
+  music-db:
+    external: true
+    name: techfilabs-n8n_default

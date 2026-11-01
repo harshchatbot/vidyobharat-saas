@@ -8,10 +8,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY apps/api/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir numpy scipy soundfile
 
 COPY apps/api/app ./app
 COPY shared ./shared
+
+# Music Studio DSP engine
+COPY apps/music-lab/src /app/music_lab
+
+ENV PYTHONPATH=/app:/app/music_lab
 
 RUN mkdir -p data/uploads data/renders
 
