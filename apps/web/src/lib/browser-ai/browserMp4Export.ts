@@ -40,14 +40,14 @@ export function wrapTextLines(context: CanvasRenderingContext2D, value: string, 
   return lines;
 }
 
-export type BrowserTimelineAssets = { images: Record<string, HTMLImageElement>; audio?: Record<string, HTMLAudioElement>; media: GuestMedia[] };
+export type BrowserTimelineAssets = { images: Record<string, HTMLImageElement>; videos?: Record<string, HTMLVideoElement>; audio?: Record<string, HTMLAudioElement>; media: GuestMedia[] };
 
 export function supportedTimelineItems(project: TimelineProject, assets: BrowserTimelineAssets): { videos: VideoTimelineItem[]; texts: TextTimelineItem[]; audio: import('../../app/editor/timeline/types.ts').AudioTimelineItem[]; effects: EffectTimelineItem[] } {
   const media = new Map(assets.media.map((item) => [item.media_id, item]));
   const items = project.tracks.flatMap((track) => track.items);
   const videos = items.filter((item): item is VideoTimelineItem => item.kind === 'video');
   for (const video of videos) {
-    if (media.get(video.mediaId)?.media_type !== 'image' || !assets.images[video.mediaId]) throw new Error(`Unsupported or missing image media for timeline item ${video.id}.`);
+    if (!((media.get(video.mediaId)?.media_type === 'image' && assets.images[video.mediaId]) || (media.get(video.mediaId)?.media_type === 'video' && assets.videos?.[video.mediaId]))) throw new Error(`Missing visual media for timeline item ${video.id}.`);
     if (video.startTime < 0 || video.duration <= 0) throw new Error(`Invalid timing for timeline item ${video.id}.`);
   }
   for (const text of items.filter((item): item is TextTimelineItem => item.kind === 'text')) {
@@ -102,9 +102,13 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
   const previous = video ? videos[video ? videos.indexOf(video) - 1 : -1] : undefined;
   const transition = previous?.transitionOut && video && Math.abs((previous.startTime + previous.duration) - video.startTime) < 1e-6 ? previous.transitionOut : undefined;
   const drawVideo = (item: VideoTimelineItem, alpha = 1, offset = 0) => {
-    const image = assets.images[item.mediaId];
-    const scale = item.cropMode === 'contain' ? Math.min(WIDTH / image.naturalWidth, HEIGHT / image.naturalHeight) : Math.max(WIDTH / image.naturalWidth, HEIGHT / image.naturalHeight);
-    const width = image.naturalWidth * scale; const height = image.naturalHeight * scale;
+    const image = assets.images[item.mediaId] || assets.videos?.[item.mediaId];
+    if (!image) return;
+    const naturalWidth = image instanceof HTMLVideoElement ? image.videoWidth : image.naturalWidth;
+    const naturalHeight = image instanceof HTMLVideoElement ? image.videoHeight : image.naturalHeight;
+    if (naturalWidth <= 0 || naturalHeight <= 0) return;
+    const scale = item.cropMode === 'contain' ? Math.min(WIDTH / naturalWidth, HEIGHT / naturalHeight) : Math.max(WIDTH / naturalWidth, HEIGHT / naturalHeight);
+    const width = naturalWidth * scale; const height = naturalHeight * scale;
     const state = browserEffectState(effects.filter((effect) => time >= effect.startTime && time < effect.startTime + effect.duration), time);
     context.save(); context.globalAlpha = state.opacity * alpha; context.filter = state.filter || 'none'; context.translate(WIDTH / 2 + offset, HEIGHT / 2); context.scale(state.scale, state.scale); context.drawImage(image, -width / 2, -height / 2, width, height); context.restore();
   };
@@ -201,7 +205,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   if (activeExport) throw new Error('An export is already in progress. Please wait for it to finish or cancel it.');
   validateExportDuration(project.duration);
   throwIfAborted(options.signal);
-  const { audio } = supportedTimelineItems(project, assets);
+  const { audio, videos: videoItems } = supportedTimelineItems(project, assets);
   if (typeof document === 'undefined') throw new Error('Browser export is unavailable outside the browser.');
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported('video/mp4')) throw new Error('This browser cannot encode compatible MP4 locally. Use a supported Chromium-based browser.');
   const dimensions = browserExportDimensions(project.aspectRatio, project.exportSettings.resolution);
@@ -243,6 +247,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       element.currentTime = item.sourceStart;
       try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
     }
+    const playingVideos = new Set<HTMLVideoElement>();
     const totalFrames = Math.ceil(project.duration * fps);
     const renderStart = performance.now();
     for (let frame = 0; frame < totalFrames; frame += 1) {
@@ -253,6 +258,21 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       const waitMs = targetMs - performance.now();
       if (waitMs > 2) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       throwIfAborted(options.signal);
+      const time = frame / fps;
+      for (const item of videoItems) {
+        const element = assets.videos?.[item.mediaId];
+        if (!element) continue;
+        const active = time >= item.startTime && time < item.startTime + item.duration;
+        if (active && !playingVideos.has(element)) {
+          element.currentTime = item.sourceStart + Math.max(0, time - item.startTime);
+          element.muted = true;
+          await element.play();
+          playingVideos.add(element);
+        } else if (!active && playingVideos.has(element)) {
+          element.pause();
+          playingVideos.delete(element);
+        }
+      }
       drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
       options.onProgress?.((frame + 1) / totalFrames);
       await nextAnimationFrame(options.signal);
@@ -265,6 +285,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     throw error instanceof DOMException && error.name === 'AbortError' ? error : error instanceof Error ? error : new Error('The browser MP4 export failed.');
   } finally {
     nodes.forEach(({ element }) => { element.pause(); element.removeAttribute('src'); element.load(); });
+    Object.values(assets.videos ?? {}).forEach((element) => { element.pause(); element.removeAttribute('src'); element.load(); });
     sources.forEach((source) => source.disconnect());
     gains.forEach((gain) => gain.disconnect());
     if (audioContext) await audioContext.close().catch(() => undefined);
