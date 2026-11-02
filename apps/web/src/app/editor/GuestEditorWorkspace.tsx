@@ -714,6 +714,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       try {
         const images: Record<string, HTMLImageElement> = {};
         const audio: Record<string, HTMLAudioElement> = {};
+        const videos: Record<string, HTMLVideoElement> = {};
         for (const mediaId of referencedMedia) {
           const entry = media.find((item) => item.media_id === mediaId);
           const catalogEntry = mediaId.startsWith('catalog:') ? audioLibrary.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
@@ -722,14 +723,15 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded.`)); element.src = url; });
             continue;
           }
-          if (!entry || !['image', 'audio'].includes(entry.media_type)) throw new Error('This browser export supports image and audio media only; remove unsupported timeline media.');
+          if (!entry || !['image', 'audio', 'video'].includes(entry.media_type)) throw new Error('This browser export supports image and audio media only; remove unsupported timeline media.');
           const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`, { credentials: 'include', cache: 'no-store' });
           if (!response.ok) throw new Error(`Media request failed (${response.status}).`);
           const url = URL.createObjectURL(await response.blob()); urls.push(url);
           if (entry.media_type === 'image') images[mediaId] = await new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error(`Image ${entry.original_filename} could not be loaded.`)); image.src = url; });
+          else if (entry.media_type === 'video') videos[mediaId] = await new Promise<HTMLVideoElement>((resolve, reject) => { const element = document.createElement('video'); element.preload = 'auto'; element.muted = true; element.playsInline = true; element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Video ${entry.original_filename} could not be loaded.`)); element.src = url; });
           else audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Audio ${entry.original_filename} could not be loaded.`)); element.src = url; });
         }
-        const blob = await exportTimelineMp4(project, { media, images, audio }, { signal: controller.signal, onProgress: (progress) => setExportStatus(`Rendering locally… ${Math.round(progress * 100)}%`) });
+        const blob = await exportTimelineMp4(project, { media, images, audio, videos }, { signal: controller.signal, onProgress: (progress) => setExportStatus(`Rendering locally… ${Math.round(progress * 100)}%`) });
         if (submittedRevision !== projectRevisionRef.current) throw new Error('The project changed during export. Please export again.');
         const downloadUrl = URL.createObjectURL(blob); setLocalExportUrl(downloadUrl);
         setExportJob({ job_id: `browser-${crypto.randomUUID()}`, status: 'completed', progress_stage: 'completed', output: { filename: normalizeExportFilename(project.exportSettings.filename), ...browserExportDimensions(project.aspectRatio, project.exportSettings.resolution), fps: project.exportSettings.fps, file_size: blob.size }, message: 'Export completed locally.' });
