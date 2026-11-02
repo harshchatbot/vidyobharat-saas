@@ -78,18 +78,46 @@ const SUPPORTED_EXTENSIONS = new Set([
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_MUSIC_STUDIO_TURNSTILE_SITE_KEY;
 
-const DEFAULT_SETTINGS: Settings = {
-  clarity: 0.55,
-  compression: 0.35,
-  reverb: 0.18,
-  delay: 0,
-  vocal_balance: 0,
-  sync_offset_ms: 0,
-  sidechain: false,
-  de_esser: 0.25,
-  vocal_warmth: 0.2,
-  instrumental_width: 0.5,
-  noise_reduction: 0,
+const PRESET_SETTINGS: Record<string, Settings> = {
+  acoustic: {
+    clarity: 0.55,
+    compression: 0.40,
+    reverb: 0.25,
+    delay: 0.08,
+    vocal_balance: 0,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.25,
+    vocal_warmth: 0.30,
+    instrumental_width: 0.50,
+    noise_reduction: 0,
+  },
+  sufi: {
+    clarity: 0.45,
+    compression: 0.32,
+    reverb: 0.38,
+    delay: 0.15,
+    vocal_balance: 0.05,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.20,
+    vocal_warmth: 0.45,
+    instrumental_width: 0.55,
+    noise_reduction: 0,
+  },
+  clean_studio: {
+    clarity: 0.70,
+    compression: 0.50,
+    reverb: 0.14,
+    delay: 0,
+    vocal_balance: 0.08,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.38,
+    vocal_warmth: 0.20,
+    instrumental_width: 0.55,
+    noise_reduction: 0,
+  },
 };
 
 const PRESETS = [
@@ -265,7 +293,9 @@ export function MusicStudioClient() {
   const [instrument, setInstrument] = useState<File | null>(null);
   const [preset, setPreset] = useState('acoustic');
   const [advanced, setAdvanced] = useState(false);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(
+    PRESET_SETTINGS.acoustic,
+  );
 
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -652,7 +682,10 @@ export function MusicStudioClient() {
                     key={item.id}
                     disabled={isBusy}
                     aria-pressed={preset === item.id}
-                    onClick={() => setPreset(item.id)}
+                    onClick={() => {
+                      setPreset(item.id);
+                      setSettings({ ...PRESET_SETTINGS[item.id] });
+                    }}
                     className={
                       preset === item.id
                         ? styles.presetActive
