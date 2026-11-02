@@ -369,7 +369,7 @@ p {
   font-weight: 700;
 }
 .rm-editor-skin > div.grid > aside nav button:hover,
-.rm-editor-skin > div.grid > aside nav button.bg-white\\/10 {
+.rm-editor-skin > div.grid > aside nav button[class~="bg-white/10"] {
   background: var(--rm-pink);
   color: var(--rm-ink);
 }
@@ -397,10 +397,10 @@ p {
 .rm-editor-skin .text-amber-300 { color: #7542a5; }
 .rm-editor-skin .text-slate-400 { color: #5c5360; }
 .rm-editor-skin .text-slate-500 { color: #635963; }
-.rm-editor-skin .border-white\\/10 { border-color: #7d687c35; }
-.rm-editor-skin .bg-\\[\\#111118\\] { background: var(--rm-paper); }
-.rm-editor-skin .bg-\\[\\#0d0d13\\] { background: #f4e9fa; }
-.rm-editor-skin .bg-\\[\\#0a0a0f\\] { background: var(--rm-cream); }
+.rm-editor-skin [class~="border-white/10"] { border-color: #7d687c35; }
+.rm-editor-skin [class~="bg-[#111118]"] { background: var(--rm-paper); }
+.rm-editor-skin [class~="bg-[#0d0d13]"] { background: #f4e9fa; }
+.rm-editor-skin [class~="bg-[#0a0a0f]"] { background: var(--rm-cream); }
 .rm-editor-skin button:focus-visible { outline: 3px solid #b95387; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .rm-editor-skin * { scroll-behavior: auto; }
