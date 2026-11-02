@@ -91,3 +91,4 @@ apps/music-lab/.venv-ai/
 
 # Rangmanch Music Studio — private user uploads and generated audio
 /apps/api/data/music_studio/
+apps/music-lab/.venv-separation/

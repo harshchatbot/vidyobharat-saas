@@ -13,7 +13,15 @@ def produce(vocal_path: Path, instrument_path: Path, output_dir: Path, **options
     vocal, instrument=pad_to_match(vocal, instrument)
     processed_vocal = process_vocal(vocal, settings.clarity, settings.compression, settings.de_esser, settings.vocal_warmth, settings.noise_reduction)
     processed_instrument = process_instrument(instrument, settings.instrumental_width)
-    final=mix(processed_vocal, processed_instrument, settings.vocal_balance, settings.reverb, settings.delay, settings.sidechain)
+    final = mix(
+    processed_vocal,
+    processed_instrument,
+    settings.vocal_balance,
+    settings.reverb,
+    settings.delay,
+    settings.sidechain,
+    stereo_space=settings.stereo_space,
+)
     peak=max(abs(final).max(), 1e-9); final *= min(1, 10**(-1.5/20)/peak)
     output_dir.mkdir(parents=True, exist_ok=True); wav=output_dir/"produced.wav"; mp3=output_dir/"produced.mp3"
     measurements=master(final, wav, mp3, settings.loudness_lufs)

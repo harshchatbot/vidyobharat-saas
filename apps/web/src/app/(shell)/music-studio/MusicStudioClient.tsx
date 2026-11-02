@@ -1,19 +1,8 @@
+"use client";
 
-'use client';
-
-import {
-  ChangeEvent,
-  DragEvent,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
-import Script from 'next/script';
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-} from 'framer-motion';
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
+import Script from "next/script";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
   ArrowRight,
@@ -32,17 +21,17 @@ import {
   WandSparkles,
   Waves,
   X,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { API_URL } from '@/lib/env';
-import styles from './music-studio.module.css';
+import { API_URL } from "@/lib/env";
+import styles from "./music-studio.module.css";
 
-type Mode = 'separate' | 'single';
-type TrackType = 'vocal' | 'instrument';
+type Mode = "separate" | "single" | "karaoke";
+type TrackType = "vocal" | "instrument";
 
 type Job = {
   id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: "queued" | "processing" | "completed" | "failed";
   stage: string;
   error?: string | null;
   measurements?: {
@@ -64,52 +53,80 @@ type Settings = {
   vocal_warmth: number;
   instrumental_width: number;
   noise_reduction: number;
+  stereo_space: "natural" | "wide" | "cinematic";
 };
 
 const MAX_BYTES = 25 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = new Set([
-  'wav',
-  'aif',
-  'aiff',
-  'mp3',
-  'm4a',
-]);
+const SUPPORTED_EXTENSIONS = new Set(["wav", "aif", "aiff", "mp3", "m4a"]);
 
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_MUSIC_STUDIO_TURNSTILE_SITE_KEY;
 
-const DEFAULT_SETTINGS: Settings = {
-  clarity: 0.55,
-  compression: 0.35,
-  reverb: 0.18,
-  delay: 0,
-  vocal_balance: 0,
-  sync_offset_ms: 0,
-  sidechain: false,
-  de_esser: 0.25,
-  vocal_warmth: 0.2,
-  instrumental_width: 0.5,
-  noise_reduction: 0,
+const PRESET_SETTINGS: Record<string, Settings> = {
+  acoustic: {
+    stereo_space: "natural",
+    clarity: 0.55,
+    compression: 0.35,
+    reverb: 0.2,
+    delay: 0,
+    vocal_balance: 0,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.25,
+    vocal_warmth: 0.25,
+    instrumental_width: 0.5,
+    noise_reduction: 0,
+  },
+
+  sufi: {
+    stereo_space: "wide",
+    clarity: 0.5,
+    compression: 0.25,
+    reverb: 0.35,
+    delay: 0.08,
+    vocal_balance: 0,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.2,
+    vocal_warmth: 0.4,
+    instrumental_width: 0.55,
+    noise_reduction: 0,
+  },
+
+  clean_studio: {
+    stereo_space: "natural",
+    clarity: 0.65,
+    compression: 0.45,
+    reverb: 0.12,
+    delay: 0,
+    vocal_balance: 0,
+    sync_offset_ms: 0,
+    sidechain: false,
+    de_esser: 0.35,
+    vocal_warmth: 0.15,
+    instrumental_width: 0.45,
+    noise_reduction: 0,
+  },
 };
 
 const PRESETS = [
   {
-    id: 'acoustic',
-    name: 'Acoustic',
-    emoji: '🎸',
-    description: 'Warm & natural',
+    id: "acoustic",
+    name: "Acoustic",
+    emoji: "🎸",
+    description: "Warm & natural",
   },
   {
-    id: 'sufi',
-    name: 'Sufi / Ghazal',
-    emoji: '🎙️',
-    description: 'Soulful & rich',
+    id: "sufi",
+    name: "Sufi / Ghazal",
+    emoji: "🎙️",
+    description: "Soulful & rich",
   },
   {
-    id: 'clean_studio',
-    name: 'Clean Studio',
-    emoji: '🎧',
-    description: 'Crisp & polished',
+    id: "clean_studio",
+    name: "Clean Studio",
+    emoji: "🎧",
+    description: "Crisp & polished",
   },
 ];
 
@@ -121,7 +138,7 @@ declare global {
         options: {
           sitekey: string;
           callback: (token: string) => void;
-          'expired-callback': () => void;
+          "expired-callback": () => void;
         },
       ) => void;
     };
@@ -132,20 +149,17 @@ function validateFile(file: File | null): string | null {
   if (!file) return null;
 
   if (file.size === 0) {
-    return 'The selected recording is empty.';
+    return "The selected recording is empty.";
   }
 
   if (file.size > MAX_BYTES) {
-    return 'Each recording must be 25 MB or smaller.';
+    return "Each recording must be 25 MB or smaller.";
   }
 
-  const extension = file.name
-    .split('.')
-    .pop()
-    ?.toLowerCase();
+  const extension = file.name.split(".").pop()?.toLowerCase();
 
   if (!extension || !SUPPORTED_EXTENSIONS.has(extension)) {
-    return 'Choose WAV, AIFF, MP3 or M4A audio.';
+    return "Choose WAV, AIFF, MP3 or M4A audio.";
   }
 
   return null;
@@ -160,7 +174,7 @@ function StudioHero() {
         className={styles.heroContent}
         initial={reducedMotion ? false : { opacity: 0, y: 22 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <span className={styles.heroBadge}>
           <Sparkles size={17} />
@@ -176,9 +190,8 @@ function StudioHero() {
         </h1>
 
         <p className={styles.heroDescription}>
-          You bring the voice. You bring the music.
-          RangManch brings them together with an easy
-          studio-style mix and master.
+          You bring the voice. You bring the music. RangManch brings them
+          together with an easy studio-style mix and master.
         </p>
 
         <a href="#music-workspace" className={styles.heroCta}>
@@ -203,9 +216,7 @@ function StudioHero() {
             alt="Recording studio with microphone and mixing console"
           />
 
-          <div className={styles.heroImageBottom}>
-            YOUR SOUND. YOUR STYLE.
-          </div>
+          <div className={styles.heroImageBottom}>YOUR SOUND. YOUR STYLE.</div>
         </div>
 
         <span className={styles.heroSticker}>
@@ -223,22 +234,22 @@ function StudioHero() {
 function HowItWorks() {
   const steps = [
     {
-      number: '01',
+      number: "01",
       icon: Mic2,
-      title: 'Drop your vocals',
-      description: 'Upload your recorded singing or voice.',
+      title: "Drop your vocals",
+      description: "Upload your recorded singing or voice.",
     },
     {
-      number: '02',
+      number: "02",
       icon: Music2,
-      title: 'Bring the music',
-      description: 'Add a separate guitar or backing track.',
+      title: "Bring the music",
+      description: "Add a separate guitar or backing track.",
     },
     {
-      number: '03',
+      number: "03",
       icon: WandSparkles,
-      title: 'Make some magic',
-      description: 'Pick a vibe, process and download!',
+      title: "Make some magic",
+      description: "Pick a vibe, process and download!",
     },
   ];
 
@@ -260,12 +271,12 @@ function HowItWorks() {
 }
 
 export function MusicStudioClient() {
-  const [mode, setMode] = useState<Mode>('separate');
+  const [mode, setMode] = useState<Mode>("separate");
   const [vocal, setVocal] = useState<File | null>(null);
   const [instrument, setInstrument] = useState<File | null>(null);
-  const [preset, setPreset] = useState('acoustic');
+  const [preset, setPreset] = useState("acoustic");
   const [advanced, setAdvanced] = useState(false);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(PRESET_SETTINGS.acoustic);
 
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -276,25 +287,21 @@ export function MusicStudioClient() {
   const turnstileRendered = useRef(false);
   const reducedMotion = useReducedMotion();
 
-  const inputError =
-    validateFile(vocal) || validateFile(instrument);
+  const inputError = validateFile(vocal) || validateFile(instrument);
 
   const isBusy =
-    job?.stage === 'uploading' ||
-    job?.status === 'queued' ||
-    job?.status === 'processing';
+    job?.stage === "uploading" ||
+    job?.status === "queued" ||
+    job?.status === "processing";
 
   const canProduce =
-    mode === 'separate' &&
+    mode === "separate" &&
     Boolean(vocal && instrument) &&
     !inputError &&
     !isBusy &&
     (!TURNSTILE_SITE_KEY || Boolean(turnstileToken));
 
-  function update<K extends keyof Settings>(
-    key: K,
-    value: Settings[K],
-  ) {
+  function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((current) => ({
       ...current,
       [key]: value,
@@ -302,20 +309,16 @@ export function MusicStudioClient() {
   }
 
   function initializeTurnstile() {
-    if (
-      !TURNSTILE_SITE_KEY ||
-      !window.turnstile ||
-      turnstileRendered.current
-    ) {
+    if (!TURNSTILE_SITE_KEY || !window.turnstile || turnstileRendered.current) {
       return;
     }
 
     turnstileRendered.current = true;
 
-    window.turnstile.render('#music-studio-turnstile', {
+    window.turnstile.render("#music-studio-turnstile", {
       sitekey: TURNSTILE_SITE_KEY,
       callback: setTurnstileToken,
-      'expired-callback': () => setTurnstileToken(null),
+      "expired-callback": () => setTurnstileToken(null),
     });
   }
 
@@ -326,10 +329,7 @@ export function MusicStudioClient() {
   }, []);
 
   useEffect(() => {
-    if (
-      !job?.id ||
-      !['queued', 'processing'].includes(job.status)
-    ) {
+    if (!job?.id || !["queued", "processing"].includes(job.status)) {
       return;
     }
 
@@ -342,13 +342,11 @@ export function MusicStudioClient() {
       try {
         const response = await fetch(
           `${API_URL}/api/music-studio/jobs/${job.id}`,
-          { credentials: 'include' },
+          { credentials: "include" },
         );
 
         if (!response.ok) {
-          throw new Error(
-            `Could not check progress (${response.status}).`,
-          );
+          throw new Error(`Could not check progress (${response.status}).`);
         }
 
         const next = (await response.json()) as Job;
@@ -357,7 +355,7 @@ export function MusicStudioClient() {
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Could not retrieve job progress.',
+            : "Could not retrieve job progress.",
         );
       } finally {
         requestInFlight = false;
@@ -381,7 +379,7 @@ export function MusicStudioClient() {
   }, [isBusy, startedAt]);
 
   function setTrack(which: TrackType, file: File | null) {
-    if (which === 'vocal') {
+    if (which === "vocal") {
       setVocal(file);
     } else {
       setInstrument(file);
@@ -404,30 +402,27 @@ export function MusicStudioClient() {
     setError(null);
     setStartedAt(Date.now());
     setJob({
-      id: '',
-      status: 'queued',
-      stage: 'uploading',
+      id: "",
+      status: "queued",
+      stage: "uploading",
     });
 
     try {
       const body = new FormData();
 
-      body.set('vocal', vocal);
-      body.set('instrument', instrument);
-      body.set('settings', JSON.stringify({ preset, ...settings }));
+      body.set("vocal", vocal);
+      body.set("instrument", instrument);
+      body.set("settings", JSON.stringify({ preset, ...settings }));
 
       if (turnstileToken) {
-        body.set('turnstile_token', turnstileToken);
+        body.set("turnstile_token", turnstileToken);
       }
 
-      const response = await fetch(
-        `${API_URL}/api/music-studio/jobs`,
-        {
-          method: 'POST',
-          body,
-          credentials: 'include',
-        },
-      );
+      const response = await fetch(`${API_URL}/api/music-studio/jobs`, {
+        method: "POST",
+        body,
+        credentials: "include",
+      });
 
       const result = (await response.json()) as
         | Job
@@ -436,10 +431,10 @@ export function MusicStudioClient() {
           };
 
       if (!response.ok) {
-        let message = 'Could not start your mix.';
+        let message = "Could not start your mix.";
 
-        if ('detail' in result) {
-          if (typeof result.detail === 'string') {
+        if ("detail" in result) {
+          if (typeof result.detail === "string") {
             message = result.detail;
           } else if (result.detail?.message) {
             message = result.detail.message;
@@ -453,36 +448,34 @@ export function MusicStudioClient() {
     } catch (cause) {
       setJob(null);
       setError(
-        cause instanceof Error
-          ? cause.message
-          : 'Could not start your mix.',
+        cause instanceof Error ? cause.message : "Could not start your mix.",
       );
     }
   }
 
   const stageTitle =
-    job?.status === 'completed'
-      ? 'Your track is ready!'
-      : job?.status === 'failed'
-        ? 'Something went wrong'
-        : job?.stage === 'uploading'
-          ? 'Uploading your tracks'
-          : job?.stage === 'validating_recordings'
-            ? 'Checking your recordings'
-            : job?.stage === 'processing_mix_master_export'
-              ? 'Mixing the magic'
-              : 'Ready when you are!';
+    job?.status === "completed"
+      ? "Your track is ready!"
+      : job?.status === "failed"
+        ? "Something went wrong"
+        : job?.stage === "uploading"
+          ? "Uploading your tracks"
+          : job?.stage === "validating_recordings"
+            ? "Checking your recordings"
+            : job?.stage === "processing_mix_master_export"
+              ? "Mixing the magic"
+              : "Ready when you are!";
 
   const stageMessage =
-    job?.status === 'completed'
-      ? 'Give it a listen, then grab your master.'
-      : job?.status === 'failed'
-        ? job.error || 'Please try again with different recordings.'
-        : job?.stage === 'uploading'
-          ? 'Your files are on their way…'
+    job?.status === "completed"
+      ? "Give it a listen, then grab your master."
+      : job?.status === "failed"
+        ? job.error || "Please try again with different recordings."
+        : job?.stage === "uploading"
+          ? "Your files are on their way…"
           : isBusy
-            ? 'Balancing vocals, mixing and mastering…'
-            : 'Two tracks, one great sound. Let’s do this.';
+            ? "Balancing vocals, mixing and mastering…"
+            : "Two tracks, one great sound. Let’s do this.";
 
   function downloadUrl(value?: string) {
     return value ? `${API_URL}${value}` : undefined;
@@ -502,10 +495,7 @@ export function MusicStudioClient() {
         <StudioHero />
         <HowItWorks />
 
-        <div
-          id="music-workspace"
-          className={styles.workspaceHeading}
-        >
+        <div id="music-workspace" className={styles.workspaceHeading}>
           <span className={styles.eyebrow}>
             <Sparkles size={17} />
             THE CREATIVE DESK
@@ -517,8 +507,8 @@ export function MusicStudioClient() {
           </h2>
 
           <p>
-            Choose your recordings, pick a vibe and hit Produce.
-            Your studio session starts here.
+            Choose your recordings, pick a vibe and hit Produce. Your studio
+            session starts here.
           </p>
         </div>
 
@@ -536,16 +526,20 @@ export function MusicStudioClient() {
                 <Upload size={24} />
               </div>
 
-              <div className={styles.modeSelector} role="group" aria-label="Audio mode">
+              <div
+                className={styles.modeSelector}
+                role="group"
+                aria-label="Audio mode"
+              >
                 <button
                   type="button"
-                  aria-pressed={mode === 'separate'}
+                  aria-pressed={mode === "separate"}
                   className={
-                    mode === 'separate'
+                    mode === "separate"
                       ? styles.modeActive
                       : styles.modeInactive
                   }
-                  onClick={() => setMode('separate')}
+                  onClick={() => setMode("separate")}
                   disabled={isBusy}
                 >
                   Two separate tracks
@@ -553,26 +547,43 @@ export function MusicStudioClient() {
 
                 <button
                   type="button"
-                  aria-pressed={mode === 'single'}
+                  aria-pressed={mode === "single"}
                   className={
-                    mode === 'single'
-                      ? styles.modeActive
-                      : styles.modeInactive
+                    mode === "single" ? styles.modeActive : styles.modeInactive
                   }
-                  onClick={() => setMode('single')}
+                  onClick={() => setMode("single")}
                   disabled={isBusy}
                 >
                   One recording
                 </button>
+
+                <button
+                  type="button"
+                  aria-pressed={mode === "karaoke"}
+                  className={
+                    mode === "karaoke" ? styles.modeActive : styles.modeInactive
+                  }
+                  onClick={() => setMode("karaoke")}
+                  disabled={isBusy}
+                >
+                  🎤 Create Karaoke
+                </button>
               </div>
 
-              {mode === 'single' ? (
+              {mode === "single" ? (
                 <div className={styles.warning}>
-                  <strong>Coming soon!</strong>
+                  <strong>🎙️ One Recording — Coming Soon</strong>
                   <p>
-                    Separation of vocals from an already-mixed
-                    recording isn’t available yet. For now,
-                    please upload separate tracks.
+                    Upload vocals only, or vocals and instruments together.
+                    Rangmanch will intelligently enhance your recording.
+                  </p>
+                </div>
+              ) : mode === "karaoke" ? (
+                <div className={styles.warning}>
+                  <strong>🎤 AI Karaoke — Coming Soon</strong>
+                  <p>
+                    Upload a song, remove the original vocals, and adjust the
+                    pitch and tempo for your performance.
                   </p>
                 </div>
               ) : (
@@ -582,8 +593,8 @@ export function MusicStudioClient() {
                     description="Your singing or voice recording"
                     file={vocal}
                     kind="vocal"
-                    onChange={handlePick('vocal')}
-                    onFile={(file) => setTrack('vocal', file)}
+                    onChange={handlePick("vocal")}
+                    onFile={(file) => setTrack("vocal", file)}
                     disabled={isBusy}
                   />
 
@@ -592,17 +603,17 @@ export function MusicStudioClient() {
                     description="Guitar, piano or backing track"
                     file={instrument}
                     kind="instrument"
-                    onChange={handlePick('instrument')}
-                    onFile={(file) => setTrack('instrument', file)}
+                    onChange={handlePick("instrument")}
+                    onFile={(file) => setTrack("instrument", file)}
                     disabled={isBusy}
                   />
                 </div>
               )}
 
               <p className={styles.helpText}>
-                WAV, AIFF, MP3 or M4A · Up to 25 MB each ·
-                Maximum 2 minutes per track. Start both recordings
-                at the same timeline position for best results.
+                WAV, AIFF, MP3 or M4A · Up to 25 MB each · Maximum 2 minutes per
+                track. Start both recordings at the same timeline position for
+                best results.
               </p>
 
               {inputError && (
@@ -631,25 +642,23 @@ export function MusicStudioClient() {
                     key={item.id}
                     disabled={isBusy}
                     aria-pressed={preset === item.id}
-                    onClick={() => setPreset(item.id)}
+                    onClick={() => {
+                      setPreset(item.id);
+                      setSettings({ ...PRESET_SETTINGS[item.id] });
+                    }}
                     className={
                       preset === item.id
                         ? styles.presetActive
                         : styles.presetInactive
                     }
                   >
-                    <span className={styles.presetEmoji}>
-                      {item.emoji}
-                    </span>
+                    <span className={styles.presetEmoji}>{item.emoji}</span>
 
                     <strong>{item.name}</strong>
                     <small>{item.description}</small>
 
                     {preset === item.id && (
-                      <CheckCircle2
-                        size={19}
-                        className={styles.presetCheck}
-                      />
+                      <CheckCircle2 size={19} className={styles.presetCheck} />
                     )}
                   </button>
                 ))}
@@ -668,42 +677,57 @@ export function MusicStudioClient() {
                 <SlidersHorizontal size={25} />
               </div>
 
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: 12,
+                }}
+              >
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => {
+                    setSettings({ ...PRESET_SETTINGS[preset] });
+                  }}
+                >
+                  ↺ Reset to Preset
+                </button>
+              </div>
               <div className={styles.sliderGrid}>
                 <Slider
                   label="Vocal clarity"
                   value={settings.clarity}
                   disabled={isBusy}
-                  onChange={(value) => update('clarity', value)}
+                  onChange={(value) => update("clarity", value)}
                 />
 
                 <Slider
                   label="Compression"
                   value={settings.compression}
                   disabled={isBusy}
-                  onChange={(value) => update('compression', value)}
+                  onChange={(value) => update("compression", value)}
                 />
 
                 <Slider
                   label="Room reverb"
                   value={settings.reverb}
                   disabled={isBusy}
-                  onChange={(value) => update('reverb', value)}
+                  onChange={(value) => update("reverb", value)}
                 />
 
                 <Slider
                   label="Delay"
                   value={settings.delay}
                   disabled={isBusy}
-                  onChange={(value) => update('delay', value)}
+                  onChange={(value) => update("delay", value)}
                 />
 
                 <Slider
                   label="Vocal balance"
                   value={(settings.vocal_balance + 1) / 2}
                   disabled={isBusy}
-                  onChange={(value) =>
-                    update('vocal_balance', value * 2 - 1)
-                  }
+                  onChange={(value) => update("vocal_balance", value * 2 - 1)}
                 />
               </div>
 
@@ -716,19 +740,38 @@ export function MusicStudioClient() {
               >
                 <SlidersHorizontal size={16} />
 
-                {advanced
-                  ? 'Hide advanced settings'
-                  : 'Show advanced settings'}
+                {advanced ? "Hide advanced settings" : "Show advanced settings"}
 
-                {advanced ? (
-                  <ChevronUp size={17} />
-                ) : (
-                  <ChevronDown size={17} />
-                )}
+                {advanced ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
 
               {advanced && (
                 <div className={styles.advancedPanel}>
+                  <div>
+                    <label
+                      className={styles.numberLabel}
+                      htmlFor="stereo-space"
+                    >
+                      Stereo Space
+                    </label>
+
+                    <select
+                      id="stereo-space"
+                      value={settings.stereo_space}
+                      disabled={isBusy}
+                      className={styles.numberInput}
+                      onChange={(event) =>
+                        update(
+                          "stereo_space",
+                          event.target.value as Settings["stereo_space"],
+                        )
+                      }
+                    >
+                      <option value="natural">Natural</option>
+                      <option value="wide">Wide</option>
+                      <option value="cinematic">Cinematic</option>
+                    </select>
+                  </div>
                   <label className={styles.numberLabel}>
                     Manual sync offset (ms)
                     <input
@@ -739,10 +782,7 @@ export function MusicStudioClient() {
                       disabled={isBusy}
                       className={styles.numberInput}
                       onChange={(event) =>
-                        update(
-                          'sync_offset_ms',
-                          Number(event.target.value),
-                        )
+                        update("sync_offset_ms", Number(event.target.value))
                       }
                     />
                   </label>
@@ -753,7 +793,7 @@ export function MusicStudioClient() {
                       checked={settings.sidechain}
                       disabled={isBusy}
                       onChange={(event) =>
-                        update('sidechain', event.target.checked)
+                        update("sidechain", event.target.checked)
                       }
                     />
                     Gentle vocal ducking
@@ -763,32 +803,28 @@ export function MusicStudioClient() {
                     label="De-esser"
                     value={settings.de_esser}
                     disabled={isBusy}
-                    onChange={(value) => update('de_esser', value)}
+                    onChange={(value) => update("de_esser", value)}
                   />
 
                   <Slider
                     label="Vocal warmth"
                     value={settings.vocal_warmth}
                     disabled={isBusy}
-                    onChange={(value) => update('vocal_warmth', value)}
+                    onChange={(value) => update("vocal_warmth", value)}
                   />
 
                   <Slider
                     label="Instrumental width"
                     value={settings.instrumental_width}
                     disabled={isBusy}
-                    onChange={(value) =>
-                      update('instrumental_width', value)
-                    }
+                    onChange={(value) => update("instrumental_width", value)}
                   />
 
                   <Slider
                     label="Gentle noise reduction"
                     value={settings.noise_reduction}
                     disabled={isBusy}
-                    onChange={(value) =>
-                      update('noise_reduction', value)
-                    }
+                    onChange={(value) => update("noise_reduction", value)}
                   />
                 </div>
               )}
@@ -807,7 +843,7 @@ export function MusicStudioClient() {
 
               <div className={styles.productionBody}>
                 <div className={styles.productionIcon}>
-                  {job?.status === 'completed' ? (
+                  {job?.status === "completed" ? (
                     <CheckCircle2 size={39} />
                   ) : (
                     <Waves size={39} />
@@ -816,12 +852,9 @@ export function MusicStudioClient() {
 
                 <h2>{stageTitle}</h2>
 
-                <p
-                  aria-live="polite"
-                  className={styles.status}
-                >
+                <p aria-live="polite" className={styles.status}>
                   {stageMessage}
-                  {isBusy ? ` · ${elapsed}s elapsed` : ''}
+                  {isBusy ? ` · ${elapsed}s elapsed` : ""}
                 </p>
 
                 {isBusy && (
@@ -852,32 +885,21 @@ export function MusicStudioClient() {
                   disabled={!canProduce}
                   onClick={produce}
                 >
-                  {isBusy ? (
-                    <Waves size={21} />
-                  ) : (
-                    <Sparkles size={21} />
-                  )}
+                  {isBusy ? <Waves size={21} /> : <Sparkles size={21} />}
 
-                  {isBusy
-                    ? 'WORKING ON YOUR MIX…'
-                    : 'MAKE MY MIX!'}
+                  {isBusy ? "WORKING ON YOUR MIX…" : "MAKE MY MIX!"}
                   <ArrowRight size={20} />
                 </button>
 
                 <p className={styles.productionHint}>
-                  Choose your files and preset, then let
-                  RangManch do its thing.
+                  Choose your files and preset, then let RangManch do its thing.
                 </p>
 
                 <AnimatePresence mode="wait">
-                  {job?.status === 'completed' && (
+                  {job?.status === "completed" && (
                     <motion.div
                       key="completed"
-                      initial={
-                        reducedMotion
-                          ? false
-                          : { opacity: 0, y: 12 }
-                      }
+                      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       className={styles.output}
@@ -887,10 +909,7 @@ export function MusicStudioClient() {
                         YOUR TRACK IS READY!
                       </h3>
 
-                      <p>
-                        Listen to your masterpiece and
-                        download your mix.
-                      </p>
+                      <p>Listen to your masterpiece and download your mix.</p>
 
                       <audio
                         controls
@@ -901,21 +920,16 @@ export function MusicStudioClient() {
 
                       {job.measurements && (
                         <p className={styles.measurements}>
-                          {job.measurements.integrated_lufs.toFixed(1)}{' '}
-                          LUFS ·{' '}
-                          {job.measurements.true_peak_dbtp.toFixed(1)}{' '}
-                          dBTP
+                          {job.measurements.integrated_lufs.toFixed(1)} LUFS ·{" "}
+                          {job.measurements.true_peak_dbtp.toFixed(1)} dBTP
                         </p>
                       )}
 
                       <div className={styles.downloadGrid}>
-                        {(['wav', 'mp3'] as const).map((kind) => (
+                        {(["wav", "mp3"] as const).map((kind) => (
                           <a
                             key={kind}
-                            href={
-                              downloadUrl(job.downloads?.[kind]) ||
-                              '#'
-                            }
+                            href={downloadUrl(job.downloads?.[kind]) || "#"}
                             className={styles.downloadButton}
                           >
                             <Download size={17} />
@@ -934,8 +948,7 @@ export function MusicStudioClient() {
               <div>
                 <h3>STUDIO TIP!</h3>
                 <p>
-                  Record in a quiet room, avoid
-                  clipping, and keep both tracks
+                  Record in a quiet room, avoid clipping, and keep both tracks
                   aligned for a cleaner mix.
                 </p>
               </div>
@@ -979,8 +992,8 @@ function UploadSlot({
   return (
     <div
       className={`${styles.uploadSlot} ${
-        file ? styles.uploadSelected : ''
-      } ${dragging ? styles.uploadDragging : ''}`}
+        file ? styles.uploadSelected : ""
+      } ${dragging ? styles.uploadDragging : ""}`}
       onDragOver={(event) => {
         event.preventDefault();
         if (!disabled) setDragging(true);
@@ -995,20 +1008,14 @@ function UploadSlot({
         onClick={() => ref.current?.click()}
       >
         <span className={styles.uploadIcon}>
-          {kind === 'vocal' ? (
-            <Mic2 size={32} />
-          ) : (
-            <Music2 size={32} />
-          )}
+          {kind === "vocal" ? <Mic2 size={32} /> : <Music2 size={32} />}
         </span>
 
         <strong>{title}</strong>
-        <span className={styles.uploadDescription}>
-          {description}
-        </span>
+        <span className={styles.uploadDescription}>{description}</span>
 
         <span className={styles.uploadFilename}>
-          {file?.name || 'Drop a file or click to browse'}
+          {file?.name || "Drop a file or click to browse"}
         </span>
 
         <span className={styles.uploadBrowse}>
@@ -1031,7 +1038,7 @@ function UploadSlot({
           type="button"
           className={styles.removeButton}
           onClick={() => {
-            if (ref.current) ref.current.value = '';
+            if (ref.current) ref.current.value = "";
             onFile(null);
           }}
         >
@@ -1078,9 +1085,7 @@ function Slider({
         step={0.01}
         value={value}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(Number(event.target.value))
-        }
+        onChange={(event) => onChange(Number(event.target.value))}
       />
     </label>
   );
