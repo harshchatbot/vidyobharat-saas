@@ -573,6 +573,11 @@ function normalizeIntermediateTiming(
       normalized.title_duration = intent.imageDuration;
     if (intent.fadeDuration !== null)
       normalized.title_animation_duration = intent.fadeDuration;
+    // The model's nullable schema permits omitted title timing. Supply safe
+    // defaults instead of passing null into the strict command validator.
+    normalized.title_start ??= 0;
+    normalized.title_duration ??= normalized.duration_seconds ?? 3;
+    normalized.title_position ??= "center";
   }
   return normalized;
 }
