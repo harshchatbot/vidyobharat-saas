@@ -37,7 +37,7 @@ import {
 import { API_URL } from '@/lib/env';
 import styles from './music-studio.module.css';
 
-type Mode = 'separate' | 'single';
+type Mode = 'separate' | 'single' | 'karaoke';
 type TrackType = 'vocal' | 'instrument';
 
 type Job = {
@@ -432,8 +432,8 @@ export function MusicStudioClient() {
       const result = (await response.json()) as
         | Job
         | {
-            detail?: string | { message?: string };
-          };
+          detail?: string | { message?: string };
+        };
 
       if (!response.ok) {
         let message = 'Could not start your mix.';
@@ -564,15 +564,36 @@ export function MusicStudioClient() {
                 >
                   One recording
                 </button>
+
+                <button
+                  type="button"
+                  aria-pressed={mode === 'karaoke'}
+                  className={
+                    mode === 'karaoke'
+                      ? styles.modeActive
+                      : styles.modeInactive
+                  }
+                  onClick={() => setMode('karaoke')}
+                  disabled={isBusy}
+                >
+                  🎤 Create Karaoke
+                </button>
               </div>
 
               {mode === 'single' ? (
                 <div className={styles.warning}>
-                  <strong>Coming soon!</strong>
+                  <strong>🎙️ One Recording — Coming Soon</strong>
                   <p>
-                    Separation of vocals from an already-mixed
-                    recording isn’t available yet. For now,
-                    please upload separate tracks.
+                    Upload vocals only, or vocals and instruments together.
+                    Rangmanch will intelligently enhance your recording.
+                  </p>
+                </div>
+              ) : mode === 'karaoke' ? (
+                <div className={styles.warning}>
+                  <strong>🎤 AI Karaoke — Coming Soon</strong>
+                  <p>
+                    Upload a song, remove the original vocals, and
+                    adjust the pitch and tempo for your performance.
                   </p>
                 </div>
               ) : (
@@ -978,9 +999,8 @@ function UploadSlot({
 
   return (
     <div
-      className={`${styles.uploadSlot} ${
-        file ? styles.uploadSelected : ''
-      } ${dragging ? styles.uploadDragging : ''}`}
+      className={`${styles.uploadSlot} ${file ? styles.uploadSelected : ''
+        } ${dragging ? styles.uploadDragging : ''}`}
       onDragOver={(event) => {
         event.preventDefault();
         if (!disabled) setDragging(true);
