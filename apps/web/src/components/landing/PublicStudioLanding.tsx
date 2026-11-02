@@ -1,32 +1,101 @@
+
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import dynamic from 'next/dynamic';
-import { motion } from 'framer-motion';
-import { ArrowDown, ArrowRight, Check, ChevronRight, Film, ImagePlus, Menu, Music2, Play, Scissors, Sparkles, WandSparkles } from 'lucide-react';
+import {
+  motion,
+  useReducedMotion,
+} from 'framer-motion';
+import {
+  ArrowDown,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Film,
+  Headphones,
+  Heart,
+  ImagePlus,
+  Menu,
+  MessageSquareHeart,
+  Mic2,
+  Music2,
+  Play,
+  Scissors,
+  Sparkles,
+  WandSparkles,
+} from 'lucide-react';
+
 import { BrandLogo } from '@/components/brand/BrandLogo';
-// The upload widget manages browser files and guest sessions; isolate its hydration.
-const GuestUpload = dynamic(() => import('./GuestUpload').then((mod) => mod.GuestUpload), { ssr: false });
 import styles from './PublicStudioLanding.module.css';
 
-import type { CSSProperties } from 'react';
+const GuestUpload = dynamic(
+  () =>
+    import('./GuestUpload').then(
+      (module) => module.GuestUpload,
+    ),
+  { ssr: false },
+);
 
-type Occasion = { label: string; hindi: string; video: string; accent: string; caption: string };
+const MUSIC_URL = '/music-studio';
+const EDITOR_URL = '/editor';
 
-// Place your own short, muted 9:16 MP4 previews in apps/web/public/videos/occasions/.
-// These are local paths, not remote video URLs.
+type Occasion = {
+  label: string;
+  hindi: string;
+  video: string;
+  color: string;
+  caption: string;
+};
+
 const occasions: Occasion[] = [
-  { label: 'Festival', hindi: 'त्योहार', video: '/videos/samples/explain-gravity-simply.mp4', accent: '#efaa56', caption: 'Every celebration deserves a story.' },
-  { label: 'Wedding', hindi: 'शादी', video: '/videos/samples/anime_lofi_reel.mp4', accent: '#e4a6b3', caption: 'The moments you never want to forget.' },
-  { label: 'Birthday', hindi: 'जन्मदिन', video: '/videos/samples/hindi-festival-9x16.mp4', accent: '#b8a1ff', caption: 'Make their day unforgettable.' },
-  { label: 'Memories', hindi: 'यादें', video: '/videos/samples/tamil-education-9x16.mp4', accent: '#94cfc5', caption: 'A little magic for the everyday.' },
+  {
+    label: 'Festival',
+    hindi: 'त्योहार',
+    video:
+      '/videos/samples/explain-gravity-simply.mp4',
+    color: '#ffd86a',
+    caption: 'Make every celebration memorable.',
+  },
+  {
+    label: 'Wedding',
+    hindi: 'शादी',
+    video:
+      '/videos/samples/anime_lofi_reel.mp4',
+    color: '#f5b0c9',
+    caption: 'Turn beautiful moments into stories.',
+  },
+  {
+    label: 'Birthday',
+    hindi: 'जन्मदिन',
+    video:
+      '/videos/samples/hindi-festival-9x16.mp4',
+    color: '#c7b5ff',
+    caption: 'Make their special day unforgettable.',
+  },
+  {
+    label: 'Memories',
+    hindi: 'यादें',
+    video:
+      '/videos/samples/tamil-education-9x16.mp4',
+    color: '#a9e3ce',
+    caption: 'Give everyday memories a little magic.',
+  },
 ];
 
-/** Pause off-screen previews and honor reduced-motion preferences. */
-function VideoPreview({ src, className, label, eager = false }: {
+function VideoPreview({
+  src,
+  label,
+  className,
+  eager = false,
+}: {
   src: string;
-  className?: string;
   label?: string;
+  className?: string;
   eager?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -35,110 +104,588 @@ function VideoPreview({ src, className, label, eager = false }: {
     const video = ref.current;
     if (!video) return;
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const media = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    );
+
     let visible = false;
-    const syncPlayback = () => {
-      if (visible && !reducedMotion.matches) {
-        void video.play().catch(() => { /* Autoplay may be blocked by browser settings. */ });
+
+    const synchronize = () => {
+      if (visible && !media.matches) {
+        void video.play().catch(() => {});
       } else {
         video.pause();
       }
     };
-    const observer = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      syncPlayback();
-    }, { threshold: 0.1 });
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        synchronize();
+      },
+      { threshold: 0.1 },
+    );
+
     observer.observe(video);
-    reducedMotion.addEventListener('change', syncPlayback);
+
+    media.addEventListener(
+      'change',
+      synchronize,
+    );
+
     return () => {
       observer.disconnect();
-      reducedMotion.removeEventListener('change', syncPlayback);
+      media.removeEventListener(
+        'change',
+        synchronize,
+      );
       video.pause();
     };
   }, [src]);
 
-  return <video
-    ref={ref}
-    className={className}
-    src={src}
-    muted
-    loop
-    playsInline
-    preload={eager ? 'metadata' : 'none'}
-    aria-label={label}
-    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-  />;
+  return (
+    <video
+      ref={ref}
+      src={src}
+      className={className}
+      aria-label={label}
+      muted
+      loop
+      playsInline
+      preload={eager ? 'metadata' : 'none'}
+    />
+  );
 }
 
-const story = [
-  { number: '01', title: 'Start with your moments.', description: 'Choose the photos and clips already on your phone. No complicated setup.', icon: ImagePlus },
-  { number: '02', title: 'Make it yours.', description: 'Arrange your story, adjust the timing and shape every transition.', icon: Scissors },
-  { number: '03', title: 'Let it play.', description: 'Preview your reel and export an MP4 ready to share.', icon: Play },
-];
+function Reveal({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const reducedMotion = useReducedMotion();
+
+  return (
+    <motion.div
+      className={className}
+      initial={
+        reducedMotion
+          ? false
+          : { opacity: 0, y: 22 }
+      }
+      whileInView={{
+        opacity: 1,
+        y: 0,
+      }}
+      viewport={{
+        once: true,
+        amount: 0.12,
+      }}
+      transition={{
+        duration: 0.5,
+        ease: 'easeOut',
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 function Header() {
-  return <header className={styles.header}>
-    <div className={styles.navInner}>
-      <a href="/" className={styles.brand} aria-label="RangManch AI home"><BrandLogo variant="mark" size="md" /><span>RangManch<span className={styles.brandAi}>AI</span></span></a>
-      <nav className={styles.desktopNav} aria-label="Primary navigation"><a href="#how-it-works">How it works</a><a href="#inspiration">Inspiration</a><a href="#future">What's next</a></nav>
-      <div className={styles.navActions}><a className={styles.navCta} href="/editor">Open editor <ArrowRight size={16} aria-hidden="true" /></a>
-        <details className={styles.mobileMenu}><summary aria-label="Open navigation"><Menu size={22} /></summary><nav aria-label="Mobile navigation"><a href="#how-it-works">How it works</a><a href="#inspiration">Inspiration</a><a href="#future">What's next</a></nav></details>
-      </div>
-    </div>
-  </header>;
-}
+  return (
+    <header className={styles.header}>
+      <div className={styles.navInner}>
+        <a
+          href="/"
+          className={styles.brand}
+          aria-label="RangManch AI homepage"
+        >
+          <BrandLogo
+            variant="mark"
+            size="md"
+          />
 
-function MiniTimeline({ animated = false }: { animated?: boolean }) {
-  return <div className={`${styles.miniTimeline} ${animated ? styles.timelineAnimated : ''}`} aria-label="Illustrative video timeline">
-    <div className={styles.timelineHeading}><span><Film size={13} /> YOUR STORY</span><span>00:20</span></div>
-    <div className={styles.timelineClips}><div /><div /><div /><div /><div /><span className={styles.timelinePlayhead} /></div>
-    <div className={styles.timelineMusic}><Music2 size={12} /> soundtrack <span>♪ ♪ ♪ ♪ ♪ ♪ ♪ ♪ ♪ ♪ ♪</span></div>
-  </div>;
+          <span>
+            RangManch
+            <span className={styles.brandAi}>
+              AI
+            </span>
+          </span>
+        </a>
+
+        <nav
+          className={styles.desktopNav}
+          aria-label="Primary navigation"
+        >
+          <a href="#products">Explore tools</a>
+          <a href={MUSIC_URL}>Music Studio</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#feedback">Feedback</a>
+        </nav>
+
+        <div className={styles.navActions}>
+          <a
+            href={EDITOR_URL}
+            className={styles.navCta}
+          >
+            Start creating
+            <ArrowRight size={17} />
+          </a>
+
+          <details className={styles.mobileMenu}>
+            <summary aria-label="Open navigation">
+              <Menu size={24} />
+            </summary>
+
+            <nav aria-label="Mobile navigation">
+              <a href="#products">Explore tools</a>
+              <a href={EDITOR_URL}>
+                AI Video Editor
+              </a>
+              <a href={MUSIC_URL}>
+                AI Music Studio
+              </a>
+              <a href="#how-it-works">
+                How it works
+              </a>
+              <a href="#feedback">Feedback</a>
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
+  );
 }
 
 function Hero() {
-  const [active, setActive] = useState(0);
-  const [hindi, setHindi] = useState(false);
-  const occasion = occasions[active];
-  return <section className={styles.hero} aria-labelledby="hero-title" style={{ '--occasion-accent': occasion.accent } as CSSProperties}>
-    <div className={styles.heroAmbient} aria-hidden="true" />
-    <div className={styles.heroInner}>
-      <div className={styles.heroCopy}>
-        <div className={styles.heroTopline}><span className={styles.pulse} /> FREE ONLINE VIDEO EDITOR <span className={styles.toplineRule} /></div>
+  const reducedMotion = useReducedMotion();
 
-        <h1 id="hero-title">{hindi ? <>अपनी फ़ोटो। एक क्लिक।<br /><em>शानदार रील।</em></> : <>Your photos. One click.<br /><em>Beautiful reels.</em></>}</h1>
+  return (
+    <section
+      className={styles.hero}
+      aria-labelledby="hero-title"
+    >
+      <div className={styles.heroInner}>
+        <motion.div
+          className={styles.heroCopy}
+          initial={
+            reducedMotion
+              ? false
+              : { opacity: 0, y: 25 }
+          }
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.55,
+            ease: 'easeOut',
+          }}
+        >
+          <p className={styles.heroTopline}>
+            <Sparkles size={17} />
+            THE CREATIVE PLAYGROUND
+          </p>
 
-        <p className={styles.heroDescription}>{hindi ? 'अपनी फ़ोटो अपलोड करें, Auto Edit दबाएं और कुछ ही मिनटों में शेयर करने लायक रील बनाएं। फिर हमारे मुफ़्त AI वीडियो एडिटर से उसे और बेहतर बनाएं।' : 'Upload your photos, hit Auto Edit, and create a ready-to-share reel in minutes. Want to make it even better? Fine-tune it with our free AI video editor.'}</p>
-        <div className={styles.languageSwitch} aria-label="Headline language"><button type="button" aria-pressed={!hindi} onClick={() => setHindi(false)}>English</button><span>/</span><button type="button" aria-pressed={hindi} onClick={() => setHindi(true)}>हिंदी</button></div>
-        <div className={styles.heroActions}><a className={styles.primaryCta} href="/editor">Create My Reel for Free <ArrowRight size={19} aria-hidden="true" /></a><a className={styles.secondaryCta} href="#how-it-works">See Auto Edit in Action <Play size={16} aria-hidden="true" /></a></div>
-        <p className={styles.heroNote}><Check size={14} /> Browser-based · Free to start</p>
-        <span className={styles.soonChip}><Sparkles size={13} aria-hidden="true" /> Auto Edit first. AI Copilot when you want the final touch.</span>
-      </div>
-      <div className={styles.heroVisual} aria-label={`${occasion.label} themed reel inspiration`}>
-        <div className={styles.orbitOne} aria-hidden="true" /><div className={styles.orbitTwo} aria-hidden="true" />
-        <div className={styles.floatingPhotoLeft} aria-hidden="true"><VideoPreview src={occasions[2].video} /></div>
-        <div className={styles.floatingPhotoRight} aria-hidden="true"><VideoPreview src={occasions[1].video} /></div>
-        <div className={styles.reelDevice}>
-          <VideoPreview key={occasion.video} src={occasion.video} label={`${occasion.label} reel preview`} eager />
-          <div className={styles.reelShade} /><div className={styles.reelLabel}><span>RANGMANCH ORIGINALS</span><strong>{occasion.caption}</strong></div>
-          <div className={styles.reelControls}><Play size={15} fill="currentColor" /> <span>PREVIEW CONCEPT</span><span>9:16</span></div>
+          <h1 id="hero-title">
+            Your creativity.
+            <br />
+            <em>Our little bit</em>
+            <br />
+            <em>of magic.</em>
+          </h1>
+
+          <p className={styles.heroDescription}>
+            Make beautiful reels from your
+            photos and videos. Turn your
+            raw vocal recordings into
+            polished music. Create more,
+            without the complicated software.
+          </p>
+
+          <div className={styles.heroActions}>
+            <a
+              href="#products"
+              className={styles.primaryCta}
+            >
+              Explore our tools
+              <ArrowRight size={20} />
+            </a>
+
+            <a
+              href={MUSIC_URL}
+              className={styles.secondaryCta}
+            >
+              <Music2 size={18} />
+              Try Music Studio
+            </a>
+          </div>
+
+          <p className={styles.heroNote}>
+            <Check size={16} />
+            Browser-based tools for
+            everyday creators.
+          </p>
+        </motion.div>
+
+        <div
+          className={styles.heroVisual}
+          aria-label="RangManch creative tools"
+        >
+          <div
+            className={styles.heroDecorStar}
+            aria-hidden="true"
+          >
+            ✳
+          </div>
+
+          <div className={styles.heroVideoCard}>
+            <div className={styles.heroCardTop}>
+              <Film size={16} />
+              VIDEO MAGIC
+            </div>
+
+            <div className={styles.heroVideoFrame}>
+              <VideoPreview
+                src={occasions[1].video}
+                label="Sample RangManch reel"
+                eager
+              />
+            </div>
+
+            <span className={styles.heroVideoLabel}>
+              Your moments, remixed.
+            </span>
+          </div>
+
+          <div className={styles.heroMusicCard}>
+            <div className={styles.heroCardTop}>
+              <Music2 size={17} />
+              STUDIO MAGIC
+            </div>
+
+            <img
+              src="/images/music-studio-hero.png"
+              alt="Music recording studio"
+              loading="eager"
+            />
+
+            <strong>
+              Your voice deserves a studio.
+            </strong>
+          </div>
+
+          <div className={styles.heroSticker}>
+            MADE TO
+            <br />
+            CREATE!
+          </div>
         </div>
-        <div className={styles.floatingTimeline}><MiniTimeline /></div>
       </div>
-    </div>
-    <div className={styles.occasionBar}><span>MAKE IT FOR</span><div className={styles.occasionChoices}>{occasions.map((item, index) => <button key={item.label} type="button" aria-pressed={index === active} onClick={() => setActive(index)}>{item.label}<span>{item.hindi}</span></button>)}</div><a href="#how-it-works" aria-label="Discover how it works"><ArrowDown size={20} /></a></div>
-  </section>;
+
+      <a
+        href="#products"
+        className={styles.heroScroll}
+      >
+        PICK YOUR CREATIVE TOOL
+        <ArrowDown size={18} />
+      </a>
+    </section>
+  );
+}
+
+function ProductSection() {
+  return (
+    <section
+      id="products"
+      className={styles.productsSection}
+      aria-labelledby="products-title"
+    >
+      <Reveal className={styles.sectionIntro}>
+        <p className={styles.kicker}>
+          TWO TOOLS. ENDLESS IDEAS.
+        </p>
+
+        <h2 id="products-title">
+          So, what are we
+          <br />
+          <em>making today?</em>
+        </h2>
+
+        <p>
+          Whether you create videos or
+          sing your heart out, RangManch
+          gives your ideas a place to shine.
+        </p>
+      </Reveal>
+
+      <div className={styles.productsGrid}>
+        <Reveal className={styles.videoProduct}>
+          <div className={styles.productCardTop}>
+            <span>01 / VIDEO</span>
+            <Film size={26} />
+          </div>
+
+          <div className={styles.productIllustration}>
+            <div className={styles.productVideoPreview}>
+              <VideoPreview
+                src={occasions[0].video}
+                label="AI video editor preview"
+              />
+            </div>
+
+            <div className={styles.productSticker}>
+              AUTO
+              <br />
+              EDIT!
+            </div>
+          </div>
+
+          <div className={styles.productCopy}>
+            <h3>
+              Make reels.
+              <br />
+              Make memories.
+            </h3>
+
+            <p>
+              Upload your favorite photos
+              and videos, create an editable
+              reel, and make it yours with
+              AI-assisted tools.
+            </p>
+
+            <a
+              href={EDITOR_URL}
+              className={styles.productButton}
+            >
+              Make my reel!
+              <ArrowRight size={19} />
+            </a>
+          </div>
+        </Reveal>
+
+        <Reveal className={styles.musicProduct}>
+          <div className={styles.productCardTop}>
+            <span>02 / MUSIC</span>
+            <Music2 size={27} />
+          </div>
+
+          <div className={styles.productIllustration}>
+            <div className={styles.productMusicPreview}>
+              <img
+                src="/images/music-studio-hero.png"
+                alt="Microphone and music production desk"
+                loading="lazy"
+              />
+            </div>
+
+            <div className={styles.productSticker}>
+              STUDIO
+              <br />
+              VIBES!
+            </div>
+          </div>
+
+          <div className={styles.productCopy}>
+            <h3>
+              Sing it.
+              <br />
+              Make it shine.
+            </h3>
+
+            <p>
+              Upload separate vocals and
+              instrumental tracks, choose
+              a studio preset, and create
+              a polished mix and master.
+            </p>
+
+            <a
+              href={MUSIC_URL}
+              className={styles.productButton}
+            >
+              Make my mix!
+              <ArrowRight size={19} />
+            </a>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function MusicFeature() {
+  return (
+    <section
+      id="music-studio"
+      className={styles.musicFeature}
+    >
+      <Reveal className={styles.musicFeatureInner}>
+        <div className={styles.musicFeatureCopy}>
+          <p className={styles.kicker}>
+            <Mic2 size={17} />
+            INTRODUCING AI MUSIC STUDIO
+          </p>
+
+          <h2>
+            Bedroom singer?
+            <br />
+            <em>Big studio energy.</em>
+          </h2>
+
+          <p className={styles.musicFeatureDescription}>
+            You bring the performance.
+            RangManch helps with the mix.
+            From acoustic covers to
+            soulful ghazals, create
+            studio-style audio without
+            getting lost in audio software.
+          </p>
+
+          <div className={styles.musicFeatureSteps}>
+            <span>
+              <Mic2 size={17} />
+              Upload vocals
+            </span>
+
+            <span>
+              <Music2 size={17} />
+              Add music
+            </span>
+
+            <span>
+              <Headphones size={17} />
+              Mix and master
+            </span>
+          </div>
+
+          <a
+            href={MUSIC_URL}
+            className={styles.musicFeatureCta}
+          >
+            Let's make some music!
+            <ArrowRight size={19} />
+          </a>
+
+          <p className={styles.musicFeatureNote}>
+            Acoustic · Sufi / Ghazal · Clean Studio
+          </p>
+        </div>
+
+        <div className={styles.musicFeatureVisual}>
+          <img
+            src="/images/music-studio-hero.png"
+            alt="Recording studio with microphone and mixing console"
+            loading="lazy"
+          />
+
+          <div className={styles.musicFeatureImageLabel}>
+            <Headphones size={17} />
+            YOUR SOUND. YOUR STYLE.
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
 }
 
 function StartSection() {
-  return <section id="start" className={styles.startSection} aria-labelledby="start-title"><div className={styles.startGlow} aria-hidden="true" /><div className={styles.startInner}><p className={styles.kicker}>YOUR STORY STARTS HERE</p><h2 id="start-title">Bring your moments.<br /><em>We'll make room for magic.</em></h2><p>Drop your photos and videos below to start editing in the browser.</p><GuestUpload /></div></section>;
+  return (
+    <section
+      id="start"
+      className={styles.startSection}
+    >
+      <div className={styles.startInner}>
+        <p className={styles.kicker}>
+          READY TO MAKE A REEL?
+        </p>
+
+        <h2>
+          Your photos.
+          <br />
+          <em>Your story.</em>
+        </h2>
+
+        <p>
+          Drop your photos and videos
+          below to start creating.
+        </p>
+
+        <GuestUpload />
+      </div>
+    </section>
+  );
 }
 
 function HowItWorks() {
-  return <section id="how-it-works" className={styles.storySection} aria-labelledby="story-title"><div className={styles.storyInner}>
-    <div className={styles.storySticky}><p className={styles.kicker}>THE CREATIVE JOURNEY</p><h2 id="story-title">From camera roll<br />to <em>“play it again.”</em></h2><div className={styles.storyPreview}><div className={styles.storyPreviewPhoto}><VideoPreview src="/videos/samples/english-startup-16x9.mp4" label="Example reel being arranged in a video timeline" /><span>YOUR MOMENTS, IN MOTION</span></div><MiniTimeline animated /></div></div>
-    <motion.div className={styles.storySteps} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.12 }} transition={{ duration: 0.65, ease: "easeOut" }}>{story.map(({ number, title, description, icon: Icon }) => <div className={styles.storyStep} key={number}><span className={styles.stepNumber}>{number} <Icon size={22} aria-hidden="true" /></span><h3>{title}</h3><p>{description}</p></div>)}</motion.div>
-  </div></section>;
+  const steps = [
+    {
+      number: '01',
+      icon: ImagePlus,
+      title: 'Bring your moments.',
+      description:
+        'Choose the photos and clips already on your phone.',
+    },
+    {
+      number: '02',
+      icon: Scissors,
+      title: 'Make it your own.',
+      description:
+        'Arrange your story, adjust timing, and use Auto Edit or AI Copilot.',
+    },
+    {
+      number: '03',
+      icon: Play,
+      title: 'Share the magic.',
+      description:
+        'Preview your creation and export an MP4 ready to share.',
+    },
+  ];
+
+  return (
+    <section
+      id="how-it-works"
+      className={styles.storySection}
+    >
+      <Reveal className={styles.storyIntro}>
+        <p className={styles.kicker}>
+          THE CREATIVE JOURNEY
+        </p>
+
+        <h2>
+          Three little steps.
+          <br />
+          <em>One big smile.</em>
+        </h2>
+      </Reveal>
+
+      <div className={styles.storyGrid}>
+        {steps.map(
+          ({
+            number,
+            icon: Icon,
+            title,
+            description,
+          }) => (
+            <Reveal
+              key={number}
+              className={styles.storyCard}
+            >
+              <div className={styles.storyCardTop}>
+                <span>{number}</span>
+                <Icon size={31} />
+              </div>
+
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </Reveal>
+          ),
+        )}
+      </div>
+    </section>
+  );
 }
 
 function Inspiration() {
@@ -153,95 +700,295 @@ function Inspiration() {
     <section
       id="inspiration"
       className={styles.inspiration}
-      aria-labelledby="inspiration-title"
     >
-      <div className={styles.inspirationIntro}>
+      <Reveal className={styles.inspirationIntro}>
         <div>
-          <p className={styles.kicker}>A LITTLE INSPIRATION</p>
-          <h2 id="inspiration-title">
-            Every moment has
+          <p className={styles.kicker}>
+            A LITTLE INSPIRATION
+          </p>
+
+          <h2>
+            Every moment
             <br />
-            <em>a different mood.</em>
+            <em>has a story.</em>
           </h2>
         </div>
-        <p>
-          Birthday wishes, festive memories, wedding moments or simply
-          a beautiful day. Your footage, your story.
-        </p>
-      </div>
 
-      <motion.div
-        className={styles.reelStrip}
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.7, ease: 'easeOut' }}
-      >
+        <p>
+          Birthdays, celebrations,
+          memories, and everything
+          in between.
+        </p>
+      </Reveal>
+
+      <div className={styles.reelStrip}>
         {occasions.map((item, index) => (
           <a
-            href="/editor"
-            className={styles.inspirationReel}
+            href={EDITOR_URL}
             key={item.label}
+            className={styles.inspirationReel}
+            style={{
+              backgroundColor: item.color,
+            }}
           >
             <VideoPreview
               src={inspirationVideos[index]}
-              label={`${item.label} video inspiration`}
+              label={`${item.label} inspiration`}
             />
 
-            <span className={styles.inspirationOverlay} />
-            <span className={styles.inspirationNumber}>
+            <span
+              className={styles.inspirationOverlay}
+            />
+
+            <span
+              className={styles.inspirationNumber}
+            >
               0{index + 1} / 04
             </span>
-            <span className={styles.inspirationCaption}>
+
+            <span
+              className={styles.inspirationCaption}
+            >
               {item.label}
               <small>{item.hindi}</small>
             </span>
-            <span className={styles.inspirationArrow}>
+
+            <span
+              className={styles.inspirationArrow}
+            >
               <ArrowRight size={19} />
             </span>
           </a>
         ))}
-      </motion.div>
+      </div>
 
       <p className={styles.inspirationFootnote}>
-        Video inspiration · Preview reels, not prebuilt templates
+        Preview reels for inspiration.
       </p>
     </section>
   );
 }
 
-function ComingSoon() {
+function CopilotSection() {
   const [example, setExample] = useState(0);
+
   const prompts = [
-    { request: 'Make it 20 seconds with music', response: 'Duration set to 00:20 · Soundtrack added', duration: '00:20' },
-    { request: 'Add a soft fade at the end', response: 'Fade-out transition added', duration: '00:20' },
-    { request: 'Make it feel more cinematic', response: 'Suggested pacing and color adjustments', duration: '00:20' },
+    {
+      request: 'Make it 20 seconds with music',
+      response:
+        'Duration set to 00:20 · Soundtrack added',
+    },
+    {
+      request: 'Add a soft fade at the end',
+      response: 'Fade-out transition added',
+    },
+    {
+      request: 'Make it feel more cinematic',
+      response:
+        'Suggested pacing and color adjustments',
+    },
   ];
-  return <section id="future" className={styles.future} aria-labelledby="future-title"><div className={styles.futureInner}><div className={styles.futureCopy}><span className={styles.soonPill}><Sparkles size={14} /> AVAILABLE NOW</span><h2 id="future-title">Describe it.<br />Preview it.<br /><em>Make it yours.</em></h2><p>Use the local AI Copilot or Auto Edit to turn uploaded photos into an editable reel. Review every change before applying it.</p><a href="/editor" className={styles.futureLink}>Open the editor <ArrowRight size={18} /></a></div><motion.div className={styles.chatStage} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.7, ease: "easeOut" }} aria-label="Preview of browser AI editing"><div className={styles.chatTop}><span><WandSparkles size={17} /> RANGMANCH COPILOT</span><small>LOCAL BROWSER AI</small></div><div className={styles.chatPrompt}><span>You</span><p>“{prompts[example].request}”</p></div><div className={styles.chatReply}><span><Sparkles size={14} /> RangManch</span><p><Check size={15} /> {prompts[example].response}</p></div><MiniTimeline animated /><div className={styles.promptOptions}>{prompts.map((prompt, i) => <button type="button" aria-pressed={example === i} key={prompt.request} onClick={() => setExample(i)}>{i + 1}</button>)}</div></motion.div></div></section>;
+
+  return (
+    <section
+      id="future"
+      className={styles.future}
+    >
+      <Reveal className={styles.futureInner}>
+        <div className={styles.futureCopy}>
+          <p className={styles.kicker}>
+            <WandSparkles size={18} />
+            MEET AI COPILOT
+          </p>
+
+          <h2>
+            Say it.
+            <br />
+            <em>See it happen.</em>
+          </h2>
+
+          <p>
+            Need a shorter reel?
+            Want different pacing?
+            Tell RangManch what you'd
+            like to change, preview
+            the result, and stay
+            in control.
+          </p>
+
+          <a
+            href={EDITOR_URL}
+            className={styles.futureLink}
+          >
+            Meet your creative copilot
+            <ArrowRight size={19} />
+          </a>
+        </div>
+
+        <div className={styles.chatStage}>
+          <div className={styles.chatTop}>
+            <span>
+              <Sparkles size={18} />
+              RANGMANCH COPILOT
+            </span>
+
+            <small>AI-ASSISTED EDITING</small>
+          </div>
+
+          <div className={styles.chatPrompt}>
+            <span>YOU</span>
+            <p>
+              “{prompts[example].request}”
+            </p>
+          </div>
+
+          <div className={styles.chatReply}>
+            <span>
+              <Sparkles size={15} />
+              RANGMANCH
+            </span>
+
+            <p>
+              <Check size={17} />
+              {prompts[example].response}
+            </p>
+          </div>
+
+          <div className={styles.promptOptions}>
+            {prompts.map((prompt, index) => (
+              <button
+                key={prompt.request}
+                type="button"
+                aria-label={`Show example ${index + 1}`}
+                aria-pressed={example === index}
+                onClick={() => setExample(index)}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+function FeedbackSection() {
+  return (
+    <section
+      id="feedback"
+      className={styles.feedbackFeature}
+    >
+      <Reveal
+        className={styles.feedbackFeatureInner}
+      >
+        <div className={styles.feedbackIcon}>
+          <MessageSquareHeart size={38} />
+        </div>
+
+        <div>
+          <p className={styles.kicker}>
+            YOUR IDEAS MATTER
+          </p>
+
+          <h2>
+            Got an idea?
+            <br />
+            <em>We're all ears!</em>
+          </h2>
+
+          <p>
+            Want a new feature?
+            Found something we could
+            improve? Help shape the
+            next version of RangManch.
+          </p>
+        </div>
+
+        <div className={styles.feedbackComingSoon}>
+          Feedback form coming soon
+        </div>
+      </Reveal>
+    </section>
+  );
 }
 
 function FinalCTA() {
-  return <section className={styles.finalCta}><p className={styles.kicker}>READY WHEN YOU ARE</p><h2>Don't just save the moment.<br /><em>Tell the story.</em></h2><a href="/editor">Start creating <ArrowRight size={20} /></a><p>Made for moments big and small.</p></section>;
+  return (
+    <section className={styles.finalCta}>
+      <p className={styles.kicker}>
+        THE STAGE IS YOURS
+      </p>
+
+      <h2>
+        Stop imagining.
+        <br />
+        <em>Start creating!</em>
+      </h2>
+
+      <div className={styles.finalActions}>
+        <a href={EDITOR_URL}>
+          Make a reel
+          <Film size={19} />
+        </a>
+
+        <a href={MUSIC_URL}>
+          Make some music
+          <Music2 size={19} />
+        </a>
+      </div>
+
+      <p>
+        Made for the creators
+        in all of us.
+      </p>
+    </section>
+  );
 }
 
 function Footer() {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerInner}>
-        <a className={styles.footerBrand} href="/">
-          <BrandLogo variant="mark" size="sm" priority="footer" />
+        <a
+          href="/"
+          className={styles.footerBrand}
+        >
+          <BrandLogo
+            variant="mark"
+            size="sm"
+            priority="footer"
+          />
           <span>RangManch AI</span>
         </a>
 
-        <span>Make something worth remembering.</span>
+        <span>
+          Made for creators,
+          dreamers, and storytellers.
+        </span>
 
         <nav aria-label="Footer navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="/editor">Editor</a>
+          <a href={EDITOR_URL}>
+            Video Editor
+          </a>
+
+          <a href={MUSIC_URL}>
+            Music Studio
+          </a>
+
+          <a href="#feedback">
+            Feedback
+          </a>
         </nav>
 
         <div className={styles.footerCredits}>
-          Made with <span aria-label="love">♥</span> by{' '}
+          Made with{' '}
+          <Heart
+            size={12}
+            fill="currentColor"
+            aria-label="love"
+          />
+          {' '}by{' '}
           <a
             href="https://techfilabs.com"
             target="_blank"
@@ -249,18 +996,12 @@ function Footer() {
           >
             TechFi Labs
           </a>
-          {' · '}
-          Explore{' '}
-          <a
-            href="https://thetechnologyfiction.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            The Technology Fiction
-          </a>
         </div>
 
-        <span className={styles.footerCopyright} suppressHydrationWarning>
+        <span
+          className={styles.footerCopyright}
+          suppressHydrationWarning
+        >
           © {new Date().getFullYear()} RangManch AI
         </span>
       </div>
@@ -269,5 +1010,27 @@ function Footer() {
 }
 
 export function PublicStudioLanding() {
-  return <main className={styles.page}><Header /><Hero /><StartSection /><HowItWorks /><Inspiration /><ComingSoon /><FinalCTA /><Footer /><a className={styles.mobileSticky} href="/editor">Make my reel <ChevronRight size={19} /></a></main>;
+  return (
+    <main className={styles.page}>
+      <Header />
+      <Hero />
+      <ProductSection />
+      <MusicFeature />
+      <StartSection />
+      <HowItWorks />
+      <Inspiration />
+      <CopilotSection />
+      <FeedbackSection />
+      <FinalCTA />
+      <Footer />
+
+      <a
+        href="#products"
+        className={styles.mobileSticky}
+      >
+        Explore creative tools
+        <ChevronRight size={19} />
+      </a>
+    </main>
+  );
 }
