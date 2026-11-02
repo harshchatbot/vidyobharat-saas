@@ -1,8 +1,9 @@
 'use client';
 
 import { Download, LoaderCircle, X } from 'lucide-react';
+import { browserExportDimensions } from '@/lib/browser-ai/browserMp4Export';
 import type { ReactNode } from 'react';
-import { exportDimensions, normalizeExportFilename } from './timeline/serialization';
+import { normalizeExportFilename } from './timeline/serialization';
 import type { ProjectAspectRatio, ProjectExportSettings } from './timeline/types';
 
 export type ExportJobView = {
@@ -31,18 +32,18 @@ const ratios: ProjectAspectRatio[] = ['9:16', '16:9', '1:1', '4:5'];
 export function ExportDialog(props: Props) {
   if (!props.open) return null;
   const busy = props.submitting || props.job?.status === 'queued' || props.job?.status === 'running';
-  const dimensions = exportDimensions(props.aspectRatio, '720p');
+  const dimensions = browserExportDimensions(props.aspectRatio, props.settings.resolution);
   const update = <K extends keyof ProjectExportSettings>(key: K, value: ProjectExportSettings[K]) => props.onSettings({ ...props.settings, [key]: value });
   return <div className="fixed inset-0 z-[170] grid place-items-center bg-black/70 p-3 backdrop-blur-sm" onPointerDown={props.onClose}>
     <section role="dialog" aria-modal="true" aria-labelledby="export-title" className="w-full max-w-xl overflow-hidden rounded-lg border border-white/10 bg-[#111118] text-white shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4"><div><h2 id="export-title" className="text-base font-semibold">Export video</h2><p className="mt-1 text-xs text-slate-400">MP4 · H.264 video · AAC audio</p></div><button type="button" onClick={props.onClose} className="grid h-10 w-10 place-items-center rounded-md text-slate-300 hover:bg-white/10" aria-label="Close export settings"><X className="h-4 w-4" /></button></header>
+      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4"><div><h2 id="export-title" className="text-base font-semibold">Export video</h2><p className="mt-1 text-xs text-slate-400">MP4 · Browser-encoded · Check output compatibility</p></div><button type="button" onClick={props.onClose} className="grid h-10 w-10 place-items-center rounded-md text-slate-300 hover:bg-white/10" aria-label="Close export settings"><X className="h-4 w-4" /></button></header>
       <div className="grid gap-5 p-5 sm:grid-cols-2">
         <label className="sm:col-span-2"><span className="mb-2 block text-xs font-medium text-slate-300">Filename</span><input value={props.settings.filename} maxLength={80} onFocus={() => props.onEditStart('export:filename')} onBlur={() => props.onEditEnd('export:filename')} onChange={(event) => update('filename', event.target.value)} disabled={busy} className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-amber-400" /></label>
         <Field label="Aspect ratio"><OptionGrid values={ratios} value={props.aspectRatio} onChange={(value) => props.onAspectRatio(value as ProjectAspectRatio)} disabled={busy} /></Field>
-        <ReadOnlySetting label="Resolution" value="720p" />
-        <ReadOnlySetting label="Frame rate" value="30 FPS" />
-        <ReadOnlySetting label="Quality" value="Standard" />
-        <ReadOnlySetting label="Free export" value="Includes a subtle RangManch AI watermark" />
+        <Field label="Resolution"><OptionGrid values={["720p", "1080p"]} value={props.settings.resolution} onChange={(value) => update("resolution", value as ProjectExportSettings["resolution"])} disabled={busy} /></Field>
+        <Field label="Frame rate"><OptionGrid values={["24", "30", "60"]} value={String(props.settings.fps)} onChange={(value) => update("fps", Number(value) as ProjectExportSettings["fps"])} disabled={busy} /></Field>
+        <Field label="Quality"><OptionGrid values={["standard", "high"]} value={props.settings.quality} onChange={(value) => update("quality", value as ProjectExportSettings["quality"])} disabled={busy} /></Field>
+        <ReadOnlySetting label="Rendering" value="On your device · Chrome MP4 support required" />
 
         {props.exportUsage && (
           <p className="sm:col-span-2 text-xs text-amber-300">
