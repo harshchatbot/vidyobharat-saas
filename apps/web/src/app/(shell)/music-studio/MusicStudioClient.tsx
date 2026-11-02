@@ -200,7 +200,7 @@ function StudioHero() {
         </a>
 
         <p className={styles.heroNote}>
-          Separate vocal + instrumental tracks required
+          Upload one recording or bring your own separate tracks
         </p>
       </motion.div>
 
@@ -274,6 +274,8 @@ export function MusicStudioClient() {
   const [mode, setMode] = useState<Mode>("separate");
   const [vocal, setVocal] = useState<File | null>(null);
   const [instrument, setInstrument] = useState<File | null>(null);
+  const [singleRecording, setSingleRecording] = useState<File | null>(null);
+  const [recordingKind, setRecordingKind] = useState<"mixed" | "vocals_only" | "instrument_only">("mixed");
   const [preset, setPreset] = useState("acoustic");
   const [advanced, setAdvanced] = useState(false);
   const [settings, setSettings] = useState<Settings>(PRESET_SETTINGS.acoustic);
@@ -287,7 +289,7 @@ export function MusicStudioClient() {
   const turnstileRendered = useRef(false);
   const reducedMotion = useReducedMotion();
 
-  const inputError = validateFile(vocal) || validateFile(instrument);
+  const inputError = mode === "separate" ? (validateFile(vocal) || validateFile(instrument)) : validateFile(singleRecording);
 
   const isBusy =
     job?.stage === "uploading" ||
@@ -295,8 +297,7 @@ export function MusicStudioClient() {
     job?.status === "processing";
 
   const canProduce =
-    mode === "separate" &&
-    Boolean(vocal && instrument) &&
+    (mode === "separate" ? Boolean(vocal && instrument) : Boolean(singleRecording)) &&
     !inputError &&
     !isBusy &&
     (!TURNSTILE_SITE_KEY || Boolean(turnstileToken));
@@ -390,6 +391,13 @@ export function MusicStudioClient() {
     setError(validateFile(file));
   }
 
+  function setSingleFile(file: File | null) {
+    setSingleRecording(file);
+    setJob(null);
+    setStartedAt(null);
+    setError(validateFile(file));
+  }
+
   function handlePick(which: TrackType) {
     return (event: ChangeEvent<HTMLInputElement>) => {
       setTrack(which, event.target.files?.[0] ?? null);
@@ -397,7 +405,7 @@ export function MusicStudioClient() {
   }
 
   async function produce() {
-    if (!vocal || !instrument || !canProduce) return;
+    if (!canProduce) return;
 
     setError(null);
     setStartedAt(Date.now());
@@ -410,8 +418,14 @@ export function MusicStudioClient() {
     try {
       const body = new FormData();
 
-      body.set("vocal", vocal);
-      body.set("instrument", instrument);
+      if (mode === "separate") {
+        body.set("vocal", vocal!);
+        body.set("instrument", instrument!);
+      } else {
+        body.set("single_recording", singleRecording!);
+      }
+      body.set("mode", mode);
+      body.set("recording_kind", recordingKind);
       body.set("settings", JSON.stringify({ preset, ...settings }));
 
       if (turnstileToken) {
@@ -475,7 +489,7 @@ export function MusicStudioClient() {
           ? "Your files are on their way…"
           : isBusy
             ? "Balancing vocals, mixing and mastering…"
-            : "Two tracks, one great sound. Let’s do this.";
+            : "Pick a mode, upload and create your sound.";
 
   function downloadUrl(value?: string) {
     return value ? `${API_URL}${value}` : undefined;
@@ -570,21 +584,33 @@ export function MusicStudioClient() {
                 </button>
               </div>
 
-              {mode === "single" ? (
-                <div className={styles.warning}>
-                  <strong>🎙️ One Recording — Coming Soon</strong>
-                  <p>
-                    Upload vocals only, or vocals and instruments together.
-                    Rangmanch will intelligently enhance your recording.
-                  </p>
-                </div>
-              ) : mode === "karaoke" ? (
-                <div className={styles.warning}>
-                  <strong>🎤 AI Karaoke — Coming Soon</strong>
-                  <p>
-                    Upload a song, remove the original vocals, and adjust the
-                    pitch and tempo for your performance.
-                  </p>
+              {mode === "single" || mode === "karaoke" ? (
+                <div className={styles.uploadGrid}>
+                  <UploadSlot
+                    title={mode === "karaoke" ? "UPLOAD YOUR SONG" : "YOUR RECORDING"}
+                    description={mode === "karaoke" ? "Upload a song to extract its instrumental" : "Voice, voice with guitar/keyboard, or instrumental"}
+                    file={singleRecording}
+                    kind={mode === "karaoke" ? "instrument" : "vocal"}
+                    onChange={(event) => setSingleFile(event.target.files?.[0] ?? null)}
+                    onFile={setSingleFile}
+                    disabled={isBusy}
+                  />
+                  {mode === "single" && (
+                    <label className={styles.numberLabel}>
+                      What's in your recording?
+                      <select
+                        className={styles.numberInput}
+                        value={recordingKind}
+                        disabled={isBusy}
+                        onChange={(event) => setRecordingKind(event.target.value as typeof recordingKind)}
+                      >
+                        <option value="mixed">Singing + instrument (AI separation)</option>
+                        <option value="vocals_only">Vocals only</option>
+                        <option value="instrument_only">Instrumental only</option>
+                      </select>
+                    </label>
+                  )}
+                  {mode === "karaoke" && <p>Remove the original singer and download the instrumental backing track. Results may contain residual vocals.</p>}
                 </div>
               ) : (
                 <div className={styles.uploadGrid}>
@@ -612,8 +638,7 @@ export function MusicStudioClient() {
 
               <p className={styles.helpText}>
                 WAV, AIFF, MP3 or M4A · Up to 25 MB each · Maximum 2 minutes per
-                track. Start both recordings at the same timeline position for
-                best results.
+                track. {mode === "separate" ? "Start both recordings at the same timeline position for best results." : "Upload a recording up to 2 minutes."}
               </p>
 
               {inputError && (
