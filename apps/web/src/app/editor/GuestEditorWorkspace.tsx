@@ -936,7 +936,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           event.target.value = '';
         }}
       />
-      <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
+      <header className="rm-editor-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
         <button type="button" onClick={() => setSidebarOpen((value) => !value)} className="hidden h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 md:grid lg:hidden" aria-label={sidebarOpen ? 'Hide tools' : 'Show tools'}>{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
         <div className="min-w-0"><p className="truncate text-sm font-semibold">RangManch Creative Studio</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p>{authenticatedCreator && <Link href="/dashboard" className="text-[10px] text-slate-400 hover:text-white">Account</Link>}</div>
         <div className="ml-2 flex items-center gap-1"><button type="button" disabled={proposalActive || !canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
@@ -945,12 +945,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       {(uploadError || uploadNotice || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs">{uploadError ? <StatusTransition tone="error" label="Upload failed" detail={uploadError} /> : uploadNotice ? <StatusTransition tone="success" label="Upload ready" detail={uploadNotice} /> : <StatusTransition tone={exportError ? 'error' : exportStatus.includes('completed') ? 'success' : 'loading'} label={exportError ? 'Export failed' : exportStatus.includes('completed') ? 'Export ready' : 'Export status'} detail={exportStatus} />}</div>}
 
       <div className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${sidebarOpen ? 'md:grid-cols-[240px_minmax(0,1fr)]' : 'md:grid-cols-[minmax(0,1fr)]'} lg:grid-cols-[352px_minmax(0,1fr)_288px]`}>
-        <aside inert={proposalActive ? true : undefined} aria-disabled={proposalActive} className={`${sidebarOpen ? 'hidden md:flex' : 'hidden'} min-h-0 min-w-0 overflow-hidden border-r border-white/10 bg-[#111118] lg:flex ${proposalActive ? 'opacity-50' : ''}`}>
-          <nav aria-label="Editor tools" className="flex w-[72px] shrink-0 flex-col border-r border-white/10 py-2">{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={(event) => chooseTool(id, event.currentTarget)} className={`flex min-h-[58px] flex-col items-center justify-center gap-1 text-[10px] font-medium ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><Icon className="h-5 w-5" />{label}</button>)}</nav>
+        <aside inert={proposalActive ? true : undefined} aria-disabled={proposalActive} className={`rm-editor-library-shell ${sidebarOpen ? 'hidden md:flex' : 'hidden'} min-h-0 min-w-0 overflow-hidden border-r border-white/10 bg-[#111118] lg:flex ${proposalActive ? 'opacity-50' : ''}`}>
+          <nav aria-label="Editor tools" className="rm-editor-tools flex w-[72px] shrink-0 flex-col border-r border-white/10 py-2">{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={(event) => chooseTool(id, event.currentTarget)} aria-current={activeTool === id ? "true" : undefined} className={`flex min-h-[58px] flex-col items-center justify-center gap-1 text-[10px] font-medium ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><Icon className="h-5 w-5" />{label}</button>)}</nav>
           {(activeTool === 'media' || activeTool === 'audio') ? mediaLibrary : activeTool === 'text' ? <TextLibrary key={selectedText?.id ?? 'new-text'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setActiveTool('media'); }} /> : <div className="p-4 text-xs leading-5 text-slate-400">Choose an option to open its editing panel.</div>}
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-col bg-[#0d0d13]">
+        <main className="rm-editor-stage flex min-h-0 min-w-0 flex-col bg-[#0d0d13]">
           <div className="flex h-11 shrink-0 items-center justify-center gap-2 border-b border-white/10 px-3">
             <label htmlFor="editor-aspect-ratio" className="text-xs text-slate-400">Canvas</label>
             <select
@@ -978,10 +978,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           {audioItems.map((item) => <GuestAudioLayer key={item.id} item={item} playbackTime={playbackTime} isPlaying={isPlaying} catalogEntry={item.mediaId.startsWith('catalog:') ? audioLibrary.find((entry) => catalogMediaId(entry.id) === item.mediaId) : undefined} />)}
         </main>
 
-        <aside className="hidden min-h-0 overflow-hidden border-l border-white/10 bg-[#111118] lg:flex lg:flex-col" aria-label="Editor side panel">
-          <div className="grid h-11 shrink-0 grid-cols-2 border-b border-white/10 p-1">
-            <button type="button" onClick={() => setRightPanel('inspector')} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
-            <button type="button" onClick={() => setRightPanel('copilot')} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-amber-300' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
+        <aside className="rm-editor-inspector-shell hidden min-h-0 overflow-hidden border-l border-white/10 bg-[#111118] lg:flex lg:flex-col" aria-label="Editor side panel">
+          <div className="rm-editor-right-tabs grid h-11 shrink-0 grid-cols-2 border-b border-white/10 p-1">
+            <button type="button" onClick={() => setRightPanel('inspector')} aria-selected={rightPanel === 'inspector'} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
+            <button type="button" onClick={() => setRightPanel('copilot')} aria-selected={rightPanel === 'copilot'} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-amber-300' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
           </div>
           {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
         </aside>

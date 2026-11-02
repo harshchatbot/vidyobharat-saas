@@ -29,7 +29,7 @@ export function TextLibrary({ selectedText, startTime, onPreview, onApply, onCan
   function resetOriginal() { setDraft(base); setChoice('original'); onPreview(base); }
   function patchAnimation(updates: Partial<TextTimelineItem>, id: string) { preview({ ...draft, ...updates }, id); }
 
-  return <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#111118] text-slate-100" aria-label="Text library">
+  return <section className="rm-editor-library-shell flex min-h-0 min-w-0 flex-1 flex-col bg-[#111118] text-slate-100" aria-label="Text library">
     <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><h2 className="text-sm font-semibold">Text</h2><p className="mt-1 text-xs text-slate-400">{selectedText ? 'Style selected text' : 'Preview before adding'}</p></div><button type="button" onClick={() => { onPreview(undefined); onCancel(); }} aria-label="Close text library" className="grid h-9 w-9 place-items-center rounded-md hover:bg-white/10"><X className="h-4 w-4" /></button></div>
     <div className="flex gap-1 overflow-x-auto border-b border-white/10 p-2" role="tablist">{(['basic', 'templates', 'animations'] as const).map((id) => <button key={id} type="button" role="tab" aria-selected={section === id} onClick={() => setSection(id)} className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-semibold capitalize ${section === id ? 'bg-white/15 text-white' : 'text-slate-400 hover:bg-white/5'}`}>{id === 'basic' ? 'Basic Text' : id === 'templates' ? 'Text Templates' : 'Animations'}</button>)}</div>
     <div className="min-h-0 flex-1 overflow-y-auto p-3">
