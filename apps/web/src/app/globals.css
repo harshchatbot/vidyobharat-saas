@@ -320,3 +320,88 @@ p {
   outline: none;
   box-shadow: 0 0 0 3px hsl(var(--color-accent) / 0.2);
 }
+
+
+/* RangManch Creator theme: scoped to video editor only.
+   The preview canvas remains neutral to preserve color-accurate editing. */
+.rm-editor-skin {
+  --rm-ink: #221b23;
+  --rm-cream: #fff8e9;
+  --rm-paper: #fffdf7;
+  --rm-yellow: #ffda66;
+  --rm-lavender: #c9b9ff;
+  --rm-mint: #b8e6d4;
+  --rm-pink: #f7b4cb;
+  color: var(--rm-ink);
+  font-family: Manrope, Arial, sans-serif;
+  background:
+    radial-gradient(circle at 93% 5%, #f7b4cb90, transparent 28%),
+    radial-gradient(circle at 2% 75%, #c9b9ff70, transparent 35%),
+    var(--rm-cream);
+}
+.rm-editor-skin > header {
+  background: var(--rm-yellow);
+  border-color: var(--rm-ink);
+  border-bottom-width: 3px;
+  color: var(--rm-ink);
+}
+.rm-editor-skin > header p { color: var(--rm-ink); }
+.rm-editor-skin > header button { border-radius: 9px; }
+.rm-editor-skin > header button.bg-amber-400,
+.rm-editor-skin > header button.bg-violet-500 {
+  background: var(--rm-lavender);
+  color: var(--rm-ink);
+  box-shadow: 3px 3px 0 var(--rm-ink);
+  border: 2px solid var(--rm-ink);
+}
+.rm-editor-skin > header button:hover { filter: brightness(.96); }
+.rm-editor-skin > div.grid > aside {
+  background: var(--rm-paper);
+  border-color: var(--rm-ink);
+  color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > aside nav {
+  background: var(--rm-yellow);
+  border-color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > aside nav button {
+  color: var(--rm-ink);
+  font-weight: 700;
+}
+.rm-editor-skin > div.grid > aside nav button:hover,
+.rm-editor-skin > div.grid > aside nav button.bg-white\\/10 {
+  background: var(--rm-pink);
+  color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > main {
+  background: #f4e9fa;
+  color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > main > div:first-child {
+  border-color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > main section {
+  background: transparent;
+}
+.rm-editor-skin > div.grid > aside h2,
+.rm-editor-skin > div.grid > aside h3,
+.rm-editor-skin > div.grid > aside p,
+.rm-editor-skin > div.grid > aside strong,
+.rm-editor-skin > div.grid > aside label {
+  color: var(--rm-ink);
+}
+.rm-editor-skin > div.grid > aside button.bg-amber-400 {
+  background: var(--rm-yellow);
+  border: 1px solid var(--rm-ink);
+}
+.rm-editor-skin .text-amber-300 { color: #7542a5; }
+.rm-editor-skin .text-slate-400 { color: #5c5360; }
+.rm-editor-skin .text-slate-500 { color: #635963; }
+.rm-editor-skin .border-white\\/10 { border-color: #7d687c35; }
+.rm-editor-skin .bg-\\[\\#111118\\] { background: var(--rm-paper); }
+.rm-editor-skin .bg-\\[\\#0d0d13\\] { background: #f4e9fa; }
+.rm-editor-skin .bg-\\[\\#0a0a0f\\] { background: var(--rm-cream); }
+.rm-editor-skin button:focus-visible { outline: 3px solid #b95387; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .rm-editor-skin * { scroll-behavior: auto; }
+}
