@@ -1,8 +1,11 @@
 /**
  * Browser-only vocal separation. Audio never leaves the user's device.
  *
- * The model architecture and library code are MIT; review the exact pretrained
- * weight license before enabling this publicly.
+ * Runtime: web-audio-separation (MIT).
+ * Model: UVR_MDXNET_KARA_2, attributed to Ultimate Vocal Remover developers.
+ * Upstream UVR describes its own models as MIT with credit; see
+ * docs/music-browser-ai.md for upstream model provenance and license links.
+ * Public rollout additionally requires actual-device performance verification.
  *
  * OfflineAudioContext is used by the library to decode compressed audio.
  * It is not generally available in a Web Worker; keep orchestration on
