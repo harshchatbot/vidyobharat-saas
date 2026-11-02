@@ -20,7 +20,6 @@ export type BrowserMixSettings = {
 };
 
 const SAMPLE_RATE = 44100;
-const MAX_DURATION_SECONDS = 120;
 
 function clamp(value: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : 0));
@@ -30,8 +29,8 @@ export async function decodeFile(file: Blob): Promise<AudioBuffer> {
   const bytes = await file.arrayBuffer();
   const context = new OfflineAudioContext(2, 1, SAMPLE_RATE);
   const decoded = await context.decodeAudioData(bytes);
-  if (decoded.duration <= 0 || decoded.duration > MAX_DURATION_SECONDS) {
-    throw new Error("Choose an audio recording up to 2 minutes long.");
+  if (decoded.duration <= 0) {
+    throw new Error("The selected audio is empty.");
   }
   return decoded;
 }
@@ -105,7 +104,6 @@ export async function renderBrowserMix(
 ): Promise<Blob> {
   if (!vocal && !instrument) throw new Error("Select at least one recording.");
   const seconds = Math.max(vocal?.duration ?? 0, instrument?.duration ?? 0);
-  if (seconds > MAX_DURATION_SECONDS) throw new Error("Audio must be at most 2 minutes long.");
   const tail = Math.max(settings.reverb, settings.delay) > 0.01 ? 2 : 0;
   const ctx = new OfflineAudioContext(2, Math.ceil((seconds + tail) * SAMPLE_RATE), SAMPLE_RATE);
   const mixBus = ctx.createGain();
