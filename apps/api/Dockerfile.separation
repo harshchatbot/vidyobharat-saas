@@ -1,0 +1,8 @@
+# Build only after verifying host capacity and pretrained model redistribution/usage rights.
+# Reuses the regular Rangmanch API image, which contains the processing engine.
+# Build the base api image first: docker compose -f docker-compose.prod.yml build api
+FROM rangmanch-api:latest
+
+# Model weights are downloaded separately at runtime into the worker cache.
+# Pinning the package does not establish rights to the pretrained weights.
+RUN pip install --no-cache-dir 'demucs==4.0.1'
