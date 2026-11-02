@@ -459,7 +459,7 @@ export function MusicStudioClient() {
                   onClick={() => { clearBrowserStems(); clearOutput(); setMode("separate"); }}
                   disabled={isBusy}
                 >
-                  Two separate tracks
+                  Two Tracks — Mix & Master
                 </button>
 
                 <button
@@ -471,7 +471,7 @@ export function MusicStudioClient() {
                   onClick={() => { clearBrowserStems(); clearOutput(); setMode("single"); }}
                   disabled={isBusy}
                 >
-                  One recording
+                  One Recording — Enhance / Separate
                 </button>
 
                 <button
@@ -483,7 +483,7 @@ export function MusicStudioClient() {
                   onClick={() => { clearBrowserStems(); clearOutput(); setMode("karaoke"); }}
                   disabled={isBusy}
                 >
-                  🎤 Create Karaoke
+                  🎤 Create Karaoke — Remove Vocals
                 </button>
               </div>
 
@@ -491,7 +491,7 @@ export function MusicStudioClient() {
                 <div className={styles.uploadGrid}>
                   <UploadSlot
                     title={mode === "karaoke" ? "UPLOAD YOUR SONG" : "YOUR RECORDING"}
-                    description={mode === "karaoke" ? "Upload a song to extract its instrumental" : "Voice, voice with guitar/keyboard, or instrumental"}
+                    description={mode === "karaoke" ? "Upload a song with singing. AI creates instrumental karaoke and isolated vocals." : "Upload one recording, then tell us what it contains."}
                     file={singleRecording}
                     kind={mode === "karaoke" ? "instrument" : "vocal"}
                     onChange={(event) => setSingleFile(event.target.files?.[0] ?? null)}
@@ -507,13 +507,20 @@ export function MusicStudioClient() {
                         disabled={isBusy}
                         onChange={(event) => { clearBrowserStems(); clearOutput(); setRecordingKind(event.target.value as typeof recordingKind); }}
                       >
-                        <option value="mixed">Singing + instrument (AI separation)</option>
-                        <option value="vocals_only">Vocals only</option>
-                        <option value="instrument_only">Instrumental only</option>
+                        <option value="mixed">Singing + Music — Separate with AI</option>
+                        <option value="vocals_only">Vocals Only — Already No Music</option>
+                        <option value="instrument_only">Already Instrumental — No Vocals</option>
                       </select>
+                      <span className={styles.helpText}>
+                        {recordingKind === "mixed"
+                          ? "Use when your ONE file contains both singing and music (guitar, keyboard, or a full song). AI separates the vocals and instruments; download both stems and a new mix."
+                          : recordingKind === "vocals_only"
+                            ? "Use when this file contains ONLY your voice. Enhances your singing; it does not add music or remove vocals."
+                            : "Use when this file ALREADY contains instruments without any singing. Enhances the existing audio; it does NOT remove vocals. For a song with singing, choose Create Karaoke or Singing + Music."}
+                      </span>
                     </label>
                   )}
-                  {mode === "karaoke" && <p>Audio processing stays in your browser. Download a WAV instrumental; residual backing vocals may remain.</p>}
+                  {mode === "karaoke" && <p>Use this for a song that has vocals when you want backing music to sing over. AI separates lead vocals; download the instrumental and vocals WAV files. Some vocal bleed may remain.</p>}
                   {requiresBrowserAI && !BROWSER_SEPARATION_ENABLED && (
                     <p className={styles.warning} role="status">
                       Browser separation preview is not enabled yet. We'll activate it after model license and mobile testing.
@@ -545,8 +552,7 @@ export function MusicStudioClient() {
               )}
 
               <p className={styles.helpText}>
-                WAV, AIFF, MP3 or M4A · Up to 25 MB each · Maximum 2 minutes per
-                track. {mode === "separate" ? "Start both recordings at the same timeline position for best results." : "Upload a recording up to 2 minutes."}
+                WAV, AIFF, MP3 or M4A · Up to 25 MB per file · No fixed duration limit. {mode === "separate" ? "Choose this when you already have TWO separate files: one vocals and one instrumental. We mix and master them, without AI separation. Keep both tracks aligned." : "Long recordings use more device memory; processing time depends on your browser."}
               </p>
 
               {inputError && (
