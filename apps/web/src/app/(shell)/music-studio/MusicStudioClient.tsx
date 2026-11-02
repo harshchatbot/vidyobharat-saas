@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { API_URL } from "@/lib/env";
+import { separateBrowserAudio, type BrowserStems } from "@/lib/music-studio/browserSeparation";
 import styles from "./music-studio.module.css";
 
 type Mode = "separate" | "single" | "karaoke";
@@ -58,6 +59,9 @@ type Settings = {
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = new Set(["wav", "aif", "aiff", "mp3", "m4a"]);
+
+// Explicit opt-in until pretrained model weight rights and mobile performance are verified.
+const BROWSER_SEPARATION_ENABLED = process.env.NEXT_PUBLIC_BROWSER_SEPARATION_ENABLED === "true";
 
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_MUSIC_STUDIO_TURNSTILE_SITE_KEY;
@@ -285,13 +289,35 @@ export function MusicStudioClient() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [browserBusy, setBrowserBusy] = useState(false);
+  const [browserProgress, setBrowserProgress] = useState("");
+  const [browserStems, setBrowserStems] = useState<BrowserStems | null>(null);
+  const browserStemsRef = useRef<BrowserStems | null>(null);
+  const clearBrowserStems = () => {
+    const previous = browserStemsRef.current;
+    if (previous) {
+      URL.revokeObjectURL(previous.vocals);
+      URL.revokeObjectURL(previous.instrumental);
+    }
+    browserStemsRef.current = null;
+    setBrowserStems(null);
+  };
+  useEffect(() => () => {
+    const previous = browserStemsRef.current;
+    if (previous) {
+      URL.revokeObjectURL(previous.vocals);
+      URL.revokeObjectURL(previous.instrumental);
+    }
+  }, []);
 
   const turnstileRendered = useRef(false);
   const reducedMotion = useReducedMotion();
 
+  const requiresBrowserAI = mode === "karaoke" || (mode === "single" && recordingKind === "mixed");
   const inputError = mode === "separate" ? (validateFile(vocal) || validateFile(instrument)) : validateFile(singleRecording);
 
   const isBusy =
+    browserBusy ||
     job?.stage === "uploading" ||
     job?.status === "queued" ||
     job?.status === "processing";
@@ -300,7 +326,8 @@ export function MusicStudioClient() {
     (mode === "separate" ? Boolean(vocal && instrument) : Boolean(singleRecording)) &&
     !inputError &&
     !isBusy &&
-    (!TURNSTILE_SITE_KEY || Boolean(turnstileToken));
+    (!requiresBrowserAI || BROWSER_SEPARATION_ENABLED) &&
+    (mode === "karaoke" || !TURNSTILE_SITE_KEY || Boolean(turnstileToken));
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((current) => ({
@@ -380,6 +407,7 @@ export function MusicStudioClient() {
   }, [isBusy, startedAt]);
 
   function setTrack(which: TrackType, file: File | null) {
+    clearBrowserStems();
     if (which === "vocal") {
       setVocal(file);
     } else {
@@ -392,6 +420,7 @@ export function MusicStudioClient() {
   }
 
   function setSingleFile(file: File | null) {
+    clearBrowserStems();
     setSingleRecording(file);
     setJob(null);
     setStartedAt(null);
@@ -406,25 +435,54 @@ export function MusicStudioClient() {
 
   async function produce() {
     if (!canProduce) return;
-
     setError(null);
     setStartedAt(Date.now());
-    setJob({
-      id: "",
-      status: "queued",
-      stage: "uploading",
-    });
+    clearBrowserStems();
+
+    let uploadVocal = vocal;
+    let uploadInstrument = instrument;
+    let uploadMode: Mode = mode;
 
     try {
-      const body = new FormData();
+      if (requiresBrowserAI) {
+        if (!BROWSER_SEPARATION_ENABLED) throw new Error("Browser AI is not enabled yet.");
+        if (!singleRecording) throw new Error("Select an audio file first.");
+        setBrowserBusy(true);
+        setBrowserProgress("Preparing browser AI…");
+        const stems = await separateBrowserAudio(singleRecording, setBrowserProgress);
+        browserStemsRef.current = stems;
+        setBrowserStems(stems);
+        setBrowserBusy(false);
+        if (mode === "karaoke") {
+          // Karaoke never uploads the audio to our backend.
+          setStartedAt(null);
+          setBrowserProgress("");
+          return;
+        }
+        // Existing two-track server worker is reused for the final mix/master.
+        // The expensive separation is completed locally in the browser.
+        setBrowserProgress("Uploading separated stems for mastering…");
+        const [vocalBlob, musicBlob] = await Promise.all([
+          fetch(stems.vocals).then((response) => response.blob()),
+          fetch(stems.instrumental).then((response) => response.blob()),
+        ]);
+        uploadVocal = new File([vocalBlob], "vocals.wav", { type: "audio/wav" });
+        uploadInstrument = new File([musicBlob], "instrument.wav", { type: "audio/wav" });
+        if (uploadVocal.size > MAX_BYTES || uploadInstrument.size > MAX_BYTES) {
+          throw new Error("Separated WAVs exceed the 25 MB per-file upload limit. Try a shorter recording.");
+        }
+        uploadMode = "separate";
+      }
 
-      if (mode === "separate") {
-        body.set("vocal", vocal!);
-        body.set("instrument", instrument!);
+      setJob({ id: "", status: "queued", stage: "uploading" });
+      const body = new FormData();
+      if (uploadMode === "separate") {
+        body.set("vocal", uploadVocal!);
+        body.set("instrument", uploadInstrument!);
       } else {
         body.set("single_recording", singleRecording!);
       }
-      body.set("mode", mode);
+      body.set("mode", uploadMode);
       body.set("recording_kind", recordingKind);
       body.set("settings", JSON.stringify({ preset, ...settings }));
 
@@ -460,6 +518,8 @@ export function MusicStudioClient() {
 
       setJob(result as Job);
     } catch (cause) {
+      setBrowserBusy(false);
+      setBrowserProgress("");
       setJob(null);
       setError(
         cause instanceof Error ? cause.message : "Could not start your mix.",
@@ -468,6 +528,8 @@ export function MusicStudioClient() {
   }
 
   const stageTitle =
+    browserStems && mode === "karaoke" ? "Your karaoke is ready!" :
+    browserBusy ? "Separating your audio on this device…" :
     job?.status === "completed"
       ? "Your track is ready!"
       : job?.status === "failed"
@@ -481,6 +543,8 @@ export function MusicStudioClient() {
               : "Ready when you are!";
 
   const stageMessage =
+    browserStems && mode === "karaoke" ? "Preview or download the instrumental WAV below." :
+    browserBusy ? browserProgress :
     job?.status === "completed"
       ? "Give it a listen, then grab your master."
       : job?.status === "failed"
@@ -610,7 +674,12 @@ export function MusicStudioClient() {
                       </select>
                     </label>
                   )}
-                  {mode === "karaoke" && <p>Remove the original singer and download the instrumental backing track. Results may contain residual vocals.</p>}
+                  {mode === "karaoke" && <p>Audio processing stays in your browser. Download a WAV instrumental; residual backing vocals may remain.</p>}
+                  {requiresBrowserAI && !BROWSER_SEPARATION_ENABLED && (
+                    <p className={styles.warning} role="status">
+                      Browser separation preview is not enabled yet. We'll activate it after model license and mobile testing.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className={styles.uploadGrid}>
@@ -868,7 +937,7 @@ export function MusicStudioClient() {
 
               <div className={styles.productionBody}>
                 <div className={styles.productionIcon}>
-                  {job?.status === "completed" ? (
+                  {(job?.status === "completed" || (browserStems && mode === "karaoke")) ? (
                     <CheckCircle2 size={39} />
                   ) : (
                     <Waves size={39} />
@@ -912,13 +981,27 @@ export function MusicStudioClient() {
                 >
                   {isBusy ? <Waves size={21} /> : <Sparkles size={21} />}
 
-                  {isBusy ? "WORKING ON YOUR MIX…" : "MAKE MY MIX!"}
+                  {isBusy ? "PROCESSING…" : mode === "karaoke" ? "CREATE KARAOKE" : "MAKE MY MIX!"}
                   <ArrowRight size={20} />
                 </button>
 
                 <p className={styles.productionHint}>
                   Choose your files and preset, then let RangManch do its thing.
                 </p>
+
+                {browserStems && mode === "karaoke" && (
+                  <div className={styles.output} aria-live="polite">
+                    <h3><CheckCircle2 size={20} /> KARAOKE READY!</h3>
+                    <audio controls className={styles.audioPreview} src={browserStems.instrumental} />
+                    <a
+                      className={styles.produceButton}
+                      href={browserStems.instrumental}
+                      download="rangmanch-karaoke.wav"
+                    >
+                      <Download size={18} /> Download instrumental WAV
+                    </a>
+                  </div>
+                )}
 
                 <AnimatePresence mode="wait">
                   {job?.status === "completed" && (
