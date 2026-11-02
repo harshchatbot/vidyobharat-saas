@@ -1,8 +1,8 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
-import Script from "next/script";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
   ArrowRight,
@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 
-import { API_URL } from "@/lib/env";
+import { decodeFile, renderBrowserMix } from "@/lib/music-studio/browserProduction";
 import { separateBrowserAudio, type BrowserStems } from "@/lib/music-studio/browserSeparation";
 import styles from "./music-studio.module.css";
 
@@ -63,8 +63,6 @@ const SUPPORTED_EXTENSIONS = new Set(["wav", "aif", "aiff", "mp3", "m4a"]);
 // Explicit opt-in until pretrained model weight rights and mobile performance are verified.
 const BROWSER_SEPARATION_ENABLED = process.env.NEXT_PUBLIC_BROWSER_SEPARATION_ENABLED === "true";
 
-const TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_MUSIC_STUDIO_TURNSTILE_SITE_KEY;
 
 const PRESET_SETTINGS: Record<string, Settings> = {
   acoustic: {
@@ -133,21 +131,6 @@ const PRESETS = [
     description: "Crisp & polished",
   },
 ];
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        element: string,
-        options: {
-          sitekey: string;
-          callback: (token: string) => void;
-          "expired-callback": () => void;
-        },
-      ) => void;
-    };
-  }
-}
 
 function validateFile(file: File | null): string | null {
   if (!file) return null;
@@ -284,11 +267,17 @@ export function MusicStudioClient() {
   const [advanced, setAdvanced] = useState(false);
   const [settings, setSettings] = useState<Settings>(PRESET_SETTINGS.acoustic);
 
-  const [job, setJob] = useState<Job | null>(null);
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const outputUrlRef = useRef<string | null>(null);
+  function clearOutput() {
+    if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current);
+    outputUrlRef.current = null;
+    setOutputUrl(null);
+  }
   const [error, setError] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+
+
+
   const [browserBusy, setBrowserBusy] = useState(false);
   const [browserProgress, setBrowserProgress] = useState("");
   const [browserStems, setBrowserStems] = useState<BrowserStems | null>(null);
@@ -310,24 +299,19 @@ export function MusicStudioClient() {
     }
   }, []);
 
-  const turnstileRendered = useRef(false);
+
   const reducedMotion = useReducedMotion();
 
   const requiresBrowserAI = mode === "karaoke" || (mode === "single" && recordingKind === "mixed");
   const inputError = mode === "separate" ? (validateFile(vocal) || validateFile(instrument)) : validateFile(singleRecording);
 
-  const isBusy =
-    browserBusy ||
-    job?.stage === "uploading" ||
-    job?.status === "queued" ||
-    job?.status === "processing";
+  const isBusy = browserBusy;
 
   const canProduce =
     (mode === "separate" ? Boolean(vocal && instrument) : Boolean(singleRecording)) &&
     !inputError &&
     !isBusy &&
-    (!requiresBrowserAI || BROWSER_SEPARATION_ENABLED) &&
-    (mode === "karaoke" || !TURNSTILE_SITE_KEY || Boolean(turnstileToken));
+    (!requiresBrowserAI || BROWSER_SEPARATION_ENABLED);
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((current) => ({
@@ -336,91 +320,21 @@ export function MusicStudioClient() {
     }));
   }
 
-  function initializeTurnstile() {
-    if (!TURNSTILE_SITE_KEY || !window.turnstile || turnstileRendered.current) {
-      return;
-    }
-
-    turnstileRendered.current = true;
-
-    window.turnstile.render("#music-studio-turnstile", {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback: setTurnstileToken,
-      "expired-callback": () => setTurnstileToken(null),
-    });
-  }
-
-  useEffect(() => {
-    initializeTurnstile();
-    // Mount-only initialization; Script onLoad also handles late loading.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!job?.id || !["queued", "processing"].includes(job.status)) {
-      return;
-    }
-
-    let requestInFlight = false;
-
-    const timer = window.setInterval(async () => {
-      if (requestInFlight) return;
-      requestInFlight = true;
-
-      try {
-        const response = await fetch(
-          `${API_URL}/api/music-studio/jobs/${job.id}`,
-          { credentials: "include" },
-        );
-
-        if (!response.ok) {
-          throw new Error(`Could not check progress (${response.status}).`);
-        }
-
-        const next = (await response.json()) as Job;
-        setJob(next);
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "Could not retrieve job progress.",
-        );
-      } finally {
-        requestInFlight = false;
-      }
-    }, 1500);
-
-    return () => window.clearInterval(timer);
-  }, [job?.id, job?.status]);
-
-  useEffect(() => {
-    if (!isBusy || !startedAt) {
-      setElapsed(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [isBusy, startedAt]);
-
   function setTrack(which: TrackType, file: File | null) {
     clearBrowserStems();
+    clearOutput();
     if (which === "vocal") {
       setVocal(file);
     } else {
       setInstrument(file);
     }
 
-    setJob(null);
-    setStartedAt(null);
     setError(validateFile(file));
   }
 
   function setSingleFile(file: File | null) {
     clearBrowserStems();
+    clearOutput();
     setSingleRecording(file);
     setJob(null);
     setStartedAt(null);
@@ -435,139 +349,67 @@ export function MusicStudioClient() {
 
   async function produce() {
     if (!canProduce) return;
-    setError(null);
-    setStartedAt(Date.now());
     clearBrowserStems();
-
-    let uploadVocal = vocal;
-    let uploadInstrument = instrument;
-    let uploadMode: Mode = mode;
-
+    clearOutput();
+    setError(null);
+    setBrowserBusy(true);
     try {
-      if (requiresBrowserAI) {
-        if (!BROWSER_SEPARATION_ENABLED) throw new Error("Browser AI is not enabled yet.");
-        if (!singleRecording) throw new Error("Select an audio file first.");
-        setBrowserBusy(true);
-        setBrowserProgress("Preparing browser AI…");
-        const stems = await separateBrowserAudio(singleRecording, setBrowserProgress);
-        browserStemsRef.current = stems;
-        setBrowserStems(stems);
-        setBrowserBusy(false);
-        if (mode === "karaoke") {
-          // Karaoke never uploads the audio to our backend.
-          setStartedAt(null);
-          setBrowserProgress("");
-          return;
+      if (mode === "karaoke") {
+        if (!singleRecording || !BROWSER_SEPARATION_ENABLED) throw new Error("Browser karaoke is not enabled.");
+        const result = await separateBrowserAudio(singleRecording, setBrowserProgress);
+        browserStemsRef.current = result;
+        setBrowserStems(result);
+        setBrowserProgress("Karaoke ready — audio stayed on your device.");
+        return;
+      }
+
+      let voiceFile: Blob | null = mode === "separate" ? vocal : null;
+      let musicFile: Blob | null = mode === "separate" ? instrument : null;
+      if (mode === "single") {
+        if (!singleRecording) throw new Error("Select a recording.");
+        if (recordingKind === "mixed") {
+          if (!BROWSER_SEPARATION_ENABLED) throw new Error("Browser separation is not enabled.");
+          const stems = await separateBrowserAudio(singleRecording, setBrowserProgress);
+          browserStemsRef.current = stems;
+          setBrowserStems(stems);
+          voiceFile = await fetch(stems.vocals).then((res) => res.blob());
+          musicFile = await fetch(stems.instrumental).then((res) => res.blob());
+        } else if (recordingKind === "vocals_only") {
+          voiceFile = singleRecording;
+        } else {
+          musicFile = singleRecording;
         }
-        // Existing two-track server worker is reused for the final mix/master.
-        // The expensive separation is completed locally in the browser.
-        setBrowserProgress("Uploading separated stems for mastering…");
-        const [vocalBlob, musicBlob] = await Promise.all([
-          fetch(stems.vocals).then((response) => response.blob()),
-          fetch(stems.instrumental).then((response) => response.blob()),
-        ]);
-        uploadVocal = new File([vocalBlob], "vocals.wav", { type: "audio/wav" });
-        uploadInstrument = new File([musicBlob], "instrument.wav", { type: "audio/wav" });
-        if (uploadVocal.size > MAX_BYTES || uploadInstrument.size > MAX_BYTES) {
-          throw new Error("Separated WAVs exceed the 25 MB per-file upload limit. Try a shorter recording.");
-        }
-        uploadMode = "separate";
       }
-
-      setJob({ id: "", status: "queued", stage: "uploading" });
-      const body = new FormData();
-      if (uploadMode === "separate") {
-        body.set("vocal", uploadVocal!);
-        body.set("instrument", uploadInstrument!);
-      } else {
-        body.set("single_recording", singleRecording!);
-      }
-      body.set("mode", uploadMode);
-      body.set("recording_kind", recordingKind);
-      body.set("settings", JSON.stringify({ preset, ...settings }));
-
-      if (turnstileToken) {
-        body.set("turnstile_token", turnstileToken);
-      }
-
-      const response = await fetch(`${API_URL}/api/music-studio/jobs`, {
-        method: "POST",
-        body,
-        credentials: "include",
-      });
-
-      const result = (await response.json()) as
-        | Job
-        | {
-            detail?: string | { message?: string };
-          };
-
-      if (!response.ok) {
-        let message = "Could not start your mix.";
-
-        if ("detail" in result) {
-          if (typeof result.detail === "string") {
-            message = result.detail;
-          } else if (result.detail?.message) {
-            message = result.detail.message;
-          }
-        }
-
-        throw new Error(message);
-      }
-
-      setJob(result as Job);
+      setBrowserProgress("Enhancing and mastering locally…");
+      const [voice, music] = await Promise.all([
+        voiceFile ? decodeFile(voiceFile) : Promise.resolve(null),
+        musicFile ? decodeFile(musicFile) : Promise.resolve(null),
+      ]);
+      const mix = await renderBrowserMix(voice, music, settings);
+      const resultUrl = URL.createObjectURL(mix);
+      outputUrlRef.current = resultUrl;
+      setOutputUrl(resultUrl);
+      setBrowserProgress("Your WAV master is ready!");
     } catch (cause) {
+      clearBrowserStems();
+      clearOutput();
+      setError(cause instanceof Error ? cause.message : "Audio processing failed.");
+    } finally {
       setBrowserBusy(false);
-      setBrowserProgress("");
-      setJob(null);
-      setError(
-        cause instanceof Error ? cause.message : "Could not start your mix.",
-      );
+      setStartedAt(null);
     }
   }
 
-  const stageTitle =
-    browserStems && mode === "karaoke" ? "Your karaoke is ready!" :
-    browserBusy ? "Separating your audio on this device…" :
-    job?.status === "completed"
-      ? "Your track is ready!"
-      : job?.status === "failed"
-        ? "Something went wrong"
-        : job?.stage === "uploading"
-          ? "Uploading your tracks"
-          : job?.stage === "validating_recordings"
-            ? "Checking your recordings"
-            : job?.stage === "processing_mix_master_export"
-              ? "Mixing the magic"
-              : "Ready when you are!";
-
-  const stageMessage =
-    browserStems && mode === "karaoke" ? "Preview or download the instrumental WAV below." :
-    browserBusy ? browserProgress :
-    job?.status === "completed"
-      ? "Give it a listen, then grab your master."
-      : job?.status === "failed"
-        ? job.error || "Please try again with different recordings."
-        : job?.stage === "uploading"
-          ? "Your files are on their way…"
-          : isBusy
-            ? "Balancing vocals, mixing and mastering…"
-            : "Pick a mode, upload and create your sound.";
-
-  function downloadUrl(value?: string) {
-    return value ? `${API_URL}${value}` : undefined;
-  }
+  const ready = mode === "karaoke" ? Boolean(browserStems) : Boolean(outputUrl);
+  const stageTitle = browserBusy ? "Working on your device…" :
+    ready ? "Your track is ready!" : "Ready when you are!";
+  const stageMessage = browserBusy ? browserProgress :
+    ready ? "Preview and download your result below." :
+    "Choose a mode, add a recording and create your sound.";
 
   return (
     <main className={styles.page}>
-      {TURNSTILE_SITE_KEY && (
-        <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-          strategy="afterInteractive"
-          onLoad={initializeTurnstile}
-        />
-      )}
+
 
       <div className={styles.container}>
         <StudioHero />
@@ -948,7 +790,7 @@ export function MusicStudioClient() {
 
                 <p aria-live="polite" className={styles.status}>
                   {stageMessage}
-                  {isBusy ? ` · ${elapsed}s elapsed` : ""}
+
                 </p>
 
                 {isBusy && (
@@ -960,12 +802,7 @@ export function MusicStudioClient() {
                   </div>
                 )}
 
-                {TURNSTILE_SITE_KEY && (
-                  <div
-                    id="music-studio-turnstile"
-                    className={styles.turnstile}
-                  />
-                )}
+
 
                 {error && (
                   <p role="alert" className={styles.error}>
@@ -1003,51 +840,17 @@ export function MusicStudioClient() {
                   </div>
                 )}
 
-                <AnimatePresence mode="wait">
-                  {job?.status === "completed" && (
-                    <motion.div
-                      key="completed"
-                      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className={styles.output}
-                    >
-                      <h3>
-                        <CheckCircle2 size={21} />
-                        YOUR TRACK IS READY!
-                      </h3>
+                {outputUrl && mode !== "karaoke" && (
+                  <div className={styles.output}>
+                    <h3><CheckCircle2 size={20} /> MIX READY!</h3>
+                    <audio controls className={styles.audioPreview} src={outputUrl} />
+                    <a className={styles.produceButton} href={outputUrl} download="rangmanch-master.wav">
+                      <Download size={18} /> Download WAV
+                    </a>
+                    <p>Browser DSP preview: peak-normalized WAV. Full LUFS mastering and MP3 export are not yet available.</p>
+                  </div>
+                )}
 
-                      <p>Listen to your masterpiece and download your mix.</p>
-
-                      <audio
-                        controls
-                        crossOrigin="use-credentials"
-                        className={styles.audioPreview}
-                        src={downloadUrl(job.downloads?.wav)}
-                      />
-
-                      {job.measurements && (
-                        <p className={styles.measurements}>
-                          {job.measurements.integrated_lufs.toFixed(1)} LUFS ·{" "}
-                          {job.measurements.true_peak_dbtp.toFixed(1)} dBTP
-                        </p>
-                      )}
-
-                      <div className={styles.downloadGrid}>
-                        {(["wav", "mp3"] as const).map((kind) => (
-                          <a
-                            key={kind}
-                            href={downloadUrl(job.downloads?.[kind]) || "#"}
-                            className={styles.downloadButton}
-                          >
-                            <Download size={17} />
-                            {kind.toUpperCase()}
-                          </a>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
 
