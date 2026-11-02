@@ -28,7 +28,7 @@ MUSIC_LAB_SRC = Path("/app/music_lab")
 
 POLL_SECONDS = 2
 MAX_ATTEMPTS = 2
-PROCESSING_TIMEOUT_SECONDS = 300
+PROCESSING_TIMEOUT_SECONDS = 900 if os.getenv('MUSIC_STUDIO_WORKER_KIND') == 'separation' else 300
 LEASE_SECONDS = 360
 HEARTBEAT_SECONDS = 30
 
@@ -114,41 +114,32 @@ def process_job(
                 "Source audio files are missing"
             )
 
-        script = """
-import json
-import sys
-from pathlib import Path
-from produce import produce
-
-vocal = Path(sys.argv[1])
-instrument = Path(sys.argv[2])
-output = Path(sys.argv[3])
-settings = json.loads(sys.argv[4])
-
-result = produce(vocal, instrument, output, **settings)
-print(json.dumps(result))
-"""
+        # The single, karaoke, and two-track modes share one producer.
+        # Heavy jobs are claimed only by dedicated separation workers.
+        script = MUSIC_LAB_SRC / "music_job_processor.py"
+        log_path = attempt_dir / "processor.log"
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(MUSIC_LAB_SRC)
 
+        processor_log = open(log_path, "w", encoding="utf-8")
         process = subprocess.Popen(
             [
                 sys.executable,
-                "-c",
-                script,
+                str(script),
                 str(vocal),
                 str(instrument),
                 str(attempt_dir),
                 json.dumps(job["settings"]),
             ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=processor_log,
             text=True,
             env=env,
             start_new_session=True,
         )
 
+        processor_log.close()
         heartbeat_thread.start()
 
         # Poll for completion so SIGTERM and lease loss
@@ -177,7 +168,8 @@ print(json.dumps(result))
 
             shutdown_requested.wait(0.5)
 
-        stdout, stderr = process.communicate(timeout=10)
+        stdout, _ = process.communicate(timeout=10)
+        stderr = log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path.exists() else ""
 
         if shutdown_requested.is_set() or lease_lost.is_set():
             raise InterruptedError(
@@ -322,6 +314,7 @@ def run_forever() -> None:
             job = repo.claim_next(
                 worker_id,
                 lease_seconds=LEASE_SECONDS,
+                separation_worker=(os.getenv("MUSIC_STUDIO_WORKER_KIND") == "separation"),
             )
 
             if job:
