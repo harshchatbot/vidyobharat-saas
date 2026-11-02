@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import secrets
 
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, Response, UploadFile
@@ -57,26 +56,22 @@ async def create_job(
     instrument: UploadFile | None = File(default=None),
     single_recording: UploadFile | None = File(default=None),
     settings: str = Form("{}"),
-    mode: str = Form("separate"),
-    recording_kind: str = Form("mixed"),
     turnstile_token: str | None = Form(default=None),
     guest_session: str | None = Cookie(
         default=None, alias=GUEST_SESSION_COOKIE
     ),
 ):
-    if mode not in {"separate", "single", "karaoke"}:
-        raise error_response(422, "invalid_mode", "Choose a valid Music Studio mode.")
-    if recording_kind not in {"mixed", "vocals_only", "instrument_only"}:
-        raise error_response(422, "invalid_recording_kind", "Invalid recording type.")
-    if mode == "separate":
-        if vocal is None or instrument is None or single_recording is not None:
-            raise error_response(422, "missing_tracks", "Upload two separate tracks.")
-    else:
-        if single_recording is None or vocal is not None or instrument is not None:
-            raise error_response(422, "missing_recording", "Upload exactly one recording.")
-    needs_separation = mode == "karaoke" or (mode == "single" and recording_kind == "mixed")
-    if needs_separation and os.getenv("MUSIC_STUDIO_SEPARATION_ENABLED", "false").lower() != "true":
-        raise error_response(503, "separation_unavailable", "AI separation is not enabled on this server yet.")
+    if single_recording is not None:
+        raise error_response(
+            422, "separation_unavailable",
+            "Upload separate vocal and instrumental tracks.",
+        )
+
+    if vocal is None or instrument is None:
+        raise error_response(
+            422, "missing_tracks",
+            "Upload both a vocal and an instrumental track.",
+        )
 
     session_token = guest_session or secrets.token_urlsafe(32)
 
@@ -96,20 +91,14 @@ async def create_job(
         if not isinstance(parsed_settings, dict):
             raise ValueError("Settings must be an object.")
 
-        if mode == "separate":
-            vocal_ext = Path(vocal.filename or "").suffix.lower()
-            instrument_ext = Path(instrument.filename or "").suffix.lower()
-            if vocal_ext not in SUPPORTED_EXTENSIONS or instrument_ext not in SUPPORTED_EXTENSIONS:
-                raise ValueError("Use WAV, AIFF, MP3, or M4A audio.")
-        else:
-            recording_ext = Path(single_recording.filename or "").suffix.lower()
-            if recording_ext not in SUPPORTED_EXTENSIONS:
-                raise ValueError("Use WAV, AIFF, MP3, or M4A audio.")
-        # Server-owned routing fields: never accept these from clients.
-        parsed_settings.pop("_mode", None)
-        parsed_settings.pop("_recording_kind", None)
-        parsed_settings["_mode"] = mode
-        parsed_settings["_recording_kind"] = recording_kind
+        vocal_ext = Path(vocal.filename or "").suffix.lower()
+        instrument_ext = Path(instrument.filename or "").suffix.lower()
+
+        if (
+            vocal_ext not in SUPPORTED_EXTENSIONS
+            or instrument_ext not in SUPPORTED_EXTENSIONS
+        ):
+            raise ValueError("Use WAV, AIFF, MP3, or M4A audio.")
 
     except (ValueError, json.JSONDecodeError) as exc:
         raise error_response(
@@ -119,21 +108,27 @@ async def create_job(
     job_id = str(uuid4())
     folder = music_studio_service.root / job_id
 
-    vocal_filename = f"vocal{vocal_ext}" if mode == "separate" else f"single{recording_ext}"
-    instrument_filename = f"instrument{instrument_ext}" if mode == "separate" else vocal_filename
+    vocal_filename = f"vocal{vocal_ext}"
+    instrument_filename = f"instrument{instrument_ext}"
 
     queued = False
 
     try:
-        if mode == "separate":
-            await save_upload_limited(vocal, folder / vocal_filename)
-            await save_upload_limited(instrument, folder / instrument_filename)
-            await asyncio.to_thread(validate_audio, folder / vocal_filename)
-            await asyncio.to_thread(validate_audio, folder / instrument_filename)
-        else:
-            # Existing non-null DB filename columns share the same stored source.
-            await save_upload_limited(single_recording, folder / vocal_filename)
-            await asyncio.to_thread(validate_audio, folder / vocal_filename)
+        # Stream directly to private storage.
+        await save_upload_limited(
+            vocal, folder / vocal_filename
+        )
+        await save_upload_limited(
+            instrument, folder / instrument_filename
+        )
+
+        # Validate without loading full audio into RAM.
+        await asyncio.to_thread(
+            validate_audio, folder / vocal_filename
+        )
+        await asyncio.to_thread(
+            validate_audio, folder / instrument_filename
+        )
 
         # Create the PostgreSQL queue entry last.
         job = await music_studio_service.create_saved_tracks_job(
