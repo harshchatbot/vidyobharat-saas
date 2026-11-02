@@ -9,7 +9,7 @@ export function browserExportDimensions(aspectRatio: TimelineProject["aspectRati
     "9:16": [9, 16], "16:9": [16, 9], "1:1": [1, 1], "4:5": [4, 5],
   };
   const [w, h] = ratios[aspectRatio];
-  return h >= w ? { width: Math.round(base * w / h / 2) * 2, height: base } : { width: base, height: Math.round(base * h / w / 2) * 2 };
+  return h >= w ? { width: base, height: Math.round(base * h / w / 2) * 2 } : { width: Math.round(base * w / h / 2) * 2, height: base };
 }
 
 import type { EffectTimelineItem, GuestMedia, TextTimelineItem, TimelineItem, TimelineProject, VideoTimelineItem } from '../../app/editor/timeline/types.ts';
