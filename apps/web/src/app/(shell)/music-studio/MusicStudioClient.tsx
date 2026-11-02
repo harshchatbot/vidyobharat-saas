@@ -258,7 +258,7 @@ function HowItWorks() {
 }
 
 export function MusicStudioClient() {
-  const [mode, setMode] = useState<Mode>("separate");
+  const [mode, setMode] = useState<Mode>("single");
   const [vocal, setVocal] = useState<File | null>(null);
   const [instrument, setInstrument] = useState<File | null>(null);
   const [singleRecording, setSingleRecording] = useState<File | null>(null);
@@ -680,85 +680,25 @@ export function MusicStudioClient() {
 
               {advanced && (
                 <div className={styles.advancedPanel}>
-                  <div>
-                    <label
-                      className={styles.numberLabel}
-                      htmlFor="stereo-space"
-                    >
-                      Stereo Space
-                    </label>
-
-                    <select
-                      id="stereo-space"
-                      value={settings.stereo_space}
-                      disabled={isBusy}
-                      className={styles.numberInput}
-                      onChange={(event) =>
-                        update(
-                          "stereo_space",
-                          event.target.value as Settings["stereo_space"],
-                        )
-                      }
-                    >
-                      <option value="natural">Natural</option>
-                      <option value="wide">Wide</option>
-                      <option value="cinematic">Cinematic</option>
-                    </select>
-                  </div>
                   <label className={styles.numberLabel}>
-                    Manual sync offset (ms)
+                    Instrument sync offset (milliseconds, positive only)
                     <input
                       type="number"
-                      min={-10000}
-                      max={10000}
-                      value={settings.sync_offset_ms}
+                      min={0}
+                      max={500}
+                      value={Math.max(0, settings.sync_offset_ms)}
                       disabled={isBusy}
                       className={styles.numberInput}
-                      onChange={(event) =>
-                        update("sync_offset_ms", Number(event.target.value))
-                      }
+                      onChange={(event) => update("sync_offset_ms", Math.max(0, Number(event.target.value)))}
                     />
                   </label>
-
-                  <label className={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={settings.sidechain}
-                      disabled={isBusy}
-                      onChange={(event) =>
-                        update("sidechain", event.target.checked)
-                      }
-                    />
-                    Gentle vocal ducking
-                  </label>
-
-                  <Slider
-                    label="De-esser"
-                    value={settings.de_esser}
-                    disabled={isBusy}
-                    onChange={(value) => update("de_esser", value)}
-                  />
-
                   <Slider
                     label="Vocal warmth"
                     value={settings.vocal_warmth}
                     disabled={isBusy}
                     onChange={(value) => update("vocal_warmth", value)}
                   />
-
-                  <Slider
-                    label="Instrumental width"
-                    value={settings.instrumental_width}
-                    disabled={isBusy}
-                    onChange={(value) => update("instrumental_width", value)}
-                  />
-
-                  <Slider
-                    label="Gentle noise reduction"
-                    value={settings.noise_reduction}
-                    disabled={isBusy}
-                    onChange={(value) => update("noise_reduction", value)}
-                  />
+                  <p>Browser preview: advanced de-essing, noise reduction, stereo expansion and LUFS mastering are not yet included.</p>
                 </div>
               )}
             </section>
