@@ -336,8 +336,6 @@ export function MusicStudioClient() {
     clearBrowserStems();
     clearOutput();
     setSingleRecording(file);
-    setJob(null);
-    setStartedAt(null);
     setError(validateFile(file));
   }
 
@@ -396,7 +394,6 @@ export function MusicStudioClient() {
       setError(cause instanceof Error ? cause.message : "Audio processing failed.");
     } finally {
       setBrowserBusy(false);
-      setStartedAt(null);
     }
   }
 
@@ -459,7 +456,7 @@ export function MusicStudioClient() {
                       ? styles.modeActive
                       : styles.modeInactive
                   }
-                  onClick={() => setMode("separate")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("separate"); }}
                   disabled={isBusy}
                 >
                   Two separate tracks
@@ -471,7 +468,7 @@ export function MusicStudioClient() {
                   className={
                     mode === "single" ? styles.modeActive : styles.modeInactive
                   }
-                  onClick={() => setMode("single")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("single"); }}
                   disabled={isBusy}
                 >
                   One recording
@@ -483,7 +480,7 @@ export function MusicStudioClient() {
                   className={
                     mode === "karaoke" ? styles.modeActive : styles.modeInactive
                   }
-                  onClick={() => setMode("karaoke")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("karaoke"); }}
                   disabled={isBusy}
                 >
                   🎤 Create Karaoke
@@ -508,7 +505,7 @@ export function MusicStudioClient() {
                         className={styles.numberInput}
                         value={recordingKind}
                         disabled={isBusy}
-                        onChange={(event) => setRecordingKind(event.target.value as typeof recordingKind)}
+                        onChange={(event) => { clearBrowserStems(); clearOutput(); setRecordingKind(event.target.value as typeof recordingKind); }}
                       >
                         <option value="mixed">Singing + instrument (AI separation)</option>
                         <option value="vocals_only">Vocals only</option>
@@ -779,7 +776,7 @@ export function MusicStudioClient() {
 
               <div className={styles.productionBody}>
                 <div className={styles.productionIcon}>
-                  {(job?.status === "completed" || (browserStems && mode === "karaoke")) ? (
+                  {ready ? (
                     <CheckCircle2 size={39} />
                   ) : (
                     <Waves size={39} />
