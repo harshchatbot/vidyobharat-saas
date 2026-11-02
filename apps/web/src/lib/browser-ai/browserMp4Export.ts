@@ -1,7 +1,17 @@
 export const EXPORT_WIDTH = 720;
 export const EXPORT_HEIGHT = 1280;
 export const EXPORT_FPS = 30;
-export const EXPORT_DURATION_SECONDS = 30;
+export const EXPORT_DURATION_SECONDS = 60;
+
+export function browserExportDimensions(aspectRatio: TimelineProject["aspectRatio"], resolution: TimelineProject["exportSettings"]["resolution"]) {
+  const base = resolution === "1080p" ? 1080 : 720;
+  const ratios: Record<TimelineProject["aspectRatio"], [number, number]> = {
+    "9:16": [9, 16], "16:9": [16, 9], "1:1": [1, 1], "4:5": [4, 5],
+  };
+  const [w, h] = ratios[aspectRatio];
+  return h >= w ? { width: Math.round(base * w / h / 2) * 2, height: base } : { width: base, height: Math.round(base * h / w / 2) * 2 };
+}
+
 import type { EffectTimelineItem, GuestMedia, TextTimelineItem, TimelineItem, TimelineProject, VideoTimelineItem } from '../../app/editor/timeline/types.ts';
 import { browserEffectState, transitionProgress } from '../../app/editor/timeline/filters.ts';
 
@@ -83,32 +93,34 @@ export function drawExportFrame(
 }
 
 export function drawTimelineFrame(context: CanvasRenderingContext2D, project: TimelineProject, assets: BrowserTimelineAssets, frame: number): void {
+  const WIDTH = context.canvas.width;
+  const HEIGHT = context.canvas.height;
   const { videos, texts, effects } = supportedTimelineItems(project, assets);
   const time = frameTime(frame);
-  context.fillStyle = '#000'; context.fillRect(0, 0, EXPORT_WIDTH, EXPORT_HEIGHT);
+  context.fillStyle = '#000'; context.fillRect(0, 0, WIDTH, HEIGHT);
   const video = videos.find((item) => time >= item.startTime && time < item.startTime + item.duration);
   const previous = video ? videos[video ? videos.indexOf(video) - 1 : -1] : undefined;
   const transition = previous?.transitionOut && video && Math.abs((previous.startTime + previous.duration) - video.startTime) < 1e-6 ? previous.transitionOut : undefined;
   const drawVideo = (item: VideoTimelineItem, alpha = 1, offset = 0) => {
     const image = assets.images[item.mediaId];
-    const scale = item.cropMode === 'contain' ? Math.min(EXPORT_WIDTH / image.naturalWidth, EXPORT_HEIGHT / image.naturalHeight) : Math.max(EXPORT_WIDTH / image.naturalWidth, EXPORT_HEIGHT / image.naturalHeight);
+    const scale = item.cropMode === 'contain' ? Math.min(WIDTH / image.naturalWidth, HEIGHT / image.naturalHeight) : Math.max(WIDTH / image.naturalWidth, HEIGHT / image.naturalHeight);
     const width = image.naturalWidth * scale; const height = image.naturalHeight * scale;
     const state = browserEffectState(effects.filter((effect) => time >= effect.startTime && time < effect.startTime + effect.duration), time);
-    context.save(); context.globalAlpha = state.opacity * alpha; context.filter = state.filter || 'none'; context.translate(EXPORT_WIDTH / 2 + offset, EXPORT_HEIGHT / 2); context.scale(state.scale, state.scale); context.drawImage(image, -width / 2, -height / 2, width, height); context.restore();
+    context.save(); context.globalAlpha = state.opacity * alpha; context.filter = state.filter || 'none'; context.translate(WIDTH / 2 + offset, HEIGHT / 2); context.scale(state.scale, state.scale); context.drawImage(image, -width / 2, -height / 2, width, height); context.restore();
   };
   if (video && transition && time >= video.startTime - transition.duration / 2 && time <= video.startTime + transition.duration / 2) {
     const progress = transitionProgress(video.startTime, transition.duration, time);
-    drawVideo(previous!, 1 - progress, transition.type === 'slide-left' ? -EXPORT_WIDTH * progress : transition.type === 'slide-right' ? EXPORT_WIDTH * progress : 0);
-    drawVideo(video, progress, transition.type === 'slide-left' ? EXPORT_WIDTH * (1 - progress) : transition.type === 'slide-right' ? -EXPORT_WIDTH * (1 - progress) : 0);
+    drawVideo(previous!, 1 - progress, transition.type === 'slide-left' ? -WIDTH * progress : transition.type === 'slide-right' ? WIDTH * progress : 0);
+    drawVideo(video, progress, transition.type === 'slide-left' ? WIDTH * (1 - progress) : transition.type === 'slide-right' ? -WIDTH * (1 - progress) : 0);
   } else if (video) drawVideo(video);
   for (const text of texts) {
     if (time < text.startTime || time >= text.startTime + text.duration) continue;
     const localTime = time - text.startTime;
     const opacity = text.inAnimation === 'fade-in' ? titleOpacity(localTime, text.inAnimationDuration) : 1;
     context.save(); context.globalAlpha = opacity; context.fillStyle = text.color; context.font = `${text.bold ? 'bold ' : ''}${Math.round(text.fontSize)}px ${text.fontFamily}, sans-serif`; context.textAlign = text.alignment; context.textBaseline = 'middle';
-    const x = text.x * EXPORT_WIDTH; const y = text.y * EXPORT_HEIGHT;
+    const x = text.x * WIDTH; const y = text.y * HEIGHT;
     if (text.shadow) { context.shadowColor = '#000'; context.shadowBlur = 8; }
-    const maxWidth = text.width * EXPORT_WIDTH;
+    const maxWidth = text.width * WIDTH;
     const lines = wrapTextLines(context, text.text, maxWidth);
     const lineHeight = Math.round(text.fontSize * 1.15);
     const firstLineY = y - ((lines.length - 1) * lineHeight) / 2;
@@ -192,9 +204,11 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const { audio } = supportedTimelineItems(project, assets);
   if (typeof document === 'undefined') throw new Error('Browser export is unavailable outside the browser.');
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported('video/mp4')) throw new Error('This browser cannot encode compatible MP4 locally. Use a supported Chromium-based browser.');
-  const canvas = document.createElement('canvas'); canvas.width = EXPORT_WIDTH; canvas.height = EXPORT_HEIGHT;
+  const dimensions = browserExportDimensions(project.aspectRatio, project.exportSettings.resolution);
+  const canvas = document.createElement('canvas'); canvas.width = dimensions.width; canvas.height = dimensions.height;
   const context = canvas.getContext('2d'); if (!context) throw new Error('Canvas 2D rendering is unavailable.');
-  const stream = canvas.captureStream(EXPORT_FPS); const chunks: BlobPart[] = [];
+  const fps = project.exportSettings.fps;
+  const stream = canvas.captureStream(fps); const chunks: BlobPart[] = [];
   const AudioContextCtor = globalThis.AudioContext;
   if (audio.length > 0 && !AudioContextCtor) throw new Error('This browser cannot mix timeline audio during MP4 export.');
   const audioContext = audio.length > 0 && AudioContextCtor ? new AudioContextCtor() : null;
@@ -212,7 +226,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   destination?.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
   let recorder: MediaRecorder;
   try {
-    recorder = new MediaRecorder(stream, { mimeType: 'video/mp4', videoBitsPerSecond: 4_000_000 });
+    recorder = new MediaRecorder(stream, { mimeType: 'video/mp4', videoBitsPerSecond: project.exportSettings.quality === 'high' ? 9_000_000 : 5_000_000 });
   } catch {
     sources.forEach((source) => source.disconnect());
     gains.forEach((gain) => gain.disconnect());
@@ -229,10 +243,17 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       element.currentTime = item.sourceStart;
       try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
     }
-    const totalFrames = Math.ceil(project.duration * EXPORT_FPS);
+    const totalFrames = Math.ceil(project.duration * fps);
+    const renderStart = performance.now();
     for (let frame = 0; frame < totalFrames; frame += 1) {
       throwIfAborted(options.signal);
-      drawTimelineFrame(context, project, assets, frame);
+      // Keep the MediaRecorder clock aligned with timeline time; requestAnimationFrame
+      // alone would otherwise generate an accelerated, short MP4 on fast devices.
+      const targetMs = renderStart + (frame * 1000) / fps;
+      const waitMs = targetMs - performance.now();
+      if (waitMs > 2) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+      throwIfAborted(options.signal);
+      drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
       options.onProgress?.((frame + 1) / totalFrames);
       await nextAnimationFrame(options.signal);
     }
