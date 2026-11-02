@@ -9,6 +9,7 @@ PresetName = Literal["acoustic", "sufi", "clean_studio"]
 @dataclass(frozen=True)
 class ProductionSettings:
     preset: PresetName = "acoustic"
+    stereo_space: str = "natural"
     clarity: float = 0.55
     compression: float = 0.35
     reverb: float = 0.18
@@ -53,6 +54,11 @@ def validated_settings(**values: object) -> ProductionSettings:
             raise ValueError("sync_offset_ms must be between -10000 and 10000")
         updates["sync_offset_ms"] = offset
     if "sidechain" in values: updates["sidechain"] = bool(values["sidechain"])
+    if "stereo_space" in values:
+        space = str(values["stereo_space"])
+    if space not in {"natural", "wide", "cinematic"}:
+        raise ValueError("Invalid stereo_space")
+    updates["stereo_space"] = space
     return replace(base, **updates)
 
 
