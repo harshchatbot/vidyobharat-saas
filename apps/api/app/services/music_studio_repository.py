@@ -169,7 +169,6 @@ class MusicStudioRepository:
         self,
         worker_id: str,
         lease_seconds: int = 360,
-        separation_worker: bool = False,
     ) -> dict | None:
         fence = secrets.token_hex(16)
 
@@ -181,15 +180,10 @@ class MusicStudioRepository:
                     FROM music_studio_jobs
                     WHERE status = 'queued'
                       AND expires_at > NOW()
-                      AND (
-                        (COALESCE(settings->>'_mode', 'separate') = 'karaoke'
-                         OR (settings->>'_mode' = 'single' AND settings->>'_recording_kind' = 'mixed'))
-                        = :separation_worker
-                      )
                     ORDER BY created_at
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
-                """), {"separation_worker": separation_worker}
+                """)
             ).mappings().first()
 
             if not row:
