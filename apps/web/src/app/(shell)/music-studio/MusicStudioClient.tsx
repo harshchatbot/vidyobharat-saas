@@ -763,14 +763,24 @@ export function MusicStudioClient() {
                   Choose your files and preset, then let RangManch do its thing.
                 </p>
 
-                {browserStems && mode === "karaoke" && (
+                {browserStems && (mode === "karaoke" || (mode === "single" && recordingKind === "mixed")) && !browserBusy && (
                   <div className={styles.output} aria-live="polite">
-                    <h3><CheckCircle2 size={20} /> KARAOKE READY!</h3>
+                    <h3><CheckCircle2 size={20} /> SEPARATED TRACKS</h3>
+                    <p>Vocals — isolated singing</p>
+                    <audio controls className={styles.audioPreview} src={browserStems.vocals} />
+                    <a
+                      className={styles.produceButton}
+                      href={browserStems.vocals}
+                      download="rangmanch-vocals.wav"
+                    >
+                      <Download size={18} /> Download vocals WAV
+                    </a>
+                    <p>Instrumental — music without lead vocals</p>
                     <audio controls className={styles.audioPreview} src={browserStems.instrumental} />
                     <a
                       className={styles.produceButton}
                       href={browserStems.instrumental}
-                      download="rangmanch-karaoke.wav"
+                      download={mode === "karaoke" ? "rangmanch-karaoke.wav" : "rangmanch-instrumental.wav"}
                     >
                       <Download size={18} /> Download instrumental WAV
                     </a>
