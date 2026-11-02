@@ -56,6 +56,30 @@ services:
       - music-db
     mem_limit: 512m
 
+  # Optional heavy worker. Do not activate on the small EC2 instance.
+  # Requires a suitably sized host, validated Demucs model rights and
+  # MUSIC_STUDIO_SEPARATION_ENABLED=true on the API only after readiness.
+  music-separation-worker:
+    profiles: ["separation"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.separation
+    image: rangmanch-separation-worker:latest
+    restart: unless-stopped
+    command: python -m app.services.music_studio_worker
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      ENV: production
+      LOCAL_EDITOR_MODE: "false"
+      MUSIC_STUDIO_WORKER_KIND: separation
+    volumes:
+      - rangmanch-data:/app/data
+    networks:
+      - default
+      - music-db
+    mem_limit: 3g
+
 volumes:
   rangmanch-data:
 
