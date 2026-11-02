@@ -118,11 +118,13 @@ def process_job(
         # Heavy jobs are claimed only by dedicated separation workers.
         script = MUSIC_LAB_SRC / "music_job_processor.py"
         log_path = attempt_dir / "processor.log"
+        output_path = attempt_dir / "processor.stdout"
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(MUSIC_LAB_SRC)
 
         processor_log = open(log_path, "w", encoding="utf-8")
+        processor_stdout = open(output_path, "w", encoding="utf-8")
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -132,7 +134,7 @@ def process_job(
                 str(attempt_dir),
                 json.dumps(job["settings"]),
             ],
-            stdout=subprocess.PIPE,
+            stdout=processor_stdout,
             stderr=processor_log,
             text=True,
             env=env,
@@ -140,6 +142,7 @@ def process_job(
         )
 
         processor_log.close()
+        processor_stdout.close()
         heartbeat_thread.start()
 
         # Poll for completion so SIGTERM and lease loss
@@ -168,7 +171,8 @@ def process_job(
 
             shutdown_requested.wait(0.5)
 
-        stdout, _ = process.communicate(timeout=10)
+        process.wait(timeout=10)
+        stdout = output_path.read_text(encoding="utf-8", errors="replace")
         stderr = log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path.exists() else ""
 
         if shutdown_requested.is_set() or lease_lost.is_set():
