@@ -133,6 +133,7 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
     context.translate(0, motion.translateY * unit);
     context.scale(motion.scale, motion.scale);
     const maxWidth = text.width * WIDTH;
+    const captionWords = text.captionWords?.length && text.captionWords.map((word) => word.text).join(' ') === text.text.trim() ? text.captionWords : undefined;
     const lines = wrapTextLines(context, text.text, Math.max(1, maxWidth - 16 * unit));
     const lineHeight = Math.round(fontSize * 1.12);
     const blockHeight = Math.max(lineHeight, lines.length * lineHeight) + 8 * unit;
@@ -154,7 +155,24 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
         context.lineWidth = text.outlineWidth * unit;
         context.strokeText(lines[index], originX, baseline);
       }
-      context.fillText(lines[index], originX, baseline);
+      if (!captionWords) {
+        context.fillText(lines[index], originX, baseline);
+      } else {
+        // Match the word wrapping above, then paint each word individually.
+        const words = lines[index].split(/\\s+/).filter(Boolean);
+        const spaceWidth = context.measureText(' ').width;
+        const totalWidth = context.measureText(lines[index]).width;
+        let cursor = text.alignment === 'center' ? -totalWidth / 2 : text.alignment === 'right' ? originX - totalWidth : originX;
+        const previousWordCount = lines.slice(0, index).reduce((count, line) => count + line.split(/\\s+/).filter(Boolean).length, 0);
+        context.save(); context.textAlign = 'left';
+        for (const [wordIndex, word] of words.entries()) {
+          const timing = captionWords[previousWordCount + wordIndex];
+          context.fillStyle = timing && localTime >= timing.start && localTime < timing.end ? '#ffe066' : text.color;
+          context.fillText(word, cursor, baseline);
+          cursor += context.measureText(word).width + spaceWidth;
+        }
+        context.restore();
+      }
     }
     context.restore();
   }
