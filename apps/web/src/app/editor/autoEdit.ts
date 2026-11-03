@@ -315,7 +315,12 @@ function buildVideoAutoEditPlan(
     return [segment.timelineStart + word.start - segment.sourceStart];
   });
   const fallbackIntervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
-  const intervals = speechCandidates.length ? speechCandidates.filter((time, index, all) => time > 1 && (index === 0 || time - all[index - 1] >= 3)).slice(0, 6) : fallbackIntervals;
+  const intervals = speechCandidates.length
+    ? speechCandidates.filter((time) => time > 1 && time < editedDuration - 0.5).reduce<number[]>((chosen, time) => {
+        if (!chosen.length || time - chosen[chosen.length - 1] >= 3) chosen.push(time);
+        return chosen;
+      }, []).slice(0, 6)
+    : fallbackIntervals;
   for (const [index, startTime] of intervals.entries()) {
     if (startTime + 0.5 >= editedDuration) continue;
     operations.push({
@@ -331,7 +336,7 @@ function buildVideoAutoEditPlan(
   }
   if (options.transcript?.words.length) {
     const remaining = Math.max(0, 160 - operations.length - (options.title?.trim() ? 1 : 0));
-    const captions = buildTimedCaptions(options.transcript, segments, remaining);
+    const captions = buildTimedCaptions(options.transcript, segments, remaining, options.style);
     for (const item of captions) operations.push({ op: 'add_text', item });
   }
   if (options.title?.trim()) {
