@@ -33,7 +33,7 @@ export function validateWordTranscript(value: unknown, sourceDuration: number): 
 
 /** Typography choices are deterministic and script-aware so preview/export use the same font. */
 function captionTypography(text: string, style: 'elegant' | 'energetic' | 'cinematic') {
-  const devanagari = /[\\u0900-\\u097f]/.test(text);
+  const devanagari = /[\u0900-\u097f]/.test(text);
   const fontFamily = devanagari ? 'Noto Sans Devanagari' : style === 'energetic' ? 'Arial Black' : style === 'cinematic' ? 'Noto Serif' : 'Inter';
   const fontSize = style === 'energetic' ? (devanagari ? 43 : 48) : style === 'cinematic' ? 40 : 42;
   return { fontFamily, fontSize };
