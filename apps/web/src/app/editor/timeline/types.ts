@@ -10,7 +10,7 @@ export type TextAlignment = 'left' | 'center' | 'right';
 export type TextInAnimation = 'none' | 'fade-in' | 'slide-up' | 'pop-in';
 export type TextOutAnimation = 'none' | 'fade-out' | 'slide-down';
 export type TextLoopAnimation = 'none' | 'pulse' | 'float';
-export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'zoom-out' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation' | 'sepia' | 'hue-rotate' | 'invert' | 'warm' | 'cool';
+export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'zoom-out' | 'punch-zoom' | 'flash' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation' | 'sepia' | 'hue-rotate' | 'invert' | 'warm' | 'cool';
 export type ProjectAspectRatio = '9:16' | '16:9' | '1:1' | '4:5';
 export type ExportResolution = '720p' | '1080p';
 export type ExportFrameRate = 24 | 30 | 60;
@@ -52,7 +52,7 @@ export const EDITOR_FONTS = [
   'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam',
 ] as const;
 export type EditorFontFamily = typeof EDITOR_FONTS[number];
-export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'zoom-out', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation', 'sepia', 'hue-rotate', 'invert', 'warm', 'cool'];
+export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'zoom-out', 'punch-zoom', 'flash', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation', 'sepia', 'hue-rotate', 'invert', 'warm', 'cool'];
 
 export function editorFontStack(fontFamily: string): string {
   return `"${fontFamily.replace(/["\\]/g, '')}", "Noto Sans", sans-serif`;
