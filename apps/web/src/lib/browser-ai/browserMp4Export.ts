@@ -278,18 +278,32 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const fps = project.exportSettings.fps;
   const stream = canvas.captureStream(fps); const chunks: BlobPart[] = [];
   const AudioContextCtor = globalThis.AudioContext;
-  if (audio.length > 0 && !AudioContextCtor) throw new Error('This browser cannot mix timeline audio during MP4 export.');
-  const audioContext = audio.length > 0 && AudioContextCtor ? new AudioContextCtor() : null;
+  const sourceVideos = [...new Set(videoItems.filter((item) => Boolean(assets.videos?.[item.mediaId])).map((item) => item.mediaId))];
+  const needsAudioMix = audio.length > 0 || videoItems.some((item) => Boolean(assets.videos?.[item.mediaId]) && !item.muted);
+  if (needsAudioMix && !AudioContextCtor) throw new Error('This browser cannot mix original speech or timeline audio during MP4 export.');
+  const audioContext = needsAudioMix && AudioContextCtor ? new AudioContextCtor() : null;
   const destination = audioContext?.createMediaStreamDestination();
   const sources: MediaElementAudioSourceNode[] = [];
   const gains: GainNode[] = [];
+  // A media element can only be connected to one MediaElementAudioSourceNode.
+  // Route each source video once, and gate its speech by the active timeline clip.
+  const videoNodes = sourceVideos.map((mediaId) => {
+    const element = assets.videos![mediaId];
+    if (!audioContext) return { mediaId, element, gain: null as GainNode | null };
+    const source = audioContext.createMediaElementSource(element);
+    const gain = audioContext.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(destination!);
+    sources.push(source); gains.push(gain);
+    return { mediaId, element, gain };
+  });
   const nodes = audio.map((item) => {
     const element = assets.audio![item.mediaId];
     const source = audioContext!.createMediaElementSource(element);
-    const gain = audioContext!.createGain(); gain.gain.value = item.muted ? 0 : item.volume;
+    const gain = audioContext!.createGain(); gain.gain.value = 0;
     source.connect(gain).connect(destination!);
     sources.push(source); gains.push(gain);
-    return { item, element };
+    return { item, element, gain };
   });
   destination?.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
   let recorder: MediaRecorder;
@@ -307,11 +321,8 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   activeExport = true;
   try {
     recorder.start(250);
-    for (const { item, element } of nodes) {
-      element.currentTime = item.sourceStart;
-      try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
-    }
-    const playingVideos = new Set<HTMLVideoElement>();
+    if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
+    let activeClipId: string | null = null;
     const totalFrames = Math.ceil(project.duration * fps);
     const renderStart = performance.now();
     for (let frame = 0; frame < totalFrames; frame += 1) {
@@ -323,18 +334,35 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       if (waitMs > 2) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       throwIfAborted(options.signal);
       const time = frame / fps;
-      for (const item of videoItems) {
-        const element = assets.videos?.[item.mediaId];
-        if (!element) continue;
+      const activeClip = videoItems.find((item) =>
+        Boolean(assets.videos?.[item.mediaId]) && time >= item.startTime && time < item.startTime + item.duration
+      );
+      if ((activeClip?.id ?? null) !== activeClipId) {
+        activeClipId = activeClip?.id ?? null;
+        for (const node of videoNodes) {
+          const isActive = activeClip?.mediaId === node.mediaId;
+          if (!isActive) {
+            node.gain?.gain.setValueAtTime(0, audioContext!.currentTime);
+            node.element.pause();
+            continue;
+          }
+          // Even when two clips use the same file, seek to the retained source segment.
+          node.gain?.gain.setValueAtTime(0, audioContext!.currentTime);
+          node.element.pause();
+          node.element.currentTime = activeClip.sourceStart + time - activeClip.startTime;
+          // Web Audio owns the export audio; mute the element's direct output.
+          node.element.muted = true;
+          try { await node.element.play(); } catch { throw new Error('Video playback could not start during export.'); }
+          node.gain?.gain.setValueAtTime(activeClip.muted ? 0 : activeClip.volume, audioContext!.currentTime);
+        }
+      }
+      for (const { item, element, gain } of nodes) {
         const active = time >= item.startTime && time < item.startTime + item.duration;
-        if (active && !playingVideos.has(element)) {
-          element.currentTime = item.sourceStart + Math.max(0, time - item.startTime);
-          element.muted = true;
-          await element.play();
-          playingVideos.add(element);
-        } else if (!active && playingVideos.has(element)) {
-          element.pause();
-          playingVideos.delete(element);
+        gain.gain.setValueAtTime(active && !item.muted ? item.volume : 0, audioContext!.currentTime);
+        if (!active) { element.pause(); continue; }
+        if (element.paused) {
+          element.currentTime = item.sourceStart + time - item.startTime;
+          try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
         }
       }
       drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
@@ -348,8 +376,8 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     await finished.catch(() => undefined);
     throw error instanceof DOMException && error.name === 'AbortError' ? error : error instanceof Error ? error : new Error('The browser MP4 export failed.');
   } finally {
-    nodes.forEach(({ element }) => { element.pause(); element.removeAttribute('src'); element.load(); });
-    Object.values(assets.videos ?? {}).forEach((element) => { element.pause(); element.removeAttribute('src'); element.load(); });
+    nodes.forEach(({ element, gain }) => { gain.gain.value = 0; element.pause(); });
+    videoNodes.forEach(({ element, gain }) => { if (gain) gain.gain.value = 0; element.pause(); });
     sources.forEach((source) => source.disconnect());
     gains.forEach((gain) => gain.disconnect());
     if (audioContext) await audioContext.close().catch(() => undefined);
