@@ -12,10 +12,10 @@ test('routes a greeting to chat instead of an empty edit plan', () => {
   assert.match(response?.message ?? '', /video editing assistant/i);
 });
 
-test('routes an editing question to contextual advice', () => {
+test('routes an editing question to AI chat for contextual advice', () => {
   const response = classifyBrowserConversation('How can I make my reel engaging?', createEmptyProject(), [image]);
-  assert.equal(response?.kind, 'advice');
-  assert.match(response?.message ?? '', /image|pacing|title/i);
+  assert.equal(response?.kind, 'chat');
+  assert.equal(response?.message, '');
 });
 
 test('asks for title copy when a title request has no usable text', () => {
