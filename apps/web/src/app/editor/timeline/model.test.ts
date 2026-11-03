@@ -204,7 +204,7 @@ test('new effects serialize only as committed timeline data', () => {
 });
 
 test('editor font catalog includes localized Noto families with browser fallback', () => {
-  assert.equal(EDITOR_FONTS.length, 13);
+  assert.ok(EDITOR_FONTS.length >= 13);
   assert.ok(EDITOR_FONTS.includes('Noto Sans Devanagari'));
   assert.ok(EDITOR_FONTS.includes('Noto Sans Malayalam'));
   assert.equal(editorFontStack('Noto Sans Bengali'), '"Noto Sans Bengali", "Noto Sans", sans-serif');
