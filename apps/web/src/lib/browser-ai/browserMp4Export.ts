@@ -95,8 +95,9 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
   const drawVideo = (item: VideoTimelineItem, alpha = 1, offset = 0) => {
     const image = assets.images[item.mediaId] ?? assets.videos?.[item.mediaId];
     if (!image) return;
-    const naturalWidth = image instanceof HTMLVideoElement ? image.videoWidth : image.naturalWidth;
-    const naturalHeight = image instanceof HTMLVideoElement ? image.videoHeight : image.naturalHeight;
+    const isVideo = Boolean(assets.videos?.[item.mediaId]);
+    const naturalWidth = isVideo ? (image as HTMLVideoElement).videoWidth : (image as HTMLImageElement).naturalWidth;
+    const naturalHeight = isVideo ? (image as HTMLVideoElement).videoHeight : (image as HTMLImageElement).naturalHeight;
     if (!naturalWidth || !naturalHeight) return;
     const scale = item.cropMode === 'contain' ? Math.min(EXPORT_WIDTH / naturalWidth, EXPORT_HEIGHT / naturalHeight) : Math.max(EXPORT_WIDTH / naturalWidth, EXPORT_HEIGHT / naturalHeight);
     const width = naturalWidth * scale; const height = naturalHeight * scale;
@@ -254,7 +255,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       frame = targetFrame;
       const time = frame / EXPORT_FPS;
       const activeVideo = videos.find((item) => time >= item.startTime && time < item.startTime + item.duration);
-      if (activeVideo?.id !== activeClipId) {
+      if ((activeVideo?.id ?? null) !== activeClipId) {
         activeClipId = activeVideo?.id ?? null;
         for (const node of videoNodes) {
           const isActive = activeVideo?.mediaId === node.mediaId;
