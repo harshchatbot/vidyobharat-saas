@@ -1,4 +1,5 @@
 import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
+import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 
 import { createBasicText } from './timeline/textTemplates.ts';
 import {
@@ -26,6 +27,7 @@ export type AutoEditOptions = {
   style: AutoEditStyle;
   mode: AutoEditMode;
   silenceRemovals?: SourceInterval[];
+  transcript?: WordTranscript;
   title?: string;
   targetDuration?: number;
   musicVolume?: number;
@@ -316,6 +318,11 @@ function buildVideoAutoEditPlan(
       },
     });
   }
+  if (options.transcript?.words.length) {
+    const remaining = Math.max(0, 20 - operations.length - (options.title?.trim() ? 1 : 0));
+    const captions = buildTimedCaptions(options.transcript, segments, Math.min(8, remaining));
+    for (const item of captions) operations.push({ op: 'add_text', item });
+  }
   if (options.title?.trim()) {
     const title = options.title.trim();
     operations.push({
@@ -323,7 +330,9 @@ function buildVideoAutoEditPlan(
       item: {
         ...createBasicText(0), id: crypto.randomUUID(),
         label: title, text: title, duration: Math.min(3, editedDuration),
-        inAnimation: 'fade-in', inAnimationDuration: Math.min(0.5, editedDuration),
+        color: '#ffffff', outlineColor: '#000000', outlineWidth: 4,
+        shadow: true, backgroundColor: '#000000', backgroundOpacity: 0.45,
+        inAnimation: 'slide-up', inAnimationDuration: Math.min(0.5, editedDuration),
       },
     });
   }
@@ -333,7 +342,8 @@ function buildVideoAutoEditPlan(
     summary: `Video Auto Edit · ${options.style}`,
     warnings: [
       options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
-      'Speech recognition, silence removal and contextual SFX are not implemented yet.',
+      options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Automatic speech transcription and captions are not connected yet.',
+      'Contextual SFX and speech-semantic editing are not implemented yet.',
     ],
     operations,
   };
