@@ -35,7 +35,7 @@ export function validateWordTranscript(value: unknown, sourceDuration: number): 
 function captionTypography(text: string, style: 'elegant' | 'energetic' | 'cinematic') {
   const devanagari = /[\u0900-\u097f]/.test(text);
   const fontFamily = devanagari ? 'Noto Sans Devanagari' : style === 'energetic' ? 'Arial Black' : style === 'cinematic' ? 'Noto Serif' : 'Inter';
-  const fontSize = style === 'energetic' ? (devanagari ? 43 : 48) : style === 'cinematic' ? 40 : 42;
+  const fontSize = style === 'energetic' ? (devanagari ? 52 : 60) : style === 'cinematic' ? 40 : 42;
   return { fontFamily, fontSize };
 }
 
@@ -70,8 +70,8 @@ export function buildTimedCaptions(
       startTime, duration: Math.max(0.25, endTime - startTime),
       ...typography, bold: true,
       color: '#ffffff', outlineColor: '#000000', outlineWidth: style === 'cinematic' ? 2 : 4,
-      shadow: true, backgroundColor: '#000000', backgroundOpacity: style === 'cinematic' ? 0.25 : 0.45,
-      y: style === 'cinematic' ? 0.82 : 0.78, width: 0.88, alignment: 'center',
+      shadow: true, backgroundColor: '#000000', backgroundOpacity: style === 'cinematic' ? 0.25 : style === 'energetic' ? 0 : 0.45,
+      y: style === 'cinematic' ? 0.82 : style === 'energetic' ? 0.7 : 0.78, width: 0.88, alignment: 'center',
       inAnimation: style === 'cinematic' ? 'fade-in' : 'pop-in', inAnimationDuration: style === 'cinematic' ? 0.25 : 0.18,
       outAnimation: 'fade-out', outAnimationDuration: 0.12,
       loopAnimation: 'none',
