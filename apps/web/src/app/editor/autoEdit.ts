@@ -319,8 +319,8 @@ function buildVideoAutoEditPlan(
     });
   }
   if (options.transcript?.words.length) {
-    const remaining = Math.max(0, 20 - operations.length - (options.title?.trim() ? 1 : 0));
-    const captions = buildTimedCaptions(options.transcript, segments, Math.min(8, remaining));
+    const remaining = Math.max(0, 160 - operations.length - (options.title?.trim() ? 1 : 0));
+    const captions = buildTimedCaptions(options.transcript, segments, remaining);
     for (const item of captions) operations.push({ op: 'add_text', item });
   }
   if (options.title?.trim()) {
