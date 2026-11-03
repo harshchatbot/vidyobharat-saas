@@ -81,3 +81,31 @@ export function remapWords(words: readonly TimedWord[], segments: readonly Edite
   }
   return result.sort((a, b) => a.start - b.start);
 }
+
+/** Conservative pause suggestions from timestamped speech; never cut through a word. */
+export function suggestSpeechPauseCuts(
+  words: readonly TimedWord[],
+  duration: number,
+  maxCuts = 5,
+): SourceInterval[] {
+  if (!Number.isFinite(duration) || duration <= 0 || !words.length) return [];
+  const sorted = [...words].filter((w) => Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start)
+    .sort((a, b) => a.start - b.start);
+  const gaps: SourceInterval[] = [];
+  let lastEnd = 0;
+  for (const word of sorted) {
+    const start = Math.max(0, Math.min(duration, word.start));
+    const end = Math.max(start, Math.min(duration, word.end));
+    if (start - lastEnd >= 0.85) {
+      const from = lastEnd === 0 ? 0 : lastEnd + 0.18;
+      const to = start - 0.18;
+      if (to - from >= 0.45) gaps.push({ start: from, end: to });
+    }
+    lastEnd = Math.max(lastEnd, end);
+  }
+  if (duration - lastEnd >= 1.1) gaps.push({ start: lastEnd + 0.18, end: duration });
+  // Prefer longer pauses while keeping chronological order and at most eight kept clips.
+  return gaps.sort((a, b) => (b.end - b.start) - (a.end - a.start))
+    .slice(0, Math.max(0, Math.min(5, maxCuts)))
+    .sort((a, b) => a.start - b.start);
+}
