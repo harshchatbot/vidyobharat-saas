@@ -42,10 +42,30 @@ import { prepareVisualUpload, uploadVisualWithProgress, type PendingVisualUpload
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
 const MAX_CLIPS = 12;
 type WorkspaceTool = 'media' | 'audio' | 'text' | EffectSection;
+const DRAFT_STORAGE_KEY = 'rangmanch:guest-editor:draft:v1';
+type StoredDraft = { version: 1; savedAt: number; project: TimelineProject };
+
+function readLocalDraft(): TimelineProject {
+  const fallback = createEmptyProject();
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return fallback;
+    const saved = JSON.parse(raw) as Partial<StoredDraft>;
+    const candidate = saved.project;
+    if (saved.version !== 1 || !candidate || !Array.isArray(candidate.tracks) ||
+        !candidate.tracks.every((track) => Array.isArray(track.items)) ||
+        typeof candidate.duration !== 'number' || !Number.isFinite(candidate.duration) ||
+        candidate.duration < 0 || candidate.duration > MAX_TIMELINE_SECONDS ||
+        !candidate.exportSettings || typeof candidate.aspectRatio !== 'string') return fallback;
+    return candidate;
+  } catch { return fallback; }
+}
+
 
 export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props) {
   const [media, setMedia] = useState(initialMedia);
-  const [projectHistory, setProjectHistory] = useState(() => createProjectHistory(createEmptyProject()));
+  const [projectHistory, setProjectHistory] = useState(() => createProjectHistory(readLocalDraft()));
   const project = projectHistory.present;
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [playbackTime, setPlaybackTime] = useState(0);
@@ -151,6 +171,32 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }, [activeTool, audioLibraryQuery, audioLibraryTab]);
   const clipCount = displayProject.tracks.find((track) => track.id === 'video')?.items.length ?? 0;
   pendingVisualUploadsRef.current = pendingVisualUploads;
+
+  const [draftSaveState, setDraftSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+
+  // Persist only editable timeline metadata. Source media remains on the guest media
+  // service and may expire; never imply that a local draft backs up uploaded files.
+  useEffect(() => {
+    setDraftSaveState('saving');
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+          version: 1, savedAt: Date.now(), project,
+        } satisfies StoredDraft));
+        setDraftSavedAt(Date.now());
+        setDraftSaveState('saved');
+      } catch {
+        setDraftSaveState('error');
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [project]);
+
+  const missingDraftMedia = project.tracks.flatMap((track) => track.items)
+    .filter((item) => item.kind === 'video' || item.kind === 'audio')
+    .some((item) => !item.mediaId.startsWith('catalog:') &&
+      !media.some((entry) => entry.media_id === item.mediaId && entry.availability !== 'unavailable'));
 
   // A completed export represents a snapshot, not the current editable project.
   // Any timeline, aspect-ratio, or export-settings change makes that snapshot stale.
@@ -1006,10 +1052,11 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       />
       <header className="rm-editor-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#111118] px-3 sm:px-4">
         <button type="button" onClick={() => setSidebarOpen((value) => !value)} className="hidden h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 md:grid lg:hidden" aria-label={sidebarOpen ? 'Hide tools' : 'Show tools'}>{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
-        <div className="min-w-0"><p className="truncate text-sm font-semibold">RangManch Creative Studio</p><p className="hidden text-[11px] text-slate-500 sm:block">Guest project · saved for this session</p>{authenticatedCreator && <Link href="/dashboard" className="text-[10px] text-slate-400 hover:text-white">Account</Link>}</div>
+        <div className="min-w-0"><p className="truncate text-sm font-semibold">RangManch Creative Studio</p><p role="status" className="hidden text-[11px] text-slate-400 sm:block">Guest draft · {draftSaveState === 'saving' ? 'Saving…' : draftSaveState === 'error' ? 'Save failed · check browser storage' : draftSavedAt ? 'Saved on this device' : 'Local autosave enabled'}</p>{authenticatedCreator && <Link href="/dashboard" className="text-[10px] text-slate-400 hover:text-white">Account</Link>}</div>
         <div className="ml-2 flex items-center gap-1"><button type="button" disabled={proposalActive || !canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
         <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {displayProject.duration.toFixed(1)}s</span><button type="button" disabled={displayProject.duration === 0} onClick={togglePlayback} className="rm-header-play grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white transition-transform hover:bg-white/15 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" disabled={proposalActive || media.filter((item) => item.media_type === 'video' && item.availability !== 'unavailable').length === 0} onClick={() => { setAutoEditError(''); setAutoEditOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-violet-500 px-3 text-xs font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-40"><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Auto Edit</span></button><button type="button" onClick={() => setMobilePanel('copilot')} className="grid h-9 w-9 place-items-center rounded-md text-amber-300 hover:bg-amber-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 lg:hidden" aria-label="Open AI Copilot"><Sparkles className="h-4 w-4" /></button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="rm-header-delete grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button>{authHydrated && !authenticatedCreator && <Link href="/login?next=%2Feditor" className="rm-header-sign-in inline-flex min-h-9 shrink-0 items-center rounded-md border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">Sign in</Link>}{serverVerifiedAdmin && <Link href="/admin" className="hidden min-h-9 items-center rounded-md border border-amber-400/30 px-3 text-xs font-semibold text-amber-300 hover:bg-amber-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:inline-flex">Admin</Link>}</div>
       </header>
+      {missingDraftMedia && <div role="alert" className="border-b border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs text-amber-200">This draft references media that is no longer available. Re-upload the source files before exporting; timeline edits are still saved locally.</div>}
       {(uploadError || uploadNotice || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs">{uploadError ? <StatusTransition tone="error" label="Upload failed" detail={uploadError} /> : uploadNotice ? <StatusTransition tone="success" label="Upload ready" detail={uploadNotice} /> : <StatusTransition tone={exportError ? 'error' : exportStatus.includes('completed') ? 'success' : 'loading'} label={exportError ? 'Export failed' : exportStatus.includes('completed') ? 'Export ready' : 'Export status'} detail={exportStatus} />}</div>}
 
       <div className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${sidebarOpen ? 'md:grid-cols-[240px_minmax(0,1fr)]' : 'md:grid-cols-[minmax(0,1fr)]'} lg:grid-cols-[352px_minmax(0,1fr)_288px]`}>
