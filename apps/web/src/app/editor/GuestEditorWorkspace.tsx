@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { flushSync } from 'react-dom';
 import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Sparkles, Type, Undo2, Upload } from 'lucide-react';
 import Link from 'next/link';
-import { generateAutoEditDirection, generateChatResponse, isModelReady } from '@/lib/browser-ai/webllmService';
+import { generateChatResponse } from '@/lib/browser-ai/webllmService';
 import { getFirebaseAuth } from '@/lib/firebase-client';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getApiUrl } from '@/lib/env';
@@ -27,7 +27,7 @@ import { browserEffectStyle, effectsWithTemporaryPreview, transitionProgress, vi
 import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename } from './timeline/serialization';
 import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
-import { buildAutoEditPlan, type AutoEditMode, type AutoEditStyle } from './autoEdit';
+import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
