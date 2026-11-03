@@ -30,7 +30,7 @@ import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } 
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
 import { validateWordTranscript } from './timedCaptions';
 import { detectSilenceFromBlob } from './silenceDetection';
-import type { SourceInterval } from './talkingHeadTiming';
+import { suggestSpeechPauseCuts, type SourceInterval } from './talkingHeadTiming';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
@@ -793,7 +793,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(video.media_id)}/content`, { credentials: 'include' });
             if (!response.ok) throw new Error('Video audio could not be downloaded.');
             const analysis = await detectSilenceFromBlob(await response.blob());
-            // Never remove all speech, and keep the plan within the 20-operation validator limit.
+            // Limit cuts to preserve readable, reviewable edit proposals.
             if (analysis.removals.length > 0 && analysis.removals.length <= 5) {
               silenceRemovals = analysis.removals;
             } else if (analysis.removals.length > 5) {
@@ -802,6 +802,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           } catch {
             analysisWarning = 'Audio analysis is not supported for this recording in this browser. No pauses were cut.';
           }
+        }
+      }
+      if (autoEditDetectPauses && !silenceRemovals?.length && transcript?.words.length && videoForSpeech?.duration_seconds) {
+        const suggested = suggestSpeechPauseCuts(transcript.words, videoForSpeech.duration_seconds);
+        if (suggested.length) {
+          silenceRemovals = suggested;
+          analysisWarning = 'Browser audio analysis was unavailable or found no cuts; suggested conservative cuts from speech timestamps. Review every cut.';
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
