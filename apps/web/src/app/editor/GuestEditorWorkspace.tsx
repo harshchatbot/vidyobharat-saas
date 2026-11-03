@@ -650,7 +650,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setUploadingAudio(true); setUploadingFilename(file.name); setUploadError(''); setUploadNotice('');
     try {
       const form = new FormData(); form.append('file', file);
-      const response = await fetch(`${getApiUrl()}/api/editor/media/upload`, { method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1' }, headers: { 'X-RangManch-Editor-CSRF': '1', 'Idempotency-Key': crypto.randomUUID() }, body: form });
+      const response = await fetch(`${getApiUrl()}/api/editor/media/upload`, { method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1', 'Idempotency-Key': crypto.randomUUID() }, body: form });
       if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error === 'guest_quota_exceeded' ? 'You have reached the upload limit for this guest session.' : body.message || `Audio upload failed (${response.status})`); }
       const uploaded = await response.json() as GuestMedia;
       setMedia((current) => [uploaded, ...current]); setRemainingUploads((value) => Math.max(0, value - 1)); addAudio(uploaded, audioTarget); setUploadNotice(`${file.name} uploaded and added to the ${audioTarget} track.`);
