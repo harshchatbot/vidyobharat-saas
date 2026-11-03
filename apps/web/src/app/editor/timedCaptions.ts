@@ -35,7 +35,7 @@ export function validateWordTranscript(value: unknown, sourceDuration: number): 
 export function buildTimedCaptions(
   transcript: WordTranscript,
   segments: readonly EditedSegment[],
-  limit = 8,
+  limit = 120,
 ): TextTimelineItem[] {
   const words = remapWords(transcript.words, segments);
   const phrases: typeof words[] = [];
