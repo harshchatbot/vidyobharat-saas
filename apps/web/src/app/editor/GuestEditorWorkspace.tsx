@@ -30,7 +30,7 @@ import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } 
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
 import { validateWordTranscript } from './timedCaptions';
 import { detectSilenceFromBlob } from './silenceDetection';
-import { suggestSpeechPauseCuts, type SourceInterval } from './talkingHeadTiming';
+import { protectSpeechFromCuts, suggestSpeechPauseCuts, type SourceInterval } from './talkingHeadTiming';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
@@ -795,7 +795,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             const analysis = await detectSilenceFromBlob(await response.blob());
             // Limit cuts to preserve readable, reviewable edit proposals.
             if (analysis.removals.length > 0 && analysis.removals.length <= 5) {
-              silenceRemovals = analysis.removals;
+              silenceRemovals = transcript?.words.length && videoForSpeech?.duration_seconds
+                ? protectSpeechFromCuts(analysis.removals, transcript.words, videoForSpeech.duration_seconds)
+                : analysis.removals;
             } else if (analysis.removals.length > 5) {
               analysisWarning = 'Too many pauses for safe automatic cuts. No cuts proposed.';
             }
