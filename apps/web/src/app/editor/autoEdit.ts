@@ -253,12 +253,95 @@ function alignDurationsToFrames(durations: number[], target: number): number[] {
   return frames.map((count) => count / fps);
 }
 
+/**
+ * Video-first MVP: preserve the source recording and its original audio.
+ * Generate editable, non-destructive timeline effects rather than replacing
+ * the footage with unrelated image assets. Speech analysis comes later.
+ */
+function buildVideoAutoEditPlan(
+  project: TimelineProject,
+  source: GuestMedia,
+  revision: string,
+  options: AutoEditOptions,
+): CopilotEditPlan {
+  const duration = Math.min(source.duration_seconds ?? 0, MAX_TIMELINE_SECONDS);
+  if (!Number.isFinite(duration) || duration < 0.25) {
+    throw new Error('Video duration is unavailable or too short for Auto Edit.');
+  }
+  const operations: CopilotEditPlan['operations'] = [];
+  // Re-running Auto Edit replaces the previous proposal, never appends duplicate footage.
+  for (const item of project.tracks.flatMap((track) => track.items)) {
+    operations.push({ op: 'remove_item', itemId: item.id });
+  }
+  if (operations.length > 14) {
+    throw new Error('This timeline is too complex to regenerate safely. Undo or simplify it first.');
+  }
+  if (project.aspectRatio !== '9:16') {
+    operations.push({ op: 'set_aspect_ratio', aspectRatio: '9:16' });
+  }
+  operations.push({
+    op: 'add_media',
+    item: {
+      id: crypto.randomUUID(), kind: 'video', trackId: 'video',
+      label: source.original_filename, mediaId: source.media_id,
+      contentType: source.content_type, startTime: 0, duration,
+      sourceStart: 0, cropMode: 'cover', muted: false, volume: 1,
+    },
+  });
+  const config = styleConfig[options.style];
+  const intervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
+  for (const [index, startTime] of intervals.entries()) {
+    if (startTime + 0.5 >= duration) continue;
+    operations.push({
+      op: 'add_effect',
+      item: {
+        id: crypto.randomUUID(), kind: 'effect', trackId: 'effects',
+        label: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        preset: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        amount: config.amount, startTime,
+        duration: Math.min(options.style === 'energetic' ? 1.5 : 2.5, duration - startTime),
+      },
+    });
+  }
+  if (options.title?.trim()) {
+    const title = options.title.trim();
+    operations.push({
+      op: 'add_text',
+      item: {
+        ...createBasicText(0), id: crypto.randomUUID(),
+        label: title, text: title, duration: Math.min(3, duration),
+        inAnimation: 'fade-in', inAnimationDuration: Math.min(0.5, duration),
+      },
+    });
+  }
+  return {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: crypto.randomUUID(), projectRevision: revision,
+    summary: `Video Auto Edit · ${options.style}`,
+    warnings: [
+      'Original video and speech preserved. Effects are editable on the timeline.',
+      'Speech recognition, silence removal and contextual SFX are not implemented yet.',
+    ],
+    operations,
+  };
+}
+
 export function buildAutoEditPlan(
   project: TimelineProject,
   media: GuestMedia[],
   revision: string,
   options: AutoEditOptions
 ): CopilotEditPlan {
+  const videos = media.filter((item) =>
+    item.media_type === 'video' && item.availability !== 'unavailable'
+  );
+  if (videos.length > 0) {
+    // Prefer the footage already selected on the timeline.
+    const currentVideo = project.tracks.find((track) => track.id === 'video')
+      ?.items.find((item) => item.kind === 'video' && videos.some((video) => video.media_id === item.mediaId));
+    const source = videos.find((video) => video.media_id === (currentVideo?.kind === 'video' ? currentVideo.mediaId : '')) ?? videos[0];
+    return buildVideoAutoEditPlan(project, source, revision, options);
+  }
   const images = media.filter(
     (item) =>
       item.media_type === 'image' &&
