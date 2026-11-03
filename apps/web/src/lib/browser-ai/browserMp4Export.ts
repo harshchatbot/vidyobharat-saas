@@ -168,7 +168,16 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
         for (const [wordIndex, word] of words.entries()) {
           const timing = captionWords[previousWordCount + wordIndex];
           context.fillStyle = timing && localTime >= timing.start && localTime < timing.end ? '#ffe066' : text.color;
-          context.fillText(word, cursor, baseline);
+          const energetic = (text.fontFamily === 'Arial Black' || text.fontFamily === 'Noto Sans Devanagari') && text.fontSize >= 50;
+          const active = Boolean(timing && localTime >= timing.start && localTime < timing.end);
+          if (energetic && active) {
+            context.save();
+            const wordWidth = context.measureText(word).width;
+            context.translate(cursor + wordWidth / 2, baseline - 2 * unit);
+            context.scale(1.13, 1.13);
+            context.fillText(word, -wordWidth / 2, 0);
+            context.restore();
+          } else context.fillText(word, cursor, baseline);
           cursor += context.measureText(word).width + spaceWidth;
         }
         context.restore();
