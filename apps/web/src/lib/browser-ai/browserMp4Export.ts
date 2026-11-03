@@ -159,11 +159,11 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
         context.fillText(lines[index], originX, baseline);
       } else {
         // Match the word wrapping above, then paint each word individually.
-        const words = lines[index].split(/\\s+/).filter(Boolean);
+        const words = lines[index].split(/\s+/).filter(Boolean);
         const spaceWidth = context.measureText(' ').width;
         const totalWidth = context.measureText(lines[index]).width;
         let cursor = text.alignment === 'center' ? -totalWidth / 2 : text.alignment === 'right' ? originX - totalWidth : originX;
-        const previousWordCount = lines.slice(0, index).reduce((count, line) => count + line.split(/\\s+/).filter(Boolean).length, 0);
+        const previousWordCount = lines.slice(0, index).reduce((count, line) => count + line.split(/\s+/).filter(Boolean).length, 0);
         context.save(); context.textAlign = 'left';
         for (const [wordIndex, word] of words.entries()) {
           const timing = captionWords[previousWordCount + wordIndex];
