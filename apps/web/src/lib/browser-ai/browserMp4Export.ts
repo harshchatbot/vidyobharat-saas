@@ -93,11 +93,12 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
   const previous = video ? videos[video ? videos.indexOf(video) - 1 : -1] : undefined;
   const transition = previous?.transitionOut && video && Math.abs((previous.startTime + previous.duration) - video.startTime) < 1e-6 ? previous.transitionOut : undefined;
   const drawVideo = (item: VideoTimelineItem, alpha = 1, offset = 0) => {
-    const image = assets.images[item.mediaId] ?? assets.videos?.[item.mediaId];
+    const sourceVideo = assets.videos?.[item.mediaId];
+    const sourceImage = assets.images[item.mediaId];
+    const image = sourceVideo ?? sourceImage;
     if (!image) return;
-    const isVideo = Boolean(assets.videos?.[item.mediaId]);
-    const naturalWidth = isVideo ? (image as HTMLVideoElement).videoWidth : (image as HTMLImageElement).naturalWidth;
-    const naturalHeight = isVideo ? (image as HTMLVideoElement).videoHeight : (image as HTMLImageElement).naturalHeight;
+    const naturalWidth = sourceVideo ? sourceVideo.videoWidth : sourceImage.naturalWidth;
+    const naturalHeight = sourceVideo ? sourceVideo.videoHeight : sourceImage.naturalHeight;
     if (!naturalWidth || !naturalHeight) return;
     const scale = item.cropMode === 'contain' ? Math.min(EXPORT_WIDTH / naturalWidth, EXPORT_HEIGHT / naturalHeight) : Math.max(EXPORT_WIDTH / naturalWidth, EXPORT_HEIGHT / naturalHeight);
     const width = naturalWidth * scale; const height = naturalHeight * scale;
