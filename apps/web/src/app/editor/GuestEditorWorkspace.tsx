@@ -28,6 +28,8 @@ import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename } from './timeline/serialization';
 import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
+import { detectSilenceFromBlob } from './silenceDetection';
+import type { SourceInterval } from './talkingHeadTiming';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
@@ -102,6 +104,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [autoEditOpen, setAutoEditOpen] = useState(false);
   const [autoEditStyle, setAutoEditStyle] = useState<AutoEditStyle>('elegant');
   const [autoEditTitle, setAutoEditTitle] = useState('');
+  const [autoEditDetectPauses, setAutoEditDetectPauses] = useState(false);
   const [autoEditError, setAutoEditError] = useState('');
   const [autoEditProgress, setAutoEditProgress] = useState<BrowserAiProgress | null>(null);
   const autoEditEpochRef = useRef(0);
@@ -758,7 +761,30 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const music = media.filter((item) => item.media_type === 'audio' && item.availability !== 'unavailable');
       const beatCandidates = music.length === 1 ? await analyzeUploadedMusic(music[0].media_id) : undefined;
       if (epoch !== autoEditEpochRef.current) return;
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates });
+      let silenceRemovals: SourceInterval[] | undefined;
+      let analysisWarning = '';
+      if (autoEditDetectPauses) {
+        const video = media.find((item) => item.media_type === 'video' && item.availability !== 'unavailable');
+        if (video) {
+          setAutoEditProgress({ phase: 'checking', message: 'Analyzing pauses in your recording…' });
+          try {
+            const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(video.media_id)}/content`, { credentials: 'include' });
+            if (!response.ok) throw new Error('Video audio could not be downloaded.');
+            const analysis = await detectSilenceFromBlob(await response.blob());
+            // Never remove all speech, and keep the plan within the 20-operation validator limit.
+            if (analysis.removals.length > 0 && analysis.removals.length <= 5) {
+              silenceRemovals = analysis.removals;
+            } else if (analysis.removals.length > 5) {
+              analysisWarning = 'Too many pauses for safe automatic cuts. No cuts proposed.';
+            }
+          } catch {
+            analysisWarning = 'Audio analysis is not supported for this recording in this browser. No pauses were cut.';
+          }
+        }
+      }
+      if (epoch !== autoEditEpochRef.current) return;
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals });
+      if (analysisWarning) plan.warnings.push(analysisWarning);
       setAutoEditProgress({ phase: 'validating', message: 'Preparing your preview…' });
       const applied = await applyEditPlan(project, plan);
       if (epoch !== autoEditEpochRef.current || committedProjectRef.current !== project) return;
@@ -1050,7 +1076,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </div>
         </div>
       )}
-      {autoEditOpen && <div className="fixed inset-0 z-[160] grid place-items-center bg-black/70 p-4"><section className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111118] p-5 text-white"><h2 className="text-base font-semibold">Auto Edit</h2><p className="mt-1 text-xs text-slate-400">Choose a style and preview editable enhancements to your uploaded video.</p><div className="mt-4 grid gap-2">{(['elegant', 'energetic', 'cinematic'] as AutoEditStyle[]).map((style) => <button key={style} type="button" onClick={() => setAutoEditStyle(style)} className={`rounded-lg border px-3 py-3 text-left text-sm capitalize ${autoEditStyle === style ? 'border-violet-400 bg-violet-400/10' : 'border-white/10 bg-white/5'}`}>{style}<span className="mt-1 block text-xs text-slate-400">{style === 'elegant' ? 'Slower pacing and subtle movement' : style === 'energetic' ? 'Faster pacing and dynamic zoom' : 'Longer shots with smooth opening and ending'}</span></button>)}</div><label className="mt-4 block text-xs text-slate-400">Optional opening title<input value={autoEditTitle} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white" placeholder="Your title" /></label>{project.duration > 0 && <p className="mt-3 text-xs text-amber-200">Preview replaces current timeline edits only after you accept. You can undo the change.</p>}{autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={false} /> : autoEditError && <p role="alert" className="mt-3 text-xs text-red-300">{autoEditError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => { autoEditEpochRef.current += 1; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-10 rounded-lg px-4 text-sm text-slate-300">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="min-h-10 rounded-lg bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">Preview Auto Edit</button></div></section></div>}
+      {autoEditOpen && <div className="fixed inset-0 z-[160] grid place-items-center bg-black/70 p-4"><section className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111118] p-5 text-white"><h2 className="text-base font-semibold">Auto Edit</h2><p className="mt-1 text-xs text-slate-400">Choose a style and preview editable enhancements to your uploaded video.</p><div className="mt-4 grid gap-2">{(['elegant', 'energetic', 'cinematic'] as AutoEditStyle[]).map((style) => <button key={style} type="button" onClick={() => setAutoEditStyle(style)} className={`rounded-lg border px-3 py-3 text-left text-sm capitalize ${autoEditStyle === style ? 'border-violet-400 bg-violet-400/10' : 'border-white/10 bg-white/5'}`}>{style}<span className="mt-1 block text-xs text-slate-400">{style === 'elegant' ? 'Slower pacing and subtle movement' : style === 'energetic' ? 'Faster pacing and dynamic zoom' : 'Longer shots with smooth opening and ending'}</span></button>)}</div><label className="mt-4 flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={autoEditDetectPauses} onChange={(event) => setAutoEditDetectPauses(event.target.checked)} />Suggest silence cuts (experimental; review before accepting)</label><label className="mt-4 block text-xs text-slate-400">Optional opening title<input value={autoEditTitle} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white" placeholder="Your title" /></label>{project.duration > 0 && <p className="mt-3 text-xs text-amber-200">Preview replaces current timeline edits only after you accept. You can undo the change.</p>}{autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={false} /> : autoEditError && <p role="alert" className="mt-3 text-xs text-red-300">{autoEditError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => { autoEditEpochRef.current += 1; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-10 rounded-lg px-4 text-sm text-slate-300">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="min-h-10 rounded-lg bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">Preview Auto Edit</button></div></section></div>}
       <ExportDialog open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? undefined} />
     </div>
   );
