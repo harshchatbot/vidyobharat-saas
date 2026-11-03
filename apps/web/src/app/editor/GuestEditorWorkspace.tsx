@@ -762,7 +762,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const music = media.filter((item) => item.media_type === 'audio' && item.availability !== 'unavailable');
       const beatCandidates = music.length === 1 ? await analyzeUploadedMusic(music[0].media_id) : undefined;
       if (epoch !== autoEditEpochRef.current) return;
-      const videoForSpeech = media.find((item) => item.media_type === 'video' && item.availability !== 'unavailable');
+      const selectedVideo = project.tracks.find((track) => track.id === 'video')?.items.find((item) => item.kind === 'video');
+      const videoForSpeech = media.find((item) => item.media_id === (selectedVideo?.kind === 'video' ? selectedVideo.mediaId : '') && item.media_type === 'video' && item.availability !== 'unavailable') ?? media.find((item) => item.media_type === 'video' && item.availability !== 'unavailable');
       let transcript: ReturnType<typeof validateWordTranscript> | undefined;
       let transcriptionWarning = '';
       if (videoForSpeech) {
@@ -776,9 +777,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Speech recognition unavailable.');
           }
           transcript = validateWordTranscript(await response.json(), videoForSpeech.duration_seconds ?? 60);
-          if (!transcript.words.length) transcriptionWarning = 'No recognizable speech was detected. Captions were not generated.';
+          if (!transcript.words.length) throw new Error('No recognizable speech detected. Try a recording with clear spoken audio.');
         } catch (error) {
-          transcriptionWarning = error instanceof Error ? `Captions unavailable: ${error.message}` : 'Captions unavailable.';
+          throw new Error(error instanceof Error ? `Auto Edit stopped: captions could not be generated. ${error.message}` : 'Auto Edit stopped: speech recognition failed.');
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
