@@ -32,7 +32,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
   const [prompt, setPrompt] = useState('');
   const promptRef = useRef('');
   const submit = () => {
-    const value = promptRef.current.trim();
+    const value = (promptRef.current || prompt).trim();
     if (!value || loading || proposal) return;
     promptRef.current = '';
     setPrompt('');
@@ -45,7 +45,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
     }
   };
 
-  return <aside aria-label="AI Copilot" className="flex h-full min-h-0 flex-col bg-[#111118]">
+  return <aside aria-label="AI Copilot" className="rm-editor-copilot flex h-full min-h-0 flex-col bg-[#111118]">
     <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
       <div className="flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><Bot className="h-4 w-4" /></span>
@@ -53,8 +53,8 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
       </div>
 
       {history.length === 0 && !proposal && <MotionReveal><section className="mt-5" aria-label="Suggested prompts">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Try asking</p>
-        <div className="mt-2 grid gap-2">{COPILOT_SUGGESTIONS.map((suggestion) => <button key={suggestion} type="button" disabled={loading} onClick={() => setPrompt(suggestion)} className="min-h-11 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs leading-5 text-slate-300 transition-colors hover:border-amber-400/30 hover:bg-amber-400/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)] disabled:opacity-50">{suggestion}</button>)}</div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Try asking · select then Propose</p>
+        <div className="mt-2 grid gap-2">{COPILOT_SUGGESTIONS.map((suggestion) => <button key={suggestion} type="button" disabled={loading} onClick={() => { promptRef.current = suggestion; setPrompt(suggestion); }} className="rm-copilot-suggestion min-h-11 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs leading-5 text-slate-300 transition-colors hover:border-amber-400/30 hover:bg-amber-400/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)] disabled:opacity-50">{suggestion}</button>)}</div>
       </section></MotionReveal>}
 
       {history.length > 0 && <div className="mt-4 space-y-2" aria-label="Copilot conversation">{history.map((message, index) => <MotionReveal key={`${message.role}-${index}`} delay={index === history.length - 1 ? 0.03 : 0}><div className={`rounded-lg px-3 py-2 text-xs leading-5 ${message.role === 'user' ? 'ml-5 border border-amber-400/10 bg-amber-400/10 text-amber-100' : 'mr-5 border border-white/5 bg-white/5 text-slate-300'}`}><span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{message.role === 'user' ? 'You' : 'RangManch AI'}</span>{message.content}</div></MotionReveal>)}</div>}

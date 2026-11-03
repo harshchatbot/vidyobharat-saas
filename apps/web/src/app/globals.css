@@ -382,3 +382,19 @@ p {
 .rm-editor-skin .rm-editor-library-shell input:focus-visible,
 .rm-editor-skin .rm-editor-inspector-shell input:focus-visible { outline: 2px solid #79549b; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .rm-editor-skin * { scroll-behavior: auto; } }
+/* Scoped Copilot and toolbar contrast for the light editor theme. */
+.rm-editor-skin .rm-editor-copilot { background: #fffdf9; color: #292034; }
+.rm-editor-skin .rm-editor-copilot [class~="text-white"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-300"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-200"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-600"] { color: #45364f; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-suggestion { color: #2a2037; background: #f9f0ff; border: 1px solid #c7add8; font-weight: 600; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-suggestion:hover { background: #e8d2fa; border-color: #865eaa; }
+.rm-editor-skin .rm-editor-copilot textarea { color: #292034; background: white; border-color: #b8a2c9; }
+.rm-editor-skin .rm-editor-copilot textarea::placeholder { color: #6e6079; }
+.rm-editor-skin .rm-editor-copilot button.bg-amber-400 { color: #221830; background: #ffdb77; }
+.rm-editor-skin .rm-editor-header .rm-header-play { background: #372548; color: #fffaf0; border: 1px solid #372548; }
+.rm-editor-skin .rm-editor-header .rm-header-play:disabled { background: #d1bfa0; color: #514858; border-color: #a9958d; opacity: .75; }
+.rm-editor-skin .rm-editor-header .rm-header-sign-in { color: #271c34; background: #fffdf9; border: 1px solid #493957; font-weight: 700; }
+.rm-editor-skin .rm-editor-header .rm-header-sign-in:hover { background: #f7eafa; }

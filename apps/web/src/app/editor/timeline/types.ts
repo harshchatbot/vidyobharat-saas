@@ -44,6 +44,8 @@ export type TimelineProject = { id: string; duration: number; extensionExplicit:
 
 export const EDITOR_FONTS = [
   'Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif',
+  'Arial', 'Arial Black', 'Verdana', 'Trebuchet MS', 'Georgia', 'Times New Roman',
+  'Palatino Linotype', 'Courier New', 'Impact', 'Tahoma',
   'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu',
   'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam',
 ] as const;
