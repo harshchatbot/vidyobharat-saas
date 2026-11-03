@@ -109,3 +109,32 @@ export function suggestSpeechPauseCuts(
     .slice(0, Math.max(0, Math.min(5, maxCuts)))
     .sort((a, b) => a.start - b.start);
 }
+
+/** Reject energy-based cuts that overlap spoken words, and keep a safe buffer around speech. */
+export function protectSpeechFromCuts(
+  removals: readonly SourceInterval[],
+  words: readonly TimedWord[],
+  duration: number,
+  maxCuts = 5,
+): SourceInterval[] {
+  if (!Number.isFinite(duration) || duration <= 0) return [];
+  const sortedWords = [...words].filter((w) => Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start)
+    .sort((a, b) => a.start - b.start);
+  const safe: SourceInterval[] = [];
+  for (const interval of removals) {
+    if (!Number.isFinite(interval.start) || !Number.isFinite(interval.end)) continue;
+    let start = Math.max(0, interval.start);
+    let end = Math.min(duration, interval.end);
+    if (end <= start) continue;
+    // Any overlap with actual speech makes this cut unsafe: skip it rather than split words.
+    if (sortedWords.some((word) => word.start < end + 0.12 && word.end > start - 0.12)) continue;
+    const before = [...sortedWords].reverse().find((word) => word.end <= start);
+    const after = sortedWords.find((word) => word.start >= end);
+    if (before) start = Math.max(start, before.end + 0.12);
+    if (after) end = Math.min(end, after.start - 0.12);
+    if (end - start >= 0.35) safe.push({ start, end });
+  }
+  return safe.sort((a, b) => a.start - b.start)
+    .filter((cut, index, all) => index === 0 || cut.start >= all[index - 1].end)
+    .slice(0, Math.max(0, Math.min(5, maxCuts)));
+}
