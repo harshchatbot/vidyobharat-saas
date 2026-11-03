@@ -28,7 +28,9 @@ test('supports custom thresholds and minimum pause lengths', () => {
   const result = detectSilence(samples([[1, 0.1], [0.4, 0.01], [1, 0.1]]), 1000, {
     threshold: 0.02, minSilenceSeconds: 0.35, speechPaddingSeconds: 0.05,
   });
-  assert.deepEqual(result.removals, [{ start: 1.05, end: 1.35 }]);
+  assert.equal(result.removals.length, 1);
+  assert.ok(Math.abs(result.removals[0].start - 1.05) < 1e-6);
+  assert.ok(Math.abs(result.removals[0].end - 1.35) < 1e-6);
 });
 
 test('rejects invalid analysis parameters', () => {
