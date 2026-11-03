@@ -28,6 +28,8 @@ import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename } from './timeline/serialization';
 import { exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditMode, type AutoEditStyle } from './autoEdit';
+import { detectSilenceFromBlob } from './silenceDetection';
+import { buildTalkingHeadCutPlan, type TalkingHeadCutPlan } from './talkingHeadCutPlan';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
 import { applyProjectChange, beginProjectTransaction, canRedoProject, canUndoProject, commitProjectTransaction, createProjectHistory, redoProjectChange, undoProjectChange } from './timeline/history';
 import { applyEditPlan, calculateProjectRevision } from './timeline/editPlan';
@@ -100,6 +102,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [exportError, setExportError] = useState('');
   const [localExportUrl, setLocalExportUrl] = useState<string | null>(null);
   const [autoEditOpen, setAutoEditOpen] = useState(false);
+  const [silencePlan, setSilencePlan] = useState<TalkingHeadCutPlan | null>(null);
+  const [silenceBusy, setSilenceBusy] = useState(false);
+  const [silenceError, setSilenceError] = useState('');
   const [autoEditStyle, setAutoEditStyle] = useState<AutoEditStyle>('elegant');
   const [autoEditMode, setAutoEditMode] = useState<AutoEditMode>('add');
   const [autoEditTitle, setAutoEditTitle] = useState('');
@@ -750,6 +755,44 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setExportError('Export cancelled. You can try again.');
   }
 
+  async function previewSilenceCuts() {
+    if (silenceBusy || copilotProposal) return;
+    setSilenceError('');
+    setSilencePlan(null);
+    const clips = project.tracks.find((track) => track.id === 'video')?.items.filter((item): item is VideoTimelineItem => item.kind === 'video') ?? [];
+    const otherItems = project.tracks.filter((track) => track.id !== 'video').some((track) => track.items.length > 0);
+    if (clips.length !== 1 || otherItems || !clips[0].contentType.startsWith('video/')) {
+      setSilenceError('Silence trimming currently requires one unedited video clip and no overlays or other audio tracks.');
+      return;
+    }
+    const clip = clips[0];
+    const entry = media.find((item) => item.media_id === clip.mediaId);
+    if (!entry || entry.availability === 'unavailable') { setSilenceError('Video source is unavailable.'); return; }
+    setSilenceBusy(true);
+    try {
+      const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(clip.mediaId)}/content`, { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error(`Unable to load video (${response.status}).`);
+      const analysis = await detectSilenceFromBlob(await response.blob());
+      const plan = buildTalkingHeadCutPlan({ video: clip, sourceDuration: clip.duration, removals: analysis.removals });
+      if (plan.video.length > MAX_CLIPS) throw new Error(`Detected ${plan.video.length} segments; the editor supports at most ${MAX_CLIPS}. Try a shorter clip.`);
+      setSilencePlan(plan);
+    } catch (error) {
+      setSilenceError(error instanceof Error ? error.message : 'Silence analysis failed.');
+    } finally { setSilenceBusy(false); }
+  }
+
+  function applySilenceCuts() {
+    if (!silencePlan) return;
+    const plan = silencePlan;
+    mutate((current) => ({
+      ...current,
+      tracks: current.tracks.map((track) => track.id === 'video' ? { ...track, items: plan.video } : track),
+    }));
+    setSilencePlan(null);
+    setPlaybackTime(0);
+    setIsPlaying(false);
+  }
+
   async function previewAutoEdit() {
     const epoch = ++autoEditEpochRef.current;
     setAutoEditError('');
@@ -940,7 +983,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         <div className="ml-2 flex items-center gap-1"><button type="button" disabled={proposalActive || !canUndoProject(projectHistory)} onClick={undoProject} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Undo2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !canRedoProject(projectHistory)} onClick={redoProject} title="Redo (Cmd/Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-md text-slate-300 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:text-slate-600 disabled:hover:bg-transparent"><Redo2 className="h-4 w-4" /></button></div>
         <div className="ml-auto flex items-center gap-2"><span className="hidden text-xs tabular-nums text-slate-400 md:block">{playbackTime.toFixed(1)} / {displayProject.duration.toFixed(1)}s</span><button type="button" disabled={displayProject.duration === 0} onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-white transition-transform hover:bg-white/15 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40" aria-label={isPlaying ? 'Pause preview' : 'Play preview'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}</button><button type="button" disabled={proposalActive || media.filter((item) => item.media_type === 'image').length === 0} onClick={() => { setAutoEditError(''); setAutoEditOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-violet-500 px-3 text-xs font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-40"><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Auto Edit</span></button><button type="button" onClick={() => setMobilePanel('copilot')} className="grid h-9 w-9 place-items-center rounded-md text-amber-300 hover:bg-amber-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 lg:hidden" aria-label="Open AI Copilot"><Sparkles className="h-4 w-4" /></button><button type="button" onClick={() => setMobilePanel('inspector')} className="grid h-9 w-9 place-items-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 lg:hidden" aria-label="Open inspector"><PanelRight className="h-4 w-4" /></button><button type="button" disabled={proposalActive || !selectedItemId} onClick={() => { setIsPlaying(false); removeSelected(); }} title="Remove selected timeline item (Delete)" aria-label="Remove selected timeline item" className="grid h-9 w-9 place-items-center rounded-md text-rose-300 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button><button type="button" disabled={proposalActive || clipCount === 0} onClick={() => { setExportError(''); setExportOpen(true); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-amber-400 px-3 text-xs font-bold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40 sm:px-4"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button>{authHydrated && !authenticatedCreator && <Link href="/login?next=%2Feditor" className="hidden min-h-9 items-center rounded-md border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:inline-flex">Sign in</Link>}{serverVerifiedAdmin && <Link href="/admin" className="hidden min-h-9 items-center rounded-md border border-amber-400/30 px-3 text-xs font-semibold text-amber-300 hover:bg-amber-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:inline-flex">Admin</Link>}</div>
       </header>
-      {(uploadError || uploadNotice || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs">{uploadError ? <StatusTransition tone="error" label="Upload failed" detail={uploadError} /> : uploadNotice ? <StatusTransition tone="success" label="Upload ready" detail={uploadNotice} /> : <StatusTransition tone={exportError ? 'error' : exportStatus.includes('completed') ? 'success' : 'loading'} label={exportError ? 'Export failed' : exportStatus.includes('completed') ? 'Export ready' : 'Export status'} detail={exportStatus} />}</div>}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#111118] px-4 py-2 text-xs">
+         <button type="button" disabled={silenceBusy || proposalActive} onClick={() => void previewSilenceCuts()} className="rounded-md border border-violet-400/40 px-3 py-2 font-semibold text-violet-200 disabled:opacity-40">{silenceBusy ? 'Analyzing speech pauses…' : 'Detect silence (beta)'}</button>
+         {silencePlan && <><span className="text-slate-300">Proposed: {silencePlan.video.length} clips · {silencePlan.removedDuration.toFixed(1)}s removed</span><button type="button" onClick={applySilenceCuts} className="rounded-md bg-violet-500 px-3 py-2 font-semibold text-white">Apply cuts</button><button type="button" onClick={() => setSilencePlan(null)} className="rounded-md border border-white/20 px-3 py-2">Discard</button></>}
+         {silenceError && <span role="alert" className="text-rose-300">{silenceError}</span>}
+         <span className="text-slate-500">Energy-based detection · review before applying · video export pending</span>
+       </div>
+       {(uploadError || uploadNotice || exportStatus) && <div className="border-b border-white/10 bg-[#111118] px-4 py-2 text-xs">{uploadError ? <StatusTransition tone="error" label="Upload failed" detail={uploadError} /> : uploadNotice ? <StatusTransition tone="success" label="Upload ready" detail={uploadNotice} /> : <StatusTransition tone={exportError ? 'error' : exportStatus.includes('completed') ? 'success' : 'loading'} label={exportError ? 'Export failed' : exportStatus.includes('completed') ? 'Export ready' : 'Export status'} detail={exportStatus} />}</div>}
 
       <div className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${sidebarOpen ? 'md:grid-cols-[240px_minmax(0,1fr)]' : 'md:grid-cols-[minmax(0,1fr)]'} lg:grid-cols-[352px_minmax(0,1fr)_288px]`}>
         <aside inert={proposalActive ? true : undefined} aria-disabled={proposalActive} className={`${sidebarOpen ? 'hidden md:flex' : 'hidden'} min-h-0 min-w-0 overflow-hidden border-r border-white/10 bg-[#111118] lg:flex ${proposalActive ? 'opacity-50' : ''}`}>
