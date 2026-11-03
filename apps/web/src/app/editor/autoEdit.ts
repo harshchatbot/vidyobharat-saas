@@ -320,7 +320,7 @@ function buildVideoAutoEditPlan(
         if (!chosen.length || time - chosen[chosen.length - 1] >= 3) chosen.push(time);
         return chosen;
       }, []).slice(0, 6)
-    : fallbackIntervals;
+    : speechWords.length ? [] : fallbackIntervals;
   for (const [index, startTime] of intervals.entries()) {
     if (startTime + 0.5 >= editedDuration) continue;
     operations.push({
