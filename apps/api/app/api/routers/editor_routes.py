@@ -49,9 +49,26 @@ def get_audio_library(
 @router.get('/audio-library/{asset_id}/content')
 def get_audio_library_content(asset_id: str):
     entry = build_audio_library_repository().get(asset_id)
-    if not entry or entry.status != 'published' or not entry.playback_url:
+    if not entry or entry.status != 'published':
         raise HTTPException(status_code=404, detail='Audio library asset is unavailable.')
-    return RedirectResponse(entry.playback_url, status_code=307)
+    if entry.playback_url:
+        return RedirectResponse(entry.playback_url, status_code=307)
+    if not entry.storage_path:
+        raise HTTPException(status_code=404, detail='Audio library asset is unavailable.')
+    from app.providers.storage import FirebaseStorageProvider, build_storage_provider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        raise HTTPException(status_code=503, detail='Audio storage unavailable.')
+    blob = storage.bucket.blob(entry.storage_path)
+    try:
+        if not blob.exists() or not blob.size or blob.size > 12 * 1024 * 1024:
+            raise HTTPException(status_code=404, detail='Audio asset unavailable.')
+        content = blob.download_as_bytes()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail='Audio storage unavailable.')
+    return Response(content=content, media_type=entry.content_type, headers={'Cache-Control': 'public,max-age=3600'})
 
 
 @router.get('/config', response_model=PublicAppConfigResponse)
