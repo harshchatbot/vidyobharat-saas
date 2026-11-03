@@ -105,7 +105,8 @@ def sync_firebase_sfx_catalog() -> int:
             metadata = blob.metadata or {}
             # No public availability without independently confirmed redistribution rights.
             license_name = metadata.get('license', 'unverified')
-            approved = (metadata.get('redistribution_confirmed') == 'true' and license_name.upper() in {'CC0', 'CC0-1.0'}\n                        and bool(metadata.get('evidence_reference') and metadata.get('source')))
+            approved = (metadata.get('redistribution_confirmed') == 'true' and license_name.upper() in {'CC0', 'CC0-1.0'}
+                        and bool(metadata.get('evidence_reference') and metadata.get('source')))
             duration = metadata.get('duration_seconds')
             if not duration:
                 if not blob.size or blob.size > 12 * 1024 * 1024:
