@@ -88,8 +88,55 @@ def build_audio_library_repository():
     return AudioLibraryRepository(get_firestore_client())
 
 
+def sync_firebase_sfx_catalog() -> int:
+    """Discover newly uploaded Firebase SFX. Unknown licenses remain drafts, never public."""
+    from app.providers.storage import FirebaseStorageProvider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        return 0
+    repository = build_audio_library_repository()
+    known = {entry.storage_path for entry in repository.list(include_unpublished=True)}
+    created = 0
+    for prefix in ('sfx/', 'audio-library/sfx/'):
+        for blob in storage.bucket.list_blobs(prefix=prefix):
+            path = blob.name
+            if path in known or not path.lower().endswith(('.wav', '.mp3', '.ogg')):
+                continue
+            metadata = blob.metadata or {}
+            # No public availability without independently confirmed redistribution rights.
+            license_name = metadata.get('license', 'unverified')
+            approved = metadata.get('redistribution_confirmed') == 'true' and license_name.upper() in {'CC0', 'CC0-1.0'}
+            duration = metadata.get('duration_seconds')
+            if not duration:
+                # An explicit duration is required for correct timeline placement.
+                continue
+            try:
+                seconds = float(duration)
+                if not 0 < seconds <= 3600:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            asset_id = hashlib.sha256(path.encode('utf-8')).hexdigest()[:40]
+            title = Path(path).stem.replace('_', ' ').replace('-', ' ')
+            entry = AudioLibraryEntry(
+                id=asset_id, title=title, category=metadata.get('category', 'sfx')[:80],
+                type='sfx', duration_seconds=seconds,
+                content_type=blob.content_type or ('audio/mpeg' if path.lower().endswith('.mp3') else 'audio/wav'),
+                tags=[tag.strip() for tag in metadata.get('tags', '').split(',') if tag.strip()][:20],
+                license=license_name, attribution=metadata.get('attribution'),
+                source=metadata.get('source', 'firebase-storage'),
+                evidence_reference=metadata.get('evidence_reference', 'pending-verification'),
+                storage_path=path, status='published' if approved else 'draft',
+            )
+            repository.save(entry)
+            known.add(path)
+            created += 1
+    return created
+
+
 def list_audio_library(*, category: str | None = None, query: str | None = None) -> list[dict]:
     # Public listing is intentionally repository-backed; an unavailable backend fails closed.
+    sync_firebase_sfx_catalog()
     entries = build_audio_library_repository().list()
     needle = query.casefold().strip() if query else None
     return [entry.public() for entry in entries if (category is None or entry.type == category) and (needle is None or needle in ' '.join([entry.title, entry.category, *entry.tags]).casefold())]
