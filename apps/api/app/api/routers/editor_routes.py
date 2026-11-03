@@ -259,6 +259,42 @@ def get_guest_media_content(
         return _guest_error(exc)
 
 
+
+@router.post('/media/{media_id}/transcribe')
+async def transcribe_guest_video(
+    media_id: str,
+    request: Request,
+    session_service: GuestSessionService = Depends(get_guest_session_service),
+    media_service: GuestMediaService = Depends(get_guest_media_service),
+):
+    """Authenticated, owner-scoped, optional local speech recognition."""
+    try:
+        token = _guest_token(request, session_service)
+        session_service.validate_mutating_request(request)
+        media = media_service.get_media(token, media_id)
+        if media.get('media_type') != 'video':
+            raise HTTPException(status_code=422, detail='Only video recordings can be transcribed.')
+        _, start, end, size = media_service.content_range(token, media_id, None)
+        if size > 100 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail='Recording exceeds transcription size limit.')
+        from app.services.editor_transcription import transcribe_video_bytes
+        from app.services.guest_media_storage import GuestMediaObjectMissing
+        try:
+            data = await run_in_threadpool(
+                lambda: b''.join(media_service.storage.iter_content(
+                    media['storage_object_path'], start=start, end=end))
+            )
+            return await run_in_threadpool(transcribe_video_bytes, data)
+        except GuestMediaObjectMissing:
+            raise HTTPException(status_code=410, detail='Recording is no longer available.')
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+    except GuestSessionError as exc:
+        return _guest_error(exc)
+
+
 @router.delete('/media/{media_id}', status_code=204)
 def delete_guest_media(
     media_id: str,
