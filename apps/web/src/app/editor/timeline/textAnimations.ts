@@ -3,7 +3,8 @@ import type { TextTimelineItem } from './types.ts';
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-export function textAnimationStyle(item: TextTimelineItem, localTime: number): CSSProperties {
+/** Seekable animation state: same input and time always yield the same frame. */
+export function textAnimationFrame(item: TextTimelineItem, localTime: number): { opacity: number; translateY: number; scale: number } {
   const time = Math.max(0, localTime);
   const inProgress = clamp01(time / Math.max(0.1, item.inAnimationDuration));
   const outStart = Math.max(0, item.duration - item.outAnimationDuration);
@@ -23,7 +24,12 @@ export function textAnimationStyle(item: TextTimelineItem, localTime: number): C
   if (item.loopAnimation === 'pulse') scale *= 1 + Math.sin(time * Math.PI * 2) * 0.04;
   if (item.loopAnimation === 'float') translateY += Math.sin(time * Math.PI * 1.5) * 8;
 
-  return { opacity, transform: `translateY(${translateY}px) scale(${scale})` };
+  return { opacity, translateY, scale };
+}
+
+export function textAnimationStyle(item: TextTimelineItem, localTime: number): CSSProperties {
+  const state = textAnimationFrame(item, localTime);
+  return { opacity: state.opacity, transform: `translateY(${state.translateY}px) scale(${state.scale})` };
 }
 
 function easeIn(value: number) { return value * value; }

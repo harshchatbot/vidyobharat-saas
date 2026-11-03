@@ -14,6 +14,7 @@ export function browserExportDimensions(aspectRatio: TimelineProject["aspectRati
 
 import type { EffectTimelineItem, GuestMedia, TextTimelineItem, TimelineItem, TimelineProject, VideoTimelineItem } from '../../app/editor/timeline/types.ts';
 import { browserEffectState, transitionProgress } from '../../app/editor/timeline/filters.ts';
+import { textAnimationFrame } from '../../app/editor/timeline/textAnimations.ts';
 
 export function titleOpacity(time: number, fadeSeconds = 2): number {
   if (time <= 0) return 0;
@@ -50,9 +51,7 @@ export function supportedTimelineItems(project: TimelineProject, assets: Browser
     if (!((media.get(video.mediaId)?.media_type === 'image' && assets.images[video.mediaId]) || (media.get(video.mediaId)?.media_type === 'video' && assets.videos?.[video.mediaId]))) throw new Error(`Missing visual media for timeline item ${video.id}.`);
     if (video.startTime < 0 || video.duration <= 0) throw new Error(`Invalid timing for timeline item ${video.id}.`);
   }
-  for (const text of items.filter((item): item is TextTimelineItem => item.kind === 'text')) {
-    if (!['none', 'fade-in'].includes(text.inAnimation) || text.outAnimation !== 'none' || text.loopAnimation !== 'none') throw new Error(`Unsupported text animation on timeline item ${text.id}.`);
-  }
+
   const audio = items.filter((item): item is import('../../app/editor/timeline/types.ts').AudioTimelineItem => item.kind === 'audio');
   const effects = items.filter((item): item is EffectTimelineItem => item.kind === 'effect');
   if (effects.some((effect) => !['fade-in', 'fade-out', 'zoom-in', 'zoom-out'].includes(effect.preset))) throw new Error('This browser export does not support one or more visual effects.');
@@ -120,15 +119,44 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
   for (const text of texts) {
     if (time < text.startTime || time >= text.startTime + text.duration) continue;
     const localTime = time - text.startTime;
-    const opacity = text.inAnimation === 'fade-in' ? titleOpacity(localTime, text.inAnimationDuration) : 1;
-    context.save(); context.globalAlpha = opacity; context.fillStyle = text.color; context.font = `${text.bold ? 'bold ' : ''}${Math.round(text.fontSize)}px ${text.fontFamily}, sans-serif`; context.textAlign = text.alignment; context.textBaseline = 'middle';
+    const motion = textAnimationFrame(text, localTime);
+    const unit = WIDTH / 720;
+    context.save();
+    context.globalAlpha = motion.opacity;
+    const fontSize = Math.round(text.fontSize * unit);
+    context.font = `${text.bold ? 'bold ' : ''}${fontSize}px "${text.fontFamily.replace(/["\\\\]/g, '')}", sans-serif`;
+    context.textAlign = text.alignment;
+    context.textBaseline = 'middle';
     const x = text.x * WIDTH; const y = text.y * HEIGHT;
-    if (text.shadow) { context.shadowColor = '#000'; context.shadowBlur = 8; }
+    context.translate(x, y);
+    context.rotate(text.rotation * Math.PI / 180);
+    context.translate(0, motion.translateY * unit);
+    context.scale(motion.scale, motion.scale);
     const maxWidth = text.width * WIDTH;
-    const lines = wrapTextLines(context, text.text, maxWidth);
-    const lineHeight = Math.round(text.fontSize * 1.15);
-    const firstLineY = y - ((lines.length - 1) * lineHeight) / 2;
-    lines.forEach((line, index) => context.fillText(line, x, firstLineY + index * lineHeight)); context.restore();
+    const lines = wrapTextLines(context, text.text, Math.max(1, maxWidth - 16 * unit));
+    const lineHeight = Math.round(fontSize * 1.12);
+    const blockHeight = Math.max(lineHeight, lines.length * lineHeight) + 8 * unit;
+    const originX = text.alignment === 'left' ? -maxWidth / 2 + 8 * unit : text.alignment === 'right' ? maxWidth / 2 - 8 * unit : 0;
+    if (text.backgroundOpacity > 0) {
+      context.save();
+      context.globalAlpha *= text.backgroundOpacity;
+      context.fillStyle = text.backgroundColor;
+      context.fillRect(-maxWidth / 2, -blockHeight / 2, maxWidth, blockHeight);
+      context.restore();
+    }
+    context.fillStyle = text.color;
+    if (text.shadow) { context.shadowColor = 'rgba(0,0,0,.55)'; context.shadowBlur = 8 * unit; context.shadowOffsetY = 2 * unit; }
+    const firstLineY = -((lines.length - 1) * lineHeight) / 2;
+    for (let index = 0; index < lines.length; index += 1) {
+      const baseline = firstLineY + index * lineHeight;
+      if (text.outlineWidth > 0) {
+        context.strokeStyle = text.outlineColor;
+        context.lineWidth = text.outlineWidth * unit;
+        context.strokeText(lines[index], originX, baseline);
+      }
+      context.fillText(lines[index], originX, baseline);
+    }
+    context.restore();
   }
 }
 

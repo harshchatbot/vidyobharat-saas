@@ -11,10 +11,10 @@ test('frame timing is deterministic at 30 FPS', () => {
   assert.equal(frameTime(EXPORT_FPS * 15 - 1), 14.966666666666667);
 });
 
-test('accepts 15, 20, and 30 second timelines but rejects longer exports', () => {
-  assert.equal(EXPORT_DURATION_SECONDS, 30);
-  for (const duration of [15, 20, 30]) assert.doesNotThrow(() => validateExportDuration(duration));
-  assert.throws(() => validateExportDuration(30.01), /up to 30 seconds/);
+test('accepts up to 60 second timelines but rejects longer exports', () => {
+  assert.equal(EXPORT_DURATION_SECONDS, 60);
+  for (const duration of [15, 20, 30, 60]) assert.doesNotThrow(() => validateExportDuration(duration));
+  assert.throws(() => validateExportDuration(60.01), /up to 60 seconds/);
   assert.throws(() => validateExportDuration(0), /greater than zero/);
 });
 
@@ -78,7 +78,7 @@ test('timeline assets preserve clip order and absolute timing', () => {
 test('rejects unsupported timeline media instead of omitting it', () => {
   let project = createEmptyProject();
   project = addItem(project, { id: 'video', kind: 'video', trackId: 'video', label: 'Video', mediaId: 'v', contentType: 'video/mp4', startTime: 0, duration: 5, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 });
-  assert.throws(() => supportedTimelineItems(project, { media: [{ media_id: 'v', original_filename: 'v.mp4', media_type: 'video', content_type: 'video/mp4' }], images: {} }), /Unsupported or missing image media/);
+  assert.throws(() => supportedTimelineItems(project, { media: [{ media_id: 'v', original_filename: 'v.mp4', media_type: 'video', content_type: 'video/mp4' }], images: {} }), /Missing visual media/);
 });
 
 test('accepts validated audio timing and requires an audio asset', () => {
@@ -112,4 +112,20 @@ test('transition boundaries use the same interpolation for preview and export', 
   assert.equal(transitionProgress(5, 0.6, 4.7), 0);
   assert.ok(Math.abs(transitionProgress(5, 0.6, 5) - 0.5) < 1e-9);
   assert.ok(Math.abs(transitionProgress(5, 0.6, 5.3) - 1) < 1e-9);
+});
+
+test('motion title presets use deterministic preview/export animation state', async () => {
+  const { TEXT_TEMPLATES, applyTextTemplate, createBasicText } = await import('../../app/editor/timeline/textTemplates.ts');
+  const { textAnimationFrame } = await import('../../app/editor/timeline/textAnimations.ts');
+  const motionPresets = ['motion-reveal', 'motion-pop', 'motion-float'];
+  for (const id of motionPresets) {
+    const preset = TEXT_TEMPLATES.find((item) => item.id === id);
+    assert.ok(preset, `Missing preset ${id}`);
+    const item = applyTextTemplate(createBasicText(0), preset);
+    assert.ok(item.inAnimation !== 'none');
+    const first = textAnimationFrame(item, 0.25);
+    assert.deepEqual(first, textAnimationFrame(item, 0.25));
+    assert.ok(first.opacity >= 0 && first.opacity <= 1);
+    assert.ok(Number.isFinite(first.scale) && Number.isFinite(first.translateY));
+  }
 });
