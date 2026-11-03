@@ -28,6 +28,7 @@ import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename } from './timeline/serialization';
 import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
+import { validateWordTranscript } from './timedCaptions';
 import { detectSilenceFromBlob } from './silenceDetection';
 import type { SourceInterval } from './talkingHeadTiming';
 import { classifyBrowserConversation } from '@/lib/browser-ai/browserIntent';
@@ -761,6 +762,26 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const music = media.filter((item) => item.media_type === 'audio' && item.availability !== 'unavailable');
       const beatCandidates = music.length === 1 ? await analyzeUploadedMusic(music[0].media_id) : undefined;
       if (epoch !== autoEditEpochRef.current) return;
+      const videoForSpeech = media.find((item) => item.media_type === 'video' && item.availability !== 'unavailable');
+      let transcript: ReturnType<typeof validateWordTranscript> | undefined;
+      let transcriptionWarning = '';
+      if (videoForSpeech) {
+        setAutoEditProgress({ phase: 'checking', message: 'Transcribing your speech and aligning captions…' });
+        try {
+          const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(videoForSpeech.media_id)}/transcribe`, {
+            method: 'POST', credentials: 'include',
+          });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Speech recognition unavailable.');
+          }
+          transcript = validateWordTranscript(await response.json(), videoForSpeech.duration_seconds ?? 60);
+          if (!transcript.words.length) transcriptionWarning = 'No recognizable speech was detected. Captions were not generated.';
+        } catch (error) {
+          transcriptionWarning = error instanceof Error ? `Captions unavailable: ${error.message}` : 'Captions unavailable.';
+        }
+      }
+      if (epoch !== autoEditEpochRef.current) return;
       let silenceRemovals: SourceInterval[] | undefined;
       let analysisWarning = '';
       if (autoEditDetectPauses) {
@@ -783,8 +804,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals });
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript });
       if (analysisWarning) plan.warnings.push(analysisWarning);
+      if (transcriptionWarning) plan.warnings.push(transcriptionWarning);
       setAutoEditProgress({ phase: 'validating', message: 'Preparing your preview…' });
       const applied = await applyEditPlan(project, plan);
       if (epoch !== autoEditEpochRef.current || committedProjectRef.current !== project) return;
