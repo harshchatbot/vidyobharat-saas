@@ -80,7 +80,10 @@ export function TextOverlayCanvas({ item, selected, onSelect, onUpdate, animatio
   const fontSize = item.fontSize * canvasWidth / 720;
   const captionWords = !editing && item.captionWords?.length && item.captionWords.map((word) => word.text).join(' ') === item.text.trim() ? item.captionWords : undefined;
   const activeWordIndex = captionWords?.findIndex((word) => animationTime >= word.start && animationTime < word.end) ?? -1;
-  const energeticCaption = item.fontFamily === 'Arial Black' && Boolean(captionWords);
+  const energeticCaption = (item.fontFamily === 'Arial Black' || item.fontFamily === 'Noto Sans Devanagari') && item.fontSize >= 50 && Boolean(captionWords);
+  useEffect(() => {
+    void document.fonts?.load(`${item.bold ? '700' : '400'} 24px ${editorFontStack(item.fontFamily)}`, item.text).catch(() => undefined);
+  }, [item.fontFamily, item.bold, item.text]);
   const textStyle: CSSProperties = {
     color: item.color, fontFamily: editorFontStack(item.fontFamily), fontSize, fontWeight: item.bold ? 700 : 400,
     lineHeight: 1.12, textAlign: item.alignment, overflowWrap: 'anywhere',
