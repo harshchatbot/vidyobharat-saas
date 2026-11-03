@@ -770,7 +770,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         setAutoEditProgress({ phase: 'checking', message: 'Transcribing your speech and aligning captions…' });
         try {
           const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(videoForSpeech.media_id)}/transcribe`, {
-            method: 'POST', credentials: 'include',
+            method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1' },
           });
           if (!response.ok) {
             const payload = await response.json().catch(() => null);
