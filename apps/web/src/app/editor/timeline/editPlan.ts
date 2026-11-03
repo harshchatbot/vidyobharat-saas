@@ -24,7 +24,7 @@ import {
 } from './types.ts';
 
 export const COPILOT_EDIT_PLAN_VERSION = '1.0' as const;
-export const MAX_COPILOT_OPERATIONS = 20;
+export const MAX_COPILOT_OPERATIONS = 160;
 
 type ReorderVisualsOperation = { op: 'reorder_visuals'; orderedItemIds: string[] };
 type AddTextOperation = { op: 'add_text'; item: TextTimelineItem };
