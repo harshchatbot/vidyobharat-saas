@@ -57,6 +57,7 @@ export function buildTimedCaptions(
     return {
       ...createBasicText(startTime),
       id: crypto.randomUUID(), label: `Caption: ${text}`, text,
+      captionWords: phrase.map((word) => ({ text: word.text, start: Math.max(0, word.start - startTime), end: Math.max(0, word.end - startTime) })),
       startTime, duration: Math.max(0.25, endTime - startTime),
       fontFamily: 'Noto Sans', fontSize: style === 'energetic' ? 48 : 42, bold: true,
       color: style === 'energetic' ? '#ffe066' : '#ffffff', outlineColor: '#000000', outlineWidth: 4,
