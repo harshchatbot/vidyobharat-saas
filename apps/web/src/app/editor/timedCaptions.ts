@@ -36,6 +36,7 @@ export function buildTimedCaptions(
   transcript: WordTranscript,
   segments: readonly EditedSegment[],
   limit = 120,
+  style: 'elegant' | 'energetic' | 'cinematic' = 'elegant',
 ): TextTimelineItem[] {
   const words = remapWords(transcript.words, segments);
   const phrases: typeof words[] = [];
@@ -49,7 +50,7 @@ export function buildTimedCaptions(
     current.push(word);
   }
   if (current.length) phrases.push(current);
-  return phrases.slice(0, limit).filter((phrase) => phrase.at(-1)!.end - phrase[0].start >= 0.25).map((phrase) => {
+  return phrases.slice(0, limit).map((phrase) => {
     const startTime = Math.round(phrase[0].start * 30) / 30;
     const endTime = Math.round(phrase.at(-1)!.end * 30) / 30;
     const text = phrase.map((word) => word.text).join(' ');
@@ -57,11 +58,11 @@ export function buildTimedCaptions(
       ...createBasicText(startTime),
       id: crypto.randomUUID(), label: `Caption: ${text}`, text,
       startTime, duration: Math.max(0.25, endTime - startTime),
-      fontFamily: 'Noto Sans', fontSize: 42, bold: true,
-      color: '#ffffff', outlineColor: '#000000', outlineWidth: 4,
-      shadow: true, backgroundColor: '#000000', backgroundOpacity: 0.45,
-      y: 0.78, width: 0.88, alignment: 'center',
-      inAnimation: 'pop-in', inAnimationDuration: 0.18,
+      fontFamily: 'Noto Sans', fontSize: style === 'energetic' ? 48 : 42, bold: true,
+      color: style === 'energetic' ? '#ffe066' : '#ffffff', outlineColor: '#000000', outlineWidth: 4,
+      shadow: true, backgroundColor: '#000000', backgroundOpacity: style === 'cinematic' ? 0.25 : 0.45,
+      y: style === 'cinematic' ? 0.82 : 0.78, width: 0.88, alignment: 'center',
+      inAnimation: style === 'cinematic' ? 'fade-in' : 'pop-in', inAnimationDuration: style === 'cinematic' ? 0.25 : 0.18,
       outAnimation: 'fade-out', outAnimationDuration: 0.12,
     };
   });
