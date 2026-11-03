@@ -108,8 +108,16 @@ def sync_firebase_sfx_catalog() -> int:
             approved = metadata.get('redistribution_confirmed') == 'true' and license_name.upper() in {'CC0', 'CC0-1.0'}
             duration = metadata.get('duration_seconds')
             if not duration:
-                # An explicit duration is required for correct timeline placement.
-                continue
+                if not blob.size or blob.size > 12 * 1024 * 1024:
+                    continue
+                try:
+                    data = blob.download_as_bytes()
+                    duration = validate_audio_file(
+                        data, blob.content_type or ('audio/mpeg' if path.lower().endswith('.mp3') else 'audio/wav'),
+                        Path(path).name, 12 * 1024 * 1024,
+                    )
+                except (ValueError, OSError, RuntimeError):
+                    continue
             try:
                 seconds = float(duration)
                 if not 0 < seconds <= 3600:
