@@ -250,14 +250,19 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     if (downloadedExportIdsRef.current.has(jobId)) return;
     downloadedExportIdsRef.current.add(jobId);
 
+    // Browser exports are local object URLs, not backend export jobs.
+    // Never request /api/editor/exports/browser-.../content.
+    if (jobId.startsWith('browser-') && !localExportUrl) return;
     const link = document.createElement('a');
-    link.href = `${getApiUrl()}/api/editor/exports/${encodeURIComponent(jobId)}/content`;
+    link.href = jobId.startsWith('browser-')
+      ? localExportUrl!
+      : `${getApiUrl()}/api/editor/exports/${encodeURIComponent(jobId)}/content`;
     link.download = exportJob.output?.filename || 'rangmanch-export.mp4';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
     link.remove();
-  }, [exportJob]);
+  }, [exportJob, localExportUrl]);
 
   // Keyboard shortcuts are scoped to the editor, never text fields or open dialogs.
   useEffect(() => {
