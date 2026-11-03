@@ -21,6 +21,7 @@ test('accepts up to 60 second timelines but rejects longer exports', () => {
 test('cancellation settles the recorder and permits a later export', async () => {
   const originalDocument = globalThis.document;
   const originalRecorder = globalThis.MediaRecorder;
+  const originalVideoElement = globalThis.HTMLVideoElement;
   const originalRaf = globalThis.requestAnimationFrame;
   let frames = 0;
   class FakeRecorder {
@@ -36,6 +37,8 @@ test('cancellation settles the recorder and permits a later export', async () =>
   const context = { canvas: { width: 720, height: 1280 }, fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: () => ({ width: 0, height: 0, getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }) }) } });
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeRecorder });
+  class FakeVideoElement {}
+  Object.defineProperty(globalThis, 'HTMLVideoElement', { configurable: true, value: FakeVideoElement });
   Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: (callback: FrameRequestCallback) => { frames += 1; callback(0); return frames; } });
   try {
     const project = addItem(createEmptyProject(), { id: 'image', kind: 'video', trackId: 'video', label: 'Image', mediaId: 'img', contentType: 'image/png', startTime: 0, duration: 15, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 });
@@ -50,6 +53,7 @@ test('cancellation settles the recorder and permits a later export', async () =>
   } finally {
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
     Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: originalRecorder });
+    Object.defineProperty(globalThis, 'HTMLVideoElement', { configurable: true, value: originalVideoElement });
     Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: originalRaf });
   }
 });
