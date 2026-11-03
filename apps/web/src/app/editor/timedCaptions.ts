@@ -31,6 +31,14 @@ export function validateWordTranscript(value: unknown, sourceDuration: number): 
   return { words: valid };
 }
 
+/** Typography choices are deterministic and script-aware so preview/export use the same font. */
+function captionTypography(text: string, style: 'elegant' | 'energetic' | 'cinematic') {
+  const devanagari = /[\\u0900-\\u097f]/.test(text);
+  const fontFamily = devanagari ? 'Noto Sans Devanagari' : style === 'energetic' ? 'Arial Black' : style === 'cinematic' ? 'Noto Serif' : 'Inter';
+  const fontSize = style === 'energetic' ? (devanagari ? 43 : 48) : style === 'cinematic' ? 40 : 42;
+  return { fontFamily, fontSize };
+}
+
 /** One readable, animated caption per short phrase, aligned to speech and cuts. */
 export function buildTimedCaptions(
   transcript: WordTranscript,
@@ -54,17 +62,19 @@ export function buildTimedCaptions(
     const startTime = Math.round(phrase[0].start * 30) / 30;
     const endTime = Math.round(phrase.at(-1)!.end * 30) / 30;
     const text = phrase.map((word) => word.text).join(' ');
+    const typography = captionTypography(text, style);
     return {
       ...createBasicText(startTime),
       id: crypto.randomUUID(), label: `Caption: ${text}`, text,
       captionWords: phrase.map((word) => ({ text: word.text, start: Math.max(0, word.start - startTime), end: Math.max(0, word.end - startTime) })),
       startTime, duration: Math.max(0.25, endTime - startTime),
-      fontFamily: 'Noto Sans', fontSize: style === 'energetic' ? 48 : 42, bold: true,
-      color: style === 'energetic' ? '#ffe066' : '#ffffff', outlineColor: '#000000', outlineWidth: 4,
+      ...typography, bold: true,
+      color: '#ffffff', outlineColor: '#000000', outlineWidth: style === 'cinematic' ? 2 : 4,
       shadow: true, backgroundColor: '#000000', backgroundOpacity: style === 'cinematic' ? 0.25 : 0.45,
       y: style === 'cinematic' ? 0.82 : 0.78, width: 0.88, alignment: 'center',
       inAnimation: style === 'cinematic' ? 'fade-in' : 'pop-in', inAnimationDuration: style === 'cinematic' ? 0.25 : 0.18,
       outAnimation: 'fade-out', outAnimationDuration: 0.12,
+      loopAnimation: 'none',
     };
   });
 }
