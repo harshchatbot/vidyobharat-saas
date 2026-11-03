@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFirebaseAuth } from '@/lib/firebase-client';
 import { getApiUrl } from '@/lib/env';
 
@@ -12,6 +12,9 @@ export default function AudioLibraryAdminPage() {
   const [items, setItems] = useState<Asset[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [playing, setPlaying] = useState('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => { audioRef.current?.pause(); if (audioRef.current) URL.revokeObjectURL(audioRef.current.src); }, []);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [metadata, setMetadata] = useState<Metadata>({ title: '', category: 'sfx', type: 'sfx', tags: [], license: 'CC0', attribution: null, source: '', evidence_reference: '', redistribution_confirmed: false });
   const request = useCallback(async (path: string, init?: RequestInit) => {
@@ -29,6 +32,33 @@ export default function AudioLibraryAdminPage() {
     catch (err) { setError(err instanceof Error ? err.message : 'Could not load audio assets.'); }
   }, [request]);
   useEffect(() => { void refresh(); }, [refresh]);
+  const preview = async (item: Asset) => {
+    if (playing === item.id) {
+      audioRef.current?.pause();
+      setPlaying('');
+      return;
+    }
+    audioRef.current?.pause();
+    if (audioRef.current) URL.revokeObjectURL(audioRef.current.src);
+    audioRef.current = null;
+    setPlaying('');
+    setBusy(item.id);
+    try {
+      const user = getFirebaseAuth()?.currentUser;
+      if (!user) throw new Error('Sign in with an administrator account to preview audio.');
+      const token = await user.getIdToken();
+      const response = await fetch(`${getApiUrl()}/api/admin/audio-library/${encodeURIComponent(item.id)}/preview`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error(`Preview failed (${response.status})`);
+      const url = URL.createObjectURL(await response.blob());
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setPlaying(''); URL.revokeObjectURL(url); audioRef.current = null; };
+      audio.onerror = () => { setError('Unable to play this audio format.'); setPlaying(''); URL.revokeObjectURL(url); audioRef.current = null; };
+      await audio.play();
+      setPlaying(item.id);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Preview unavailable.'); }
+    finally { setBusy(''); }
+  };
   const begin = (item: Asset) => {
     setEditing(item);
     setMetadata({ title: item.title, category: 'sfx', type: 'sfx', tags: item.tags || [], license: item.license === 'unverified' ? 'CC0' : item.license, attribution: null, source: item.source === 'firebase-storage' ? '' : item.source, evidence_reference: item.evidence_reference === 'pending-verification' ? '' : item.evidence_reference, redistribution_confirmed: false });
@@ -52,7 +82,7 @@ export default function AudioLibraryAdminPage() {
     <header className="flex items-center justify-between"><div><h1 className="text-2xl font-bold">SFX approval</h1><p className="text-sm text-slate-400">Administrator access required. Unverified sounds stay hidden from the editor.</p></div><button onClick={() => void refresh()} className={field}>Refresh</button></header>
     {error && <p role="alert" className="rounded bg-red-950 p-3 text-sm text-red-200">{error}</p>}
     <div className="space-y-3">{items.map(item => <div key={item.id} className="rounded-lg border border-white/15 bg-slate-900 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{item.title}</p><p className="text-xs text-slate-400">{item.status} · {item.license} · {item.storage_path}</p></div><div className="flex gap-2"><button className="rounded bg-slate-700 px-3 py-2 text-sm" onClick={() => begin(item)}>Edit license</button>{item.status !== 'published' && <button disabled={busy === item.id} className="rounded bg-amber-400 px-3 py-2 text-sm text-black disabled:opacity-50" onClick={() => void changeStatus(item, 'publish')}>Publish</button>}{item.status === 'published' && <button disabled={busy === item.id} className="rounded bg-red-800 px-3 py-2 text-sm disabled:opacity-50" onClick={() => void changeStatus(item, 'retire')}>Retire</button>}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{item.title}</p><p className="text-xs text-slate-400">{item.status} · {item.license} · {item.storage_path}</p></div><div className="flex gap-2"><button disabled={busy === item.id} className="rounded bg-slate-700 px-3 py-2 text-sm disabled:opacity-50" onClick={() => void preview(item)}>{playing === item.id ? "Pause" : "Play"}</button><button className="rounded bg-slate-700 px-3 py-2 text-sm" onClick={() => begin(item)}>Edit license</button>{item.status !== 'published' && <button disabled={busy === item.id} className="rounded bg-amber-400 px-3 py-2 text-sm text-black disabled:opacity-50" onClick={() => void changeStatus(item, 'publish')}>Publish</button>}{item.status === 'published' && <button disabled={busy === item.id} className="rounded bg-red-800 px-3 py-2 text-sm disabled:opacity-50" onClick={() => void changeStatus(item, 'retire')}>Retire</button>}</div></div>
     </div>)}</div>
     {editing && <section className="space-y-3 rounded-lg border border-amber-400/50 p-4"><h2 className="font-semibold">Verify {editing.title}</h2>
       <label className="block text-sm">Title<input className={field} value={metadata.title} onChange={e => setMetadata(m => ({ ...m, title: e.target.value }))}/></label>
