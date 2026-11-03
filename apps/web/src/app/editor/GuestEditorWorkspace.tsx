@@ -83,6 +83,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [activeTool, setActiveTool] = useState<WorkspaceTool>('media');
   const [mobilePanel, setMobilePanel] = useState<'library' | 'inspector' | 'copilot' | null>(null);
   const [rightPanel, setRightPanel] = useState<'inspector' | 'copilot'>('inspector');
+  const [autoEditReady, setAutoEditReady] = useState(false);
   const [copilotHistory, setCopilotHistory] = useState<CopilotHistoryMessage[]>([]);
   const [copilotProposal, setCopilotProposal] = useState<CopilotProposal | null>(null);
   const [copilotError, setCopilotError] = useState<CopilotClientError | null>(null);
@@ -397,6 +398,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     copilotAbortRef.current = null;
     setCopilotLoading(false);
     setCopilotProposal(null);
+    setAutoEditReady(false);
     if (reason === 'stale') {
       setCopilotError(new CopilotClientError('stale', 'The project changed. Generate a new proposal.', true));
     }
@@ -526,6 +528,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       }
       copilotEpochRef.current += 1;
       setCopilotProposal(null);
+      setAutoEditReady(false);
       setCopilotError(null);
       setPlaybackTime((time) => Math.min(time, applied.project.duration));
     } catch {
@@ -841,6 +844,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       const applied = await applyEditPlan(project, plan);
       if (epoch !== autoEditEpochRef.current || committedProjectRef.current !== project) return;
       setCopilotProposal({ epoch: copilotEpochRef.current, baseProject: project, baseRevision: revision, applied, response: { plan, usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 } } });
+      setAutoEditReady(true);
+      setRightPanel('copilot');
+      setMobilePanel('copilot');
       setAutoEditOpen(false); setPlaybackTime(0); setIsPlaying(false);
     } catch (error) { setAutoEditError(error instanceof Error ? error.message : 'Auto Edit could not create a safe proposal.'); }
     finally { if (epoch === autoEditEpochRef.current) setAutoEditProgress(null); }
@@ -1051,7 +1057,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <button type="button" onClick={() => setRightPanel('inspector')} aria-selected={rightPanel === 'inspector'} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
             <button type="button" onClick={() => setRightPanel('copilot')} aria-selected={rightPanel === 'copilot'} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-amber-300' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
           </div>
-          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
+          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} autoEditReady={autoEditReady} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
         </aside>
       </div>
       <div className="relative shrink-0 border-t border-white/10" style={{ height: timelineHeight }}>
@@ -1088,7 +1094,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
 
       <nav inert={proposalActive ? true : undefined} aria-disabled={proposalActive} aria-label="Mobile editor tools" className={`flex shrink-0 gap-1 overflow-x-auto border-t border-white/10 bg-[#111118] px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden ${proposalActive ? 'opacity-50' : ''}`}>{tools.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => chooseTool(id)} className={`flex min-h-12 min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-md text-[10px] ${activeTool === id ? 'bg-white/10 text-amber-300' : 'text-slate-400'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
 
-      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/25 lg:hidden" onPointerDown={() => { if (mobilePanel === 'copilot' && copilotProposal) return; setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className={`absolute inset-x-0 bottom-0 flex min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl ${mobilePanel === 'copilot' ? 'max-h-[62dvh]' : 'max-h-[72vh]'}`} onPointerDown={(event) => event.stopPropagation()}>{mobilePanel === 'copilot' ? <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold text-amber-300">AI Copilot</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div><div className="min-h-0 flex-1"><CopilotPanel history={copilotHistory} loading={copilotLoading} proposal={copilotProposal} error={copilotError} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /></div></> : activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} /> : mediaLibrary}</>}</section></div>}
+      {mobilePanel && <div className="fixed inset-0 z-40 bg-black/25 lg:hidden" onPointerDown={() => { if (mobilePanel === 'copilot' && copilotProposal) return; setTextPreview(undefined); setMobilePanel(null); }}><section data-testid="mobile-editor-sheet" className={`absolute inset-x-0 bottom-0 flex min-h-[280px] flex-col border-t border-white/10 bg-[#111118] pb-[env(safe-area-inset-bottom)] shadow-2xl ${mobilePanel === 'copilot' ? 'max-h-[62dvh]' : 'max-h-[72vh]'}`} onPointerDown={(event) => event.stopPropagation()}>{mobilePanel === 'copilot' ? <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold text-amber-300">AI Copilot</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div><div className="min-h-0 flex-1"><CopilotPanel history={copilotHistory} loading={copilotLoading} proposal={copilotProposal} autoEditReady={autoEditReady} error={copilotError} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /></div></> : activeTool === 'text' && mobilePanel === 'library' ? <TextLibrary key={selectedText?.id ?? 'new-text-mobile'} selectedText={selectedText} startTime={Math.min(playbackTime, 55)} onPreview={previewText} onApply={applyTextDraft} onCancel={() => { setTextPreview(undefined); setMobilePanel(null); }} /> : <><div className="flex min-h-12 items-center justify-between border-b border-white/10 px-4"><span className="text-sm font-semibold">{mobilePanel === 'inspector' ? 'Inspector' : activeTool === 'audio' ? 'Audio' : 'Media'}</span><button type="button" onClick={() => setMobilePanel(null)} className="grid h-10 w-10 place-items-center rounded-md text-slate-300" aria-label="Close panel"><ChevronDown className="h-5 w-5" /></button></div>{mobilePanel === 'inspector' ? <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} /> : mediaLibrary}</>}</section></div>}
       {hoveredMedia && !showFilters && (
         <div
           className="pointer-events-none fixed z-40 hidden w-[310px] rounded-lg border border-white/15 bg-[#171720] p-3 shadow-2xl md:block"
