@@ -28,7 +28,9 @@ export type GuestMedia = {
 
 type BaseTimelineItem = { id: string; trackId: TrackType; startTime: number; duration: number; label: string };
 export type VideoTimelineItem = BaseTimelineItem & { kind: 'video'; trackId: 'video'; mediaId: string; contentType: string; sourceStart: number; cropMode: CropMode; muted: boolean; volume: number; transitionOut?: ClipTransition };
+export type CaptionWord = { text: string; start: number; end: number };
 export type TextTimelineItem = BaseTimelineItem & {
+  captionWords?: CaptionWord[];
   kind: 'text'; trackId: 'text'; text: string; fontFamily: string; fontSize: number;
   color: string; bold: boolean; x: number; y: number; width: number; rotation: number;
   alignment: TextAlignment; outlineColor: string; outlineWidth: number; shadow: boolean;
