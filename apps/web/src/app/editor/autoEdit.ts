@@ -304,7 +304,18 @@ function buildVideoAutoEditPlan(
   }
   const editedDuration = segments.reduce((sum, segment) => sum + segment.duration, 0);
   const config = styleConfig[options.style];
-  const intervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
+  // Prefer speech phrase boundaries over fixed timestamps for talking-head zooms.
+  // Keep the fallback for image-only/no-transcript workflows.
+  const speechWords = options.transcript?.words ?? [];
+  const speechCandidates = speechWords.flatMap((word, index) => {
+    const previous = speechWords[index - 1];
+    if (!previous || word.start - previous.end < 0.4) return [];
+    const segment = segments.find((part) => word.start >= part.sourceStart && word.start < part.sourceEnd);
+    if (!segment) return [];
+    return [segment.timelineStart + word.start - segment.sourceStart];
+  });
+  const fallbackIntervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
+  const intervals = speechCandidates.length ? speechCandidates.filter((time, index, all) => time > 1 && (index === 0 || time - all[index - 1] >= 3)).slice(0, 6) : fallbackIntervals;
   for (const [index, startTime] of intervals.entries()) {
     if (startTime + 0.5 >= editedDuration) continue;
     operations.push({
