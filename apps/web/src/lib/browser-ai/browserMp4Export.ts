@@ -263,6 +263,15 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const { audio, videos: videoItems } = supportedTimelineItems(project, assets);
   if (typeof document === 'undefined') throw new Error('Browser export is unavailable outside the browser.');
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported('video/mp4')) throw new Error('This browser cannot encode compatible MP4 locally. Use a supported Chromium-based browser.');
+  // Ensure the export canvas uses the same downloaded web fonts as the editor preview.
+  if (document.fonts?.load) {
+    const texts = project.tracks.flatMap((track) => track.items).filter((item): item is TextTimelineItem => item.kind === 'text');
+    await Promise.all([...new Map(texts.map((item) => [
+      item.fontFamily + ':' + item.bold,
+      document.fonts.load(`${item.bold ? '700' : '400'} 24px "${item.fontFamily.replace(/["\\]/g, '')}", sans-serif`, item.text),
+    ])).values()]);
+    await document.fonts.ready;
+  }
   const dimensions = browserExportDimensions(project.aspectRatio, project.exportSettings.resolution);
   const canvas = document.createElement('canvas'); canvas.width = dimensions.width; canvas.height = dimensions.height;
   const context = canvas.getContext('2d'); if (!context) throw new Error('Canvas 2D rendering is unavailable.');
