@@ -1,3 +1,4 @@
+import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
 
 import { createBasicText } from './timeline/textTemplates.ts';
 import {
@@ -24,6 +25,7 @@ type TransitionType = 'crossfade' | 'slide-left' | 'slide-right';
 export type AutoEditOptions = {
   style: AutoEditStyle;
   mode: AutoEditMode;
+  silenceRemovals?: SourceInterval[];
   title?: string;
   targetDuration?: number;
   musicVolume?: number;
@@ -279,19 +281,30 @@ function buildVideoAutoEditPlan(
   if (project.aspectRatio !== '9:16') {
     operations.push({ op: 'set_aspect_ratio', aspectRatio: '9:16' });
   }
-  operations.push({
-    op: 'add_media',
-    item: {
-      id: crypto.randomUUID(), kind: 'video', trackId: 'video',
-      label: source.original_filename, mediaId: source.media_id,
-      contentType: source.content_type, startTime: 0, duration,
-      sourceStart: 0, cropMode: 'cover', muted: false, volume: 1,
-    },
-  });
+  const segments = options.silenceRemovals?.length
+    ? buildEditedSegments(duration, options.silenceRemovals, 0.25)
+    : [{ sourceStart: 0, sourceEnd: duration, timelineStart: 0, duration }];
+  if (!segments.length || segments.length > 8) {
+    throw new Error('Too many proposed cuts. Please review the recording manually.');
+  }
+  for (const [index, segment] of segments.entries()) {
+    operations.push({
+      op: 'add_media',
+      item: {
+        id: crypto.randomUUID(), kind: 'video', trackId: 'video',
+        label: `${source.original_filename} · ${index + 1}`,
+        mediaId: source.media_id, contentType: source.content_type,
+        startTime: segment.timelineStart, duration: segment.duration,
+        sourceStart: segment.sourceStart, cropMode: 'cover',
+        muted: false, volume: 1,
+      },
+    });
+  }
+  const editedDuration = segments.reduce((sum, segment) => sum + segment.duration, 0);
   const config = styleConfig[options.style];
   const intervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
   for (const [index, startTime] of intervals.entries()) {
-    if (startTime + 0.5 >= duration) continue;
+    if (startTime + 0.5 >= editedDuration) continue;
     operations.push({
       op: 'add_effect',
       item: {
@@ -299,7 +312,7 @@ function buildVideoAutoEditPlan(
         label: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
         preset: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
         amount: config.amount, startTime,
-        duration: Math.min(options.style === 'energetic' ? 1.5 : 2.5, duration - startTime),
+        duration: Math.min(options.style === 'energetic' ? 1.5 : 2.5, editedDuration - startTime),
       },
     });
   }
@@ -309,8 +322,8 @@ function buildVideoAutoEditPlan(
       op: 'add_text',
       item: {
         ...createBasicText(0), id: crypto.randomUUID(),
-        label: title, text: title, duration: Math.min(3, duration),
-        inAnimation: 'fade-in', inAnimationDuration: Math.min(0.5, duration),
+        label: title, text: title, duration: Math.min(3, editedDuration),
+        inAnimation: 'fade-in', inAnimationDuration: Math.min(0.5, editedDuration),
       },
     });
   }
@@ -319,7 +332,7 @@ function buildVideoAutoEditPlan(
     requestId: crypto.randomUUID(), projectRevision: revision,
     summary: `Video Auto Edit · ${options.style}`,
     warnings: [
-      'Original video and speech preserved. Effects are editable on the timeline.',
+      options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
       'Speech recognition, silence removal and contextual SFX are not implemented yet.',
     ],
     operations,
