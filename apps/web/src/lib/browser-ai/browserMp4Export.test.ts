@@ -33,7 +33,7 @@ test('cancellation settles the recorder and permits a later export', async () =>
     start() { this.state = 'recording'; }
     stop() { this.state = 'inactive'; this.onstop?.(); }
   }
-  const context = { fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
+  const context = { canvas: { width: 720, height: 1280 }, fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: () => ({ width: 0, height: 0, getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }) }) } });
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeRecorder });
   Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: (callback: FrameRequestCallback) => { frames += 1; callback(0); return frames; } });
