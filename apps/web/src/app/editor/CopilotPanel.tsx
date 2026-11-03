@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Bot, Send, Sparkles, X } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import {
   COPILOT_SUGGESTIONS,
@@ -57,7 +57,7 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
         <div className="mt-2 grid gap-2">{COPILOT_SUGGESTIONS.map((suggestion) => <button key={suggestion} type="button" disabled={loading} onClick={() => { promptRef.current = suggestion; setPrompt(suggestion); }} className="rm-copilot-suggestion min-h-11 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs leading-5 text-slate-300 transition-colors hover:border-amber-400/30 hover:bg-amber-400/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)] disabled:opacity-50">{suggestion}</button>)}</div>
       </section></MotionReveal>}
 
-      {history.length > 0 && <div className="mt-4 space-y-2" aria-label="Copilot conversation">{history.map((message, index) => <MotionReveal key={`${message.role}-${index}`} delay={index === history.length - 1 ? 0.03 : 0}><div className={`rounded-lg px-3 py-2 text-xs leading-5 ${message.role === 'user' ? 'ml-5 border border-amber-400/10 bg-amber-400/10 text-amber-100' : 'mr-5 border border-white/5 bg-white/5 text-slate-300'}`}><span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{message.role === 'user' ? 'You' : 'RangManch AI'}</span>{message.content}</div></MotionReveal>)}</div>}
+      {history.length > 0 && <div className="mt-4 space-y-2" aria-label="Copilot conversation">{history.map((message, index) => <MotionReveal key={`${message.role}-${index}`} delay={index === history.length - 1 ? 0.03 : 0}><div className={`rounded-lg px-3 py-2 text-xs leading-5 ${message.role === 'user' ? 'rm-copilot-user ml-5 border border-amber-400/10 bg-amber-400/10 text-amber-100' : 'rm-copilot-assistant mr-5 border border-white/5 bg-white/5 text-slate-300'}`}><span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{message.role === 'user' ? 'You' : 'RangManch AI'}</span><FormattedCopilotMessage content={message.content} /></div></MotionReveal>)}</div>}
 
       {loading && <div className="mt-4 text-xs text-slate-300">{browserProvider ? <BrandLoading size="contextual" label={progress?.message ?? 'Getting everything ready…'} progress={progress?.progress} firstRun={!progress || progress.phase === 'checking'} /> : <AIActivityIndicator label="Creating a safe edit proposal…" />}<button type="button" onClick={onAbort} className="mt-3 min-h-10 text-xs font-semibold text-slate-300 underline">Cancel request</button></div>}
 
@@ -75,4 +75,26 @@ export function CopilotPanel({ history, loading, proposal, error, onSubmit, onCa
       {proposal ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={onCancel} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/15 text-xs font-semibold text-slate-200 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)]"><X className="h-4 w-4" />Cancel</button><button type="button" onClick={onApply} className="min-h-11 rounded-lg bg-amber-400 px-3 text-xs font-bold text-slate-950 transition-transform hover:bg-amber-300 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)]">Apply edits</button></div> : <><label htmlFor="copilot-prompt" className="sr-only">Ask AI Copilot to edit the project</label><textarea id="copilot-prompt" value={prompt} maxLength={2000} rows={3} disabled={loading} onChange={(event) => { promptRef.current = event.target.value; setPrompt(event.target.value); }} onKeyDown={onComposerKeyDown} placeholder="Describe the edit you want…" className="w-full resize-none rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-amber-400/60 focus:ring-2 focus:ring-amber-400/10 disabled:opacity-60" /><div className="mt-2 flex items-center justify-between"><span className="text-[10px] tabular-nums text-slate-600">{prompt.length}/2000 · ⌘/Ctrl Enter</span><button type="button" disabled={!prompt.trim() || loading} onClick={submit} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-amber-400 px-3 text-xs font-bold text-slate-950 transition-transform hover:bg-amber-300 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--color-primary-light)/0.7)] disabled:opacity-40"><Send className="h-3.5 w-3.5" />Propose</button></div></>}
     </div>
   </aside>;
+}
+
+// Safe text-only formatting (no HTML or external Markdown runtime).
+function formatInline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
+      : part
+  );
+}
+
+export function FormattedCopilotMessage({ content }: { content: string }) {
+  const normalized = content.replace(/\s+(?=\d{1,2}[.)]\s)/g, '\n').trim();
+  const sections = normalized.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return <div className="space-y-2 whitespace-normal break-words">
+    {sections.map((line, i) => {
+      const match = line.match(/^(\d{1,2})[.)]\s+(.+)$/);
+      return match
+        ? <div key={i} className="flex gap-2"><span className="shrink-0 font-bold text-violet-700">{match[1]}.</span><span>{formatInline(match[2])}</span></div>
+        : <p key={i} className="leading-5">{formatInline(line.replace(/^[-*]\s+/, '• '))}</p>;
+    })}
+  </div>;
 }

@@ -398,3 +398,11 @@ p {
 .rm-editor-skin .rm-editor-header .rm-header-play:disabled { background: #d1bfa0; color: #514858; border-color: #a9958d; opacity: .75; }
 .rm-editor-skin .rm-editor-header .rm-header-sign-in { color: #271c34; background: #fffdf9; border: 1px solid #493957; font-weight: 700; }
 .rm-editor-skin .rm-editor-header .rm-header-sign-in:hover { background: #f7eafa; }
+/* Contrast fixes for Copilot conversation and destructive editor toolbar action. */
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user { color: #292034; background: #fff1ce; border: 1px solid #cba75a; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant { color: #292034; background: #f2e7fb; border: 1px solid #c9b1d9; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant [class~="text-slate-500"] { color: #574666; }
+.rm-editor-skin .rm-editor-header .rm-header-delete { color: #a51632; background: #fff2f2; border: 1px solid #c96177; }
+.rm-editor-skin .rm-editor-header .rm-header-delete:hover { color: #7e1127; background: #ffdbe2; }
+.rm-editor-skin .rm-editor-header .rm-header-delete:disabled { color: #886672; background: #f5e4e5; border-color: #b8a0a8; opacity: .65; }

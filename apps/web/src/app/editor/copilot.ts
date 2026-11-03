@@ -18,6 +18,7 @@ import {
   routeBrowserRequest,
 } from '@/lib/browser-ai/browserIntent';
 import { buildAutoEditPlan } from './autoEdit';
+import { COPILOT_EDIT_PLAN_VERSION } from './timeline/editPlan';
 import { analyzeAudioBlob, type BeatCandidate } from './beatDetection';
 
 export { CopilotClientError, operationDescription } from './copilotUi';
@@ -155,6 +156,7 @@ export async function requestBrowserCopilotPlan(input: {
   projectRevision: string;
   prompt: string;
   media: GuestMedia[];
+  selectedItemId?: string;
   onProgress?: (progress: BrowserAiProgress) => void;
 }): Promise<CopilotPlanResponse> {
   const prompt = input.prompt.trim();
@@ -163,7 +165,7 @@ export async function requestBrowserCopilotPlan(input: {
     throw new Error('Please enter an editing instruction.');
   }
 
-  // Step 1: Reject unsupported individual clip trimming.
+  // Route contextual text animation to a typed edit plan rather than asking WebLLM to invent JSON.\n  const textAnimationPlan = buildTextAnimationPlan(input);\n  if (textAnimationPlan) return { plan: textAnimationPlan, usage: { ...ZERO_USAGE } };\n\n  // Step 1: Reject unsupported individual clip trimming.
   // Do not send this operation to the limited WebLLM JSON schema.
   if (isUnsupportedClipTrimRequest(prompt)) {
     throw new Error(
@@ -300,4 +302,36 @@ export async function analyzeUploadedMusic(
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
+}
+
+// Deterministic contextual text update, suitable for a future MCP operation.
+export function buildTextAnimationPlan(input: {
+  project: TimelineProject;
+  projectRevision: string;
+  prompt: string;
+  selectedItemId?: string;
+}): CopilotEditPlan | null {
+  const lower = input.prompt.toLowerCase().trim();
+  const textMention = /\b(text|title|caption|words)\b/.test(lower);
+  const animateMention = /\b(animate|animation|fade\s*(?:in|out)|slide\s*(?:up|down)|pop\s*in|floating|float|pulse)\b/.test(lower);
+  if (!textMention || !animateMention) return null;
+  const candidates = input.project.tracks.flatMap(track => track.items).filter((item): item is import('./timeline/types').TextTimelineItem => item.kind === 'text');
+  const chosen = candidates.find(item => item.id === input.selectedItemId) ?? (candidates.length === 1 ? candidates[0] : undefined);
+  if (!chosen) throw new Error(candidates.length === 0 ? 'Add a text clip to the timeline first, then ask me to animate it.' : 'Select the text clip you want to animate, then try again.');
+  const out = /fade\s*out|slide\s*down/.test(lower);
+  const loop = /\bfloat|floating|pulse\b/.test(lower);
+  const style = /\bpop\b/.test(lower) ? 'pop-in' : /\bslide\b/.test(lower) ? 'slide-up' : 'fade-in';
+  const changes: Partial<import('./timeline/types').TextTimelineItem> = loop
+    ? { loopAnimation: /pulse/.test(lower) ? 'pulse' : 'float' }
+    : out
+    ? { outAnimation: /slide\s*down/.test(lower) ? 'slide-down' : 'fade-out', outAnimationDuration: Math.min(0.5, chosen.duration) }
+    : { inAnimation: style, inAnimationDuration: Math.min(0.6, chosen.duration) };
+  return {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: crypto.randomUUID(),
+    projectRevision: input.projectRevision,
+    summary: 'Animate the selected text clip',
+    warnings: ['This is a deterministic browser edit. Review the animation before applying.'],
+    operations: [{ op: 'update_item', itemId: chosen.id, changes }],
+  };
 }
