@@ -894,12 +894,40 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             continue;
           }
           if (!entry || !['image', 'audio', 'video'].includes(entry.media_type)) throw new Error(mediaId.startsWith('catalog:') ? `Sound library asset ${mediaId} is unavailable. Refresh the editor and retry.` : `Timeline media ${mediaId} is missing or unsupported. Restore the source file before exporting.`);
-          const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`, { credentials: 'include', cache: 'no-store' });
-          if (!response.ok) throw new Error(`Media request failed (${response.status}).`);
-          const url = URL.createObjectURL(await response.blob()); urls.push(url);
-          if (entry.media_type === 'image') images[mediaId] = await new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error(`Image ${entry.original_filename} could not be loaded.`)); image.src = url; });
-          else if (entry.media_type === 'video') videos[mediaId] = await new Promise<HTMLVideoElement>((resolve, reject) => { const element = document.createElement('video'); element.preload = 'auto'; element.muted = true; element.playsInline = true; element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Video ${entry.original_filename} could not be loaded.`)); element.src = url; });
-          else audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Audio ${entry.original_filename} could not be loaded.`)); element.src = url; });
+          const mediaUrl = `${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`;
+          if (entry.media_type === 'video') {
+            // Let the browser request byte ranges; fetching the whole MP4 as a Blob can fail
+            // even when the same file streams successfully in a video element.
+            videos[mediaId] = await new Promise<HTMLVideoElement>((resolve, reject) => {
+              const element = document.createElement('video');
+              element.crossOrigin = 'use-credentials';
+              element.preload = 'metadata';
+              element.muted = true;
+              element.playsInline = true;
+              element.onloadedmetadata = () => resolve(element);
+              element.onerror = () => reject(new Error(`Video ${entry.original_filename} could not be streamed for export. Check media response and CORS.`));
+              element.src = mediaUrl;
+            });
+          } else if (entry.media_type === 'audio') {
+            audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => {
+              const element = new Audio();
+              element.crossOrigin = 'use-credentials';
+              element.preload = 'metadata';
+              element.onloadedmetadata = () => resolve(element);
+              element.onerror = () => reject(new Error(`Audio ${entry.original_filename} could not be streamed for export.`));
+              element.src = mediaUrl;
+            });
+          } else {
+            const response = await fetch(mediaUrl, { credentials: 'include', cache: 'no-store' });
+            if (!response.ok) throw new Error(`Image request failed (HTTP ${response.status}).`);
+            const url = URL.createObjectURL(await response.blob()); urls.push(url);
+            images[mediaId] = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const image = new Image();
+              image.onload = () => resolve(image);
+              image.onerror = () => reject(new Error(`Image ${entry.original_filename} could not be loaded.`));
+              image.src = url;
+            });
+          }
         }
         // Check Firebase auth at export time, not only when the editor first loaded.
         // Signed-in creators export without a watermark; guest exports are branded.
