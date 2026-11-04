@@ -5,6 +5,7 @@ import json
 import pytest
 from fastapi import HTTPException, UploadFile
 from starlette.datastructures import Headers
+from starlette.requests import Request
 
 from app.api.routers import admin_routes, editor_routes
 from app.services import editor_audio_library
@@ -95,24 +96,37 @@ def test_admin_upload_persists_storage_playback_url(monkeypatch) -> None:
     assert repository.get('new-track').playback_url == result['playback_url']
 
 
-def test_published_asset_lists_public_route_and_redirects_to_stored_token(monkeypatch) -> None:
+def _request(range_header: str | None = None) -> Request:
+    headers = [] if range_header is None else [(b'range', range_header.encode())]
+    return Request({'type': 'http', 'method': 'GET', 'path': '/', 'headers': headers})
+
+
+def test_published_asset_streams_same_origin_ranges(monkeypatch) -> None:
+    from app.providers.storage import FirebaseStorageProvider
+
+    class Blob:
+        size = 10
+        def exists(self): return True
+        def reload(self): return None
+        def download_as_bytes(self, *, start, end): return b'0123456789'[start:end + 1]
+
+    class Storage(FirebaseStorageProvider):
+        def __init__(self): self.bucket = type('Bucket', (), {'blob': lambda _, __: Blob()})()
+
     entry = AudioLibraryEntry(
         id='published', title='Published', category='ambient', type='music', duration_seconds=12,
         content_type='audio/mpeg', license='CC0', source='https://example.test',
-        evidence_reference='private://license', playback_url='https://firebasestorage.googleapis.com/tokenized', status='draft',
+        evidence_reference='private://license', playback_url='https://firebasestorage.googleapis.com/tokenized', storage_path='audio-library/music/published.mp3', status='published',
     )
     repository = EntryRepository([entry])
-    monkeypatch.setattr(editor_audio_library, 'build_audio_library_repository', lambda: repository)
     monkeypatch.setattr(editor_routes, 'build_audio_library_repository', lambda: repository)
-    monkeypatch.setattr(admin_routes, 'build_audio_library_repository', lambda: repository)
+    monkeypatch.setattr('app.providers.storage.build_storage_provider', lambda: Storage())
 
-    admin_routes.admin_publish_audio_library('published', _=None)
-    listed = editor_audio_library.list_audio_library()
-    assert listed == [{**entry.public()}]
-    assert listed[0]['playback_url'] == '/api/editor/audio-library/published/content'
-    response = editor_routes.get_audio_library_content('published')
-    assert response.status_code == 307
-    assert response.headers['location'] == entry.playback_url
+    response = editor_routes.get_audio_library_content('published', _request('bytes=2-5'))
+    assert response.status_code == 206
+    assert response.headers['accept-ranges'] == 'bytes'
+    assert response.headers['content-range'] == 'bytes 2-5/10'
+    assert response.body == b'2345'
 
 
 @pytest.mark.parametrize('entry', [
@@ -126,5 +140,5 @@ def test_unavailable_assets_never_redirect(monkeypatch, entry) -> None:
     monkeypatch.setattr(editor_routes, 'build_audio_library_repository', lambda: repository)
     asset_id = entry.id if entry else 'missing'
     with pytest.raises(HTTPException) as error:
-        editor_routes.get_audio_library_content(asset_id)
+        editor_routes.get_audio_library_content(asset_id, _request())
     assert error.value.status_code == 404

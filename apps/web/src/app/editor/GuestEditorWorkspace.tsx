@@ -935,7 +935,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           const catalogEntry = mediaId.startsWith('catalog:') ? exportCatalog.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
           if (catalogEntry) {
             const url = catalogPlaybackUrl(catalogEntry);
-            audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded.`)); element.src = url; });
+            audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.crossOrigin = 'use-credentials'; element.preload = 'metadata'; element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded. Check media response and CORS.`)); element.src = url; });
             continue;
           }
           if (!entry || !['image', 'audio', 'video'].includes(entry.media_type)) throw new Error(mediaId.startsWith('catalog:') ? `Sound library asset ${mediaId} is unavailable. Refresh the editor and retry.` : `Timeline media ${mediaId} is missing or unsupported. Restore the source file before exporting.`);

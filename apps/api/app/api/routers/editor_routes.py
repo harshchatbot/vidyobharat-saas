@@ -4,7 +4,7 @@ import asyncio
 from itertools import chain
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.schemas.editor import (
@@ -28,7 +28,7 @@ from app.services.guest_session_errors import GuestSessionError
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
 
 router = APIRouter(prefix="/api/editor", tags=["RangManch Editor"])
-TRANSCRIPTION_REQUEST_TIMEOUT_SECONDS = 90
+TRANSCRIPTION_REQUEST_TIMEOUT_SECONDS = 300
 
 
 @router.get("/health")
@@ -48,13 +48,35 @@ def get_audio_library(
     return {'items': list_audio_library(category=category, query=query)}
 
 
+def _audio_library_range(range_header: str | None, size: int) -> tuple[int, int]:
+    """Return an inclusive byte range for a single HTTP Range request."""
+    if size <= 0:
+        raise HTTPException(status_code=404, detail='Audio asset unavailable.')
+    if not range_header:
+        return 0, size - 1
+    if not range_header.startswith('bytes=') or ',' in range_header:
+        raise HTTPException(status_code=416, detail='Invalid audio byte range.')
+    raw_start, _, raw_end = range_header.removeprefix('bytes=').partition('-')
+    try:
+        if not raw_start:
+            length = int(raw_end)
+            if length <= 0:
+                raise ValueError
+            return max(0, size - length), size - 1
+        start = int(raw_start)
+        end = int(raw_end) if raw_end else size - 1
+    except ValueError as exc:
+        raise HTTPException(status_code=416, detail='Invalid audio byte range.') from exc
+    if start < 0 or end < start or start >= size:
+        raise HTTPException(status_code=416, detail='Invalid audio byte range.')
+    return start, min(end, size - 1)
+
+
 @router.get('/audio-library/{asset_id}/content')
-def get_audio_library_content(asset_id: str):
+def get_audio_library_content(asset_id: str, request: Request):
     entry = build_audio_library_repository().get(asset_id)
     if not entry or entry.status != 'published':
         raise HTTPException(status_code=404, detail='Audio library asset is unavailable.')
-    if entry.playback_url:
-        return RedirectResponse(entry.playback_url, status_code=307)
     if not entry.storage_path:
         raise HTTPException(status_code=404, detail='Audio library asset is unavailable.')
     from app.providers.storage import FirebaseStorageProvider, build_storage_provider
@@ -68,12 +90,23 @@ def get_audio_library_content(asset_id: str):
         blob.reload()  # exists() does not reliably populate blob.size
         if not blob.size or blob.size > 12 * 1024 * 1024:
             raise HTTPException(status_code=404, detail='Audio asset unavailable.')
-        content = blob.download_as_bytes()
+        size = int(blob.size)
+        start, end = _audio_library_range(request.headers.get('range'), size)
+        content = blob.download_as_bytes(start=start, end=end)
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(status_code=503, detail='Audio storage unavailable.')
-    return Response(content=content, media_type=entry.content_type, headers={'Cache-Control': 'public,max-age=3600'})
+    headers = {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': str(end - start + 1),
+        'Cache-Control': 'public,max-age=3600',
+    }
+    status_code = 200
+    if request.headers.get('range'):
+        headers['Content-Range'] = f'bytes {start}-{end}/{size}'
+        status_code = 206
+    return Response(content=content, media_type=entry.content_type, status_code=status_code, headers=headers)
 
 
 @router.get('/config', response_model=PublicAppConfigResponse)
