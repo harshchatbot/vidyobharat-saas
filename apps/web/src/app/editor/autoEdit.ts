@@ -76,6 +76,49 @@ function addTransitionSfx(
   return count;
 }
 
+/** Lightweight speech-cue matching; intentionally avoids pretending to understand full scene semantics. */
+function addSpeechCueSfx(
+  operations: CopilotEditPlan['operations'],
+  library: AudioLibraryEntry[] | undefined,
+  transcript: WordTranscript | undefined,
+  segments: Array<{ sourceStart: number; sourceEnd: number; timelineStart: number }>,
+  editedDuration: number,
+  existingCount: number,
+): number {
+  if (!transcript?.words.length || !library?.length || existingCount >= 4) return 0;
+  const categories = [
+    { cue: /^(notification|message|alert|ping|नोटिफिकेशन|मैसेज)$/i, sound: /message|notification|bell|click/i },
+    { cue: /^(important|remember|warning|ध्यान|जरूरी|ज़रूरी)$/i, sound: /soft.impact|impact.accent|pillow.hit/i },
+  ];
+  let added = 0;
+  let lastTime = -10;
+  for (const word of transcript.words) {
+    if (added + existingCount >= 4 || operations.length >= 158) break;
+    const cue = categories.find((candidate) => candidate.cue.test(word.text.replace(/[.,!?।:]/g, '')));
+    if (!cue) continue;
+    const segment = segments.find((part) => word.start >= part.sourceStart && word.start < part.sourceEnd);
+    if (!segment) continue;
+    const time = segment.timelineStart + word.start - segment.sourceStart;
+    if (time < 0.5 || time - lastTime < 4) continue;
+    const sound = library.find((entry) => entry.type === 'sfx' && entry.playback_url &&
+      entry.duration_seconds >= 0.25 && entry.duration_seconds <= 3 &&
+      cue.sound.test([entry.title, entry.category, ...entry.tags].join(' ')));
+    if (!sound) continue;
+    const startTime = Math.round(time * V1_TIMELINE_FPS) / V1_TIMELINE_FPS;
+    const duration = Math.min(sound.duration_seconds, editedDuration - startTime);
+    if (duration < 0.25) continue;
+    operations.push({ op: 'add_audio', item: {
+      id: crypto.randomUUID(), kind: 'audio', trackId: 'sfx',
+      mediaId: catalogMediaId(sound.id), contentType: sound.content_type,
+      label: sound.title, startTime, duration, sourceStart: 0,
+      muted: false, volume: 0.22,
+    } });
+    lastTime = time;
+    added++;
+  }
+  return added;
+}
+
 const MIN_CLIP_DURATION = 1;
 const MAX_CLIP_DURATION = 30;
 const EPSILON = 1e-6;
@@ -388,6 +431,7 @@ function buildVideoAutoEditPlan(
     });
   }
   const sfxCount = addTransitionSfx(operations, options.sfxLibrary, segments.slice(1).map((segment) => segment.timelineStart), editedDuration);
+  const cueSfxCount = addSpeechCueSfx(operations, options.sfxLibrary, options.transcript, segments, editedDuration, sfxCount);
   return {
     schemaVersion: COPILOT_EDIT_PLAN_VERSION,
     requestId: crypto.randomUUID(), projectRevision: revision,
@@ -395,7 +439,8 @@ function buildVideoAutoEditPlan(
     warnings: [
       options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
       options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Automatic speech transcription and captions are not connected yet.',
-      sfxCount ? `Added ${sfxCount} subtle SFX at edit boundaries; review their timing and volume.` : 'Content-aware SFX and speech-semantic editing are not implemented yet.',
+      sfxCount || cueSfxCount ? `Added ${sfxCount} transition SFX and ${cueSfxCount} speech-cue SFX; review timing and volume.` : 'No matching SFX cues or edit boundaries found; no sound effects were added.',
+      'Speech-cue SFX uses limited keyword matching, not full semantic video understanding.',
     ],
     operations,
   };
