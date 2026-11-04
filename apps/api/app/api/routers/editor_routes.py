@@ -61,7 +61,10 @@ def get_audio_library_content(asset_id: str):
         raise HTTPException(status_code=503, detail='Audio storage unavailable.')
     blob = storage.bucket.blob(entry.storage_path)
     try:
-        if not blob.exists() or not blob.size or blob.size > 12 * 1024 * 1024:
+        if not blob.exists():
+            raise HTTPException(status_code=404, detail='Audio asset unavailable.')
+        blob.reload()  # exists() does not reliably populate blob.size
+        if not blob.size or blob.size > 12 * 1024 * 1024:
             raise HTTPException(status_code=404, detail='Audio asset unavailable.')
         content = blob.download_as_bytes()
     except HTTPException:
