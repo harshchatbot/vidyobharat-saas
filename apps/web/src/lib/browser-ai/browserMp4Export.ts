@@ -350,8 +350,10 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
           node.gain?.gain.setValueAtTime(0, audioContext!.currentTime);
           node.element.pause();
           node.element.currentTime = activeClip.sourceStart + time - activeClip.startTime;
-          // Web Audio owns the export audio; mute the element's direct output.
-          node.element.muted = true;
+          // A muted media element can feed silence into createMediaElementSource.
+          // The element is routed ONLY to MediaStreamDestination (not speakers),
+          // so unmuting is required to preserve original speech in the recording.
+          node.element.muted = false;
           try { await node.element.play(); } catch { throw new Error('Video playback could not start during export.'); }
           node.gain?.gain.setValueAtTime(activeClip.muted ? 0 : activeClip.volume, audioContext!.currentTime);
         }
