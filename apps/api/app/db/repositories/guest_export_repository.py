@@ -52,9 +52,10 @@ class GuestExportRepository:
         def _create(txn):
             session_snapshot = session_ref.get(transaction=txn)
             job_snapshot = job_ref.get(transaction=txn)
+            uploaded_media_ids = [media_id for media_id in media_ids if not media_id.startswith('catalog:')]
             media_snapshots = [
                 session_ref.collection('media').document(media_id).get(transaction=txn)
-                for media_id in media_ids
+                for media_id in uploaded_media_ids
             ]
             session = self._require_active(session_snapshot, now)
             if job_snapshot.exists:
@@ -63,7 +64,7 @@ class GuestExportRepository:
                     raise ExportConflictError('Idempotency-Key was already used for a different timeline.')
                 return existing, False
 
-            for media_id, media_snapshot in zip(media_ids, media_snapshots, strict=True):
+            for media_id, media_snapshot in zip(uploaded_media_ids, media_snapshots, strict=True):
                 media = media_snapshot.to_dict() or {}
                 expected_path = f'guest-editor/{guest_id}/sources/{media_id}/original'
                 if (
