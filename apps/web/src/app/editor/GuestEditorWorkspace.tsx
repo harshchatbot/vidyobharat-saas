@@ -250,10 +250,16 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     if (!isPlaying) return;
     playbackStartedRef.current = { wallTime: performance.now(), timelineTime: playbackTime };
     let frame = 0;
+    let lastUiUpdate = 0;
     const tick = (now: number) => {
       const next = playbackStartedRef.current.timelineTime + (now - playbackStartedRef.current.wallTime) / 1000;
       if (next >= displayProject.duration) { setPlaybackTime(displayProject.duration); setIsPlaying(false); return; }
-      setPlaybackTime(next);
+      // Media elements decode independently; avoid rerendering the entire
+      // workspace at the display's 60-120 Hz refresh rate.
+      if (now - lastUiUpdate >= 50) {
+        setPlaybackTime(next);
+        lastUiUpdate = now;
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
