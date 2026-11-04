@@ -260,7 +260,20 @@ function validateNewItem(item: TimelineItem, index: number): void {
   if (item.kind === 'text') {
     exactKeys(item, ['id', 'kind', 'trackId', 'label', 'startTime', 'duration', 'text', 'fontFamily', 'fontSize', 'color', 'bold', 'x', 'y', 'width', 'rotation', 'alignment', 'outlineColor', 'outlineWidth', 'shadow', 'backgroundColor', 'backgroundOpacity', 'inAnimation', 'outAnimation', 'loopAnimation', 'inAnimationDuration', 'outAnimationDuration', 'captionWords'], index);
     if (item.captionWords !== undefined && (!Array.isArray(item.captionWords) || item.captionWords.length > 16 || item.captionWords.some((word) => !isRecord(word) || typeof word.text !== 'string' || !word.text.trim() || typeof word.start !== 'number' || typeof word.end !== 'number' || !Number.isFinite(word.start) || !Number.isFinite(word.end) || word.start < 0 || word.end <= word.start || word.end > item.duration + 0.1))) fail('invalid_operation', 'Invalid caption word timing.', index);
-    if (item.trackId !== 'text' || !EDITOR_FONTS.includes(item.fontFamily as typeof EDITOR_FONTS[number])) fail('invalid_operation', 'The text font or track is unsupported.', index);
+    if (item.trackId !== 'text' || !EDITOR_FONTS.includes(item.fontFamily as typeof EDITOR_FONTS[number])) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[RangManch Auto Edit] Rejected text operation', {
+          operationIndex: index,
+          itemId: item.id,
+          kind: item.kind,
+          trackId: item.trackId,
+          fontFamily: item.fontFamily,
+          allowedTrackId: 'text',
+          allowedFonts: [...EDITOR_FONTS],
+        });
+      }
+      fail('invalid_operation', 'The text font or track is unsupported.', index);
+    }
     if (!nonEmpty(item.text, 500) || !['left', 'center', 'right'].includes(item.alignment) || !['none', 'fade-in', 'slide-up', 'pop-in'].includes(item.inAnimation) || !['none', 'fade-out', 'slide-down'].includes(item.outAnimation) || !['none', 'pulse', 'float'].includes(item.loopAnimation)) fail('invalid_operation', 'The text content or style is unsupported.', index);
     if (![item.color, item.outlineColor, item.backgroundColor].every(validColor)) fail('invalid_operation', 'Text colors must use six-digit hex values.', index);
   } else if (item.kind === 'audio') {
