@@ -24,6 +24,8 @@ function ImagePreview({ mediaId, filename, objectFit }: { mediaId: string; filen
 
 function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit }: Omit<Props, 'contentType' | 'filename' | 'cropMode'> & { objectFit: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const desiredTimeRef = useRef(localTime);
+  desiredTimeRef.current = localTime;
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const url = `${getApiUrl().replace(/\/$/, '')}/api/editor/media/${encodeURIComponent(mediaId)}/content`;
@@ -45,6 +47,10 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit 
     const video = videoRef.current;
     if (!video || failed) return;
     if (isPlaying) {
+      // Seek once at playback start, not on every timeline tick.
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && Math.abs(video.currentTime - desiredTimeRef.current) > 0.15) {
+        video.currentTime = desiredTimeRef.current;
+      }
       if (video.paused) void video.play().catch(() => undefined);
     } else {
       video.pause();
