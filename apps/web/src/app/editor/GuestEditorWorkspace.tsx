@@ -953,10 +953,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: audioLibrary });
+      // Auto Edit must fetch the published catalog independently of whether the Audio tab was opened.
+      let availableSfx = audioLibrary.filter((entry) => entry.type === 'sfx');
+      let sfxWarning = '';
+      try {
+        availableSfx = await fetchAudioLibrary('sfx');
+      } catch {
+        sfxWarning = 'Sound effects could not be loaded; Auto Edit will continue without SFX.';
+      }
+      if (epoch !== autoEditEpochRef.current) return;
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: availableSfx });
       for (const operation of plan.operations) {
         if (operation.op === 'add_text' && operation.item.captionWords?.length) operation.item.fontFamily = autoEditCaptionFont;
       }
+      if (sfxWarning) plan.warnings.push(sfxWarning);
       if (analysisWarning) plan.warnings.push(analysisWarning);
       if (transcriptionWarning) plan.warnings.push(transcriptionWarning);
       setAutoEditProgress({ phase: 'validating', message: 'Preparing your preview…' });
