@@ -604,7 +604,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
 
   function addVisual(item: GuestMedia) {
     if (item.availability === 'unavailable' || !['image', 'video'].includes(item.media_type) || clipCount >= MAX_CLIPS || visualTimelineEnd(project) >= MAX_TIMELINE_SECONDS) return;
-    const requested = item.media_type === 'image' ? 3 : Math.min(item.duration_seconds || 3, 8);
+    const requested = item.media_type === 'image' ? 3 : (item.duration_seconds && Number.isFinite(item.duration_seconds) && item.duration_seconds > 0 ? item.duration_seconds : 3);
     const startTime = visualTimelineEnd(project);
     const duration = Math.min(requested, MAX_TIMELINE_SECONDS - startTime);
     if (duration < 0.25) return;
