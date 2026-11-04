@@ -857,3 +857,45 @@ def test_render_capacity_is_shared_across_service_instances(tmp_path: Path) -> N
     finally:
         thread.join(timeout=3)
     assert not thread.is_alive()
+
+
+@pytest.mark.parametrize('kind', ['music', 'voice', 'sfx'])
+def test_short_audio_source_does_not_block_timeline_export(tmp_path: Path, kind: str) -> None:
+    image = tmp_path / 'background.png'
+    audio = tmp_path / 'short.m4a'
+    _image(image, 'blue')
+    _audio(audio, duration=0.5)
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 2)],
+        audio_items=[TimelineAudioItem(
+            id='short-audio', media_id=AUDIO, kind=kind,
+            start_seconds=0, duration_seconds=2, source_start_seconds=0,
+        )],
+    )
+    with TimelineRenderService().render(
+        timeline, [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
+    ) as result:
+        payload = _probe(result.path)
+        assert any(stream['codec_type'] == 'audio' for stream in payload['streams'])
+        assert result.metadata.duration_seconds == pytest.approx(2, abs=0.15)
+
+
+def test_audio_offset_beyond_source_still_rejected(tmp_path: Path) -> None:
+    image = tmp_path / 'background.png'
+    audio = tmp_path / 'short.m4a'
+    _image(image, 'blue')
+    _audio(audio, duration=0.5)
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 2)],
+        audio_items=[TimelineAudioItem(
+            id='invalid-offset', media_id=AUDIO, kind='music',
+            start_seconds=0, duration_seconds=2, source_start_seconds=1,
+        )],
+    )
+    with pytest.raises(TimelineValidationError, match='starts beyond'):
+        with TimelineRenderService().render(
+            timeline, [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
+        ):
+            pass
