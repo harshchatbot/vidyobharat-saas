@@ -1,3 +1,4 @@
+import { catalogMediaId, type AudioLibraryEntry } from './audioLibrary.ts';
 import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
 import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 
@@ -34,12 +35,46 @@ export type AutoEditOptions = {
   includeMusic?: boolean;
   transition?: TransitionType;
   beatCandidates?: BeatCandidate[];
+  sfxLibrary?: AudioLibraryEntry[];
   /** Validated local-AI choices. This is intentionally limited to supported primitives. */
   aiDirection?: {
     transition: TransitionType;
     effectPattern: Array<'zoom-in' | 'zoom-out' | 'none'>;
   };
 };
+
+/** Conservative, edit-aware SFX selection; no semantic video understanding yet. */
+function addTransitionSfx(
+  operations: CopilotEditPlan['operations'],
+  candidates: AudioLibraryEntry[] | undefined,
+  boundaries: number[],
+  totalDuration: number,
+): number {
+  const sounds = (candidates ?? []).filter((entry) =>
+    entry.type === 'sfx' && entry.duration_seconds >= 0.25 &&
+    entry.duration_seconds <= 4 && entry.playback_url &&
+    /whoosh|woosh|sweep|pass/i.test([entry.title, entry.category, ...entry.tags].join(' ')),
+  );
+  if (!sounds.length || !boundaries.length) return 0;
+  let count = 0;
+  let last = -10;
+  for (const time of boundaries) {
+    if (count >= 4 || time - last < 3 || operations.length >= 158) continue;
+    const sound = sounds[count % sounds.length];
+    const startTime = Math.max(0, Math.round((time - 0.15) * V1_TIMELINE_FPS) / V1_TIMELINE_FPS);
+    const duration = Math.min(sound.duration_seconds, totalDuration - startTime);
+    if (duration < 0.25) continue;
+    operations.push({ op: 'add_audio', item: {
+      id: crypto.randomUUID(), kind: 'audio', trackId: 'sfx',
+      mediaId: catalogMediaId(sound.id), contentType: sound.content_type,
+      label: sound.title, startTime, duration, sourceStart: 0,
+      muted: false, volume: 0.3,
+    } });
+    count++;
+    last = time;
+  }
+  return count;
+}
 
 const MIN_CLIP_DURATION = 1;
 const MAX_CLIP_DURATION = 30;
@@ -352,6 +387,7 @@ function buildVideoAutoEditPlan(
       },
     });
   }
+  const sfxCount = addTransitionSfx(operations, options.sfxLibrary, segments.slice(1).map((segment) => segment.timelineStart), editedDuration);
   return {
     schemaVersion: COPILOT_EDIT_PLAN_VERSION,
     requestId: crypto.randomUUID(), projectRevision: revision,
@@ -359,7 +395,7 @@ function buildVideoAutoEditPlan(
     warnings: [
       options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
       options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Automatic speech transcription and captions are not connected yet.',
-      'Contextual SFX and speech-semantic editing are not implemented yet.',
+      sfxCount ? `Added ${sfxCount} subtle SFX at edit boundaries; review their timing and volume.` : 'Content-aware SFX and speech-semantic editing are not implemented yet.',
     ],
     operations,
   };
@@ -561,6 +597,15 @@ export function buildAutoEditPlan(
     cursor = cursorFrame / V1_TIMELINE_FPS;
   });
 
+  const sfxCount = addTransitionSfx(
+    operations, options.sfxLibrary,
+    clipDurations.slice(0, -1).reduce<number[]>((times, duration) => {
+      times.push((times.at(-1) ?? appendStart) + duration);
+      return times;
+    }, []),
+    cursor,
+  );
+
   // Add intro and outro effects.
   if (clipIds.length > 0) {
     const firstDuration = clipDurations[0];
@@ -724,6 +769,7 @@ export function buildAutoEditPlan(
     summary: `Auto Edit · ${options.style}`,
     warnings: [
       'Generated deterministically in the browser.',
+      ...(sfxCount ? [`Added ${sfxCount} subtle SFX at clip transitions; review timing and volume.`] : []),
     ],
     operations,
   };
