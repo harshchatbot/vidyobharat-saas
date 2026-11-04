@@ -258,24 +258,21 @@ export async function exportBrowserMp4(images: HTMLImageElement[], title: string
 
 export function drawRangManchWatermark(context: CanvasRenderingContext2D): void {
   const { width, height } = context.canvas;
-  const fontSize = Math.max(14, Math.round(width * 0.027));
-  const padding = Math.max(12, Math.round(width * 0.025));
-  const inset = Math.max(16, Math.round(width * 0.03));
+  // Standard transparent wordmark: subtle white lettering with a dark outline,
+  // no opaque badge or colored background obscuring the creator's footage.
+  const fontSize = Math.max(15, Math.round(width * 0.024));
+  const inset = Math.max(16, Math.round(width * 0.032));
   context.save();
   context.font = `700 ${fontSize}px sans-serif`;
-  const label = 'RangManch AI';
-  const boxWidth = Math.ceil(context.measureText(label).width + padding * 2);
-  const boxHeight = fontSize + padding * 1.5;
-  const x = width - inset - boxWidth;
-  const y = height - inset - boxHeight;
-  context.fillStyle = 'rgba(25, 15, 36, 0.72)';
-  context.beginPath();
-  context.roundRect(x, y, boxWidth, boxHeight, Math.max(8, fontSize * 0.45));
-  context.fill();
+  context.textAlign = 'right';
+  context.textBaseline = 'bottom';
+  context.globalAlpha = 0.78;
+  context.lineWidth = Math.max(2, fontSize * 0.17);
+  context.lineJoin = 'round';
+  context.strokeStyle = 'rgba(0,0,0,0.55)';
+  context.strokeText('RangManch AI', width - inset, height - inset);
   context.fillStyle = '#ffffff';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(label, x + boxWidth / 2, y + boxHeight / 2);
+  context.fillText('RangManch AI', width - inset, height - inset);
   context.restore();
 }
 
