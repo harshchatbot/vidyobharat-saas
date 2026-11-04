@@ -256,7 +256,30 @@ export async function exportBrowserMp4(images: HTMLImageElement[], title: string
   return finished;
 }
 
-export async function exportTimelineMp4(project: TimelineProject, assets: BrowserTimelineAssets, options: { signal?: AbortSignal; onProgress?: (progress: number) => void } = {}): Promise<Blob> {
+export function drawRangManchWatermark(context: CanvasRenderingContext2D): void {
+  const { width, height } = context.canvas;
+  const fontSize = Math.max(14, Math.round(width * 0.027));
+  const padding = Math.max(12, Math.round(width * 0.025));
+  const inset = Math.max(16, Math.round(width * 0.03));
+  context.save();
+  context.font = `700 ${fontSize}px sans-serif`;
+  const label = 'RangManch AI';
+  const boxWidth = Math.ceil(context.measureText(label).width + padding * 2);
+  const boxHeight = fontSize + padding * 1.5;
+  const x = width - inset - boxWidth;
+  const y = height - inset - boxHeight;
+  context.fillStyle = 'rgba(25, 15, 36, 0.72)';
+  context.beginPath();
+  context.roundRect(x, y, boxWidth, boxHeight, Math.max(8, fontSize * 0.45));
+  context.fill();
+  context.fillStyle = '#ffffff';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(label, x + boxWidth / 2, y + boxHeight / 2);
+  context.restore();
+}
+
+export async function exportTimelineMp4(project: TimelineProject, assets: BrowserTimelineAssets, options: { signal?: AbortSignal; onProgress?: (progress: number) => void; watermark?: boolean } = {}): Promise<Blob> {
   if (activeExport) throw new Error('An export is already in progress. Please wait for it to finish or cancel it.');
   validateExportDuration(project.duration);
   throwIfAborted(options.signal);
@@ -368,6 +391,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
         }
       }
       drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
+      if (options.watermark !== false) drawRangManchWatermark(context);
       options.onProgress?.((frame + 1) / totalFrames);
       await nextAnimationFrame(options.signal);
     }
