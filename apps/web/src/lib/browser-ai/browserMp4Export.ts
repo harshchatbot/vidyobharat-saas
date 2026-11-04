@@ -307,8 +307,17 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const gains: GainNode[] = [];
   // A media element can only be connected to one MediaElementAudioSourceNode.
   // Route each source video once, and gate its speech by the active timeline clip.
+  // Never route editor preview elements into an export AudioContext: the browser
+  // permits only one MediaElementAudioSourceNode per element for its lifetime.
+  const exportVideos: Record<string, HTMLVideoElement> = {};
   const videoNodes = sourceVideos.map((mediaId) => {
-    const element = assets.videos![mediaId];
+    const preview = assets.videos![mediaId];
+    const element = document.createElement('video');
+    element.crossOrigin = preview.crossOrigin;
+    element.preload = 'auto';
+    element.playsInline = true;
+    element.src = preview.currentSrc || preview.src;
+    exportVideos[mediaId] = element;
     if (!audioContext) return { mediaId, element, gain: null as GainNode | null };
     const source = audioContext.createMediaElementSource(element);
     const gain = audioContext.createGain();
@@ -318,7 +327,11 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     return { mediaId, element, gain };
   });
   const nodes = audio.map((item) => {
-    const element = assets.audio![item.mediaId];
+    const preview = assets.audio![item.mediaId];
+    const element = document.createElement('audio');
+    element.crossOrigin = preview.crossOrigin;
+    element.preload = 'auto';
+    element.src = preview.currentSrc || preview.src;
     const source = audioContext!.createMediaElementSource(element);
     const gain = audioContext!.createGain(); gain.gain.value = 0;
     source.connect(gain).connect(destination!);
@@ -389,7 +402,21 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
           try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
         }
       }
-      drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
+      // Draw from dedicated export decoders, never from a paused editor preview.
+      // Waiting for a decoded frame avoids recording a stale frame after a seek.
+      if (activeClip) {
+        const activeElement = exportVideos[activeClip.mediaId];
+        if (activeElement && activeElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => { cleanup(); reject(new Error('Video decoding stalled during export. Try 720p or a shorter clip.')); }, 3000);
+            const onReady = () => { cleanup(); resolve(); };
+            const cleanup = () => { clearTimeout(timeout); activeElement.removeEventListener('loadeddata', onReady); activeElement.removeEventListener('error', onReady); };
+            activeElement.addEventListener('loadeddata', onReady, { once: true });
+            activeElement.addEventListener('error', onReady, { once: true });
+          });
+        }
+      }
+      drawTimelineFrame(context, project, { ...assets, videos: exportVideos }, Math.round(frame * EXPORT_FPS / fps));
       if (options.watermark !== false) drawRangManchWatermark(context);
       options.onProgress?.(Math.min(1, time / project.duration));
       await nextAnimationFrame(options.signal);
@@ -401,8 +428,8 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     await finished.catch(() => undefined);
     throw error instanceof DOMException && error.name === 'AbortError' ? error : error instanceof Error ? error : new Error('The browser MP4 export failed.');
   } finally {
-    nodes.forEach(({ element, gain }) => { gain.gain.value = 0; element.pause(); });
-    videoNodes.forEach(({ element, gain }) => { if (gain) gain.gain.value = 0; element.pause(); });
+    nodes.forEach(({ element, gain }) => { gain.gain.value = 0; element.pause(); element.removeAttribute('src'); element.load(); });
+    videoNodes.forEach(({ element, gain }) => { if (gain) gain.gain.value = 0; element.pause(); element.removeAttribute('src'); element.load(); });
     sources.forEach((source) => source.disconnect());
     gains.forEach((gain) => gain.disconnect());
     if (audioContext) await audioContext.close().catch(() => undefined);
