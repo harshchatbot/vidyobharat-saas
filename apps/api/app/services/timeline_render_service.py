@@ -99,7 +99,7 @@ def _caption_lines(text: str, max_width: int, font_size: int, bold: bool) -> str
             result.append(current)
         return result or ['']
 
-    return '\\n'.join(line for paragraph in text.splitlines() for line in wrap(paragraph))
+    return '\n'.join(line for paragraph in text.splitlines() for line in wrap(paragraph))
 
 
 class TimelineRenderError(RuntimeError):
@@ -462,7 +462,7 @@ class TimelineRenderService:
             layer_width -= layer_width % 2
             wrapped = _caption_lines(overlay.text, layer_width, overlay.font_size, overlay.bold)
             text_path.write_text(wrapped, encoding='utf-8')
-            line_count = wrapped.count('\\n') + 1
+            line_count = wrapped.count('\n') + 1
             layer_height = max(2, min(composition.height, round(overlay.font_size * 1.35 * line_count + 24)))
             layer_height += layer_height % 2
             layer_label = f'textlayer{filter_index}'
