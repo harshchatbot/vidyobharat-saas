@@ -219,6 +219,49 @@ function nextAnimationFrame(signal?: AbortSignal): Promise<void> {
   });
 }
 
+async function waitForMediaEvent(
+  element: HTMLMediaElement,
+  eventName: 'loadedmetadata' | 'loadeddata' | 'seeked',
+  signal: AbortSignal | undefined,
+  label: string,
+  timeoutMs = 4_000,
+): Promise<void> {
+  if (signal?.aborted) throw exportAbortError();
+  if (eventName === 'loadedmetadata' && element.readyState >= HTMLMediaElement.HAVE_METADATA) return;
+  if (eventName === 'loadeddata' && element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => finish(new Error(`${label} did not become ready for export.`)), timeoutMs);
+    const onAbort = () => finish(exportAbortError());
+    const onEvent = () => finish();
+    const onError = () => finish(new Error(`${label} failed to decode during export.`));
+    const finish = (error?: Error) => {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', onAbort);
+      element.removeEventListener(eventName, onEvent);
+      element.removeEventListener('error', onError);
+      if (error) reject(error); else resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    element.addEventListener(eventName, onEvent, { once: true });
+    element.addEventListener('error', onError, { once: true });
+  });
+}
+
+async function seekMediaForExport(element: HTMLMediaElement, sourceTime: number, signal: AbortSignal | undefined, label: string): Promise<void> {
+  await waitForMediaEvent(element, 'loadedmetadata', signal, label);
+  const upperBound = Number.isFinite(element.duration) ? Math.max(0, element.duration - 1 / EXPORT_FPS) : sourceTime;
+  const target = Math.max(0, Math.min(sourceTime, upperBound));
+  if (Math.abs(element.currentTime - target) <= 0.025) return;
+  const settled = waitForMediaEvent(element, 'seeked', signal, label);
+  element.currentTime = target;
+  await settled;
+}
+
+function setExportGain(gain: GainNode, value: number, at: number): void {
+  gain.gain.cancelScheduledValues(at);
+  gain.gain.setTargetAtTime(Math.max(0, Math.min(1, value)), at, 0.01);
+}
+
 let activeExport = false;
 
 export async function exportBrowserMp4(images: HTMLImageElement[], title: string): Promise<Blob> {
@@ -298,12 +341,27 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const context = canvas.getContext('2d'); if (!context) throw new Error('Canvas 2D rendering is unavailable.');
   const fps = project.exportSettings.fps;
   const stream = canvas.captureStream(fps); const chunks: BlobPart[] = [];
+  // Keep the decoder-backed elements in the document while exporting. Chromium
+  // can throttle detached media elements, which makes an otherwise playable
+  // HEVC source appear frozen to the canvas capture loop. This host remains
+  // invisible and never routes media to the page's speakers.
+  const exportMediaHost = document.createElement('div');
+  exportMediaHost.setAttribute('aria-hidden', 'true');
+  Object.assign(exportMediaHost.style, {
+    position: 'fixed', width: '1px', height: '1px', left: '-10000px', top: '0',
+    opacity: '0', overflow: 'hidden', pointerEvents: 'none',
+  });
+  document.body.append(exportMediaHost);
   const AudioContextCtor = globalThis.AudioContext;
   const sourceVideos = [...new Set(videoItems.filter((item) => Boolean(assets.videos?.[item.mediaId])).map((item) => item.mediaId))];
   const needsAudioMix = audio.length > 0 || videoItems.some((item) => Boolean(assets.videos?.[item.mediaId]) && !item.muted);
   if (needsAudioMix && !AudioContextCtor) throw new Error('This browser cannot mix original speech or timeline audio during MP4 export.');
   const audioContext = needsAudioMix && AudioContextCtor ? new AudioContextCtor() : null;
   const destination = audioContext?.createMediaStreamDestination();
+  // Retain modest headroom when original speech and optional SFX overlap. This
+  // avoids inter-sample clipping without applying a compressor to the voice.
+  const masterGain = audioContext?.createGain();
+  if (masterGain && destination) { masterGain.gain.value = 0.9; masterGain.connect(destination); }
   const sources: MediaElementAudioSourceNode[] = [];
   const gains: GainNode[] = [];
   // A media element can only be connected to one MediaElementAudioSourceNode.
@@ -318,12 +376,13 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     element.preload = 'auto';
     element.playsInline = true;
     element.src = preview.currentSrc || preview.src;
+    exportMediaHost.append(element);
     exportVideos[mediaId] = element;
     if (!audioContext) return { mediaId, element, gain: null as GainNode | null };
     const source = audioContext.createMediaElementSource(element);
     const gain = audioContext.createGain();
     gain.gain.value = 0;
-    source.connect(gain).connect(destination!);
+    source.connect(gain).connect(masterGain!);
     sources.push(source); gains.push(gain);
     return { mediaId, element, gain };
   });
@@ -334,9 +393,10 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     element.crossOrigin = preview.crossOrigin;
     element.preload = 'auto';
     element.src = preview.currentSrc || preview.src;
+    exportMediaHost.append(element);
     const source = audioContext!.createMediaElementSource(element);
     const gain = audioContext!.createGain(); gain.gain.value = 0;
-    source.connect(gain).connect(destination!);
+    source.connect(gain).connect(masterGain!);
     sources.push(source); gains.push(gain);
     return { item, element, gain };
   });
@@ -355,6 +415,13 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const finished = new Promise<Blob>((resolve, reject) => { recorder.onerror = () => reject(new Error('The browser MP4 recorder failed.')); recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/mp4' })); });
   activeExport = true;
   try {
+    await Promise.all([
+      // Metadata alone is insufficient: starting the recorder before the first
+      // decoded frame is buffered creates a permanent A/V offset on some HEVC
+      // decoders. Wait until the frame at the initial seek position is usable.
+      ...videoNodes.map(({ element }) => waitForMediaEvent(element, 'loadeddata', options.signal, 'Video source')),
+      ...nodes.map(({ element }) => waitForMediaEvent(element, 'loadedmetadata', options.signal, 'Audio source')),
+    ]);
     recorder.start(250);
     if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
     let activeClipId: string | null = null;
@@ -380,31 +447,33 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
         activeClipId = activeClip?.id ?? null;
         lastDecodedMediaTime = -1;
         lastDecodedWallTime = performance.now();
-        for (const node of videoNodes) {
+        await Promise.all(videoNodes.map(async (node) => {
           const isActive = activeClip?.mediaId === node.mediaId;
           if (!isActive) {
-            node.gain?.gain.setValueAtTime(0, audioContext!.currentTime);
+            if (node.gain && audioContext) setExportGain(node.gain, 0, audioContext.currentTime);
             node.element.pause();
-            continue;
+            return;
           }
           // Even when two clips use the same file, seek to the retained source segment.
-          node.gain?.gain.setValueAtTime(0, audioContext!.currentTime);
+          if (node.gain && audioContext) setExportGain(node.gain, 0, audioContext.currentTime);
           node.element.pause();
-          node.element.currentTime = activeClip.sourceStart + time - activeClip.startTime;
+          await seekMediaForExport(node.element, activeClip.sourceStart + time - activeClip.startTime, options.signal, 'Video source');
           // A muted media element can feed silence into createMediaElementSource.
           // The element is routed ONLY to MediaStreamDestination (not speakers),
           // so unmuting is required to preserve original speech in the recording.
           node.element.muted = false;
           try { await node.element.play(); } catch { throw new Error('Video playback could not start during export.'); }
-          node.gain?.gain.setValueAtTime(activeClip.muted ? 0 : activeClip.volume, audioContext!.currentTime);
-        }
+          if (node.gain && audioContext) setExportGain(node.gain, activeClip.muted ? 0 : activeClip.volume, audioContext.currentTime);
+        }));
       }
       for (const { item, element, gain } of nodes) {
         const active = time >= item.startTime && time < item.startTime + item.duration;
-        gain.gain.setValueAtTime(active && !item.muted ? item.volume : 0, audioContext!.currentTime);
+        setExportGain(gain, active && !item.muted ? item.volume : 0, audioContext!.currentTime);
         if (!active) { element.pause(); continue; }
-        if (element.paused) {
-          element.currentTime = item.sourceStart + time - item.startTime;
+        const expectedSourceTime = item.sourceStart + time - item.startTime;
+        if (element.paused || Math.abs(element.currentTime - expectedSourceTime) > 0.12) {
+          element.pause();
+          await seekMediaForExport(element, expectedSourceTime, options.signal, 'Audio source');
           try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
         }
       }
@@ -457,8 +526,10 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     videoNodes.forEach(({ element, gain }) => { if (gain) gain.gain.value = 0; element.pause(); element.removeAttribute('src'); element.load(); });
     sources.forEach((source) => source.disconnect());
     gains.forEach((gain) => gain.disconnect());
+    masterGain?.disconnect();
     if (audioContext) await audioContext.close().catch(() => undefined);
     stream.getTracks().forEach((track) => track.stop());
+    exportMediaHost.remove();
     activeExport = false;
   }
 }

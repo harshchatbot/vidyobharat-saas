@@ -41,9 +41,35 @@ import { prepareVisualUpload, uploadVisualWithProgress, type PendingVisualUpload
 
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
 const MAX_CLIPS = 12;
+const TRANSCRIPTION_TIMEOUT_MS = 90_000;
+const PAUSE_ANALYSIS_TIMEOUT_MS = 20_000;
 type WorkspaceTool = 'media' | 'audio' | 'text' | EffectSection;
 const DRAFT_STORAGE_KEY = 'rangmanch:guest-editor:draft:v1';
 type StoredDraft = { version: 1; savedAt: number; project: TimelineProject };
+
+class AutoEditTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AutoEditTimeoutError';
+  }
+}
+
+async function withAutoEditTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string, onTimeout?: () => void): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new AutoEditTimeoutError(message));
+          onTimeout?.();
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 function readLocalDraft(): TimelineProject {
   const fallback = createEmptyProject();
@@ -140,6 +166,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [autoEditError, setAutoEditError] = useState('');
   const [autoEditProgress, setAutoEditProgress] = useState<BrowserAiProgress | null>(null);
   const autoEditEpochRef = useRef(0);
+  const autoEditAbortRef = useRef<AbortController | null>(null);
   const localExportUrlRef = useRef<string | null>(null);
   localExportUrlRef.current = localExportUrl;
   const [remainingUploads, setRemainingUploads] = useState(uploadUsage?.remaining.uploads ?? 0);
@@ -710,6 +737,17 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     setPendingVisualUploads(pendingVisualUploadsRef.current);
   }
 
+  async function refreshGuestUploadUsage() {
+    try {
+      const response = await fetch(`${getApiUrl()}/api/editor/guest/usage`, { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) return;
+      const usage = await response.json() as { remaining?: { uploads?: number } };
+      if (typeof usage.remaining?.uploads === 'number') setRemainingUploads(Math.max(0, usage.remaining.uploads));
+    } catch {
+      // The original upload error remains more useful than a failed refresh.
+    }
+  }
+
   async function runVisualUploadQueue() {
     if (visualQueueRunningRef.current) return;
     visualQueueRunningRef.current = true;
@@ -727,6 +765,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'ready', progress: 100 } : upload));
           URL.revokeObjectURL(next.previewUrl);
         } catch (error) {
+          void refreshGuestUploadUsage();
           updatePendingVisualUploads((current) => current.map((upload) => upload.id === next.id ? { ...upload, state: 'failed', progress: null, error: error instanceof Error ? error.message : 'Upload failed.' } : upload));
         }
       }
@@ -776,7 +815,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error === 'guest_quota_exceeded' ? 'You have reached the upload limit for this guest session.' : body.message || `Audio upload failed (${response.status})`); }
       const uploaded = await response.json() as GuestMedia;
       setMedia((current) => [uploaded, ...current]); setRemainingUploads((value) => Math.max(0, value - 1)); addAudio(uploaded, audioTarget); setUploadNotice(`${file.name} uploaded and added to the ${audioTarget} track.`);
-    } catch (error) { setUploadError(error instanceof Error ? error.message : 'Audio upload failed.'); }
+    } catch (error) { void refreshGuestUploadUsage(); setUploadError(error instanceof Error ? error.message : 'Audio upload failed.'); }
     finally { setUploadingAudio(false); setUploadingFilename(''); }
   }
 
@@ -961,6 +1000,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
 
   async function previewAutoEdit() {
     const epoch = ++autoEditEpochRef.current;
+    const controller = new AbortController();
+    autoEditAbortRef.current?.abort();
+    autoEditAbortRef.current = controller;
     setAutoEditError('');
     try {
       setAutoEditProgress(null);
@@ -975,9 +1017,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       if (autoEditCaptions && videoForSpeech) {
         setAutoEditProgress({ phase: 'checking', message: 'Transcribing your speech and aligning captions…' });
         try {
-          const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(videoForSpeech.media_id)}/transcribe`, {
-            method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1' },
-          });
+          const response = await withAutoEditTimeout(
+            fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(videoForSpeech.media_id)}/transcribe`, {
+              method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1' }, signal: controller.signal,
+            }),
+            TRANSCRIPTION_TIMEOUT_MS,
+            'Speech recognition timed out. Auto Edit continued without captions.',
+            () => controller.abort(),
+          );
           if (!response.ok) {
             const payload = await response.json().catch(() => null);
             throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Speech recognition unavailable.');
@@ -985,7 +1032,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           transcript = validateWordTranscript(await response.json(), videoForSpeech.duration_seconds ?? 60);
           if (!transcript.words.length) throw new Error('No recognizable speech detected. Try a recording with clear spoken audio.');
         } catch (error) {
-          throw new Error(error instanceof Error ? `Auto Edit stopped: captions could not be generated. ${error.message}` : 'Auto Edit stopped: speech recognition failed.');
+          if (controller.signal.aborted && epoch !== autoEditEpochRef.current) return;
+          const detail = error instanceof Error ? error.message : 'Speech recognition unavailable.';
+          transcriptionWarning = `Captions were not added: ${detail.includes('continued without captions') ? detail : `${detail} Auto Edit continued without captions.`}`;
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
@@ -996,9 +1045,18 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         if (video) {
           setAutoEditProgress({ phase: 'checking', message: 'Analyzing pauses in your recording…' });
           try {
-            const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(video.media_id)}/content`, { credentials: 'include' });
+            const response = await withAutoEditTimeout(
+              fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(video.media_id)}/content`, { credentials: 'include', signal: controller.signal }),
+              PAUSE_ANALYSIS_TIMEOUT_MS,
+              'Video audio analysis timed out.',
+              () => controller.abort(),
+            );
             if (!response.ok) throw new Error('Video audio could not be downloaded.');
-            const analysis = await detectSilenceFromBlob(await response.blob());
+            const analysis = await withAutoEditTimeout(
+              response.blob().then((blob) => detectSilenceFromBlob(blob)),
+              PAUSE_ANALYSIS_TIMEOUT_MS,
+              'Browser audio decoding timed out.',
+            );
             // Limit cuts to preserve readable, reviewable edit proposals.
             if (analysis.removals.length > 0 && analysis.removals.length <= 5) {
               silenceRemovals = transcript?.words.length && videoForSpeech?.duration_seconds
@@ -1046,7 +1104,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       setMobilePanel('copilot');
       setAutoEditOpen(false); setPlaybackTime(0); setIsPlaying(false);
     } catch (error) { setAutoEditError(error instanceof Error ? error.message : 'Auto Edit could not create a safe proposal.'); }
-    finally { if (epoch === autoEditEpochRef.current) setAutoEditProgress(null); }
+    finally {
+      if (autoEditAbortRef.current === controller) autoEditAbortRef.current = null;
+      if (epoch === autoEditEpochRef.current) setAutoEditProgress(null);
+    }
   }
 
   function isMediaReferenced(mediaId: string) {
@@ -1350,7 +1411,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             {project.duration > 0 && <p className="mt-3 rounded-xl bg-[#f2e6fb] p-3 text-xs font-medium text-[#594568]">Your existing timeline changes only after you select Apply edits. You can undo afterwards.</p>}
             {autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={false} /> : autoEditError && <p role="alert" className="mt-3 rounded-xl border border-[#e3a6ac] bg-[#fff0f0] p-3 text-xs text-[#8a2439]">{autoEditError}</p>}
           </div>
-          <footer className="flex justify-end gap-3 border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4"><button type="button" onClick={() => { autoEditEpochRef.current += 1; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:bg-[#ffe59a] disabled:opacity-50"><Film className="h-4 w-4" />Preview Auto Edit</button></footer>
+          <footer className="flex justify-end gap-3 border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4"><button type="button" onClick={() => { autoEditEpochRef.current += 1; autoEditAbortRef.current?.abort(); autoEditAbortRef.current = null; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:bg-[#ffe59a] disabled:opacity-50"><Film className="h-4 w-4" />Preview Auto Edit</button></footer>
         </section>
       </div>}
       <ExportDialog signedIn={authHydrated && authenticatedCreator} open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? undefined} />

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { EXPORT_DURATION_SECONDS, EXPORT_FPS, frameTime, titleOpacity, supportedTimelineItems, validateExportDuration, wrapTextLines } from './browserMp4Export.ts';
+import { EXPORT_DURATION_SECONDS, EXPORT_FPS, browserExportDimensions, frameTime, titleOpacity, supportedTimelineItems, validateExportDuration, wrapTextLines } from './browserMp4Export.ts';
 import { addItem } from '../../app/editor/timeline/model.ts';
 import { createEmptyProject, type GuestMedia } from '../../app/editor/timeline/types.ts';
 import { browserEffectState, transitionProgress } from '../../app/editor/timeline/filters.ts';
@@ -9,6 +9,11 @@ test('frame timing is deterministic at 30 FPS', () => {
   assert.equal(frameTime(0), 0);
   assert.equal(frameTime(EXPORT_FPS * 5), 5);
   assert.equal(frameTime(EXPORT_FPS * 15 - 1), 14.966666666666667);
+});
+
+test('uses a true 1080×1920 canvas for 30 FPS vertical exports', () => {
+  assert.deepEqual(browserExportDimensions('9:16', '1080p'), { width: 1080, height: 1920 });
+  assert.equal(EXPORT_FPS, 30);
 });
 
 test('accepts up to 60 second timelines but rejects longer exports', () => {
@@ -34,8 +39,14 @@ test('cancellation settles the recorder and permits a later export', async () =>
     start() { this.state = 'recording'; }
     stop() { this.state = 'inactive'; this.onstop?.(); }
   }
-  const context = { canvas: { width: 720, height: 1280 }, fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: () => ({ width: 0, height: 0, getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }) }) } });
+  const context = { canvas: { width: 720, height: 1280 }, fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, strokeText() {}, fillText() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    body: { append() {} },
+    createElement: () => ({
+      width: 0, height: 0, style: {}, setAttribute() {}, append() {}, remove() {},
+      getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }),
+    }),
+  } });
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeRecorder });
   class FakeVideoElement {}
   Object.defineProperty(globalThis, 'HTMLVideoElement', { configurable: true, value: FakeVideoElement });

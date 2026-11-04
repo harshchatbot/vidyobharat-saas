@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from itertools import chain
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
@@ -27,6 +28,7 @@ from app.services.guest_session_errors import GuestSessionError
 from app.services.guest_session_service import GuestSessionService, build_guest_session_service
 
 router = APIRouter(prefix="/api/editor", tags=["RangManch Editor"])
+TRANSCRIPTION_REQUEST_TIMEOUT_SECONDS = 90
 
 
 @router.get("/health")
@@ -118,7 +120,7 @@ def create_guest_session(
                 httponly=True,
                 samesite=service.config.cookie_samesite,
             )
-        return service.public_session_payload(session)
+        return service.public_session_payload(session, request=request)
     except GuestSessionError as exc:
         return _guest_error(exc)
 
@@ -129,7 +131,7 @@ def get_guest_session(
     service: GuestSessionService = Depends(get_guest_session_service),
 ):
     try:
-        return service.public_session_payload(service.get_session(_guest_token(request, service)))
+        return service.public_session_payload(service.get_session(_guest_token(request, service)), request=request)
     except GuestSessionError as exc:
         return _guest_error(exc)
 
@@ -304,7 +306,16 @@ async def transcribe_guest_video(
                 lambda: b''.join(media_service.storage.iter_content(
                     media['storage_object_path'], start=start, end=end))
             )
-            return await run_in_threadpool(transcribe_video_bytes, data)
+            try:
+                return await asyncio.wait_for(
+                    run_in_threadpool(transcribe_video_bytes, data),
+                    timeout=TRANSCRIPTION_REQUEST_TIMEOUT_SECONDS,
+                )
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Speech recognition is taking too long. Please retry shortly.",
+                ) from exc
         except GuestMediaObjectMissing:
             raise HTTPException(status_code=410, detail='Recording is no longer available.')
         except ValueError as exc:

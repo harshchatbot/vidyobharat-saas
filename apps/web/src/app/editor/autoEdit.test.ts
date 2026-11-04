@@ -135,6 +135,8 @@ test('video-first Auto Edit replaces image footage and keeps the original video 
   assert.ok(applied.project.tracks.find((track) => track.id === 'text')!.items.length > 0);
   const repeat = buildAutoEditPlan(applied.project, [uploadedVideo, images[0]], await calculateProjectRevision(applied.project), { style: 'energetic', mode: 'replace' });
   const repeated = await applyEditPlan(applied.project, repeat);
-  assert.equal(repeated.project.tracks.find((track) => track.id === 'video')!.items.length, 1);
-  assert.equal(repeated.project.tracks.find((track) => track.id === 'video')!.items[0].kind === 'video' && repeated.project.tracks.find((track) => track.id === 'video')!.items[0].mediaId, uploadedVideo.media_id);
+  const repeatedClips = repeated.project.tracks.find((track) => track.id === 'video')!.items;
+  assert.equal(repeatedClips.length, 1);
+  const repeatedClip = repeatedClips[0];
+  assert.equal(repeatedClip.kind === 'video' && repeatedClip.mediaId, uploadedVideo.media_id);
 });

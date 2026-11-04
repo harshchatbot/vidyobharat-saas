@@ -453,7 +453,7 @@ function buildVideoAutoEditPlan(
     summary: `Video Auto Edit · ${options.style}`,
     warnings: [
       options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
-      options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Automatic speech transcription and captions are not connected yet.',
+      options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Captions are unavailable for this preview because speech transcription was not supplied.',
       sfxCount || cueSfxCount ? `Added ${sfxCount} transition SFX and ${cueSfxCount} speech-cue SFX; review timing and volume.` : 'No matching SFX cues or edit boundaries found; no sound effects were added.',
       'Speech-cue SFX uses limited keyword matching, not full semantic video understanding.',
     ],
