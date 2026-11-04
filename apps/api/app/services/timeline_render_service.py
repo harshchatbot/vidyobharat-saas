@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -56,6 +57,49 @@ def _resolve_font_file(font_family: str, bold: bool) -> Path | None:
             if candidate.is_file():
                 return candidate
     return None
+
+
+def _caption_lines(text: str, max_width: int, font_size: int, bold: bool) -> str:
+    """Conservatively wrap drawtext captions before FFmpeg rasterizes them.
+
+    drawtext does not wrap automatically. Keep each rendered line within the
+    caption layer, including stroke/shadow allowance.
+    """
+    usable = max(1, max_width - 24)
+    def glyph_width(char: str) -> float:
+        if unicodedata.combining(char):
+            return 0
+        if unicodedata.east_asian_width(char) in {'W', 'F'}:
+            return font_size
+        if char.isspace():
+            return font_size * 0.34
+        if char in "ilI.,:;!'|":
+            return font_size * 0.30
+        if char in 'MW@#%':
+            return font_size * 0.88
+        return font_size * (0.64 if bold else 0.60)
+
+    def wrap(paragraph: str) -> list[str]:
+        result: list[str] = []
+        current = ''
+        for word in paragraph.split():
+            candidate = f'{current} {word}' if current else word
+            if sum(glyph_width(c) for c in candidate) <= usable:
+                current = candidate
+                continue
+            if current:
+                result.append(current)
+                current = ''
+            for char in word:
+                if current and sum(glyph_width(c) for c in current + char) > usable:
+                    result.append(current)
+                    current = ''
+                current += char
+        if current:
+            result.append(current)
+        return result or ['']
+
+    return '\\n'.join(line for paragraph in text.splitlines() for line in wrap(paragraph))
 
 
 class TimelineRenderError(RuntimeError):
@@ -275,7 +319,7 @@ class TimelineRenderService:
                     raise TimelineValidationError('Image clips cannot have a non-zero start time.')
             else:
                 duration = self._probe_visual_duration(probe)
-                if clip.start_seconds + clip.duration_seconds > duration + 1e-6:
+                if clip.start_seconds + clip.duration_seconds > duration + 1.0 / composition.fps:
                     raise TimelineValidationError('A video clip exceeds its source duration.')
         for audio in composition.audio_items:
             item, probe = source_by_id[audio.media_id]
@@ -411,10 +455,15 @@ class TimelineRenderService:
             filter_index += 1
         for overlay in composition.text_overlays:
             text_path = output.parent / f'text-{filter_index:03d}.txt'
-            text_path.write_text(overlay.text, encoding='utf-8')
-            layer_width = max(2, round(composition.width * overlay.width))
-            layer_width += layer_width % 2
-            layer_height = max(2, min(composition.height, round(overlay.font_size * 4)))
+            # Keep the entire text layer within the frame, including when the
+            # caption geometry was dragged toward an edge in the browser.
+            available_width = max(2, round(2 * composition.width * min(overlay.x, 1 - overlay.x)))
+            layer_width = max(2, min(round(composition.width * overlay.width), available_width - 8))
+            layer_width -= layer_width % 2
+            wrapped = _caption_lines(overlay.text, layer_width, overlay.font_size, overlay.bold)
+            text_path.write_text(wrapped, encoding='utf-8')
+            line_count = wrapped.count('\\n') + 1
+            layer_height = max(2, min(composition.height, round(overlay.font_size * 1.35 * line_count + 24)))
             layer_height += layer_height % 2
             layer_label = f'textlayer{filter_index}'
             rotated_label = f'textrot{filter_index}'
