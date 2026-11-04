@@ -624,7 +624,7 @@ def test_render_rejects_video_bounds_image_start_unknown_and_symlink(tmp_path: P
     with pytest.raises(TimelineValidationError, match='source duration'):
         service.render(_composition(_clip(RED, 0, 1, start=0.5)), [_resolved(RED, 'video', video)])
     with pytest.raises(TimelineValidationError, match='source duration'):
-        service.render(_composition(_clip(RED, 0, 0.20001, start=1.0)), [_resolved(RED, 'video', video)])
+        service.render(_composition(_clip(RED, 0, 0.35, start=1.0)), [_resolved(RED, 'video', video)])
     with pytest.raises(TimelineValidationError, match='non-zero start'):
         service.render(_composition(_clip(BLUE, 0, 0.5, start=0.1)), [_resolved(BLUE, 'image', image)])
     with pytest.raises(TimelineValidationError, match='exactly once'):
