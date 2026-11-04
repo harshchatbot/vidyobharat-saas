@@ -23,7 +23,11 @@ export async function fetchAudioLibrary(category?: 'music' | 'sfx', query?: stri
   if (category) params.set('category', category);
   if (query?.trim()) params.set('query', query.trim());
   const response = await fetch(`${getApiUrl()}/api/editor/audio-library?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
-  if (!response.ok) throw new Error('The audio library is temporarily unavailable.');
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = typeof payload?.detail === 'string' ? payload.detail : null;
+    throw new Error(`Sound library could not load (HTTP ${response.status})${detail ? `: ${detail}` : '. Check that the editor API and Firebase catalog are available.'}`);
+  }
   const body = await response.json() as { items?: AudioLibraryEntry[] };
   return body.items ?? [];
 }
