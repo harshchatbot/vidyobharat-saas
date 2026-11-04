@@ -327,11 +327,20 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     return { mediaId, element, gain };
   });
   const nodes = audio.map((item) => {
+<<<<<<< HEAD
     const preview = assets.audio![item.mediaId];
     const element = document.createElement('audio');
     element.crossOrigin = preview.crossOrigin;
     element.preload = 'auto';
     element.src = preview.currentSrc || preview.src;
+=======
+    // Export must own its audio element. Reusing a preview element fails on
+    // subsequent exports because a media element can only have one source node.
+    const previewElement = assets.audio![item.mediaId];
+    const element = new Audio(previewElement.currentSrc || previewElement.src);
+    element.crossOrigin = previewElement.crossOrigin;
+    element.preload = 'auto';
+>>>>>>> 9dc43ef (fix(editor): isolate audio elements for repeated browser MP4 exports)
     const source = audioContext!.createMediaElementSource(element);
     const gain = audioContext!.createGain(); gain.gain.value = 0;
     source.connect(gain).connect(destination!);
