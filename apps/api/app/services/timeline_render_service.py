@@ -844,6 +844,17 @@ class TimelineRenderService:
                 f"zoompan=z='1+{factor:.6f}*{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
                 f'd=1:s={composition.width}x{composition.height}:fps={composition.fps}'
             )
+        if effect.preset == TimelineEffectPreset.zoom_out:
+            factor = 0.12 * amount
+            clock = f'(on/{composition.fps})'
+            progress = f'max(0,min(1,({clock}-{start})/{duration}))'
+            active = f'between({clock},{start},{end})'
+            # Begin zoomed in and pull back to the original frame during the effect.
+            zoom = f'1+{factor:.6f}*(1-{progress})*{active}'
+            return (
+                f"zoompan=z='{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                f'd=1:s={composition.width}x{composition.height}:fps={composition.fps}'
+            )
         if effect.preset == TimelineEffectPreset.grayscale:
             return f'hue=s={max(0.0, 1.0 - min(1.0, amount)):.6f}:{enable}'
         if effect.preset == TimelineEffectPreset.blur:
