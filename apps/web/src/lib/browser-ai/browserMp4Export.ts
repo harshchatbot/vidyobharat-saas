@@ -202,7 +202,12 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
   const sources: MediaElementAudioSourceNode[] = [];
   const gains: GainNode[] = [];
   const nodes = audio.map((item) => {
-    const element = assets.audio![item.mediaId];
+    // Export must own its audio element. Reusing a preview element fails on
+    // subsequent exports because a media element can only have one source node.
+    const previewElement = assets.audio![item.mediaId];
+    const element = new Audio(previewElement.currentSrc || previewElement.src);
+    element.crossOrigin = previewElement.crossOrigin;
+    element.preload = 'auto';
     const source = audioContext!.createMediaElementSource(element);
     const gain = audioContext!.createGain(); gain.gain.value = item.muted ? 0 : item.volume;
     source.connect(gain).connect(destination!);
