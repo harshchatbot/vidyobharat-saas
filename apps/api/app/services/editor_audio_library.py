@@ -55,6 +55,11 @@ class AudioLibraryRepository:
         return AudioLibraryEntry.model_validate(snapshot.to_dict() | {'id': snapshot.id}) if snapshot.exists else None
 
     def save(self, entry: AudioLibraryEntry) -> AudioLibraryEntry:
+        if entry.status == 'published' and entry.storage_path:
+            from app.providers.storage import FirebaseStorageProvider
+            storage = build_storage_provider()
+            if not isinstance(storage, FirebaseStorageProvider) or not storage.bucket.blob(entry.storage_path).exists():
+                raise ValueError('Cannot publish audio: Firebase Storage object is missing.')
         self.collection.document(entry.id).set(entry.model_dump(exclude={'id'}))
         return entry
 
@@ -198,3 +203,30 @@ def register_existing_audio_asset(*, storage_path: str, title: str, category: st
     )
     repository.save(entry)
     return entry
+
+
+def reconcile_audio_library(*, apply: bool = False) -> dict:
+    """Audit published catalog records against Storage; optionally retire missing objects.
+
+    This is an explicit maintenance operation, never called during public listing.
+    Storage errors propagate so an outage cannot accidentally retire the catalog.
+    """
+    from app.providers.storage import FirebaseStorageProvider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        raise RuntimeError('Firebase Storage is required for catalog reconciliation.')
+    repository = build_audio_library_repository()
+    report = {'checked': 0, 'available': 0, 'missing': [], 'no_storage_path': [], 'retired': 0, 'dry_run': not apply}
+    for entry in repository.list():
+        report['checked'] += 1
+        if not entry.storage_path:
+            report['no_storage_path'].append(entry.id)
+            continue
+        if storage.bucket.blob(entry.storage_path).exists():
+            report['available'] += 1
+            continue
+        report['missing'].append({'id': entry.id, 'title': entry.title, 'storage_path': entry.storage_path})
+        if apply:
+            repository.collection.document(entry.id).update({'status': 'retired', 'updated_at': datetime.now().astimezone()})
+            report['retired'] += 1
+    return report
