@@ -25,7 +25,7 @@ function cachedGuestMediaUrl(mediaId: string): Promise<string> {
         return url;
       })
       .catch((error) => {
-        mediaUrlCache.delete(mediaId);
+        if (mediaUrlCache.get(mediaId) === entry) mediaUrlCache.delete(mediaId);
         throw error;
       }),
   };
@@ -34,15 +34,16 @@ function cachedGuestMediaUrl(mediaId: string): Promise<string> {
 }
 
 export function useGuestMediaUrl(mediaId?: string) {
-  const [state, setState] = useState<{ url: string | null; error: boolean }>({ url: null, error: false });
+  const [retry, setRetry] = useState(0);
+  const [state, setState] = useState<{ url: string | null; error: string | null }>({ url: null, error: null });
   useEffect(() => {
     let active = true;
-    setState({ url: null, error: false });
+    setState({ url: null, error: null });
     if (!mediaId) return () => { active = false; };
     void cachedGuestMediaUrl(mediaId)
-      .then((url) => { if (active) setState({ url, error: false }); })
-      .catch(() => { if (active) setState({ url: null, error: true }); });
+      .then((url) => { if (active) setState({ url, error: null }); })
+      .catch((error) => { if (active) setState({ url: null, error: error instanceof Error ? error.message : 'Media could not be loaded' }); });
     return () => { active = false; };
-  }, [mediaId]);
-  return state;
+  }, [mediaId, retry]);
+  return { ...state, retry: () => { if (mediaId) invalidateGuestMediaUrl(mediaId); setRetry((value) => value + 1); } };
 }
