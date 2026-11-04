@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/env';
+import { getApiFallbackUrl, getApiUrl } from '@/lib/env';
 
 type CachedMedia = { promise: Promise<string>; url?: string };
 const mediaUrlCache = new Map<string, CachedMedia>();
@@ -12,13 +12,39 @@ export function invalidateGuestMediaUrl(mediaId: string) {
   mediaUrlCache.delete(mediaId);
 }
 
+async function requestMediaBlob(mediaId: string): Promise<Blob> {
+  const primary = getApiUrl().replace(/\/$/, '');
+  const fallback = getApiFallbackUrl().replace(/\/$/, '');
+  const origins = [...new Set([primary, fallback].filter(Boolean))];
+  const failures: string[] = [];
+  for (const origin of origins) {
+    try {
+      const response = await fetch(`${origin}/api/editor/media/${encodeURIComponent(mediaId)}/content`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        // A 404 or permission error should not be masked by trying a different backend.
+        throw new Error(`Media request failed (HTTP ${response.status}) at ${origin}`);
+      }
+      return await response.blob();
+    } catch (error) {
+      if (error instanceof TypeError) {
+        failures.push(`${origin}: network request blocked or unreachable`);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error(`Could not connect to the media API. ${failures.join('; ')}. Check backend availability, API URL and CORS configuration.`);
+}
+
 function cachedGuestMediaUrl(mediaId: string): Promise<string> {
   const cached = mediaUrlCache.get(mediaId);
   if (cached?.url) return Promise.resolve(cached.url);
   if (cached) return cached.promise;
   const entry: CachedMedia = {
-    promise: fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`, { credentials: 'include', cache: 'no-store' })
-      .then((response) => { if (!response.ok) throw new Error(`Media request failed (${response.status})`); return response.blob(); })
+    promise: requestMediaBlob(mediaId)
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         entry.url = url;
