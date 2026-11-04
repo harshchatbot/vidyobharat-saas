@@ -145,7 +145,9 @@ def sync_firebase_sfx_catalog() -> int:
 
 def list_audio_library(*, category: str | None = None, query: str | None = None) -> list[dict]:
     # Public listing is intentionally repository-backed; an unavailable backend fails closed.
-    sync_firebase_sfx_catalog()
+    # Listing approved audio must not depend on Firebase Storage scanning.
+    # Catalog ingestion belongs in an explicit admin/background operation;
+    # storage permissions or blob metadata failures must not break browsing.
     entries = build_audio_library_repository().list()
     needle = query.casefold().strip() if query else None
     return [entry.public() for entry in entries if (category is None or entry.type == category) and (needle is None or needle in ' '.join([entry.title, entry.category, *entry.tags]).casefold())]
