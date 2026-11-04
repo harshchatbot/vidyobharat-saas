@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, LoaderCircle, Film, MonitorPlay, X } from 'lucide-react';
+import { Download, LoaderCircle, Film, X } from 'lucide-react';
 import { browserExportDimensions } from '@/lib/browser-ai/browserMp4Export';
 import type { ReactNode } from 'react';
 import { normalizeExportFilename } from './timeline/serialization';
@@ -43,12 +43,6 @@ export function ExportDialog(props: Props) {
         <Field label="Resolution"><OptionGrid values={["720p", "1080p"]} value={props.settings.resolution} onChange={(value) => update("resolution", value as ProjectExportSettings["resolution"])} disabled={busy} /></Field>
         <Field label="Frame rate"><OptionGrid values={["24", "30", "60"]} value={String(props.settings.fps)} onChange={(value) => update("fps", Number(value) as ProjectExportSettings["fps"])} disabled={busy} /></Field>
         <Field label="Quality"><OptionGrid values={["standard", "high"]} value={props.settings.quality} onChange={(value) => update("quality", value as ProjectExportSettings["quality"])} disabled={busy} /></Field>
-        <div className="sm:col-span-2 flex items-start gap-3 rounded-2xl border-2 border-[#d8c1e5] bg-[#f2e6fb] p-3"><MonitorPlay className="mt-0.5 h-4 w-4 shrink-0 text-[#79549b]" /><div><p className="text-xs font-extrabold text-[#392548]">Private, on-device rendering</p><p className="mt-1 text-xs leading-5 text-[#62536d]">Your video is rendered in this browser. Keep this tab open until export completes. MP4 encoding requires a compatible browser.</p></div></div>
-
-        <div className="sm:col-span-2 rounded-2xl border-2 border-[#d8c1e5] bg-white p-3">
-          <p className="text-xs font-extrabold text-[#392548]">{props.signedIn ? 'Watermark-free export' : 'Guest export includes a RangManch AI watermark'}</p>
-          <p className="mt-1 text-xs leading-5 text-[#62536d]">{props.signedIn ? 'You are signed in. Your exported video will not have a RangManch AI watermark.' : <>Want a clean video without a watermark? <a href="/login?next=%2Feditor" className="font-extrabold text-[#79549b] underline underline-offset-2">Sign in or create a free account</a> before exporting.</>}</p>
-        </div>
         {props.exportUsage && (
           <p className="sm:col-span-2 text-xs font-semibold text-[#79549b]">
             Free exports remaining: {props.exportUsage.remaining.exports} / {props.exportUsage.limits.exports}
