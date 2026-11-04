@@ -324,7 +324,7 @@ class TimelineRenderService:
         for audio in composition.audio_items:
             item, probe = source_by_id[audio.media_id]
             if item.media_type != 'audio':
-                raise TimelineValidationError('Timeline audio items must reference uploaded audio media.')
+                raise TimelineValidationError('Timeline audio items must reference a resolved audio source.')
             duration = self._probe_audio_duration(probe)
             if audio.source_start_seconds + audio.duration_seconds > duration + 1e-6:
                 raise TimelineValidationError('An audio item exceeds its source duration.')
