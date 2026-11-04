@@ -52,14 +52,14 @@ function addTransitionSfx(
 ): number {
   const sounds = (candidates ?? []).filter((entry) =>
     entry.type === 'sfx' && entry.duration_seconds >= 0.25 &&
-    entry.duration_seconds <= 4 && entry.playback_url &&
+    entry.duration_seconds <= 8 && entry.playback_url &&
     /whoosh|woosh|sweep|pass/i.test([entry.title, entry.category, ...entry.tags].join(' ')),
   );
   if (!sounds.length || !boundaries.length) return 0;
   let count = 0;
   let last = -10;
   for (const time of boundaries) {
-    if (count >= 4 || time - last < 3 || operations.length >= 158) continue;
+    if (count >= 3 || time < 1 || time - last < 5 || operations.length >= 158) continue;
     const sound = sounds[count % sounds.length];
     const startTime = Math.max(0, Math.round((time - 0.15) * V1_TIMELINE_FPS) / V1_TIMELINE_FPS);
     const duration = Math.min(sound.duration_seconds, totalDuration - startTime);
@@ -430,7 +430,19 @@ function buildVideoAutoEditPlan(
       },
     });
   }
-  const sfxCount = addTransitionSfx(operations, options.sfxLibrary, segments.slice(1).map((segment) => segment.timelineStart), editedDuration);
+  // Single talking-head recordings often have no cuts. Anchor subtle SFX to
+  // actual zoom edits instead of requiring silence cuts or rare keywords.
+  const cutBoundaries = segments.slice(1).map((segment) => segment.timelineStart);
+  const zoomBoundaries = operations.flatMap((operation) =>
+    operation.op === 'add_effect' && /zoom-(in|out)/.test(operation.item.preset)
+      ? [operation.item.startTime]
+      : [],
+  );
+  const sfxCount = addTransitionSfx(
+    operations, options.sfxLibrary,
+    [...cutBoundaries, ...zoomBoundaries].sort((a, b) => a - b),
+    editedDuration,
+  );
   const cueSfxCount = addSpeechCueSfx(operations, options.sfxLibrary, options.transcript, segments, editedDuration, sfxCount);
   return {
     schemaVersion: COPILOT_EDIT_PLAN_VERSION,
