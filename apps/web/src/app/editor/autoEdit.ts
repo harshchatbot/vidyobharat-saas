@@ -5,6 +5,7 @@ import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 import { createBasicText } from './timeline/textTemplates.ts';
 import {
   COPILOT_EDIT_PLAN_VERSION,
+  MAX_COPILOT_OPERATIONS,
   type CopilotEditPlan,
 } from './timeline/editPlan.ts';
 import {
@@ -355,8 +356,10 @@ function buildVideoAutoEditPlan(
   for (const item of project.tracks.flatMap((track) => track.items)) {
     operations.push({ op: 'remove_item', itemId: item.id });
   }
-  if (operations.length > 14) {
-    throw new Error('This timeline is too complex to regenerate safely. Undo or simplify it first.');
+  // Each existing item requires one removal operation. Leave room for replacement
+  // footage, effects, captions and audio within the edit-plan validator limit.
+  if (operations.length > MAX_COPILOT_OPERATIONS - 32) {
+    throw new Error('This timeline exceeds the safe Auto Edit regeneration limit. Save a copy or simplify it before regenerating.');
   }
   if (project.aspectRatio !== '9:16') {
     operations.push({ op: 'set_aspect_ratio', aspectRatio: '9:16' });
@@ -413,7 +416,7 @@ function buildVideoAutoEditPlan(
     });
   }
   if (options.transcript?.words.length) {
-    const remaining = Math.max(0, 160 - operations.length - (options.title?.trim() ? 1 : 0));
+    const remaining = Math.max(0, MAX_COPILOT_OPERATIONS - operations.length - (options.title?.trim() ? 1 : 0) - 8);
     const captions = buildTimedCaptions(options.transcript, segments, remaining, options.style);
     for (const item of captions) operations.push({ op: 'add_text', item });
   }
