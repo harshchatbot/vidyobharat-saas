@@ -145,6 +145,7 @@ class TimelineEffectPreset(str, Enum):
     fade_in = 'fade-in'
     fade_out = 'fade-out'
     zoom_in = 'zoom-in'
+    zoom_out = 'zoom-out'
     grayscale = 'grayscale'
     blur = 'blur'
     brightness = 'brightness'
@@ -227,7 +228,198 @@ class TimelineTextOverlay(BaseModel):
 
 class TimelineAudioItem(BaseModel):
     id: Annotated[str, Field(min_length=1, max_length=128)]
-    media_id: Annotated[str, Field(pattern=r'^(?:[a-f0-9]{32}|catalog:[A-Za-z0-9_-]{1,120})]
+    media_id: Annotated[str, Field(pattern=r'^(?:[a-f0-9]{32}|catalog:[A-Za-z0-9_-]{1,120})
+    kind: TimelineAudioKind
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    source_start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)] = 0
+    volume: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 1
+    muted: bool = False
+
+
+class TimelineEffect(BaseModel):
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    preset: TimelineEffectPreset
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    amount: Annotated[float, Field(ge=0, le=2, allow_inf_nan=False, strict=True)] = 1
+
+
+class TimelineComposition(BaseModel):
+    aspect_ratio: Literal['9:16', '16:9', '1:1', '4:5'] = '9:16'
+    width: Annotated[int, Field(ge=2, le=2160, multiple_of=2, strict=True)] = 720
+    height: Annotated[int, Field(ge=2, le=3840, multiple_of=2, strict=True)] = 1280
+    fps: Annotated[int, Field(ge=1, le=60, strict=True)] = 30
+    quality: Literal['standard', 'high'] = 'standard'
+    output_filename: Annotated[str, Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$')] = 'rangmanch-export.mp4'
+    duration_seconds: Annotated[float | None, Field(gt=0, le=60, allow_inf_nan=False, strict=True)] = None
+    clips: Annotated[list[TimelineClip], Field(min_length=1, max_length=100)]
+    text_overlays: Annotated[list[TimelineTextOverlay], Field(max_length=50)] = Field(default_factory=list)
+    audio_items: Annotated[list[TimelineAudioItem], Field(max_length=24)] = Field(default_factory=list)
+    effects: Annotated[list[TimelineEffect], Field(max_length=50)] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def validate_timeline(self) -> 'TimelineComposition':
+        ratios = {'9:16': (9, 16), '16:9': (16, 9), '1:1': (1, 1), '4:5': (4, 5)}
+        ratio_width, ratio_height = ratios[self.aspect_ratio]
+        if self.width * ratio_height != self.height * ratio_width:
+            raise ValueError('Output dimensions do not match the selected aspect ratio.')
+        if not self.output_filename.lower().endswith('.mp4'):
+            self.output_filename += '.mp4'
+        orders = sorted(clip.order for clip in self.clips)
+        if orders != list(range(len(self.clips))):
+            raise ValueError('Clip order values must be unique and contiguous from zero.')
+        # Older API clients only send clip order; preserve their sequential behavior.
+        cursor = 0.0
+        ordered_clips = sorted(self.clips, key=lambda clip: clip.order)
+        for clip in ordered_clips:
+            if clip.timeline_start_seconds is None:
+                clip.timeline_start_seconds = cursor
+            if clip.duration_seconds < 1 / self.fps - 1e-9:
+                raise ValueError('Each visual clip must be at least one output frame long.')
+            clip.timeline_start_seconds = self._frame_time(clip.timeline_start_seconds)
+            cursor = clip.timeline_start_seconds + clip.duration_seconds
+        for previous, current in zip(ordered_clips, ordered_clips[1:]):
+            if current.timeline_start_seconds < previous.timeline_start_seconds + previous.duration_seconds - 1e-6:
+                raise ValueError('Overlapping visual clips require transition support.')
+        visual_duration = max(clip.timeline_start_seconds + clip.duration_seconds for clip in ordered_clips)
+        timeline_duration = (
+            visual_duration
+            if self.duration_seconds is None
+            else self._frame_duration(self.duration_seconds)
+        )
+        if timeline_duration + 1e-9 < visual_duration:
+            raise ValueError('Project duration cannot end before the visual timeline.')
+        if timeline_duration > 60 + 1e-6:
+            raise ValueError('Timeline duration exceeds the 60-second editor limit.')
+        self.duration_seconds = timeline_duration
+        item_ids = [item.id for item in (*self.text_overlays, *self.audio_items, *self.effects)]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError('Timeline overlay, audio, and effect IDs must be unique.')
+        for item in (*self.text_overlays, *self.audio_items, *self.effects):
+            item.start_seconds = self._frame_time(item.start_seconds)
+            if not isinstance(item, TimelineAudioItem):
+                item.duration_seconds = self._frame_duration(item.duration_seconds)
+            if item.start_seconds + item.duration_seconds > timeline_duration + 1e-6:
+                raise ValueError('Timeline item extends beyond the project duration.')
+        return self
+
+    def _frame_time(self, value: float) -> float:
+        return round(value * self.fps) / self.fps
+
+    def _frame_duration(self, value: float) -> float:
+        return max(1 / self.fps, self._frame_time(value))
+
+
+class GuestExportResponse(BaseModel):
+    job_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    progress_stage: str
+    status_url: str
+    output: dict | None = None
+    error_code: str | None = None
+    message: str | None = None
+    retryable: bool = False
+
+
+class GuestExportListResponse(BaseModel):
+    items: list[GuestExportResponse]
+
+
+class TimelineEffect(BaseModel):
+    id: Annotated[str, Field(min_length=1, max_length=128)]
+    preset: TimelineEffectPreset
+    start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+    amount: Annotated[float, Field(ge=0, le=2, allow_inf_nan=False, strict=True)] = 1
+
+
+class TimelineComposition(BaseModel):
+    aspect_ratio: Literal['9:16', '16:9', '1:1', '4:5'] = '9:16'
+    width: Annotated[int, Field(ge=2, le=2160, multiple_of=2, strict=True)] = 720
+    height: Annotated[int, Field(ge=2, le=3840, multiple_of=2, strict=True)] = 1280
+    fps: Annotated[int, Field(ge=1, le=60, strict=True)] = 30
+    quality: Literal['standard', 'high'] = 'standard'
+    output_filename: Annotated[str, Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$')] = 'rangmanch-export.mp4'
+    duration_seconds: Annotated[float | None, Field(gt=0, le=60, allow_inf_nan=False, strict=True)] = None
+    clips: Annotated[list[TimelineClip], Field(min_length=1, max_length=100)]
+    text_overlays: Annotated[list[TimelineTextOverlay], Field(max_length=50)] = Field(default_factory=list)
+    audio_items: Annotated[list[TimelineAudioItem], Field(max_length=24)] = Field(default_factory=list)
+    effects: Annotated[list[TimelineEffect], Field(max_length=50)] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def validate_timeline(self) -> 'TimelineComposition':
+        ratios = {'9:16': (9, 16), '16:9': (16, 9), '1:1': (1, 1), '4:5': (4, 5)}
+        ratio_width, ratio_height = ratios[self.aspect_ratio]
+        if self.width * ratio_height != self.height * ratio_width:
+            raise ValueError('Output dimensions do not match the selected aspect ratio.')
+        if not self.output_filename.lower().endswith('.mp4'):
+            self.output_filename += '.mp4'
+        orders = sorted(clip.order for clip in self.clips)
+        if orders != list(range(len(self.clips))):
+            raise ValueError('Clip order values must be unique and contiguous from zero.')
+        # Older API clients only send clip order; preserve their sequential behavior.
+        cursor = 0.0
+        ordered_clips = sorted(self.clips, key=lambda clip: clip.order)
+        for clip in ordered_clips:
+            if clip.timeline_start_seconds is None:
+                clip.timeline_start_seconds = cursor
+            if clip.duration_seconds < 1 / self.fps - 1e-9:
+                raise ValueError('Each visual clip must be at least one output frame long.')
+            clip.timeline_start_seconds = self._frame_time(clip.timeline_start_seconds)
+            cursor = clip.timeline_start_seconds + clip.duration_seconds
+        for previous, current in zip(ordered_clips, ordered_clips[1:]):
+            if current.timeline_start_seconds < previous.timeline_start_seconds + previous.duration_seconds - 1e-6:
+                raise ValueError('Overlapping visual clips require transition support.')
+        visual_duration = max(clip.timeline_start_seconds + clip.duration_seconds for clip in ordered_clips)
+        timeline_duration = (
+            visual_duration
+            if self.duration_seconds is None
+            else self._frame_duration(self.duration_seconds)
+        )
+        if timeline_duration + 1e-9 < visual_duration:
+            raise ValueError('Project duration cannot end before the visual timeline.')
+        if timeline_duration > 60 + 1e-6:
+            raise ValueError('Timeline duration exceeds the 60-second editor limit.')
+        self.duration_seconds = timeline_duration
+        item_ids = [item.id for item in (*self.text_overlays, *self.audio_items, *self.effects)]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError('Timeline overlay, audio, and effect IDs must be unique.')
+        for item in (*self.text_overlays, *self.audio_items, *self.effects):
+            item.start_seconds = self._frame_time(item.start_seconds)
+            if not isinstance(item, TimelineAudioItem):
+                item.duration_seconds = self._frame_duration(item.duration_seconds)
+            if item.start_seconds + item.duration_seconds > timeline_duration + 1e-6:
+                raise ValueError('Timeline item extends beyond the project duration.')
+        return self
+
+    def _frame_time(self, value: float) -> float:
+        return round(value * self.fps) / self.fps
+
+    def _frame_duration(self, value: float) -> float:
+        return max(1 / self.fps, self._frame_time(value))
+
+
+class GuestExportResponse(BaseModel):
+    job_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    progress_stage: str
+    status_url: str
+    output: dict | None = None
+    error_code: str | None = None
+    message: str | None = None
+    retryable: bool = False
+
+
+class GuestExportListResponse(BaseModel):
+    items: list[GuestExportResponse]
+)]
     kind: TimelineAudioKind
     start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
     duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
