@@ -933,10 +933,6 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     try {
       if (!browserFallback) {
         const payload = serializeTimelineProject(project);
-        const catalogAudio = payload.audio_items.find((item) => item.media_id.startsWith('catalog:'));
-        if (catalogAudio) {
-          throw new Error('Server export currently supports uploaded audio only. Replace sound-library audio before exporting.');
-        }
         const response = await fetch(`${getApiUrl()}/api/editor/exports`, {
           method: 'POST',
           credentials: 'include',
