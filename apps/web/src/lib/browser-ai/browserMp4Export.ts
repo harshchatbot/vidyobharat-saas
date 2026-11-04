@@ -357,6 +357,8 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     recorder.start(250);
     if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
     let activeClipId: string | null = null;
+    let lastDecodedMediaTime = -1;
+    let lastDecodedWallTime = 0;
     // MediaRecorder records wall-clock time, not logical timeline frames.
     // Never allow slow canvas rendering or video decoding to stretch a 29s
     // timeline into a multi-minute recording.
@@ -375,6 +377,8 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       );
       if ((activeClip?.id ?? null) !== activeClipId) {
         activeClipId = activeClip?.id ?? null;
+        lastDecodedMediaTime = -1;
+        lastDecodedWallTime = performance.now();
         for (const node of videoNodes) {
           const isActive = activeClip?.mediaId === node.mediaId;
           if (!isActive) {
@@ -403,18 +407,37 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
           try { await element.play(); } catch { throw new Error('Audio playback could not start for export.'); }
         }
       }
-      // Draw from dedicated export decoders, never from a paused editor preview.
-      // Waiting for a decoded frame avoids recording a stale frame after a seek.
+      // Canvas capture records whatever frame the decoder last produced.
+      // Do not silently export a frozen frame while audio keeps advancing.
       if (activeClip) {
-        const activeElement = exportVideos[activeClip.mediaId];
-        if (activeElement && activeElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        const element = exportVideos[activeClip.mediaId];
+        const expectedSourceTime = activeClip.sourceStart + time - activeClip.startTime;
+        if (!element) throw new Error('Video decoder is missing during export.');
+        if (element.error) throw new Error('The source video failed to decode during export.');
+        if (element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
           await new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(() => { cleanup(); reject(new Error('Video decoding stalled during export. Try 720p or a shorter clip.')); }, 3000);
             const onReady = () => { cleanup(); resolve(); };
-            const cleanup = () => { clearTimeout(timeout); activeElement.removeEventListener('loadeddata', onReady); activeElement.removeEventListener('error', onReady); };
-            activeElement.addEventListener('loadeddata', onReady, { once: true });
-            activeElement.addEventListener('error', onReady, { once: true });
+            const onError = () => { cleanup(); reject(new Error('Video decoding failed during export.')); };
+            const cleanup = () => { clearTimeout(timeout); element.removeEventListener('loadeddata', onReady); element.removeEventListener('error', onError); };
+            element.addEventListener('loadeddata', onReady, { once: true });
+            element.addEventListener('error', onError, { once: true });
           });
+        }
+        // A paused/stalled decoder or a source clock that falls behind the
+        // export timeline must not produce a seemingly successful frozen MP4.
+        if (element.ended && expectedSourceTime < element.duration - 0.1) {
+          throw new Error('The video stopped unexpectedly during export.');
+        }
+        const decodedTime = element.currentTime;
+        if (decodedTime > lastDecodedMediaTime + 0.015) {
+          lastDecodedMediaTime = decodedTime;
+          lastDecodedWallTime = performance.now();
+        } else if (performance.now() - lastDecodedWallTime > 1500 && expectedSourceTime < element.duration - 0.15) {
+          throw new Error('Video frames stopped advancing during export. Try a browser-compatible H.264 MP4 source.');
+        }
+        if (expectedSourceTime - decodedTime > 1.25) {
+          throw new Error('Video decoding is too slow for real-time export. Try 720p or a lower-resolution source.');
         }
       }
       drawTimelineFrame(context, project, { ...assets, videos: exportVideos }, Math.round(frame * EXPORT_FPS / fps));
