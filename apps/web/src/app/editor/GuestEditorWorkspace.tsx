@@ -15,7 +15,7 @@ import type { BrowserAiProgress } from '@/lib/browser-ai/webllmService';
 import { ExportDialog, type ExportJobView } from './ExportDialog';
 import { FilterGallery } from './FilterGallery';
 import { GuestAudioLayer } from './GuestAudioLayer';
-import { catalogMediaId, catalogPlaybackUrl, fetchAudioLibrary, type AudioLibraryEntry } from './audioLibrary';
+import { catalogMediaId, catalogPlaybackUrl, fetchAudioLibrary, resolveCatalogEntry, type AudioLibraryEntry } from './audioLibrary';
 import { GuestMediaPreview } from './GuestMediaPreview';
 import { GuestMediaThumbnail } from './GuestMediaThumbnail';
 import { invalidateGuestMediaUrl } from './useGuestMediaUrl';
@@ -924,15 +924,15 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         const videos: Record<string, HTMLVideoElement> = {};
         const catalogMediaIds = referencedMedia.filter((id) => id.startsWith('catalog:'));
         let exportCatalog = audioLibrary;
-        if (catalogMediaIds.some((id) => !exportCatalog.some((entry) => catalogMediaId(entry.id) === id))) {
-          const freshCatalog = await fetchAudioLibrary();
-          exportCatalog = [...exportCatalog, ...freshCatalog.filter((entry) =>
-            !exportCatalog.some((known) => known.id === entry.id))];
+        // Always resolve catalog references against the current published list.
+        // Older drafts used numeric Freesound IDs while current records use stable IDs.
+        if (catalogMediaIds.length) {
+          exportCatalog = await fetchAudioLibrary();
           setAudioLibrary(exportCatalog);
         }
         for (const mediaId of new Set(referencedMedia)) {
           const entry = media.find((item) => item.media_id === mediaId);
-          const catalogEntry = mediaId.startsWith('catalog:') ? exportCatalog.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
+          const catalogEntry = resolveCatalogEntry(exportCatalog, mediaId);
           if (catalogEntry) {
             const url = catalogPlaybackUrl(catalogEntry);
             audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.crossOrigin = 'use-credentials'; element.preload = 'metadata'; element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded. Check media response and CORS.`)); element.src = url; });

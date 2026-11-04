@@ -18,6 +18,15 @@ export type AudioLibraryEntry = {
 export const catalogMediaId = (id: string) => `catalog:${id}`;
 export const isCatalogMediaId = (id: string) => id.startsWith('catalog:');
 
+/** Resolve persisted pre-migration numeric catalog IDs without treating arbitrary labels as IDs. */
+export function resolveCatalogEntry(entries: AudioLibraryEntry[], mediaId: string): AudioLibraryEntry | undefined {
+  if (!isCatalogMediaId(mediaId)) return undefined;
+  const id = mediaId.slice('catalog:'.length);
+  const direct = entries.find((entry) => entry.id === id);
+  if (direct || !/^\d{6,}$/.test(id)) return direct;
+  return entries.find((entry) => entry.title.trim().split(/\s+/)[0] === id);
+}
+
 export async function fetchAudioLibrary(category?: 'music' | 'sfx', query?: string): Promise<AudioLibraryEntry[]> {
   const params = new URLSearchParams();
   if (category) params.set('category', category);
