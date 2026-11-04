@@ -852,15 +852,23 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         const images: Record<string, HTMLImageElement> = {};
         const audio: Record<string, HTMLAudioElement> = {};
         const videos: Record<string, HTMLVideoElement> = {};
-        for (const mediaId of referencedMedia) {
+        const catalogMediaIds = referencedMedia.filter((id) => id.startsWith('catalog:'));
+        let exportCatalog = audioLibrary;
+        if (catalogMediaIds.some((id) => !exportCatalog.some((entry) => catalogMediaId(entry.id) === id))) {
+          const freshCatalog = await fetchAudioLibrary();
+          exportCatalog = [...exportCatalog, ...freshCatalog.filter((entry) =>
+            !exportCatalog.some((known) => known.id === entry.id))];
+          setAudioLibrary(exportCatalog);
+        }
+        for (const mediaId of new Set(referencedMedia)) {
           const entry = media.find((item) => item.media_id === mediaId);
-          const catalogEntry = mediaId.startsWith('catalog:') ? audioLibrary.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
+          const catalogEntry = mediaId.startsWith('catalog:') ? exportCatalog.find((item) => catalogMediaId(item.id) === mediaId) : undefined;
           if (catalogEntry) {
             const url = catalogPlaybackUrl(catalogEntry);
             audio[mediaId] = await new Promise<HTMLAudioElement>((resolve, reject) => { const element = new Audio(); element.onloadedmetadata = () => resolve(element); element.onerror = () => reject(new Error(`Catalog audio ${catalogEntry.title} could not be loaded.`)); element.src = url; });
             continue;
           }
-          if (!entry || !['image', 'audio', 'video'].includes(entry.media_type)) throw new Error('This browser export supports image and audio media only; remove unsupported timeline media.');
+          if (!entry || !['image', 'audio', 'video'].includes(entry.media_type)) throw new Error(mediaId.startsWith('catalog:') ? `Sound library asset ${mediaId} is unavailable. Refresh the editor and retry.` : `Timeline media ${mediaId} is missing or unsupported. Restore the source file before exporting.`);
           const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(mediaId)}/content`, { credentials: 'include', cache: 'no-store' });
           if (!response.ok) throw new Error(`Media request failed (${response.status}).`);
           const url = URL.createObjectURL(await response.blob()); urls.push(url);
@@ -962,6 +970,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         sfxWarning = 'Sound effects could not be loaded; Auto Edit will continue without SFX.';
       }
       if (epoch !== autoEditEpochRef.current) return;
+      if (availableSfx.length) setAudioLibrary((current) => [...current.filter((entry) => entry.type !== 'sfx'), ...availableSfx]);
       const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: availableSfx });
       for (const operation of plan.operations) {
         if (operation.op === 'add_text' && operation.item.captionWords?.length) operation.item.fontFamily = autoEditCaptionFont;
