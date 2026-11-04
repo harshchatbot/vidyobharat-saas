@@ -8,6 +8,7 @@ from pathlib import Path
 from app.core.config import Settings, get_settings
 from app.schemas.editor import TimelineComposition
 from app.services.guest_media_service import GuestMediaService, build_guest_media_service
+from app.services.editor_audio_library import build_audio_library_repository
 from app.services.guest_media_storage import GuestMediaObjectMissing
 from app.services.timeline_render_service import (
     ResolvedTimelineMedia,
@@ -47,6 +48,7 @@ class GuestTimelineService:
             session = self.media_service.sessions.get_session(raw_token)
             root = Path(workspace.name).resolve()
             resolved = self._download_sources(raw_token, composition, root, guest_id=session['guest_id'])
+            resolved.extend(self._download_catalog_audio(composition, root, existing=resolved))
             source_bytes = sum(item.file_size for item in resolved)
             result = self.renderer.render(
                 composition,
@@ -65,7 +67,8 @@ class GuestTimelineService:
     def validate_sources(self, raw_token: str | None, composition: TimelineComposition) -> dict:
         self._validate_effective_limits(composition)
         session = self.media_service.sessions.get_session(raw_token)
-        self._resolve_records(raw_token, composition, guest_id=session['guest_id'])
+        records = self._resolve_records(raw_token, composition, guest_id=session['guest_id'])
+        self._resolve_catalog_audio(composition, uploaded_bytes=sum(int(record['file_size']) for record in records))
         return session
 
     def render_for_worker(self, guest_id: str, composition: TimelineComposition) -> TemporaryTimelineRender:
@@ -78,6 +81,7 @@ class GuestTimelineService:
             records = self._resolve_records(None, composition, guest_id=guest_id, worker=True)
             root = Path(workspace.name).resolve()
             resolved = self._download_records(records, root)
+            resolved.extend(self._download_catalog_audio(composition, root, existing=resolved))
             result = self.renderer.render(
                 composition,
                 resolved,
@@ -129,7 +133,7 @@ class GuestTimelineService:
         requested_ids = list(
             dict.fromkeys(
                 [clip.media_id for clip in composition.clips]
-                + [item.media_id for item in composition.audio_items]
+                + [item.media_id for item in composition.audio_items if not item.media_id.startswith('catalog:')]
             )
         )
         if worker:
@@ -179,6 +183,72 @@ class GuestTimelineService:
             except Exception as exc:
                 raise TimelineRenderError('Private media storage is temporarily unavailable.') from exc
         return checked
+
+    def _resolve_catalog_audio(self, composition: TimelineComposition, *, uploaded_bytes: int = 0) -> list[tuple[str, str, int]]:
+        """Resolve only published, server-approved catalog audio; never trust client paths."""
+        ids = list(dict.fromkeys(
+            item.media_id for item in composition.audio_items if item.media_id.startswith('catalog:')
+        ))
+        if not ids:
+            return []
+        repository = build_audio_library_repository()
+        resolved: list[tuple[str, str, int]] = []
+        total = uploaded_bytes
+        for media_id in ids:
+            entry = repository.get(media_id.removeprefix('catalog:'))
+            if entry is None or entry.status != 'published' or not entry.storage_path:
+                raise GuestTimelineMediaUnavailableError('A sound-library audio asset is unavailable for export.')
+            try:
+                size = self.media_service.storage.object_size(entry.storage_path)
+            except GuestMediaObjectMissing as exc:
+                raise GuestTimelineMediaUnavailableError('A sound-library audio asset is missing.') from exc
+            except Exception as exc:
+                raise TimelineRenderError('Sound-library storage is temporarily unavailable.') from exc
+            if size <= 0:
+                raise GuestTimelineMediaUnavailableError('A sound-library audio asset is empty.')
+            total += size
+            if total > self.renderer.limits.max_source_bytes:
+                raise TimelineValidationError('Timeline source media exceeds the configured byte limit.')
+            if total + self.renderer.limits.max_output_bytes > self.renderer.limits.max_workspace_bytes:
+                raise TimelineValidationError('Timeline sources exceed the configured workspace limit.')
+            resolved.append((media_id, entry.storage_path, size))
+        return resolved
+
+    def _download_catalog_audio(
+        self,
+        composition: TimelineComposition,
+        root: Path,
+        *,
+        existing: list[ResolvedTimelineMedia],
+    ) -> list[ResolvedTimelineMedia]:
+        entries = self._resolve_catalog_audio(
+            composition, uploaded_bytes=sum(item.file_size for item in existing)
+        )
+        output: list[ResolvedTimelineMedia] = []
+        for index, (media_id, object_name, size) in enumerate(entries):
+            destination = root / f'catalog-{index:03d}.source'
+            downloaded = 0
+            try:
+                with destination.open('xb') as target:
+                    for chunk in self.media_service.storage.iter_content(
+                        object_name, start=0, end=size - 1
+                    ):
+                        downloaded += len(chunk)
+                        if downloaded > size:
+                            raise TimelineValidationError('Sound-library audio exceeded its recorded size.')
+                        target.write(chunk)
+            except GuestMediaObjectMissing as exc:
+                raise GuestTimelineMediaUnavailableError('Sound-library audio is unavailable.') from exc
+            except TimelineValidationError:
+                raise
+            except Exception as exc:
+                raise TimelineRenderError('Sound-library audio could not be downloaded.') from exc
+            if downloaded != size:
+                raise GuestTimelineMediaUnavailableError('Sound-library audio download was incomplete.')
+            output.append(ResolvedTimelineMedia(
+                media_id=media_id, media_type='audio', path=destination, file_size=size
+            ))
+        return output
 
     def _download_records(self, records: list[dict], root: Path) -> list[ResolvedTimelineMedia]:
         total_bytes = sum(int(record['file_size']) for record in records)
