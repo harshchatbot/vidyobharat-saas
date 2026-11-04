@@ -32,22 +32,39 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit 
     setFailed(false);
   }, [mediaId, attempt]);
 
+  // Playback is driven by the media element's clock. Seeking on every React
+  // timeline tick forces the decoder to discard frames and can freeze previews.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || failed) return;
+    video.muted = muted;
+    video.volume = volume;
+  }, [failed, muted, volume, attempt]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || failed) return;
+    if (isPlaying) {
+      if (video.paused) void video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, [failed, isPlaying, attempt]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || failed || isPlaying) return;
     const sync = () => {
-      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && Math.abs(video.currentTime - localTime) > 0.3) {
-        try { video.currentTime = Math.max(0, Math.min(localTime, Number.isFinite(video.duration) ? video.duration : localTime)); } catch { /* wait for metadata */ }
+      if (video.readyState < HTMLMediaElement.HAVE_METADATA) return;
+      const target = Math.max(0, Math.min(localTime, Number.isFinite(video.duration) ? video.duration : localTime));
+      if (Math.abs(video.currentTime - target) > 0.05) {
+        try { video.currentTime = target; } catch { /* metadata still loading */ }
       }
     };
     sync();
-    video.muted = muted;
-    video.volume = volume;
-    if (isPlaying) void video.play().catch(() => undefined);
-    else video.pause();
     video.addEventListener('loadedmetadata', sync);
     return () => video.removeEventListener('loadedmetadata', sync);
-  }, [failed, isPlaying, localTime, muted, volume, attempt]);
+  }, [failed, isPlaying, localTime, attempt]);
 
   if (failed) return <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"><p className="text-sm font-semibold text-red-300">Video preview could not load</p><button type="button" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white">Retry preview</button></div>;
   return <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => setFailed(true)} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />;
