@@ -68,6 +68,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [projectHistory, setProjectHistory] = useState(() => createProjectHistory(readLocalDraft()));
   const project = projectHistory.present;
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [batchSelection, setBatchSelection] = useState<string[]>([]);
+  const [batchSelectOpen, setBatchSelectOpen] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioTarget, setAudioTarget] = useState<'music' | 'sfx'>('music');
@@ -758,6 +760,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       return next;
     });
   }
+  function removeBatchSelected() {
+    if (!batchSelection.length) return;
+    const ids = new Set(batchSelection);
+    mutate((current) => {
+      let next = current;
+      for (const id of ids) {
+        if (projectItem(next, id)) next = removeItem(next, id);
+      }
+      return next;
+    });
+    if (selectedItemId && ids.has(selectedItemId)) setSelectedItemId(null);
+    setBatchSelection([]);
+    setBatchSelectOpen(false);
+  }
   function removeSelected() { if (!selectedItemId) return; mutate((current) => removeItem(current, selectedItemId)); setSelectedItemId(null); }
   function reorderSelectedVisual(direction: -1 | 1) {
     if (!selectedItemId) return;
@@ -1160,6 +1176,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         </div>
         {selectedItem?.kind === 'video' && <div className="flex items-center gap-2 border-b border-white/10 bg-[#111118] px-3 py-2 text-xs"><span className="text-slate-400">Transition to next</span>{(['none', 'crossfade', 'slide-left', 'slide-right'] as const).map((type) => <button key={type} type="button" onClick={() => setSelectedTransition(type)} className="rounded border border-white/10 px-2 py-1 capitalize text-slate-300 hover:bg-white/10">{type === 'none' ? 'None' : type.replace('-', ' ')}</button>)}<select defaultValue="0.6" onChange={(event) => setSelectedTransition(selectedItem.transitionOut?.type ?? 'crossfade', Number(event.target.value))} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-slate-300"><option value="0.4">0.4s</option><option value="0.6">0.6s</option><option value="0.8">0.8s</option></select><button type="button" onClick={() => applyTransitionToAll(selectedItem.transitionOut?.type ?? 'crossfade', selectedItem.transitionOut?.duration ?? 0.6)} className="rounded-lg border border-amber-400/50 bg-amber-400/15 px-3 py-1 font-bold text-amber-200 hover:bg-amber-400/25">Apply to all clips</button></div>}
         <div className="h-full overflow-hidden">
+          <div className="border-b border-white/10 bg-[#15151d] px-3 py-2 text-xs text-white"><button type="button" disabled={proposalActive} onClick={() => setBatchSelectOpen((open) => !open)} className="rounded border border-white/20 px-3 py-1.5 font-semibold hover:bg-white/10">{batchSelectOpen ? 'Close multi-select' : 'Select multiple clips'}</button>{batchSelectOpen && <div className="mt-3 space-y-2"><p className="text-slate-300">Select clips to remove together:</p><div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">{displayProject.tracks.find((track) => track.id === 'video')?.items.filter((item): item is VideoTimelineItem => item.kind === 'video').map((clip, index) => <label key={clip.id} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2"><input type="checkbox" checked={batchSelection.includes(clip.id)} onChange={(event) => setBatchSelection((ids) => event.target.checked ? [...ids, clip.id] : ids.filter((id) => id !== clip.id))} />Clip {index + 1}</label>)}</div><button type="button" disabled={!batchSelection.length} onClick={removeBatchSelected} className="rounded-lg bg-rose-600 px-3 py-2 font-bold text-white disabled:opacity-40">Delete {batchSelection.length} selected clips</button></div>}</div>
           <MultiTrackTimeline project={displayProject} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start, transactionKey) => { if (!proposalActive) mutate((current) => moveItem(current, id, start), transactionKey); }} onResizeItem={(id, edge, time, transactionKey) => { if (!proposalActive) mutate((current) => resizeItem(current, id, edge, time), transactionKey); }} onDeleteSelected={() => { if (!proposalActive) removeSelected(); }} onReorderSelected={(direction) => { if (!proposalActive) reorderSelectedVisual(direction); }} onSplitSelected={() => { if (!proposalActive && selectedItemId) { setIsPlaying(false); mutate((current) => splitItem(current, selectedItemId, playbackTime, crypto.randomUUID())); } }} onEditStart={(key) => { if (!proposalActive) beginProjectEdit(key); }} onEditEnd={(key) => { if (!proposalActive) endProjectEdit(key); }} />
         </div>
       </div>
