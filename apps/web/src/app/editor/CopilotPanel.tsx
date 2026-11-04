@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Send, Sparkles, X } from 'lucide-react';
+import { Bot, Send, Film, X } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import {
