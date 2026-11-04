@@ -953,7 +953,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         }
       }
       if (epoch !== autoEditEpochRef.current) return;
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript });
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: audioLibrary });
       for (const operation of plan.operations) {
         if (operation.op === 'add_text' && operation.item.captionWords?.length) operation.item.fontFamily = autoEditCaptionFont;
       }
