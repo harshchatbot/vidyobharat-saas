@@ -13,6 +13,8 @@ type Props = {
   muted: boolean;
   volume: number;
   cropMode: 'cover' | 'contain';
+  onMediaTime?: (time: number) => void;
+  onBufferingChange?: (buffering: boolean) => void;
 };
 
 function ImagePreview({ mediaId, filename, objectFit }: { mediaId: string; filename: string; objectFit: string }) {
@@ -22,7 +24,7 @@ function ImagePreview({ mediaId, filename, objectFit }: { mediaId: string; filen
   return <img src={url} alt={filename} className={`h-full w-full bg-black ${objectFit}`} />;
 }
 
-function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit }: Omit<Props, 'contentType' | 'filename' | 'cropMode'> & { objectFit: string }) {
+function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit, onMediaTime, onBufferingChange }: Omit<Props, 'contentType' | 'filename' | 'cropMode'> & { objectFit: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const desiredTimeRef = useRef(localTime);
   desiredTimeRef.current = localTime;
@@ -73,12 +75,12 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit 
   }, [failed, isPlaying, localTime, attempt]);
 
   if (failed) return <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"><p className="text-sm font-semibold text-red-300">Video preview could not load</p><button type="button" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white">Retry preview</button></div>;
-  return <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => setFailed(true)} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />;
+  return <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => setFailed(true)} onTimeUpdate={(event) => onMediaTime?.(event.currentTarget.currentTime)} onWaiting={() => onBufferingChange?.(true)} onStalled={() => onBufferingChange?.(true)} onPlaying={() => onBufferingChange?.(false)} onCanPlay={() => onBufferingChange?.(false)} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />;
 }
 
 export function GuestMediaPreview(props: Props) {
   const objectFit = props.cropMode === 'cover' ? 'object-cover' : 'object-contain';
-  if (props.contentType.startsWith('video/')) return <VideoPreview mediaId={props.mediaId} isPlaying={props.isPlaying} localTime={props.localTime} muted={props.muted} volume={props.volume} objectFit={objectFit} />;
+  if (props.contentType.startsWith('video/')) return <VideoPreview mediaId={props.mediaId} isPlaying={props.isPlaying} localTime={props.localTime} muted={props.muted} volume={props.volume} objectFit={objectFit} onMediaTime={props.onMediaTime} onBufferingChange={props.onBufferingChange} />;
   if (props.contentType.startsWith('image/')) return <ImagePreview mediaId={props.mediaId} filename={props.filename} objectFit={objectFit} />;
   return <p className="text-sm text-white/60">Preview not supported</p>;
 }

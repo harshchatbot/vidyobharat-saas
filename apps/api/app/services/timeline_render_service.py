@@ -319,8 +319,21 @@ class TimelineRenderService:
                     raise TimelineValidationError('Image clips cannot have a non-zero start time.')
             else:
                 duration = self._probe_visual_duration(probe)
-                if clip.start_seconds + clip.duration_seconds > duration + 1.0 / composition.fps:
-                    raise TimelineValidationError('A video clip exceeds its source duration.')
+                frame_tolerance = 1.0 / composition.fps
+
+                if clip.start_seconds + clip.duration_seconds > duration + frame_tolerance:
+                    logger.error(
+                        "clip_exceeds_source_duration: media_id=%s start=%s "
+                        "clip_duration=%s source_duration=%s overrun=%s",
+                        clip.media_id,
+                        clip.start_seconds,
+                        clip.duration_seconds,
+                        duration,
+                        clip.start_seconds + clip.duration_seconds - duration,
+                    )
+                    raise TimelineValidationError(
+                        'A video clip exceeds its source duration.'
+                    )
         for audio in composition.audio_items:
             item, probe = source_by_id[audio.media_id]
             if item.media_type != 'audio':

@@ -92,6 +92,7 @@ def export_environment(tmp_path: Path):
         editor_export_worker_lease_seconds=10,
         editor_export_worker_poll_seconds=0.05,
         editor_export_worker_retry_base_seconds=1,
+        editor_export_celery_enabled=False,
     )
     media = GuestMediaService(
         settings=settings, sessions=sessions,

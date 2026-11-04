@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     editor_export_worker_max_attempts: int = 3
     editor_export_worker_retry_base_seconds: int = 5
     editor_export_worker_retry_max_seconds: int = 300
+    # Guest export records are durable in Firestore. Celery only provides
+    # prompt dispatch; the reconciliation worker can always reclaim queued or
+    # expired-lease records after a broker outage.
+    editor_export_celery_enabled: bool = True
+    editor_export_celery_queue: str = 'editor-exports'
+    editor_export_celery_concurrency: int = Field(default=1, ge=1, le=8)
     editor_export_list_limit: int = 50
     editor_copilot_enabled: bool = False
     editor_copilot_provider: str = 'openai'

@@ -25,7 +25,7 @@ import { MultiTrackTimeline } from './timeline/MultiTrackTimeline';
 import { activeItems, addItem, moveItem, projectItem, quantizeTimelineTime, removeItem, reorderVideo, resizeItem, splitItem, updateItem, visualTimelineEnd } from './timeline/model';
 import { browserEffectStyle, effectsWithTemporaryPreview, transitionProgress, vignetteOpacity } from './timeline/filters';
 import type { EffectSection } from './timeline/filters';
-import { normalizeExportFilename } from './timeline/serialization';
+import { normalizeExportFilename, serializeTimelineProject } from './timeline/serialization';
 import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
 import { validateWordTranscript } from './timedCaptions';
@@ -41,7 +41,7 @@ import { prepareVisualUpload, uploadVisualWithProgress, type PendingVisualUpload
 
 type Props = { media: GuestMedia[]; uploadUsage?: { limits: { uploads: number }; remaining: { uploads: number } } | null };
 const MAX_CLIPS = 12;
-const TRANSCRIPTION_TIMEOUT_MS = 90_000;
+const TRANSCRIPTION_TIMEOUT_MS = 300000; // 5 minutes;
 const PAUSE_ANALYSIS_TIMEOUT_MS = 20_000;
 type WorkspaceTool = 'media' | 'audio' | 'text' | EffectSection;
 const DRAFT_STORAGE_KEY = 'rangmanch:guest-editor:draft:v1';
@@ -178,12 +178,15 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const pendingVisualUploadsRef = useRef<PendingVisualUpload[]>([]);
   const visualQueueRunningRef = useRef(false);
   const playbackStartedRef = useRef({ wallTime: 0, timelineTime: 0 });
+  const playbackTimeRef = useRef(0);
+  const previewBufferingRef = useRef(false);
   const downloadedExportIdsRef = useRef<Set<string>>(new Set());
   const lastProjectRef = useRef(project);
   const projectRevisionRef = useRef(0);
   const committedProjectRef = useRef(project);
   committedProjectRef.current = project;
   const displayProject = copilotProposal?.applied.project ?? project;
+  playbackTimeRef.current = playbackTime;
   const proposalActive = Boolean(copilotProposal);
   const selectedItem = selectedItemId ? projectItem(displayProject, selectedItemId) : undefined;
   const selectedText = selectedItem?.kind === 'text' ? selectedItem : undefined;
@@ -279,6 +282,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     let frame = 0;
     let lastUiUpdate = 0;
     const tick = (now: number) => {
+      if (previewBufferingRef.current) { frame = requestAnimationFrame(tick); return; }
       const next = playbackStartedRef.current.timelineTime + (now - playbackStartedRef.current.wallTime) / 1000;
       if (next >= displayProject.duration) { setPlaybackTime(displayProject.duration); setIsPlaying(false); return; }
       // Media elements decode independently; avoid rerendering the entire
@@ -292,6 +296,20 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [isPlaying, displayProject.duration]);
+
+  function syncPreviewMediaTime(mediaTime: number) {
+    const clip = previewClip;
+    if (!isPlaying || !clip || !Number.isFinite(mediaTime)) return;
+    const timelineTime = Math.max(clip.startTime, Math.min(displayProject.duration, clip.startTime + mediaTime - clip.sourceStart));
+    playbackStartedRef.current = { wallTime: performance.now(), timelineTime };
+    if (Math.abs(playbackTimeRef.current - timelineTime) > 0.02) setPlaybackTime(timelineTime);
+  }
+
+  function setPreviewBuffering(buffering: boolean) {
+    if (previewBufferingRef.current === buffering) return;
+    previewBufferingRef.current = buffering;
+    if (!buffering && isPlaying) playbackStartedRef.current = { wallTime: performance.now(), timelineTime: playbackTimeRef.current };
+  }
 
   useEffect(() => {
     if (!textPreview) { setTextPreviewTime(0); return; }
@@ -909,9 +927,34 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     const submittedRevision = projectRevisionRef.current;
     const controller = new AbortController();
     exportAbortRef.current = controller;
-    setExportSubmitting(true); setExportError(''); setExportStatus('Preparing local export...'); setExportJob(null);
+    const browserFallback = process.env.NEXT_PUBLIC_EDITOR_BROWSER_EXPORT_FALLBACK === 'true';
+    setExportSubmitting(true); setExportError(''); setExportStatus(browserFallback ? 'Preparing local export...' : 'Submitting secure server export...'); setExportJob(null);
     if (localExportUrl) { URL.revokeObjectURL(localExportUrl); setLocalExportUrl(null); }
     try {
+      if (!browserFallback) {
+        const payload = serializeTimelineProject(project);
+        const catalogAudio = payload.audio_items.find((item) => item.media_id.startsWith('catalog:'));
+        if (catalogAudio) {
+          throw new Error('Server export currently supports uploaded audio only. Replace sound-library audio before exporting.');
+        }
+        const response = await fetch(`${getApiUrl()}/api/editor/exports`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-RangManch-Editor-CSRF': '1',
+            'Idempotency-Key': `timeline-${crypto.randomUUID()}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.message || body.detail || `Export submission failed (HTTP ${response.status}).`);
+        if (submittedRevision !== projectRevisionRef.current) throw new Error('The project changed during export. Please export again.');
+        setExportJob(body as ExportJobView);
+        setExportStatus('Export queued on the secure render worker.');
+        return;
+      }
       const support = supportsBrowserMp4Export();
       if (!support.mediaRecorder) throw new Error('This browser cannot encode MP4 locally. Use a browser with video/mp4 MediaRecorder support.');
       const referencedMedia = project.tracks.flatMap((track) => track.items)
@@ -1296,7 +1339,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </div>
           <section className="flex min-h-[180px] min-w-0 flex-1 items-center justify-center overflow-hidden p-3 sm:min-h-[220px] sm:p-5 lg:min-h-0">
             <div className={`relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl shadow-black/50 ${displayProject.aspectRatio === '9:16' || displayProject.aspectRatio === '4:5' ? 'h-full w-auto' : 'h-auto w-full'}`} style={{ aspectRatio: displayProject.aspectRatio.replace(':', ' / ') }} data-testid="editor-preview-canvas" onPointerDown={() => setSelectedItemId(null)}>
-              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewTransition ? <><div className="absolute inset-0" style={{ opacity: 1 - previewTransition.progress, transform: previewTransition.type === 'slide-left' ? `translateX(${-100 * previewTransition.progress}%)` : previewTransition.type === 'slide-right' ? `translateX(${100 * previewTransition.progress}%)` : undefined }}><GuestMediaPreview mediaId={previewTransition.previous.mediaId} contentType={previewTransition.previous.contentType} filename={previewTransition.previous.label} isPlaying={false} localTime={previewTransition.previous.sourceStart + previewTransition.previous.duration} muted={previewTransition.previous.muted} volume={previewTransition.previous.volume} cropMode={previewTransition.previous.cropMode} /></div><div className="absolute inset-0" style={{ opacity: previewTransition.progress, transform: previewTransition.type === 'slide-left' ? `translateX(${100 * (1 - previewTransition.progress)}%)` : previewTransition.type === 'slide-right' ? `translateX(${-100 * (1 - previewTransition.progress)}%)` : undefined }}><GuestMediaPreview mediaId={previewTransition.next.mediaId} contentType={previewTransition.next.contentType} filename={previewTransition.next.label} isPlaying={false} localTime={previewTransition.next.sourceStart} muted={previewTransition.next.muted} volume={previewTransition.next.volume} cropMode={previewTransition.next.cropMode} /></div></> : previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / displayProject.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
+              <div className="absolute inset-0 overflow-hidden" style={previewStyle}>{previewTransition ? <><div className="absolute inset-0" style={{ opacity: 1 - previewTransition.progress, transform: previewTransition.type === 'slide-left' ? `translateX(${-100 * previewTransition.progress}%)` : previewTransition.type === 'slide-right' ? `translateX(${100 * (1 - previewTransition.progress)}%)` : undefined }}><GuestMediaPreview mediaId={previewTransition.previous.mediaId} contentType={previewTransition.previous.contentType} filename={previewTransition.previous.label} isPlaying={false} localTime={previewTransition.previous.sourceStart + previewTransition.previous.duration} muted={previewTransition.previous.muted} volume={previewTransition.previous.volume} cropMode={previewTransition.previous.cropMode} /></div><div className="absolute inset-0" style={{ opacity: previewTransition.progress, transform: previewTransition.type === 'slide-left' ? `translateX(${100 * (1 - previewTransition.progress)}%)` : previewTransition.type === 'slide-right' ? `translateX(${-100 * (1 - previewTransition.progress)}%)` : undefined }}><GuestMediaPreview mediaId={previewTransition.next.mediaId} contentType={previewTransition.next.contentType} filename={previewTransition.next.label} isPlaying={false} localTime={previewTransition.next.sourceStart} muted={previewTransition.next.muted} volume={previewTransition.next.volume} cropMode={previewTransition.next.cropMode} /></div></> : previewClip ? <GuestMediaPreview mediaId={previewClip.mediaId} contentType={previewClip.contentType} filename={previewClip.label} isPlaying={isPlaying && !heldFinalClip} localTime={heldFinalClip ? previewClip.sourceStart + Math.max(0, previewClip.duration - 1 / displayProject.exportSettings.fps) : previewClip.sourceStart + playbackTime - previewClip.startTime} muted={previewClip.muted} volume={previewClip.volume} cropMode={previewClip.cropMode} onMediaTime={syncPreviewMediaTime} onBufferingChange={setPreviewBuffering} /> : clipCount === 0 ? <div className="grid h-full place-items-center px-6 text-center text-sm text-white/60">Add photos or videos to begin</div> : null}</div>
               {vignette > 0 && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: `inset 0 0 100px rgba(0,0,0,${vignette})` }} />}
               {textPreview && <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-lg border border-amber-300 bg-amber-300 px-3 py-1 text-xs font-bold text-slate-950 shadow-lg">Preview only · select Add to timeline</div>}
               {showSafeAreas && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-20">
@@ -1414,7 +1457,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           <footer className="flex justify-end gap-3 border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4"><button type="button" onClick={() => { autoEditEpochRef.current += 1; autoEditAbortRef.current?.abort(); autoEditAbortRef.current = null; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:bg-[#ffe59a] disabled:opacity-50"><Film className="h-4 w-4" />Preview Auto Edit</button></footer>
         </section>
       </div>}
-      <ExportDialog signedIn={authHydrated && authenticatedCreator} open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? undefined} />
+      <ExportDialog signedIn={authHydrated && authenticatedCreator} open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? (exportJob?.status === 'completed' ? `${getApiUrl()}/api/editor/exports/${encodeURIComponent(exportJob.job_id)}/content` : undefined)} />
     </div>
   );
 }

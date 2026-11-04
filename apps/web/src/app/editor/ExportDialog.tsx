@@ -3,7 +3,7 @@
 import { Download, LoaderCircle, Film, X } from 'lucide-react';
 import { browserExportDimensions } from '@/lib/browser-ai/browserMp4Export';
 import type { ReactNode } from 'react';
-import { normalizeExportFilename } from './timeline/serialization';
+import { exportDimensions, normalizeExportFilename } from './timeline/serialization';
 import type { ProjectAspectRatio, ProjectExportSettings } from './timeline/types';
 
 export type ExportJobView = {
@@ -32,7 +32,10 @@ const ratios: ProjectAspectRatio[] = ['9:16', '16:9', '1:1', '4:5'];
 export function ExportDialog(props: Props) {
   if (!props.open) return null;
   const busy = props.submitting || props.job?.status === 'queued' || props.job?.status === 'running';
-  const dimensions = browserExportDimensions(props.aspectRatio, props.settings.resolution);
+  const browserFallback = process.env.NEXT_PUBLIC_EDITOR_BROWSER_EXPORT_FALLBACK === 'true';
+  const dimensions = browserFallback
+    ? browserExportDimensions(props.aspectRatio, props.settings.resolution)
+    : exportDimensions(props.aspectRatio, '720p');
   const update = <K extends keyof ProjectExportSettings>(key: K, value: ProjectExportSettings[K]) => props.onSettings({ ...props.settings, [key]: value });
   return <div className="fixed inset-0 z-[170] grid place-items-center bg-[#2b1b3a]/65 p-3 backdrop-blur-md" onPointerDown={props.onClose}>
     <section role="dialog" aria-modal="true" aria-labelledby="export-title" className="w-full max-w-2xl overflow-hidden rounded-[28px] border-2 border-[#4d365d] bg-[#fffaf0] text-[#2b2035] shadow-[8px_8px_0_#3f2a50,0_24px_80px_rgba(30,14,40,0.35)]" onPointerDown={(event) => event.stopPropagation()}>
@@ -40,9 +43,9 @@ export function ExportDialog(props: Props) {
       <div className="grid max-h-[60vh] gap-5 overflow-y-auto bg-[#fffaf0] p-5 sm:grid-cols-2">
         <label className="sm:col-span-2"><span className="mb-2 block text-xs font-bold text-[#483052]">Name your masterpiece</span><input value={props.settings.filename} maxLength={80} onFocus={() => props.onEditStart('export:filename')} onBlur={() => props.onEditEnd('export:filename')} onChange={(event) => update('filename', event.target.value)} disabled={busy} className="h-11 w-full rounded-xl border-2 border-[#cdb7d6] bg-white px-3 text-sm text-[#30223c] outline-none focus:border-[#8e63a8] focus:ring-2 focus:ring-[#e4cff5] disabled:opacity-60" /></label>
         <Field label="Aspect ratio"><OptionGrid values={ratios} value={props.aspectRatio} onChange={(value) => props.onAspectRatio(value as ProjectAspectRatio)} disabled={busy} /></Field>
-        <Field label="Resolution"><OptionGrid values={["720p", "1080p"]} value={props.settings.resolution} onChange={(value) => update("resolution", value as ProjectExportSettings["resolution"])} disabled={busy} /></Field>
-        <Field label="Frame rate"><OptionGrid values={["24", "30", "60"]} value={String(props.settings.fps)} onChange={(value) => update("fps", Number(value) as ProjectExportSettings["fps"])} disabled={busy} /></Field>
-        <Field label="Quality"><OptionGrid values={["standard", "high"]} value={props.settings.quality} onChange={(value) => update("quality", value as ProjectExportSettings["quality"])} disabled={busy} /></Field>
+        <Field label="Resolution"><OptionGrid values={browserFallback ? ["720p", "1080p"] : ["720p"]} value={browserFallback ? props.settings.resolution : '720p'} onChange={(value) => update("resolution", value as ProjectExportSettings["resolution"])} disabled={busy} /></Field>
+        <Field label="Frame rate"><OptionGrid values={browserFallback ? ["24", "30", "60"] : ["30"]} value={browserFallback ? String(props.settings.fps) : '30'} onChange={(value) => update("fps", Number(value) as ProjectExportSettings["fps"])} disabled={busy} /></Field>
+        <Field label="Quality"><OptionGrid values={browserFallback ? ["standard", "high"] : ["standard"]} value={browserFallback ? props.settings.quality : 'standard'} onChange={(value) => update("quality", value as ProjectExportSettings["quality"])} disabled={busy} /></Field>
         {props.exportUsage && (
           <p className="sm:col-span-2 text-xs font-semibold text-[#79549b]">
             Free exports remaining: {props.exportUsage.remaining.exports} / {props.exportUsage.limits.exports}
@@ -50,8 +53,8 @@ export function ExportDialog(props: Props) {
         )}
       </div>
       <div className="border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-semibold text-[#64536e]">{dimensions.width} × {dimensions.height} · {props.settings.fps} FPS</span><span className="max-w-[55%] truncate font-bold text-[#382645]">{normalizeExportFilename(props.settings.filename)}</span></div>
-        {busy && <div aria-live="polite"><div className="mb-2 flex items-center gap-2 text-sm font-bold text-[#68448c]"><LoaderCircle className="h-4 w-4 animate-spin" />{props.submitting ? 'Rendering locally' : stageLabel(props.job?.progress_stage)}</div><div className="h-1.5 overflow-hidden rounded-full bg-[#e3d2eb]"><div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-[#a87ad0] to-[#ffcc68]" /></div><p className="mt-2 text-xs text-[#6b5873]">The browser renders this video locally in real time.</p></div>}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-semibold text-[#64536e]">{dimensions.width} × {dimensions.height} · {browserFallback ? props.settings.fps : 30} FPS</span><span className="max-w-[55%] truncate font-bold text-[#382645]">{normalizeExportFilename(props.settings.filename)}</span></div>
+        {busy && <div aria-live="polite"><div className="mb-2 flex items-center gap-2 text-sm font-bold text-[#68448c]"><LoaderCircle className="h-4 w-4 animate-spin" />{props.submitting ? 'Submitting export' : stageLabel(props.job?.progress_stage)}</div><div className="h-1.5 overflow-hidden rounded-full bg-[#e3d2eb]"><div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-[#a87ad0] to-[#ffcc68]" /></div><p className="mt-2 text-xs text-[#6b5873]">Your timeline is rendered by the secure RangManch export worker.</p></div>}
         {(props.error || props.job?.status === 'failed') && <div role="alert" className="mb-3 rounded-md border-2 border-[#e3a6ac] bg-[#fff0f0] p-3 text-sm text-[#8a2439]">{props.error || props.job?.message || 'The export failed. Please try again.'}</div>}
         <div className="flex justify-end gap-2">{busy ? <button type="button" onClick={props.onCancel} className="min-h-10 rounded-md border-2 border-[#ce8b95] px-4 text-sm font-bold text-[#842b3c] hover:bg-[#fff0f0]">Cancel export</button> : <button type="button" onClick={props.onClose} className="min-h-10 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">Close</button>}{props.job?.status === 'completed' && props.downloadUrl ? <a href={props.downloadUrl} download={props.job.output?.filename} className="inline-flex min-h-10 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:-translate-y-0.5 hover:bg-[#ffe59a]"><Download className="h-4 w-4" />Download MP4</a> : props.job?.status === 'failed' && props.job.retryable ? <button type="button" onClick={props.onRetry} className="min-h-10 rounded-lg bg-amber-400 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-300">Retry export</button> : props.job?.status !== 'failed' ? <button type="button" disabled={busy || props.job?.status === 'completed'} onClick={props.onExport} className="inline-flex min-h-10 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:-translate-y-0.5 hover:bg-[#ffe59a] disabled:opacity-40"><Download className="h-4 w-4" />Export MP4</button> : null}</div>
       </div>

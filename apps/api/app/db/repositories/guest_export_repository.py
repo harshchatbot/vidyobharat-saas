@@ -210,6 +210,57 @@ class GuestExportRepository:
                 return claimed
         return None
 
+    def claim_job(
+        self,
+        *,
+        guest_id: str,
+        job_id: str,
+        worker_id: str,
+        fence_token: str,
+        now: datetime,
+        lease_duration: timedelta,
+        concurrent_processing_limit: int,
+        max_attempts: int = 3,
+    ) -> dict[str, Any] | None:
+        """Claim a particular durable record for a Celery delivery.
+
+        The broker message is advisory: all eligibility, retry timing and
+        ownership are checked against Firestore before a renderer is started.
+        """
+        session_snapshot = self.sessions.document(guest_id).get()
+        job = self.get(guest_id, job_id)
+        if not session_snapshot.exists or job is None:
+            return None
+        session = session_snapshot.to_dict() or {}
+        lease = job.get('lease_expires_at')
+        abandoned_running = job.get('status') == 'running' and isinstance(lease, datetime) and lease <= now
+        if job.get('status') not in {'queued', 'running'} or (job.get('status') == 'running' and not abandoned_running):
+            return None
+        if (
+            session.get('status') != 'active'
+            or not isinstance(session.get('expires_at'), datetime)
+            or session['expires_at'] <= now
+            or not isinstance(job.get('expires_at'), datetime)
+            or job['expires_at'] <= now
+        ):
+            self._expire_inactive(guest_id, job_id, now)
+            return None
+        if int(job.get('attempt_count', 0)) >= max_attempts:
+            self._fail_exhausted(guest_id, job_id, now)
+            return None
+        retry_at = job.get('retry_at')
+        if isinstance(retry_at, datetime) and retry_at > now:
+            return None
+        return self._claim(
+            guest_id=guest_id,
+            job_id=job_id,
+            worker_id=worker_id,
+            fence_token=fence_token,
+            now=now,
+            lease_duration=lease_duration,
+            concurrent_processing_limit=concurrent_processing_limit,
+        )
+
     def _fail_exhausted(self, guest_id: str, job_id: str, now: datetime) -> None:
         session_ref = self.sessions.document(guest_id)
         job_ref = session_ref.collection('exports').document(job_id)

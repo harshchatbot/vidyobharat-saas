@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -28,6 +29,7 @@ from app.services.timeline_render_service import (
 
 _IDEMPOTENCY_PATTERN = re.compile(r'^[A-Za-z0-9._:-]{8,128}$')
 _JOB_ID_PATTERN = re.compile(r'^[a-f0-9]{32}$')
+logger = logging.getLogger(__name__)
 
 
 class GuestExportService:
@@ -94,7 +96,7 @@ class GuestExportService:
                     processing_seconds=reserved_processing,
                 ),
             )
-            return self.repository.create_or_get(
+            job, created = self.repository.create_or_get(
                 guest_id=session['guest_id'],
                 job_id=job_id,
                 timeline=timeline_payload,
@@ -110,6 +112,9 @@ class GuestExportService:
                 expires_at=session['expires_at'],
                 network_subject=network_subject,
             )
+            if created:
+                self._enqueue(session['guest_id'], job['job_id'])
+            return job, created
         except ExportConflictError as exc:
             self.sessions.finish_network_quota(subject=network_subject, reservation_id=reservation_id, commit=False)
             raise media_error('guest_export_idempotency_conflict', str(exc), status_code=409) from exc
@@ -133,6 +138,26 @@ class GuestExportService:
             else self.settings.editor_export_list_limit
         )
         return self.repository.list_for_guest(session['guest_id'], limit=limit)
+
+    def _enqueue(self, guest_id: str, job_id: str) -> None:
+        """Best-effort Celery dispatch; durable polling/reconciliation recovers it.
+
+        A broker publish failure must never roll back the accepted Firestore
+        job or its quota reservation.  The record remains queued and is
+        claimable by ``GuestExportWorker`` or the reconciliation task.
+        """
+        if not self.settings.editor_export_celery_enabled:
+            return
+        try:
+            from app.workers.guest_export_tasks import process_guest_timeline_export
+
+            process_guest_timeline_export.apply_async(
+                args=[guest_id, job_id],
+                queue=self.settings.editor_export_celery_queue,
+            )
+            logger.info('guest_export_enqueued', extra={'job_id': job_id, 'queue': self.settings.editor_export_celery_queue})
+        except Exception:
+            logger.exception('guest_export_enqueue_failed_recovery_will_claim', extra={'job_id': job_id})
 
     def get_job(self, raw_token: str | None, job_id: str) -> dict[str, Any]:
         if not _JOB_ID_PATTERN.fullmatch(job_id):
