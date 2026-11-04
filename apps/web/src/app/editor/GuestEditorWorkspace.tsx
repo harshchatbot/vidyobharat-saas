@@ -87,6 +87,8 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [audioLibraryError, setAudioLibraryError] = useState('');
   const [audioLibraryTab, setAudioLibraryTab] = useState<'music' | 'sfx'>('music');
   const [previewingCatalogId, setPreviewingCatalogId] = useState<string | null>(null);
+  const [loadingCatalogId, setLoadingCatalogId] = useState<string | null>(null);
+  const catalogPreviewRequestRef = useRef(0);
   const catalogAudioRef = useRef<HTMLAudioElement | null>(null);
   const [deletingMediaIds, setDeletingMediaIds] = useState<Set<string>>(() => new Set());
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -619,9 +621,39 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
 
   function toggleCatalogPreview(entry: AudioLibraryEntry) {
     if (!catalogAudioRef.current) catalogAudioRef.current = new Audio();
-    if (previewingCatalogId === entry.id) { catalogAudioRef.current.pause(); setPreviewingCatalogId(null); return; }
-    catalogAudioRef.current.src = catalogPlaybackUrl(entry); catalogAudioRef.current.currentTime = 0;
-    void catalogAudioRef.current.play().then(() => setPreviewingCatalogId(entry.id)).catch((error) => { console.error('Catalog audio preview failed', { id: entry.id, url: catalogPlaybackUrl(entry), error }); setAudioLibraryError('Audio preview could not start. The audio file may be missing from Firebase Storage (check the backend response).'); });
+    const audio = catalogAudioRef.current;
+    const request = ++catalogPreviewRequestRef.current;
+    if (previewingCatalogId === entry.id || loadingCatalogId === entry.id) {
+      audio.pause();
+      setPreviewingCatalogId(null);
+      setLoadingCatalogId(null);
+      return;
+    }
+    audio.pause();
+    setPreviewingCatalogId(null);
+    setLoadingCatalogId(entry.id);
+    setAudioLibraryError('');
+    audio.onended = () => {
+      if (catalogPreviewRequestRef.current === request) setPreviewingCatalogId(null);
+    };
+    audio.onerror = () => {
+      if (catalogPreviewRequestRef.current !== request) return;
+      setLoadingCatalogId(null);
+      setPreviewingCatalogId(null);
+      setAudioLibraryError('Audio preview could not load. Please try again.');
+    };
+    audio.src = catalogPlaybackUrl(entry);
+    audio.currentTime = 0;
+    void audio.play().then(() => {
+      if (catalogPreviewRequestRef.current !== request) return;
+      setLoadingCatalogId(null);
+      setPreviewingCatalogId(entry.id);
+    }).catch((error) => {
+      if (catalogPreviewRequestRef.current !== request || error?.name === 'AbortError') return;
+      console.error('Catalog audio preview failed', { id: entry.id, error });
+      setLoadingCatalogId(null);
+      setAudioLibraryError('Audio preview could not start. Please try again.');
+    });
   }
 
   function openEffectPicker(section: EffectSection, anchor?: HTMLElement) {
@@ -1074,7 +1106,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
         </div>
       ))}
     </div>
-    {activeTool === 'audio' && <div className="min-h-0 max-h-[55vh] shrink-0 overflow-y-auto overscroll-contain border-t border-white/10 p-3" aria-label="Scrollable sound library"><button type="button" disabled={uploadingAudio || remainingUploads <= 0} onClick={() => audioInputRef.current?.click()} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-white/15 text-xs font-semibold text-white transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40"><Upload className="h-4 w-4" />{uploadingAudio ? 'Uploading…' : 'Upload audio'}</button>{uploadingAudio && <IndeterminateProgress label={`Uploading ${uploadingFilename || 'audio'}…`} className="mt-3" />}<p className="mt-2 text-[11px] leading-4 text-slate-500">Use audio you own or are licensed to use.</p><div className="mt-4 border-t border-white/10 pt-3"><div><h3 className="text-xs font-semibold text-white">Sound Library</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">Server-reviewed audio cleared for use.</p></div><div className="mt-3 flex gap-1" role="tablist" aria-label="Sound library category"><button type="button" role="tab" aria-selected={audioLibraryTab === 'music'} onClick={() => setAudioLibraryTab('music')} className={`min-h-9 flex-1 rounded px-2 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${audioLibraryTab === 'music' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`}>Music</button><button type="button" role="tab" aria-selected={audioLibraryTab === 'sfx'} onClick={() => setAudioLibraryTab('sfx')} className={`min-h-9 flex-1 rounded px-2 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${audioLibraryTab === 'sfx' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`}>Sound effects</button></div><input aria-label="Search sound library" value={audioLibraryQuery} onChange={(event) => setAudioLibraryQuery(event.target.value)} placeholder="Search sound library" className="mt-2 h-9 w-full rounded border border-white/10 bg-black/20 px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" />{audioLibraryLoading ? <IndeterminateProgress label="Loading sound library…" className="mt-3" /> : audioLibraryError ? <p role="alert" className="mt-3 text-xs text-rose-300">{audioLibraryError}</p> : audioLibrary.filter((entry) => entry.type === audioLibraryTab).length === 0 ? <p className="mt-3 text-xs leading-5 text-slate-500">No licensed {audioLibraryTab === 'music' ? 'music' : 'sound effects'} available yet. Assets appear only after licensing is verified.</p> : <div className="mt-2 space-y-2">{audioLibrary.filter((entry) => entry.type === audioLibraryTab).map((entry) => <div key={entry.id} className="rounded border border-white/10 bg-white/[0.03] p-2"><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="truncate text-xs text-white">{entry.title}</p><p className="text-[10px] text-slate-500">{entry.duration_seconds.toFixed(1)}s · {entry.license}</p></div><button type="button" onClick={() => toggleCatalogPreview(entry)} className="min-h-8 rounded px-2 py-1 text-[10px] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">{previewingCatalogId === entry.id ? 'Pause' : 'Preview'}</button><button type="button" onClick={() => addCatalogAudio(entry)} className="min-h-8 rounded bg-amber-400 px-2 py-1 text-[10px] font-semibold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">Add</button></div></div>)}</div>}</div></div>}
+    {activeTool === 'audio' && <div className="min-h-0 max-h-[55vh] shrink-0 overflow-y-auto overscroll-contain border-t border-white/10 p-3" aria-label="Scrollable sound library"><button type="button" disabled={uploadingAudio || remainingUploads <= 0} onClick={() => audioInputRef.current?.click()} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-white/15 text-xs font-semibold text-white transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-40"><Upload className="h-4 w-4" />{uploadingAudio ? 'Uploading…' : 'Upload audio'}</button>{uploadingAudio && <IndeterminateProgress label={`Uploading ${uploadingFilename || 'audio'}…`} className="mt-3" />}<p className="mt-2 text-[11px] leading-4 text-slate-500">Use audio you own or are licensed to use.</p><div className="mt-4 border-t border-white/10 pt-3"><div><h3 className="text-xs font-semibold text-white">Sound Library</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">Server-reviewed audio cleared for use.</p></div><div className="mt-3 flex gap-1" role="tablist" aria-label="Sound library category"><button type="button" role="tab" aria-selected={audioLibraryTab === 'music'} onClick={() => setAudioLibraryTab('music')} className={`min-h-9 flex-1 rounded px-2 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${audioLibraryTab === 'music' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`}>Music</button><button type="button" role="tab" aria-selected={audioLibraryTab === 'sfx'} onClick={() => setAudioLibraryTab('sfx')} className={`min-h-9 flex-1 rounded px-2 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${audioLibraryTab === 'sfx' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`}>Sound effects</button></div><input aria-label="Search sound library" value={audioLibraryQuery} onChange={(event) => setAudioLibraryQuery(event.target.value)} placeholder="Search sound library" className="mt-2 h-9 w-full rounded border border-white/10 bg-black/20 px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" />{audioLibraryLoading ? <IndeterminateProgress label="Loading sound library…" className="mt-3" /> : audioLibraryError ? <p role="alert" className="mt-3 text-xs text-rose-300">{audioLibraryError}</p> : audioLibrary.filter((entry) => entry.type === audioLibraryTab).length === 0 ? <p className="mt-3 text-xs leading-5 text-slate-500">No licensed {audioLibraryTab === 'music' ? 'music' : 'sound effects'} available yet. Assets appear only after licensing is verified.</p> : <div className="mt-2 space-y-2">{audioLibrary.filter((entry) => entry.type === audioLibraryTab).map((entry) => <div key={entry.id} className="rounded border border-white/10 bg-white/[0.03] p-2"><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="truncate text-xs text-white">{entry.title}</p><p className="text-[10px] text-slate-500">{entry.duration_seconds.toFixed(1)}s · {entry.license}</p></div><button type="button" onClick={() => toggleCatalogPreview(entry)} className="min-h-8 rounded px-2 py-1 text-[10px] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">{loadingCatalogId === entry.id ? <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />Loading…</span> : previewingCatalogId === entry.id ? 'Pause' : 'Preview'}</button><button type="button" onClick={() => addCatalogAudio(entry)} className="min-h-8 rounded bg-amber-400 px-2 py-1 text-[10px] font-semibold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">Add</button></div></div>)}</div>}</div></div>}
   </div>;
   return (
     <div className="rm-editor-skin flex min-h-dvh min-w-0 flex-col overflow-hidden bg-[#0a0a0f] text-slate-100 lg:h-dvh lg:min-h-0">
