@@ -228,14 +228,13 @@ class TimelineTextOverlay(BaseModel):
 
 class TimelineAudioItem(BaseModel):
     id: Annotated[str, Field(min_length=1, max_length=128)]
-    media_id: Annotated[str, Field(pattern=r'^(?:[a-f0-9]{32}|catalog:[A-Za-z0-9_-]{1,120})
+    media_id: Annotated[str, Field(pattern=r'^(?:[a-f0-9]{32}|catalog:[A-Za-z0-9_-]{1,120})$')]
     kind: TimelineAudioKind
     start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
     duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
     source_start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)] = 0
     volume: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 1
     muted: bool = False
-
 
 class TimelineEffect(BaseModel):
     id: Annotated[str, Field(min_length=1, max_length=128)]
