@@ -524,3 +524,36 @@ for (const changes of [
     await assert.rejects(applyEditPlan(project, plan), EditPlanValidationError);
   });
 }
+
+test('edit plan rejects unsupported text font with operation index', async () => {
+  const project = createEmptyProject();
+  const plan: CopilotEditPlan = {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: 'font-regression',
+    projectRevision: await calculateProjectRevision(project),
+    summary: 'Add caption',
+    warnings: [],
+    operations: [{ op: 'add_text', item: { ...textItem, fontFamily: 'Unsupported Font' as typeof textItem.fontFamily } }],
+  };
+  await assert.rejects(applyEditPlan(project, plan), (error: unknown) => {
+    assert.ok(error instanceof EditPlanValidationError);
+    assert.equal(error.code, 'invalid_operation');
+    assert.equal(error.operationIndex, 0);
+    assert.match(error.message, /text font or track is unsupported/);
+    return true;
+  });
+});
+
+test('edit plan accepts a supported caption font and text track', async () => {
+  const project = createEmptyProject();
+  const plan: CopilotEditPlan = {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: 'valid-font-regression',
+    projectRevision: await calculateProjectRevision(project),
+    summary: 'Add caption',
+    warnings: [],
+    operations: [{ op: 'add_text', item: { ...textItem } }],
+  };
+  const applied = await applyEditPlan(project, plan);
+  assert.equal(applied.summaries.length, 1);
+});
