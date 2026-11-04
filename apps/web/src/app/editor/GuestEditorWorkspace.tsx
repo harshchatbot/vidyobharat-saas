@@ -91,6 +91,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [uploadError, setUploadError] = useState('');
   const [uploadNotice, setUploadNotice] = useState('');
   const [uploadingFilename, setUploadingFilename] = useState('');
+  const [applyEffectToAll, setApplyEffectToAll] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filterPanelPosition, setFilterPanelPosition] = useState({ top: 80, left: 84 });
   const [timelineHeight, setTimelineHeight] = useState(260);
@@ -741,6 +742,22 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     if (type !== 'none' && duration <= 0 || duration > Math.min(2, selected.duration, next.duration)) return;
     mutate((current) => updateItem(current, selected.id, { transitionOut: type === 'none' ? undefined : { type, duration } }));
   }
+  function applyTransitionToAll(type: 'none' | 'crossfade' | 'slide-left' | 'slide-right', duration = 0.6) {
+    mutate((current) => {
+      const visuals = current.tracks.find((track) => track.id === 'video')?.items
+        .filter((item): item is VideoTimelineItem => item.kind === 'video')
+        .sort((a, b) => a.startTime - b.startTime) ?? [];
+      let next = current;
+      for (let index = 0; index < visuals.length - 1; index += 1) {
+        const clip = visuals[index];
+        const following = visuals[index + 1];
+        if (Math.abs(clip.startTime + clip.duration - following.startTime) > 1e-6) continue;
+        if (type !== 'none' && duration > Math.min(2, clip.duration, following.duration)) continue;
+        next = updateItem(next, clip.id, { transitionOut: type === 'none' ? undefined : { type, duration } });
+      }
+      return next;
+    });
+  }
   function removeSelected() { if (!selectedItemId) return; mutate((current) => removeItem(current, selectedItemId)); setSelectedItemId(null); }
   function reorderSelectedVisual(direction: -1 | 1) {
     if (!selectedItemId) return;
@@ -1141,7 +1158,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <GripHorizontal className="h-4 w-4" /><Maximize2 className="h-3 w-3" />
           </span>
         </div>
-        {selectedItem?.kind === 'video' && <div className="flex items-center gap-2 border-b border-white/10 bg-[#111118] px-3 py-2 text-xs"><span className="text-slate-400">Transition to next</span>{(['none', 'crossfade', 'slide-left', 'slide-right'] as const).map((type) => <button key={type} type="button" onClick={() => setSelectedTransition(type)} className="rounded border border-white/10 px-2 py-1 capitalize text-slate-300 hover:bg-white/10">{type === 'none' ? 'None' : type.replace('-', ' ')}</button>)}<select defaultValue="0.6" onChange={(event) => setSelectedTransition(selectedItem.transitionOut?.type ?? 'crossfade', Number(event.target.value))} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-slate-300"><option value="0.4">0.4s</option><option value="0.6">0.6s</option><option value="0.8">0.8s</option></select></div>}
+        {selectedItem?.kind === 'video' && <div className="flex items-center gap-2 border-b border-white/10 bg-[#111118] px-3 py-2 text-xs"><span className="text-slate-400">Transition to next</span>{(['none', 'crossfade', 'slide-left', 'slide-right'] as const).map((type) => <button key={type} type="button" onClick={() => setSelectedTransition(type)} className="rounded border border-white/10 px-2 py-1 capitalize text-slate-300 hover:bg-white/10">{type === 'none' ? 'None' : type.replace('-', ' ')}</button>)}<select defaultValue="0.6" onChange={(event) => setSelectedTransition(selectedItem.transitionOut?.type ?? 'crossfade', Number(event.target.value))} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-slate-300"><option value="0.4">0.4s</option><option value="0.6">0.6s</option><option value="0.8">0.8s</option></select><button type="button" onClick={() => applyTransitionToAll(selectedItem.transitionOut?.type ?? 'crossfade', selectedItem.transitionOut?.duration ?? 0.6)} className="rounded-lg border border-amber-400/50 bg-amber-400/15 px-3 py-1 font-bold text-amber-200 hover:bg-amber-400/25">Apply to all clips</button></div>}
         <div className="h-full overflow-hidden">
           <MultiTrackTimeline project={displayProject} playbackTime={playbackTime} selectedItemId={selectedItemId} onSelectItem={selectItem} onSeek={seek} onMoveItem={(id, start, transactionKey) => { if (!proposalActive) mutate((current) => moveItem(current, id, start), transactionKey); }} onResizeItem={(id, edge, time, transactionKey) => { if (!proposalActive) mutate((current) => resizeItem(current, id, edge, time), transactionKey); }} onDeleteSelected={() => { if (!proposalActive) removeSelected(); }} onReorderSelected={(direction) => { if (!proposalActive) reorderSelectedVisual(direction); }} onSplitSelected={() => { if (!proposalActive && selectedItemId) { setIsPlaying(false); mutate((current) => splitItem(current, selectedItemId, playbackTime, crypto.randomUUID())); } }} onEditStart={(key) => { if (!proposalActive) beginProjectEdit(key); }} onEditEnd={(key) => { if (!proposalActive) endProjectEdit(key); }} />
         </div>
@@ -1180,6 +1197,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             style={{ '--filter-top': `${filterPanelPosition.top}px`, '--filter-left': `${filterPanelPosition.left}px` } as CSSProperties}
             onPointerDown={(event) => event.stopPropagation()}
           >
+            <label className="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-xs font-semibold text-white"><input type="checkbox" checked={applyEffectToAll} onChange={(event) => setApplyEffectToAll(event.target.checked)} /> Apply this effect/filter to the entire video</label>
             <FilterGallery
               key={effectSection}
               mediaId={previewClip?.mediaId}
@@ -1188,7 +1206,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
               effectDuration={previewClip?.duration ?? displayProject.duration}
               initialSection={effectSection}
               onPreview={setFilterPreview}
-              onApply={(effect) => { mutate((current) => addItem(current, effect)); setSelectedItemId(effect.id); setShowFilters(false); }}
+              onApply={(effect) => { const updatedEffect = applyEffectToAll ? { ...effect, startTime: 0, duration: Math.min(displayProject.duration, MAX_TIMELINE_SECONDS) } : effect; mutate((current) => addItem(current, updatedEffect)); setSelectedItemId(updatedEffect.id); setShowFilters(false); }}
               onCancel={() => { setFilterPreview(undefined); setShowFilters(false); }}
             />
           </div>
