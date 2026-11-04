@@ -339,8 +339,15 @@ class TimelineRenderService:
             if item.media_type != 'audio':
                 raise TimelineValidationError('Timeline audio items must reference a resolved audio source.')
             duration = self._probe_audio_duration(probe)
-            if audio.source_start_seconds + audio.duration_seconds > duration + 1e-6:
-                raise TimelineValidationError('An audio item exceeds its source duration.')
+            if audio.source_start_seconds >= duration - 1e-6:
+                raise TimelineValidationError('An audio item starts beyond its source duration.')
+            if audio.kind.value != 'music' and audio.source_start_seconds + audio.duration_seconds > duration + 1e-6:
+                logger.warning(
+                    'timeline_audio_shorter_than_requested: id=%s kind=%s source_start=%s '
+                    'requested_duration=%s source_duration=%s; remaining segment will be silent',
+                    audio.id, audio.kind.value, audio.source_start_seconds,
+                    audio.duration_seconds, duration,
+                )
         return sorted(composition.clips, key=lambda clip: clip.order), source_by_id
 
     def _build_command(
@@ -361,6 +368,9 @@ class TimelineRenderService:
         for audio_offset, audio in enumerate(composition.audio_items):
             source, _ = source_by_id[audio.media_id]
             audio_input_indices[audio.id] = len(clips) + audio_offset
+            if audio.kind.value == 'music':
+                # Loop short music beds to cover the requested timeline interval.
+                command.extend(['-stream_loop', '-1'])
             command.extend(['-i', str(source.path)])
 
         filters: list[str] = []
@@ -579,9 +589,15 @@ class TimelineRenderService:
             input_index = audio_input_indices[audio.id]
             label = f'aext{index}'
             delay_ms = round(audio.start_seconds * 1000)
+            source, probe = source_by_id[audio.media_id]
+            available_duration = max(0.0, self._probe_audio_duration(probe) - audio.source_start_seconds)
+            segment_duration = (
+                audio.duration_seconds if audio.kind.value == 'music'
+                else min(audio.duration_seconds, available_duration)
+            )
             filters.append(
                 f'[{input_index}:a:0]atrim=start={format_seconds(audio.source_start_seconds)}:'
-                f'duration={format_seconds(audio.duration_seconds)},asetpts=PTS-STARTPTS,'
+                f'duration={format_seconds(segment_duration)},asetpts=PTS-STARTPTS,'
                 f'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,'
                 f'volume={audio.volume:.6f},adelay={delay_ms}|{delay_ms},'
                 f'apad,atrim=duration={format_seconds(composition_duration(composition))}[{label}]'
