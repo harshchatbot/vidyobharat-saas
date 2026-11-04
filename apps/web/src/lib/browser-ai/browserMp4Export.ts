@@ -91,11 +91,11 @@ export function drawExportFrame(
   }
 }
 
-export function drawTimelineFrame(context: CanvasRenderingContext2D, project: TimelineProject, assets: BrowserTimelineAssets, frame: number): void {
+export function drawTimelineFrame(context: CanvasRenderingContext2D, project: TimelineProject, assets: BrowserTimelineAssets, frame: number, exactTime?: number): void {
   const WIDTH = context.canvas.width;
   const HEIGHT = context.canvas.height;
   const { videos, texts, effects } = supportedTimelineItems(project, assets);
-  const time = frameTime(frame);
+  const time = exactTime ?? frameTime(frame);
   context.fillStyle = '#000'; context.fillRect(0, 0, WIDTH, HEIGHT);
   const video = videos.find((item) => time >= item.startTime && time < item.startTime + item.duration);
   const previous = video ? videos[video ? videos.indexOf(video) - 1 : -1] : undefined;
@@ -103,8 +103,9 @@ export function drawTimelineFrame(context: CanvasRenderingContext2D, project: Ti
   const drawVideo = (item: VideoTimelineItem, alpha = 1, offset = 0) => {
     const image = assets.images[item.mediaId] || assets.videos?.[item.mediaId];
     if (!image) return;
-    const naturalWidth = image instanceof HTMLVideoElement ? image.videoWidth : image.naturalWidth;
-    const naturalHeight = image instanceof HTMLVideoElement ? image.videoHeight : image.naturalHeight;
+    // Offline decoded frames are drawn into canvases; editor previews still use video/image elements.
+    const naturalWidth = image instanceof HTMLVideoElement ? image.videoWidth : image instanceof HTMLCanvasElement ? image.width : image.naturalWidth;
+    const naturalHeight = image instanceof HTMLVideoElement ? image.videoHeight : image instanceof HTMLCanvasElement ? image.height : image.naturalHeight;
     if (naturalWidth <= 0 || naturalHeight <= 0) return;
     const scale = item.cropMode === 'contain' ? Math.min(WIDTH / naturalWidth, HEIGHT / naturalHeight) : Math.max(WIDTH / naturalWidth, HEIGHT / naturalHeight);
     const width = naturalWidth * scale; const height = naturalHeight * scale;
