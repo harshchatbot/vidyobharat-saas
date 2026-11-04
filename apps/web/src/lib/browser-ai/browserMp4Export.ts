@@ -346,17 +346,19 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
     recorder.start(250);
     if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
     let activeClipId: string | null = null;
-    const totalFrames = Math.ceil(project.duration * fps);
+    // MediaRecorder records wall-clock time, not logical timeline frames.
+    // Never allow slow canvas rendering or video decoding to stretch a 29s
+    // timeline into a multi-minute recording.
     const renderStart = performance.now();
-    for (let frame = 0; frame < totalFrames; frame += 1) {
+    let lastFrame = -1;
+    while (true) {
       throwIfAborted(options.signal);
-      // Keep the MediaRecorder clock aligned with timeline time; requestAnimationFrame
-      // alone would otherwise generate an accelerated, short MP4 on fast devices.
-      const targetMs = renderStart + (frame * 1000) / fps;
-      const waitMs = targetMs - performance.now();
-      if (waitMs > 2) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
-      throwIfAborted(options.signal);
-      const time = frame / fps;
+      const elapsed = (performance.now() - renderStart) / 1000;
+      if (elapsed >= project.duration) break;
+      const frame = Math.floor(elapsed * fps);
+      if (frame === lastFrame) { await nextAnimationFrame(options.signal); continue; }
+      lastFrame = frame;
+      const time = elapsed;
       const activeClip = videoItems.find((item) =>
         Boolean(assets.videos?.[item.mediaId]) && time >= item.startTime && time < item.startTime + item.duration
       );
@@ -392,7 +394,7 @@ export async function exportTimelineMp4(project: TimelineProject, assets: Browse
       }
       drawTimelineFrame(context, project, assets, Math.round(frame * EXPORT_FPS / fps));
       if (options.watermark !== false) drawRangManchWatermark(context);
-      options.onProgress?.((frame + 1) / totalFrames);
+      options.onProgress?.(Math.min(1, time / project.duration));
       await nextAnimationFrame(options.signal);
     }
     if (recorder.state === 'recording') recorder.stop();
