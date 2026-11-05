@@ -40,7 +40,7 @@ class CompositionBeat(Strict):
     id: str
     start: float = Field(ge=0)
     end: float = Field(ge=0)
-    kind: Literal["source", "hold_original", "typography", "motion_graphic", "broll_intent", "zoom", "sound_intent"]
+    kind: Literal["source", "hold_original", "typography", "motion_graphic", "broll_intent", "zoom", "sound_intent", "emoji_intent", "lut_intent", "music_intent"]
     template: str
     phrase_ids: list[str] = Field(default_factory=list)
     text_from_phrase_id: str | None = None
@@ -96,7 +96,8 @@ def _sanitize_assets(approved: list[ApprovedAsset]) -> dict[str, list[ApprovedAs
 
 def _choose_asset(by_type: dict[str, list[ApprovedAsset]], kind: str, words: str) -> ApprovedAsset | None:
     """Conservative tag-based choice; no AI hallucinations of available media."""
-    tokens = {v.lower() for v in words.replace(",", " ").split() if len(v) > 3}
+    tokens = {v.lower().strip(".,!?") for v in words.replace(",", " ").split() if len(v) > 1}
+    tokens -= {"from", "with", "this", "that", "what", "when", "the", "and", "how", "your"}
     matches = [(len(tokens.intersection({t.lower() for t in a.tags})), a)
                for a in by_type.get(kind, [])]
     matches = [entry for entry in matches if entry[0] > 0]
@@ -121,7 +122,27 @@ def compile_composition_v21(
         template="original_video_audio", layout="full",
     )]
     warnings = list(validated.warnings)
+    # Global look and soundtrack are optional, never implied available.
+    tone = {
+        "elegant": "soft film warm",
+        "energetic": "upbeat bright energetic",
+        "cinematic": "cinematic film",
+    }[context.media.style]
+    grade = _choose_asset(assets, "lut", tone)
+    if grade:
+        beats.append(CompositionBeat(
+            id="grade-approved", kind="lut_intent", template="color_grade",
+            start=0, end=duration, approved_asset_id=grade.id, asset_status="approved",
+        ))
+    music = _choose_asset(assets, "music", tone)
+    if music:
+        beats.append(CompositionBeat(
+            id="music-approved", kind="music_intent", template="voice_first_music_bed",
+            start=0, end=duration, approved_asset_id=music.id,
+            asset_status="approved", sound_gain_db=-30,
+        ))
     cursor = 0.0
+    selected_emoji = False
     caption_zones = {z.segment_id for z in context.caption_zones if z.status == "suggested"}
     for index, scene in enumerate(validated.scenes):
         first, last = phrases[scene.first_phrase_id], phrases[scene.last_phrase_id]
@@ -188,6 +209,23 @@ def compile_composition_v21(
             ))
             if not resolved:
                 warnings.append(f"Scene {index + 1}: no verified B-roll; keep original visible")
+        if not selected_emoji:
+            scene_text = " ".join(p.text for p in context.phrases
+                                  if p.start >= start - .001 and p.end <= end + .001)
+            emoji = _choose_asset(assets, "emoji", scene_text)
+            if emoji:
+                chosen_phrase = first
+                if chosen_phrase.end - chosen_phrase.start >= .12:
+                    beats.append(CompositionBeat(
+                        id=f"emoji-{index}", kind="emoji_intent",
+                        template="single_reaction_pop",
+                        start=round(chosen_phrase.start, 3),
+                        end=round(chosen_phrase.end, 3),
+                        phrase_ids=[chosen_phrase.id], layout="face_safe_graphic",
+                        approved_asset_id=emoji.id, asset_status="approved",
+                        keyframes=_entrance(chosen_phrase.start, chosen_phrase.end),
+                    ))
+                    selected_emoji = True
         if scene.sound_cue != "none":
             cue = _choose_asset(assets, "sfx", scene.sound_cue.replace("_", " "))
             beats.append(CompositionBeat(
