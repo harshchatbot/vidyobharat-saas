@@ -943,7 +943,7 @@ def test_caption_wrapping_keeps_render_layer_inside_frame(
     text_files = list(tmp_path.glob('text-*.txt'))
     assert len(text_files) == 1
     wrapped = text_files[0].read_text(encoding='utf-8')
-    assert wrapped.replace('\\n', ' ').replace(' ', '') == text.replace(' ', '')
+    assert ''.join(wrapped.split()) == text.replace(' ', '')
 
     with renderer.render(timeline, [_resolved(RED, 'image', image)]) as result:
         assert result.metadata.width == 360
