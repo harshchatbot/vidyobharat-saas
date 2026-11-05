@@ -236,7 +236,9 @@ def test_disputed_word_boundary_excludes_cut_near_conflict():
 def test_media_stream_delete_race_is_handled_after_headers(caplog):
     from app.api.routers.editor_routes import _stream_media_until_unavailable
     from app.services.guest_media_storage import GuestMediaObjectMissing
+    import logging
 
+    caplog.set_level(logging.INFO)
     def stream():
         yield b"second"
         raise GuestMediaObjectMissing("deleted-while-streaming")
