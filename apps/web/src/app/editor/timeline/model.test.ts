@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { addItem, activeItems, moveItem, projectItem, quantizeTimelineTime, removeItem, reorderVideo, resizeItem, snapTimelineTime, splitItem, updateItem, visualTimelineEnd } from './model.ts';
 import { browserEffectStyle, effectsWithTemporaryPreview, validateFilterAmount } from './filters.ts';
-import { serializeTimelineProject } from './serialization.ts';
+import { exportFontFamily, serializeTimelineProject } from './serialization.ts';
 import { moveTextGeometry, resizeTextGeometry } from './textGeometry.ts';
 import { textAnimationStyle } from './textAnimations.ts';
 import { applyTextTemplate, TEXT_TEMPLATES } from './textTemplates.ts';
@@ -579,4 +579,15 @@ test('server export includes caption timing for yellow word highlights', () => {
     { text: 'Hello', start: 0.05, end: 0.55 },
     { text: 'world', start: 0.65, end: 1.2 },
   ]);
+});
+
+test('export maps legacy fonts to renderer-supported names', () => {
+  assert.equal(exportFontFamily('Tahoma'), 'Noto Sans');
+  assert.equal(exportFontFamily('Arial Black'), 'Inter');
+  assert.equal(exportFontFamily('Noto Sans Devanagari'), 'Noto Sans Devanagari');
+  assert.ok(!EDITOR_FONTS.includes('Tahoma' as typeof EDITOR_FONTS[number]));
+
+  const project = addItem(createEmptyProject(), { ...textItem, fontFamily: 'Tahoma' });
+  const payload = serializeTimelineProject(project);
+  assert.equal(payload.text_overlays[0].font_family, 'Noto Sans');
 });
