@@ -15,8 +15,9 @@ from app.schemas.video_analysis import (
 MIN_CONFLICT_OVERLAP = 0.12
 CUT_PADDING = 0.15
 MIN_CUT_SILENCE = 0.6
-SEGMENT_GAP = 0.60
-MAX_SEGMENT_WORDS = 20
+SEGMENT_GAP = 0.55
+MIN_GROUP_WORDS = 3
+DANGLING_ENDINGS = {'and', 'or', 'but', 'of', 'from', 'to', 'a', 'an', 'the', 'with', 'for', 'in', 'on', 'at', 'is', 'are', 'was', 'were'}
 
 
 def timing_conflicts(words: list[Word], silences: list[Interval]) -> list[TimingConflict]:
@@ -35,29 +36,75 @@ def timing_conflicts(words: list[Word], silences: list[Interval]) -> list[Timing
     return conflicts[:150]
 
 
-def semantic_segments(words: list[Word], conflicts: list[TimingConflict]) -> list[SpeechSegment]:
-    """Group contiguous transcript words into readable utterances.
+def _native_boundaries(utterances: list[dict] | None, word_count: int) -> set[int]:
+    """Accept only ordered, in-range word-index boundaries from Whisper.
 
-    No language model rewrites the words. 'Semantic' here means punctuation-
-    and pause-guided utterance grouping, not guaranteed sentence understanding.
+    These are *grouping hints*, not validated cut points or alignments.
+    """
+    result: set[int] = set()
+    last_end = -1
+    for item in utterances or []:
+        if not isinstance(item, dict):
+            continue
+        start, end = item.get("word_start_index"), item.get("word_end_index")
+        if (isinstance(start, int) and not isinstance(start, bool)
+                and isinstance(end, int) and not isinstance(end, bool)
+                and last_end < start <= end < word_count):
+            if end < word_count - 1:
+                result.add(end)
+            last_end = end
+    return result
+
+
+def semantic_segments(
+    words: list[Word], conflicts: list[TimingConflict],
+    utterances: list[dict] | None = None,
+) -> list[SpeechSegment]:
+    """Group speech conservatively using punctuation, pauses and native STT hints.
+
+    No arbitrary 20-word split. A native Whisper boundary is a *hint*, not
+    grammatical truth. Short trailing fragments and dangling conjunctions
+    are merged so the planner never sees isolated phrases like 'books and'.
+    This does not claim full semantic understanding.
     """
     if not words:
         return []
     flagged = {issue.word_index for issue in conflicts}
+    native_ends = _native_boundaries(utterances, len(words))
     groups: list[list[int]] = []
     current: list[int] = []
     for index, word in enumerate(words):
-        if current:
-            prev = words[current[-1]]
-            if word.start - prev.end >= SEGMENT_GAP or len(current) >= MAX_SEGMENT_WORDS:
-                groups.append(current)
-                current = []
         current.append(index)
-        if re.search(r"[.!?。？！]$", word.text) and index + 1 < len(words):
-            groups.append(current)
-            current = []
+        if index == len(words) - 1:
+            break
+        next_word = words[index + 1]
+        pause = max(0.0, next_word.start - word.end)
+        punctuation = bool(re.search(r"[.!?。？！]$", word.text))
+        native_boundary = index in native_ends
+        enough_words = len(current) >= MIN_GROUP_WORDS
+        dangling = word.text.casefold().strip(".,!?;:") in DANGLING_ENDINGS
+        # Long recorded pauses are preserved even after a connector, but a
+        # native-only / length-only split may never strand a connector.
+        should_split = punctuation or pause >= SEGMENT_GAP or (native_boundary and enough_words and not dangling)
+        if not should_split:
+            continue
+        if not enough_words and not punctuation and pause < 0.90:
+            continue
+        if dangling and pause < 0.90:
+            continue
+        groups.append(current)
+        current = []
+
     if current:
         groups.append(current)
+
+    # Don't emit a one- or two-word final fragment unless a substantial
+    # spoken pause clearly separates it from the preceding utterance.
+    if len(groups) > 1 and len(groups[-1]) < MIN_GROUP_WORDS:
+        prev_last = words[groups[-2][-1]]
+        next_first = words[groups[-1][0]]
+        if next_first.start - prev_last.end < 0.90:
+            groups[-2].extend(groups.pop())
 
     return [
         SpeechSegment(
