@@ -993,3 +993,74 @@ def test_caption_background_style_remains_available(tmp_path: Path) -> None:
     graph = command[command.index('-filter_complex') + 1]
     assert 'box=1:' in graph
     assert 'boxborderw=8:' in graph
+
+
+def test_timed_caption_ass_highlights_active_word_and_renders(tmp_path: Path) -> None:
+    from io import BytesIO
+    from PIL import Image
+
+    background = tmp_path / 'caption-background.png'
+    output = tmp_path / 'caption.mp4'
+    _image(background, 'black', size='360x640')
+    composition = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 1)],
+        text_overlays=[TimelineTextOverlay(
+            id='words', text='Hello world', start_seconds=0,
+            duration_seconds=1, font_size=48, bold=True,
+            x=0.5, y=0.5, width=0.9, outline_width=0,
+            background_opacity=0,
+            caption_words=[
+                {'text': 'Hello', 'start': 0.05, 'end': 0.45},
+                {'text': 'world', 'start': 0.5, 'end': 0.95},
+            ],
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(composition, [_resolved(RED, 'image', background)])
+    command = renderer._build_command(composition, clips, sources, output)
+    filter_graph = command[command.index('-filter_complex') + 1]
+    assert 'subtitles=filename=' in filter_graph
+
+    subtitles = list(tmp_path.glob('captions-*.ass'))
+    assert len(subtitles) == 1
+    ass = subtitles[0].read_text(encoding='utf-8')
+    assert 'Dialogue: 0,0:00:00.05,0:00:00.45' in ass
+    assert 'Dialogue: 0,0:00:00.50,0:00:00.95' in ass
+    assert r'{\1c&H66E0FF&}' in ass
+
+    with renderer.render(composition, [_resolved(RED, 'image', background)]) as rendered:
+        def count_yellow(seconds: float) -> int:
+            frame = subprocess.run([
+                'ffmpeg', '-hide_banner', '-loglevel', 'error',
+                '-ss', str(seconds), '-i', str(rendered.path),
+                '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-',
+            ], capture_output=True, check=True).stdout
+            with Image.open(BytesIO(frame)) as image:
+                rgb = image.convert('RGB')
+                return sum(
+                    1 for y in range(250, 390, 3) for x in range(20, 340, 3)
+                    if (lambda pixel: pixel[0] > 145 and pixel[1] > 100 and pixel[2] < 155)(
+                        rgb.getpixel((x, y))
+                    )
+                )
+        assert count_yellow(0.2) > 3
+        assert count_yellow(0.7) > 3
+
+
+def test_caption_word_times_validate() -> None:
+    overlay = TimelineTextOverlay(
+        id='word-timing', text='Hello world', start_seconds=0,
+        duration_seconds=1, caption_words=[
+            {'text': 'Hello', 'start': 0, 'end': 0.4},
+            {'text': 'world', 'start': 0.5, 'end': 0.9},
+        ],
+    )
+    assert len(overlay.caption_words) == 2
+    with pytest.raises(ValidationError, match='must match overlay text'):
+        TimelineTextOverlay(
+            id='invalid-words', text='Hello world', start_seconds=0,
+            duration_seconds=1, caption_words=[
+                {'text': 'incorrect', 'start': 0, 'end': 0.4},
+            ],
+        )
