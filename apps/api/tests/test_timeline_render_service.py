@@ -899,3 +899,74 @@ def test_audio_offset_beyond_source_still_rejected(tmp_path: Path) -> None:
             timeline, [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
         ):
             pass
+
+
+@pytest.mark.parametrize(
+    ('text', 'font_family', 'x'),
+    [
+        ('Have you ever wondered how ChatGPT understands your questions?', 'Inter', 0.5),
+        ('ThisIsAnExtremelyLongUnbrokenCaptionWordThatMustWrapCorrectly', 'Inter', 0.5),
+        ('क्या आपने कभी सोचा है कि चैटजीपीटी आपके सवाल कैसे समझता है?', 'Noto Sans Devanagari', 0.5),
+        ('Caption positioned near the left edge', 'Inter', 0.02),
+        ('Caption positioned near the right edge', 'Inter', 0.98),
+    ],
+)
+def test_caption_wrapping_keeps_render_layer_inside_frame(
+    tmp_path: Path, text: str, font_family: str, x: float,
+) -> None:
+    image = tmp_path / 'caption-background.png'
+    output = tmp_path / 'caption-output.mp4'
+    _image(image, 'white')
+    timeline = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 0.4)],
+        text_overlays=[TimelineTextOverlay(
+            id='caption-fit', text=text, start_seconds=0, duration_seconds=0.4,
+            font_family=font_family, font_size=36, bold=True,
+            x=x, y=0.5, width=0.9, outline_width=3,
+            background_opacity=0,
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(
+        timeline, [_resolved(RED, 'image', image)],
+    )
+    command = renderer._build_command(timeline, clips, sources, output)
+    graph = command[command.index('-filter_complex') + 1]
+
+    assert "x='min(max(0,W*" in graph
+    assert "y='min(max(0," in graph
+    assert 'borderw=3:' in graph
+    assert 'box=0:' in graph
+    assert 'fontsize=' in graph
+
+    text_files = list(tmp_path.glob('text-*.txt'))
+    assert len(text_files) == 1
+    wrapped = text_files[0].read_text(encoding='utf-8')
+    assert wrapped.replace('\\n', ' ').replace(' ', '') == text.replace(' ', '')
+
+    with renderer.render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert result.metadata.width == 360
+        assert result.metadata.height == 640
+
+
+def test_caption_background_style_remains_available(tmp_path: Path) -> None:
+    image = tmp_path / 'background.png'
+    output = tmp_path / 'output.mp4'
+    _image(image, 'white')
+    timeline = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 0.4)],
+        text_overlays=[TimelineTextOverlay(
+            id='boxed-caption', text='Readable caption', start_seconds=0,
+            duration_seconds=0.4, font_size=32, background_opacity=0.6,
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(
+        timeline, [_resolved(RED, 'image', image)],
+    )
+    command = renderer._build_command(timeline, clips, sources, output)
+    graph = command[command.index('-filter_complex') + 1]
+    assert 'box=1:' in graph
+    assert 'boxborderw=8:' in graph
