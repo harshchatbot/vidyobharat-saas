@@ -89,3 +89,30 @@ admin-controlled registry, not finished video effects.
 - Add licensing review workflow and object lifecycle cleanup after updates.
 - Optimize listing/indexes and build matching/resolution hooks for V2.1.
 - Add visual samples to preview LUT effects and proper APNG animation tests.
+
+## Admin UI auth and theme (Nov 2026)
+
+- The asset editor lives at `apps/web/src/app/(shell)/admin/assets/page.tsx`,
+  inside existing pastel `AdminShell` with the same navigation, palette and
+  built-in admin session cookie as the dashboard.
+- A shared admin guard checks `GET /api/admin/session` before showing admin
+  pages; missing, invalid or unauthorized sessions are sent to
+  `/admin/login?next=%2Fadmin%2Fassets`, then the unified login.
+- Valid admin cookies are used through the same-origin
+  `/api/admin/backend/visual-assets` proxy, not direct Firebase browser
+  token fetches on every asset request. Admin mutations retain origin/CSRF
+  checks and backend `require_admin_principal` authorization.
+- Network/503 failures show a retryable service-unavailable message rather
+  than masquerading as an invalid login. If the login form itself returns
+  `auth/network-request-failed`, check Firebase Auth project/configuration,
+  authorized localhost domain, browser blocking, and network availability.
+- The old standalone `/admin/sfx-approval` now redirects to the protected
+  `/admin/audio-library` admin screen.
+
+Local frontend regression check:
+
+```bash
+cd apps/web
+node --experimental-strip-types --test src/app/api/admin/backend/routeSecurity.test.ts
+npm run build
+```
