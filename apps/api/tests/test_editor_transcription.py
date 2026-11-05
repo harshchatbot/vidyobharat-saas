@@ -27,7 +27,7 @@ def test_transcription_reuses_model_and_cached_result(monkeypatch) -> None:
     first = editor_transcription.transcribe_video_bytes(b"same-recording")
     second = editor_transcription.transcribe_video_bytes(b"same-recording")
 
-    assert first == {"language": "en", "words": [{"text": "hello", "start": 0.1, "end": 0.4}]}
+    assert first == {"language": "en", "words": [{"text": "hello", "start": 0.1, "end": 0.4}], "utterances": [{"start": 0.1, "end": 0.4, "word_start_index": 0, "word_end_index": 0}]}
     assert second == first
     assert calls == {"models": 1, "transcribes": 1}
     editor_transcription.clear_transcription_caches_for_testing()
