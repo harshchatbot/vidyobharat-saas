@@ -29,6 +29,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const params = useSearchParams();
   const isLogin = mode === 'login';
   const returnPath = safeReturnPath(next);
+  const adminLogin = returnPath === '/admin';
   const [name, setName] = useState('');
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
@@ -46,6 +47,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
     const profile = getProfileFields(user);
     await persistAppSession({ accessToken: idToken, userId: user.id, ...profile });
     const isAdmin = await establishAdminSession(idToken);
+    if (adminLogin && !isAdmin) throw new Error('This account is not authorized to access Admin Studio.');
     router.replace(returnPath === '/dashboard' && isAdmin ? '/admin' : returnPath);
     router.refresh();
   }
@@ -72,16 +74,16 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-[#0b0b10] text-white">
+    <main className={adminLogin ? "rm-admin-login min-h-screen bg-[#fcfaff] text-[#30213e]" : "min-h-screen bg-[#0b0b10] text-white"}>
       <div className="mx-auto grid min-h-screen max-w-6xl lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden flex-col justify-between border-r border-white/10 p-10 lg:flex">
           <BrandLogo href="/" variant="full" size="md" />
-          <div className="max-w-lg space-y-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-300">RangManch AI · Video editor</p><h1 className="text-5xl font-semibold leading-[1.05] tracking-tight">Turn your photos into a reel worth sharing.</h1><p className="max-w-md text-base leading-7 text-white/60">Edit in your browser with local AI, precise timing, music, transitions, and a clean MP4 export.</p><div className="grid gap-3 text-sm text-white/70">{['Browser-first editing', 'AI Copilot when you need it', 'Your files stay in your editing session'].map((item) => <div key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-violet-300" />{item}</div>)}</div></div>
+          <div className="max-w-lg space-y-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-300">{adminLogin ? 'RangManch AI · Administration' : 'RangManch AI · Video editor'}</p><h1 className="text-5xl font-semibold leading-[1.05] tracking-tight">{adminLogin ? 'One place to manage your creative platform.' : 'Turn your photos into a reel worth sharing.'}</h1><p className="max-w-md text-base leading-7 text-white/60">{adminLogin ? 'Review registered accounts, guest activity, and editor operations from one secure workspace.' : 'Edit in your browser with local AI, precise timing, music, transitions, and a clean MP4 export.'}</p><div className="grid gap-3 text-sm text-white/70">{['Browser-first editing', 'AI Copilot when you need it', 'Your files stay in your editing session'].map((item) => <div key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-violet-300" />{item}</div>)}</div></div>
           <p className="text-xs text-white/35">A focused studio for short-form video.</p>
         </section>
         <section className="flex items-center px-5 py-8 sm:px-10"><div className="mx-auto w-full max-w-md">
           <div className="mb-10 flex items-center justify-between lg:hidden"><BrandLogo href="/" variant="full" size="sm" /><Link href="/" className="text-sm text-white/60">Back home</Link></div>
-          <div className="mb-8 space-y-3"><div className="inline-flex items-center gap-2 text-sm text-violet-200"><Film className="h-4 w-4" />{isLogin ? 'Welcome back' : 'Start creating'}</div><h2 className="text-3xl font-semibold tracking-tight">{isLogin ? 'Sign in to My Studio' : 'Create your creator account'}</h2><p className="text-sm leading-6 text-white/55">{isLogin ? 'Continue editing where you left off.' : 'Use Google or email. Verify your email before your first password sign-in.'}</p></div>
+          <div className="mb-8 space-y-3"><div className="inline-flex items-center gap-2 text-sm text-violet-200"><Film className="h-4 w-4" />{isLogin ? 'Welcome back' : 'Start creating'}</div><h2 className="text-3xl font-semibold tracking-tight">{adminLogin ? 'Sign in to Admin Studio' : isLogin ? 'Sign in to My Studio' : 'Create your creator account'}</h2><p className="text-sm leading-6 text-white/55">{adminLogin ? 'Use your authorized Firebase account to continue.' : isLogin ? 'Continue editing where you left off.' : 'Use Google or email. Verify your email before your first password sign-in.'}</p></div>
           {error ? <div role="alert" className="mb-4 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}{message ? <div role="status" className="mb-4 rounded-xl border border-violet-300/20 bg-violet-300/10 px-4 py-3 text-sm text-violet-100">{message}</div> : null}
           <button type="button" onClick={() => void google()} disabled={submitting} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/[0.06] text-sm font-medium transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-60"><span className="grid h-6 w-6 place-items-center rounded-full bg-white text-xs font-bold text-[#4285f4]">G</span>Continue with Google</button>
           <div className="my-6 flex items-center gap-3 text-xs text-white/35"><span className="h-px flex-1 bg-white/10" />or use email<span className="h-px flex-1 bg-white/10" /></div>
