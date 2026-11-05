@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '@/lib/env';
+import { LoaderCircle } from 'lucide-react';
 import { useGuestMediaUrl } from './useGuestMediaUrl';
 
 type Props = {
@@ -30,10 +31,17 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
   desiredTimeRef.current = localTime;
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [buffering, setBuffering] = useState(true);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const url = `${getApiUrl().replace(/\/$/, '')}/api/editor/media/${encodeURIComponent(mediaId)}/content`;
 
   useEffect(() => {
     setFailed(false);
+    setBuffering(true);
+    setLoadingTimedOut(false);
+    onBufferingChange?.(true);
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 30000);
+    return () => window.clearTimeout(timer);
   }, [mediaId, attempt]);
 
   // Playback is driven by the media element's clock. Seeking on every React
@@ -75,7 +83,14 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
   }, [failed, isPlaying, localTime, attempt]);
 
   if (failed) return <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"><p className="text-sm font-semibold text-red-300">Video preview could not load</p><button type="button" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white">Retry preview</button></div>;
-  return <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => setFailed(true)} onTimeUpdate={(event) => onMediaTime?.(event.currentTarget.currentTime)} onWaiting={() => onBufferingChange?.(true)} onStalled={() => onBufferingChange?.(true)} onPlaying={() => onBufferingChange?.(false)} onCanPlay={() => onBufferingChange?.(false)} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />;
+  const showLoading = () => { setBuffering(true); onBufferingChange?.(true); };
+  const showReady = () => { setBuffering(false); setLoadingTimedOut(false); onBufferingChange?.(false); };
+  return <div className="relative h-full w-full bg-black">
+    <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => { setFailed(true); onBufferingChange?.(false); }} onTimeUpdate={(event) => onMediaTime?.(event.currentTarget.currentTime)} onLoadStart={showLoading} onSeeking={showLoading} onWaiting={showLoading} onStalled={showLoading} onPlaying={showReady} onCanPlay={showReady} onSeeked={showReady} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />
+    {buffering && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/35" role="status" aria-live="polite">
+      <div className="flex flex-col items-center gap-2 rounded-lg bg-black/65 px-4 py-3 text-white"><LoaderCircle className="h-6 w-6 animate-spin motion-reduce:animate-none" aria-hidden="true" /><span className="text-xs">{loadingTimedOut ? 'Preview is taking longer than expected' : 'Preparing preview…'}</span></div>
+    </div>}
+  </div>;
 }
 
 export function GuestMediaPreview(props: Props) {
