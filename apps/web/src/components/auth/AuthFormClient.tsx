@@ -29,7 +29,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const params = useSearchParams();
   const isLogin = mode === 'login';
   const returnPath = safeReturnPath(next);
-  const adminLogin = returnPath === '/admin';
+  const adminLogin = returnPath === '/admin' || returnPath.startsWith('/admin/');
   const [name, setName] = useState('');
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
