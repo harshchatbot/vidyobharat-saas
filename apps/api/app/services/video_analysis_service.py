@@ -337,6 +337,9 @@ def build_video_analysis_report(
     if speech.status != "complete":
         warnings.append("No verified transcript; no candidate cuts were generated.")
 
+    from app.services.video_creative_guidance import build_creative_guidance
+    guidance = build_creative_guidance(speech.segments, samples, face_status)
+
     return VideoAnalysisReport(
         media=media, speech=speech,
         audio=AudioEvidence(status=audio_status, silence_intervals=silences,
@@ -347,5 +350,5 @@ def build_video_analysis_report(
             face_status=face_status, scene_status=scene_status, face_samples=samples,
             scene_changes_seconds=cuts,
         ),
-        editing=editing_capabilities(style), warnings=warnings,
+        editing=editing_capabilities(style), creative_guidance=guidance, warnings=warnings,
     )
