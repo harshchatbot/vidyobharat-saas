@@ -172,7 +172,7 @@ export default function AdminAssetsPage() {
                 <strong className="text-sm">{a.title}</strong>
                 <span className="rounded-full bg-[#f5eafa] px-2 py-1 text-xs text-[#473850]">{a.status}</span>
               </div>
-              <p className="mt-1 text-xs text-slate-400">{a.type} · {a.slug} · {a.storage_path ? 'file uploaded' : 'metadata only'}</p>
+              <p className="mt-1 text-xs text-[#64556e]">{a.type} · {a.slug} · {a.storage_path ? 'file uploaded' : 'metadata only'}</p>
             </button>)}
           </div>
         </section>
@@ -250,8 +250,8 @@ export default function AdminAssetsPage() {
               </button>}
               {preview && current.type === 'emoji' && <img src={preview} alt={current.title} className="h-32 w-32 object-contain"/>}
               {preview && current.type === 'music' && <audio controls src={preview} className="w-full"/>}
-              {preview && current.type === 'lut' && <p className="text-xs text-slate-400">LUT file retrieved; browser colour preview requires a sample frame renderer.</p>}
-              {Object.keys(current.details || {}).length > 0 && <details className="text-xs text-slate-300">
+              {preview && current.type === 'lut' && <p className="text-xs text-[#64556e]">LUT file retrieved; browser colour preview requires a sample frame renderer.</p>}
+              {Object.keys(current.details || {}).length > 0 && <details className="text-xs text-[#473850]">
                 <summary className="cursor-pointer">Original imported metadata</summary>
                 <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(current.details, null, 2)}</pre>
               </details>}
