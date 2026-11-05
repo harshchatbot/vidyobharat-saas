@@ -70,7 +70,7 @@ class GuestMediaStorage:
                     raise RuntimeError('Downloaded media exceeded its expected size.')
                 target.write(chunk)
         if size != expected_size:
-            raise RuntimeError('Downloaded media size does not match its record.')
+            raise ValueError('Downloaded media size does not match its record.')
 
     def iter_content(
         self,
@@ -190,7 +190,7 @@ class FirebaseGuestMediaStorage(GuestMediaStorage):
                 )
             actual_size = destination.stat().st_size
             if actual_size != expected_size:
-                raise RuntimeError('Downloaded media size does not match its record.')
+                raise ValueError('Downloaded media size does not match its record.')
             logger.info(
                 'guest_storage_download_completed',
                 extra={'source_bytes': actual_size, 'elapsed_seconds': round(time.monotonic() - start, 3)},
