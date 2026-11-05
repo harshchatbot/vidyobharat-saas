@@ -606,7 +606,8 @@ class TimelineRenderService:
                 y_expression += '+' + '+'.join(f'({offset})' for offset in y_offsets)
             filters.append(
                 f'[{video_label}][{rotated_label}]overlay='
-                f"x='min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))':"\n                f"y='min(max(0,{y_expression}),max(0,H-h))':"
+                f"x='min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))':"
+                f"y='min(max(0,{y_expression}),max(0,H-h))':"
                 f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
                 f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
             )
