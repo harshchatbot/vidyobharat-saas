@@ -934,7 +934,8 @@ def test_caption_wrapping_keeps_render_layer_inside_frame(
     command = renderer._build_command(timeline, clips, sources, output)
     graph = command[command.index('-filter_complex') + 1]
 
-    assert "x='min(max(0,W*" in graph
+    assert "x='0':y=" in graph
+    assert 'w-text_w-' in graph
     assert "y='min(max(0," in graph
     assert 'borderw=3:' in graph
     assert 'box=0:' in graph
@@ -948,6 +949,28 @@ def test_caption_wrapping_keeps_render_layer_inside_frame(
     with renderer.render(timeline, [_resolved(RED, 'image', image)]) as result:
         assert result.metadata.width == 360
         assert result.metadata.height == 640
+        # Inspect actual rendered pixels instead of trusting filter geometry.
+        # On a white background, captions with a black outline should remain
+        # away from both sides of the exported 360px frame.
+        from io import BytesIO
+        from PIL import Image
+
+        frame = subprocess.run([
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(result.path),
+            '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-',
+        ], capture_output=True, check=True).stdout
+        with Image.open(BytesIO(frame)) as decoded:
+            rgb = decoded.convert('RGB')
+            dark_x = [
+                ix for ix in range(rgb.width)
+                if any(
+                    max(rgb.getpixel((ix, iy))) < 100
+                    for iy in range(200, 440, 2)
+                )
+            ]
+        assert dark_x, 'Expected visible caption outline in exported frame.'
+        assert min(dark_x) >= 6
+        assert max(dark_x) <= 353
 
 
 def test_caption_background_style_remains_available(tmp_path: Path) -> None:
