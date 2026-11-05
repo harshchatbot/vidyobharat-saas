@@ -6,4 +6,5 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
   const destination = requested.startsWith('/admin') && requested !== '/admin/login' ? requested : '/admin';
   redirect('/login?next=' + encodeURIComponent(destination));
 }
-\nexport const dynamic = 'force-dynamic';\n
+
+export const dynamic = 'force-dynamic';
