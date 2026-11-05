@@ -631,9 +631,13 @@ class TimelineRenderService:
             y_expression = f'H*{overlay.y:.10f}-h/2'
             if y_offsets:
                 y_expression += '+' + '+'.join(f'({offset})' for offset in y_offsets)
+            overlay_x = (
+                '0' if full_frame_caption
+                else f'min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))'
+            )
             filters.append(
                 f'[{video_label}][{rotated_label}]overlay='
-                f"x='{'0' if full_frame_caption else f'min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))'}':"
+                f"x='{overlay_x}':"
                 f"y='min(max(0,{y_expression}),max(0,H-h))':"
                 f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
                 f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
