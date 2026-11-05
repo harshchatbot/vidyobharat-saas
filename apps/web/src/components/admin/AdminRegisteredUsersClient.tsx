@@ -74,34 +74,34 @@ export function AdminRegisteredUsersClient() {
 
     <div className="admin-card flex flex-wrap items-center justify-between gap-4 p-5">
       <div className="flex items-center gap-3">
-        <span className="rounded-xl bg-violet-100 p-2 text-violet-800"><UsersRound className="h-5 w-5" /></span>
+        <span className="rounded-xl bg-[#e9dcfa] p-2 text-[#73518f]"><UsersRound className="h-5 w-5" /></span>
         <div><p className="text-sm font-semibold">Loaded accounts</p><p className="text-2xl font-semibold tabular-nums">{users.length}</p></div>
       </div>
       <div className="w-full max-w-sm">
-        <label htmlFor="admin-user-search" className="mb-1 block text-xs font-medium text-slate-600">Search loaded accounts</label>
+        <label htmlFor="admin-user-search" className="mb-1 block text-xs font-medium text-[#64556e]">Search loaded accounts</label>
         <input id="admin-user-search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Email, name or user ID" className="admin-input w-full" />
       </div>
     </div>
 
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}<button className="ml-3 font-semibold underline" type="button" onClick={() => void load()}>Retry</button></div>}
     {loading && !users.length
-      ? <div role="status" aria-live="polite" className="admin-card space-y-4 p-6"><p className="text-sm font-medium text-slate-600">Loading registered users…</p>{Array.from({length: 5}, (_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-violet-100/70" />)}</div>
+      ? <div role="status" aria-live="polite" className="admin-card space-y-4 p-6"><p className="text-sm font-medium text-[#64556e]">Loading registered users…</p>{Array.from({length: 5}, (_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-[#e9dcfa]" />)}</div>
       : <div className="admin-card overflow-hidden">
         <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-violet-50 text-xs uppercase tracking-wider text-slate-600"><tr><th className="px-5 py-4">Account</th><th className="px-4 py-4">Sign-in method</th><th className="px-4 py-4">Joined</th><th className="px-4 py-4">Last sign-in</th><th className="px-4 py-4">Status</th></tr></thead>
+          <thead className="bg-[#f5eafa] text-xs uppercase tracking-wider text-[#64556e]"><tr><th className="px-5 py-4">Account</th><th className="px-4 py-4">Sign-in method</th><th className="px-4 py-4">Joined</th><th className="px-4 py-4">Last sign-in</th><th className="px-4 py-4">Status</th></tr></thead>
           <tbody className="divide-y divide-violet-100">
-            {visible.map((user) => <tr key={user.uid} className="hover:bg-violet-50/60">
-              <td className="px-5 py-4"><p className="font-semibold text-slate-900">{user.display_name || user.email || 'Unnamed account'}</p><p className="text-xs text-slate-600">{user.email || 'No email address'}{user.email_verified ? ' · Verified' : ''}</p><p className="mt-1 max-w-[280px] truncate font-mono text-[11px] text-slate-500" title={user.uid}>{user.uid}</p></td>
-              <td className="px-4 py-4 text-slate-700">{user.providers.length ? user.providers.join(', ') : 'Firebase account'}</td>
-              <td className="px-4 py-4 whitespace-nowrap text-slate-700">{displayTime(user.created_at)}</td>
-              <td className="px-4 py-4 whitespace-nowrap text-slate-700">{displayTime(user.last_sign_in_at)}</td>
+            {visible.map((user) => <tr key={user.uid} className="hover:bg-[#fff2d9]">
+              <td className="px-5 py-4"><p className="font-semibold text-[#292034]">{user.display_name || user.email || 'Unnamed account'}</p><p className="text-xs text-[#64556e]">{user.email || 'No email address'}{user.email_verified ? ' · Verified' : ''}</p><p className="mt-1 max-w-[280px] truncate font-mono text-[11px] text-slate-500" title={user.uid}>{user.uid}</p></td>
+              <td className="px-4 py-4 text-[#473850]">{user.providers.length ? user.providers.join(', ') : 'Firebase account'}</td>
+              <td className="px-4 py-4 whitespace-nowrap text-[#473850]">{displayTime(user.created_at)}</td>
+              <td className="px-4 py-4 whitespace-nowrap text-[#473850]">{displayTime(user.last_sign_in_at)}</td>
               <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${user.disabled ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>{user.disabled ? 'Disabled' : 'Enabled'}</span></td>
             </tr>)}
           </tbody>
         </table></div>
-        {!visible.length && !loading ? <p className="p-6 text-center text-sm text-slate-600">{filter ? 'No matching accounts in the loaded pages.' : 'No registered users found.'}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-violet-100 px-5 py-4">
-          <p className="text-xs text-slate-600">Showing {visible.length} of {users.length} loaded accounts. Load more to see additional users.</p>
+        {!visible.length && !loading ? <p className="p-6 text-center text-sm text-[#64556e]">{filter ? 'No matching accounts in the loaded pages.' : 'No registered users found.'}</p> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#d2bfd9] px-5 py-4">
+          <p className="text-xs text-[#64556e]">Showing {visible.length} of {users.length} loaded accounts. Load more to see additional users.</p>
           <button type="button" disabled={!nextCursor || loadingMore || loading} onClick={() => nextCursor && void load(nextCursor)} className="admin-secondary-button">{loadingMore ? 'Loading…' : nextCursor ? 'Load more' : 'All pages loaded'}</button>
         </div>
       </div>}
