@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseFaceGuidance, captionPlacement, centeredZoomAllowed, sourceAtTimeline } from './faceAwarePlanning.ts';
+import { parseFaceGuidance, captionPlacement, centeredZoomAllowed, centeredZoomAllowedForInterval, sourceAtTimeline } from './faceAwarePlanning.ts';
 
 const report = {
   schema_version: '2.0',
@@ -46,4 +46,12 @@ test('timeline-to-original mapping accounts for removed pauses', () => {
   ];
   assert.equal(sourceAtTimeline(2.5, segments), 3.5);
   assert.equal(sourceAtTimeline(99, segments), null);
+});
+
+
+test('zoom spanning an unsafe speech segment is blocked even if midpoint is safe', () => {
+  const guidance = parseFaceGuidance(report, 'video-1')!;
+  const segments = [{ sourceStart: 0, sourceEnd: 5, timelineStart: 0, duration: 5 }];
+  assert.equal(centeredZoomAllowedForInterval(1, 1, segments, guidance), true);
+  assert.equal(centeredZoomAllowedForInterval(2.8, 1.5, segments, guidance), false);
 });
