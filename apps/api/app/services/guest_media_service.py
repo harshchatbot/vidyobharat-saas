@@ -20,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.db.repositories.guest_media_repository import GuestMediaRepository
 from app.db.repositories.guest_session_repository import GuestQuotaReservation
 from app.providers.firebase import get_firestore_client
+from app.services import editor_local_media_cache
 from app.services.guest_media_storage import (
     GuestMediaObjectMissing,
     GuestMediaStorage,
@@ -156,6 +157,8 @@ class GuestMediaService:
         claimed = False
         object_uploaded = False
         file_size = 0
+        cache_populated = False
+        upload_committed = False
         logger.info('guest_media_upload_started', extra={'guest_id': session['guest_id'], 'media_id': media_id})
 
         try:
@@ -241,6 +244,12 @@ class GuestMediaService:
                         status_code=503,
                         recoverable=True,
                     )
+                # Before temporary upload source disappears, retain an optional
+                # cache copy. The finally block invalidates it if commit fails.
+                if validated.media_type == 'video':
+                    cache_populated = editor_local_media_cache.store(
+                        object_name, content_sha256, source, file_size,
+                    )
 
             now = datetime.now(UTC)
             media = {
@@ -281,6 +290,7 @@ class GuestMediaService:
             except Exception:
                 logger.exception('guest_media_network_quota_commit_failed')
             network_reserved = False
+            upload_committed = True
             logger.info('guest_media_upload_completed', extra={'guest_id': session['guest_id'], 'media_id': media_id})
             return committed
         except GuestSessionError:
@@ -300,6 +310,8 @@ class GuestMediaService:
                 recoverable=True,
             ) from exc
         finally:
+            if cache_populated and not upload_committed:
+                editor_local_media_cache.invalidate(object_name, content_sha256)
             object_cleanup_failed = False
             if reserved:
                 if object_uploaded:
@@ -453,6 +465,7 @@ class GuestMediaService:
             media_id=media_id,
             now=datetime.now(UTC),
         )
+        editor_local_media_cache.invalidate(expected_path, media.get('content_sha256', ''))
 
     def _stored_size(self, object_name: str) -> int | None:
         implementation = getattr(type(self.storage), 'object_size', None)
