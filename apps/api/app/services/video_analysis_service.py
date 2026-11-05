@@ -81,11 +81,13 @@ def parse_silence_log(log: str, duration: float) -> list[Interval]:
     return events
 
 
-def measure_silences(path: Path, duration: float) -> list[Interval]:
-    # FFmpeg prints silence events to stderr. Downsample and cap input duration.
+def measure_silences(path: Path, duration: float, *, threshold_db: int = -35) -> list[Interval]:
+    """Audio-energy silence estimate; -45 dB is a stronger second check."""
+    if threshold_db not in (-35, -45):
+        raise ValueError("Unsupported silence threshold.")
     output = _command(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(path),
                        "-t", str(duration), "-vn", "-af",
-                       "silencedetect=noise=-35dB:d=0.4", "-f", "null", "-"],
+                       f"silencedetect=noise={threshold_db}dB:d=0.4", "-f", "null", "-"],
                       timeout=45)
     return parse_silence_log(output, duration)
 
@@ -232,13 +234,18 @@ def build_video_analysis_report(
     if media.has_audio:
         try:
             silences = measure_silences(path, media.duration_seconds)
+            # Do not rely solely on a -35 dB threshold: low-volume speech can
+            # be misclassified as silence. Independent -45 dB evidence is
+            # required before proposing a removable section.
+            stricter_silences = measure_silences(path, media.duration_seconds, threshold_db=-45)
             audio_status = "complete"
         except (OSError, subprocess.SubprocessError, ValueError):
             silences = []
+            stricter_silences = []
             audio_status = "unavailable"
             warnings.append("Audio silence detection was unavailable.")
     else:
-        silences, audio_status = [], "no_audio"
+        silences, stricter_silences, audio_status = [], [], "no_audio"
 
     face_status, samples = detect_faces(path, media.duration_seconds)
     if face_status == "unavailable":
@@ -254,7 +261,8 @@ def build_video_analysis_report(
     quality = assess_timing(speech.words, silences, audio_status == "complete", media.duration_seconds)
     speech.segments = semantic_segments(speech.words, quality.conflicts, (transcript or {}).get('utterances'))
     candidates = (
-        safe_cut_candidates(silences, speech.words, quality.conflicts, media.duration_seconds)
+        safe_cut_candidates(silences, speech.words, quality.conflicts, media.duration_seconds,
+                            strict_silences=stricter_silences)
         if audio_status == "complete" and speech.status == "complete"
         else []
     )
@@ -266,6 +274,7 @@ def build_video_analysis_report(
     return VideoAnalysisReport(
         media=media, speech=speech,
         audio=AudioEvidence(status=audio_status, silence_intervals=silences,
+                            strict_silence_intervals=stricter_silences,
                             speech_pause_intervals=speech_pauses(speech.words, media.duration_seconds),
                             timing_quality=quality, safe_cut_candidates=candidates),
         visual=VisualEvidence(
