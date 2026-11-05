@@ -339,3 +339,46 @@ between 1-FPS samples, transitions, and export rendering require verification.
 This is the **deterministic face-safe foundation** for an eventual semantic
 AI Creative Director. It does not yet decide B-roll content, visuals, creative
 storytelling, or emotional timing.
+
+## YuNet one-pass decoding optimization (local benchmark)
+
+The old YuNet path called `cv2.VideoCapture.set(CAP_PROP_POS_MSEC)`
+for **each** second. For the 15.7-second vertical sample, the 16-frame stage
+took **7.029s** in the observed local logs.
+
+The new path invokes a **single** FFmpeg subprocess with
+`fps=1,scale=<bounded-width>:<bounded-height>`, consuming raw BGR frames
+with NumPy and feeding them directly to the *same* YuNet detector. The
+detection remains CPU-only and uses at most one frame per second, no face ID,
+no new caption or zoom decision semantics. The report cache is versioned to
+force a new analysis. A failed decode or invalid frame size returns
+`face_status=unavailable` without fabricating face samples.
+
+Separate log fields:
+`extraction_seconds` = FFmpeg startup, sequential decode, sampling + resize;
+`inference_seconds` = detector initialization + 1 FPS face inference;
+`elapsed_seconds` = full face stage including dependency imports.
+
+This optimization is not a measured speedup until tested on the local Mac.
+The 1–2s target is aspirational. Run:
+
+```bash
+cd apps/api
+source .venv/bin/activate
+python -m pytest tests/test_video_analysis_service.py tests/test_video_creative_guidance.py -q
+# restart the API with existing YuNet and align environment variables
+```
+
+Then repeat the owning-session V2 analysis request and inspect
+`editor_yunet_face_detection_complete` in the backend log. Compare
+`frames_decoded`, `faces_sampled`, `extraction_seconds`,
+`inference_seconds`, and `elapsed_seconds` against the old 16/16/7.029s.
+
+**macOS FFmpeg duplicate-library warning:** the PyAV `av` wheel and the
+`cv2` wheel may both load bundled `libavdevice` Objective-C classes
+within one Python process. Moving video frame decoding to the external
+`ffmpeg` process avoids using OpenCV's `VideoCapture` FFmpeg decoder
+for YuNet, but importing both Python wheels can still produce a duplicate
+class warning. It is *not* safe to delete or rename either package's binary
+files. If the duplicate warning persists, investigate process isolation
+of the detector before deploying this on shared workers.
