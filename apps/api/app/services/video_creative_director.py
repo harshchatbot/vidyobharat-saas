@@ -139,7 +139,7 @@ async def generate_gemini_plan(
         "generationConfig": {
             "temperature": 0,
             "responseMimeType": "application/json",
-            "responseSchema": CreativePlan.model_json_schema(),
+            "responseJsonSchema": CreativePlan.model_json_schema(),
             "maxOutputTokens": 3072,
         },
     }
