@@ -162,3 +162,95 @@ async def generate_gemini_plan(
         return await _send(client)
     async with httpx.AsyncClient(timeout=httpx.Timeout(35.0, connect=10.0)) as session:
         return await _send(session)
+
+
+# OpenAI Structured Outputs strict mode requires every property to be required,
+# with nullable fields expressed as a union rather than optional JSON properties.
+# Our Pydantic validator remains the ultimate semantic safety boundary.
+_OPENAI_ACTION_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": ["type", "phrase_id", "segment_id", "reason",
+                 "treatment", "asset_query", "scale", "x", "y", "width"],
+    "properties": {
+        "type": {"type": "string", "enum": [
+            "caption", "caption_emphasis", "centered_zoom",
+            "existing_sfx_suggestion", "broll_asset_suggestion",
+        ]},
+        "phrase_id": {"type": "string"},
+        "segment_id": {"type": "string"},
+        "reason": {"type": "string"},
+        "treatment": {"type": ["string", "null"]},
+        "asset_query": {"type": ["string", "null"]},
+        "scale": {"type": ["number", "null"]},
+        "x": {"type": ["number", "null"]},
+        "y": {"type": ["number", "null"]},
+        "width": {"type": ["number", "null"]},
+    },
+}
+_OPENAI_PLAN_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": ["plan_version", "creative_summary", "actions", "warnings"],
+    "properties": {
+        "plan_version": {"type": "string", "enum": ["1.0"]},
+        "creative_summary": {"type": "string"},
+        "actions": {"type": "array", "items": _OPENAI_ACTION_SCHEMA},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+
+async def generate_openai_plan(
+    context: CreativeContext, *, api_key: str, model: str = "gpt-4o-mini",
+    client: httpx.AsyncClient | None = None,
+) -> CreativePlan:
+    """OpenAI Chat Completions Structured Outputs; same semantic validator as Gemini.
+
+    Never print or persist API keys, request transcripts, or raw model output.
+    No automatic fallback to paid alternate providers.
+    """
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is required")
+    if not model or not all(ch.isalnum() or ch in "-._" for ch in model):
+        raise ValueError("Invalid OpenAI model identifier")
+    request_json = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": json.dumps(context.model_dump(mode="json"), ensure_ascii=False)},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "rangmanch_creative_plan",
+                "strict": True,
+                "schema": _OPENAI_PLAN_SCHEMA,
+            },
+        },
+    }
+
+    async def _send(http: httpx.AsyncClient) -> CreativePlan:
+        response = await http.post(
+            "https://api.openai.com/v1/chat/completions",
+            json=request_json,
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        choices = payload.get("choices") or []
+        if not choices:
+            raise ValueError("OpenAI returned no candidate")
+        choice = choices[0]
+        message = choice.get("message") or {}
+        if message.get("refusal"):
+            raise ValueError("OpenAI refused to create a creative plan")
+        if choice.get("finish_reason") != "stop":
+            raise ValueError("OpenAI response was truncated or incomplete")
+        content = message.get("content")
+        if not isinstance(content, str) or not content:
+            raise ValueError("OpenAI returned empty structured output")
+        return validate_plan(context, json.loads(content))
+
+    if client is not None:
+        return await _send(client)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as session:
+        return await _send(session)
