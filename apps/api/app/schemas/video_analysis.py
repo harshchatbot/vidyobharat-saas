@@ -100,14 +100,38 @@ class MediaInfo(StrictModel):
     has_audio: bool
 
 
+class AlignmentShift(StrictModel):
+    word_index: int = Field(ge=0)
+    word_text: str
+    original_start: float = Field(ge=0)
+    original_end: float = Field(gt=0)
+    aligned_start: float = Field(ge=0)
+    aligned_end: float = Field(gt=0)
+    start_delta_seconds: float
+    end_delta_seconds: float
+    max_abs_shift_seconds: float = Field(ge=0)
+
+
+class AlignmentDiagnostics(StrictModel):
+    max_abs_shift_seconds: float = Field(ge=0)
+    median_max_abs_shift_seconds: float = Field(ge=0)
+    words_over_750ms: int = Field(ge=0)
+    original_conflicts: int = Field(ge=0)
+    candidate_conflicts: int = Field(ge=0)
+    original_strict_conflicts: int = Field(ge=0)
+    candidate_strict_conflicts: int = Field(ge=0)
+    largest_shifts: list[AlignmentShift] = Field(default_factory=list)
+
+
 class SpeechEvidence(StrictModel):
     status: Literal["complete", "unavailable", "no_speech"]
     language: str | None = None
     words: list[Word] = Field(default_factory=list)
     segments: list[SpeechSegment] = Field(default_factory=list)
-    alignment_status: Literal["not_requested", "candidate_available", "rejected", "unavailable"] = "not_requested"
+    alignment_status: Literal["not_requested", "candidate_available", "review_required", "rejected", "unavailable"] = "not_requested"
     aligned_words_candidate: list[Word] = Field(default_factory=list)
     alignment_notes: list[str] = Field(default_factory=list)
+    alignment_diagnostics: AlignmentDiagnostics | None = None
 
 
 class AudioEvidence(StrictModel):
