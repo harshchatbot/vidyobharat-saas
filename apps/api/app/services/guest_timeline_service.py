@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -87,7 +88,9 @@ class GuestTimelineService:
                 resolved,
                 reserved_workspace_bytes=sum(item.file_size for item in resolved),
             )
-            self._require_worker_session(guest_id)
+            # An accepted job may finish after its session TTL. Still reject
+            # explicit revocation; job ownership and lease are independently fenced.
+            self._require_worker_session(guest_id, allow_expired=True)
             return result
         except BaseException:
             if result is not None:
@@ -227,24 +230,16 @@ class GuestTimelineService:
         output: list[ResolvedTimelineMedia] = []
         for index, (media_id, object_name, size) in enumerate(entries):
             destination = root / f'catalog-{index:03d}.source'
-            downloaded = 0
+            started = time.monotonic()
             try:
-                with destination.open('xb') as target:
-                    for chunk in self.media_service.storage.iter_content(
-                        object_name, start=0, end=size - 1
-                    ):
-                        downloaded += len(chunk)
-                        if downloaded > size:
-                            raise TimelineValidationError('Sound-library audio exceeded its recorded size.')
-                        target.write(chunk)
+                self.media_service.storage.download_to_path(object_name, destination, expected_size=size)
             except GuestMediaObjectMissing as exc:
                 raise GuestTimelineMediaUnavailableError('Sound-library audio is unavailable.') from exc
             except TimelineValidationError:
                 raise
             except Exception as exc:
                 raise TimelineRenderError('Sound-library audio could not be downloaded.') from exc
-            if downloaded != size:
-                raise GuestTimelineMediaUnavailableError('Sound-library audio download was incomplete.')
+            logger.info('guest_catalog_audio_downloaded', extra={'source_bytes': size, 'elapsed_seconds': round(time.monotonic() - started, 3)})
             output.append(ResolvedTimelineMedia(
                 media_id=media_id, media_type='audio', path=destination, file_size=size
             ))
@@ -258,26 +253,16 @@ class GuestTimelineService:
             object_name = record['storage_object_path']
             file_size = int(record['file_size'])
             destination = root / f'{index:03d}-{media_id}.source'
-            downloaded = 0
+            started = time.monotonic()
             try:
-                with destination.open('xb') as target:
-                    for chunk in self.media_service.storage.iter_content(
-                        object_name,
-                        start=0,
-                        end=file_size - 1,
-                    ):
-                        downloaded += len(chunk)
-                        if downloaded > file_size or downloaded > self.renderer.limits.max_source_bytes:
-                            raise TimelineValidationError('Downloaded guest media exceeded its recorded size.')
-                        target.write(chunk)
+                self.media_service.storage.download_to_path(object_name, destination, expected_size=file_size)
             except GuestMediaObjectMissing as exc:
                 raise GuestTimelineMediaUnavailableError('A timeline source is unavailable.') from exc
             except TimelineRenderError:
                 raise
             except Exception as exc:
                 raise TimelineRenderError('Private guest media could not be downloaded for rendering.') from exc
-            if downloaded != file_size:
-                raise TimelineValidationError('Downloaded guest media size does not match its record.')
+            logger.info('guest_media_source_downloaded', extra={'source_bytes': file_size, 'elapsed_seconds': round(time.monotonic() - started, 3)})
             resolved.append(
                 ResolvedTimelineMedia(
                     media_id=media_id,
@@ -289,15 +274,17 @@ class GuestTimelineService:
         logger.info('guest_timeline_sources_resolved', extra={'source_count': len(resolved), 'source_bytes': total_bytes})
         return resolved
 
-    def _require_worker_session(self, guest_id: str) -> dict:
+    def _require_worker_session(self, guest_id: str, *, allow_expired: bool = False) -> dict:
         session = self.media_service.sessions.repository.get(guest_id)
         if session is None:
             raise session_invalid()
         expires_at = session.get('expires_at')
-        if not isinstance(expires_at, datetime) or expires_at <= datetime.now(UTC):
-            raise session_expired()
         if session.get('status') != 'active':
             raise session_revoked()
+        if not isinstance(expires_at, datetime):
+            raise session_invalid()
+        if not allow_expired and expires_at <= datetime.now(UTC):
+            raise session_expired()
         return session
 
 
