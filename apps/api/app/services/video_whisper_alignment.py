@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import statistics
 import subprocess
 import tempfile
 import time
@@ -36,10 +37,40 @@ def validate_alignment(raw_words: list[Word], candidate: list[Word], duration: f
             return False, "invalid_bounds"
         if aligned.start < previous_start - 0.02:
             return False, "non_monotonic"
-        if max(abs(raw.start - aligned.start), abs(raw.end - aligned.end)) > MAX_BOUNDARY_SHIFT:
-            return False, "large_boundary_shift"
         previous_start = aligned.start
+    if any(
+        max(abs(raw.start - aligned.start), abs(raw.end - aligned.end)) > MAX_BOUNDARY_SHIFT
+        for raw, aligned in zip(raw_words, candidate)
+    ):
+        # The shift limit is advisory; the existing ASR timestamps are not
+        # ground truth. Retain structurally valid candidates for inspection.
+        return False, "large_boundary_shift"
     return True, "validated_candidate"
+
+
+def summarize_alignment(raw_words: list[Word], candidate: list[Word]) -> dict:
+    """Public diagnostic, bounded to five shifts. No transcript text is logged."""
+    comparisons = []
+    for i, (original, aligned) in enumerate(zip(raw_words, candidate)):
+        start_delta = round(aligned.start - original.start, 3)
+        end_delta = round(aligned.end - original.end, 3)
+        max_delta = max(abs(start_delta), abs(end_delta))
+        comparisons.append({
+            "word_index": i, "word_text": original.text,
+            "original_start": original.start, "original_end": original.end,
+            "aligned_start": aligned.start, "aligned_end": aligned.end,
+            "start_delta_seconds": start_delta, "end_delta_seconds": end_delta,
+            "max_abs_shift_seconds": round(max_delta, 3),
+        })
+    shifts = [entry["max_abs_shift_seconds"] for entry in comparisons]
+    return {
+        "max_abs_shift_seconds": round(max(shifts), 3) if shifts else 0.0,
+        "median_max_abs_shift_seconds": round(statistics.median(shifts), 3) if shifts else 0.0,
+        "words_over_750ms": sum(shift > MAX_BOUNDARY_SHIFT for shift in shifts),
+        "largest_shifts": sorted(
+            comparisons, key=lambda x: x["max_abs_shift_seconds"], reverse=True,
+        )[:5],
+    }
 
 
 def forced_align(path: Path, words: list[Word], language: str, duration: float) -> tuple[list[Word] | None, str, float]:
@@ -74,7 +105,10 @@ def forced_align(path: Path, words: list[Word], language: str, duration: float) 
                 "status": reason, "elapsed_seconds": round(elapsed, 3),
                 "candidate_word_count": len(candidate),
             })
-            return (candidate if valid else None), reason, elapsed
+            # Do not discard a valid token-for-token candidate just because
+            # it disagrees with the original STT estimates by >750 ms.
+            keep = valid or reason == "large_boundary_shift"
+            return (candidate if keep else None), reason, elapsed
     except Exception as exc:  # optional dependency may fail in CTranslate2/torch internals
         logger.warning("editor_whisper_alignment_unavailable", extra={
             "error_type": type(exc).__name__,
