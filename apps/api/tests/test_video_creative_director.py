@@ -149,7 +149,7 @@ def test_openai_rejects_unverified_action_after_retry_and_truncated_response():
                 }}],
             })
         )) as client:
-            with pytest.raises(ValueError, match="face-safe"):
+            with pytest.raises(ValueError, match="failed safety validation after one correction"):
                 await generate_openai_plan(c, api_key="mock-key", client=client)
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(
