@@ -140,3 +140,54 @@ test('video-first Auto Edit replaces image footage and keeps the original video 
   const repeatedClip = repeatedClips[0];
   assert.equal(repeatedClip.kind === 'video' && repeatedClip.mediaId, uploadedVideo.media_id);
 });
+
+
+test('face-aware Auto Edit puts captions above observed face and limits centered zoom', async () => {
+  const project = createEmptyProject();
+  const guidance = {
+    mediaId: uploadedVideo.media_id,
+    captions: [{ start: 0, end: 8, status: 'suggested' as const, x: 0.5, y: 0.19, width: 0.84 }],
+    zooms: [{ start: 0, end: 8, status: 'suggested' as const, maxScale: 1.06 }],
+  };
+  const transcript = { words: [
+    { text: 'Hello', start: 0.3, end: 0.6 },
+    { text: 'people', start: 1.7, end: 2 },
+    { text: 'Welcome', start: 5.1, end: 5.5 },
+  ] };
+  const plan = buildAutoEditPlan(project, [uploadedVideo], await calculateProjectRevision(project), {
+    style: 'energetic', mode: 'replace', transcript, faceGuidance: guidance,
+  });
+  const captionOps = plan.operations.filter((operation) =>
+    operation.op === 'add_text' && operation.item.captionWords?.length,
+  );
+  assert.ok(captionOps.length);
+  assert.ok(captionOps.every((operation) =>
+    operation.op === 'add_text' && operation.item.y === 0.19,
+  ));
+  const zoomOps = plan.operations.filter((operation) =>
+    operation.op === 'add_effect' && operation.item.preset.startsWith('zoom'),
+  );
+  assert.ok(zoomOps.length);
+  assert.ok(zoomOps.every((operation) =>
+    operation.op === 'add_effect' && operation.item.preset === 'zoom-in' && operation.item.amount <= 0.5,
+  ));
+});
+
+test('face-aware Auto Edit skips unverified zooms', async () => {
+  const project = createEmptyProject();
+  const plan = buildAutoEditPlan(project, [uploadedVideo], await calculateProjectRevision(project), {
+    style: 'energetic', mode: 'replace',
+    transcript: { words: [
+      { text: 'first', start: 0.1, end: 0.4 },
+      { text: 'second', start: 2, end: 2.4 },
+    ] },
+    faceGuidance: {
+      mediaId: uploadedVideo.media_id,
+      captions: [{ start: 0, end: 8, status: 'review_required', x: 0.5, y: 0.78, width: 0.84 }],
+      zooms: [{ start: 0, end: 8, status: 'review_required', maxScale: 1 }],
+    },
+  });
+  assert.equal(plan.operations.filter((operation) =>
+    operation.op === 'add_effect' && operation.item.preset.startsWith('zoom')).length, 0);
+  assert.ok(plan.warnings.some((warning) => warning.includes('Skipped')));
+});
