@@ -506,14 +506,14 @@ p {
 /* Match the editor's pastel creative direction on Admin sign-in only. */
 .rm-admin-login { background: #fff9ed; color: #292034; font-family: Manrope, Arial, sans-serif; }
 .rm-admin-login > div > section:first-child { background: #e9dcfa; border-color: #40324b; }
-.rm-admin-login .text-white\\/60,
-.rm-admin-login .text-white\\/70,
-.rm-admin-login .text-white\\/55,
-.rm-admin-login .text-white\\/45,
-.rm-admin-login .text-white\\/35,
-.rm-admin-login .text-white\\/30 { color: #51445e; }
+.rm-admin-login [class~="text-white/60"],
+.rm-admin-login [class~="text-white/70"],
+.rm-admin-login [class~="text-white/55"],
+.rm-admin-login [class~="text-white/45"],
+.rm-admin-login [class~="text-white/35"],
+.rm-admin-login [class~="text-white/30"] { color: #51445e; }
 .rm-admin-login .text-violet-300, .rm-admin-login .text-violet-200 { color: #6c438a; }
-.rm-admin-login button.bg-white\\/\\[0\\.06\\] { background: #fffdf9; color: #292034; border: 2px solid #40324b; box-shadow: 3px 3px 0 #40324b; }
+.rm-admin-login button[class~="bg-white/[0.06]"] { background: #fffdf9; color: #292034; border: 2px solid #40324b; box-shadow: 3px 3px 0 #40324b; }
 .rm-admin-login input[type="email"], .rm-admin-login input[type="password"], .rm-admin-login input[type="text"] {
   background: #fffdf9; color: #292034; border: 1.5px solid #40324b;
 }
