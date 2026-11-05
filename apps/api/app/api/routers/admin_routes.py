@@ -6,6 +6,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from fastapi.responses import Response
+from firebase_admin import auth as firebase_auth
+
+from app.providers.firebase import get_firebase_app
 
 from app.api.deps import AdminPrincipal, require_admin_principal
 from app.db.repositories.admin_repository import AdminCursorError, AdminGuestRepository
@@ -173,6 +176,43 @@ def get_admin_repository() -> AdminGuestRepository:
         return AdminGuestRepository(get_firestore_client())
     except FirebaseNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail='Admin data is unavailable') from exc
+
+
+@router.get('/registered-users')
+def admin_registered_users(
+    limit: int = Query(default=25, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
+    _: AdminPrincipal = Depends(require_admin_principal),
+):
+    """Read-only, administrator-only Firebase Authentication directory.
+
+    Paged, sanitized, and intentionally excludes credentials, tokens, and
+    custom claims. A guest session is not equivalent to a registered user.
+    """
+    try:
+        page = firebase_auth.list_users(
+            max_results=limit,
+            page_token=cursor,
+            app=get_firebase_app(),
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail='Invalid user page cursor.') from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail='Registered users are temporarily unavailable.') from exc
+
+    return {
+        'items': [{
+            'uid': user.uid,
+            'email': user.email,
+            'display_name': user.display_name,
+            'email_verified': user.email_verified,
+            'disabled': user.disabled,
+            'providers': sorted({provider.provider_id for provider in (user.provider_data or [])}),
+            'created_at': user.user_metadata.creation_timestamp if user.user_metadata else None,
+            'last_sign_in_at': user.user_metadata.last_sign_in_timestamp if user.user_metadata else None,
+        } for user in page.users],
+        'next_cursor': page.next_page_token,
+    }
 
 
 @router.get('/me', response_model=AdminMeResponse)
