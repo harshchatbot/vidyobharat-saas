@@ -89,8 +89,8 @@ def _caption_lines(
             attached = (
                 bool(clusters) and (
                     unicodedata.category(char) in {'Mn', 'Mc', 'Me'}
-                    or char in {'\\u200c', '\\u200d'}
-                    or clusters[-1].endswith(('\\u200c', '\\u200d', '\\u094d'))
+                    or char in {'\u200c', '\u200d'}
+                    or clusters[-1].endswith(('\u200c', '\u200d', '\u094d'))
                 )
             )
             if attached:
@@ -103,7 +103,7 @@ def _caption_lines(
     for size in range(font_size, floor - 1, -1):
         font = font_at(size)
         lines: list[str] = []
-        for paragraph in text.split('\\n'):
+        for paragraph in text.split('\n'):
             if not paragraph.strip():
                 lines.append('')
                 continue
@@ -131,7 +131,7 @@ def _caption_lines(
         text_height = len(lines) * line_height
         if max_height is None or text_height <= max_height:
             text_width = math.ceil(max((font.getlength(line) for line in lines), default=0))
-            return '\\n'.join(lines), size, text_width, text_height
+            return '\n'.join(lines), size, text_width, text_height
     raise TimelineValidationError('Caption is too long to fit safely; shorten its text or increase its width.')
 
 
