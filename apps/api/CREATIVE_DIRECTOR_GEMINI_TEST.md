@@ -68,3 +68,51 @@ Check that Gemini:
 validator. It is an offline quality experiment, not an execution contract.
 Later, a separate schema+semantic validator must compile supported actions
 into existing timeline operations before a user may preview/apply them.
+
+## Automated Creative Director experiment (new)
+
+The Python Gemini planner now lives in
+`app/services/video_creative_director.py`, with an execution-free CLI
+`scripts/run_creative_director.py`. It accepts **compact Creative Context V1**,
+not the full Video Analysis report; JSON is supplied as **user data**, and
+the developer-owned creative rules are supplied as a separate system instruction.
+
+Generate a Gemini plan (run inside `apps/api` with `.venv` active):
+
+```bash
+export GEMINI_API_KEY="YOUR_SERVER_SIDE_GEMINI_API_KEY"
+python scripts/run_creative_director.py \
+  "$HOME/Downloads/rangmanch-video-analysis-v2 (4)-creative-context.json"
+```
+
+By default the CLI uses `gemini-3.8-flash` (override with
+`--model NAME` or `RANGMANCH_GEMINI_MODEL`). Use a model supported
+by your actual API key. Requires internet access and an API account with
+valid billing/quota. Never put the key in a source file or commit it.
+
+The CLI writes a `*-creative-plan.json` file beside the input.
+Its `status` is `validated_suggestion_only`, meaning the output has
+passed structural and safety-reference validation but **cannot be applied**
+directly to the timeline. SFX / B-roll are asset search suggestions, not
+verified assets. No new route or frontend calls Gemini in this phase.
+
+Test safely without any API key:
+
+```bash
+python scripts/run_creative_director.py \
+  "$HOME/Downloads/rangmanch-video-analysis-v2 (4)-creative-context.json" \
+  --fallback
+
+python -m pytest tests/test_video_creative_context.py tests/test_video_creative_director.py -q
+```
+
+Strict server validation rejects invalid segment references, invented cut
+action types, absent caption lanes, face-unsafe caption geometry, oversized
+zoom scales, invented asset assumptions and excessive action counts.
+A failed or invalid Gemini response is *not* auto-applied. The existing
+browser Auto Edit path remains unchanged and usable.
+
+**Not yet implemented:** automatic UI integration, mapping suggestions into
+timeline operations, catalog asset resolution, user-facing review of the
+model-generated plan, cost metrics and service-side retries. Those require
+a separate compiler and preview validation pass.
