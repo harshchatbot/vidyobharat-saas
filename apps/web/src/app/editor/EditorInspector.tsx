@@ -3,16 +3,22 @@
 import { Trash2 } from 'lucide-react';
 import { EDITOR_FONTS, EFFECT_PRESETS, type TimelineItem } from './timeline/types';
 
-type Props = { item?: TimelineItem; onUpdate: (updates: Partial<TimelineItem>) => void; onRemove: () => void; onEditStart: (key: string) => void; onEditEnd: (key: string) => void; className?: string };
+type Props = { item?: TimelineItem; onUpdate: (updates: Partial<TimelineItem>) => void; onRemove: () => void; onApplyStyleToAllCaptions?: () => void; onEditStart: (key: string) => void; onEditEnd: (key: string) => void; className?: string };
 const field = 'mt-1 min-h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20';
 
-export function EditorInspector({ item, onUpdate, onRemove, onEditStart, onEditEnd, className = '' }: Props) {
+export function EditorInspector({ item, onUpdate, onRemove, onApplyStyleToAllCaptions, onEditStart, onEditEnd, className = '' }: Props) {
   if (!item) return <aside className={`${className} rm-editor-inspector-shell bg-[#111118] p-4 text-slate-100`}><h2 className="font-semibold">Inspector</h2><p className="mt-3 text-sm leading-6 text-slate-400">Select a clip, text, effect, or audio item to edit it.</p></aside>;
   const isImage = item.kind === 'video' && item.contentType.startsWith('image/');
   const itemType = isImage ? 'Image' : item.kind === 'video' ? 'Video' : item.kind;
   return (
     <aside className={`${className} rm-editor-inspector-shell bg-[#111118] p-4 text-slate-100`} onFocusCapture={(event) => { if (event.target.matches('input, textarea, select')) onEditStart(`inspector:${item.id}`); }} onBlurCapture={(event) => { if (event.target.matches('input, textarea, select')) onEditEnd(`inspector:${item.id}`); }}>
       <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-300">{itemType}</p><h2 className="mt-1 truncate font-semibold" title={item.label}>{item.label}</h2></div><button type="button" onClick={onRemove} aria-label={`Remove ${item.label}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-red-400 hover:bg-red-400/10"><Trash2 className="h-4 w-4" /></button></div>
+      {item.kind === 'text' && Boolean(item.captionWords?.length) && onApplyStyleToAllCaptions && <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3">
+        <button type="button" onClick={onApplyStyleToAllCaptions} className="w-full min-h-10 rounded-md bg-amber-400 px-3 text-sm font-bold text-slate-950 hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+          Apply style to all captions
+        </button>
+        <p className="mt-2 text-xs leading-5 text-current opacity-80">Copies this clip's font, size, colors, outline, shadow, alignment and position to every generated caption. Text and timing stay unchanged. You can undo.</p>
+      </div>}
       {item.kind === 'text' && <div className="mt-5 space-y-4">
         <label className="block text-sm font-medium">Text<textarea value={item.text} onChange={(event) => onUpdate({ text: event.target.value, label: event.target.value || 'Text', captionWords: undefined })} rows={3} className={`${field} py-2`} /></label>
         <label className="block text-sm font-medium">Font<select value={item.fontFamily} onChange={(event) => onUpdate({ fontFamily: event.target.value })} className={field}>{EDITOR_FONTS.map((font) => <option key={font}>{font}</option>)}</select></label>
