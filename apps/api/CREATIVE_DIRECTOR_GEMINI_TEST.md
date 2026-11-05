@@ -147,3 +147,19 @@ This requires a separately billable OpenAI API account with credits.
 Do **not** expose either API key in the browser. This is a local developer
 CLI only; production provider routing and tenant-owned credentials are not
 implemented.
+
+## Strict schema versus semantic plan validation
+
+Some providers return JSON that matches the structural schema but violates
+conditional constraints (e.g., `asset_query` set on a caption action). This is
+**not** an API key error. OpenAI now receives one bounded, targeted correction
+request when the first JSON plan fails validation. The validator still rejects
+bad phrase IDs, unauthorized cuts, mismatched caption coordinates, excess zoom,
+and asset queries on non-asset actions. If the correction also fails, the
+CLI exits with a validation error; the source video remains unchanged.
+Each correction consumes an additional model request, so a valid plan should
+normally complete in one.
+
+```bash
+python -m pytest tests/test_video_creative_director.py -q
+```
