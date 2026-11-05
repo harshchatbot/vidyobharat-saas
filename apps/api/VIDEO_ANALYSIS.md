@@ -134,3 +134,36 @@ and model licensing before adopting it as a production dependency.
 The analyze endpoint now checks guest ownership and CSRF, then downloads the video once per cache miss. The same temporary file is reused for transcription, silence analysis, face detection and scene detection. Reports are cached in the API process for 10 minutes (12 entries maximum). Every cache hit still performs authorization checks. This process-local cache does not persist across restarts or workers. Concurrent requests and separate /transcribe calls can still download independently.
 
 New log events: editor_analysis_cache_hit, editor_analysis_download_complete, editor_analysis_transcription_complete, editor_analysis_detection_complete and editor_analysis_complete. The change removes duplicate downloads within one analysis request; it does not fix unusually slow initial storage downloads.
+
+## Local upload-to-analysis reuse (opt-in development optimization)
+
+To avoid downloading the same new upload from Firebase when running FastAPI
+on your MacBook, create a private local cache directory and start FastAPI
+with the following environment variable:
+
+```bash
+mkdir -p ~/.cache/rangmanch/editor-media
+chmod 700 ~/.cache/rangmanch/editor-media
+export RANGMANCH_EDITOR_LOCAL_MEDIA_CACHE_DIR="$HOME/.cache/rangmanch/editor-media"
+# Optional defaults: 512 MiB maximum, 3600 seconds TTL
+export RANGMANCH_EDITOR_LOCAL_MEDIA_CACHE_MAX_BYTES=536870912
+export RANGMANCH_EDITOR_LOCAL_MEDIA_CACHE_TTL_SECONDS=3600
+uvicorn app.main:app --reload
+```
+
+**Upload a NEW video after enabling this setting.** Previously uploaded files
+were not retained locally and will still require a Firebase download. On a
+successful fresh upload, a verified local copy is kept after cloud upload; a
+failed DB commit invalidates the copy, and a media deletion also invalidates it.
+`/analyze` still checks the guest session, ownership, CSRF, and active record
+before reading from this optional cache. Each cache read verifies source size
+and SHA-256, copies to request-private temporary storage and falls back to
+Firebase on miss/corruption/expiry. On cache hit, expect:
+`editor_local_media_cache_hit` and `editor_analysis_local_source_ready`.
+A miss still logs `editor_analysis_download_complete`.
+
+Retention uses a lazy bounded LRU-like eviction and expiry on access/store.
+Cache files are not persistently secure backups. Disable by unsetting the
+environment variable. The cache does not share state across local and EC2
+machines, nor between distinct API hosts. Avoid enabling on an untrusted
+shared filesystem; the cache contains original uploaded video.
