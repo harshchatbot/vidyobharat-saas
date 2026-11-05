@@ -182,6 +182,20 @@ export async function getUserForIdToken(idToken: string): Promise<FirebaseUserPr
   };
 }
 
+/** Read the already signed-in Firebase SDK user; no second Identity Toolkit request. */
+export function getCurrentFirebaseProfile(): FirebaseUserProfile {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error('Firebase login completed but no active user session was found.');
+  const email = user.email ?? '';
+  return {
+    id: user.uid,
+    email,
+    name: user.displayName?.trim() || email.split('@')[0] || 'User',
+    avatarUrl: user.photoURL || null,
+    emailVerified: user.emailVerified,
+  };
+}
+
 export function getProfileFields(user: FirebaseUserProfile) {
   return {
     name: user.name,
