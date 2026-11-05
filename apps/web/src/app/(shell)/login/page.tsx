@@ -15,4 +15,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return <AuthFormClient mode="login" next={next} />;
 }
-\nexport const dynamic = 'force-dynamic';\n
+
+export const dynamic = 'force-dynamic';
