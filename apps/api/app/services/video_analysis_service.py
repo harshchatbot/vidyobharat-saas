@@ -252,7 +252,7 @@ def build_video_analysis_report(
     # Preserve raw words; annotate disagreements rather than shifting Whisper
     # timestamps onto low-energy audio regions.
     quality = assess_timing(speech.words, silences, audio_status == "complete", media.duration_seconds)
-    speech.segments = semantic_segments(speech.words, quality.conflicts)
+    speech.segments = semantic_segments(speech.words, quality.conflicts, (transcript or {}).get('utterances'))
     candidates = (
         safe_cut_candidates(silences, speech.words, quality.conflicts, media.duration_seconds)
         if audio_status == "complete" and speech.status == "complete"
