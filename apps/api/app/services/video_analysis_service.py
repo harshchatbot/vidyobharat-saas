@@ -218,8 +218,7 @@ def detect_faces(
             "detection_width": dw, "detection_height": dh,
         })
         return status, samples
-    except (ImportError, OSError, RuntimeError, AttributeError, ValueError,
-            subprocess.SubprocessError) as exc:
+    except Exception as exc:  # Optional decoder/OpenCV model must fail closed.
         logger.warning("editor_yunet_face_detection_failed", extra={
             "reason": type(exc).__name__,
             "elapsed_seconds": round(time.monotonic() - started, 3),
