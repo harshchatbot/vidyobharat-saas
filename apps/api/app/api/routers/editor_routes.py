@@ -478,7 +478,7 @@ async def analyze_guest_video(
 
         # Ownership, CSRF and object-size checks above always happen before
         # reading the in-process cache. Cache contains analysis only, not media.
-        cache_key = (media['storage_object_path'], size, style, 'v2-utterance-20261105')
+        cache_key = (media['storage_object_path'], size, style, 'v2-align-compare-20261105', os.getenv('RANGMANCH_WHISPER_ALIGNMENT_MODE', 'off').strip().lower())
         cached = _analysis_from_cache(cache_key)
         if cached is not None:
             _analysis_logger.info('editor_analysis_cache_hit', extra={'media_id': media_id})
