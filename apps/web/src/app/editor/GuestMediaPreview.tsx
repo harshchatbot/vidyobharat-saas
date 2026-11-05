@@ -33,6 +33,7 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
   const [failed, setFailed] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const url = `${getApiUrl().replace(/\/$/, '')}/api/editor/media/${encodeURIComponent(mediaId)}/content`;
 
   useEffect(() => {
@@ -40,8 +41,13 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
     setBuffering(true);
     setLoadingTimedOut(false);
     onBufferingChange?.(true);
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 30000);
-    return () => window.clearTimeout(timer);
+    if (loadingTimeoutRef.current) window.clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = window.setTimeout(() => { setLoadingTimedOut(true); loadingTimeoutRef.current = null; }, 30000);
+    return () => {
+      if (loadingTimeoutRef.current) window.clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+      onBufferingChange?.(false);
+    };
   }, [mediaId, attempt]);
 
   // Playback is driven by the media element's clock. Seeking on every React
@@ -84,7 +90,10 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
 
   if (failed) return <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"><p className="text-sm font-semibold text-red-300">Video preview could not load</p><button type="button" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white">Retry preview</button></div>;
   const showLoading = () => { setBuffering(true); onBufferingChange?.(true); };
-  const showReady = () => { setBuffering(false); setLoadingTimedOut(false); onBufferingChange?.(false); };
+  const showReady = () => {
+    if (loadingTimeoutRef.current) { window.clearTimeout(loadingTimeoutRef.current); loadingTimeoutRef.current = null; }
+    setBuffering(false); setLoadingTimedOut(false); onBufferingChange?.(false);
+  };
   return <div className="relative h-full w-full bg-black">
     <video key={`${mediaId}:${attempt}`} ref={videoRef} src={url} onError={() => { setFailed(true); onBufferingChange?.(false); }} onTimeUpdate={(event) => onMediaTime?.(event.currentTarget.currentTime)} onLoadStart={showLoading} onSeeking={showLoading} onWaiting={showLoading} onStalled={showLoading} onPlaying={showReady} onCanPlay={showReady} onSeeked={showReady} playsInline preload="metadata" className={`h-full w-full bg-black ${objectFit}`} />
     {buffering && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/35" role="status" aria-live="polite">
