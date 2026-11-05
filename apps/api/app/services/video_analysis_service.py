@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 
 from app.schemas.video_analysis import (
-    AudioEvidence, BoundingBox, EditingCapabilities, FaceSample, Interval,
+    AlignmentDiagnostics, AudioEvidence, BoundingBox, EditingCapabilities, FaceSample, Interval,
     MediaInfo, SpeechEvidence, StylePreset, VideoAnalysisReport, VisualEvidence, Word,
 )
 
@@ -270,13 +270,13 @@ def build_video_analysis_report(
             proposed_issues = len(timing_conflicts(aligned, silences))
             original_strict = len(timing_conflicts(speech.words, stricter_silences))
             proposed_strict = len(timing_conflicts(aligned, stricter_silences))
-            speech.alignment_diagnostics = {
+            speech.alignment_diagnostics = AlignmentDiagnostics(**{
                 **summarize_alignment(speech.words, aligned),
                 "original_conflicts": original_issues,
                 "candidate_conflicts": proposed_issues,
                 "original_strict_conflicts": original_strict,
                 "candidate_strict_conflicts": proposed_strict,
-            }
+            })
             speech.alignment_notes = [
                 f"Original -35dB conflicts: {original_issues}; candidate: {proposed_issues}.",
                 f"Original -45dB conflicts: {original_strict}; candidate: {proposed_strict}.",
