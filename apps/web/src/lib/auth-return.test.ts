@@ -16,3 +16,9 @@ test('rejects external, protocol-relative, malformed, and auth-loop destinations
 test('falls back for direct login without a destination', () => {
   assert.equal(safeReturnPath(undefined), '/dashboard');
 });
+
+test('retains safe admin deep links including asset filters', () => {
+  assert.equal(safeReturnPath('/admin/assets'), '/admin/assets');
+  assert.equal(safeReturnPath('/admin/audio-library'), '/admin/audio-library');
+  assert.equal(safeReturnPath('/admin/assets?kind=emoji'), '/admin/assets?kind=emoji');
+});
