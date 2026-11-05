@@ -1,4 +1,4 @@
-"""Admin-managed LUT / emoji registry. Metadata seeds are NOT usable assets.
+"""Admin-managed LUT / emoji / music registry. Metadata seeds are NOT usable assets.
 
 Firestore stores mutable records, Firebase Storage stores validated bytes.
 Only explicitly approved, verified and present objects become public.
@@ -20,13 +20,13 @@ from app.providers.storage import FirebaseStorageProvider, build_storage_provide
 
 SEEDS = Path(__file__).resolve().parents[1] / "assets"
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
-MAX_FILE_SIZE = 8 * 1024 * 1024
+MAX_FILE_SIZE = 20 * 1024 * 1024
 
 
 class VisualAsset(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    id: str = Field(pattern=r"^(lut|emoji):[a-z0-9][a-z0-9-]{0,79}$")
-    type: Literal["lut", "emoji"]
+    id: str = Field(pattern=r"^(lut|emoji|music):[a-z0-9][a-z0-9-]{0,79}$")
+    type: Literal["lut", "emoji", "music"]
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
     title: str = Field(min_length=1, max_length=180)
     description: str = Field(default="", max_length=600)
@@ -123,6 +123,13 @@ def seed_catalog(repo: VisualAssetRepository) -> dict:
             source="spectral_film_lut 0.18.12 (source and files require verification)",
             details=info,
         )))
+    music_data = json.loads((SEEDS / "music.seed.json").read_text())
+    for slug, info in music_data.items():
+        assets.append(make_asset(VisualAssetCreate(
+            type="music", slug=slug, title=slug.replace("-", " ").title(),
+            description=", ".join(info["mood"]), tags=info["mood"] + info.get("styles", []),
+            source=info["source"], license=info["licence"], details=info,
+        )))
     for info in emoji_data["emoji"]:
         assets.append(make_asset(VisualAssetCreate(
             type="emoji", slug=info["slug"], title=info["folder"],
@@ -142,8 +149,35 @@ def seed_catalog(repo: VisualAssetRepository) -> dict:
 def validate_media(asset: VisualAsset, filename: str, data: bytes) -> tuple[str, str]:
     """Inspect bytes, not untrusted browser MIME. Do not allow arbitrary uploads."""
     if not data or len(data) > MAX_FILE_SIZE:
-        raise ValueError("File must be non-empty and at most 8 MB.")
+        raise ValueError("File must be non-empty and at most 20 MB.")
     extension = Path(filename).suffix.lower()
+    if asset.type == "music":
+        if extension != ".mp3":
+            raise ValueError("Music must be an MP3 file.")
+        # Decode with ffprobe, rather than trusting filename or browser-supplied MIME.
+        import subprocess
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".mp3") as handle:
+            handle.write(data)
+            handle.flush()
+            try:
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries",
+                     "format=duration:stream=codec_name,codec_type",
+                     "-of", "json", handle.name],
+                    check=True, capture_output=True, text=True, timeout=12,
+                )
+                metadata = json.loads(result.stdout)
+                seconds = float(metadata.get("format", {}).get("duration", 0))
+                streams = metadata.get("streams", [])
+                if not (0 < seconds <= 600 and any(
+                    v.get("codec_type") == "audio" and v.get("codec_name") == "mp3"
+                    for v in streams
+                )):
+                    raise ValueError("Expected MP3 audio, duration at most 10 minutes.")
+            except (OSError, subprocess.SubprocessError, TypeError, KeyError) as exc:
+                raise ValueError("Audio could not be decoded or ffprobe is unavailable.") from exc
+        return "audio/mpeg", ".mp3"
     if asset.type == "lut":
         if extension != ".cube":
             raise ValueError("LUT must be a .cube file.")
@@ -214,6 +248,11 @@ def upload_asset_file(repo: VisualAssetRepository, asset: VisualAsset, filename:
 
 
 def approve_asset(repo: VisualAssetRepository, asset: VisualAsset) -> VisualAsset:
+    if asset.type == "music" and "mixkit" in (asset.source + " " + asset.license).lower():
+        # Stock music embedded in a third-party asset catalog is distinct from
+        # incorporating a track into a completed social video. Their terms
+        # prohibit stock/inventory distribution; do not override via checkbox.
+        raise ValueError("Mixkit catalog music cannot be published in this SaaS library without separate, documented distribution permission and a licensed replacement source.")
     if not asset.redistribution_confirmed or not asset.evidence_reference.strip():
         raise ValueError("Verify redistribution permission and record license evidence first.")
     if asset.license.lower().strip() in {"", "unverified", "unknown", "proprietary"}:
