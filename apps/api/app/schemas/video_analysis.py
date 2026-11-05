@@ -24,6 +24,53 @@ class Word(Interval):
     text: str = Field(min_length=1, max_length=100)
 
 
+class SpeechSegment(Interval):
+    id: str = Field(pattern=r"^seg_[0-9]{3}$")
+    text: str = Field(min_length=1)
+    word_start_index: int = Field(ge=0)
+    word_end_index: int = Field(ge=0)
+    timing_status: Literal["estimated", "review"]
+
+    @model_validator(mode="after")
+    def ordered_indices(self):
+        if self.word_end_index < self.word_start_index:
+            raise ValueError("Segment word indices must be ordered")
+        return self
+
+
+class TimingConflict(StrictModel):
+    word_index: int = Field(ge=0)
+    word_text: str
+    word_start: float = Field(ge=0)
+    word_end: float = Field(gt=0)
+    silence_start: float = Field(ge=0)
+    silence_end: float = Field(gt=0)
+    overlap_seconds: float = Field(gt=0)
+
+
+class TimingQuality(StrictModel):
+    status: Literal["unavailable", "review_required", "no_detected_conflicts"]
+    conflict_count: int = Field(ge=0)
+    conflicts: list[TimingConflict] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class SafeCutCandidate(StrictModel):
+    id: str = Field(pattern=r"^cut_[0-9]{3}$")
+    remove_start: float = Field(ge=0)
+    remove_end: float = Field(gt=0)
+    anchor_time: float = Field(ge=0)
+    source_silence: Interval
+    confidence: Literal["conservative"]
+    reason: str
+
+    @model_validator(mode="after")
+    def valid_cut(self):
+        if not (self.source_silence.start <= self.remove_start < self.anchor_time < self.remove_end <= self.source_silence.end):
+            raise ValueError("Candidate cut must be bounded within measured silence")
+        return self
+
+
 class BoundingBox(StrictModel):
     x: float = Field(ge=0, le=1)
     y: float = Field(ge=0, le=1)
@@ -57,12 +104,15 @@ class SpeechEvidence(StrictModel):
     status: Literal["complete", "unavailable", "no_speech"]
     language: str | None = None
     words: list[Word] = Field(default_factory=list)
+    segments: list[SpeechSegment] = Field(default_factory=list)
 
 
 class AudioEvidence(StrictModel):
     status: Literal["complete", "unavailable", "no_audio"]
     silence_intervals: list[Interval] = Field(default_factory=list)
     speech_pause_intervals: list[Interval] = Field(default_factory=list)
+    timing_quality: TimingQuality = Field(default_factory=lambda: TimingQuality(status='unavailable', conflict_count=0))
+    safe_cut_candidates: list[SafeCutCandidate] = Field(default_factory=list)
 
 
 class VisualEvidence(StrictModel):
@@ -90,7 +140,7 @@ class EditingCapabilities(StrictModel):
 
 
 class VideoAnalysisReport(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["2.0"] = "2.0"
     media: MediaInfo
     speech: SpeechEvidence
     audio: AudioEvidence
