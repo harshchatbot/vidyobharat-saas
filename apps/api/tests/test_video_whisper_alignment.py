@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from app.schemas.video_analysis import Interval, MediaInfo, Word
-from app.services.video_whisper_alignment import validate_alignment
+from app.services.video_whisper_alignment import validate_alignment, summarize_alignment
 from app.services import video_analysis_service as analysis
 
 
@@ -65,3 +65,47 @@ def test_default_mode_skips_optional_alignment(monkeypatch, tmp_path):
     report = analysis.build_video_analysis_report(tmp_path / "example.mp4", "test")
     assert report.speech.alignment_status == "not_requested"
     assert report.speech.aligned_words_candidate == []
+
+
+def test_large_shift_is_diagnostic_not_structural_failure():
+    original = _words()
+    proposed = [
+        Word(start=1.35, end=1.75, text="Hello"),
+        Word(start=2.15, end=2.55, text="world!"),
+    ]
+    assert validate_alignment(original, proposed, 3) == (False, "large_boundary_shift")
+    summary = summarize_alignment(original, proposed)
+    assert summary["words_over_750ms"] == 2
+    assert summary["max_abs_shift_seconds"] == 0.95
+    assert summary["largest_shifts"][0]["word_text"] == "world!"
+
+
+def test_compare_mode_retains_large_shift_for_review(monkeypatch, tmp_path):
+    monkeypatch.setenv("RANGMANCH_WHISPER_ALIGNMENT_MODE", "compare")
+    monkeypatch.delenv("RANGMANCH_YUNET_MODEL_PATH", raising=False)
+    monkeypatch.setattr(analysis, "probe_video", lambda _path, media_id: MediaInfo(
+        media_id=media_id, duration_seconds=4, width=1080, height=1920,
+        fps=30, aspect_ratio="9:16", has_audio=True))
+    monkeypatch.setattr(analysis, "measure_silences",
+                        lambda _path, _duration, **kwargs: [Interval(start=2.8, end=3.7)])
+    monkeypatch.setattr(analysis, "scene_changes", lambda _path, _duration: [])
+    from app.services import video_whisper_alignment
+    aligned = [
+        Word(start=1.35, end=1.75, text="Hello"),
+        Word(start=2.15, end=2.55, text="world!"),
+    ]
+    monkeypatch.setattr(video_whisper_alignment, "forced_align",
+                        lambda *_args: (aligned, "large_boundary_shift", 0.12))
+    report = analysis.build_video_analysis_report(
+        tmp_path / "example.mp4", "test",
+        transcript={"language": "en", "words": [w.model_dump() for w in _words()]},
+    )
+    assert report.speech.alignment_status == "review_required"
+    assert report.speech.aligned_words_candidate == aligned
+    assert report.speech.words == _words()
+    assert report.speech.alignment_diagnostics is not None
+    assert report.speech.alignment_diagnostics.words_over_750ms == 2
+    assert len(report.speech.alignment_diagnostics.largest_shifts) == 2
+    assert "retained for review" in " ".join(report.warnings)
+    # The planner does not inherit candidate timestamps.
+    assert report.speech.segments[0].start == 0.5
