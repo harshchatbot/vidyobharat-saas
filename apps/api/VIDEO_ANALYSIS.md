@@ -382,3 +382,27 @@ for YuNet, but importing both Python wheels can still produce a duplicate
 class warning. It is *not* safe to delete or rename either package's binary
 files. If the duplicate warning persists, investigate process isolation
 of the detector before deploying this on shared workers.
+
+## Creative Context Builder V1 — Gemini input (offline first)
+
+Run `python scripts/build_creative_context.py <analysis-v2.json>` from
+`apps/api`. The pure, Pydantic-validated builder creates a separate
+`*-creative-context.json` file. It **does not** edit the full report, call
+Gemini, fetch new media, or alter the timeline.
+
+The compact format includes short timestamped phrases linked to original
+speech segment IDs, the selected style, per-segment caption placement and
+zoom caps, an explicit `approved_cuts` allowlist, and a review-required flag.
+It intentionally excludes raw face rectangles, alternative alignment words,
+audio conflict details, internal diagnostic warnings and repeated effect rules.
+A 0-cut source stays 0-cut. All transcript strings remain **untrusted data**.
+
+Validation:
+```bash
+python -m pytest tests/test_video_creative_context.py -q
+```
+
+See [CREATIVE_DIRECTOR_GEMINI_TEST.md](./CREATIVE_DIRECTOR_GEMINI_TEST.md)
+for the manual Gemini experiment and the strict execution boundary. Gemini
+output is **not** automatically accepted as timeline operations until a
+separate validator/compiler is implemented.
