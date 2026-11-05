@@ -178,9 +178,22 @@ class TimelineClip(BaseModel):
     volume: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False, strict=True)] = 1
 
 
+class TimelineCaptionWord(BaseModel):
+    text: Annotated[str, Field(min_length=1, max_length=100)]
+    start: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
+    end: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
+
+    @model_validator(mode='after')
+    def check_duration(self) -> 'TimelineCaptionWord':
+        if self.end <= self.start:
+            raise ValueError('Caption word must have a positive duration.')
+        return self
+
+
 class TimelineTextOverlay(BaseModel):
     id: Annotated[str, Field(min_length=1, max_length=128)]
     text: Annotated[str, Field(min_length=1, max_length=500)]
+    caption_words: Annotated[list[TimelineCaptionWord], Field(max_length=120)] = Field(default_factory=list)
     start_seconds: Annotated[float, Field(ge=0, le=60, allow_inf_nan=False, strict=True)]
     duration_seconds: Annotated[float, Field(gt=0, le=60, allow_inf_nan=False, strict=True)]
     font_family: TimelineFontFamily = 'Inter'
@@ -213,6 +226,13 @@ class TimelineTextOverlay(BaseModel):
                 TimelineTextPosition.top: 0.12,
                 TimelineTextPosition.bottom: 0.88,
             }.get(self.position, 0.5)
+        if self.caption_words:
+            if ' '.join(word.text for word in self.caption_words) != self.text.strip():
+                raise ValueError('Caption word text must match overlay text.')
+            if any(word.end > self.duration_seconds + 0.05 for word in self.caption_words):
+                raise ValueError('Caption word timestamps exceed overlay duration.')
+            if any(current.start < previous.start for previous, current in zip(self.caption_words, self.caption_words[1:])):
+                raise ValueError('Caption words must be sorted by start time.')
         if self.in_animation_duration > self.duration_seconds:
             raise ValueError('Text in-animation duration exceeds the text duration.')
         if self.out_animation_duration > self.duration_seconds:
