@@ -25,7 +25,11 @@ async def run() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("context", type=Path)
     parser.add_argument("--out", type=Path)
-    parser.add_argument("--provider", choices=["openai", "gemini"],\n                        default=os.getenv("RANGMANCH_CREATIVE_PROVIDER", "openai"))\n    parser.add_argument("--model", default=None)
+    parser.add_argument(
+        "--provider", choices=["openai", "gemini"],
+        default=os.getenv("RANGMANCH_CREATIVE_PROVIDER", "openai"),
+    )
+    parser.add_argument("--model", default=None)
     parser.add_argument("--fallback", action="store_true", help="No external API; generate conservative proposal")
     args = parser.parse_args()
     path = args.context.expanduser().resolve()
