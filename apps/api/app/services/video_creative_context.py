@@ -155,7 +155,7 @@ def build_creative_context(report: VideoAnalysisReport) -> CreativeContext:
         approved_cuts=approved,
         review_required=review,
         allowed_actions=[
-            "caption", "caption_emphasis", "centered_zoom",
+            "caption_emphasis", "centered_zoom",
             "existing_sfx_suggestion", "broll_asset_suggestion",
         ],
         notes=[
