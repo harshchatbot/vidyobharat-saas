@@ -127,10 +127,21 @@ def scene_changes(path: Path, duration: float) -> list[float]:
 
 
 def detect_faces(path: Path, duration: float) -> tuple[str, list[FaceSample]]:
-    """YuNet is opt-in: the verified ONNX weight file must be installed locally."""
+    """1 FPS CPU YuNet detection with bounded resize and normalized face boxes.
+
+    Samples reflect only inspected frames, not continuous face tracking.
+    Missing frames or detector failures never invent face locations.
+    """
     model_file = os.environ.get("RANGMANCH_YUNET_MODEL_PATH", "").strip()
     if not model_file or not Path(model_file).is_file():
         return "unavailable", []
+    import time
+    import logging
+    started = time.monotonic()
+    logger = logging.getLogger(__name__)
+    cap = None
+    inspected = 0
+    decoded = 0
     try:
         import cv2
         detector = cv2.FaceDetectorYN_create(model_file, "", (320, 320), 0.75, 0.3, 5000)
@@ -138,39 +149,60 @@ def detect_faces(path: Path, duration: float) -> tuple[str, list[FaceSample]]:
         if not cap.isOpened():
             return "unavailable", []
         samples: list[FaceSample] = []
-        try:
-            for second in range(min(math.ceil(duration), MAX_FACE_SAMPLES)):
-                cap.set(cv2.CAP_PROP_POS_MSEC, second * 1000)
-                ok, frame = cap.read()
-                if not ok:
-                    continue
-                height, width = frame.shape[:2]
-                if width <= 0 or height <= 0:
-                    continue
-                detector.setInputSize((width, height))
-                _, faces = detector.detect(frame)
-                if faces is None:
-                    continue
-                # Largest reliable face, with normalized frame coordinates.
-                ordered = sorted(faces, key=lambda face: float(face[2] * face[3]), reverse=True)
-                face = ordered[0]
-                confidence = float(face[-1])
-                if confidence < 0.75:
-                    continue
-                x, y, w, h = [float(value) for value in face[:4]]
-                left, top = max(0, x) / width, max(0, y) / height
-                right, bottom = min(width, x + w) / width, min(height, y + h) / height
-                if right <= left or bottom <= top:
-                    continue
-                samples.append(FaceSample(
-                    time=float(second), confidence=min(1.0, max(0.0, confidence)),
-                    box=BoundingBox(x=left, y=top, width=right - left, height=bottom - top),
-                ))
-        finally:
-            cap.release()
-        return ("complete" if samples else "no_faces"), samples
-    except (ImportError, OSError, RuntimeError, AttributeError, ValueError):
+        for second in range(min(math.ceil(duration), MAX_FACE_SAMPLES)):
+            inspected += 1
+            cap.set(cv2.CAP_PROP_POS_MSEC, second * 1000)
+            ok, frame = cap.read()
+            if not ok:
+                continue
+            height, width = frame.shape[:2]
+            if width <= 0 or height <= 0:
+                continue
+            decoded += 1
+            # 1080x1920 original => 360x640 inference, reducing CPU cost.
+            scale = min(1.0, 640.0 / max(width, height))
+            detection_width = max(1, round(width * scale))
+            detection_height = max(1, round(height * scale))
+            if scale < 1.0:
+                frame = cv2.resize(frame, (detection_width, detection_height), interpolation=cv2.INTER_AREA)
+            detector.setInputSize((detection_width, detection_height))
+            _, faces = detector.detect(frame)
+            if faces is None or len(faces) == 0:
+                continue
+            # Choose the largest confident face, not necessarily the same
+            # person across frames. Coordinates are normalized to full frame.
+            valid = [face for face in faces if float(face[-1]) >= 0.75]
+            if not valid:
+                continue
+            face = max(valid, key=lambda item: float(item[2] * item[3]))
+            confidence = float(face[-1])
+            x, y, w, h = [float(value) for value in face[:4]]
+            left = max(0.0, min(1.0, x / detection_width))
+            top = max(0.0, min(1.0, y / detection_height))
+            right = max(0.0, min(1.0, (x + w) / detection_width))
+            bottom = max(0.0, min(1.0, (y + h) / detection_height))
+            if right <= left or bottom <= top:
+                continue
+            samples.append(FaceSample(
+                time=float(second), confidence=min(1.0, max(0.0, confidence)),
+                box=BoundingBox(x=left, y=top, width=right - left, height=bottom - top),
+            ))
+        status = "unavailable" if decoded == 0 else ("complete" if samples else "no_faces")
+        logger.info("editor_yunet_face_detection_complete", extra={
+            "status": status, "frames_attempted": inspected,
+            "frames_decoded": decoded, "faces_sampled": len(samples),
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+        })
+        return status, samples
+    except (ImportError, OSError, RuntimeError, AttributeError, ValueError, cv2.error if 'cv2' in locals() else RuntimeError) as exc:
+        logger.warning("editor_yunet_face_detection_failed", extra={
+            "reason": type(exc).__name__,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+        })
         return "unavailable", []
+    finally:
+        if cap is not None:
+            cap.release()
 
 
 def normalize_transcript(payload: dict | None, duration: float) -> SpeechEvidence:
