@@ -37,7 +37,7 @@ def test_report_no_face_model_is_explicit(monkeypatch, tmp_path):
         media_id=media_id, duration_seconds=3, width=1080, height=1920,
         fps=30, aspect_ratio="9:16", has_audio=True,
     ))
-    monkeypatch.setattr(analysis, "measure_silences", lambda path, duration: [Interval(start=1, end=2)])
+    monkeypatch.setattr(analysis, "measure_silences", lambda path, duration, **kwargs: [Interval(start=1, end=2)])
     monkeypatch.setattr(analysis, "scene_changes", lambda path, duration: [1.5])
     report = analysis.build_video_analysis_report(
         tmp_path / "source.mp4", "testid", transcript={
@@ -67,7 +67,7 @@ def test_v2_report_flags_speech_silence_disagreement(monkeypatch, tmp_path):
         fps=30, aspect_ratio="9:16", has_audio=True,
     ))
     # Starts within the word "Have" and conflicts with its timing.
-    monkeypatch.setattr(analysis, "measure_silences", lambda path, duration: [
+    monkeypatch.setattr(analysis, "measure_silences", lambda path, duration, **kwargs: [
         Interval(start=0, end=0.95),
         Interval(start=3.0, end=4.0),
     ])
