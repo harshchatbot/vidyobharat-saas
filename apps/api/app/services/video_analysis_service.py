@@ -194,7 +194,7 @@ def detect_faces(path: Path, duration: float) -> tuple[str, list[FaceSample]]:
             "elapsed_seconds": round(time.monotonic() - started, 3),
         })
         return status, samples
-    except (ImportError, OSError, RuntimeError, AttributeError, ValueError, cv2.error if 'cv2' in locals() else RuntimeError) as exc:
+    except Exception as exc:  # Optional CV backend must fail closed on model or decoder errors.
         logger.warning("editor_yunet_face_detection_failed", extra={
             "reason": type(exc).__name__,
             "elapsed_seconds": round(time.monotonic() - started, 3),
