@@ -85,7 +85,7 @@ function firebaseRestUrl(path: string) {
 
   const emulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
 
-  if (emulatorUrl) {
+  if (emulatorUrl && process.env.NEXT_PUBLIC_USE_FIREBASE_AUTH_EMULATOR === 'true') {
     return `${emulatorUrl.replace(/\/$/, "")}/identitytoolkit.googleapis.com/v1/${path}?key=${FIREBASE_API_KEY}`;
   }
 
@@ -118,7 +118,18 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
 
 export async function signInWithPassword(email: string, password: string): Promise<FirebaseAuthSession> {
   const auth = await waitForFirebaseAuth();
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+  let credential;
+  try {
+    credential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    if (error instanceof Error && /auth\\/network-request-failed/.test(error.message)) {
+      const emulatorNote = process.env.NEXT_PUBLIC_USE_FIREBASE_AUTH_EMULATOR === 'true'
+        ? ' Firebase Auth emulator is enabled; ensure it is running.'
+        : '';
+      throw new Error('Firebase Auth network request failed. Check browser Network tab for identitytoolkit.googleapis.com, Firebase API key restrictions and authorized domains (localhost).'+emulatorNote);
+    }
+    throw error;
+  }
   const idToken = await credential.user.getIdToken();
   return {
     idToken,
