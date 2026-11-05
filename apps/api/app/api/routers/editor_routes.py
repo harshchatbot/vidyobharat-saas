@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
+import httpx
 import tempfile
 from pathlib import Path
 from itertools import chain
@@ -337,18 +340,50 @@ async def transcribe_guest_video(
         from app.services.editor_transcription import transcribe_video_bytes
         from app.services.guest_media_storage import GuestMediaObjectMissing
         try:
+            stt_url = os.getenv("RANGMANCH_STT_URL", "").strip()
             def load_transcription_source() -> bytes:
-                # Source ownership was validated by get_media/content_range.
-                # Reuse single-transfer download instead of hundreds of 1 MiB
-                # requests before invoking speech recognition.
+                # Request ownership was checked above; never send Firebase credentials
+                # or guest sessions to the STT process.
                 with tempfile.TemporaryDirectory(prefix='rangmanch-stt-source-') as temp_dir:
                     destination = Path(temp_dir) / 'source.video'
                     media_service.storage.download_to_path(
                         media['storage_object_path'], destination, expected_size=size,
                     )
-                    return destination.read_bytes()
+                    if not stt_url:
+                        return destination.read_bytes()  # existing local development path
+                    audio = Path(temp_dir) / 'speech.wav'
+                    try:
+                        subprocess.run(
+                            ['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+                             '-y', '-i', str(destination), '-t', '65', '-vn',
+                             '-ac', '1', '-ar', '16000', str(audio)],
+                            check=True, timeout=45, capture_output=True,
+                        )
+                    except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
+                        raise ValueError('Unable to decode audio from this recording.') from exc
+                    if audio.stat().st_size > 4 * 1024 * 1024:
+                        raise ValueError('Recording audio exceeds transcription limit.')
+                    return audio.read_bytes()
 
             data = await run_in_threadpool(load_transcription_source)
+            if stt_url:
+                token = os.getenv('RANGMANCH_STT_TOKEN', '')
+                if not token:
+                    raise HTTPException(status_code=503, detail='Speech recognition is not configured.')
+                try:
+                    async with httpx.AsyncClient(timeout=httpx.Timeout(265.0, connect=5.0), trust_env=False) as client:
+                        result = await client.post(
+                            stt_url.rstrip('/') + '/transcribe',
+                            content=data,
+                            headers={'X-RangManch-STT-Token': token, 'Content-Type': 'audio/wav'},
+                        )
+                    if result.status_code == 422:
+                        raise HTTPException(status_code=422, detail='Unable to transcribe this audio.')
+                    if result.status_code != 200:
+                        raise HTTPException(status_code=503, detail='Speech recognition is temporarily unavailable.')
+                    return result.json()
+                except (httpx.RequestError, ValueError) as exc:
+                    raise HTTPException(status_code=503, detail='Speech recognition service unavailable.') from exc
             try:
                 return await asyncio.wait_for(
                     run_in_threadpool(transcribe_video_bytes, data),
