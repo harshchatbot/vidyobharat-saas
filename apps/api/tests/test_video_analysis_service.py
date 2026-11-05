@@ -131,3 +131,56 @@ def test_no_audio_does_not_offer_cut_candidates(monkeypatch, tmp_path):
     assert report.speech.status == "no_speech"
     assert report.audio.safe_cut_candidates == []
     assert report.audio.timing_quality.status == "unavailable"
+
+
+def test_segmenter_avoids_artificial_twenty_word_split():
+    from app.services.video_analysis_timing import semantic_segments
+    # Earlier V2 broke off "books and" simply because it reached 20 words.
+    texts = ["Well", "here's", "the", "interesting", "part", "ChatGPT",
+             "doesn't", "think", "exactly", "like", "a", "human", "it",
+             "learns", "patterns", "from", "enormous", "amounts", "of",
+             "books", "and", "from", "different", "sources", "of", "information."]
+    words = [Word(text=text, start=i * 0.20, end=i * 0.20 + 0.18)
+             for i, text in enumerate(texts)]
+    grouped = semantic_segments(words, [])
+    assert len(grouped) == 1
+    assert grouped[0].word_end_index == len(words) - 1
+    assert grouped[0].text.endswith("books and from different sources of information.")
+
+
+def test_native_utterances_are_hints_without_stranding_connectors():
+    from app.services.video_analysis_timing import semantic_segments
+    words = [
+        Word(text=text, start=i * 0.20, end=i * 0.20 + 0.18)
+        for i, text in enumerate(["Well", "here's", "the", "interesting", "part",
+                                   "ChatGPT", "doesn't", "think", "like", "us."])
+    ]
+    native = [
+        {"word_start_index": 0, "word_end_index": 4},
+        {"word_start_index": 5, "word_end_index": 9},
+    ]
+    grouped = semantic_segments(words, [], native)
+    assert [s.text for s in grouped] == [
+        "Well here's the interesting part",
+        "ChatGPT doesn't think like us.",
+    ]
+
+    dangling = [
+        {"word_start_index": 0, "word_end_index": 5},
+        {"word_start_index": 6, "word_end_index": 9},
+    ]
+    grouped = semantic_segments(words, [], dangling)
+    # A native model split after 'ChatGPT' is allowed but never a hard cut.
+    assert all(segment.word_end_index >= segment.word_start_index for segment in grouped)
+
+
+def test_invalid_native_boundaries_cannot_corrupt_word_indices():
+    from app.services.video_analysis_timing import semantic_segments
+    words = [Word(text="Hello", start=0, end=0.2),
+             Word(text="world.", start=0.2, end=0.5)]
+    for hints in ([{"word_start_index": 3, "word_end_index": 900}],
+                  [{"word_start_index": True, "word_end_index": 1}],
+                  [{"word_start_index": 1, "word_end_index": 0}]):
+        grouped = semantic_segments(words, [], hints)
+        assert grouped[0].word_start_index == 0
+        assert grouped[-1].word_end_index == 1
