@@ -55,12 +55,12 @@ class VisualAssetEdit(BaseModel):
     evidence_reference: str = Field(default="", max_length=600)
     attribution: str = Field(default="", max_length=600)
     redistribution_confirmed: bool = False
+    details: dict = Field(default_factory=dict)
 
 
 class VisualAssetCreate(VisualAssetEdit):
     type: Literal["lut", "emoji"]
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
-    details: dict = Field(default_factory=dict)
 
 
 class VisualAssetRepository:
