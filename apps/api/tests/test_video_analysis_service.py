@@ -247,3 +247,92 @@ def test_media_stream_delete_race_is_handled_after_headers(caplog):
         b"first", b"second",
     ]
     assert "editor_media_stream_source_removed" in caplog.text
+
+
+
+def test_yunet_sampling_resizes_and_normalizes_face(monkeypatch, tmp_path):
+    """Portrait input scales to 360x640 while resulting boxes remain 0..1."""
+    import sys
+    from types import SimpleNamespace
+
+    model = tmp_path / "yunet.onnx"
+    model.write_bytes(b"fixture-model-path")
+    monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
+    calls = {"seek": [], "sizes": [], "released": False}
+
+    class Frame:
+        shape = (1920, 1080, 3)
+
+    class Resized:
+        shape = (640, 360, 3)
+
+    class Capture:
+        def isOpened(self):
+            return True
+        def set(self, _property, time_ms):
+            calls["seek"].append(time_ms)
+        def read(self):
+            return True, Frame()
+        def release(self):
+            calls["released"] = True
+
+    class Detector:
+        def setInputSize(self, size):
+            calls["sizes"].append(size)
+        def detect(self, _frame):
+            # Box at x=90,y=160,width=180,height=320 on 360x640.
+            return None, [[90, 160, 180, 320, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.99]]
+
+    fake_cv2 = SimpleNamespace(
+        FaceDetectorYN_create=lambda *_args: Detector(),
+        VideoCapture=lambda _path: Capture(),
+        CAP_PROP_POS_MSEC=0,
+        INTER_AREA=3,
+        resize=lambda _frame, _size, interpolation: Resized(),
+    )
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2.1)
+
+    assert status == "complete"
+    assert calls["seek"] == [0, 1000, 2000]
+    assert calls["sizes"] == [(360, 640)] * 3
+    assert calls["released"]
+    assert len(samples) == 3
+    assert samples[0].box.x == pytest.approx(0.25)
+    assert samples[0].box.y == pytest.approx(0.25)
+    assert samples[0].box.width == pytest.approx(0.5)
+    assert samples[0].box.height == pytest.approx(0.5)
+
+
+def test_yunet_no_detection_is_not_unavailable(monkeypatch, tmp_path):
+    import sys
+    from types import SimpleNamespace
+
+    model = tmp_path / "yunet.onnx"
+    model.write_bytes(b"fixture")
+    monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
+
+    class Capture:
+        def isOpened(self):
+            return True
+        def set(self, *_args):
+            pass
+        def read(self):
+            return True, SimpleNamespace(shape=(320, 240, 3))
+        def release(self):
+            pass
+
+    class Detector:
+        def setInputSize(self, _size):
+            pass
+        def detect(self, _frame):
+            return None, None
+
+    fake_cv2 = SimpleNamespace(
+        FaceDetectorYN_create=lambda *_args: Detector(),
+        VideoCapture=lambda _path: Capture(),
+        CAP_PROP_POS_MSEC=0,
+    )
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2)
+    assert (status, samples) == ("no_faces", [])
