@@ -184,3 +184,23 @@ def test_invalid_native_boundaries_cannot_corrupt_word_indices():
         grouped = semantic_segments(words, [], hints)
         assert grouped[0].word_start_index == 0
         assert grouped[-1].word_end_index == 1
+
+
+def test_analysis_cache_is_bounded_isolated_and_returns_copies(monkeypatch):
+    from app.api.routers import editor_routes
+    import time
+    with editor_routes._analysis_cache_lock:
+        editor_routes._analysis_cache.clear()
+    key = ("guest/a/media-file", 100, "elegant", "v2-utterance-20261105")
+    different = ("guest/b/media-file", 100, "elegant", "v2-utterance-20261105")
+    editor_routes._store_analysis_cache(key, {"warnings": ["first"]})
+    saved = editor_routes._analysis_from_cache(key)
+    assert saved == {"warnings": ["first"]}
+    saved["warnings"].append("mutated")
+    assert editor_routes._analysis_from_cache(key) == {"warnings": ["first"]}
+    assert editor_routes._analysis_from_cache(different) is None
+    with editor_routes._analysis_cache_lock:
+        editor_routes._analysis_cache[key] = (time.monotonic() - 1, {"warnings": []})
+    assert editor_routes._analysis_from_cache(key) is None
+    with editor_routes._analysis_cache_lock:
+        editor_routes._analysis_cache.clear()
