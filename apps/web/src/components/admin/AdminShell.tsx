@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, FileSliders, LayoutTemplate, LogOut, Users, Music2, UserRoundCheck } from 'lucide-react';
+import { BarChart3, FileSliders, LayoutTemplate, LogOut, Users, Music2, Images, UserRoundCheck } from 'lucide-react';
 
 const links = [
   { href: '/admin', label: 'Overview', icon: BarChart3 },
@@ -11,12 +12,45 @@ const links = [
   { href: '/admin/settings', label: 'Settings', icon: FileSliders },
   { href: '/admin/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/admin/audio-library', label: 'Audio library', icon: Music2 },
+  { href: '/admin/assets', label: 'Creative assets', icon: Images },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  if (pathname === '/admin/login') return <>{children}</>;
+  const isLogin = pathname === '/admin/login';
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'unavailable'>('checking');
+  const [message, setMessage] = useState('');
+  const verify = useCallback(async () => {
+    if (isLogin) return;
+    setAccess('checking');
+    try {
+      const response = await fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' });
+      if (response.ok) { setAccess('allowed'); setMessage(''); return; }
+      if (response.status === 401 || response.status === 403) {
+        router.replace('/admin/login?next=' + encodeURIComponent(pathname));
+        return;
+      }
+      setMessage('The admin authentication service is currently unavailable. Check your API connection.');
+      setAccess('unavailable');
+    } catch {
+      setMessage('Unable to reach the admin authentication service. Check your connection and try again.');
+      setAccess('unavailable');
+    }
+  }, [isLogin, pathname, router]);
+  useEffect(() => { void verify(); }, [verify]);
+  if (isLogin) return <>{children}</>;
+  if (access !== 'allowed') {
+    return <div className="admin-studio grid min-h-[60vh] place-items-center bg-[#fff9ed] px-5 text-[#292034]">
+      <section className="admin-card w-full max-w-lg space-y-4 p-6" role="status">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#73518f]">RangManch Admin Studio</p>
+        <h2 className="text-xl font-bold">{access === 'checking' ? 'Verifying admin access…' : 'Admin service unavailable'}</h2>
+        {access === 'unavailable' && <><p className="text-sm text-[#64556e]">{message}</p>
+          <button type="button" onClick={() => void verify()}
+            className="rounded-xl border-2 border-[#40324b] bg-[#ffdb77] px-4 py-2 font-semibold text-[#292034]">Try again</button></>}
+      </section>
+    </div>;
+  }
   async function logout() {
     await fetch('/api/admin/session', {
       method: 'DELETE', headers: { 'X-RangManch-Admin-CSRF': '1' }, cache: 'no-store',
