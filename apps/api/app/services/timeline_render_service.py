@@ -528,7 +528,18 @@ class TimelineRenderService:
                 font_file=font_file,
                 max_height=composition.height - 2 * safe_margin - 2 * pad,
             )
-            layer_width = min(max_layer_width, 2 * math.ceil((text_width + 2 * pad) / 2))
+            # Static, unrotated captions use a full-frame transparent layer.
+            # This avoids clipping when FFmpeg rasterizes wider glyphs than
+            # Pillow measured (notably after font fallback and shaping).
+            full_frame_caption = (
+                abs(overlay.rotation_degrees) < 1e-9
+                and overlay.in_animation.value != 'pop-in'
+                and overlay.loop_animation.value != 'pulse'
+            )
+            layer_width = (
+                composition.width if full_frame_caption
+                else min(max_layer_width, 2 * math.ceil((text_width + 2 * pad) / 2))
+            )
             layer_height = 2 * math.ceil((text_height + 2 * pad) / 2)
             text_path.write_text(wrapped, encoding='utf-8')
             layer_label = f'textlayer{filter_index}'
@@ -546,6 +557,19 @@ class TimelineRenderService:
                 if overlay.shadow
                 else 'shadowcolor=black@0:shadowx=0:shadowy=0'
             )
+            if full_frame_caption:
+                # Position text in frame coordinates, not inside a tight box.
+                # Clamp using FFmpeg's actual rendered text_w.
+                alignment_x = (
+                    f'min(max({safe_margin},w*{overlay.x:.10f}-text_w/2),'
+                    f'max({safe_margin},w-text_w-{safe_margin}))'
+                )
+            else:
+                alignment_x = (
+                    alignment_x if overlay.alignment.value == 'center'
+                    else str(pad) if overlay.alignment.value == 'left'
+                    else 'w-text_w-' + str(pad)
+                )
             filters.append(
                 f'nullsrc=s={layer_width}x{layer_height}:r={composition.fps}:d='
                 f'{format_seconds(composition_duration(composition))},format=rgba,'
@@ -555,7 +579,7 @@ class TimelineRenderService:
                 f'borderw={overlay.outline_width}:bordercolor={overlay.outline_color}:'
                 f'{shadow_options}:box={1 if overlay.background_opacity > 0 else 0}:'
                 f'boxcolor={background}:boxborderw=8:expansion=none:'
-                f'x={alignment_x if overlay.alignment.value == "center" else (str(pad) if overlay.alignment.value == "left" else "w-text_w-" + str(pad))}:y=(h-text_h)/2[{layer_label}]'
+                f'x={alignment_x}:y=(h-text_h)/2[{layer_label}]'
             )
             animated_label = layer_label
             animation_filters: list[str] = []
@@ -586,10 +610,13 @@ class TimelineRenderService:
             if animation_filters:
                 animated_label = f'textanim{filter_index}'
                 filters.append(f'[{layer_label}]' + ','.join(animation_filters) + f'[{animated_label}]')
-            filters.append(
-                f'[{animated_label}]rotate=angle={math.radians(overlay.rotation_degrees):.10f}:'
-                f'ow=rotw(iw):oh=roth(ih):c=none[{rotated_label}]'
-            )
+            if abs(overlay.rotation_degrees) < 1e-9:
+                filters.append(f'[{animated_label}]null[{rotated_label}]')
+            else:
+                filters.append(
+                    f'[{animated_label}]rotate=angle={math.radians(overlay.rotation_degrees):.10f}:'
+                    f'ow=rotw(iw):oh=roth(ih):c=none[{rotated_label}]'
+                )
             y_offsets: list[str] = []
             if overlay.in_animation.value == 'slide-up':
                 y_offsets.append(
@@ -606,7 +633,7 @@ class TimelineRenderService:
                 y_expression += '+' + '+'.join(f'({offset})' for offset in y_offsets)
             filters.append(
                 f'[{video_label}][{rotated_label}]overlay='
-                f"x='min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))':"
+                f"x='{'0' if full_frame_caption else f'min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))'}':"
                 f"y='min(max(0,{y_expression}),max(0,H-h))':"
                 f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
                 f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
