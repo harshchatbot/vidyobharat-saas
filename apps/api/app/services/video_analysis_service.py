@@ -18,7 +18,7 @@ from app.schemas.video_analysis import (
     MediaInfo, SpeechEvidence, StylePreset, VideoAnalysisReport, VisualEvidence, Word,
 )
 
-from app.services.video_analysis_timing import assess_timing, semantic_segments, safe_cut_candidates
+from app.services.video_analysis_timing import assess_timing, semantic_segments, safe_cut_candidates, timing_conflicts
 
 MAX_ANALYSIS_SECONDS = 65
 MAX_FACE_SAMPLES = 65
@@ -256,6 +256,26 @@ def build_video_analysis_report(
         cuts, scene_status = [], "unavailable"
         warnings.append("Scene-change detection was unavailable.")
 
+    # Compare mode intentionally keeps original STT word times as authoritative.
+    # A valid forced-alignment candidate is evidence for manual A/B inspection,
+    # NOT proof that the new boundaries match the actual recording.
+    alignment_mode = os.getenv("RANGMANCH_WHISPER_ALIGNMENT_MODE", "off").strip().lower()
+    if alignment_mode == "compare" and speech.status == "complete" and speech.words:
+        from app.services.video_whisper_alignment import forced_align
+        aligned, reason, elapsed = forced_align(path, speech.words, speech.language or "en", media.duration_seconds)
+        speech.alignment_status = "candidate_available" if aligned else ("unavailable" if reason in ("ImportError", "RuntimeError", "FileNotFoundError") else "rejected")
+        if aligned:
+            speech.aligned_words_candidate = aligned
+            original_issues = len(timing_conflicts(speech.words, silences))
+            proposed_issues = len(timing_conflicts(aligned, silences))
+            speech.alignment_notes = [
+                f"Original -35dB conflicts: {original_issues}; candidate: {proposed_issues}.",
+                "Conflict count alone does not establish alignment accuracy; verify against audio before adopting.",
+                f"Forced alignment duration: {round(elapsed, 3)} seconds.",
+            ]
+        else:
+            speech.alignment_notes = [f"Alignment candidate rejected/unavailable: {reason}."]
+            warnings.append("Optional Whisper forced alignment did not provide a usable candidate; original timings retained.")
     # Preserve raw words; annotate disagreements rather than shifting Whisper
     # timestamps onto low-energy audio regions.
     quality = assess_timing(speech.words, silences, audio_status == "complete", media.duration_seconds)
