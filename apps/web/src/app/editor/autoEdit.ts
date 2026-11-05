@@ -1,6 +1,6 @@
 import { catalogMediaId, type AudioLibraryEntry } from './audioLibrary.ts';
 import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
-import { captionPlacement, centeredZoomAllowed, sourceAtTimeline, type FaceGuidance } from './faceAwarePlanning.ts';
+import { captionPlacement, centeredZoomAllowedForInterval, sourceAtTimeline, type FaceGuidance } from './faceAwarePlanning.ts';
 import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 
 import { createBasicText } from './timeline/textTemplates.ts';
@@ -410,8 +410,7 @@ function buildVideoAutoEditPlan(
     if (startTime + 0.5 >= editedDuration) continue;
     const duration = Math.min(options.style === 'energetic' ? 1.5 : 2.5, editedDuration - startTime);
     if (options.faceGuidance) {
-      const midpoint = sourceAtTimeline(startTime + duration / 2, segments);
-      if (midpoint === null || !centeredZoomAllowed(midpoint, options.faceGuidance)) {
+      if (!centeredZoomAllowedForInterval(startTime, duration, segments, options.faceGuidance)) {
         guardedZooms++;
         continue;
       }
