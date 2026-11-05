@@ -6,7 +6,7 @@ import pytest
 
 from app.services.video_creative_context import build_creative_context
 from app.services.video_creative_director import (
-    fallback_plan, generate_gemini_plan, validate_plan,
+    fallback_plan, generate_gemini_plan, generate_openai_plan, validate_plan,
 )
 from test_video_creative_context import fixture_report
 
@@ -102,4 +102,63 @@ def test_gemini_malicious_response_is_rejected():
             with pytest.raises(ValueError, match="mismatched"):
                 await generate_gemini_plan(c, api_key="test-secret", model="gemini-3.8-flash", client=client)
 
+    asyncio.run(scenario())
+
+def test_openai_mock_structured_output_uses_same_validator():
+    async def scenario():
+        c = context()
+        raw = fallback_plan(c).model_dump(mode="json")
+        # Under strict mode every nullable field is returned even when null.
+        for action in raw["actions"]:
+            for field in ("treatment", "asset_query", "scale", "x", "y", "width"):
+                action.setdefault(field, None)
+
+        def handler(request: httpx.Request):
+            assert request.url.path == "/v1/chat/completions"
+            assert request.headers["Authorization"] == "Bearer mock-key"
+            payload = json.loads(request.content)
+            assert payload["response_format"]["json_schema"]["strict"] is True
+            schema = payload["response_format"]["json_schema"]["schema"]
+            assert schema["additionalProperties"] is False
+            assert set(schema["properties"]["actions"]["items"]["required"]) == set(
+                schema["properties"]["actions"]["items"]["properties"]
+            )
+            assert payload["messages"][0]["role"] == "system"
+            assert payload["messages"][1]["role"] == "user"
+            return httpx.Response(200, json={
+                "choices": [{"finish_reason": "stop", "message": {
+                    "content": json.dumps(raw), "refusal": None,
+                }}],
+            })
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            plan = await generate_openai_plan(c, api_key="mock-key", client=client)
+        assert len(plan.actions) == len(c.phrases)
+    asyncio.run(scenario())
+
+
+def test_openai_rejects_unverified_action_and_truncated_response():
+    async def scenario():
+        c = context()
+        raw = fallback_plan(c).model_dump(mode="json")
+        raw["actions"][0]["y"] = 0.9
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json={
+                "choices": [{"finish_reason": "stop", "message": {
+                    "content": json.dumps(raw),
+                }}],
+            })
+        )) as client:
+            with pytest.raises(ValueError, match="face-safe"):
+                await generate_openai_plan(c, api_key="mock-key", client=client)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json={
+                "choices": [{"finish_reason": "length", "message": {
+                    "content": json.dumps(raw),
+                }}],
+            })
+        )) as client:
+            with pytest.raises(ValueError, match="truncated"):
+                await generate_openai_plan(c, api_key="mock-key", client=client)
     asyncio.run(scenario())
