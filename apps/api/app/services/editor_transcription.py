@@ -96,13 +96,26 @@ def transcribe_video_bytes(data: bytes) -> dict:
             condition_on_previous_text=False,
         )
         words = []
+        utterances = []
         for segment in segments:
+            first_word_index = len(words)
             for word in segment.words or []:
                 start, end = float(word.start), float(word.end)
                 if 0 <= start < end <= 65 and word.word.strip():
                     words.append({"text": word.word.strip(), "start": start, "end": end})
                 if len(words) >= 1000:
                     break
+            if len(words) > first_word_index:
+                # Keep source model's native grouping as a *hint*, never as
+                # frame-accurate cut evidence. Indices refer to returned words.
+                utterances.append({
+                    "start": words[first_word_index]["start"],
+                    "end": words[-1]["end"],
+                    "word_start_index": first_word_index,
+                    "word_end_index": len(words) - 1,
+                })
             if len(words) >= 1000:
                 break
-        return _store_transcript(content_hash, {"language": info.language, "words": words})
+        return _store_transcript(content_hash, {
+            "language": info.language, "words": words, "utterances": utterances,
+        })
