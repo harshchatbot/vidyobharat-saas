@@ -404,155 +404,39 @@ async def transcribe_guest_video(
         return _guest_error(exc)
 
 
-
 @router.post('/media/{media_id}/analyze')
 async def analyze_guest_video(
     media_id: str,
     request: Request,
-    style: str = Query(default='elegant', pattern='^(elegant|energetic|cinematic)
-def delete_guest_media(
-    media_id: str,
-    request: Request,
+    style: str = Query(default='elegant', pattern=r'^(elegant|energetic|cinematic)$'),
     session_service: GuestSessionService = Depends(get_guest_session_service),
     media_service: GuestMediaService = Depends(get_guest_media_service),
 ):
-    try:
-        token = _guest_token(request, session_service)
-        media_service.delete_media(request, token, media_id)
-        return Response(status_code=204)
-    except GuestSessionError as exc:
-        return _guest_error(exc)
-
-
-@router.post('/exports', response_model=GuestExportResponse, status_code=202)
-async def submit_guest_export(
-    composition: TimelineComposition,
-    request: Request,
-    idempotency_key: str | None = Header(default=None, alias='Idempotency-Key'),
-    session_service: GuestSessionService = Depends(get_guest_session_service),
-    export_service: GuestExportService = Depends(get_guest_export_service),
-):
-    try:
-        job, _ = await run_in_threadpool(
-            export_service.submit,
-            request,
-            _guest_token(request, session_service),
-            composition,
-            idempotency_key,
-        )
-        return export_service.public_payload(job)
-    except GuestSessionError as exc:
-        return _guest_error(exc)
-
-
-@router.get('/exports', response_model=GuestExportListResponse)
-def list_guest_exports(
-    request: Request,
-    session_service: GuestSessionService = Depends(get_guest_session_service),
-    export_service: GuestExportService = Depends(get_guest_export_service),
-):
-    try:
-        jobs = export_service.list_jobs(_guest_token(request, session_service))
-        return {'items': [export_service.public_payload(job) for job in jobs]}
-    except GuestSessionError as exc:
-        return _guest_error(exc)
-
-
-@router.get('/exports/{job_id}', response_model=GuestExportResponse)
-def get_guest_export(
-    job_id: str,
-    request: Request,
-    session_service: GuestSessionService = Depends(get_guest_session_service),
-    export_service: GuestExportService = Depends(get_guest_export_service),
-):
-    try:
-        job = export_service.get_job(_guest_token(request, session_service), job_id)
-        return export_service.public_payload(job)
-    except GuestSessionError as exc:
-        return _guest_error(exc)
-
-
-@router.get('/exports/{job_id}/content')
-def get_guest_export_content(
-    job_id: str,
-    request: Request,
-    session_service: GuestSessionService = Depends(get_guest_session_service),
-    export_service: GuestExportService = Depends(get_guest_export_service),
-):
-    try:
-        job, start, end, size = export_service.content_range(
-            _guest_token(request, session_service),
-            job_id,
-            request.headers.get('range'),
-        )
-        filename = str((job.get('output') or {}).get('filename') or f'rangmanch-{job_id}.mp4')
-        headers = {
-            'Accept-Ranges': 'bytes',
-            'Content-Length': str(end - start + 1),
-            'Cache-Control': 'private,no-store,max-age=0',
-            'Content-Disposition': f'attachment; filename="{filename}"',
-        }
-        status_code = 200
-        if request.headers.get('range'):
-            status_code = 206
-            headers['Content-Range'] = f'bytes {start}-{end}/{size}'
-        content = export_service.storage.iter_content(job['storage_object_path'], start=start, end=end)
-        try:
-            first_chunk = next(content)
-        except Exception as exc:
-            raise GuestSessionError(
-                'guest_export_storage_unavailable',
-                'The export content is temporarily unavailable.',
-                status_code=503,
-                recoverable=True,
-            ) from exc
-        return StreamingResponse(
-            chain((first_chunk,), content),
-            media_type='video/mp4',
-            status_code=status_code,
-            headers=headers,
-        )
-    except GuestSessionError as exc:
-        return _guest_error(exc)
-),
-    session_service: GuestSessionService = Depends(get_guest_session_service),
-    media_service: GuestMediaService = Depends(get_guest_media_service),
-):
-    """Generate structured video evidence, without a creative AI model.
-
-    Protected by the same guest cookie and mutation CSRF checks as transcription.
-    The source is downloaded once for visual/audio analysis; the established
-    transcription endpoint supplies the word-timed speech evidence.
-    """
-    from app.schemas.video_analysis import VideoAnalysisReport
+    """Owner-scoped video analysis; analysis does not modify the source."""
     from app.services.video_analysis_service import build_video_analysis_report
 
     try:
-        guest_token = _guest_token(request, session_service)
+        token = _guest_token(request, session_service)
         session_service.validate_mutating_request(request)
-        media = media_service.get_media(guest_token, media_id)
+        media = media_service.get_media(token, media_id)
         if media.get('media_type') != 'video':
             raise HTTPException(status_code=422, detail='Only video recordings can be analyzed.')
-        _, _, _, size = media_service.content_range(guest_token, media_id, None)
+        _, _, _, size = media_service.content_range(token, media_id, None)
         if size > 100 * 1024 * 1024:
             raise HTTPException(status_code=413, detail='Recording exceeds the 100 MB analysis limit.')
 
         transcript = None
         transcript_warning = None
-        # Reuse the existing guest-owned Faster-Whisper integration. Speech
-        # failure does not produce fabricated words or block visual analysis.
         try:
             result = await transcribe_guest_video(media_id, request, session_service, media_service)
             if isinstance(result, dict):
                 transcript = result
             else:
                 transcript_warning = 'Speech recognition returned no usable transcript.'
-        except HTTPException:
-            transcript_warning = 'Speech recognition unavailable for this recording.'
-        except (OSError, RuntimeError, ValueError):
+        except (HTTPException, OSError, RuntimeError, ValueError):
             transcript_warning = 'Speech recognition unavailable for this recording.'
 
-        def run_analysis() -> VideoAnalysisReport:
+        def run_analysis():
             with tempfile.TemporaryDirectory(prefix='rangmanch-analysis-') as temp_dir:
                 source = Path(temp_dir) / 'source.video'
                 media_service.storage.download_to_path(
