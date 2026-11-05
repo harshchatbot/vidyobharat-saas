@@ -480,7 +480,7 @@ async def analyze_guest_video(
         # reading the in-process cache. Cache contains analysis only, not media.
         cache_key = (
             media['storage_object_path'], size, style,
-            'v2-yunet-1fps-640-20261106',
+            'v2-face-creative-guidance-20261106',
             os.getenv('RANGMANCH_WHISPER_ALIGNMENT_MODE', 'off').strip().lower(),
             os.getenv('RANGMANCH_YUNET_MODEL_PATH', '').strip(),
         )
