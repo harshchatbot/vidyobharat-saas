@@ -181,6 +181,8 @@ class GuestTimelineService:
                     raise GuestTimelineMediaUnavailableError('A timeline source is unavailable or incomplete.')
             except GuestMediaObjectMissing as exc:
                 raise GuestTimelineMediaUnavailableError('A timeline source is unavailable.') from exc
+            except ValueError as exc:
+                raise TimelineValidationError(str(exc)) from exc
             except TimelineValidationError:
                 raise
             except Exception as exc:
@@ -235,6 +237,8 @@ class GuestTimelineService:
                 self.media_service.storage.download_to_path(object_name, destination, expected_size=size)
             except GuestMediaObjectMissing as exc:
                 raise GuestTimelineMediaUnavailableError('Sound-library audio is unavailable.') from exc
+            except ValueError as exc:
+                raise TimelineValidationError(str(exc)) from exc
             except TimelineValidationError:
                 raise
             except Exception as exc:
