@@ -456,80 +456,68 @@ p {
 }
 
 
-/* RangManch Admin Studio — shared light theme, independent of editor or public pages. */
-.admin-studio { background: #fcfaff; color: #30213e; }
+/* RangManch creative studio design language: warm cream, expressive pastel tiles,
+   ink outlines, soft lavender, and golden action accents. */
+.admin-studio {
+  --rm-ink: #292034; --rm-border: #d2bfd9; --rm-paper: #fffdf9;
+  --rm-cream: #fff9ed; --rm-lavender: #e9dcfa; --rm-yellow: #ffdb77;
+  background:
+    radial-gradient(circle at 97% 2%, #f9dce8a8, transparent 25rem),
+    radial-gradient(circle at 2% 90%, #e9dcfa9c, transparent 24rem),
+    var(--rm-cream);
+  color: var(--rm-ink);
+  font-family: Manrope, Arial, sans-serif;
+}
 .admin-studio .admin-card {
-  background: #ffffff;
-  color: #30213e;
-  border: 1px solid #e6ddec;
-  border-radius: 1rem;
-  box-shadow: 0 10px 25px rgba(54, 30, 74, 0.045);
+  background: var(--rm-paper); color: var(--rm-ink);
+  border: 1.5px solid var(--rm-border); border-radius: 1.25rem;
+  box-shadow: 4px 4px 0 #40324b15;
 }
 .admin-studio .admin-eyebrow {
-  color: #774b9b;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  color: #73518f; font-size: .75rem; font-weight: 800;
+  letter-spacing: .16em; text-transform: uppercase;
 }
 .admin-studio .admin-input {
-  color: #30213e;
-  background: #fff;
-  border: 1px solid #bfaece;
-  border-radius: 0.65rem;
-  min-height: 2.75rem;
-  padding: 0.65rem 0.85rem;
-}
-.admin-studio .admin-input:focus-visible,
-.admin-studio input:focus-visible,
-.admin-studio select:focus-visible,
-.admin-studio textarea:focus-visible,
-.admin-studio button:focus-visible,
-.admin-studio a:focus-visible {
-  outline: 2px solid #774b9b;
-  outline-offset: 2px;
+  color: var(--rm-ink); background: #fffdf9;
+  border: 1.5px solid #bca7ca; border-radius: .75rem;
+  min-height: 2.75rem; padding: .65rem .85rem;
 }
 .admin-studio .admin-secondary-button {
-  min-height: 2.75rem;
-  padding: 0.6rem 1rem;
-  border-radius: 0.65rem;
-  border: 1px solid #cbb7db;
-  background: white;
-  color: #473052;
-  font-size: 0.875rem;
-  font-weight: 650;
+  min-height: 2.75rem; padding: .6rem 1rem; border-radius: .75rem;
+  border: 1.5px solid #40324b; background: #fffdf9;
+  color: #292034; font-size: .875rem; font-weight: 800;
+  box-shadow: 2px 2px 0 #40324b;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
-.admin-studio .admin-secondary-button:hover { background: #f3eafb; }
-.admin-studio .admin-secondary-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.admin-studio select, .admin-studio textarea,
-.admin-studio input:not([type="checkbox"]):not([type="file"]):not([type="range"]):not([type="color"]) {
-  color: #30213e;
-  background-color: #fff;
+.admin-studio .admin-secondary-button:hover { background: #fff1b6; transform: translate(-1px,-1px); box-shadow: 3px 3px 0 #40324b; }
+.admin-studio .admin-secondary-button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.admin-studio :is(input,select,textarea):not([type="checkbox"]):not([type="file"]):not([type="range"]):not([type="color"]) {
+  color: #292034; background-color: #fffdf9; border-color: #cdbbd6;
 }
-.admin-studio ::placeholder { color: #746982; opacity: 1; }
-.admin-studio .admin-loading-bar { background: linear-gradient(90deg, #efe7f6, #f9f3fe, #efe7f6); background-size: 200% 100%; animation: admin-shimmer 1.5s ease-in-out infinite; }
+.admin-studio ::placeholder { color: #64556e; opacity: 1; }
+.admin-studio :is(input, select, textarea, button, a):focus-visible { outline: 2px solid #79549b; outline-offset: 2px; }
+.admin-studio .admin-loading-bar {
+  background: linear-gradient(90deg, #efdef8, #fff1ba, #f6dce6, #efdef8);
+  background-size: 200% 100%; animation: admin-shimmer 1.5s ease-in-out infinite;
+}
 @keyframes admin-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .admin-studio .admin-loading-bar { animation: none; } }
 
-
-/* Admin-only auth presentation; the normal creator login is unchanged. */
-.rm-admin-login { background: #fcfaff; color: #30213e; }
-.rm-admin-login > div > section:first-child { background: #f3ecfa; border-color: #e2d5ed; }
-.rm-admin-login .text-white\/60,
-.rm-admin-login .text-white\/70,
-.rm-admin-login .text-white\/55,
-.rm-admin-login .text-white\/45,
-.rm-admin-login .text-white\/35,
-.rm-admin-login .text-white\/30 { color: #685778; }
-.rm-admin-login .text-violet-300,
-.rm-admin-login .text-violet-200 { color: #6c418b; }
-.rm-admin-login button.bg-white\/\[0\.06\] { background: #fff; border-color: #cbb7db; color: #30213e; }
-.rm-admin-login button.bg-white\/\[0\.06\]:hover { background: #f7f0fd; }
-.rm-admin-login input[type="email"],
-.rm-admin-login input[type="password"],
-.rm-admin-login input[type="text"] { background: #fff; color: #30213e; border-color: #c4b2d2; }
-.rm-admin-login input::placeholder { color: #74677e; }
-.rm-admin-login button.bg-violet-400 { background: #714797; color: #fff; }
-.rm-admin-login button.bg-violet-400:hover { background: #593777; }
-.rm-admin-login a:hover { text-decoration: underline; }
-.rm-admin-login :is(button, a, input):focus-visible { outline: 2px solid #714797; outline-offset: 2px; }
+/* Match the editor's pastel creative direction on Admin sign-in only. */
+.rm-admin-login { background: #fff9ed; color: #292034; font-family: Manrope, Arial, sans-serif; }
+.rm-admin-login > div > section:first-child { background: #e9dcfa; border-color: #40324b; }
+.rm-admin-login .text-white\\/60,
+.rm-admin-login .text-white\\/70,
+.rm-admin-login .text-white\\/55,
+.rm-admin-login .text-white\\/45,
+.rm-admin-login .text-white\\/35,
+.rm-admin-login .text-white\\/30 { color: #51445e; }
+.rm-admin-login .text-violet-300, .rm-admin-login .text-violet-200 { color: #6c438a; }
+.rm-admin-login button.bg-white\\/\\[0\\.06\\] { background: #fffdf9; color: #292034; border: 2px solid #40324b; box-shadow: 3px 3px 0 #40324b; }
+.rm-admin-login input[type="email"], .rm-admin-login input[type="password"], .rm-admin-login input[type="text"] {
+  background: #fffdf9; color: #292034; border: 1.5px solid #40324b;
+}
+.rm-admin-login input::placeholder { color: #64556e; }
+.rm-admin-login button.bg-violet-400 { background: #ffdb77; color: #292034; border: 2px solid #40324b; box-shadow: 3px 3px 0 #40324b; }
+.rm-admin-login button.bg-violet-400:hover { background: #fff1b6; }
+.rm-admin-login :is(button,a,input):focus-visible { outline: 2px solid #79549b; outline-offset: 2px; }
