@@ -135,6 +135,122 @@ def _caption_lines(
     raise TimelineValidationError('Caption is too long to fit safely; shorten its text or increase its width.')
 
 
+
+def _ass_time(seconds: float) -> str:
+    centiseconds = max(0, round(seconds * 100))
+    hours, remainder = divmod(centiseconds, 360000)
+    minutes, remainder = divmod(remainder, 6000)
+    seconds_part, fraction = divmod(remainder, 100)
+    return f'{hours}:{minutes:02d}:{seconds_part:02d}.{fraction:02d}'
+
+
+def _ass_color(value: str) -> str:
+    return f'&H00{value[5:7]}{value[3:5]}{value[1:3]}&'
+
+
+def _ass_caption_text(wrapped: str, word_lengths: list[int], active: int) -> str:
+    """Color just the active word, keeping explicit wrapped lines intact."""
+    offsets: list[tuple[int, int]] = []
+    position = 0
+    for length in word_lengths:
+        offsets.append((position, position + length))
+        position += length
+    active_span = offsets[active] if 0 <= active < len(offsets) else None
+    result: list[str] = []
+    visible_position = 0
+    highlighted = False
+    for char in wrapped:
+        is_active = (
+            active_span is not None
+            and not char.isspace()
+            and active_span[0] <= visible_position < active_span[1]
+        )
+        if is_active != highlighted:
+            result.append(r'{\1c&H66E0FF&}' if is_active else r'{\1c&HFFFFFF&}')
+            highlighted = is_active
+        if char == '\n':
+            result.append(r'\N')
+        elif char in '{}\\':
+            # Avoid ASS override/control-character injection from caption text.
+            result.append({'{': '｛', '}': '｝', '\\': '＼'}[char])
+        else:
+            result.append(char)
+        if not char.isspace():
+            visible_position += 1
+    if highlighted:
+        result.append(r'{\1c&HFFFFFF&}')
+    return ''.join(result)
+
+
+def _write_timed_caption_ass(path: Path, composition: TimelineComposition, overlay: Any) -> None:
+    safe_margin = max(8, round(composition.width * 0.04))
+    pad = max(12, overlay.outline_width + 8)
+    width = min(round(composition.width * overlay.width), composition.width - 2 * safe_margin)
+    font_file = _resolve_font_file(overlay.font_family, overlay.bold)
+    wrapped, size, _, height = _caption_lines(
+        overlay.text, max(1, width - 2 * pad), overlay.font_size,
+        overlay.bold, font_file=font_file,
+        max_height=composition.height - 2 * safe_margin - 2 * pad,
+    )
+    # ASS centers the caption at its position; all positioning stays within
+    # the video-safe area for ordinary short-form subtitles.
+    x = min(max(round(overlay.x * composition.width), safe_margin + width // 2),
+            composition.width - safe_margin - width // 2)
+    y = min(max(round(overlay.y * composition.height), safe_margin + height // 2 + pad),
+            composition.height - safe_margin - height // 2 - pad)
+    font = overlay.font_family.replace(',', '').replace('{', '').replace('}', '')
+    style = (
+        r'{\an5\q2'
+        + fr'\pos({x},{y})\fs{size}\fn{font}'
+        + fr'\bord{overlay.outline_width}\shad{2 if overlay.shadow else 0}'
+        + r'}'
+    )
+    duration = overlay.duration_seconds
+    # Include gaps between spoken words, so only the currently spoken word
+    # turns yellow; the rest of the phrase remains white.
+    boundaries = {0.0, duration}
+    for word in overlay.caption_words:
+        boundaries.add(min(duration, max(0.0, word.start)))
+        boundaries.add(min(duration, max(0.0, word.end)))
+    boundaries = sorted(boundaries)
+    events: list[str] = []
+    lengths = [len(''.join(word.text.split())) for word in overlay.caption_words]
+    for begin, finish in zip(boundaries, boundaries[1:]):
+        if finish - begin < 0.005:
+            continue
+        midpoint = (begin + finish) / 2
+        active = next(
+            (i for i, word in enumerate(overlay.caption_words)
+             if word.start <= midpoint < word.end), -1,
+        )
+        content = style + _ass_caption_text(wrapped, lengths, active)
+        events.append(
+            f'Dialogue: 0,{_ass_time(overlay.start_seconds + begin)},'
+            f'{_ass_time(overlay.start_seconds + finish)},Default,,0,0,0,,{content}'
+        )
+    heading = (
+        '[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\n'
+        f'PlayResX: {composition.width}\nPlayResY: {composition.height}\n'
+        'ScaledBorderAndShadow: yes\n\n'
+        '[V4+ Styles]\n'
+        'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, '
+        'OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, '
+        'ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, '
+        'Alignment, MarginL, MarginR, MarginV, Encoding\n'
+        f'Style: Default,{font},{size},{_ass_color(overlay.color)},'
+        f'{_ass_color(overlay.color)},{_ass_color(overlay.outline_color)},'
+        '&H00000000,'
+        f'{"-1" if overlay.bold else "0"},0,0,0,100,100,0,0,1,'
+        f'{overlay.outline_width},{2 if overlay.shadow else 0},5,'
+        f'{safe_margin},{safe_margin},{safe_margin},1\n\n'
+        '[Events]\nFormat: Layer, Start, End, Style, Name, '
+        'MarginL, MarginR, MarginV, Effect, Text\n'
+    )
+    path.write_text(heading + '\n'.join(events) + '\n', encoding='utf-8')
+
+
+
+
 class TimelineRenderError(RuntimeError):
     """Base error for local timeline composition."""
 
@@ -510,6 +626,17 @@ class TimelineRenderService:
             video_label = next_label
             filter_index += 1
         for overlay in composition.text_overlays:
+            if overlay.caption_words:
+                subtitle_path = output.parent / f'captions-{filter_index:03d}.ass'
+                _write_timed_caption_ass(subtitle_path, composition, overlay)
+                next_label = f'vt{filter_index}'
+                filters.append(
+                    f'[{video_label}]subtitles=filename='
+                    f'{self._escape_filter_value(str(subtitle_path))}[{next_label}]'
+                )
+                video_label = next_label
+                filter_index += 1
+                continue
             text_path = output.parent / f'text-{filter_index:03d}.txt'
             # Measure with the same font file used by FFmpeg, then size the
             # transparent layer around the wrapped text and its effects.
