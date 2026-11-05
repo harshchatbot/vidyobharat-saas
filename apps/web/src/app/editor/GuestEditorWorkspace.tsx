@@ -1194,7 +1194,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : `Video analysis failed (${response.status}).`);
-      if (data?.schema_version !== '1.0') throw new Error('Video analysis returned an unsupported schema.');
+      if (data?.schema_version !== '2.0') throw new Error('Video analysis returned an unsupported schema.');
       setVideoAnalysisReport(data);
     } catch (error) {
       setVideoAnalysisError(error instanceof Error ? error.message : 'Video analysis unavailable.');
@@ -1207,7 +1207,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'rangmanch-video-analysis-v1.json';
+    anchor.download = 'rangmanch-video-analysis-v2.json';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -1515,13 +1515,14 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <label className="mt-4 block text-xs font-bold text-[#483052]">Optional opening title<input value={autoEditTitle} disabled={Boolean(autoEditProgress)} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border-2 border-[#cdb7d6] bg-white px-3 text-sm text-[#30223c] outline-none focus:border-[#8e63a8]" placeholder="Give your reel a title" /></label>
             <div className="mt-4 rounded-2xl border-2 border-[#d8c1e5] bg-[#fffdf9] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div><p className="text-sm font-extrabold">Video Analysis Engine · V1</p><p className="text-xs text-[#62536d]">Generate structured evidence before AI planning. Does not change your timeline.</p></div>
+                <div><p className="text-sm font-extrabold">Video Analysis Engine · V2</p><p className="text-xs text-[#62536d]">Generate structured evidence before AI planning. Does not change your timeline.</p></div>
                 <button type="button" disabled={videoAnalysisBusy || Boolean(autoEditProgress)} onClick={() => void analyzeVideoForPlanning()} className="rounded-xl border-2 border-[#49334f] bg-[#e9dcfa] px-3 py-2 text-xs font-extrabold text-[#30223c] disabled:opacity-50">{videoAnalysisBusy ? 'Analyzing video…' : 'Analyze video'}</button>
               </div>
               {videoAnalysisError && <p role="alert" className="mt-2 text-xs font-semibold text-[#a22136]">{videoAnalysisError}</p>}
               {videoAnalysisBusy && <p role="status" className="mt-2 text-xs text-[#62536d]">Extracting speech, audio, faces and scene changes. This may take some time.</p>}
               {videoAnalysisReport && <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between"><span className="text-xs font-bold text-[#483052]">Analysis JSON ready</span><button type="button" onClick={downloadVideoAnalysisReport} className="rounded-lg border border-[#49334f] bg-[#ffdb77] px-3 py-2 text-xs font-bold">Download JSON</button></div>
+                <p className="text-xs text-[#594568]">Segments: {(videoAnalysisReport as {speech?:{segments?:unknown[]}})?.speech?.segments?.length ?? 0} · Safe cut candidates: {(videoAnalysisReport as {audio?:{safe_cut_candidates?:unknown[]}})?.audio?.safe_cut_candidates?.length ?? 0} · Timing: {(videoAnalysisReport as {audio?:{timing_quality?:{status?:string}}})?.audio?.timing_quality?.status ?? 'unknown'}</p>
+                <div className="flex items-center justify-between"><span className="text-xs font-bold text-[#483052]">Analysis JSON V2 ready</span><button type="button" onClick={downloadVideoAnalysisReport} className="rounded-lg border border-[#49334f] bg-[#ffdb77] px-3 py-2 text-xs font-bold">Download JSON</button></div>
                 <details><summary className="cursor-pointer text-xs font-semibold text-[#65427e]">Inspect report and analyzer status</summary><pre className="mt-2 max-h-60 overflow-auto rounded-xl bg-[#251b30] p-3 text-[10px] leading-relaxed text-white">{JSON.stringify(videoAnalysisReport, null, 2)}</pre></details>
               </div>}
             </div>
