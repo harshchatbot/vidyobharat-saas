@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
-import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Type, Undo2, Upload } from 'lucide-react';
+import { AudioLines, BetweenHorizontalStart, ChevronDown, Download, Film, GripHorizontal, LoaderCircle, Maximize2, Trash2, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Plus, Redo2, SlidersHorizontal, Type, Undo2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { generateChatResponse } from '@/lib/browser-ai/webllmService';
 import { getFirebaseAuth } from '@/lib/firebase-client';
@@ -1271,13 +1271,13 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   ];
   const libraryItems = media.filter((item) => activeTool === 'audio' ? item.media_type === 'audio' : item.media_type !== 'audio');
   const activeVisualUploads = pendingVisualUploads.filter((upload) => upload.state !== 'ready');
-  const mediaLibrary = <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-    <div className="border-b border-white/10 px-4 py-3"><h2 className="text-sm font-semibold text-white">{activeTool === 'audio' ? 'My Audio' : 'Media'}</h2><p className="mt-1 text-xs text-slate-400">{activeTool === 'audio' ? 'Upload and arrange your own licensed audio' : 'Photos and video clips'}</p></div>
-    {activeTool === 'audio' && <label className="border-b border-white/10 px-3 py-3 text-[11px] text-slate-400">Add uploaded audio to<select aria-label="Uploaded audio destination" value={audioTarget} onChange={(event) => setAudioTarget(event.target.value as 'music' | 'sfx')} className="mt-2 h-9 w-full rounded-md border border-white/10 bg-[#1a1a2e] px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><option value="music">Music track</option><option value="sfx">Sound effects track</option></select></label>}
-    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-      {libraryItems.length === 0 && activeVisualUploads.length === 0 && <div className="border border-dashed border-white/15 p-4 text-center text-xs leading-5 text-slate-400">No {activeTool === 'audio' ? 'audio' : 'visual media'} uploaded yet.</div>}
+  const mediaLibrary = <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#fff9ed] text-[#292034]">
+    <div className="border-b border-[#e0cee7] px-4 py-3"><h2 className="text-sm font-semibold text-[#292034]">{activeTool === 'audio' ? 'My Audio' : 'Media'}</h2><p className="mt-1 text-xs text-[#64556e]">{activeTool === 'audio' ? 'Upload and arrange your own licensed audio' : 'Photos and video clips'}</p></div>
+    {activeTool === 'audio' && <label className="border-b border-[#e0cee7] px-3 py-3 text-[11px] text-[#64556e]">Add uploaded audio to<select aria-label="Uploaded audio destination" value={audioTarget} onChange={(event) => setAudioTarget(event.target.value as 'music' | 'sfx')} className="mt-2 h-9 w-full rounded-md border border-[#e0cee7] bg-[#1a1a2e] px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><option value="music">Music track</option><option value="sfx">Sound effects track</option></select></label>}
+    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" aria-busy={deletingMediaIds.size > 0}>
+      {libraryItems.length === 0 && activeVisualUploads.length === 0 && <div className="border border-dashed border-[#d6bfdc] p-4 text-center text-xs leading-5 text-[#64556e]">No {activeTool === 'audio' ? 'audio' : 'visual media'} uploaded yet.</div>}
       {activeTool === 'media' && (
-        <div className="border-b border-white/10 p-3">
+        <div className="border-b border-[#e0cee7] p-3">
           <button
             type="button"
             disabled={remainingUploads <= 0}
@@ -1288,34 +1288,35 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             Upload Photos & Videos
           </button>
 
-          <p className="mt-2 text-center text-[11px] text-slate-500" role="status">
+          <p className="mt-2 text-center text-[11px] text-[#64556e]" role="status">
             Guest uploads remaining: {remainingUploads}
           </p>
-          {activeVisualUploads.some((upload) => upload.state !== 'failed') && <p className="mt-2 text-center text-[11px] text-white" role="status">Uploading {Math.min(pendingVisualUploads.length, pendingVisualUploads.filter((upload) => upload.state === 'ready').length + 1)} of {pendingVisualUploads.length}</p>}
+          {activeVisualUploads.some((upload) => upload.state !== 'failed') && <p className="mt-2 text-center text-[11px] text-[#292034]" role="status">Uploading {Math.min(pendingVisualUploads.length, pendingVisualUploads.filter((upload) => upload.state === 'ready').length + 1)} of {pendingVisualUploads.length}</p>}
         </div>
       )}
-      {activeTool === 'media' && activeVisualUploads.map((upload) => <div key={upload.id} className="animate-in fade-in slide-in-from-bottom-1 flex min-w-0 items-center gap-2 border-b border-white/10 py-2.5 duration-200 motion-reduce:animate-none">
-        {upload.file.type.startsWith('video/') ? <video muted playsInline src={upload.previewUrl} className="h-12 w-12 shrink-0 rounded-sm bg-white/5 object-cover" /> : <img src={upload.previewUrl} alt="" className="h-12 w-12 shrink-0 rounded-sm bg-white/5 object-cover" />}
-        <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-200">{upload.file.name}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">{upload.state === 'processing' ? 'Processing…' : upload.state === 'queued' ? 'Waiting to upload…' : upload.state === 'failed' ? 'Upload failed' : upload.progress === null ? 'Uploading…' : `Uploading ${upload.progress}%`}</p>{upload.state === 'uploading' && <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-400 transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${upload.progress ?? 0}%` }} /></div>}{upload.state === 'processing' && <IndeterminateProgress label="" className="mt-1.5" />}{upload.error && <p className="mt-1 text-[10px] text-rose-300">{upload.error}</p>}</div>
+      {activeTool === 'media' && activeVisualUploads.map((upload) => <div key={upload.id} className="animate-in fade-in slide-in-from-bottom-1 flex min-w-0 items-center gap-2 border-b border-[#e0cee7] py-2.5 duration-200 motion-reduce:animate-none">
+        {upload.file.type.startsWith('video/') ? <video muted playsInline src={upload.previewUrl} className="h-12 w-12 shrink-0 rounded-sm bg-[#f2e6fb] object-cover" /> : <img src={upload.previewUrl} alt="" className="h-12 w-12 shrink-0 rounded-sm bg-[#f2e6fb] object-cover" />}
+        <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-[#292034]">{upload.file.name}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-[#64556e]">{upload.state === 'processing' ? 'Processing…' : upload.state === 'queued' ? 'Waiting to upload…' : upload.state === 'failed' ? 'Upload failed' : upload.progress === null ? 'Uploading…' : `Uploading ${upload.progress}%`}</p>{upload.state === 'uploading' && <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-400 transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${upload.progress ?? 0}%` }} /></div>}{upload.state === 'processing' && <IndeterminateProgress label="" className="mt-1.5" />}{upload.error && <p className="mt-1 text-[10px] text-[#9b2447]">{upload.error}</p>}</div>
         {upload.state === 'failed' && <button type="button" aria-label={`Retry ${upload.file.name}`} onClick={() => { updatePendingVisualUploads((current) => current.map((item) => item.id === upload.id ? { ...item, state: 'queued', error: undefined } : item)); void runVisualUploadQueue(); }} className="min-h-8 rounded px-2 text-[10px] font-semibold text-white hover:bg-amber-400/10">Retry</button>}
       </div>)}
       {libraryItems.map((item) => (
         <div
           key={item.media_id}
-          className="flex min-w-0 items-center gap-2 border-b border-white/10 py-2.5 last:border-0"
-          onMouseEnter={(event) => showMediaHover(item, event.currentTarget)}
+          className={`relative flex min-w-0 items-center gap-2 rounded-xl border-b border-[#e0cee7] px-2 py-2.5 last:border-0 ${deletingMediaIds.has(item.media_id) ? 'bg-[#f5eafa] ring-1 ring-[#cdb7d6]' : ''}`}
+          onMouseEnter={(event) => { if (!deletingMediaIds.has(item.media_id)) showMediaHover(item, event.currentTarget); }}
           onMouseLeave={() => setHoveredMedia(null)}
         >
           {item.media_type === 'audio' ? (
-            <AudioLines className="h-10 w-10 shrink-0 rounded bg-white/5 p-2 text-slate-400" />
+            <AudioLines className="h-10 w-10 shrink-0 rounded bg-[#f2e6fb] p-2 text-[#64556e]" />
           ) : (
             <GuestMediaThumbnail mediaId={item.media_id} contentType={item.content_type} availability={item.availability} alt={item.original_filename} className="h-12 w-12 shrink-0 rounded-sm" />
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-slate-200" title={item.original_filename}>{item.original_filename}</p>
-            <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">
+            <p className="truncate text-xs font-bold text-[#292034]" title={item.original_filename}>{item.original_filename}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-wide text-[#64556e]">
               {item.media_type}{item.duration_seconds ? ` · ${item.duration_seconds.toFixed(1)}s` : ''}
             </p>
+            {deletingMediaIds.has(item.media_id) && <p role="status" aria-live="polite" className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-[#7a4a8c]"><LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Deleting file…</p>}
             {item.media_type === 'audio' && item.availability !== 'unavailable' && (
               <audio
                 controls
@@ -1328,7 +1329,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
           </div>
           <button
             type="button"
-            disabled={item.availability === 'unavailable' || (item.media_type !== 'audio' && (clipCount >= MAX_CLIPS || project.duration >= MAX_TIMELINE_SECONDS))}
+            disabled={deletingMediaIds.has(item.media_id) || item.availability === 'unavailable' || (item.media_type !== 'audio' && (clipCount >= MAX_CLIPS || project.duration >= MAX_TIMELINE_SECONDS))}
             onClick={() => item.media_type === 'audio' ? addAudio(item, audioTarget) : addVisual(item)}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-amber-400 text-slate-950 hover:bg-amber-300 disabled:opacity-40"
             aria-label={`Add ${item.original_filename} to timeline`}
@@ -1340,11 +1341,11 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             type="button"
             disabled={isMediaReferenced(item.media_id) || deletingMediaIds.has(item.media_id)}
             onClick={() => void deleteMedia(item)}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label={`Delete ${item.original_filename}`}
-            title={isMediaReferenced(item.media_id) ? 'Remove this media from the timeline before deleting it' : 'Delete media'}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[#64556e] hover:bg-[#ffe5e8] hover:text-[#a22136] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label={deletingMediaIds.has(item.media_id) ? `Deleting ${item.original_filename}` : `Delete ${item.original_filename}`}
+            title={deletingMediaIds.has(item.media_id) ? 'Deleting media…' : isMediaReferenced(item.media_id) ? 'Remove this media from the timeline before deleting it' : 'Delete media'}
           >
-            <Trash2 className="h-4 w-4" />
+            {deletingMediaIds.has(item.media_id) ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Trash2 className="h-4 w-4" />}
           </button>
         </div>
       ))}
