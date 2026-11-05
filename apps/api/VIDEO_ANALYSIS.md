@@ -239,3 +239,34 @@ Because this adds an additional model pass it will increase latency when
 enabled. Run it only on the local development backend for now. The forced
 alignment script `scripts/compare_stable_ts.py` remains available for
 standalone comparisons on the original file.
+
+## Inspect large forced-alignment shifts
+
+A >750 ms deviation from Faster-Whisper is **not** a proof that stable-ts
+is wrong: the original word timings are only estimates. Compare mode now
+retains candidates that match tokens, are ordered and have legal bounds even
+if they shift a lot. The candidate gets `alignment_status=review_required`
+and `speech.alignment_diagnostics` summarizes the biggest shifts and conflict
+counts against -35 dB and -45 dB silence evidence. A lexical mismatch,
+missing word or invalid timestamp is still rejected.
+
+Keep the original source video in local media cache, pull current changes, and
+restart the FastAPI process with `RANGMANCH_WHISPER_ALIGNMENT_MODE=compare`.
+The report-cache version was incremented so reanalysis is not served from
+the old JSON result. The editor does **not** apply the candidate for captions,
+semantic segments, or cuts.
+
+Inspect with:
+
+```bash
+jq '{
+  status: .speech.alignment_status,
+  diagnostics: .speech.alignment_diagnostics,
+  notes: .speech.alignment_notes,
+  original_safe_cut_count: (.audio.safe_cut_candidates | length)
+}' /tmp/whisper-analysis.json
+```
+
+When evaluating real alignment quality, use the source video and listen to
+clips around the five largest shifts. A lower conflict count with energy-based
+silence is only corroborating evidence, not a reference annotation.
