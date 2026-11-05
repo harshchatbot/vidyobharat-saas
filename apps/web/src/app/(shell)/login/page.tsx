@@ -11,7 +11,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   // An app-session cookie is not proof of admin authorization. Keep the
   // unified login visible for admin destinations so a stale creator cookie
   // cannot create a redirect loop.
-  if (userId && next !== '/admin') redirect(next);
+  if (userId && !next.startsWith('/admin')) redirect(next);
 
   return <AuthFormClient mode="login" next={next} />;
 }
