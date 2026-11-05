@@ -5,6 +5,11 @@ import os
 import subprocess
 import httpx
 import tempfile
+import logging
+import time
+from copy import deepcopy
+from collections import OrderedDict
+from threading import Lock
 from pathlib import Path
 from itertools import chain
 
@@ -34,6 +39,31 @@ from app.services.guest_session_service import GuestSessionService, build_guest_
 
 router = APIRouter(prefix="/api/editor", tags=["RangManch Editor"])
 TRANSCRIPTION_REQUEST_TIMEOUT_SECONDS = 300
+ANALYSIS_CACHE_TTL_SECONDS = 600
+_analysis_cache_lock = Lock()
+_analysis_cache = OrderedDict()
+_analysis_logger = logging.getLogger(__name__)
+
+
+def _analysis_from_cache(key):
+    with _analysis_cache_lock:
+        value = _analysis_cache.get(key)
+        if value is None:
+            return None
+        if value[0] <= time.monotonic():
+            del _analysis_cache[key]
+            return None
+        _analysis_cache.move_to_end(key)
+        return deepcopy(value[1])
+
+
+def _store_analysis_cache(key, report):
+    with _analysis_cache_lock:
+        _analysis_cache[key] = (time.monotonic() + ANALYSIS_CACHE_TTL_SECONDS, deepcopy(report))
+        _analysis_cache.move_to_end(key)
+        while len(_analysis_cache) > 12:
+            _analysis_cache.popitem(last=False)
+
 
 
 @router.get("/health")
@@ -425,36 +455,62 @@ async def analyze_guest_video(
         if size > 100 * 1024 * 1024:
             raise HTTPException(status_code=413, detail='Recording exceeds the 100 MB analysis limit.')
 
+        # Ownership, CSRF and object-size checks above always happen before
+        # reading the in-process cache. Cache contains analysis only, not media.
+        cache_key = (media['storage_object_path'], size, style, 'v2-utterance-20261105')
+        cached = _analysis_from_cache(cache_key)
+        if cached is not None:
+            _analysis_logger.info('editor_analysis_cache_hit', extra={'media_id': media_id})
+            return cached
+
+        from app.services.editor_analysis_transcribe import transcribe_source
+        started = time.monotonic()
         transcript = None
         transcript_warning = None
         try:
-            result = await transcribe_guest_video(media_id, request, session_service, media_service)
-            if isinstance(result, dict):
-                transcript = result
-            else:
-                transcript_warning = 'Speech recognition returned no usable transcript.'
-        except (HTTPException, OSError, RuntimeError, ValueError):
-            transcript_warning = 'Speech recognition unavailable for this recording.'
-
-        def run_analysis():
             with tempfile.TemporaryDirectory(prefix='rangmanch-analysis-') as temp_dir:
                 source = Path(temp_dir) / 'source.video'
-                media_service.storage.download_to_path(
+                download_started = time.monotonic()
+                await run_in_threadpool(
+                    media_service.storage.download_to_path,
                     media['storage_object_path'], source, expected_size=size,
                 )
-                return build_video_analysis_report(source, media_id, transcript=transcript, style=style)
-
-        try:
-            report = await run_in_threadpool(run_analysis)
+                _analysis_logger.info('editor_analysis_download_complete', extra={
+                    'media_id': media_id, 'source_bytes': size,
+                    'elapsed_seconds': round(time.monotonic() - download_started, 3),
+                })
+                transcription_started = time.monotonic()
+                try:
+                    transcript = await transcribe_source(source)
+                except (HTTPException, OSError, RuntimeError, ValueError, subprocess.SubprocessError):
+                    transcript_warning = 'Speech recognition unavailable for this recording.'
+                _analysis_logger.info('editor_analysis_transcription_complete', extra={
+                    'media_id': media_id, 'elapsed_seconds': round(time.monotonic() - transcription_started, 3),
+                    'success': transcript is not None,
+                })
+                analysis_started = time.monotonic()
+                report = await run_in_threadpool(
+                    build_video_analysis_report, source, media_id,
+                    transcript=transcript, style=style,
+                )
+                _analysis_logger.info('editor_analysis_detection_complete', extra={
+                    'media_id': media_id, 'elapsed_seconds': round(time.monotonic() - analysis_started, 3),
+                })
         except GuestMediaObjectMissing:
             raise HTTPException(status_code=410, detail='Recording is no longer available.')
         except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             raise HTTPException(status_code=422, detail='Could not analyze this video recording.') from exc
         except (OSError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail='Video analysis temporarily unavailable.') from exc
+
         if transcript_warning:
             report.warnings.append(transcript_warning)
-        return report
+        payload = report.model_dump(mode='json')
+        _store_analysis_cache(cache_key, payload)
+        _analysis_logger.info('editor_analysis_complete', extra={
+            'media_id': media_id, 'elapsed_seconds': round(time.monotonic() - started, 3),
+        })
+        return payload
     except GuestSessionError as exc:
         return _guest_error(exc)
 
