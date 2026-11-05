@@ -406,3 +406,51 @@ p {
 .rm-editor-skin .rm-editor-header .rm-header-delete { color: #a51632; background: #fff2f2; border: 1px solid #c96177; }
 .rm-editor-skin .rm-editor-header .rm-header-delete:hover { color: #7e1127; background: #ffdbe2; }
 .rm-editor-skin .rm-editor-header .rm-header-delete:disabled { color: #886672; background: #f5e4e5; border-color: #b8a0a8; opacity: .65; }
+
+
+/* Light editor: keep every Copilot surface legible against its actual panel background.
+   Explicit surface classes override the legacy dark Tailwind utility colors. */
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal {
+  background: #fff8eb;
+  border-color: #b78735;
+  color: #292034;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal h3,
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal p,
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .text-white,
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .text-slate-300 {
+  color: #30243c;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .rm-copilot-operation {
+  background: #ffffff;
+  border-color: #dcc9ad;
+  color: #292034;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .rm-copilot-operation > span:first-child {
+  color: #75451b;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .rm-copilot-ready-note {
+  background: #f0e3ff;
+  border-color: #b995d1;
+  color: #39264c;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .rm-copilot-review-notes {
+  border-color: #c5b0cb;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal .rm-copilot-warning {
+  background: #fff3dd;
+  color: #382638;
+  border-color: #d5b47d;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user .rm-copilot-role,
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant .rm-copilot-role {
+  color: #493454;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user,
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant {
+  color: #292034;
+}
+.rm-editor-skin .rm-editor-copilot .rm-copilot-proposal ol {
+  list-style: none;
+  padding-left: 0;
+}
