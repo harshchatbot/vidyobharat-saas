@@ -116,3 +116,34 @@ browser Auto Edit path remains unchanged and usable.
 timeline operations, catalog asset resolution, user-facing review of the
 model-generated plan, cost metrics and service-side retries. Those require
 a separate compiler and preview validation pass.
+
+## OpenAI provider (alternative to Gemini)
+
+Creative Director V1 supports `--provider openai` as well as
+`--provider gemini`; both feed exactly the same semantic validator and
+produce the same suggestion-only output. OpenAI is the CLI default.
+
+The script automatically loads `apps/api/.env` (without overriding already
+exported environment variables). Put secrets **only** in your local .env, never
+in repository files, terminal screenshots or command-line arguments.
+
+```bash
+cd apps/api
+source .venv/bin/activate
+python -m pytest tests/test_video_creative_context.py tests/test_video_creative_director.py -q
+
+python scripts/run_creative_director.py \
+  "$HOME/Downloads/rangmanch-video-analysis-v2 (4)-creative-context.json" \
+  --provider openai --model gpt-4o-mini
+```
+
+OpenAI uses `POST /v1/chat/completions` with strict JSON Schema output.
+See the validated `*-creative-plan.json` beside your context file. It is
+NOT automatically sent to any timeline or asset library. The same command
+with `--provider gemini` uses the Gemini API key/model instead. Change
+`RANGMANCH_CREATIVE_PROVIDER` or pass `--provider` for model selection.
+This requires a separately billable OpenAI API account with credits.
+
+Do **not** expose either API key in the browser. This is a local developer
+CLI only; production provider routing and tenant-owned credentials are not
+implemented.
