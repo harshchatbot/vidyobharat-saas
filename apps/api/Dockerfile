@@ -12,6 +12,13 @@ COPY apps/api/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir numpy scipy soundfile
 
+# Optional CPU speech-to-text. Enable only after sizing the API container:
+# docker build --build-arg ENABLE_EDITOR_STT=true ...
+ARG ENABLE_EDITOR_STT=false
+RUN if [ "$ENABLE_EDITOR_STT" = "true" ]; then \
+      pip install --no-cache-dir 'faster-whisper>=1.1,<2'; \
+    fi
+
 COPY apps/api/app ./app
 COPY shared ./shared
 
