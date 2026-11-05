@@ -1,5 +1,6 @@
 import { catalogMediaId, type AudioLibraryEntry } from './audioLibrary.ts';
 import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
+import { captionPlacement, centeredZoomAllowed, sourceAtTimeline, type FaceGuidance } from './faceAwarePlanning.ts';
 import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 
 import { createBasicText } from './timeline/textTemplates.ts';
@@ -37,6 +38,7 @@ export type AutoEditOptions = {
   transition?: TransitionType;
   beatCandidates?: BeatCandidate[];
   sfxLibrary?: AudioLibraryEntry[];
+  faceGuidance?: FaceGuidance;
   /** Validated local-AI choices. This is intentionally limited to supported primitives. */
   aiDirection?: {
     transition: TransitionType;
@@ -402,23 +404,47 @@ function buildVideoAutoEditPlan(
         return chosen;
       }, []).slice(0, 6)
     : speechWords.length ? [] : fallbackIntervals;
+  let guardedZooms = 0;
+  let facePlacedCaptions = 0;
   for (const [index, startTime] of intervals.entries()) {
     if (startTime + 0.5 >= editedDuration) continue;
+    const duration = Math.min(options.style === 'energetic' ? 1.5 : 2.5, editedDuration - startTime);
+    if (options.faceGuidance) {
+      const midpoint = sourceAtTimeline(startTime + duration / 2, segments);
+      if (midpoint === null || !centeredZoomAllowed(midpoint, options.faceGuidance)) {
+        guardedZooms++;
+        continue;
+      }
+    }
     operations.push({
       op: 'add_effect',
       item: {
         id: crypto.randomUUID(), kind: 'effect', trackId: 'effects',
-        label: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
-        preset: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
-        amount: config.amount, startTime,
-        duration: Math.min(options.style === 'energetic' ? 1.5 : 2.5, editedDuration - startTime),
+        // zoom-out starts at 1.12x in the current renderer; with face
+        // evidence available, use only subtle <=1.06x zoom-ins instead.
+        label: options.faceGuidance ? 'zoom-in' : index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        preset: options.faceGuidance ? 'zoom-in' : index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        amount: options.faceGuidance ? Math.min(config.amount, 0.5) : config.amount,
+        startTime, duration,
       },
     });
   }
   if (options.transcript?.words.length) {
     const remaining = Math.max(0, MAX_COPILOT_OPERATIONS - operations.length - (options.title?.trim() ? 1 : 0) - 8);
     const captions = buildTimedCaptions(options.transcript, segments, remaining, options.style);
-    for (const item of captions) operations.push({ op: 'add_text', item });
+    for (const item of captions) {
+      if (options.faceGuidance) {
+        const middle = sourceAtTimeline(item.startTime + item.duration / 2, segments);
+        const placement = middle === null ? null : captionPlacement(middle, options.faceGuidance);
+        if (placement) {
+          item.x = placement.x;
+          item.y = placement.y;
+          item.width = placement.width;
+          facePlacedCaptions++;
+        }
+      }
+      operations.push({ op: 'add_text', item });
+    }
   }
   if (options.title?.trim()) {
     const title = options.title.trim();
@@ -453,6 +479,11 @@ function buildVideoAutoEditPlan(
     summary: `Video Auto Edit · ${options.style}`,
     warnings: [
       options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
+      ...(options.faceGuidance ? [
+        `Face guidance positioned ${facePlacedCaptions} captions; verify text wrapping, platform safe areas and unsampled frames.`,
+        ...(guardedZooms ? [`Skipped ${guardedZooms} centered zooms near uncertain face framing.`] : []),
+        'Face-aware recommendations remain editable preview operations, not automatically committed changes.',
+      ] : ['No validated face guidance; review caption overlap and zoom framing manually.']),
       options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Captions are unavailable for this preview because speech transcription was not supplied.',
       sfxCount || cueSfxCount ? `Added ${sfxCount} transition SFX and ${cueSfxCount} speech-cue SFX; review timing and volume.` : 'No matching SFX cues or edit boundaries found; no sound effects were added.',
       'Speech-cue SFX uses limited keyword matching, not full semantic video understanding.',
