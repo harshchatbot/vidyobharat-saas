@@ -87,6 +87,25 @@ class GuestExportWorker:
         self._execute(job, fence)
         return True
 
+    def run_job(self, *, guest_id: str, job_id: str) -> bool:
+        """Execute one Celery-delivered record through the same fenced path."""
+        fence = secrets.token_hex(16)
+        job = self.repository.claim_job(
+            guest_id=guest_id,
+            job_id=job_id,
+            worker_id=self.worker_id,
+            fence_token=fence,
+            now=datetime.now(UTC),
+            lease_duration=self.lease_duration,
+            concurrent_processing_limit=self.timeline.media_service.sessions.limits.concurrent_processing,
+            max_attempts=self.settings.editor_export_worker_max_attempts,
+        )
+        if not job:
+            return False
+        logger.info('guest_export_celery_job_claimed', extra={'job_id': job_id, 'guest_id': guest_id})
+        self._execute(job, fence)
+        return True
+
     def run_forever(self) -> None:
         logger.info(
             'guest_export_worker_ready',

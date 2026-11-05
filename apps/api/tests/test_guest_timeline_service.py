@@ -21,6 +21,14 @@ class FakeStorage:
         self.objects = objects
         self.requested: list[str] = []
 
+    def download_to_path(self, object_name: str, destination: Path, *, expected_size: int) -> None:
+        self.requested.append(object_name)
+        content = self.objects[object_name]
+        if len(content) != expected_size:
+            raise TimelineValidationError('Downloaded media size does not match its record.')
+        with destination.open('xb') as output:
+            output.write(content)
+
     def iter_content(self, object_name: str, *, start: int, end: int):
         self.requested.append(object_name)
         content = self.objects[object_name][start:end + 1]
@@ -180,8 +188,34 @@ def test_dynamic_limits_apply_to_new_requests_but_not_accepted_worker_jobs(tmp_p
     with pytest.raises(TimelineValidationError, match='current 0.2-second limit'):
         service.validate_sources('owner-token', _timeline())
 
-    service._require_worker_session = lambda guest_id: {'guest_id': guest_id}  # type: ignore[method-assign]
+    service._require_worker_session = lambda guest_id, **kwargs: {'guest_id': guest_id}  # type: ignore[method-assign]
     service._resolve_records = lambda *args, **kwargs: [media.record]  # type: ignore[method-assign]
     result = service.render_for_worker('owner-guest', _timeline())
     assert result.metadata.duration_seconds == pytest.approx(0.4, abs=0.1)
     result.close()
+
+
+def test_worker_accepts_expired_session_after_render_but_rejects_revocation(tmp_path: Path) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    service, media = _service(tmp_path)
+    state = {'status': 'active', 'expires_at': datetime.now(UTC) + timedelta(minutes=1)}
+    media.sessions.repository = SimpleNamespace(get=lambda guest_id: state)
+    service._resolve_records = lambda *args, **kwargs: [media.record]  # type: ignore[method-assign]
+
+    original_render = service.renderer.render
+
+    def expire_during_render(*args, **kwargs):
+        result = original_render(*args, **kwargs)
+        state['expires_at'] = datetime.now(UTC) - timedelta(seconds=1)
+        return result
+
+    service.renderer.render = expire_during_render  # type: ignore[method-assign]
+    result = service.render_for_worker('owner-guest', _timeline())
+    assert result.path.is_file()
+    result.close()
+
+    state['expires_at'] = datetime.now(UTC) + timedelta(minutes=1)
+    state['status'] = 'revoked'
+    with pytest.raises(GuestSessionError):
+        service.render_for_worker('owner-guest', _timeline())

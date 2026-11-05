@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { EXPORT_DURATION_SECONDS, EXPORT_FPS, frameTime, titleOpacity, supportedTimelineItems, validateExportDuration, wrapTextLines } from './browserMp4Export.ts';
+import { EXPORT_DURATION_SECONDS, EXPORT_FPS, browserExportDimensions, frameTime, titleOpacity, supportedTimelineItems, validateExportDuration, wrapTextLines } from './browserMp4Export.ts';
 import { addItem } from '../../app/editor/timeline/model.ts';
 import { createEmptyProject, type GuestMedia } from '../../app/editor/timeline/types.ts';
 import { browserEffectState, transitionProgress } from '../../app/editor/timeline/filters.ts';
@@ -11,16 +11,22 @@ test('frame timing is deterministic at 30 FPS', () => {
   assert.equal(frameTime(EXPORT_FPS * 15 - 1), 14.966666666666667);
 });
 
-test('accepts 15, 20, and 30 second timelines but rejects longer exports', () => {
-  assert.equal(EXPORT_DURATION_SECONDS, 30);
-  for (const duration of [15, 20, 30]) assert.doesNotThrow(() => validateExportDuration(duration));
-  assert.throws(() => validateExportDuration(30.01), /up to 30 seconds/);
+test('uses a true 1080×1920 canvas for 30 FPS vertical exports', () => {
+  assert.deepEqual(browserExportDimensions('9:16', '1080p'), { width: 1080, height: 1920 });
+  assert.equal(EXPORT_FPS, 30);
+});
+
+test('accepts up to 60 second timelines but rejects longer exports', () => {
+  assert.equal(EXPORT_DURATION_SECONDS, 60);
+  for (const duration of [15, 20, 30, 60]) assert.doesNotThrow(() => validateExportDuration(duration));
+  assert.throws(() => validateExportDuration(60.01), /up to 60 seconds/);
   assert.throws(() => validateExportDuration(0), /greater than zero/);
 });
 
 test('cancellation settles the recorder and permits a later export', async () => {
   const originalDocument = globalThis.document;
   const originalRecorder = globalThis.MediaRecorder;
+  const originalVideoElement = globalThis.HTMLVideoElement;
   const originalRaf = globalThis.requestAnimationFrame;
   let frames = 0;
   class FakeRecorder {
@@ -33,9 +39,17 @@ test('cancellation settles the recorder and permits a later export', async () =>
     start() { this.state = 'recording'; }
     stop() { this.state = 'inactive'; this.onstop?.(); }
   }
-  const context = { fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: () => ({ width: 0, height: 0, getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }) }) } });
+  const context = { canvas: { width: 720, height: 1280 }, fillStyle: '', fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, drawImage() {}, strokeText() {}, fillText() {}, measureText: (value: string) => ({ width: value.length * 10 }) };
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    body: { append() {} },
+    createElement: () => ({
+      width: 0, height: 0, style: {}, setAttribute() {}, append() {}, remove() {},
+      getContext: () => context, captureStream: () => ({ getTracks: () => [], addTrack() {} }),
+    }),
+  } });
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeRecorder });
+  class FakeVideoElement {}
+  Object.defineProperty(globalThis, 'HTMLVideoElement', { configurable: true, value: FakeVideoElement });
   Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: (callback: FrameRequestCallback) => { frames += 1; callback(0); return frames; } });
   try {
     const project = addItem(createEmptyProject(), { id: 'image', kind: 'video', trackId: 'video', label: 'Image', mediaId: 'img', contentType: 'image/png', startTime: 0, duration: 15, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 });
@@ -50,6 +64,7 @@ test('cancellation settles the recorder and permits a later export', async () =>
   } finally {
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
     Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: originalRecorder });
+    Object.defineProperty(globalThis, 'HTMLVideoElement', { configurable: true, value: originalVideoElement });
     Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: originalRaf });
   }
 });
@@ -78,7 +93,7 @@ test('timeline assets preserve clip order and absolute timing', () => {
 test('rejects unsupported timeline media instead of omitting it', () => {
   let project = createEmptyProject();
   project = addItem(project, { id: 'video', kind: 'video', trackId: 'video', label: 'Video', mediaId: 'v', contentType: 'video/mp4', startTime: 0, duration: 5, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 });
-  assert.throws(() => supportedTimelineItems(project, { media: [{ media_id: 'v', original_filename: 'v.mp4', media_type: 'video', content_type: 'video/mp4' }], images: {} }), /Unsupported or missing image media/);
+  assert.throws(() => supportedTimelineItems(project, { media: [{ media_id: 'v', original_filename: 'v.mp4', media_type: 'video', content_type: 'video/mp4' }], images: {} }), /Missing visual media/);
 });
 
 test('accepts validated audio timing and requires an audio asset', () => {
@@ -112,4 +127,20 @@ test('transition boundaries use the same interpolation for preview and export', 
   assert.equal(transitionProgress(5, 0.6, 4.7), 0);
   assert.ok(Math.abs(transitionProgress(5, 0.6, 5) - 0.5) < 1e-9);
   assert.ok(Math.abs(transitionProgress(5, 0.6, 5.3) - 1) < 1e-9);
+});
+
+test('motion title presets use deterministic preview/export animation state', async () => {
+  const { TEXT_TEMPLATES, applyTextTemplate, createBasicText } = await import('../../app/editor/timeline/textTemplates.ts');
+  const { textAnimationFrame } = await import('../../app/editor/timeline/textAnimations.ts');
+  const motionPresets = ['motion-reveal', 'motion-pop', 'motion-float'];
+  for (const id of motionPresets) {
+    const preset = TEXT_TEMPLATES.find((item) => item.id === id);
+    assert.ok(preset, `Missing preset ${id}`);
+    const item = applyTextTemplate(createBasicText(0), preset);
+    assert.ok(item.inAnimation !== 'none');
+    const first = textAnimationFrame(item, 0.25);
+    assert.deepEqual(first, textAnimationFrame(item, 0.25));
+    assert.ok(first.opacity >= 0 && first.opacity <= 1);
+    assert.ok(Number.isFinite(first.scale) && Number.isFinite(first.translateY));
+  }
 });

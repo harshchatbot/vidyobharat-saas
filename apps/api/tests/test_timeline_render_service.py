@@ -624,7 +624,7 @@ def test_render_rejects_video_bounds_image_start_unknown_and_symlink(tmp_path: P
     with pytest.raises(TimelineValidationError, match='source duration'):
         service.render(_composition(_clip(RED, 0, 1, start=0.5)), [_resolved(RED, 'video', video)])
     with pytest.raises(TimelineValidationError, match='source duration'):
-        service.render(_composition(_clip(RED, 0, 0.20001, start=1.0)), [_resolved(RED, 'video', video)])
+        service.render(_composition(_clip(RED, 0, 0.35, start=1.0)), [_resolved(RED, 'video', video)])
     with pytest.raises(TimelineValidationError, match='non-zero start'):
         service.render(_composition(_clip(BLUE, 0, 0.5, start=0.1)), [_resolved(BLUE, 'image', image)])
     with pytest.raises(TimelineValidationError, match='exactly once'):
@@ -857,3 +857,210 @@ def test_render_capacity_is_shared_across_service_instances(tmp_path: Path) -> N
     finally:
         thread.join(timeout=3)
     assert not thread.is_alive()
+
+
+@pytest.mark.parametrize('kind', ['music', 'voice', 'sfx'])
+def test_short_audio_source_does_not_block_timeline_export(tmp_path: Path, kind: str) -> None:
+    image = tmp_path / 'background.png'
+    audio = tmp_path / 'short.m4a'
+    _image(image, 'blue')
+    _audio(audio, duration=0.5)
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 2)],
+        audio_items=[TimelineAudioItem(
+            id='short-audio', media_id=AUDIO, kind=kind,
+            start_seconds=0, duration_seconds=2, source_start_seconds=0,
+        )],
+    )
+    with TimelineRenderService().render(
+        timeline, [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
+    ) as result:
+        payload = _probe(result.path)
+        assert any(stream['codec_type'] == 'audio' for stream in payload['streams'])
+        assert result.metadata.duration_seconds == pytest.approx(2, abs=0.15)
+
+
+def test_audio_offset_beyond_source_still_rejected(tmp_path: Path) -> None:
+    image = tmp_path / 'background.png'
+    audio = tmp_path / 'short.m4a'
+    _image(image, 'blue')
+    _audio(audio, duration=0.5)
+    timeline = TimelineComposition(
+        width=180, height=320, fps=10,
+        clips=[_clip(RED, 0, 2)],
+        audio_items=[TimelineAudioItem(
+            id='invalid-offset', media_id=AUDIO, kind='music',
+            start_seconds=0, duration_seconds=2, source_start_seconds=1,
+        )],
+    )
+    with pytest.raises(TimelineValidationError, match='starts beyond'):
+        with TimelineRenderService().render(
+            timeline, [_resolved(RED, 'image', image), _resolved(AUDIO, 'audio', audio)],
+        ):
+            pass
+
+
+@pytest.mark.parametrize(
+    ('text', 'font_family', 'x'),
+    [
+        ('Have you ever wondered how ChatGPT understands your questions?', 'Inter', 0.5),
+        ('ThisIsAnExtremelyLongUnbrokenCaptionWordThatMustWrapCorrectly', 'Inter', 0.5),
+        ('क्या आपने कभी सोचा है कि चैटजीपीटी आपके सवाल कैसे समझता है?', 'Noto Sans Devanagari', 0.5),
+        ('Caption positioned near the left edge', 'Inter', 0.02),
+        ('Caption positioned near the right edge', 'Inter', 0.98),
+    ],
+)
+def test_caption_wrapping_keeps_render_layer_inside_frame(
+    tmp_path: Path, text: str, font_family: str, x: float,
+) -> None:
+    image = tmp_path / 'caption-background.png'
+    output = tmp_path / 'caption-output.mp4'
+    _image(image, 'white')
+    timeline = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 0.6)],
+        text_overlays=[TimelineTextOverlay(
+            id='caption-fit', text=text, start_seconds=0, duration_seconds=0.6,
+            font_family=font_family, font_size=36, bold=True,
+            x=x, y=0.5, width=0.9, outline_width=3,
+            background_opacity=0,
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(
+        timeline, [_resolved(RED, 'image', image)],
+    )
+    command = renderer._build_command(timeline, clips, sources, output)
+    graph = command[command.index('-filter_complex') + 1]
+
+    assert "x='0':y=" in graph
+    assert 'w-text_w-' in graph
+    assert "y='min(max(0," in graph
+    assert 'borderw=3:' in graph
+    assert 'box=0:' in graph
+    assert 'fontsize=' in graph
+
+    text_files = list(tmp_path.glob('text-*.txt'))
+    assert len(text_files) == 1
+    wrapped = text_files[0].read_text(encoding='utf-8')
+    assert ''.join(wrapped.split()) == text.replace(' ', '')
+
+    with renderer.render(timeline, [_resolved(RED, 'image', image)]) as result:
+        assert result.metadata.width == 360
+        assert result.metadata.height == 640
+        # Inspect actual rendered pixels instead of trusting filter geometry.
+        # On a white background, captions with a black outline should remain
+        # away from both sides of the exported 360px frame.
+        from io import BytesIO
+        from PIL import Image
+
+        frame = subprocess.run([
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(result.path),
+            '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-',
+        ], capture_output=True, check=True).stdout
+        with Image.open(BytesIO(frame)) as decoded:
+            rgb = decoded.convert('RGB')
+            dark_x = [
+                ix for ix in range(rgb.width)
+                if any(
+                    max(rgb.getpixel((ix, iy))) < 100
+                    for iy in range(200, 440, 2)
+                )
+            ]
+        assert dark_x, 'Expected visible caption outline in exported frame.'
+        assert min(dark_x) >= 6
+        assert max(dark_x) <= 353
+
+
+def test_caption_background_style_remains_available(tmp_path: Path) -> None:
+    image = tmp_path / 'background.png'
+    output = tmp_path / 'output.mp4'
+    _image(image, 'white')
+    timeline = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 0.6)],
+        text_overlays=[TimelineTextOverlay(
+            id='boxed-caption', text='Readable caption', start_seconds=0,
+            duration_seconds=0.6, font_size=32, background_opacity=0.6,
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(
+        timeline, [_resolved(RED, 'image', image)],
+    )
+    command = renderer._build_command(timeline, clips, sources, output)
+    graph = command[command.index('-filter_complex') + 1]
+    assert 'box=1:' in graph
+    assert 'boxborderw=8:' in graph
+
+
+def test_timed_caption_ass_highlights_active_word_and_renders(tmp_path: Path) -> None:
+    from io import BytesIO
+    from PIL import Image
+
+    background = tmp_path / 'caption-background.png'
+    output = tmp_path / 'caption.mp4'
+    _image(background, 'black', size='360x640')
+    composition = TimelineComposition(
+        width=360, height=640, fps=10,
+        clips=[_clip(RED, 0, 1)],
+        text_overlays=[TimelineTextOverlay(
+            id='words', text='Hello world', start_seconds=0,
+            duration_seconds=1, font_size=48, bold=True,
+            x=0.5, y=0.5, width=0.9, outline_width=0,
+            background_opacity=0,
+            caption_words=[
+                {'text': 'Hello', 'start': 0.05, 'end': 0.45},
+                {'text': 'world', 'start': 0.5, 'end': 0.95},
+            ],
+        )],
+    )
+    renderer = TimelineRenderService()
+    clips, sources = renderer._validate_inputs(composition, [_resolved(RED, 'image', background)])
+    command = renderer._build_command(composition, clips, sources, output)
+    filter_graph = command[command.index('-filter_complex') + 1]
+    assert 'subtitles=filename=' in filter_graph
+
+    subtitles = list(tmp_path.glob('captions-*.ass'))
+    assert len(subtitles) == 1
+    ass = subtitles[0].read_text(encoding='utf-8')
+    assert 'Dialogue: 0,0:00:00.05,0:00:00.45' in ass
+    assert 'Dialogue: 0,0:00:00.50,0:00:00.95' in ass
+    assert r'{\1c&H66E0FF&}' in ass
+
+    with renderer.render(composition, [_resolved(RED, 'image', background)]) as rendered:
+        def count_yellow(seconds: float) -> int:
+            frame = subprocess.run([
+                'ffmpeg', '-hide_banner', '-loglevel', 'error',
+                '-ss', str(seconds), '-i', str(rendered.path),
+                '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-',
+            ], capture_output=True, check=True).stdout
+            with Image.open(BytesIO(frame)) as image:
+                rgb = image.convert('RGB')
+                return sum(
+                    1 for y in range(250, 390, 3) for x in range(20, 340, 3)
+                    if (lambda pixel: pixel[0] > 145 and pixel[1] > 100 and pixel[2] < 155)(
+                        rgb.getpixel((x, y))
+                    )
+                )
+        assert count_yellow(0.2) > 3
+        assert count_yellow(0.7) > 3
+
+
+def test_caption_word_times_validate() -> None:
+    overlay = TimelineTextOverlay(
+        id='word-timing', text='Hello world', start_seconds=0,
+        duration_seconds=1, caption_words=[
+            {'text': 'Hello', 'start': 0, 'end': 0.4},
+            {'text': 'world', 'start': 0.5, 'end': 0.9},
+        ],
+    )
+    assert len(overlay.caption_words) == 2
+    with pytest.raises(ValidationError, match='must match overlay text'):
+        TimelineTextOverlay(
+            id='invalid-words', text='Hello world', start_seconds=0,
+            duration_seconds=1, caption_words=[
+                {'text': 'incorrect', 'start': 0, 'end': 0.4},
+            ],
+        )

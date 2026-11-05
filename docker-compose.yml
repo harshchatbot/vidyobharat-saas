@@ -29,3 +29,15 @@ services:
       - ./apps/api/data:/app/data
     depends_on:
       - redis
+
+  timeline-export-worker:
+    build:
+      context: ./apps/api
+    container_name: vidyobharat-timeline-export-worker
+    command: /bin/sh -c 'celery -A app.workers.worker.celery_app worker -Q "$${EDITOR_EXPORT_CELERY_QUEUE:-editor-exports}" --concurrency="$${EDITOR_EXPORT_CELERY_CONCURRENCY:-1}" --loglevel=INFO'
+    env_file:
+      - ./apps/api/.env
+    volumes:
+      - ./apps/api/data:/app/data
+    depends_on:
+      - redis

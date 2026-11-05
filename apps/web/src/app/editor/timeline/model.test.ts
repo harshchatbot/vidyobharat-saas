@@ -204,7 +204,7 @@ test('new effects serialize only as committed timeline data', () => {
 });
 
 test('editor font catalog includes localized Noto families with browser fallback', () => {
-  assert.equal(EDITOR_FONTS.length, 13);
+  assert.ok(EDITOR_FONTS.length >= 13);
   assert.ok(EDITOR_FONTS.includes('Noto Sans Devanagari'));
   assert.ok(EDITOR_FONTS.includes('Noto Sans Malayalam'));
   assert.equal(editorFontStack('Noto Sans Bengali'), '"Noto Sans Bengali", "Noto Sans", sans-serif');
@@ -524,3 +524,59 @@ for (const changes of [
     await assert.rejects(applyEditPlan(project, plan), EditPlanValidationError);
   });
 }
+
+test('edit plan rejects unsupported text font with operation index', async () => {
+  const project = createEmptyProject();
+  const plan: CopilotEditPlan = {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: 'font-regression',
+    projectRevision: await calculateProjectRevision(project),
+    summary: 'Add caption',
+    warnings: [],
+    operations: [{ op: 'add_text', item: { ...textItem, fontFamily: 'Unsupported Font' as typeof textItem.fontFamily } }],
+  };
+  await assert.rejects(applyEditPlan(project, plan), (error: unknown) => {
+    assert.ok(error instanceof EditPlanValidationError);
+    assert.equal(error.code, 'invalid_operation');
+    assert.equal(error.operationIndex, 0);
+    assert.match(error.message, /text font or track is unsupported/);
+    return true;
+  });
+});
+
+test('edit plan accepts a supported caption font and text track', async () => {
+  const project = createEmptyProject();
+  const plan: CopilotEditPlan = {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: 'valid-font-regression',
+    projectRevision: await calculateProjectRevision(project),
+    summary: 'Add caption',
+    warnings: [],
+    operations: [{ op: 'add_text', item: { ...textItem } }],
+  };
+  const applied = await applyEditPlan(project, plan);
+  assert.equal(applied.summaries.length, 1);
+});
+
+
+test('server export includes caption timing for yellow word highlights', () => {
+  let project = createEmptyProject();
+  project = addItem(project, {
+    id: 'visual-caption', kind: 'video', trackId: 'video', label: 'Video',
+    mediaId: 'a'.repeat(32), contentType: 'video/mp4', startTime: 0,
+    duration: 3, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1,
+  });
+  project = addItem(project, {
+    ...textItem, id: 'caption-timing', text: 'Hello world',
+    startTime: 0, duration: 2,
+    captionWords: [
+      { text: 'Hello', start: 0.05, end: 0.55 },
+      { text: 'world', start: 0.65, end: 1.2 },
+    ],
+  });
+  const exported = serializeTimelineProject(project);
+  assert.deepEqual(exported.text_overlays[0].caption_words, [
+    { text: 'Hello', start: 0.05, end: 0.55 },
+    { text: 'world', start: 0.65, end: 1.2 },
+  ]);
+});

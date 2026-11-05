@@ -121,16 +121,22 @@ test('rejects add mode clearly when the existing visual timeline already overlap
   assert.throws(() => buildAutoEditPlan(invalid, images, 'sha256:test', { style: 'elegant', mode: 'add' }), /overlapping visual clips.*Replace current/i);
 });
 
-test('adds image Auto Edit after a valid existing timeline and safely ignores unsupported uploaded video media', async () => {
+test('video-first Auto Edit replaces image footage and keeps the original video audio', async () => {
   const existing: VideoTimelineItem = { id: 'existing', kind: 'video', trackId: 'video', label: 'existing', mediaId: 'existing-media', contentType: 'image/png', startTime: 0, duration: 4, sourceStart: 0, cropMode: 'cover', muted: false, volume: 1 };
   const project = addItem(createEmptyProject(), existing);
-  const plan = buildAutoEditPlan(project, [uploadedVideo, images[0], music], await calculateProjectRevision(project), { style: 'elegant', mode: 'add', targetDuration: 5 });
+  const plan = buildAutoEditPlan(project, [uploadedVideo, images[0], music], await calculateProjectRevision(project), { style: 'elegant', mode: 'replace', title: 'Welcome' });
   const applied = await applyEditPlan(project, plan);
   const clips = applied.project.tracks.find((track) => track.id === 'video')!.items;
-  assert.equal(clips.length, 2);
-  assert.equal(clips[0].id, 'existing');
-  assert.equal(clips[1].startTime, 4);
-  assert.equal(clips[1].duration, 5);
-  assert.equal(clips[1].kind === 'video' ? clips[1].mediaId : '', images[0].media_id);
-  assert.ok(plan.operations.every((operation) => operation.op !== 'add_media' || operation.item.mediaId !== uploadedVideo.media_id));
+  assert.equal(clips.length, 1);
+  assert.equal(clips[0].kind === 'video' && clips[0].mediaId, uploadedVideo.media_id);
+  assert.equal(clips[0].duration, 8);
+  assert.equal(clips[0].kind === 'video' && clips[0].muted, false);
+  assert.ok(applied.project.tracks.find((track) => track.id === 'effects')!.items.length > 0);
+  assert.ok(applied.project.tracks.find((track) => track.id === 'text')!.items.length > 0);
+  const repeat = buildAutoEditPlan(applied.project, [uploadedVideo, images[0]], await calculateProjectRevision(applied.project), { style: 'energetic', mode: 'replace' });
+  const repeated = await applyEditPlan(applied.project, repeat);
+  const repeatedClips = repeated.project.tracks.find((track) => track.id === 'video')!.items;
+  assert.equal(repeatedClips.length, 1);
+  const repeatedClip = repeatedClips[0];
+  assert.equal(repeatedClip.kind === 'video' && repeatedClip.mediaId, uploadedVideo.media_id);
 });

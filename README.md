@@ -44,6 +44,10 @@ uvicorn app.main:app --reload --port 8000
 cd /Users/harshveersinghnirwan/Downloads/vidyobharat-saas/apps/api
 source venv/bin/activate
 celery -A app.workers.worker.celery_app worker --loglevel=INFO
+
+# Dedicated, fenced guest-timeline MP4 exporter. Keep this at one process
+# until EDITOR_TIMELINE_MAX_CONCURRENT_RENDERS is intentionally raised.
+celery -A app.workers.worker.celery_app worker -Q editor-exports --concurrency="${EDITOR_EXPORT_CELERY_CONCURRENCY:-1}" --loglevel=INFO
 ```
 
 ### 3. Frontend

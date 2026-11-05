@@ -1,0 +1,14 @@
+{
+  "name": "rangmanch-storage-catalog",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {},
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.2",
+    "music-metadata": "^10.6.4"
+  }
+}

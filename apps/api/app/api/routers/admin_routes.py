@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
+from fastapi.responses import Response
 
 from app.api.deps import AdminPrincipal, require_admin_principal
 from app.db.repositories.admin_repository import AdminCursorError, AdminGuestRepository
@@ -52,6 +53,29 @@ class ExistingAudioRegistration(AudioLibraryMetadata):
 @router.get('/audio-library')
 def admin_audio_library(_: AdminPrincipal = Depends(require_admin_principal)):
     return {'items': [entry.model_dump() for entry in build_audio_library_repository().list(include_unpublished=True)]}
+
+
+@router.get('/audio-library/{asset_id}/preview')
+def admin_preview_audio_library(asset_id: str, _: AdminPrincipal = Depends(require_admin_principal)):
+    """Authenticated preview, including unpublished drafts; never exposes raw Storage URLs."""
+    entry = build_audio_library_repository().get(asset_id)
+    if not entry or not entry.storage_path or not entry.storage_path.startswith(('audio-library/sfx/', 'audio-library/music/')):
+        raise HTTPException(status_code=404, detail='Audio asset unavailable.')
+    from app.providers.storage import FirebaseStorageProvider, build_storage_provider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        raise HTTPException(status_code=503, detail='Firebase audio storage unavailable.')
+    try:
+        blob = storage.bucket.blob(entry.storage_path)
+        blob.reload()
+        if not blob.size or blob.size > 12 * 1024 * 1024:
+            raise HTTPException(status_code=422, detail='Audio preview exceeds size limit.')
+        content = blob.download_as_bytes()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail='Audio preview unavailable.')
+    return Response(content=content, media_type=entry.content_type if entry.content_type.startswith('audio/') else 'application/octet-stream', headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @router.post('/audio-library', status_code=201)
@@ -109,10 +133,20 @@ def admin_update_audio_library(asset_id: str, payload: AudioLibraryMetadata, _: 
     return updated.model_dump(exclude={'evidence_reference'})
 
 
+def _validate_audio_publication(entry: AudioLibraryEntry) -> None:
+    if entry.license.upper() not in {'CC0', 'CC0-1.0'}:
+        raise HTTPException(status_code=422, detail='Only verified CC0 assets can be published.')
+    if not entry.evidence_reference or entry.evidence_reference == 'pending-verification':
+        raise HTTPException(status_code=422, detail='License evidence reference is required.')
+    if not entry.source or entry.source == 'firebase-storage':
+        raise HTTPException(status_code=422, detail='Original asset source is required.')
+
+
 @router.post('/audio-library/{asset_id}/publish')
 def admin_publish_audio_library(asset_id: str, _: AdminPrincipal = Depends(require_admin_principal)):
     repository = build_audio_library_repository(); entry = repository.get(asset_id)
     if not entry: raise HTTPException(status_code=404, detail='Audio library asset not found.')
+    _validate_audio_publication(entry)
     updated = entry.model_copy(update={'status': 'published'}); repository.save(updated); return updated.model_dump(exclude={'evidence_reference'})
 
 

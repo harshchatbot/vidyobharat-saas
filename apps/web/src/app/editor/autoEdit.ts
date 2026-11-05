@@ -1,7 +1,11 @@
+import { catalogMediaId, type AudioLibraryEntry } from './audioLibrary.ts';
+import { buildEditedSegments, type SourceInterval } from './talkingHeadTiming.ts';
+import { buildTimedCaptions, type WordTranscript } from './timedCaptions.ts';
 
 import { createBasicText } from './timeline/textTemplates.ts';
 import {
   COPILOT_EDIT_PLAN_VERSION,
+  MAX_COPILOT_OPERATIONS,
   type CopilotEditPlan,
 } from './timeline/editPlan.ts';
 import {
@@ -24,18 +28,97 @@ type TransitionType = 'crossfade' | 'slide-left' | 'slide-right';
 export type AutoEditOptions = {
   style: AutoEditStyle;
   mode: AutoEditMode;
+  silenceRemovals?: SourceInterval[];
+  transcript?: WordTranscript;
   title?: string;
   targetDuration?: number;
   musicVolume?: number;
   includeMusic?: boolean;
   transition?: TransitionType;
   beatCandidates?: BeatCandidate[];
+  sfxLibrary?: AudioLibraryEntry[];
   /** Validated local-AI choices. This is intentionally limited to supported primitives. */
   aiDirection?: {
     transition: TransitionType;
     effectPattern: Array<'zoom-in' | 'zoom-out' | 'none'>;
   };
 };
+
+/** Conservative, edit-aware SFX selection; no semantic video understanding yet. */
+function addTransitionSfx(
+  operations: CopilotEditPlan['operations'],
+  candidates: AudioLibraryEntry[] | undefined,
+  boundaries: number[],
+  totalDuration: number,
+): number {
+  const sounds = (candidates ?? []).filter((entry) =>
+    entry.type === 'sfx' && entry.duration_seconds >= 0.25 &&
+    entry.duration_seconds <= 8 && entry.playback_url &&
+    /whoosh|woosh|sweep|pass/i.test([entry.title, entry.category, ...entry.tags].join(' ')),
+  );
+  if (!sounds.length || !boundaries.length) return 0;
+  let count = 0;
+  let last = -10;
+  for (const time of boundaries) {
+    if (count >= 3 || time < 1 || time - last < 5 || operations.length >= 158) continue;
+    const sound = sounds[count % sounds.length];
+    const startTime = Math.max(0, Math.round((time - 0.15) * V1_TIMELINE_FPS) / V1_TIMELINE_FPS);
+    const duration = Math.min(sound.duration_seconds, totalDuration - startTime);
+    if (duration < 0.25) continue;
+    operations.push({ op: 'add_audio', item: {
+      id: crypto.randomUUID(), kind: 'audio', trackId: 'sfx',
+      mediaId: catalogMediaId(sound.id), contentType: sound.content_type,
+      label: sound.title, startTime, duration, sourceStart: 0,
+      muted: false, volume: 0.3,
+    } });
+    count++;
+    last = time;
+  }
+  return count;
+}
+
+/** Lightweight speech-cue matching; intentionally avoids pretending to understand full scene semantics. */
+function addSpeechCueSfx(
+  operations: CopilotEditPlan['operations'],
+  library: AudioLibraryEntry[] | undefined,
+  transcript: WordTranscript | undefined,
+  segments: Array<{ sourceStart: number; sourceEnd: number; timelineStart: number }>,
+  editedDuration: number,
+  existingCount: number,
+): number {
+  if (!transcript?.words.length || !library?.length || existingCount >= 4) return 0;
+  const categories = [
+    { cue: /^(notification|message|alert|ping|नोटिफिकेशन|मैसेज)$/i, sound: /message|notification|bell|click/i },
+    { cue: /^(important|remember|warning|ध्यान|जरूरी|ज़रूरी)$/i, sound: /soft.impact|impact.accent|pillow.hit/i },
+  ];
+  let added = 0;
+  let lastTime = -10;
+  for (const word of transcript.words) {
+    if (added + existingCount >= 4 || operations.length >= 158) break;
+    const cue = categories.find((candidate) => candidate.cue.test(word.text.replace(/[.,!?।:]/g, '')));
+    if (!cue) continue;
+    const segment = segments.find((part) => word.start >= part.sourceStart && word.start < part.sourceEnd);
+    if (!segment) continue;
+    const time = segment.timelineStart + word.start - segment.sourceStart;
+    if (time < 0.5 || time - lastTime < 4) continue;
+    const sound = library.find((entry) => entry.type === 'sfx' && entry.playback_url &&
+      entry.duration_seconds >= 0.25 && entry.duration_seconds <= 3 &&
+      cue.sound.test([entry.title, entry.category, ...entry.tags].join(' ')));
+    if (!sound) continue;
+    const startTime = Math.round(time * V1_TIMELINE_FPS) / V1_TIMELINE_FPS;
+    const duration = Math.min(sound.duration_seconds, editedDuration - startTime);
+    if (duration < 0.25) continue;
+    operations.push({ op: 'add_audio', item: {
+      id: crypto.randomUUID(), kind: 'audio', trackId: 'sfx',
+      mediaId: catalogMediaId(sound.id), contentType: sound.content_type,
+      label: sound.title, startTime, duration, sourceStart: 0,
+      muted: false, volume: 0.22,
+    } });
+    lastTime = time;
+    added++;
+  }
+  return added;
+}
 
 const MIN_CLIP_DURATION = 1;
 const MAX_CLIP_DURATION = 30;
@@ -253,12 +336,147 @@ function alignDurationsToFrames(durations: number[], target: number): number[] {
   return frames.map((count) => count / fps);
 }
 
+/**
+ * Video-first MVP: preserve the source recording and its original audio.
+ * Generate editable, non-destructive timeline effects rather than replacing
+ * the footage with unrelated image assets. Speech analysis comes later.
+ */
+function buildVideoAutoEditPlan(
+  project: TimelineProject,
+  source: GuestMedia,
+  revision: string,
+  options: AutoEditOptions,
+): CopilotEditPlan {
+  const duration = Math.min(source.duration_seconds ?? 0, MAX_TIMELINE_SECONDS);
+  if (!Number.isFinite(duration) || duration < 0.25) {
+    throw new Error('Video duration is unavailable or too short for Auto Edit.');
+  }
+  const operations: CopilotEditPlan['operations'] = [];
+  // Re-running Auto Edit replaces the previous proposal, never appends duplicate footage.
+  for (const item of project.tracks.flatMap((track) => track.items)) {
+    operations.push({ op: 'remove_item', itemId: item.id });
+  }
+  // Each existing item requires one removal operation. Leave room for replacement
+  // footage, effects, captions and audio within the edit-plan validator limit.
+  if (operations.length > MAX_COPILOT_OPERATIONS - 32) {
+    throw new Error('This timeline exceeds the safe Auto Edit regeneration limit. Save a copy or simplify it before regenerating.');
+  }
+  if (project.aspectRatio !== '9:16') {
+    operations.push({ op: 'set_aspect_ratio', aspectRatio: '9:16' });
+  }
+  const segments = options.silenceRemovals?.length
+    ? buildEditedSegments(duration, options.silenceRemovals, 0.25)
+    : [{ sourceStart: 0, sourceEnd: duration, timelineStart: 0, duration }];
+  if (!segments.length || segments.length > 8) {
+    throw new Error('Too many proposed cuts. Please review the recording manually.');
+  }
+  for (const [index, segment] of segments.entries()) {
+    operations.push({
+      op: 'add_media',
+      item: {
+        id: crypto.randomUUID(), kind: 'video', trackId: 'video',
+        label: `${source.original_filename} · ${index + 1}`,
+        mediaId: source.media_id, contentType: source.content_type,
+        startTime: segment.timelineStart, duration: segment.duration,
+        sourceStart: segment.sourceStart, cropMode: 'cover',
+        muted: false, volume: 1,
+      },
+    });
+  }
+  const editedDuration = segments.reduce((sum, segment) => sum + segment.duration, 0);
+  const config = styleConfig[options.style];
+  // Prefer speech phrase boundaries over fixed timestamps for talking-head zooms.
+  // Keep the fallback for image-only/no-transcript workflows.
+  const speechWords = options.transcript?.words ?? [];
+  const speechCandidates = speechWords.flatMap((word, index) => {
+    const previous = speechWords[index - 1];
+    if (!previous || word.start - previous.end < 0.4) return [];
+    const segment = segments.find((part) => word.start >= part.sourceStart && word.start < part.sourceEnd);
+    if (!segment) return [];
+    return [segment.timelineStart + word.start - segment.sourceStart];
+  });
+  const fallbackIntervals = options.style === 'energetic' ? [2, 8, 15, 23, 32, 43] : [3, 13, 25, 40];
+  const intervals = speechCandidates.length
+    ? speechCandidates.filter((time) => time > 1 && time < editedDuration - 0.5).reduce<number[]>((chosen, time) => {
+        if (!chosen.length || time - chosen[chosen.length - 1] >= 3) chosen.push(time);
+        return chosen;
+      }, []).slice(0, 6)
+    : speechWords.length ? [] : fallbackIntervals;
+  for (const [index, startTime] of intervals.entries()) {
+    if (startTime + 0.5 >= editedDuration) continue;
+    operations.push({
+      op: 'add_effect',
+      item: {
+        id: crypto.randomUUID(), kind: 'effect', trackId: 'effects',
+        label: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        preset: index % 2 === 0 ? 'zoom-in' : 'zoom-out',
+        amount: config.amount, startTime,
+        duration: Math.min(options.style === 'energetic' ? 1.5 : 2.5, editedDuration - startTime),
+      },
+    });
+  }
+  if (options.transcript?.words.length) {
+    const remaining = Math.max(0, MAX_COPILOT_OPERATIONS - operations.length - (options.title?.trim() ? 1 : 0) - 8);
+    const captions = buildTimedCaptions(options.transcript, segments, remaining, options.style);
+    for (const item of captions) operations.push({ op: 'add_text', item });
+  }
+  if (options.title?.trim()) {
+    const title = options.title.trim();
+    operations.push({
+      op: 'add_text',
+      item: {
+        ...createBasicText(0), id: crypto.randomUUID(),
+        label: title, text: title, duration: Math.min(3, editedDuration),
+        color: '#ffffff', outlineColor: '#000000', outlineWidth: 4,
+        shadow: true, backgroundColor: '#000000', backgroundOpacity: 0.45,
+        inAnimation: 'slide-up', inAnimationDuration: Math.min(0.5, editedDuration),
+      },
+    });
+  }
+  // Single talking-head recordings often have no cuts. Anchor subtle SFX to
+  // actual zoom edits instead of requiring silence cuts or rare keywords.
+  const cutBoundaries = segments.slice(1).map((segment) => segment.timelineStart);
+  const zoomBoundaries = operations.flatMap((operation) =>
+    operation.op === 'add_effect' && /zoom-(in|out)/.test(operation.item.preset)
+      ? [operation.item.startTime]
+      : [],
+  );
+  const sfxCount = addTransitionSfx(
+    operations, options.sfxLibrary,
+    [...cutBoundaries, ...zoomBoundaries].sort((a, b) => a - b),
+    editedDuration,
+  );
+  const cueSfxCount = addSpeechCueSfx(operations, options.sfxLibrary, options.transcript, segments, editedDuration, sfxCount);
+  return {
+    schemaVersion: COPILOT_EDIT_PLAN_VERSION,
+    requestId: crypto.randomUUID(), projectRevision: revision,
+    summary: `Video Auto Edit · ${options.style}`,
+    warnings: [
+      options.silenceRemovals?.length ? `Proposed ${options.silenceRemovals.length} silence cuts; review timing and original audio before accepting.` : 'Original video and speech preserved. Effects are editable on the timeline.',
+      options.transcript?.words.length ? 'Animated captions are timed to supplied speech timestamps. Review spelling and synchronization.' : 'Captions are unavailable for this preview because speech transcription was not supplied.',
+      sfxCount || cueSfxCount ? `Added ${sfxCount} transition SFX and ${cueSfxCount} speech-cue SFX; review timing and volume.` : 'No matching SFX cues or edit boundaries found; no sound effects were added.',
+      'Speech-cue SFX uses limited keyword matching, not full semantic video understanding.',
+    ],
+    operations,
+  };
+}
+
 export function buildAutoEditPlan(
   project: TimelineProject,
   media: GuestMedia[],
   revision: string,
   options: AutoEditOptions
 ): CopilotEditPlan {
+  const videos = media.filter((item) =>
+    item.media_type === 'video' && item.availability !== 'unavailable'
+  );
+  if (videos.length > 0) {
+    // Prefer the footage already selected on the timeline.
+    const currentVideo = project.tracks.find((track) => track.id === 'video')
+      ?.items.find((item) => item.kind === 'video' && videos.some((video) => video.media_id === item.mediaId));
+    const source = videos.find((video) => video.media_id === (currentVideo?.kind === 'video' ? currentVideo.mediaId : '')) ?? videos[0];
+    return buildVideoAutoEditPlan(project, source, revision, options);
+  }
   const images = media.filter(
     (item) =>
       item.media_type === 'image' &&
@@ -439,6 +657,15 @@ export function buildAutoEditPlan(
     cursor = cursorFrame / V1_TIMELINE_FPS;
   });
 
+  const sfxCount = addTransitionSfx(
+    operations, options.sfxLibrary,
+    clipDurations.slice(0, -1).reduce<number[]>((times, duration) => {
+      times.push((times.at(-1) ?? appendStart) + duration);
+      return times;
+    }, []),
+    cursor,
+  );
+
   // Add intro and outro effects.
   if (clipIds.length > 0) {
     const firstDuration = clipDurations[0];
@@ -602,6 +829,7 @@ export function buildAutoEditPlan(
     summary: `Auto Edit · ${options.style}`,
     warnings: [
       'Generated deterministically in the browser.',
+      ...(sfxCount ? [`Added ${sfxCount} subtle SFX at clip transitions; review timing and volume.`] : []),
     ],
     operations,
   };

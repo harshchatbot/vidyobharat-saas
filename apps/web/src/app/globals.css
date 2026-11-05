@@ -320,3 +320,89 @@ p {
   outline: none;
   box-shadow: 0 0 0 3px hsl(var(--color-accent) / 0.2);
 }
+
+
+
+/* Rangmanch pastel editor: scoped to editor to avoid altering public pages. */
+.rm-editor-skin {
+  --rm-ink: #292034; --rm-muted: #64556e; --rm-border: #d2bfd9;
+  --rm-cream: #fff9ed; --rm-paper: #fffdf9; --rm-lavender: #e9dcfa;
+  background: var(--rm-cream); color: var(--rm-ink);
+  font-family: Manrope, Arial, sans-serif;
+}
+.rm-editor-skin .rm-editor-header { background: #ffdb77; color: var(--rm-ink); border-bottom: 2px solid #41334b; }
+.rm-editor-skin .rm-editor-header p,
+.rm-editor-skin .rm-editor-header [class~="text-slate-400"],
+.rm-editor-skin .rm-editor-header [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-header [class~="text-slate-300"] { color: #473950; }
+.rm-editor-skin .rm-editor-header button.bg-violet-500,
+.rm-editor-skin .rm-editor-header button.bg-amber-400 { color: #271c34; background: #d5b7f0; border: 1px solid #493957; box-shadow: 2px 2px 0 #493957; }
+.rm-editor-skin .rm-editor-header button.bg-amber-400 { background: #fff1b6; }
+.rm-editor-skin .rm-editor-library-shell,
+.rm-editor-skin .rm-editor-inspector-shell { background: var(--rm-paper); color: var(--rm-ink); border-color: var(--rm-border); }
+.rm-editor-skin .rm-editor-tools { background: #efe2f9; border-color: var(--rm-border); }
+.rm-editor-skin .rm-editor-tools button { color: #473850; font-weight: 700; }
+.rm-editor-skin .rm-editor-tools button[aria-current="true"] { background: #d8baf2; color: #281c34; box-shadow: inset 3px 0 #79549b; }
+.rm-editor-skin .rm-editor-tools button:hover { background: #e2cafa; color: #281c34; }
+.rm-editor-skin .rm-editor-stage { background: #f2e8f7; color: #382842; }
+.rm-editor-skin .rm-editor-stage > div:first-child { border-color: var(--rm-border); }
+.rm-editor-skin .rm-editor-stage select { color: #281c34; background: #fffdf9; border: 1px solid #ad96ba; }
+.rm-editor-skin .rm-editor-library-shell [class~="text-slate-400"],
+.rm-editor-skin .rm-editor-library-shell [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="text-slate-400"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="text-slate-500"] { color: var(--rm-muted); }
+.rm-editor-skin .rm-editor-library-shell [class~="text-white"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="text-white"],
+.rm-editor-skin .rm-editor-library-shell [class~="text-slate-100"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="text-slate-100"],
+.rm-editor-skin .rm-editor-library-shell [class~="text-slate-300"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="text-slate-300"] { color: var(--rm-ink); }
+.rm-editor-skin .rm-editor-library-shell button,
+.rm-editor-skin .rm-editor-inspector-shell button { color: var(--rm-ink); }
+.rm-editor-skin .rm-editor-library-shell [class~="bg-white/15"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="bg-white/15"],
+.rm-editor-skin .rm-editor-library-shell [class~="bg-white/10"] { background: #e6d2f5; }
+.rm-editor-skin .rm-editor-library-shell input:not([type="range"]):not([type="color"]):not([type="checkbox"]),
+.rm-editor-skin .rm-editor-inspector-shell input:not([type="range"]):not([type="color"]):not([type="checkbox"]),
+.rm-editor-skin .rm-editor-inspector-shell textarea,
+.rm-editor-skin .rm-editor-inspector-shell select,
+.rm-editor-skin .rm-editor-library-shell select,
+.rm-editor-skin .rm-editor-library-shell textarea { color: #281b35; background: white; border: 1px solid #b6a4be; }
+.rm-editor-skin .rm-editor-library-shell input::placeholder,
+.rm-editor-skin .rm-editor-inspector-shell input::placeholder { color: #776982; }
+.rm-editor-skin .rm-editor-library-shell [class~="border-white/10"],
+.rm-editor-skin .rm-editor-inspector-shell [class~="border-white/10"] { border-color: var(--rm-border); }
+.rm-editor-skin .rm-editor-library-shell [class~="bg-amber-400"] { background: #f4cd70; }
+.rm-editor-skin .rm-editor-inspector-shell > div:first-child button { color: #a12340; }
+.rm-editor-skin .rm-editor-right-tabs { background: #f5eafa; border-color: var(--rm-border); }
+.rm-editor-skin .rm-editor-right-tabs button { color: #503e5c; }
+.rm-editor-skin .rm-editor-right-tabs button[aria-selected="true"] { background: #e0c3f4; color: #251831; border: 1px solid #ab89bf; }
+.rm-editor-skin .rm-editor-library-shell button:focus-visible,
+.rm-editor-skin .rm-editor-inspector-shell button:focus-visible,
+.rm-editor-skin .rm-editor-library-shell input:focus-visible,
+.rm-editor-skin .rm-editor-inspector-shell input:focus-visible { outline: 2px solid #79549b; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .rm-editor-skin * { scroll-behavior: auto; } }
+/* Scoped Copilot and toolbar contrast for the light editor theme. */
+.rm-editor-skin .rm-editor-copilot { background: #fffdf9; color: #292034; }
+.rm-editor-skin .rm-editor-copilot [class~="text-white"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-300"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-200"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-copilot [class~="text-slate-600"] { color: #45364f; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-suggestion { color: #2a2037; background: #f9f0ff; border: 1px solid #c7add8; font-weight: 600; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-suggestion:hover { background: #e8d2fa; border-color: #865eaa; }
+.rm-editor-skin .rm-editor-copilot textarea { color: #292034; background: white; border-color: #b8a2c9; }
+.rm-editor-skin .rm-editor-copilot textarea::placeholder { color: #6e6079; }
+.rm-editor-skin .rm-editor-copilot button.bg-amber-400 { color: #221830; background: #ffdb77; }
+.rm-editor-skin .rm-editor-header .rm-header-play { background: #372548; color: #fffaf0; border: 1px solid #372548; }
+.rm-editor-skin .rm-editor-header .rm-header-play:disabled { background: #d1bfa0; color: #514858; border-color: #a9958d; opacity: .75; }
+.rm-editor-skin .rm-editor-header .rm-header-sign-in { color: #271c34; background: #fffdf9; border: 1px solid #493957; font-weight: 700; }
+.rm-editor-skin .rm-editor-header .rm-header-sign-in:hover { background: #f7eafa; }
+/* Contrast fixes for Copilot conversation and destructive editor toolbar action. */
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user { color: #292034; background: #fff1ce; border: 1px solid #cba75a; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant { color: #292034; background: #f2e7fb; border: 1px solid #c9b1d9; }
+.rm-editor-skin .rm-editor-copilot .rm-copilot-user [class~="text-slate-500"],
+.rm-editor-skin .rm-editor-copilot .rm-copilot-assistant [class~="text-slate-500"] { color: #574666; }
+.rm-editor-skin .rm-editor-header .rm-header-delete { color: #a51632; background: #fff2f2; border: 1px solid #c96177; }
+.rm-editor-skin .rm-editor-header .rm-header-delete:hover { color: #7e1127; background: #ffdbe2; }
+.rm-editor-skin .rm-editor-header .rm-header-delete:disabled { color: #886672; background: #f5e4e5; border-color: #b8a0a8; opacity: .65; }

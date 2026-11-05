@@ -75,8 +75,7 @@ You help users:
 - Understand video editing concepts.
 - Improve their existing video projects.
 
-Respond naturally and concisely.
-Ask clarifying questions when needed.
+Respond naturally and concisely. Use no more than five short actionable tips.\nWhen listing suggestions, put each numbered item on its own line.\nUse simple Markdown for bold emphasis. Avoid long introductions.\nAsk clarifying questions when needed.
 
 Never claim you edited a video unless the
 editing engine has actually applied the changes.
@@ -97,7 +96,7 @@ export async function generateChatResponse(
       ...messages.slice(-10),
     ],
     temperature: 0.7,
-    max_tokens: 250,
+    max_tokens: 420,
   });
 
   const answer = response.choices[0]?.message?.content?.trim();
@@ -573,6 +572,11 @@ function normalizeIntermediateTiming(
       normalized.title_duration = intent.imageDuration;
     if (intent.fadeDuration !== null)
       normalized.title_animation_duration = intent.fadeDuration;
+    // The model's nullable schema permits omitted title timing. Supply safe
+    // defaults instead of passing null into the strict command validator.
+    normalized.title_start ??= 0;
+    normalized.title_duration ??= normalized.duration_seconds ?? 3;
+    normalized.title_position ??= "center";
   }
   return normalized;
 }

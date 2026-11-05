@@ -25,11 +25,16 @@ celery_app = Celery(
         'app.services.ai_video_service',
         'app.workers.storyboard_tasks',
         'app.workers.avatar_tasks',
+        'app.workers.guest_export_tasks',
         'app.services.video_service',
     ],
 )
 celery_app.conf.task_always_eager = bool(settings.celery_task_always_eager and settings.env != 'production')
 celery_app.conf.task_default_queue = 'celery'
+celery_app.conf.task_routes = {
+    'editor.process_guest_timeline_export': {'queue': settings.editor_export_celery_queue},
+    'editor.reconcile_guest_timeline_exports': {'queue': settings.editor_export_celery_queue},
+}
 
 
 @worker_ready.connect

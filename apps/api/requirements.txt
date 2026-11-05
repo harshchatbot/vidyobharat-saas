@@ -20,3 +20,4 @@ huggingface_hub>=0.30.0
 pydub==0.25.1
 mediapipe
 opencv-python-headless
+Pillow>=10.1,<12

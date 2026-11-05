@@ -10,7 +10,7 @@ export type TextAlignment = 'left' | 'center' | 'right';
 export type TextInAnimation = 'none' | 'fade-in' | 'slide-up' | 'pop-in';
 export type TextOutAnimation = 'none' | 'fade-out' | 'slide-down';
 export type TextLoopAnimation = 'none' | 'pulse' | 'float';
-export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'zoom-out' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation' | 'sepia' | 'hue-rotate' | 'invert' | 'warm' | 'cool';
+export type EffectPreset = 'fade-in' | 'fade-out' | 'zoom-in' | 'zoom-out' | 'punch-zoom' | 'flash' | 'grayscale' | 'blur' | 'brightness' | 'contrast' | 'vibrance' | 'vignette' | 'saturation' | 'sepia' | 'hue-rotate' | 'invert' | 'warm' | 'cool';
 export type ProjectAspectRatio = '9:16' | '16:9' | '1:1' | '4:5';
 export type ExportResolution = '720p' | '1080p';
 export type ExportFrameRate = 24 | 30 | 60;
@@ -28,7 +28,9 @@ export type GuestMedia = {
 
 type BaseTimelineItem = { id: string; trackId: TrackType; startTime: number; duration: number; label: string };
 export type VideoTimelineItem = BaseTimelineItem & { kind: 'video'; trackId: 'video'; mediaId: string; contentType: string; sourceStart: number; cropMode: CropMode; muted: boolean; volume: number; transitionOut?: ClipTransition };
+export type CaptionWord = { text: string; start: number; end: number };
 export type TextTimelineItem = BaseTimelineItem & {
+  captionWords?: CaptionWord[];
   kind: 'text'; trackId: 'text'; text: string; fontFamily: string; fontSize: number;
   color: string; bold: boolean; x: number; y: number; width: number; rotation: number;
   alignment: TextAlignment; outlineColor: string; outlineWidth: number; shadow: boolean;
@@ -44,11 +46,13 @@ export type TimelineProject = { id: string; duration: number; extensionExplicit:
 
 export const EDITOR_FONTS = [
   'Inter', 'Lato', 'Roboto', 'Noto Sans', 'Noto Serif',
+  'Arial', 'Arial Black', 'Verdana', 'Trebuchet MS', 'Georgia', 'Times New Roman',
+  'Palatino Linotype', 'Courier New', 'Impact', 'Tahoma',
   'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu',
   'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam',
 ] as const;
 export type EditorFontFamily = typeof EDITOR_FONTS[number];
-export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'zoom-out', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation', 'sepia', 'hue-rotate', 'invert', 'warm', 'cool'];
+export const EFFECT_PRESETS: EffectPreset[] = ['fade-in', 'fade-out', 'zoom-in', 'zoom-out', 'punch-zoom', 'flash', 'grayscale', 'blur', 'brightness', 'contrast', 'vibrance', 'vignette', 'saturation', 'sepia', 'hue-rotate', 'invert', 'warm', 'cool'];
 
 export function editorFontStack(fontFamily: string): string {
   return `"${fontFamily.replace(/["\\]/g, '')}", "Noto Sans", sans-serif`;

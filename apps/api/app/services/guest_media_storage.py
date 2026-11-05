@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
+import time
 from typing import Iterator
 
 import httpx
@@ -12,6 +14,9 @@ from app.providers.firebase_emulator import (
     firebase_emulator_requested,
     get_firebase_storage_emulator_client,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class GuestMediaObjectMissing(RuntimeError):
@@ -50,6 +55,22 @@ class GuestMediaStorage:
 
     def object_size(self, object_name: str) -> int:
         raise NotImplementedError
+
+    def download_to_path(self, object_name: str, destination: Path, *, expected_size: int) -> None:
+        """Download an authorized object with strict size validation.
+
+        Emulator and alternate storage implementations retain the compatible
+        range-based fallback; Firebase overrides this with a single transfer.
+        """
+        with destination.open('xb') as target:
+            size = 0
+            for chunk in self.iter_content(object_name, start=0, end=expected_size - 1):
+                size += len(chunk)
+                if size > expected_size:
+                    raise RuntimeError('Downloaded media exceeded its expected size.')
+                target.write(chunk)
+        if size != expected_size:
+            raise ValueError('Downloaded media size does not match its record.')
 
     def iter_content(
         self,
@@ -156,6 +177,31 @@ class FirebaseGuestMediaStorage(GuestMediaStorage):
             content_type=content_type,
             timeout=min(self.timeout_seconds, timeout_seconds),
         )
+
+    def download_to_path(self, object_name: str, destination: Path, *, expected_size: int) -> None:
+        """Single GCS transfer, retaining ownership checks in the caller."""
+        start = time.monotonic()
+        try:
+            # The SDK writes to disk instead of buffering the entire video in RAM.
+            # Its default checksum behavior checks MD5 or CRC32C when available.
+            with destination.open('xb') as target:
+                self.bucket.blob(object_name).download_to_file(
+                    target, timeout=self.timeout_seconds, checksum='auto'
+                )
+            actual_size = destination.stat().st_size
+            if actual_size != expected_size:
+                raise ValueError('Downloaded media size does not match its record.')
+            logger.info(
+                'guest_storage_download_completed',
+                extra={'source_bytes': actual_size, 'elapsed_seconds': round(time.monotonic() - start, 3)},
+            )
+        except NotFound as exc:
+            destination.unlink(missing_ok=True)
+            raise GuestMediaObjectMissing(object_name) from exc
+        except Exception:
+            destination.unlink(missing_ok=True)
+            logger.exception('guest_storage_download_failed', extra={'elapsed_seconds': round(time.monotonic() - start, 3)})
+            raise
 
     def read_range(self, object_name: str, *, start: int, end: int) -> bytes:
         try:

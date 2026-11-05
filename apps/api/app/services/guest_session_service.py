@@ -342,13 +342,22 @@ class GuestSessionService:
                 recoverable=False,
             )
 
-    def public_session_payload(self, session: dict[str, Any]) -> dict[str, Any]:
+    def public_session_payload(self, session: dict[str, Any], *, request: Request | None = None) -> dict[str, Any]:
+        network_usage = None
+        if request is not None:
+            assert self.network_quotas is not None
+            network_usage = self.network_quotas.usage(
+                subject=self.network_subject(request),
+                now=datetime.now(UTC),
+            )
         return {
             'guest_id': session['guest_id'],
             'created_at': session['created_at'],
             'expires_at': session['expires_at'],
             'status': session['status'],
-            'usage': self.usage_payload(session),
+            # Match the capacity used by reserve_network_quota so the UI never
+            # advertises uploads that the API must reject for this network.
+            'usage': self.usage_payload(session, network_usage=network_usage),
         }
 
     def usage_payload(self, session: dict[str, Any], *, network_usage: dict[str, int | float] | None = None) -> dict[str, Any]:

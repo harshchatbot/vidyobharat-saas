@@ -33,6 +33,8 @@ export const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
   { id: 'negative', name: 'Negative', section: 'effects', category: 'Creative', preset: 'invert', defaultIntensity: 1 },
   { id: 'soft-blur', name: 'Soft Blur', section: 'effects', category: 'Creative', preset: 'blur', defaultIntensity: 0.45 },
   { id: 'slow-zoom', name: 'Slow Zoom', section: 'effects', category: 'Cinematic', preset: 'zoom-in', defaultIntensity: 1 },
+  { id: 'punch-zoom', name: 'Punch Zoom', section: 'effects', category: 'Creative', preset: 'punch-zoom', defaultIntensity: 1 },
+  { id: 'flash', name: 'Flash Accent', section: 'effects', category: 'Creative', preset: 'flash', defaultIntensity: 0.7 },
   { id: 'slow-zoom-out', name: 'Slow Zoom Out', section: 'effects', category: 'Cinematic', preset: 'zoom-out', defaultIntensity: 1 },
   { id: 'fade-in', name: 'Fade In', section: 'transitions', category: 'Cinematic', preset: 'fade-in', defaultIntensity: 1 },
   { id: 'fade-out', name: 'Fade Out', section: 'transitions', category: 'Cinematic', preset: 'fade-out', defaultIntensity: 1 },
@@ -60,6 +62,8 @@ export function browserEffectState(effects: EffectTimelineItem[], time: number):
     if (effect.preset === 'fade-out') opacity *= 1 - progress;
     if (effect.preset === 'zoom-in') scale *= 1 + 0.12 * amount * progress;
     if (effect.preset === 'zoom-out') scale *= 1.12 - 0.12 * amount * progress;
+    if (effect.preset === 'punch-zoom') scale *= 1 + 0.22 * amount * Math.exp(-progress * 12);
+    if (effect.preset === 'flash') filters.push(`brightness(${1 + 1.7 * amount * Math.exp(-progress * 16)})`);
     if (effect.preset === 'grayscale') filters.push(`grayscale(${amount})`);
     if (effect.preset === 'blur') filters.push(`blur(${amount * 5}px)`);
     if (effect.preset === 'brightness') filters.push(`brightness(${amount})`);

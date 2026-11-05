@@ -55,6 +55,11 @@ class AudioLibraryRepository:
         return AudioLibraryEntry.model_validate(snapshot.to_dict() | {'id': snapshot.id}) if snapshot.exists else None
 
     def save(self, entry: AudioLibraryEntry) -> AudioLibraryEntry:
+        if entry.status == 'published' and entry.storage_path:
+            from app.providers.storage import FirebaseStorageProvider
+            storage = build_storage_provider()
+            if not isinstance(storage, FirebaseStorageProvider) or not storage.bucket.blob(entry.storage_path).exists():
+                raise ValueError('Cannot publish audio: Firebase Storage object is missing.')
         self.collection.document(entry.id).set(entry.model_dump(exclude={'id'}))
         return entry
 
@@ -88,8 +93,66 @@ def build_audio_library_repository():
     return AudioLibraryRepository(get_firestore_client())
 
 
+def sync_firebase_sfx_catalog() -> int:
+    """Discover newly uploaded Firebase SFX. Unknown licenses remain drafts, never public."""
+    from app.providers.storage import FirebaseStorageProvider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        return 0
+    repository = build_audio_library_repository()
+    known = {entry.storage_path for entry in repository.list(include_unpublished=True)}
+    created = 0
+    for prefix in ('sfx/', 'audio-library/sfx/'):
+        for blob in storage.bucket.list_blobs(prefix=prefix):
+            path = blob.name
+            if path in known or not path.lower().endswith(('.wav', '.mp3', '.ogg')):
+                continue
+            metadata = blob.metadata or {}
+            # No public availability without independently confirmed redistribution rights.
+            license_name = metadata.get('license', 'unverified')
+            approved = (metadata.get('redistribution_confirmed') == 'true' and license_name.upper() in {'CC0', 'CC0-1.0'}
+                        and bool(metadata.get('evidence_reference') and metadata.get('source')))
+            duration = metadata.get('duration_seconds')
+            if not duration:
+                if not blob.size or blob.size > 12 * 1024 * 1024:
+                    continue
+                try:
+                    data = blob.download_as_bytes()
+                    duration = validate_audio_file(
+                        data, blob.content_type or ('audio/mpeg' if path.lower().endswith('.mp3') else 'audio/wav'),
+                        Path(path).name, 12 * 1024 * 1024,
+                    )
+                except (ValueError, OSError, RuntimeError):
+                    continue
+            try:
+                seconds = float(duration)
+                if not 0 < seconds <= 3600:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            asset_id = hashlib.sha256(path.encode('utf-8')).hexdigest()[:40]
+            title = Path(path).stem.replace('_', ' ').replace('-', ' ')
+            entry = AudioLibraryEntry(
+                id=asset_id, title=title, category=metadata.get('category', 'sfx')[:80],
+                type='sfx', duration_seconds=seconds,
+                content_type=blob.content_type or ('audio/mpeg' if path.lower().endswith('.mp3') else 'audio/wav'),
+                tags=[tag.strip() for tag in metadata.get('tags', '').split(',') if tag.strip()][:20],
+                license=license_name, attribution=metadata.get('attribution'),
+                source=metadata.get('source', 'firebase-storage'),
+                evidence_reference=metadata.get('evidence_reference', 'pending-verification'),
+                storage_path=path, status='published' if approved else 'draft',
+            )
+            repository.save(entry)
+            known.add(path)
+            created += 1
+    return created
+
+
 def list_audio_library(*, category: str | None = None, query: str | None = None) -> list[dict]:
     # Public listing is intentionally repository-backed; an unavailable backend fails closed.
+    # Listing approved audio must not depend on Firebase Storage scanning.
+    # Catalog ingestion belongs in an explicit admin/background operation;
+    # storage permissions or blob metadata failures must not break browsing.
     entries = build_audio_library_repository().list()
     needle = query.casefold().strip() if query else None
     return [entry.public() for entry in entries if (category is None or entry.type == category) and (needle is None or needle in ' '.join([entry.title, entry.category, *entry.tags]).casefold())]
@@ -140,3 +203,30 @@ def register_existing_audio_asset(*, storage_path: str, title: str, category: st
     )
     repository.save(entry)
     return entry
+
+
+def reconcile_audio_library(*, apply: bool = False) -> dict:
+    """Audit published catalog records against Storage; optionally retire missing objects.
+
+    This is an explicit maintenance operation, never called during public listing.
+    Storage errors propagate so an outage cannot accidentally retire the catalog.
+    """
+    from app.providers.storage import FirebaseStorageProvider
+    storage = build_storage_provider()
+    if not isinstance(storage, FirebaseStorageProvider):
+        raise RuntimeError('Firebase Storage is required for catalog reconciliation.')
+    repository = build_audio_library_repository()
+    report = {'checked': 0, 'available': 0, 'missing': [], 'no_storage_path': [], 'retired': 0, 'dry_run': not apply}
+    for entry in repository.list():
+        report['checked'] += 1
+        if not entry.storage_path:
+            report['no_storage_path'].append(entry.id)
+            continue
+        if storage.bucket.blob(entry.storage_path).exists():
+            report['available'] += 1
+            continue
+        report['missing'].append({'id': entry.id, 'title': entry.title, 'storage_path': entry.storage_path})
+        if apply:
+            repository.collection.document(entry.id).update({'status': 'retired', 'updated_at': datetime.now().astimezone()})
+            report['retired'] += 1
+    return report
