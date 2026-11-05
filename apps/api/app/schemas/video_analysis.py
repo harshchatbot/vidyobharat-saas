@@ -110,6 +110,7 @@ class SpeechEvidence(StrictModel):
 class AudioEvidence(StrictModel):
     status: Literal["complete", "unavailable", "no_audio"]
     silence_intervals: list[Interval] = Field(default_factory=list)
+    strict_silence_intervals: list[Interval] = Field(default_factory=list)
     speech_pause_intervals: list[Interval] = Field(default_factory=list)
     timing_quality: TimingQuality = Field(default_factory=lambda: TimingQuality(status='unavailable', conflict_count=0))
     safe_cut_candidates: list[SafeCutCandidate] = Field(default_factory=list)
