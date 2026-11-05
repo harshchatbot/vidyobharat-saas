@@ -6,6 +6,8 @@ use; review model-weight licensing before commercial deployment.
 from __future__ import annotations
 
 import os
+import logging
+import time
 import subprocess
 import tempfile
 from collections import OrderedDict
@@ -14,6 +16,7 @@ from hashlib import sha256
 from pathlib import Path
 from threading import Lock
 
+logger = logging.getLogger(__name__)
 MAX_INPUT_BYTES = 100 * 1024 * 1024
 MAX_TRANSCRIPT_CACHE_ENTRIES = 24
 
@@ -31,6 +34,7 @@ def _model(model_name: str):
     with _cache_lock:
         cached = _models.get(model_name)
         if cached is not None:
+            logger.info("editor_transcription_model_cache_hit", extra={"stt_model": model_name})
             return cached
 
         try:
@@ -40,6 +44,7 @@ def _model(model_name: str):
 
         model = WhisperModel(model_name, device="cpu", compute_type="int8")
         _models[model_name] = model
+        logger.info('editor_transcription_model_loaded', extra={'stt_model': model_name})
         return model
 
 
@@ -67,13 +72,24 @@ def clear_transcription_caches_for_testing() -> None:
         _transcripts.clear()
 
 
-def transcribe_video_bytes(data: bytes) -> dict:
+def transcribe_video_bytes(data: bytes, *, use_cache: bool = True) -> dict:
     if not data or len(data) > MAX_INPUT_BYTES:
         raise ValueError("Video is empty or exceeds the 100 MB transcription limit.")
-    content_hash = sha256(data).hexdigest()
-    cached = _cached_transcript(content_hash)
+    started = time.perf_counter()
+    model_name = os.getenv("RANGMANCH_STT_MODEL", "small")
+    # A different configured model must never return another model's transcript.
+    content_hash = sha256(model_name.encode() + b"\x00" + data).hexdigest()
+    cached = _cached_transcript(content_hash) if use_cache else None
     if cached is not None:
+        logger.info("editor_transcription_cache_hit", extra={
+            "stt_model": model_name, "source_bytes": len(data),
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
+        })
         return cached
+    logger.info("editor_transcription_cache_miss", extra={
+        "stt_model": model_name, "source_bytes": len(data),
+        "cache_bypassed": not use_cache,
+    })
 
     with tempfile.TemporaryDirectory(prefix="rangmanch-stt-") as temp_dir:
         video = Path(temp_dir) / "source.mp4"
@@ -89,7 +105,6 @@ def transcribe_video_bytes(data: bytes) -> dict:
         except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             raise ValueError("Unable to decode audio from this recording.") from exc
 
-        model_name = os.getenv("RANGMANCH_STT_MODEL", "small")
         model = _model(model_name)
         segments, info = model.transcribe(
             str(audio), beam_size=5, word_timestamps=True, vad_filter=True,
@@ -116,6 +131,9 @@ def transcribe_video_bytes(data: bytes) -> dict:
                 })
             if len(words) >= 1000:
                 break
-        return _store_transcript(content_hash, {
-            "language": info.language, "words": words, "utterances": utterances,
+        result = {"language": info.language, "words": words, "utterances": utterances}
+        logger.info("editor_transcription_fresh_complete", extra={
+            "stt_model": model_name, "word_count": len(words),
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
         })
+        return _store_transcript(content_hash, result) if use_cache else result
