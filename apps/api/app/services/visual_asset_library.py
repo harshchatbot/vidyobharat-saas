@@ -59,7 +59,7 @@ class VisualAssetEdit(BaseModel):
 
 
 class VisualAssetCreate(VisualAssetEdit):
-    type: Literal["lut", "emoji"]
+    type: Literal["lut", "emoji", "music"]
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
 
 
