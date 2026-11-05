@@ -164,6 +164,9 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [autoEditTitle, setAutoEditTitle] = useState('');
   const [autoEditDetectPauses, setAutoEditDetectPauses] = useState(false);
   const [autoEditError, setAutoEditError] = useState('');
+  const [videoAnalysisReport, setVideoAnalysisReport] = useState<unknown>(null);
+  const [videoAnalysisBusy, setVideoAnalysisBusy] = useState(false);
+  const [videoAnalysisError, setVideoAnalysisError] = useState('');
   const [autoEditProgress, setAutoEditProgress] = useState<BrowserAiProgress | null>(null);
   const autoEditEpochRef = useRef(0);
   const autoEditAbortRef = useRef<AbortController | null>(null);
@@ -1176,6 +1179,41 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
     }
   }
 
+  async function analyzeVideoForPlanning() {
+    if (videoAnalysisBusy || autoEditProgress) return;
+    const selectedVideo = project.tracks.find((track) => track.id === 'video')?.items.find((item) => item.kind === 'video');
+    const source = media.find((item) => item.media_id === (selectedVideo?.kind === 'video' ? selectedVideo.mediaId : '') && item.media_type === 'video' && item.availability !== 'unavailable')
+      ?? media.find((item) => item.media_type === 'video' && item.availability !== 'unavailable');
+    if (!source) { setVideoAnalysisError('Upload a video to generate an analysis report.'); return; }
+    setVideoAnalysisBusy(true);
+    setVideoAnalysisError('');
+    setVideoAnalysisReport(null);
+    try {
+      const response = await fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(source.media_id)}/analyze?style=${encodeURIComponent(autoEditStyle)}`, {
+        method: 'POST', credentials: 'include', headers: { 'X-RangManch-Editor-CSRF': '1' },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : `Video analysis failed (${response.status}).`);
+      if (data?.schema_version !== '1.0') throw new Error('Video analysis returned an unsupported schema.');
+      setVideoAnalysisReport(data);
+    } catch (error) {
+      setVideoAnalysisError(error instanceof Error ? error.message : 'Video analysis unavailable.');
+    } finally { setVideoAnalysisBusy(false); }
+  }
+
+  function downloadVideoAnalysisReport() {
+    if (!videoAnalysisReport) return;
+    const blob = new Blob([JSON.stringify(videoAnalysisReport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'rangmanch-video-analysis-v1.json';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function isMediaReferenced(mediaId: string) {
     return project.tracks.some((track) => track.items.some((item) =>
       (item.kind === 'video' || item.kind === 'audio') && item.mediaId === mediaId
@@ -1474,6 +1512,18 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             {autoEditCaptions && <div className="mt-3 rounded-2xl border-2 border-[#d8c1e5] bg-[#f2e6fb] p-3"><p className="text-xs font-bold text-[#483052]">Choose a caption font</p><div className="mt-2 grid grid-cols-2 gap-2">{(['Inter', 'Roboto', 'Lato', 'Noto Sans', 'Noto Serif'] as const).map((font) => <button type="button" key={font} disabled={Boolean(autoEditProgress)} onClick={() => setAutoEditCaptionFont(font)} aria-pressed={autoEditCaptionFont === font} className={`min-h-10 rounded-xl border-2 bg-white px-2 text-sm ${autoEditCaptionFont === font ? 'border-[#79549b] shadow-[2px_2px_0_#79549b]' : 'border-[#d9c8e1]'}`} style={{ fontFamily: font }}>{font}</button>)}</div><div className="mt-3 flex aspect-video items-center justify-center rounded-xl bg-[#251b30] p-3 text-center"><span className="text-xl font-bold text-white [text-shadow:1px_2px_3px_#000]" style={{ fontFamily: autoEditCaptionFont }}>Your captions look like this</span></div><p className="mt-2 text-[11px] text-[#62536d]">Sample preview. Captions will be timed to detected speech.</p></div>}
             <label className="mt-4 flex items-start gap-2 text-xs font-semibold text-[#4d365d]"><input type="checkbox" className="mt-0.5 accent-[#79549b]" disabled={Boolean(autoEditProgress)} checked={autoEditDetectPauses} onChange={(event) => setAutoEditDetectPauses(event.target.checked)} />Suggest silence cuts (experimental; review before accepting)</label>
             <label className="mt-4 block text-xs font-bold text-[#483052]">Optional opening title<input value={autoEditTitle} disabled={Boolean(autoEditProgress)} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border-2 border-[#cdb7d6] bg-white px-3 text-sm text-[#30223c] outline-none focus:border-[#8e63a8]" placeholder="Give your reel a title" /></label>
+            <div className="mt-4 rounded-2xl border-2 border-[#d8c1e5] bg-[#fffdf9] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><p className="text-sm font-extrabold">Video Analysis Engine · V1</p><p className="text-xs text-[#62536d]">Generate structured evidence before AI planning. Does not change your timeline.</p></div>
+                <button type="button" disabled={videoAnalysisBusy || Boolean(autoEditProgress)} onClick={() => void analyzeVideoForPlanning()} className="rounded-xl border-2 border-[#49334f] bg-[#e9dcfa] px-3 py-2 text-xs font-extrabold text-[#30223c] disabled:opacity-50">{videoAnalysisBusy ? 'Analyzing video…' : 'Analyze video'}</button>
+              </div>
+              {videoAnalysisError && <p role="alert" className="mt-2 text-xs font-semibold text-[#a22136]">{videoAnalysisError}</p>}
+              {videoAnalysisBusy && <p role="status" className="mt-2 text-xs text-[#62536d]">Extracting speech, audio, faces and scene changes. This may take some time.</p>}
+              {videoAnalysisReport && <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between"><span className="text-xs font-bold text-[#483052]">Analysis JSON ready</span><button type="button" onClick={downloadVideoAnalysisReport} className="rounded-lg border border-[#49334f] bg-[#ffdb77] px-3 py-2 text-xs font-bold">Download JSON</button></div>
+                <details><summary className="cursor-pointer text-xs font-semibold text-[#65427e]">Inspect report and analyzer status</summary><pre className="mt-2 max-h-60 overflow-auto rounded-xl bg-[#251b30] p-3 text-[10px] leading-relaxed text-white">{JSON.stringify(videoAnalysisReport, null, 2)}</pre></details>
+              </div>}
+            </div>
             {project.duration > 0 && <p className="mt-3 rounded-xl bg-[#f2e6fb] p-3 text-xs font-medium text-[#594568]">Your existing timeline changes only after you select Apply edits. You can undo afterwards.</p>}
             {autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={false} /> : autoEditError && <p role="alert" className="mt-3 rounded-xl border border-[#e3a6ac] bg-[#fff0f0] p-3 text-xs text-[#8a2439]">{autoEditError}</p>}
           </div>
