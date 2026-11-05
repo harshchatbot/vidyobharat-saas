@@ -510,3 +510,26 @@ p {
 .admin-studio .admin-loading-bar { background: linear-gradient(90deg, #efe7f6, #f9f3fe, #efe7f6); background-size: 200% 100%; animation: admin-shimmer 1.5s ease-in-out infinite; }
 @keyframes admin-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .admin-studio .admin-loading-bar { animation: none; } }
+
+
+/* Admin-only auth presentation; the normal creator login is unchanged. */
+.rm-admin-login { background: #fcfaff; color: #30213e; }
+.rm-admin-login > div > section:first-child { background: #f3ecfa; border-color: #e2d5ed; }
+.rm-admin-login .text-white\/60,
+.rm-admin-login .text-white\/70,
+.rm-admin-login .text-white\/55,
+.rm-admin-login .text-white\/45,
+.rm-admin-login .text-white\/35,
+.rm-admin-login .text-white\/30 { color: #685778; }
+.rm-admin-login .text-violet-300,
+.rm-admin-login .text-violet-200 { color: #6c418b; }
+.rm-admin-login button.bg-white\/\[0\.06\] { background: #fff; border-color: #cbb7db; color: #30213e; }
+.rm-admin-login button.bg-white\/\[0\.06\]:hover { background: #f7f0fd; }
+.rm-admin-login input[type="email"],
+.rm-admin-login input[type="password"],
+.rm-admin-login input[type="text"] { background: #fff; color: #30213e; border-color: #c4b2d2; }
+.rm-admin-login input::placeholder { color: #74677e; }
+.rm-admin-login button.bg-violet-400 { background: #714797; color: #fff; }
+.rm-admin-login button.bg-violet-400:hover { background: #593777; }
+.rm-admin-login a:hover { text-decoration: underline; }
+.rm-admin-login :is(button, a, input):focus-visible { outline: 2px solid #714797; outline-offset: 2px; }
