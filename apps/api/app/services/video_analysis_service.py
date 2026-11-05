@@ -126,83 +126,106 @@ def scene_changes(path: Path, duration: float) -> list[float]:
     return points[:100]
 
 
-def detect_faces(path: Path, duration: float) -> tuple[str, list[FaceSample]]:
-    """1 FPS CPU YuNet detection with bounded resize and normalized face boxes.
+def detect_faces(
+    path: Path, duration: float, width: int | None = None, height: int | None = None,
+) -> tuple[str, list[FaceSample]]:
+    """One-pass 1 FPS FFmpeg extraction + small CPU YuNet inference.
 
-    Samples reflect only inspected frames, not continuous face tracking.
-    Missing frames or detector failures never invent face locations.
+    Sparse observations only; no face tracking. This avoids repeatedly seeking
+    through a compressed MP4, which was ~7s for 16 samples on a local M1.
     """
     model_file = os.environ.get("RANGMANCH_YUNET_MODEL_PATH", "").strip()
     if not model_file or not Path(model_file).is_file():
         return "unavailable", []
-    import time
     import logging
-    started = time.monotonic()
+    import time
     logger = logging.getLogger(__name__)
-    cap = None
-    inspected = 0
-    decoded = 0
+    started = time.monotonic()
     try:
         import cv2
-        detector = cv2.FaceDetectorYN_create(model_file, "", (320, 320), 0.75, 0.3, 5000)
-        cap = cv2.VideoCapture(str(path))
-        if not cap.isOpened():
+        import numpy as np
+
+        # Normal analysis always supplies probed video dimensions; optional
+        # args preserve calls made by scripts and other Python code.
+        if width is None or height is None:
+            media = probe_video(path, "face-analysis")
+            width, height = media.width, media.height
+        if width <= 0 or height <= 0:
             return "unavailable", []
+        scale = min(1.0, 640.0 / max(width, height))
+        dw = max(2, int(round(width * scale / 2)) * 2)
+        dh = max(2, int(round(height * scale / 2)) * 2)
+        count = min(math.ceil(duration), MAX_FACE_SAMPLES)
+        if count < 1:
+            return "no_faces", []
+
+        # One FFmpeg process decodes the source sequentially, selecting at
+        # 0,1,2... seconds and scaling before shipping raw BGR frames.
+        # At <=65 samples and <=640px max edge, this consumes <=~81MB.
+        extraction_started = time.monotonic()
+        process = subprocess.run(
+            [
+                "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                "-i", str(path), "-map", "0:v:0", "-an", "-sn", "-dn",
+                "-vf", f"fps=1,scale={dw}:{dh}:flags=fast_bilinear",
+                "-frames:v", str(count), "-pix_fmt", "bgr24",
+                "-f", "rawvideo", "pipe:1",
+            ],
+            capture_output=True, timeout=45, check=True,
+        )
+        extraction_seconds = time.monotonic() - extraction_started
+        frame_bytes = dw * dh * 3
+        if not process.stdout or len(process.stdout) % frame_bytes:
+            raise ValueError("Invalid FFmpeg sampled-frame byte count.")
+        frames_decoded = len(process.stdout) // frame_bytes
+        if frames_decoded > count:
+            raise ValueError("FFmpeg returned excessive sampled frames.")
+        detector_started = time.monotonic()
+        detector = cv2.FaceDetectorYN_create(model_file, "", (dw, dh), 0.75, 0.3, 5000)
         samples: list[FaceSample] = []
-        for second in range(min(math.ceil(duration), MAX_FACE_SAMPLES)):
-            inspected += 1
-            cap.set(cv2.CAP_PROP_POS_MSEC, second * 1000)
-            ok, frame = cap.read()
-            if not ok:
-                continue
-            height, width = frame.shape[:2]
-            if width <= 0 or height <= 0:
-                continue
-            decoded += 1
-            # 1080x1920 original => 360x640 inference, reducing CPU cost.
-            scale = min(1.0, 640.0 / max(width, height))
-            detection_width = max(1, round(width * scale))
-            detection_height = max(1, round(height * scale))
-            if scale < 1.0:
-                frame = cv2.resize(frame, (detection_width, detection_height), interpolation=cv2.INTER_AREA)
-            detector.setInputSize((detection_width, detection_height))
+        for second in range(frames_decoded):
+            frame = np.frombuffer(
+                process.stdout, dtype=np.uint8,
+                count=frame_bytes, offset=second * frame_bytes,
+            ).reshape((dh, dw, 3))
             _, faces = detector.detect(frame)
             if faces is None or len(faces) == 0:
                 continue
-            # Choose the largest confident face, not necessarily the same
-            # person across frames. Coordinates are normalized to full frame.
             valid = [face for face in faces if float(face[-1]) >= 0.75]
             if not valid:
                 continue
             face = max(valid, key=lambda item: float(item[2] * item[3]))
             confidence = float(face[-1])
             x, y, w, h = [float(value) for value in face[:4]]
-            left = max(0.0, min(1.0, x / detection_width))
-            top = max(0.0, min(1.0, y / detection_height))
-            right = max(0.0, min(1.0, (x + w) / detection_width))
-            bottom = max(0.0, min(1.0, (y + h) / detection_height))
+            left = max(0.0, min(1.0, x / dw))
+            top = max(0.0, min(1.0, y / dh))
+            right = max(0.0, min(1.0, (x + w) / dw))
+            bottom = max(0.0, min(1.0, (y + h) / dh))
             if right <= left or bottom <= top:
                 continue
             samples.append(FaceSample(
                 time=float(second), confidence=min(1.0, max(0.0, confidence)),
                 box=BoundingBox(x=left, y=top, width=right - left, height=bottom - top),
             ))
-        status = "unavailable" if decoded == 0 else ("complete" if samples else "no_faces")
+        inference_seconds = time.monotonic() - detector_started
+        status = "unavailable" if frames_decoded == 0 else ("complete" if samples else "no_faces")
         logger.info("editor_yunet_face_detection_complete", extra={
-            "status": status, "frames_attempted": inspected,
-            "frames_decoded": decoded, "faces_sampled": len(samples),
+            "status": status, "frames_attempted": count,
+            "frames_decoded": frames_decoded, "faces_sampled": len(samples),
+            "extraction_seconds": round(extraction_seconds, 3),
+            "inference_seconds": round(inference_seconds, 3),
             "elapsed_seconds": round(time.monotonic() - started, 3),
+            "detection_width": dw, "detection_height": dh,
         })
         return status, samples
-    except Exception as exc:  # Optional CV backend must fail closed on model or decoder errors.
+    except (ImportError, OSError, RuntimeError, AttributeError, ValueError,
+            subprocess.SubprocessError) as exc:
         logger.warning("editor_yunet_face_detection_failed", extra={
             "reason": type(exc).__name__,
             "elapsed_seconds": round(time.monotonic() - started, 3),
         })
         return "unavailable", []
-    finally:
-        if cap is not None:
-            cap.release()
+
 
 
 def normalize_transcript(payload: dict | None, duration: float) -> SpeechEvidence:
@@ -279,7 +302,7 @@ def build_video_analysis_report(
     else:
         silences, stricter_silences, audio_status = [], [], "no_audio"
 
-    face_status, samples = detect_faces(path, media.duration_seconds)
+    face_status, samples = detect_faces(path, media.duration_seconds, media.width, media.height)
     if face_status == "unavailable":
         warnings.append("Face detection unavailable; configure a local YuNet ONNX model.")
     try:
