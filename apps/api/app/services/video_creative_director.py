@@ -229,26 +229,57 @@ async def generate_openai_plan(
     }
 
     async def _send(http: httpx.AsyncClient) -> CreativePlan:
-        response = await http.post(
-            "https://api.openai.com/v1/chat/completions",
-            json=request_json,
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-        response.raise_for_status()
-        payload = response.json()
-        choices = payload.get("choices") or []
-        if not choices:
-            raise ValueError("OpenAI returned no candidate")
-        choice = choices[0]
-        message = choice.get("message") or {}
-        if message.get("refusal"):
-            raise ValueError("OpenAI refused to create a creative plan")
-        if choice.get("finish_reason") != "stop":
-            raise ValueError("OpenAI response was truncated or incomplete")
-        content = message.get("content")
-        if not isinstance(content, str) or not content:
-            raise ValueError("OpenAI returned empty structured output")
-        return validate_plan(context, json.loads(content))
+        # Strict JSON Schema constrains types, but not conditional semantics
+        # (asset_query must be null for captions, max zoom, face-safe zones).
+        # Allow one targeted model correction; never weaken the validator.
+        for attempt in range(2):
+            response = await http.post(
+                "https://api.openai.com/v1/chat/completions",
+                json=request_json,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            choices = payload.get("choices") or []
+            if not choices:
+                raise ValueError("OpenAI returned no candidate")
+            choice = choices[0]
+            message = choice.get("message") or {}
+            if message.get("refusal"):
+                raise ValueError("OpenAI refused to create a creative plan")
+            if choice.get("finish_reason") != "stop":
+                raise ValueError("OpenAI response was truncated or incomplete")
+            content = message.get("content")
+            if not isinstance(content, str) or not content:
+                raise ValueError("OpenAI returned empty structured output")
+            try:
+                return validate_plan(context, json.loads(content))
+            except (ValueError, json.JSONDecodeError) as exc:
+                if attempt:
+                    raise ValueError(
+                        "OpenAI returned a plan that failed safety validation after one correction"
+                    ) from exc
+                # Do not echo model content or transcript into logs/errors.
+                # Correction must explicitly specify null for unrelated
+                # fields, required by OpenAI's strict Structured Outputs.
+                request_json["messages"].append({
+                    "role": "assistant", "content": content,
+                })
+                request_json["messages"].append({
+                    "role": "user",
+                    "content": (
+                        f"Your JSON failed validation: {str(exc)[:180]}. "
+                        "Regenerate the entire JSON object. For caption and "
+                        "caption_emphasis actions use asset_query=null and "
+                        "scale=null; for centered_zoom use asset_query=null "
+                        "and x=y=width=null; only media suggestion actions "
+                        "may use a non-null asset_query. All irrelevant "
+                        "nullable fields must be null. Keep original face-safe "
+                        "coordinates, reference IDs, and zoom caps. Never "
+                        "propose cuts or media IDs."
+                    ),
+                })
+        raise ValueError("OpenAI failed to produce a valid plan")
 
     if client is not None:
         return await _send(client)
