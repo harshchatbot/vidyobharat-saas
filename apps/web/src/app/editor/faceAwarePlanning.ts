@@ -43,6 +43,7 @@ export function parseFaceGuidance(value: unknown, expectedMediaId: string): Face
     if (!obj(item) || typeof item.segment_id !== 'string' || !ranges.has(item.segment_id) ||
         (item.status !== 'suggested' && item.status !== 'review_required') ||
         !unit(item.x) || !unit(item.y) || !unit(item.width) ||
+        item.x < 0.02 || item.x > 0.98 || item.y < 0.02 || item.y > 0.98 ||
         item.width < 0.1 || item.width > 0.96) return null;
     captions.push({ ...ranges.get(item.segment_id)!, status: item.status, x: item.x, y: item.y, width: item.width });
   }
@@ -77,4 +78,20 @@ export function captionPlacement(
 export function centeredZoomAllowed(sourceTime: number, guidance: FaceGuidance): boolean {
   const matches = guidance.zooms.filter((z) => sourceTime >= z.start && sourceTime <= z.end);
   return matches.length === 1 && matches[0].status === 'suggested' && matches[0].maxScale >= 1.06;
+}
+
+
+/** Check the entire effect's sampled source span, not only its midpoint. */
+export function centeredZoomAllowedForInterval(
+  timelineStart: number,
+  duration: number,
+  segments: readonly EditedSegment[],
+  guidance: FaceGuidance,
+): boolean {
+  if (!Number.isFinite(duration) || duration <= 0) return false;
+  for (const fraction of [0, 0.25, 0.5, 0.75, 0.99]) {
+    const sourceTime = sourceAtTimeline(timelineStart + duration * fraction, segments);
+    if (sourceTime === null || !centeredZoomAllowed(sourceTime, guidance)) return false;
+  }
+  return true;
 }
