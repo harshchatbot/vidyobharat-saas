@@ -70,7 +70,7 @@ export function buildTimedCaptions(
       startTime, duration: Math.max(0.25, endTime - startTime),
       ...typography, bold: true,
       color: '#ffffff', outlineColor: '#000000', outlineWidth: style === 'cinematic' ? 2 : 4,
-      shadow: true, backgroundColor: '#000000', backgroundOpacity: style === 'cinematic' ? 0.25 : style === 'energetic' ? 0 : 0.45,
+      shadow: true, backgroundColor: '#000000', backgroundOpacity: 0,
       y: style === 'cinematic' ? 0.82 : style === 'energetic' ? 0.7 : 0.78, width: 0.88, alignment: 'center',
       inAnimation: style === 'cinematic' ? 'fade-in' : 'pop-in', inAnimationDuration: style === 'cinematic' ? 0.25 : 0.18,
       outAnimation: 'fade-out', outAnimationDuration: 0.12,
