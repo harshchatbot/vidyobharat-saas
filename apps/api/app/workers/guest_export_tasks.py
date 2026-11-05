@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 
+from google.api_core.exceptions import Aborted
+
 from app.services.guest_export_worker import build_guest_export_worker
 from app.services.render_service import celery_app
 
@@ -21,6 +23,11 @@ logger = logging.getLogger(__name__)
     name='editor.process_guest_timeline_export',
     acks_late=True,
     reject_on_worker_lost=True,
+    autoretry_for=(Aborted,),
+    retry_backoff=2,
+    retry_backoff_max=30,
+    retry_jitter=True,
+    retry_kwargs={'max_retries': 4},
 )
 def process_guest_timeline_export(self, guest_id: str, job_id: str) -> bool:
     """Claim and process one due durable export record.
