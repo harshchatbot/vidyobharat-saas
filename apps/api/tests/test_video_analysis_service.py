@@ -252,53 +252,41 @@ def test_media_stream_delete_race_is_handled_after_headers(caplog):
 
 
 
-def test_yunet_sampling_resizes_and_normalizes_face(monkeypatch, tmp_path):
-    """Portrait input scales to 360x640 while resulting boxes remain 0..1."""
+def test_yunet_ffmpeg_one_pass_scales_and_normalizes_face(monkeypatch, tmp_path):
+    """16 FPS source is sampled by FFmpeg to exactly 3 portrait frames."""
     import sys
     from types import SimpleNamespace
+    import numpy as np
 
     model = tmp_path / "yunet.onnx"
     model.write_bytes(b"fixture-model-path")
     monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
-    calls = {"seek": [], "sizes": [], "released": False}
+    calls = {"commands": [], "sizes": [], "frames": 0}
 
-    class Frame:
-        shape = (1920, 1080, 3)
-
-    class Resized:
-        shape = (640, 360, 3)
-
-    class Capture:
-        def isOpened(self):
-            return True
-        def set(self, _property, time_ms):
-            calls["seek"].append(time_ms)
-        def read(self):
-            return True, Frame()
-        def release(self):
-            calls["released"] = True
+    def fake_run(command, **kwargs):
+        calls["commands"].append(command)
+        assert kwargs["check"] is True
+        assert "-vf" in command and "fps=1,scale=360:640" in command[command.index("-vf") + 1]
+        assert command[command.index("-frames:v") + 1] == "3"
+        return SimpleNamespace(stdout=bytes(360 * 640 * 3 * 3))
 
     class Detector:
-        def setInputSize(self, size):
-            calls["sizes"].append(size)
-        def detect(self, _frame):
-            # Box at x=90,y=160,width=180,height=320 on 360x640.
-            return None, [[90, 160, 180, 320, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.99]]
+        def detect(self, frame):
+            calls["frames"] += 1
+            assert frame.shape == (640, 360, 3)
+            return None, np.array([[90, 160, 180, 320, *([0] * 10), 0.99]], dtype=float)
 
-    fake_cv2 = SimpleNamespace(
-        FaceDetectorYN_create=lambda *_args: Detector(),
-        VideoCapture=lambda _path: Capture(),
-        CAP_PROP_POS_MSEC=0,
-        INTER_AREA=3,
-        resize=lambda _frame, _size, interpolation: Resized(),
-    )
+    fake_cv2 = SimpleNamespace(FaceDetectorYN_create=lambda _path, _config, size, *_args: (
+        calls["sizes"].append(size) or Detector()
+    ))
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
-    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2.1)
+    monkeypatch.setattr(analysis.subprocess, "run", fake_run)
+    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2.1, 1080, 1920)
 
     assert status == "complete"
-    assert calls["seek"] == [0, 1000, 2000]
-    assert calls["sizes"] == [(360, 640)] * 3
-    assert calls["released"]
+    assert len(calls["commands"]) == 1
+    assert calls["sizes"] == [(360, 640)]
+    assert calls["frames"] == 3
     assert len(samples) == 3
     assert samples[0].box.x == pytest.approx(0.25)
     assert samples[0].box.y == pytest.approx(0.25)
@@ -314,27 +302,48 @@ def test_yunet_no_detection_is_not_unavailable(monkeypatch, tmp_path):
     model.write_bytes(b"fixture")
     monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
 
-    class Capture:
-        def isOpened(self):
-            return True
-        def set(self, *_args):
-            pass
-        def read(self):
-            return True, SimpleNamespace(shape=(320, 240, 3))
-        def release(self):
-            pass
-
     class Detector:
-        def setInputSize(self, _size):
-            pass
         def detect(self, _frame):
             return None, None
 
-    fake_cv2 = SimpleNamespace(
+    monkeypatch.setitem(sys.modules, "cv2", SimpleNamespace(
         FaceDetectorYN_create=lambda *_args: Detector(),
-        VideoCapture=lambda _path: Capture(),
-        CAP_PROP_POS_MSEC=0,
-    )
-    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
-    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2)
+    ))
+    monkeypatch.setattr(analysis.subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(
+        stdout=bytes(240 * 320 * 3 * 2),
+    ))
+    status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2, 240, 320)
     assert (status, samples) == ("no_faces", [])
+
+
+def test_yunet_corrupted_frames_fail_closed(monkeypatch, tmp_path):
+    import sys
+    from types import SimpleNamespace
+
+    model = tmp_path / "yunet.onnx"
+    model.write_bytes(b"fixture")
+    monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
+    monkeypatch.setitem(sys.modules, "cv2", SimpleNamespace(
+        FaceDetectorYN_create=lambda *_args: None,
+    ))
+    monkeypatch.setattr(analysis.subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(
+        stdout=b"invalid frame",
+    ))
+    assert analysis.detect_faces(tmp_path / "video.mp4", 2, 1080, 1920) == ("unavailable", [])
+
+
+def test_yunet_ffmpeg_failure_is_not_a_failed_analysis(monkeypatch, tmp_path):
+    import sys
+    from types import SimpleNamespace
+    import subprocess
+
+    model = tmp_path / "yunet.onnx"
+    model.write_bytes(b"fixture")
+    monkeypatch.setenv("RANGMANCH_YUNET_MODEL_PATH", str(model))
+    monkeypatch.setitem(sys.modules, "cv2", SimpleNamespace(
+        FaceDetectorYN_create=lambda *_args: None,
+    ))
+    def fail(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+    monkeypatch.setattr(analysis.subprocess, "run", fail)
+    assert analysis.detect_faces(tmp_path / "video.mp4", 2, 1080, 1920) == ("unavailable", [])
