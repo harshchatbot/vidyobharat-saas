@@ -137,7 +137,7 @@ def test_openai_mock_structured_output_uses_same_validator():
     asyncio.run(scenario())
 
 
-def test_openai_rejects_unverified_action_and_truncated_response():
+def test_openai_rejects_unverified_action_after_retry_and_truncated_response():
     async def scenario():
         c = context()
         raw = fallback_plan(c).model_dump(mode="json")
@@ -161,4 +161,35 @@ def test_openai_rejects_unverified_action_and_truncated_response():
         )) as client:
             with pytest.raises(ValueError, match="truncated"):
                 await generate_openai_plan(c, api_key="mock-key", client=client)
+    asyncio.run(scenario())
+
+
+def test_openai_repairs_incorrect_asset_query_without_loosening_validation():
+    async def scenario():
+        c = context()
+        original = fallback_plan(c).model_dump(mode="json")
+        invalid = json.loads(json.dumps(original))
+        invalid["actions"][0]["asset_query"] = "AI graphics"
+        requests = []
+
+        def handler(request: httpx.Request):
+            body = json.loads(request.content)
+            requests.append(body)
+            if len(requests) == 1:
+                output = invalid
+            else:
+                assert len(body["messages"]) == 4
+                assert "asset_query=null" in body["messages"][-1]["content"]
+                output = original
+            return httpx.Response(200, json={
+                "choices": [{"finish_reason": "stop", "message": {
+                    "content": json.dumps(output),
+                }}],
+            })
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            plan = await generate_openai_plan(c, api_key="mock-key", client=client)
+        assert len(requests) == 2
+        assert plan.actions[0].asset_query is None
+        assert validate_plan(c, plan.model_dump(mode="json")) == plan
     asyncio.run(scenario())
