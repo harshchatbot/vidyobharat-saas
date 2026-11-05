@@ -128,3 +128,9 @@ silence. Review a set of word onset/offset boundaries against the actual
 recording before choosing an alignment engine. At the time of evaluation,
 stable-ts upstream states development is indefinitely paused; review dependency
 and model licensing before adopting it as a production dependency.
+
+## Single-download analysis and temporary cache
+
+The analyze endpoint now checks guest ownership and CSRF, then downloads the video once per cache miss. The same temporary file is reused for transcription, silence analysis, face detection and scene detection. Reports are cached in the API process for 10 minutes (12 entries maximum). Every cache hit still performs authorization checks. This process-local cache does not persist across restarts or workers. Concurrent requests and separate /transcribe calls can still download independently.
+
+New log events: editor_analysis_cache_hit, editor_analysis_download_complete, editor_analysis_transcription_complete, editor_analysis_detection_complete and editor_analysis_complete. The change removes duplicate downloads within one analysis request; it does not fix unusually slow initial storage downloads.
