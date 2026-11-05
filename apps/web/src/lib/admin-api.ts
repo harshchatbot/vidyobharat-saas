@@ -61,21 +61,11 @@ export async function adminRequest<T>(path: string, init: RequestInit = {}): Pro
     credentials: 'same-origin',
     cache: 'no-store',
   });
-  let response = await request();
-  if (response.status === 401) {
-    const { getFirebaseAuth } = await import('@/lib/firebase-client');
-    const user = getFirebaseAuth().currentUser;
-    if (user) {
-      const token = await user.getIdToken(true);
-      const refreshed = await fetch('/api/admin/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-RangManch-Admin-CSRF': '1' },
-        body: JSON.stringify({ idToken: token }),
-        credentials: 'same-origin',
-        cache: 'no-store',
-      });
-      if (refreshed.ok) response = await request();
-    }
+  const response = await request();
+  if (response.status === 401 && typeof window !== 'undefined'
+      && window.location.pathname.startsWith('/admin')) {
+    const destination = window.location.pathname + window.location.search;
+    window.location.assign('/admin/login?next=' + encodeURIComponent(destination));
   }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
