@@ -470,15 +470,26 @@ async def analyze_guest_video(
         try:
             with tempfile.TemporaryDirectory(prefix='rangmanch-analysis-') as temp_dir:
                 source = Path(temp_dir) / 'source.video'
+                from app.services import editor_local_media_cache
                 download_started = time.monotonic()
-                await run_in_threadpool(
-                    media_service.storage.download_to_path,
-                    media['storage_object_path'], source, expected_size=size,
+                cache_hit = await run_in_threadpool(
+                    editor_local_media_cache.get_copy,
+                    media['storage_object_path'], media.get('content_sha256', ''),
+                    source, size,
                 )
-                _analysis_logger.info('editor_analysis_download_complete', extra={
-                    'media_id': media_id, 'source_bytes': size,
-                    'elapsed_seconds': round(time.monotonic() - download_started, 3),
-                })
+                if not cache_hit:
+                    await run_in_threadpool(
+                        media_service.storage.download_to_path,
+                        media['storage_object_path'], source, expected_size=size,
+                    )
+                _analysis_logger.info(
+                    'editor_analysis_local_source_ready' if cache_hit else 'editor_analysis_download_complete',
+                    extra={
+                        'media_id': media_id, 'source_bytes': size,
+                        'source': 'local_cache' if cache_hit else 'cloud_storage',
+                        'elapsed_seconds': round(time.monotonic() - download_started, 3),
+                    },
+                )
                 transcription_started = time.monotonic()
                 try:
                     transcript = await transcribe_source(source)
