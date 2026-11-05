@@ -74,7 +74,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   }
 
   return (
-    <main className={adminLogin ? "rm-admin-login min-h-screen bg-[#fff9ed] text-[#292034]" : "min-h-screen bg-[#0b0b10] text-white"}>
+    <main className="rm-admin-login min-h-screen bg-[#fff9ed] text-[#292034]">
       <div className="mx-auto grid min-h-screen max-w-6xl lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden flex-col justify-between border-r border-white/10 p-10 lg:flex">
           <BrandLogo href="/" variant="full" size="md" />
