@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { ArrowRight, Check, Film, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Input } from '@/components/ui/Input';
-import { getProfileFields, getUserForIdToken, persistAppSession, signInWithGooglePopup, signInWithPassword, signOutFirebaseUser, signUpWithPassword } from '@/lib/firebase-auth';
+import { getCurrentFirebaseProfile, getProfileFields, persistAppSession, signInWithGooglePopup, signInWithPassword, signOutFirebaseUser, signUpWithPassword } from '@/lib/firebase-auth';
 import { safeReturnPath } from '@/lib/auth-return';
 
 type Props = { mode: 'login' | 'signup'; next?: string };
@@ -39,7 +39,7 @@ export function AuthFormClient({ mode, next = '/dashboard' }: Props) {
   const [message, setMessage] = useState('');
 
   async function finish(idToken: string) {
-    const user = await getUserForIdToken(idToken);
+    const user = getCurrentFirebaseProfile();
     if (isLogin && !user.emailVerified) {
       await signOutFirebaseUser();
       throw new Error('Please verify your email before signing in.');
