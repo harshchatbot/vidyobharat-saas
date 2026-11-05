@@ -16,19 +16,22 @@ type Asset = {
 type Editable = {
   title: string; description: string; tags: string; source: string;
   license: string; evidence_reference: string; attribution: string;
-  redistribution_confirmed: boolean;
+  redistribution_confirmed: boolean; details: string;
 };
 const empty: Editable = {
   title: '', description: '', tags: '', source: '', license: 'unverified',
-  evidence_reference: '', attribution: '', redistribution_confirmed: false,
+  evidence_reference: '', attribution: '', redistribution_confirmed: false, details: '{}',
 };
 function editFrom(item: Asset): Editable {
   return { title: item.title, description: item.description, tags: item.tags.join(', '),
     source: item.source, license: item.license, evidence_reference: item.evidence_reference,
-    attribution: item.attribution, redistribution_confirmed: item.redistribution_confirmed };
+    attribution: item.attribution, redistribution_confirmed: item.redistribution_confirmed,
+    details: JSON.stringify(item.details ?? {}, null, 2) };
 }
 function payload(form: Editable) {
-  return { ...form, tags: form.tags.split(',').map(x => x.trim()).filter(Boolean).slice(0, 30) };
+  const details = JSON.parse(form.details) as unknown;
+  if (!details || typeof details !== 'object' || Array.isArray(details)) throw Error('Details must be a JSON object.');
+  return { ...form, details, tags: form.tags.split(',').map(x => x.trim()).filter(Boolean).slice(0, 30) };
 }
 
 export default function AdminAssetsPage() {
@@ -201,6 +204,11 @@ export default function AdminAssetsPage() {
             {field('license', 'License type')}
             {field('evidence_reference', 'License evidence / permission reference')}
             {field('attribution', 'Attribution or notice')}
+            <label className="block space-y-1 text-xs text-slate-300">
+              <span>Advanced parameters / metadata (JSON)</span>
+              <textarea className={input + ' min-h-40 font-mono'} value={form.details}
+                onChange={e => setForm(f => ({...f, details: e.target.value}))}/>
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.redistribution_confirmed}
                 onChange={e => setForm(f => ({ ...f, redistribution_confirmed: e.target.checked }))}/>
@@ -216,7 +224,7 @@ export default function AdminAssetsPage() {
                 if (creating) {
                   await call('/api/admin/visual-assets', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({...payload(form), type: kind, slug, details: {}}),
+                    body: JSON.stringify({...payload(form), type: kind, slug}),
                   });
                   setCreating(false); setSelected(`${kind}:${slug}`);
                   return 'Draft created.';
