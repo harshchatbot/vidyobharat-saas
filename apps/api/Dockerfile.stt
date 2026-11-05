@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir \
+  'fastapi==0.115.8' 'uvicorn==0.34.0' \
+  'faster-whisper==1.2.1' 'av==18.1.0'
+COPY apps/api/app/services/editor_transcription.py /app/app/services/editor_transcription.py
+COPY apps/api/app/services/stt_server.py /app/app/services/stt_server.py
+RUN touch /app/app/__init__.py /app/app/services/__init__.py
+ENV RANGMANCH_STT_MODEL=tiny PYTHONUNBUFFERED=1
+CMD ["uvicorn", "app.services.stt_server:app", "--host", "0.0.0.0", "--port", "8765", "--workers", "1"]
