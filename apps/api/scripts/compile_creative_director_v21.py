@@ -32,7 +32,7 @@ def main():
     approved = []
     if args.published_assets:
         asset_data = json.loads(args.published_assets.expanduser().read_text(encoding="utf-8"))
-        approved = [ApprovedAsset.model_validate(a) for a in asset_data["items"]]
+        approved = [ApprovedAsset.model_validate({\n            "id": a["id"], "type": a["type"], "tags": a.get("tags", []),\n            "sha256": a["sha256"], "content_url": a["content_url"],\n        }) for a in asset_data["items"]]
     composition = compile_composition_v21(context, plan, approved_assets=approved)
     out = args.out.expanduser().resolve() if args.out else storyboard_file.with_name(
         storyboard_file.stem + "-composition-v21.json"
