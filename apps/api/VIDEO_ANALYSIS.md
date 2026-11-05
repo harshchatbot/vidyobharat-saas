@@ -167,3 +167,44 @@ Cache files are not persistently secure backups. Disable by unsetting the
 environment variable. The cache does not share state across local and EC2
 machines, nor between distinct API hosts. Avoid enabling on an untrusted
 shared filesystem; the cache contains original uploaded video.
+
+## 2026-11-05: playback deletion race, STT instrumentation, and alignment safety
+
+**Deleted media while streaming:** The content route still returns 410 if the
+cloud object is gone before the first chunk. If the object disappears *after*
+response headers have been sent (e.g., a delete during playback), the streaming
+iterator logs `editor_media_stream_source_removed` and terminates without
+raising an ASGI server exception. HTTP status cannot change after headers are
+sent, so the browser may see an incomplete stream; the editor should discard
+deleted media and should not keep requesting it.
+
+**Transcription observability:** The local Faster-Whisper worker logs
+`editor_transcription_cache_hit`, `editor_transcription_cache_miss`,
+`editor_transcription_fresh_complete`, and model loaded/cache-hit events.
+Transcript cache keys now include model choice.
+
+Measure local process-cold model startup vs fresh transcription vs warm
+transcript reuse using the *original local video file*:
+
+```bash
+cd apps/api
+source .venv/bin/activate
+python scripts/benchmark_stt_cold.py /absolute/path/original.mp4
+```
+
+The script launches a new child process and reports individual stage timings.
+Cloud download, upload and analysis time are excluded. Run against an
+original file on disk, not the JSON report.
+
+**Alignment guard:** Alongside -35 dB silence events, the report now includes
+`audio.strict_silence_intervals` detected at -45 dB. Cut proposals require
+word-time gaps, both measured silence thresholds, padding, and a 350 ms guard
+around disputed word/silence boundaries. The original word timestamps remain
+untouched. These rules may intentionally return zero candidates.
+
+For true word-alignment comparison, the optional local
+`scripts/compare_stable_ts.py` now uses stable-ts **forced alignment of the
+same transcript** and refuses token-sequence changes. Run it in an isolated
+benchmark environment and listen to the actual boundary clips before deciding
+whether to enable a new alignment provider in production. This update **does
+not** automatically switch production STT/alignment engines.
