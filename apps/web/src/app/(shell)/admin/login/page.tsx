@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
+import { safeReturnPath } from '@/lib/auth-return';
 
-export default function AdminLoginPage() {
-  redirect('/login?next=%2Fadmin');
+export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const requested = safeReturnPath((await searchParams).next, '/admin');
+  const destination = requested.startsWith('/admin') && requested !== '/admin/login' ? requested : '/admin';
+  redirect('/login?next=' + encodeURIComponent(destination));
 }
