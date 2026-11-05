@@ -98,3 +98,27 @@ def test_empty_transcript_preserves_original_clip():
     assert len(result.beats) == 2
     assert result.beats[0].kind == "source"
     assert result.beats[1].kind == "hold_original"
+
+
+def test_only_published_catalog_assets_drive_lut_music_and_emoji_intents():
+    context = build_creative_context(fixture_report())
+    assets = [
+        ApprovedAsset(id="lut:soft-film", type="lut", tags=["soft", "film"],
+            sha256="a" * 64,
+            content_url="/api/editor/visual-assets/lut:soft-film/content"),
+        ApprovedAsset(id="music:soft-ambient", type="music", tags=["soft", "warm"],
+            sha256="b" * 64,
+            content_url="/api/editor/visual-assets/music:soft-ambient/content"),
+        ApprovedAsset(id="emoji:thinking", type="emoji", tags=["wondered", "question"],
+            sha256="c" * 64,
+            content_url="/api/editor/visual-assets/emoji:thinking/content"),
+    ]
+    result = compile_composition_v21(
+        context, ScenePlanV2.model_validate(sample(context)), approved_assets=assets,
+    )
+    kinds = {beat.kind: beat for beat in result.beats}
+    assert kinds["lut_intent"].approved_asset_id == "lut:soft-film"
+    assert kinds["music_intent"].approved_asset_id == "music:soft-ambient"
+    assert kinds["music_intent"].sound_gain_db == -30
+    assert kinds["emoji_intent"].approved_asset_id == "emoji:thinking"
+    assert not result.ready_to_render
