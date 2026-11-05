@@ -261,21 +261,35 @@ def build_video_analysis_report(
     # NOT proof that the new boundaries match the actual recording.
     alignment_mode = os.getenv("RANGMANCH_WHISPER_ALIGNMENT_MODE", "off").strip().lower()
     if alignment_mode == "compare" and speech.status == "complete" and speech.words:
-        from app.services.video_whisper_alignment import forced_align
+        from app.services.video_whisper_alignment import forced_align, summarize_alignment
         aligned, reason, elapsed = forced_align(path, speech.words, speech.language or "en", media.duration_seconds)
-        speech.alignment_status = "candidate_available" if aligned else ("unavailable" if reason in ("ImportError", "RuntimeError", "FileNotFoundError") else "rejected")
         if aligned:
+            speech.alignment_status = "review_required" if reason == "large_boundary_shift" else "candidate_available"
             speech.aligned_words_candidate = aligned
             original_issues = len(timing_conflicts(speech.words, silences))
             proposed_issues = len(timing_conflicts(aligned, silences))
+            original_strict = len(timing_conflicts(speech.words, stricter_silences))
+            proposed_strict = len(timing_conflicts(aligned, stricter_silences))
+            speech.alignment_diagnostics = {
+                **summarize_alignment(speech.words, aligned),
+                "original_conflicts": original_issues,
+                "candidate_conflicts": proposed_issues,
+                "original_strict_conflicts": original_strict,
+                "candidate_strict_conflicts": proposed_strict,
+            }
             speech.alignment_notes = [
                 f"Original -35dB conflicts: {original_issues}; candidate: {proposed_issues}.",
-                "Conflict count alone does not establish alignment accuracy; verify against audio before adopting.",
+                f"Original -45dB conflicts: {original_strict}; candidate: {proposed_strict}.",
                 f"Forced alignment duration: {round(elapsed, 3)} seconds.",
+                "Both timings remain estimates: listen to boundary clips before any substitution.",
+                "No aligned candidate is used for captions, segmentation, or cut planning in compare mode.",
             ]
+            if reason == "large_boundary_shift":
+                warnings.append("Whisper alignment contains >750ms shifts. Candidate retained for review only; original cut planning unchanged.")
         else:
+            speech.alignment_status = "unavailable" if reason.endswith(("Error", "Exception")) or reason == "alignment_empty" else "rejected"
             speech.alignment_notes = [f"Alignment candidate rejected/unavailable: {reason}."]
-            warnings.append("Optional Whisper forced alignment did not provide a usable candidate; original timings retained.")
+            warnings.append("Optional Whisper forced alignment did not provide a structurally usable candidate; original timings retained.")
     # Preserve raw words; annotate disagreements rather than shifting Whisper
     # timestamps onto low-energy audio regions.
     quality = assess_timing(speech.words, silences, audio_status == "complete", media.duration_seconds)
