@@ -15,6 +15,7 @@ services:
       LOCAL_EDITOR_MODE: "false"
       PORT: "8000"
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+      RANGMANCH_STT_URL: http://stt:8765
     ports:
       - "127.0.0.1:8002:8000"
     volumes:
@@ -39,6 +40,23 @@ services:
       - rangmanch-data:/app/data
       - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     mem_limit: 768m
+
+  stt:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.stt
+    image: rangmanch-stt:tiny-v1
+    restart: unless-stopped
+    command: uvicorn app.services.stt_server:app --host 0.0.0.0 --port 8765 --workers 1
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      RANGMANCH_STT_MODEL: tiny
+      OMP_NUM_THREADS: "1"
+    networks:
+      - default
+    mem_limit: 768m
+    cpus: 1.0
 
   music-worker:
     image: rangmanch-api:latest
