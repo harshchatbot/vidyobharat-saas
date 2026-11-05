@@ -122,7 +122,7 @@ export async function signInWithPassword(email: string, password: string): Promi
   try {
     credential = await signInWithEmailAndPassword(auth, email, password);
   } catch (error) {
-    if (error instanceof Error && /auth\\/network-request-failed/.test(error.message)) {
+    if (error instanceof Error && error.message.includes('auth/network-request-failed')) {
       const emulatorNote = process.env.NEXT_PUBLIC_USE_FIREBASE_AUTH_EMULATOR === 'true'
         ? ' Firebase Auth emulator is enabled; ensure it is running.'
         : '';
