@@ -208,3 +208,34 @@ same transcript** and refuses token-sequence changes. Run it in an isolated
 benchmark environment and listen to the actual boundary clips before deciding
 whether to enable a new alignment provider in production. This update **does
 not** automatically switch production STT/alignment engines.
+
+## Optional Whisper forced-alignment comparison (evidence-only)
+
+The API continues using **Faster-Whisper** for speech recognition. To compare
+its original timestamps against a Whisper-based forced-alignment pass locally:
+
+```bash
+cd apps/api
+source .venv/bin/activate
+pip install 'stable-ts[fw]'
+export RANGMANCH_WHISPER_ALIGNMENT_MODE=compare
+uvicorn app.main:app --reload
+```
+
+Analyze your recording again. The report remains schema V2 and gains:
+- `speech.alignment_status`: `candidate_available`, `rejected`, or
+  `unavailable` (`not_requested` if disabled)
+- `speech.aligned_words_candidate`: valid candidate timings, if available
+- `speech.alignment_notes`: elapsed time and -35 dB conflict comparison
+
+Original `speech.words` remains **unchanged** and drives captions and safe cut
+analysis. A candidate is rejected if token identities/count differ, word times
+are impossible or unordered, or any word's start/end shifts over 750 ms.
+No altered cut is automatically applied. This is a comparison step; an
+original audio review is mandatory before switching word timing providers.
+
+Unset the env var or set it to `off` for ordinary production-like behavior.
+Because this adds an additional model pass it will increase latency when
+enabled. Run it only on the local development backend for now. The forced
+alignment script `scripts/compare_stable_ts.py` remains available for
+standalone comparisons on the original file.
