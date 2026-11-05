@@ -163,3 +163,40 @@ normally complete in one.
 ```bash
 python -m pytest tests/test_video_creative_director.py -q
 ```
+
+## Creative Director V1.1 — enhancements only
+
+The experiment revealed a structurally valid but weak OpenAI plan: five
+generic caption actions plus one zoom, leaving most spoken phrases without
+selected captions. **The AI does not own baseline captions.** Our existing
+deterministic Auto Edit handles all spoken phrases.
+
+V1.1 changes the action contract to only:
+`caption_emphasis`, `centered_zoom`, `broll_asset_suggestion`, and
+`existing_sfx_suggestion`. The validator rejects plain `caption`, duplicate
+same-type/same-phrase enhancements, invalid references, excessive zoom,
+unsafe caption locations, and cross-action field leakage. Emphasis treatments
+are restricted to `bold_accent`, `kinetic_pop` or `underline_reveal`.
+For <=20-second clips a maximum of 8 enhancements is enforced; prompts
+recommend fewer, meaningful choices rather than hitting a quota.
+
+**Regenerate the compact context** from the original V2 analysis report:
+older contexts still list the removed `caption` action.
+
+```bash
+cd apps/api
+source .venv/bin/activate
+python scripts/build_creative_context.py \
+  "$HOME/Downloads/rangmanch-video-analysis-v2 (5).json"
+python -m pytest tests/test_video_creative_context.py tests/test_video_creative_director.py -q
+python scripts/run_creative_director.py \
+  "$HOME/Downloads/rangmanch-video-analysis-v2 (5)-creative-context.json" \
+  --provider openai --model gpt-4o-mini
+```
+
+The output plan now has `plan.plan_version = "1.1"` and is still
+**suggestion-only**. Regenerating replaces the previous local plan file;
+make a copy first if retaining the V1.0 comparison is useful. The API call
+uses credits, and one semantic correction may cause a second billed request.
+No UI integration or automatic application has been implemented. B-roll
+and SFX remain search ideas, not verified licensed media or effects.
