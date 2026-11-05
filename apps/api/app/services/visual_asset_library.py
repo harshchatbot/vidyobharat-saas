@@ -219,14 +219,53 @@ def validate_media(asset: VisualAsset, filename: str, data: bytes) -> tuple[str,
         return "text/plain", ".cube"
     if extension not in {".png", ".apng"} or data[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Emoji must be a valid PNG or APNG.")
-    if len(data) < 33 or data[12:16] != b"IHDR":
-        raise ValueError("Invalid PNG header.")
-    width, height = struct.unpack(">II", data[16:24])
-    if not (1 <= width <= 2048 and 1 <= height <= 2048):
-        raise ValueError("Emoji dimensions must be 1–2048px.")
-    # PNG APNG chunks are checked in playback later; retain native bytes.
+    # Validate PNG structure/chunk CRC rather than trusting the magic header.
+    import zlib
+    offset = 8
+    chunk_count = 0
+    saw_header = False
+    saw_image = False
+    saw_end = False
+    saw_animation = False
+    while offset + 12 <= len(data):
+        length = int.from_bytes(data[offset:offset + 4], "big")
+        end = offset + 12 + length
+        if length > MAX_FILE_SIZE or end > len(data):
+            raise ValueError("Invalid or truncated PNG chunk.")
+        kind = data[offset + 4:offset + 8]
+        if not all((65 <= v <= 90 or 97 <= v <= 122) for v in kind):
+            raise ValueError("Invalid PNG chunk type.")
+        value = data[offset + 8:offset + 8 + length]
+        checksum = int.from_bytes(data[end - 4:end], "big")
+        if zlib.crc32(kind + value) & 0xffffffff != checksum:
+            raise ValueError("PNG chunk checksum mismatch.")
+        if chunk_count == 0:
+            if kind != b"IHDR" or length != 13:
+                raise ValueError("Invalid PNG header.")
+            width, height = struct.unpack(">II", value[:8])
+            if not (1 <= width <= 2048 and 1 <= height <= 2048):
+                raise ValueError("Emoji dimensions must be 1–2048px.")
+            if value[8] != 8 or value[9] not in {2, 3, 6}:
+                raise ValueError("Unsupported PNG colour format.")
+            saw_header = True
+        if kind == b"IDAT":
+            saw_image = True
+        if kind == b"acTL":
+            saw_animation = True
+        if kind == b"IEND":
+            if length != 0 or end != len(data):
+                raise ValueError("Invalid PNG terminator.")
+            saw_end = True
+            break
+        offset = end
+        chunk_count += 1
+        if chunk_count > 10000:
+            raise ValueError("Too many PNG chunks.")
+    if not saw_header or not saw_image or not saw_end:
+        raise ValueError("Incomplete PNG.")
+    if extension == ".apng" and not saw_animation:
+        raise ValueError("APNG animation frames not found.")
     return "image/png", ".png"
-
 
 def upload_asset_file(repo: VisualAssetRepository, asset: VisualAsset, filename: str, data: bytes) -> VisualAsset:
     content_type, extension = validate_media(asset, filename, data)
