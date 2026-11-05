@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { adminRequest, AdminApiError } from '@/lib/admin-api';
 
@@ -51,7 +50,7 @@ export default function AdminAssetsPage() {
   const current = items.find(item => item.id === selected) ?? null;
 
   const call = useCallback(async (path: string, options: RequestInit = {}) =>
-    adminRequest<any>(path.replace(/^\\/api\\/admin\\//, ''), options), []);
+    adminRequest<unknown>(path.replace('/api/admin/', ''), options), []);
   const refresh = useCallback(async () => {
     const data = await call('/api/admin/visual-assets') as {items: Asset[]};
     setItems(data.items);
