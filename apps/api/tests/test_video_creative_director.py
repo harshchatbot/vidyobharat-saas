@@ -1,4 +1,5 @@
 import json
+import asyncio
 
 import httpx
 import pytest
@@ -7,7 +8,7 @@ from app.services.video_creative_context import build_creative_context
 from app.services.video_creative_director import (
     fallback_plan, generate_gemini_plan, validate_plan,
 )
-from tests.test_video_creative_context import fixture_report
+from test_video_creative_context import fixture_report
 
 
 def context():
@@ -69,33 +70,36 @@ def test_rejects_unverified_asset_and_too_many_actions():
         validate_plan(c, plan)
 
 
-@pytest.mark.asyncio
-async def test_gemini_mock_output_is_validated_and_request_contains_schema():
-    c = context()
-    proposal = fallback_plan(c).model_dump(mode="json")
-    def handler(req: httpx.Request) -> httpx.Response:
-        assert req.headers["x-goog-api-key"] == "test-secret"
-        payload = json.loads(req.content)
-        assert payload["generationConfig"]["responseMimeType"] == "application/json"
-        assert "responseJsonSchema" in payload["generationConfig"]
-        assert "approved_cuts" in payload["contents"][0]["parts"][0]["text"]
-        return httpx.Response(200, json={
-            "candidates": [{"content": {"parts": [{"text": json.dumps(proposal)}]}}]
-        })
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        result = await generate_gemini_plan(c, api_key="test-secret", model="gemini-3.8-flash", client=client)
-    assert result.actions[0].phrase_id == "phrase_001"
+def test_gemini_mock_output_is_validated_and_request_contains_schema():
+    async def scenario():
+        c = context()
+        proposal = fallback_plan(c).model_dump(mode="json")
+        def handler(req: httpx.Request) -> httpx.Response:
+            assert req.headers["x-goog-api-key"] == "test-secret"
+            payload = json.loads(req.content)
+            assert payload["generationConfig"]["responseMimeType"] == "application/json"
+            assert "responseJsonSchema" in payload["generationConfig"]
+            assert "approved_cuts" in payload["contents"][0]["parts"][0]["text"]
+            return httpx.Response(200, json={
+                "candidates": [{"content": {"parts": [{"text": json.dumps(proposal)}]}}]
+            })
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await generate_gemini_plan(c, api_key="test-secret", model="gemini-3.8-flash", client=client)
+        assert result.actions[0].phrase_id == "phrase_001"
 
 
-@pytest.mark.asyncio
-async def test_gemini_malicious_response_is_rejected():
-    c = context()
-    proposal = fallback_plan(c).model_dump(mode="json")
-    proposal["actions"][0]["segment_id"] = "seg_999"
-    async with httpx.AsyncClient(transport=httpx.MockTransport(
-        lambda req: httpx.Response(200, json={
-            "candidates": [{"content": {"parts": [{"text": json.dumps(proposal)}]}}]
-        })
-    )) as client:
-        with pytest.raises(ValueError, match="mismatched"):
-            await generate_gemini_plan(c, api_key="test-secret", model="gemini-3.8-flash", client=client)
+    asyncio.run(scenario())
+def test_gemini_malicious_response_is_rejected():
+    async def scenario():
+        c = context()
+        proposal = fallback_plan(c).model_dump(mode="json")
+        proposal["actions"][0]["segment_id"] = "seg_999"
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json={
+                "candidates": [{"content": {"parts": [{"text": json.dumps(proposal)}]}}]
+            })
+        )) as client:
+            with pytest.raises(ValueError, match="mismatched"):
+                await generate_gemini_plan(c, api_key="test-secret", model="gemini-3.8-flash", client=client)
+
+    asyncio.run(scenario())
