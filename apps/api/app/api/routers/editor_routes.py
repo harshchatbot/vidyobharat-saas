@@ -295,6 +295,27 @@ def get_guest_media(
         return _guest_error(exc)
 
 
+def _stream_media_until_unavailable(first_chunk, remaining_chunks, media_id: str):
+    """A response already streaming cannot change its HTTP status.
+
+    The object can disappear between range chunks (e.g. a user deletes
+    the video while it is playing). End the iterator without propagating an
+    exception through Starlette's response middleware. The browser may see
+    an incomplete response and should discard/retry the removed media.
+    """
+    try:
+        yield first_chunk
+        yield from remaining_chunks
+    except GuestMediaObjectMissing:
+        _analysis_logger.info('editor_media_stream_source_removed', extra={'media_id': media_id})
+    except Exception:
+        _analysis_logger.warning('editor_media_stream_interrupted', extra={'media_id': media_id}, exc_info=True)
+    finally:
+        closer = getattr(remaining_chunks, 'close', None)
+        if closer is not None:
+            closer()
+
+
 @router.get('/media/{media_id}/content')
 def get_guest_media_content(
     media_id: str,
@@ -340,7 +361,7 @@ def get_guest_media_content(
                 recoverable=True,
             ) from exc
         return StreamingResponse(
-            chain((first_chunk,), content),
+            _stream_media_until_unavailable(first_chunk, content, media_id),
             media_type=media['content_type'],
             status_code=status_code,
             headers=headers,
