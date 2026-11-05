@@ -49,6 +49,8 @@ def test_report_no_face_model_is_explicit(monkeypatch, tmp_path):
     assert validated.speech.status == "complete"
     assert validated.visual.face_status == "unavailable"
     assert validated.visual.face_samples == []
+    assert validated.creative_guidance.auto_apply is False
+    assert validated.creative_guidance.caption_placements[0].status == 'review_required'
     assert validated.visual.scene_changes_seconds == [1.5]
     assert validated.audio.silence_intervals[0].start == 1
     assert validated.editing.selected_style == "elegant"
