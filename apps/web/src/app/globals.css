@@ -454,3 +454,59 @@ p {
   list-style: none;
   padding-left: 0;
 }
+
+
+/* RangManch Admin Studio — shared light theme, independent of editor or public pages. */
+.admin-studio { background: #fcfaff; color: #30213e; }
+.admin-studio .admin-card {
+  background: #ffffff;
+  color: #30213e;
+  border: 1px solid #e6ddec;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(54, 30, 74, 0.045);
+}
+.admin-studio .admin-eyebrow {
+  color: #774b9b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.admin-studio .admin-input {
+  color: #30213e;
+  background: #fff;
+  border: 1px solid #bfaece;
+  border-radius: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+}
+.admin-studio .admin-input:focus-visible,
+.admin-studio input:focus-visible,
+.admin-studio select:focus-visible,
+.admin-studio textarea:focus-visible,
+.admin-studio button:focus-visible,
+.admin-studio a:focus-visible {
+  outline: 2px solid #774b9b;
+  outline-offset: 2px;
+}
+.admin-studio .admin-secondary-button {
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.65rem;
+  border: 1px solid #cbb7db;
+  background: white;
+  color: #473052;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.admin-studio .admin-secondary-button:hover { background: #f3eafb; }
+.admin-studio .admin-secondary-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-studio select, .admin-studio textarea,
+.admin-studio input:not([type="checkbox"]):not([type="file"]):not([type="range"]):not([type="color"]) {
+  color: #30213e;
+  background-color: #fff;
+}
+.admin-studio ::placeholder { color: #746982; opacity: 1; }
+.admin-studio .admin-loading-bar { background: linear-gradient(90deg, #efe7f6, #f9f3fe, #efe7f6); background-size: 200% 100%; animation: admin-shimmer 1.5s ease-in-out infinite; }
+@keyframes admin-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .admin-studio .admin-loading-bar { animation: none; } }
