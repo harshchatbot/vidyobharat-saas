@@ -75,7 +75,7 @@ def forced_align(path: Path, words: list[Word], language: str, duration: float) 
                 "candidate_word_count": len(candidate),
             })
             return (candidate if valid else None), reason, elapsed
-    except (ImportError, OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+    except Exception as exc:  # optional dependency may fail in CTranslate2/torch internals
         logger.warning("editor_whisper_alignment_unavailable", extra={
             "error_type": type(exc).__name__,
         })
