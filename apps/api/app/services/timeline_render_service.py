@@ -579,7 +579,7 @@ class TimelineRenderService:
                 f'borderw={overlay.outline_width}:bordercolor={overlay.outline_color}:'
                 f'{shadow_options}:box={1 if overlay.background_opacity > 0 else 0}:'
                 f'boxcolor={background}:boxborderw=8:expansion=none:'
-                f'x={alignment_x}:y=(h-text_h)/2[{layer_label}]'
+                f"x='{alignment_x}':y=(h-text_h)/2[{layer_label}]"
             )
             animated_label = layer_label
             animation_filters: list[str] = []
