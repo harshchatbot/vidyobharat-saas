@@ -28,6 +28,7 @@ import type { EffectSection } from './timeline/filters';
 import { normalizeExportFilename, serializeTimelineProject } from './timeline/serialization';
 import { browserExportDimensions, exportTimelineMp4, supportsBrowserMp4Export } from '@/lib/browser-ai/browserMp4Export';
 import { buildAutoEditPlan, type AutoEditStyle } from './autoEdit';
+import { parseFaceGuidance } from './faceAwarePlanning';
 import { validateWordTranscript } from './timedCaptions';
 import { detectSilenceFromBlob } from './silenceDetection';
 import { protectSpeechFromCuts, suggestSpeechPauseCuts, type SourceInterval } from './talkingHeadTiming';
@@ -1157,10 +1158,42 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
       }
       if (epoch !== autoEditEpochRef.current) return;
       if (availableSfx.length) setAudioLibrary((current) => [...current.filter((entry) => entry.type !== 'sfx'), ...availableSfx]);
-      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: availableSfx });
+      // Face-aware guidance is optional and strictly linked to this source media.
+      // It is never treated as authorization to cut speech. A failed analysis
+      // does not block a reviewable Auto Edit preview.
+      let faceGuidance = videoForSpeech
+        ? parseFaceGuidance(videoAnalysisReport, videoForSpeech.media_id) : null;
+      let faceGuidanceWarning = '';
+      if (videoForSpeech && !faceGuidance) {
+        setAutoEditProgress({ phase: 'checking', message: 'Finding face-safe caption areas and framing…' });
+        try {
+          const response = await withAutoEditTimeout(
+            fetch(`${getApiUrl()}/api/editor/media/${encodeURIComponent(videoForSpeech.media_id)}/analyze?style=${encodeURIComponent(autoEditStyle)}`, {
+              method: 'POST', credentials: 'include',
+              headers: { 'X-RangManch-Editor-CSRF': '1' }, signal: controller.signal,
+            }),
+            TRANSCRIPTION_TIMEOUT_MS,
+            'Face-aware analysis timed out.',
+            () => controller.abort(),
+          );
+          if (!response.ok) throw new Error(`Video analysis unavailable (HTTP ${response.status}).`);
+          const report = await response.json();
+          if (report?.schema_version !== '2.0') throw new Error('Unsupported video analysis schema.');
+          if (epoch !== autoEditEpochRef.current) return;
+          setVideoAnalysisReport(report);
+          faceGuidance = parseFaceGuidance(report, videoForSpeech.media_id);
+          if (!faceGuidance) faceGuidanceWarning = 'Face guidance is unavailable; check caption and zoom positioning in preview.';
+        } catch (error) {
+          if (controller.signal.aborted && epoch !== autoEditEpochRef.current) return;
+          faceGuidanceWarning = 'Face-aware placement could not be loaded; review caption and zoom positioning.';
+        }
+      }
+      if (epoch !== autoEditEpochRef.current) return;
+      const plan = buildAutoEditPlan(project, media, revision, { style: autoEditStyle, mode: 'replace', title: autoEditTitle, beatCandidates, silenceRemovals, transcript, sfxLibrary: availableSfx, faceGuidance: faceGuidance ?? undefined });
       for (const operation of plan.operations) {
         if (operation.op === 'add_text' && operation.item.captionWords?.length) operation.item.fontFamily = autoEditCaptionFont;
       }
+      if (faceGuidanceWarning) plan.warnings.push(faceGuidanceWarning);
       if (sfxWarning) plan.warnings.push(sfxWarning);
       if (analysisWarning) plan.warnings.push(analysisWarning);
       if (transcriptionWarning) plan.warnings.push(transcriptionWarning);
