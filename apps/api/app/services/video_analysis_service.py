@@ -18,6 +18,8 @@ from app.schemas.video_analysis import (
     MediaInfo, SpeechEvidence, StylePreset, VideoAnalysisReport, VisualEvidence, Word,
 )
 
+from app.services.video_analysis_timing import assess_timing, semantic_segments, safe_cut_candidates
+
 MAX_ANALYSIS_SECONDS = 65
 MAX_FACE_SAMPLES = 65
 EFFECTS = [
@@ -247,10 +249,25 @@ def build_video_analysis_report(
         cuts, scene_status = [], "unavailable"
         warnings.append("Scene-change detection was unavailable.")
 
+    # Preserve raw words; annotate disagreements rather than shifting Whisper
+    # timestamps onto low-energy audio regions.
+    quality = assess_timing(speech.words, silences, audio_status == "complete", media.duration_seconds)
+    speech.segments = semantic_segments(speech.words, quality.conflicts)
+    candidates = (
+        safe_cut_candidates(silences, speech.words, quality.conflicts, media.duration_seconds)
+        if audio_status == "complete" and speech.status == "complete"
+        else []
+    )
+    if quality.status == "review_required":
+        warnings.append(f"{quality.conflict_count} speech/silence timing conflicts require review; unsafe cuts were excluded.")
+    if speech.status != "complete":
+        warnings.append("No verified transcript; no candidate cuts were generated.")
+
     return VideoAnalysisReport(
         media=media, speech=speech,
         audio=AudioEvidence(status=audio_status, silence_intervals=silences,
-                            speech_pause_intervals=speech_pauses(speech.words, media.duration_seconds)),
+                            speech_pause_intervals=speech_pauses(speech.words, media.duration_seconds),
+                            timing_quality=quality, safe_cut_candidates=candidates),
         visual=VisualEvidence(
             face_status=face_status, scene_status=scene_status, face_samples=samples,
             scene_changes_seconds=cuts,
