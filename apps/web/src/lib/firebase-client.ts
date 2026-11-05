@@ -60,23 +60,25 @@ export function waitForFirebaseAuth(): Promise<Auth> {
   if (readyPromise) return readyPromise;
   readyPromise = (async () => {
     const auth = getFirebaseAuth();
-    await Promise.race([
-      (async () => {
-        await setPersistence(auth, browserLocalPersistence);
-        await auth.authStateReady();
-      })(),
-      new Promise<never>((_, reject) => {
-        // Timeout handled outside the promise, so it does not remain active.
-        // Firebase persistence can hang if IndexedDB is blocked by browser policy.
-        const handle = setTimeout(() => reject(new Error(
-          'Firebase authentication initialization timed out. Check browser storage permissions and Firebase Auth connectivity.'
-        )), 12000);
-        auth.authStateReady().then(() => clearTimeout(handle), () => clearTimeout(handle));
-      }),
-    ]);
-    return auth;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        (async () => {
+          await setPersistence(auth, browserLocalPersistence);
+          await auth.authStateReady();
+          return auth;
+        })(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(
+            'Firebase Auth initialization timed out. Check browser storage, Identity Toolkit connectivity and emulator settings.'
+          )), 12000);
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   })().catch(error => {
-    readyPromise = null; // Permit explicit retry after a transient failure.
+    readyPromise = null;
     throw error;
   });
   return readyPromise;
