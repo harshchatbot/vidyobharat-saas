@@ -90,7 +90,9 @@ def test_v2_report_flags_speech_silence_disagreement(monkeypatch, tmp_path):
     assert report.audio.timing_quality.conflicts[0].word_text == "Have"
     assert report.speech.segments[0].text == "Have you wondered?"
     assert report.speech.segments[0].timing_status == "review"
-    assert report.audio.safe_cut_candidates == []
+    # The conflicted opening is excluded; independent mid-recording silence is valid.
+    assert len(report.audio.safe_cut_candidates) == 1
+    assert report.audio.safe_cut_candidates[0].source_silence.start == 3.0
     assert any("conflicts" in warning for warning in report.warnings)
 
 
