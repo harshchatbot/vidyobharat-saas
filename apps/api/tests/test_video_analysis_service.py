@@ -204,3 +204,44 @@ def test_analysis_cache_is_bounded_isolated_and_returns_copies(monkeypatch):
     assert editor_routes._analysis_from_cache(key) is None
     with editor_routes._analysis_cache_lock:
         editor_routes._analysis_cache.clear()
+
+
+def test_strong_silence_must_confirm_removable_gap():
+    from app.services.video_analysis_timing import safe_cut_candidates
+    words = [Word(start=0.1, end=0.8, text="Hello"),
+             Word(start=2.4, end=2.9, text="world.")]
+    weak = [Interval(start=1.0, end=2.0)]
+    assert safe_cut_candidates(weak, words, [], 3.0,
+                               strict_silences=[Interval(start=1.35, end=1.65)]) == []
+    good = safe_cut_candidates(weak, words, [], 3.0,
+                               strict_silences=[Interval(start=1.0, end=2.0)])
+    assert len(good) == 1
+    assert good[0].remove_start == 1.15
+    assert good[0].remove_end == 1.85
+
+
+def test_disputed_word_boundary_excludes_cut_near_conflict():
+    from app.services.video_analysis_timing import safe_cut_candidates, timing_conflicts
+    words = [Word(start=0.0, end=0.7, text="Hello"),
+             Word(start=1.8, end=2.3, text="world")]
+    silence = [Interval(start=0.8, end=1.65)]
+    # The detector also calls the next word 'silent' nearby. Do not trust
+    # a neat-looking word gap if adjacent timestamps contradict audio.
+    conflict = timing_conflicts(words, [Interval(start=1.75, end=2.0)])
+    assert conflict
+    assert safe_cut_candidates(silence, words, conflict, 3.0,
+                               strict_silences=silence) == []
+
+
+def test_media_stream_delete_race_is_handled_after_headers(caplog):
+    from app.api.routers.editor_routes import _stream_media_until_unavailable
+    from app.services.guest_media_storage import GuestMediaObjectMissing
+
+    def stream():
+        yield b"second"
+        raise GuestMediaObjectMissing("deleted-while-streaming")
+
+    assert list(_stream_media_until_unavailable(b"first", stream(), "test-media")) == [
+        b"first", b"second",
+    ]
+    assert "editor_media_stream_source_removed" in caplog.text
