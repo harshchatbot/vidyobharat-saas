@@ -291,3 +291,51 @@ jq '{
 When evaluating real alignment quality, use the source video and listen to
 clips around the five largest shifts. A lower conflict count with energy-based
 silence is only corroborating evidence, not a reference annotation.
+
+## Face-aware creative guidance and Auto Edit preview (feature branch)
+
+Version 2 reports now include `creative_guidance` (guidance version 1.0,
+`auto_apply=false`), generated deterministically from transcript segment
+intervals and sparse YuNet face boxes:
+
+- `caption_placements`: suggestions for top (y=0.19) or lower-third
+  (y=0.78) captions; tests a conservative face-box margin and estimated
+  12%-height text envelope. If both lanes collide or face evidence is missing,
+  marks `review_required` rather than claiming safety.
+- `zoom_framing`: advisory subject center coordinates and a maximum 1.06x
+  **centered** zoom only if all observed face boxes fit within the remaining
+  frame. It is not full panning or face tracking.
+- The local browser Auto Edit preview now obtains the owner-scoped V2 report
+  automatically when needed. It uses its caption suggestions to reposition
+  speech overlays and caps eligible centered zoom-in effects at 1.06x
+  (renderer formula: 1 + 0.12 * amount * progress, with amount <=0.5).
+  The current zoom-out effect begins at 1.12x, so face-guided previews avoid
+  zoom-out. Effects that span unverified source times are omitted.
+- A missing/failed report falls back to existing editable preview behavior
+  with a warning, not an invented 'safe' face placement. No editing changes
+  are applied unless the user reviews and accepts the preview.
+- Silence cuts remain separate and are **not** authorized by the face guidance.
+  Whisper comparison candidates do not automatically replace speech timings.
+
+Verification commands (after pull on feature branch):
+
+```bash
+cd apps/api
+source .venv/bin/activate
+python -m pytest tests/test_video_creative_guidance.py tests/test_video_analysis_service.py -q
+
+cd ../web
+node --experimental-strip-types --test src/app/editor/faceAwarePlanning.test.ts src/app/editor/autoEdit.test.ts
+npx tsc --noEmit
+```
+
+Re-run `POST /api/editor/media/{media_id}/analyze?style=elegant` with the
+same owning session. The cache version was bumped to avoid stale JSON. Inspect
+`creative_guidance.caption_placements` and
+`creative_guidance.zoom_framing`. Compare the resulting *Auto Edit preview*
+visually before accepting; text wrapping, platform safe areas, face motion
+between 1-FPS samples, transitions, and export rendering require verification.
+
+This is the **deterministic face-safe foundation** for an eventual semantic
+AI Creative Director. It does not yet decide B-roll content, visuals, creative
+storytelling, or emotional timing.
