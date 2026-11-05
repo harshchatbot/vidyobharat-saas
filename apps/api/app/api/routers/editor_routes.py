@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
+from pathlib import Path
 from itertools import chain
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
@@ -335,10 +337,18 @@ async def transcribe_guest_video(
         from app.services.editor_transcription import transcribe_video_bytes
         from app.services.guest_media_storage import GuestMediaObjectMissing
         try:
-            data = await run_in_threadpool(
-                lambda: b''.join(media_service.storage.iter_content(
-                    media['storage_object_path'], start=start, end=end))
-            )
+            def load_transcription_source() -> bytes:
+                # Source ownership was validated by get_media/content_range.
+                # Reuse single-transfer download instead of hundreds of 1 MiB
+                # requests before invoking speech recognition.
+                with tempfile.TemporaryDirectory(prefix='rangmanch-stt-source-') as temp_dir:
+                    destination = Path(temp_dir) / 'source.video'
+                    media_service.storage.download_to_path(
+                        media['storage_object_path'], destination, expected_size=size,
+                    )
+                    return destination.read_bytes()
+
+            data = await run_in_threadpool(load_transcription_source)
             try:
                 return await asyncio.wait_for(
                     run_in_threadpool(transcribe_video_bytes, data),
