@@ -11,6 +11,8 @@ import tempfile
 import threading
 import time
 import unicodedata
+
+from PIL import ImageFont
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -59,47 +61,78 @@ def _resolve_font_file(font_family: str, bold: bool) -> Path | None:
     return None
 
 
-def _caption_lines(text: str, max_width: int, font_size: int, bold: bool) -> str:
-    """Conservatively wrap drawtext captions before FFmpeg rasterizes them.
+def _caption_lines(
+    text: str, max_width: int, font_size: int, bold: bool,
+    font_file: Path | None = None, max_height: int | None = None,
+) -> tuple[str, int, int, int]:
+    """Measure shaped text with Pillow rather than guessing glyph widths.
 
-    drawtext does not wrap automatically. Keep each rendered line within the
-    caption layer, including stroke/shadow allowance.
+    The measured font file is also used by FFmpeg drawtext. Keep font and
+    line geometry within the available layer before applying padding.
     """
-    usable = max(1, max_width - 24)
-    def glyph_width(char: str) -> float:
-        if unicodedata.combining(char):
-            return 0
-        if unicodedata.east_asian_width(char) in {'W', 'F'}:
-            return font_size
-        if char.isspace():
-            return font_size * 0.34
-        if char in "ilI.,:;!'|":
-            return font_size * 0.30
-        if char in 'MW@#%':
-            return font_size * 0.88
-        return font_size * (0.64 if bold else 0.60)
+    del bold  # Bold is represented by the resolved font file.
+    if max_width < 1:
+        raise TimelineValidationError('Caption has no available horizontal space.')
 
-    def wrap(paragraph: str) -> list[str]:
-        result: list[str] = []
-        current = ''
-        for word in paragraph.split():
-            candidate = f'{current} {word}' if current else word
-            if sum(glyph_width(c) for c in candidate) <= usable:
-                current = candidate
+    def font_at(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        if font_file is not None:
+            try:
+                return ImageFont.truetype(str(font_file), size)
+            except OSError:
+                logger.warning('caption_font_unavailable: %s', font_file)
+        return ImageFont.load_default(size=size)
+
+    def graphemes(value: str) -> list[str]:
+        """Keep combining marks and joined Indic sequences together when splitting."""
+        clusters: list[str] = []
+        for char in value:
+            attached = (
+                bool(clusters) and (
+                    unicodedata.category(char) in {'Mn', 'Mc', 'Me'}
+                    or char in {'\\u200c', '\\u200d'}
+                    or clusters[-1].endswith(('\\u200c', '\\u200d', '\\u094d'))
+                )
+            )
+            if attached:
+                clusters[-1] += char
+            else:
+                clusters.append(char)
+        return clusters
+
+    floor = max(12, int(font_size * 0.6))
+    for size in range(font_size, floor - 1, -1):
+        font = font_at(size)
+        lines: list[str] = []
+        for paragraph in text.split('\\n'):
+            if not paragraph.strip():
+                lines.append('')
                 continue
-            if current:
-                result.append(current)
-                current = ''
-            for char in word:
-                if current and sum(glyph_width(c) for c in current + char) > usable:
-                    result.append(current)
+            current = ''
+            for word in paragraph.split():
+                trial = f'{current} {word}' if current else word
+                if font.getlength(trial) <= max_width:
+                    current = trial
+                    continue
+                if current:
+                    lines.append(current)
                     current = ''
-                current += char
-        if current:
-            result.append(current)
-        return result or ['']
-
-    return '\n'.join(line for paragraph in text.splitlines() for line in wrap(paragraph))
+                for cluster in graphemes(word):
+                    if current and font.getlength(current + cluster) > max_width:
+                        lines.append(current)
+                        current = ''
+                    if font.getlength(cluster) > max_width:
+                        raise TimelineValidationError('Caption glyph exceeds the available width.')
+                    current += cluster
+            lines.append(current)
+        ascent, descent = font.getmetrics()
+        line_height = max(1, ascent + descent)
+        # FFmpeg draws text into a transparent RGBA layer. Leave vertical
+        # slack for drawtext glyph bounds and line spacing.
+        text_height = len(lines) * line_height
+        if max_height is None or text_height <= max_height:
+            text_width = math.ceil(max((font.getlength(line) for line in lines), default=0))
+            return '\\n'.join(lines), size, text_width, text_height
+    raise TimelineValidationError('Caption is too long to fit safely; shorten its text or increase its width.')
 
 
 class TimelineRenderError(RuntimeError):
@@ -478,16 +511,26 @@ class TimelineRenderService:
             filter_index += 1
         for overlay in composition.text_overlays:
             text_path = output.parent / f'text-{filter_index:03d}.txt'
-            # Keep the entire text layer within the frame, including when the
-            # caption geometry was dragged toward an edge in the browser.
-            available_width = max(2, round(2 * composition.width * min(overlay.x, 1 - overlay.x)))
-            layer_width = max(2, min(round(composition.width * overlay.width), available_width - 8))
-            layer_width -= layer_width % 2
-            wrapped = _caption_lines(overlay.text, layer_width, overlay.font_size, overlay.bold)
+            # Measure with the same font file used by FFmpeg, then size the
+            # transparent layer around the wrapped text and its effects.
+            safe_margin = max(8, round(composition.width * 0.04))
+            max_layer_width = max(2, min(
+                round(composition.width * overlay.width),
+                composition.width - 2 * safe_margin,
+            ))
+            pad = max(12, overlay.outline_width + (12 if overlay.background_opacity > 0 else 8))
+            font_file = _resolve_font_file(overlay.font_family, overlay.bold)
+            wrapped, fitted_font_size, text_width, text_height = _caption_lines(
+                overlay.text,
+                max_layer_width - 2 * pad,
+                overlay.font_size,
+                overlay.bold,
+                font_file=font_file,
+                max_height=composition.height - 2 * safe_margin - 2 * pad,
+            )
+            layer_width = min(max_layer_width, 2 * math.ceil((text_width + 2 * pad) / 2))
+            layer_height = 2 * math.ceil((text_height + 2 * pad) / 2)
             text_path.write_text(wrapped, encoding='utf-8')
-            line_count = wrapped.count('\n') + 1
-            layer_height = max(2, min(composition.height, round(overlay.font_size * 1.35 * line_count + 24)))
-            layer_height += layer_height % 2
             layer_label = f'textlayer{filter_index}'
             rotated_label = f'textrot{filter_index}'
             next_label = f'vt{filter_index}'
@@ -508,11 +551,11 @@ class TimelineRenderService:
                 f'{format_seconds(composition_duration(composition))},format=rgba,'
                 f'colorchannelmixer=aa=0,drawtext=textfile={self._escape_filter_value(str(text_path))}:'
                 f'{font_option}:'
-                f'fontsize={overlay.font_size}:fontcolor={overlay.color}:'
+                f'fontsize={fitted_font_size}:fontcolor={overlay.color}:'
                 f'borderw={overlay.outline_width}:bordercolor={overlay.outline_color}:'
                 f'{shadow_options}:box={1 if overlay.background_opacity > 0 else 0}:'
                 f'boxcolor={background}:boxborderw=8:expansion=none:'
-                f'x={alignment_x}:y=(h-text_h)/2[{layer_label}]'
+                f'x={alignment_x if overlay.alignment.value == "center" else (str(pad) if overlay.alignment.value == "left" else "w-text_w-" + str(pad))}:y=(h-text_h)/2[{layer_label}]'
             )
             animated_label = layer_label
             animation_filters: list[str] = []
@@ -563,7 +606,7 @@ class TimelineRenderService:
                 y_expression += '+' + '+'.join(f'({offset})' for offset in y_offsets)
             filters.append(
                 f'[{video_label}][{rotated_label}]overlay='
-                f"x='W*{overlay.x:.10f}-w/2':y='{y_expression}':"
+                f"x='min(max(0,W*{overlay.x:.10f}-w/2),max(0,W-w))':"\n                f"y='min(max(0,{y_expression}),max(0,H-h))':"
                 f"format=auto:enable='between(t,{format_seconds(overlay.start_seconds)},"
                 f"{format_seconds(overlay.start_seconds + overlay.duration_seconds)})'[{next_label}]"
             )
