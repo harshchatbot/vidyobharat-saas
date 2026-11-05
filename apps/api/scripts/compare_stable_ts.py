@@ -1,4 +1,4 @@
-"""Local-only optional A/B alignment benchmark; does not change production STT.
+"""Local-only optional forced word-alignment benchmark; does not change production STT.
 
 Usage from apps/api (video must be the ORIGINAL file, not a trimmed copy):
     python scripts/compare_stable_ts.py /path/video.mp4 /path/analysis-v2.json --model small
@@ -31,13 +31,17 @@ def extract_audio(video: Path, audio: Path) -> None:
     ], check=True, timeout=90, capture_output=True)
 
 
-def get_stable_words(audio: Path, model_name: str):
+def get_stable_words(audio: Path, model_name: str, reference_text: str, language: str):
     import stable_whisper  # only imported when explicitly running the benchmark
 
     model = stable_whisper.load_faster_whisper(
         model_name, device="cpu", compute_type="int8",
     )
-    result = model.transcribe(str(audio), word_timestamps=True, verbose=False)
+    # Re-align the *same transcript* rather than comparing different ASR text.
+    # This isolates differences in word timing from recognition differences.
+    result = model.align(str(audio), reference_text, language=language, verbose=False)
+    if result is None:
+        raise RuntimeError('Stable-ts alignment returned no results')
     words = []
     for seg in result.segments:
         for word in seg.words or []:
@@ -83,16 +87,25 @@ def main() -> int:
         wav = Path(temp) / "speech.wav"
         extract_audio(opts.video, wav)
         started = time.perf_counter()
-        candidate = get_stable_words(wav, opts.model)
+        reference = ' '.join(word.text for word in base)
+        candidate = get_stable_words(wav, opts.model, reference, report['speech'].get('language') or 'en')
         elapsed = round(time.perf_counter() - started, 2)
     if not candidate:
-        parser.error("Stable-ts returned no recognized words")
+        parser.error("Stable-ts returned no aligned words")
+    import re
+    def lexical(text: str) -> str:
+        return re.sub(r"[^\\w]+", "", text).casefold()
+    original_tokens = [lexical(w.text) for w in base if lexical(w.text)]
+    aligned_tokens = [lexical(w.text) for w in candidate if lexical(w.text)]
+    if original_tokens != aligned_tokens:
+        parser.error("Aligned token sequence does not match original transcript; do not compare timestamps")
     result = {
         "source": "local_original_video",
         "model": opts.model,
         "stable_ts_elapsed_seconds": elapsed,
         "faster_whisper_existing": summarise(base, silences),
         "stable_ts_candidate": summarise(candidate, silences),
+        "same_transcript_verified": True,
         "note": "Conflict counts measure disagreement with -35 dB silence, NOT alignment accuracy. Review original audio manually before choosing a timestamp provider.",
         "candidate_words": [w.model_dump() for w in candidate],
     }
