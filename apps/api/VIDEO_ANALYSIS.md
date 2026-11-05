@@ -37,20 +37,41 @@ analyzer ran successfully; inspect its status first. All event times refer to
 
 ## Optional YuNet setup
 
-The code requires an approved local ONNX file (not downloaded automatically).
-Review the OpenCV Zoo YuNet model license, origin, and weight use before using
-it commercially. Obtain the `face_detection_yunet_2023mar.onnx` file from the
-official [opencv_zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
-repository and configure:
+YuNet is **optional** and the app never fetches model weights during an
+analysis request. OpenCV Zoo's `face_detection_yunet_2023mar.onnx` is 232,589
+bytes. Its model-directory license is MIT. The setup utility downloads from the
+OpenCV-owned model mirror and verifies its pinned SHA-256 before installing it
+outside git:
 
 ```bash
-export RANGMANCH_YUNET_MODEL_PATH=/absolute/path/to/face_detection_yunet_2023mar.onnx
+cd apps/api
+source .venv/bin/activate
+python scripts/setup_yunet.py
+export RANGMANCH_YUNET_MODEL_PATH="$HOME/.cache/rangmanch/models/face_detection_yunet_2023mar.onnx"
+python -m pytest tests/test_video_analysis_service.py -q
+uvicorn app.main:app --reload
 ```
 
-The installed `opencv-python-headless` dependency supplies OpenCV's YuNet
-inference API. With no configured model or on inference failure, the report
-sets `visual.face_status = unavailable` and `face_samples = []`.
-**Never claim face tracking is operational without verifying the model.**
+Restart the API and re-analyze the same owner-authorized video. The analysis
+cache key includes the model path and an updated pipeline version. Inspect:
+
+```bash
+jq '{status: .visual.face_status, sample_count: (.visual.face_samples|length), first_sample: .visual.face_samples[0]}' /tmp/whisper-analysis.json
+```
+
+YuNet runs **CPU-only**, sampling **1 frame per second** and resizing long
+frame edges to **at most 640 pixels** (e.g. 1080×1920 → 360×640).
+The detector returns at most one face per sampled frame. Box coordinates are
+normalized against the *full source frame* and logged along with frames decoded
+and elapsed time (`editor_yunet_face_detection_complete`). This is **not**
+face tracking, face identification, emotion detection, or continuous evidence.
+
+The installed `opencv-python-headless` dependency supplies YuNet.
+Missing model or failed inference sets `face_status=unavailable`; decoded
+frames containing no confident faces set `face_status=no_faces`. Face samples
+should only be consumed as sparse observations, not assumed valid at every
+video frame. Review model weight license and OpenCV dependencies before
+commercial distribution.
 
 ## Local verification
 
