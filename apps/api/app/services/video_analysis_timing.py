@@ -125,42 +125,63 @@ def safe_cut_candidates(
     words: list[Word],
     conflicts: list[TimingConflict],
     duration: float,
+    *,
+    strict_silences: list[Interval] | None = None,
 ) -> list[SafeCutCandidate]:
-    """Produce only verified *candidate* gaps, never automatically applied cuts.
+    """Conservative candidates, never automatically executed.
 
-    A candidate needs >=0.6s of measured silence, 0.15s lead/tail padding,
-    two-sided transcript context, no overlapping word or timing conflict.
+    Intersect speech-timestamp gaps with low-energy silences. In production
+    analysis require independent -45 dB silence corroboration. Every proposed
+    cut maintains 0.15s padding from speech and uncertain regions; a conflict
+    near either boundary disqualifies it. Still review against original audio.
     """
-    if not silences or not words or conflicts is None:
+    if not silences or len(words) < 2:
         return []
     candidates: list[SafeCutCandidate] = []
-    for silence in sorted(silences, key=lambda item: item.start):
-        if silence.end - silence.start < MIN_CUT_SILENCE:
+    ordered_words = sorted(words, key=lambda w: (w.start, w.end))
+    for before, after in zip(ordered_words, ordered_words[1:]):
+        if after.start <= before.end or after.start > duration:
             continue
-        # Avoid trimming uncertain initial/final sections where a transcript
-        # may have missed early or trailing speech.
-        before = [w for w in words if w.end <= silence.start]
-        after = [w for w in words if w.start >= silence.end]
-        if not before or not after:
-            continue
-        if any(w.start < silence.end + CUT_PADDING and w.end > silence.start - CUT_PADDING for w in words):
-            continue
-        if any(issue.word_start < silence.end + CUT_PADDING and issue.word_end > silence.start - CUT_PADDING for issue in conflicts):
-            continue
-        start = max(silence.start + CUT_PADDING, before[-1].end + CUT_PADDING)
-        end = min(silence.end - CUT_PADDING, after[0].start - CUT_PADDING, duration)
-        if end - start < 0.25:
-            continue
-        candidates.append(SafeCutCandidate(
-            id=f"cut_{len(candidates)+1:03d}",
-            remove_start=round(start, 3),
-            remove_end=round(end, 3),
-            anchor_time=round((start+end)/2, 3),
-            source_silence=Interval(start=silence.start, end=silence.end),
-            confidence="conservative",
-            reason="Measured silence with word-free padding on both sides; review against original audio before applying.",
-        ))
-    return candidates[:20]
+        gap_start, gap_end = before.end, after.start
+        for silence in sorted(silences, key=lambda item: item.start):
+            overlap_start = max(gap_start, silence.start)
+            overlap_end = min(gap_end, silence.end)
+            if overlap_end - overlap_start < MIN_CUT_SILENCE:
+                continue
+            overlaps = [(overlap_start, overlap_end)]
+            if strict_silences is not None:
+                overlaps = [
+                    (max(overlap_start, strong.start), min(overlap_end, strong.end))
+                    for strong in strict_silences
+                    if min(overlap_end, strong.end) - max(overlap_start, strong.start) >= MIN_CUT_SILENCE
+                ]
+            for core_start, core_end in overlaps:
+                start = core_start + CUT_PADDING
+                end = core_end - CUT_PADDING
+                if end - start < 0.25:
+                    continue
+                # Guard against other words overlapping due to imperfect ASR
+                # and prevent cuts near any word/silence disagreement.
+                if any(w.start < end + CUT_PADDING and w.end > start - CUT_PADDING for w in ordered_words):
+                    continue
+                if any(issue.word_start < end + CUT_PADDING and issue.word_end > start - CUT_PADDING for issue in conflicts):
+                    continue
+                # Endpoints must lie inside the actual -35dB observation.
+                if start < silence.start or end > silence.end:
+                    continue
+                candidates.append(SafeCutCandidate(
+                    id=f"cut_{len(candidates)+1:03d}",
+                    remove_start=round(start, 3),
+                    remove_end=round(end, 3),
+                    anchor_time=round((start + end) / 2, 3),
+                    source_silence=Interval(start=silence.start, end=silence.end),
+                    confidence="conservative",
+                    reason="Timestamp gap corroborated by audio silence; keep padding and review original audio before applying.",
+                ))
+                break
+            if len(candidates) >= 20:
+                return candidates
+    return candidates
 
 
 def assess_timing(words: list[Word], silences: list[Interval], silence_available: bool, duration: float) -> TimingQuality:
