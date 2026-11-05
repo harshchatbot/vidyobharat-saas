@@ -25,7 +25,7 @@ def get_asset(asset_id: str, store: VisualAssetRepository) -> VisualAsset:
 
 @router.get("/api/editor/visual-assets")
 def listed_assets(
-    kind: str | None = Query(None, pattern="^(lut|emoji)$"),
+    kind: str | None = Query(None, pattern="^(lut|emoji|music)$"),
     store: VisualAssetRepository = Depends(repo),
 ):
     """Only published + rights-cleared entries; no raw storage URLs."""
@@ -57,7 +57,7 @@ def _content(asset: VisualAsset):
     try:
         blob = storage.bucket.blob(asset.storage_path)
         blob.reload()
-        if not blob.size or blob.size > 8 * 1024 * 1024 or blob.size != asset.bytes:
+        if not blob.size or blob.size > 20 * 1024 * 1024 or blob.size != asset.bytes:
             raise HTTPException(status_code=404, detail="Asset unavailable.")
         content = blob.download_as_bytes()
         import hashlib
@@ -75,7 +75,7 @@ def _content(asset: VisualAsset):
 
 @router.get("/api/admin/visual-assets")
 def admin_list(
-    kind: str | None = Query(None, pattern="^(lut|emoji)$"),
+    kind: str | None = Query(None, pattern="^(lut|emoji|music)$"),
     _: AdminPrincipal = Depends(require_admin_principal),
     store: VisualAssetRepository = Depends(repo),
 ):
