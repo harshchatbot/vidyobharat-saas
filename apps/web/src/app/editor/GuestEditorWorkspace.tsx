@@ -840,6 +840,33 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   function seek(time: number) { const next = quantizeTimelineTime(time, 0, MAX_TIMELINE_SECONDS); setPlaybackTime(next); if (isPlaying) playbackStartedRef.current = { wallTime: performance.now(), timelineTime: next }; }
   function selectItem(itemId: string) { setSelectedItemId(itemId); const item = projectItem(displayProject, itemId); if (item) seek(item.startTime); setIsPlaying(false); }
   function patchSelected(updates: Partial<TimelineItem>) { if (!selectedItemId) return; mutate((current) => updateItem(current, selectedItemId, updates), `inspector:${selectedItemId}`); }
+  function applySelectedStyleToAllCaptions() {
+    if (!selectedItemId) return;
+    const selected = projectItem(project, selectedItemId);
+    if (selected?.kind !== 'text' || !selected.captionWords?.length) return;
+    // Styling only: preserve each caption's speech words, timestamps and length.
+    const {
+      fontFamily, fontSize, color, bold, x, y, width, rotation,
+      alignment, outlineColor, outlineWidth, shadow,
+      backgroundColor, backgroundOpacity,
+    } = selected;
+    const styling = {
+      fontFamily, fontSize, color, bold, x, y, width, rotation,
+      alignment, outlineColor, outlineWidth, shadow,
+      backgroundColor, backgroundOpacity,
+    };
+    mutate((current) => ({
+      ...current,
+      tracks: current.tracks.map((track) => ({
+        ...track,
+        items: track.items.map((item) =>
+          item.kind === 'text' && item.captionWords?.length
+            ? { ...item, ...styling }
+            : item),
+      })),
+    }), 'captions:apply-style-to-all');
+  }
+
   function positionAllCaptions(y: number) {
     mutate((current) => ({
       ...current,
@@ -1355,7 +1382,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <button type="button" onClick={() => setRightPanel('inspector')} aria-selected={rightPanel === 'inspector'} className={`rounded-md text-xs font-semibold ${rightPanel === 'inspector' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-200'}`}>Inspector</button>
             <button type="button" onClick={() => setRightPanel('copilot')} aria-selected={rightPanel === 'copilot'} className={`rounded-md text-xs font-semibold ${rightPanel === 'copilot' ? 'bg-amber-400/15 text-white' : 'text-slate-500 hover:text-slate-200'}`}>AI Copilot</button>
           </div>
-          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} autoEditReady={autoEditReady} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
+          {rightPanel === 'copilot' ? <CopilotPanel history={copilotHistory} loading={copilotLoading} progress={copilotProgress} proposal={copilotProposal} autoEditReady={autoEditReady} error={copilotError} browserProvider={isBrowserCopilotEnabled} onSubmit={(prompt) => void submitCopilotPrompt(prompt)} onAbort={() => invalidateCopilot()} onCancel={() => invalidateCopilot()} onApply={() => void applyCopilotProposal()} /> : <EditorInspector className="min-h-0 flex-1 overflow-y-auto" item={selectedItem} onUpdate={patchSelected} onRemove={removeSelected} onApplyStyleToAllCaptions={applySelectedStyleToAllCaptions} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} />}
         </aside>
       </div>
       <div className="relative shrink-0 border-t border-white/10" style={{ height: timelineHeight }}>
