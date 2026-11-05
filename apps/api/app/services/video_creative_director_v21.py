@@ -159,16 +159,22 @@ def compile_composition_v21(
                     layout="caption_safe_upper", keyframes=_entrance(p.start, p.end),
                 ))
         if scene.visual_mode == "graphic_overlay":
-            # Move the graphic only within the face-safe composition system.
-            # No free-form AI positioning or fabricated on-screen text.
-            graphic_start = round(start, 3)
-            graphic_end = round(end, 3)
-            beats.append(CompositionBeat(
-                id=f"graphic-{index}", kind="motion_graphic",
-                template=scene.motion_template, start=graphic_start, end=graphic_end,
-                phrase_ids=[scene.first_phrase_id, scene.last_phrase_id],
-                layout="face_safe_graphic", keyframes=_entrance(graphic_start, graphic_end),
-            ))
+            # Stage individual phrases instead of showing one static 7s graphic.
+            # Each phrase drives a distinct motion beat from approved speech timing.
+            sequence = context.phrases
+            first_idx = next(k for k, p in enumerate(sequence) if p.id == scene.first_phrase_id)
+            last_idx = next(k for k, p in enumerate(sequence) if p.id == scene.last_phrase_id)
+            for phase, phrase in enumerate(sequence[first_idx:last_idx + 1]):
+                if phrase.end - phrase.start < .12:
+                    continue
+                beats.append(CompositionBeat(
+                    id=f"graphic-{index}-{phase}", kind="motion_graphic",
+                    template=scene.motion_template,
+                    start=round(phrase.start, 3), end=round(phrase.end, 3),
+                    phrase_ids=[phrase.id], text_from_phrase_id=phrase.id,
+                    layout="face_safe_graphic",
+                    keyframes=_entrance(phrase.start, phrase.end),
+                ))
         if scene.visual_mode in {"broll_overlay", "split_screen"}:
             resolved = _choose_asset(assets, "broll", scene.broll_query or "")
             beats.append(CompositionBeat(
