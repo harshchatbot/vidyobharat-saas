@@ -64,7 +64,7 @@ class CreativeContext(_Strict):
     cut_policy: Literal["approved_ids_only"] = "approved_ids_only"
     review_required: bool
     allowed_actions: list[Literal[
-        "caption", "caption_emphasis", "centered_zoom",
+        "caption_emphasis", "centered_zoom",
         "existing_sfx_suggestion", "broll_asset_suggestion",
     ]]
     max_proposed_actions: int = Field(ge=1, le=30, default=20)
