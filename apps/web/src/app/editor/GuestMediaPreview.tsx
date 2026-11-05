@@ -33,7 +33,7 @@ function VideoPreview({ mediaId, isPlaying, localTime, muted, volume, objectFit,
   const [failed, setFailed] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
-  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingTimeoutRef = useRef<number | null>(null);
   const url = `${getApiUrl().replace(/\/$/, '')}/api/editor/media/${encodeURIComponent(mediaId)}/content`;
 
   useEffect(() => {
