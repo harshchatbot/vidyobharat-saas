@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AdminApiError, adminRequest, formatBytes, type AdminDashboard } from '@/lib/admin-api';
-import { MotionReveal, StatusTransition } from '@/components/ui/MotionPrimitives';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { StatusTransition } from '@/components/ui/MotionPrimitives';
+import { AdminLoading } from './AdminLoading';
 
 export function AdminDashboardClient() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export function AdminDashboardClient() {
     else setError(caught instanceof Error ? caught.message : 'Admin service is temporarily unavailable.');
   }); }, [router]);
   if (error) return <StatusTransition tone="error" label="Dashboard unavailable" detail={error} />;
-  if (!data) return <MotionReveal><div role="status" aria-live="polite" aria-label="Loading admin dashboard" className="space-y-6"><div><Skeleton className="h-3 w-24" /><Skeleton className="mt-3 h-8 w-72" /><Skeleton className="mt-3 h-4 w-full max-w-xl" /></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} variant="card" className="h-28" />)}</div><Skeleton variant="card" className="h-48" /></div></MotionReveal>;
+  if (!data) return <AdminLoading label="Loading guest editor overview" />;
   const metrics = [
     ['Guest sessions', data.total_guest_sessions.toLocaleString()], ['Active now', data.active_guest_sessions.toLocaleString()],
     ['Accepted uploads', data.accepted_uploads.toLocaleString()], ['Completed exports', data.completed_exports.toLocaleString()],
