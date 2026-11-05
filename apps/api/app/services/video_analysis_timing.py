@@ -13,6 +13,7 @@ from app.schemas.video_analysis import (
 )
 
 MIN_CONFLICT_OVERLAP = 0.12
+CONFLICT_GUARD = 0.35
 CUT_PADDING = 0.15
 MIN_CUT_SILENCE = 0.6
 SEGMENT_GAP = 0.55
@@ -164,7 +165,7 @@ def safe_cut_candidates(
                 # and prevent cuts near any word/silence disagreement.
                 if any(w.start < end + CUT_PADDING and w.end > start - CUT_PADDING for w in ordered_words):
                     continue
-                if any(issue.word_start < end + CUT_PADDING and issue.word_end > start - CUT_PADDING for issue in conflicts):
+                if any(issue.word_start < end + CONFLICT_GUARD and issue.word_end > start - CONFLICT_GUARD for issue in conflicts):
                     continue
                 # Endpoints must lie inside the actual -35dB observation.
                 if start < silence.start or end > silence.end:
