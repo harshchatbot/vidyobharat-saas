@@ -143,6 +143,36 @@ class AudioEvidence(StrictModel):
     safe_cut_candidates: list[SafeCutCandidate] = Field(default_factory=list)
 
 
+class CaptionPlacementGuidance(StrictModel):
+    segment_id: str
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    status: Literal["suggested", "review_required"]
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    estimated_height: float = Field(gt=0, le=1)
+    face_sample_count: int = Field(ge=0)
+    reason: str
+
+
+class ZoomFramingGuidance(StrictModel):
+    segment_id: str
+    status: Literal["suggested", "review_required"]
+    center_x: float = Field(ge=0, le=1)
+    center_y: float = Field(ge=0, le=1)
+    max_scale: float = Field(ge=1, le=1.15)
+    reason: str
+
+
+class CreativeGuidance(StrictModel):
+    version: Literal["1.0"] = "1.0"
+    auto_apply: Literal[False] = False
+    caption_placements: list[CaptionPlacementGuidance] = Field(default_factory=list)
+    zoom_framing: list[ZoomFramingGuidance] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class VisualEvidence(StrictModel):
     face_status: Literal["complete", "unavailable", "no_faces"]
     scene_status: Literal["complete", "unavailable"]
@@ -174,4 +204,5 @@ class VideoAnalysisReport(StrictModel):
     audio: AudioEvidence
     visual: VisualEvidence
     editing: EditingCapabilities
+    creative_guidance: CreativeGuidance = Field(default_factory=CreativeGuidance)
     warnings: list[str] = Field(default_factory=list)
