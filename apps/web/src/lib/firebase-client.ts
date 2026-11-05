@@ -1,11 +1,10 @@
 "use client";
 
-import { getApp, getApps, initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
   connectAuthEmulator,
   getAuth,
-  onAuthStateChanged,
   setPersistence,
   type Auth,
 } from "firebase/auth";
