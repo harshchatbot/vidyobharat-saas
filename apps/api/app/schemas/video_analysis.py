@@ -105,6 +105,9 @@ class SpeechEvidence(StrictModel):
     language: str | None = None
     words: list[Word] = Field(default_factory=list)
     segments: list[SpeechSegment] = Field(default_factory=list)
+    alignment_status: Literal["not_requested", "candidate_available", "rejected", "unavailable"] = "not_requested"
+    aligned_words_candidate: list[Word] = Field(default_factory=list)
+    alignment_notes: list[str] = Field(default_factory=list)
 
 
 class AudioEvidence(StrictModel):
