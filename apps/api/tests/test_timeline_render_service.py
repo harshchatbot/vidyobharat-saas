@@ -919,9 +919,9 @@ def test_caption_wrapping_keeps_render_layer_inside_frame(
     _image(image, 'white')
     timeline = TimelineComposition(
         width=360, height=640, fps=10,
-        clips=[_clip(RED, 0, 0.4)],
+        clips=[_clip(RED, 0, 0.6)],
         text_overlays=[TimelineTextOverlay(
-            id='caption-fit', text=text, start_seconds=0, duration_seconds=0.4,
+            id='caption-fit', text=text, start_seconds=0, duration_seconds=0.6,
             font_family=font_family, font_size=36, bold=True,
             x=x, y=0.5, width=0.9, outline_width=3,
             background_opacity=0,
@@ -956,10 +956,10 @@ def test_caption_background_style_remains_available(tmp_path: Path) -> None:
     _image(image, 'white')
     timeline = TimelineComposition(
         width=360, height=640, fps=10,
-        clips=[_clip(RED, 0, 0.4)],
+        clips=[_clip(RED, 0, 0.6)],
         text_overlays=[TimelineTextOverlay(
             id='boxed-caption', text='Readable caption', start_seconds=0,
-            duration_seconds=0.4, font_size=32, background_opacity=0.6,
+            duration_seconds=0.6, font_size=32, background_opacity=0.6,
         )],
     )
     renderer = TimelineRenderService()
