@@ -17,6 +17,7 @@ type Props = {
 export function AppFrame({ userId, accountLabel, accountEmail, accountAvatar, children }: Props) {
   const pathname = usePathname();
   const immersive = pathname.startsWith('/editor') || pathname.startsWith('/admin');
+  if (pathname === '/login' || pathname === '/signup') return <div className="min-h-screen bg-[#fff9ed] text-[#292034]">{children}</div>;
   return (
     <div className="min-h-screen bg-bg text-text">
       {!immersive ? <TopNav userId={userId} accountLabel={accountLabel} accountEmail={accountEmail} /> : null}
