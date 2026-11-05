@@ -92,7 +92,39 @@ run.
 
 - Measured silence is an **audio-energy threshold**, not a ground truth speech label.
 - Whisper timing is **estimated**, not millisecond-exact. Overlap >=0.12 seconds produces a conflict record; original timestamps remain unchanged.
-- Segments are deterministic *utterance groups* based on punctuation and >=0.60 second gaps, not an LLM rewrite or guaranteed semantic parsing.
+- Segments are deterministic *utterance groups* based on punctuation, pauses (>=0.55 seconds) and optional native Faster-Whisper segment boundaries. There are no arbitrary 20-word breaks. Small fragments and dangling conjunctions are joined where safe. This is not an LLM rewrite or guaranteed semantic parsing.
 - A safe-cut **candidate** requires >=0.60 seconds of detected silence, speech on both sides, no word touching the gap with a 0.15s buffer, and a remaining >=0.25 second removable region. It is not permission for automatic cutting. Candidate start/end are in original source seconds.
 - When timings disagree or evidence is missing, do **not** invent times, auto-fix words, or create speculative cut candidates. Review against the original audio first.
 - The current endpoint still uses the existing Faster-Whisper engine. **Stable-ts is not installed or benchmarked yet.** Accuracy improvements require real-video listening tests and independent time alignment validation.
+
+## Improved grouping and opt-in alignment benchmark
+
+The STT response now includes `utterances` with word-index boundaries in
+addition to unchanged `words`. Existing clients can continue using `words`;
+the analysis report uses source utterance boundaries as *hints*. A native
+boundary alone is not sufficient to authorize a cut.
+
+For a controlled comparison of stable-ts against the **same original video**,
+make a separate test virtual environment (not the API production environment):
+
+```bash
+cd apps/api
+python3 -m venv .venv-stable-test
+source .venv-stable-test/bin/activate
+pip install -r requirements.txt
+pip install 'stable-ts[fw]'
+python scripts/compare_stable_ts.py /absolute/path/test_video.mp4 /absolute/path/rangmanch-video-analysis-v2.json --model small --out stable-ts-comparison.json
+```
+
+The CLI extracts local mono WAV audio, transcribes using the optional
+stable-ts Faster-Whisper integration, and compares **word counts and
+word/silence-overlap diagnostics** to the previously generated JSON.
+It does not upload content, switch the service model, or change the
+guest-session pipeline.
+
+**Important:** Differences in counts of conflicts are not evidence of
+word-level accuracy. An audio-energy detector can flag low-volume speech as
+silence. Review a set of word onset/offset boundaries against the actual
+recording before choosing an alignment engine. At the time of evaluation,
+stable-ts upstream states development is indefinitely paused; review dependency
+and model licensing before adopting it as a production dependency.
