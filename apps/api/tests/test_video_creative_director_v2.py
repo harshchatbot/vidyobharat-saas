@@ -134,7 +134,7 @@ def test_openai_strict_schema_and_mock_response():
     asyncio.run(scenario())
 
 
-def test_openai_repairs_coverage_once_and_fails_closed():
+def test_openai_repairs_missing_tail_locally_and_fails_closed():
     async def scenario():
         c = context()
         attempts = []
@@ -150,7 +150,7 @@ def test_openai_repairs_coverage_once_and_fails_closed():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             plan = await generate_openai_scene_plan(c, api_key="mock", client=client)
         assert len(plan.scenes) == 2
-        assert len(attempts) == 2
+        assert len(attempts) == 1
 
         def bad(req):
             return httpx.Response(200, json={"choices": [{
