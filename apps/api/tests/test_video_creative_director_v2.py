@@ -149,7 +149,13 @@ def test_openai_repairs_missing_tail_locally_and_fails_closed():
             }]})
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             plan = await generate_openai_scene_plan(c, api_key="mock", client=client)
-        assert len(plan.scenes) == 2
+        # The safe normalizer extends the sole supplied scene to cover the
+        # verified final phrase. It must not invent a second scene or spend
+        # another OpenAI request just to repair the missing tail.
+        assert len(plan.scenes) == 1
+        assert plan.scenes[0].first_phrase_id == c.phrases[0].id
+        assert plan.scenes[0].last_phrase_id == c.phrases[-1].id
+        assert any("missing_final_phrases" in warning for warning in plan.warnings)
         assert len(attempts) == 1
 
         def bad(req):
