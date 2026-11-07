@@ -125,7 +125,8 @@ async def build_local_creative_preview(
         scene = validate_scene_plan(context, raw_plan)
         director_mode = "provided_validated_v2_plan"
     elif api_key:
-        scene = await generate_openai_scene_plan(context, api_key=api_key, model=model)
+        scene = await generate_openai_scene_plan(context, api_key=api_key, model=model,
+                                                local_graphics_only=True)
         director_mode = "creative_director_v2_openai"
     else:
         scene = fallback_scene_plan(context)
