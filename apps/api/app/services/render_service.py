@@ -26,6 +26,7 @@ celery_app = Celery(
         'app.workers.storyboard_tasks',
         'app.workers.avatar_tasks',
         'app.workers.guest_export_tasks',
+        'app.workers.harshverse_preview_tasks',
         'app.services.video_service',
     ],
 )
@@ -34,6 +35,8 @@ celery_app.conf.task_default_queue = 'celery'
 celery_app.conf.task_routes = {
     'editor.process_guest_timeline_export': {'queue': settings.editor_export_celery_queue},
     'editor.reconcile_guest_timeline_exports': {'queue': settings.editor_export_celery_queue},
+    'editor.process_harshverse_preview': {'queue': settings.editor_export_celery_queue},
+    'editor.reconcile_harshverse_previews': {'queue': settings.editor_export_celery_queue},
 }
 
 
