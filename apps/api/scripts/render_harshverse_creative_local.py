@@ -19,6 +19,9 @@ import argparse
 import asyncio
 import json
 import os
+import httpx
+from dotenv import load_dotenv
+from app.core.config import ENV_FILE
 from pathlib import Path
 import subprocess
 import sys
@@ -178,6 +181,24 @@ async def build_local_creative_preview(
     return result
 
 
+def load_local_environment() -> str | None:
+    """Load the API's canonical .env without overwriting shell variables.
+
+    Values must never be printed or persisted in generated creative artifacts.
+    This also allows the existing STT/YuNet env configuration to be used in
+    standalone backend scripts, as in the running FastAPI app.
+    """
+    load_dotenv(dotenv_path=ENV_FILE, override=False)
+    yunet = os.getenv("RANGMANCH_YUNET_MODEL_PATH", "").strip()
+    if yunet:
+        model_path = Path(yunet).expanduser()
+        if not model_path.is_absolute() and not model_path.is_file():
+            candidate = ENV_FILE.parent / model_path
+            if candidate.is_file():
+                os.environ["RANGMANCH_YUNET_MODEL_PATH"] = str(candidate.resolve())
+    return os.getenv("OPENAI_API_KEY", "").strip() or None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run RangManch's existing Visual Engine + Creative Director locally.")
     parser.add_argument("--presenter", type=Path, default=Path.home() / "Downloads/Test_Talking_Head_Harsh.mp4")
@@ -186,15 +207,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--transcript", type=Path, help="Existing STT transcript JSON with real word timestamps.")
     parser.add_argument("--scene-plan", type=Path, help="Existing validated Creative Director V2 plan JSON.")
     parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--require-openai", action="store_true",
+                        help="Do not silently choose deterministic planning when OpenAI is unconfigured.")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args(argv)
+    api_key = load_local_environment()
+    if args.require_openai and args.scene_plan is None and not api_key:
+        print(f"OpenAI Creative Director is required but OPENAI_API_KEY was not found in the shell or {ENV_FILE}.", file=sys.stderr)
+        return 2
     try:
         result = asyncio.run(build_local_creative_preview(
             args.presenter, args.output_dir, style=args.style,
             transcript_path=args.transcript, scene_plan_path=args.scene_plan,
-            api_key=os.getenv("OPENAI_API_KEY"), model=args.model,
+            api_key=api_key, model=args.model,
             overwrite=args.overwrite,
         ))
+    except httpx.HTTPStatusError as exc:
+        print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
+        return 1
+    except httpx.RequestError:
+        print("OpenAI Creative Director request failed due to a network error.", file=sys.stderr)
+        return 1
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"Local creative preview failed: {exc}", file=sys.stderr)
         return 1
