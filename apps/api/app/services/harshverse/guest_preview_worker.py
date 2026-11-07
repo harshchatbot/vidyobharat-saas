@@ -64,6 +64,17 @@ class GuestHarshVerseWorker:
         thread = threading.Thread(target=heartbeat, daemon=True, name=f'hv-heartbeat-{job_id}')
         thread.start()
         try:
+            # A previous worker can crash after reserving output storage and
+            # uploading a private object, but before committing the Firestore
+            # completion record. Only the newly fenced owner may remove that
+            # stale per-job object before another upload-if-absent attempt.
+            if int(job.get('attempt_count', 0)) > 1:
+                self.repository.renew(
+                    guest_id=guest_id, job_id=job_id, worker_id=self.worker_id,
+                    fence=fence, now=datetime.now(UTC),
+                    lease_duration=self.lease, stage='cleaning_stale_output',
+                )
+                self.media.storage.delete(destination)
             raw = job['payload']
             if raw['version'] != 1:
                 raise ValueError('unsupported preview job version')
