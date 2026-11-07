@@ -86,3 +86,65 @@ def test_missing_openai_key_with_require_flag_fails_before_analysis(monkeypatch,
     status = local.main(["--require-openai"])
     assert status == 2
     assert "OPENAI_API_KEY was not found" in capsys.readouterr().err
+
+
+
+def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(monkeypatch, tmp_path):
+    from app.services.video_creative_director_v2 import ScenePlanV2
+    from app.services.video_creative_context import build_creative_context
+    from app.services.harshverse.local_motion_plate import MotionPlateResult
+    from test_video_creative_director_v2 import sample
+
+    source = tmp_path / "presenter.mp4"
+    source.write_bytes(b"video-with-audio")
+    transcript = tmp_path / "words.json"
+    transcript.write_text(json.dumps({
+        "language": "en",
+        "words": [{"text": w.text, "start": w.start, "end": w.end}
+                  for w in fixture_report().speech.words],
+    }), encoding="utf-8")
+    monkeypatch.setattr(local, "_probe", lambda path: {
+        "format": {"duration": "15.733"},
+        "streams": [{"codec_type": "video"}, {"codec_type": "audio"}],
+    })
+    monkeypatch.setattr(local, "build_video_analysis_report",
+                        lambda path, media_id, *, transcript, style: fixture_report())
+
+    async def fake_director(context, *, api_key, model, local_graphics_only):
+        assert local_graphics_only is True
+        assert api_key == "test-key"
+        return ScenePlanV2.model_validate(sample(context))
+    monkeypatch.setattr(local, "generate_openai_scene_plan", fake_director)
+
+    def fake_plate(composition, context, path):
+        graphics = [b for b in composition.beats if b.kind == "motion_graphic"]
+        assert graphics
+        path.write_bytes(b"local-animation")
+        return MotionPlateResult(path, tuple(b.id for b in graphics), ())
+    monkeypatch.setattr(local, "render_motion_plate", fake_plate)
+
+    called = []
+    def fake_render(plan, presenter, plate, output):
+        assert presenter == source.resolve()
+        assert plate.read_bytes() == b"local-animation"
+        assert any(s.recipe == "presenter_split" for s in plan.scenes)
+        output.write_bytes(b"composited")
+        called.append("motion")
+    monkeypatch.setattr(local, "render_harshverse", fake_render)
+
+    def fake_captions(render_source, captions, output):
+        assert render_source.read_bytes() == b"composited"
+        assert "Dialogue:" in captions.read_text(encoding="utf-8")
+        output.write_bytes(b"final-mp4")
+        called.append("captions")
+    monkeypatch.setattr(local, "_burn_captions", fake_captions)
+
+    result = asyncio.run(local.build_local_creative_preview(
+        source, tmp_path / "result", transcript_path=transcript,
+        api_key="test-key",
+    ))
+    assert called == ["motion", "captions"]
+    assert result["director_mode"] == "creative_director_v2_openai"
+    assert len(result["rendered_motion_beat_ids"]) == 1
+    assert not any(beat.startswith("graphic-") for beat in result["deferred_beat_ids"])
+    assert (tmp_path / "result" / "harshverse_creative_preview.mp4").read_bytes() == b"final-mp4"
