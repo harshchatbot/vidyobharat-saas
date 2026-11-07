@@ -83,3 +83,29 @@ PYTHONPATH=apps/api apps/api/.venv/bin/python \\
 ```
 
 Inspect `rendered_motion_beat_ids` vs `deferred_beat_ids` in the JSON report. This remains a **review-only prototype**: FFmpeg rendering must be exercised and visually checked on a real Mac. Captions may overlap motion on some shots; sparse YuNet or missing face samples cannot guarantee perfect safe zones. The current plates are basic geometric explainers, not polished production-quality motion design.
+
+## Why an OpenAI run can render zero motion beats
+
+The Director is an editorial planner: `rendered_motion_beat_ids=[]` and
+`deferred_beat_ids=[]` mean the validated plan contained no renderable graphic
+or pending media request. The motor is not being exercised by that video. Do not
+force effects silently in normal Auto Edit.
+
+To test FFmpeg/HarshVerse independently of that editorial choice, use the
+**explicit diagnostic mode** below. It uses the same Visual Analysis speech
+phrases and V2.1 compiler but deliberately selects one mid-video keyword card.
+It cannot be confused with OpenAI planning because the report says
+`director_mode=diagnostic_motion_smoke_not_ai`.
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python \\
+  apps/api/scripts/render_harshverse_creative_local.py \\
+  --presenter "$HOME/Downloads/Test_Talking_Head_Harsh.mp4" \\
+  --output-dir "$HOME/Downloads/HarshVerse-Motion-Diagnostic" \\
+  --style energetic --smoke-motion
+```
+
+After inspecting this clip, rerun the OpenAI mode using the normal command
+(with `--require-openai`, **without** `--smoke-motion`). A good AI-selected
+render will report `rendered_motion_beat_ids` with one or more `graphic-...`
+IDs. A legitimate all-talking-head decision can still produce none.
