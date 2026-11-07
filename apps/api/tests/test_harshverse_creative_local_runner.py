@@ -148,3 +148,47 @@ def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(mon
     assert len(result["rendered_motion_beat_ids"]) == 1
     assert not any(beat.startswith("graphic-") for beat in result["deferred_beat_ids"])
     assert (tmp_path / "result" / "harshverse_creative_preview.mp4").read_bytes() == b"final-mp4"
+
+
+
+def test_explicit_motion_smoke_plan_is_valid_but_not_ai_generated():
+    from app.services.video_creative_context import build_creative_context
+    from app.services.video_creative_director_v2 import validate_scene_plan
+    context = build_creative_context(fixture_report())
+    # Two-phrase fixture intentionally cannot support a 3-scene diagnostic.
+    import pytest
+    with pytest.raises(ValueError, match="at least three"):
+        local.build_motion_smoke_scene_plan(context)
+
+
+def test_smoke_mode_requires_no_openai_and_keeps_explicit_provenance(monkeypatch, tmp_path):
+    from app.services.video_creative_context import build_creative_context
+    from app.services.harshverse.local_motion_plate import MotionPlateResult
+    report = fixture_report()
+    # Extend the existing fixture's source-faithful phrases by splitting its
+    # first phrase into two real-word-aligned phrases; no new transcript.
+    context = build_creative_context(report)
+    first = context.phrases[0]
+    second = context.phrases[1]
+    from app.services.video_creative_context import Phrase
+    from app.services.video_creative_director_v2 import validate_scene_plan
+    context.phrases = [
+        Phrase(id="phrase_001", segment_id=first.segment_id,
+               start=first.start, end=report.speech.words[1].end,
+               text=" ".join(w.text for w in report.speech.words[:2]),
+               timing_status=first.timing_status),
+        Phrase(id="phrase_002", segment_id=first.segment_id,
+               start=report.speech.words[2].start, end=first.end,
+               text=" ".join(w.text for w in report.speech.words[2:4]),
+               timing_status=first.timing_status),
+        Phrase(id="phrase_003", segment_id=second.segment_id,
+               start=second.start, end=second.end,
+               text=second.text, timing_status=second.timing_status),
+    ]
+    smoke = local.build_motion_smoke_scene_plan(context)
+    assert len(smoke.scenes) == 3
+    assert smoke.scenes[1].visual_mode == "graphic_overlay"
+    assert smoke.scenes[1].motion_template == "keyword_card"
+    assert smoke.scenes[1].first_phrase_id == "phrase_002"
+    assert "Diagnostic" in smoke.warnings[0]
+    assert validate_scene_plan(context, smoke.model_dump(mode="json")) == smoke
