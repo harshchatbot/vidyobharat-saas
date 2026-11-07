@@ -60,3 +60,29 @@ def test_does_not_clobber_existing_preview(tmp_path):
     else:
         raise AssertionError("Existing render was overwritten")
     assert (output_dir / "harshverse_creative_preview.mp4").read_bytes() == b"original-result"
+
+
+def test_load_local_environment_uses_api_dotenv_without_overwriting_shell(monkeypatch, tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("OPENAI_API_KEY=from-dotenv-test\n", encoding="utf-8")
+    monkeypatch.setattr(local, "ENV_FILE", env)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert local.load_local_environment() == "from-dotenv-test"
+
+
+def test_load_local_environment_preserves_shell_key(monkeypatch, tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("OPENAI_API_KEY=from-dotenv-test\n", encoding="utf-8")
+    monkeypatch.setattr(local, "ENV_FILE", env)
+    monkeypatch.setenv("OPENAI_API_KEY", "shell-test-key")
+    assert local.load_local_environment() == "shell-test-key"
+
+
+def test_missing_openai_key_with_require_flag_fails_before_analysis(monkeypatch, tmp_path, capsys):
+    env = tmp_path / ".env"
+    env.write_text("OTHER_SETTING=ok\n", encoding="utf-8")
+    monkeypatch.setattr(local, "ENV_FILE", env)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    status = local.main(["--require-openai"])
+    assert status == 2
+    assert "OPENAI_API_KEY was not found" in capsys.readouterr().err
