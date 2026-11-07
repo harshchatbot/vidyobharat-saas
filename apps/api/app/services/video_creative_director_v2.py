@@ -331,6 +331,7 @@ SCENE_PLAN_SCHEMA_V2 = {
 async def generate_openai_scene_plan(
     context: CreativeContext, *, api_key: str, model: str = "gpt-4o-mini",
     client: httpx.AsyncClient | None = None,
+    local_graphics_only: bool = False,
 ) -> ScenePlanV2:
     """OpenAI V2 experiment. No raw model output logged or automatically executed."""
     if not api_key:
@@ -343,6 +344,16 @@ async def generate_openai_scene_plan(
             {"role": "system", "content": SYSTEM_INSTRUCTION_V2},
             {"role": "user", "content": json.dumps(context.model_dump(mode="json"), ensure_ascii=False)},
             {"role": "developer", "content": _phrase_constraint_prompt(context)},
+            *([{"role": "developer", "content": (
+                "LOCAL BACKEND RENDER CAPABILITIES: There are NO approved B-roll assets. "
+                "Do not choose broll_overlay or split_screen, because those would be "
+                "unrenderable. Use graphic_overlay with keyword_card, data_flow, "
+                "human_vs_ai, or source_stack ONLY when the speaker's exact words "
+                "justify an explanatory graphic. Otherwise use talking_head. "
+                "Use sound_cue none because no approved SFX are available. "
+                "Do not invent media assets or text. Motion templates remain "
+                "review-only intent until procedural rendering and frame QA."
+            )}] if local_graphics_only else []),
         ],
         "response_format": {
             "type": "json_schema",
