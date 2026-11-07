@@ -38,7 +38,7 @@ from app.services.harshverse.composition_adapter import AnimationPlate, Prepared
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
 from app.services.video_creative_director_v2 import (
-    fallback_scene_plan, generate_openai_scene_plan, validate_scene_plan,
+    SceneBeat, ScenePlanV2, fallback_scene_plan, generate_openai_scene_plan, validate_scene_plan,
 )
 from app.services.video_creative_director_v21 import compile_composition_v21
 
@@ -69,6 +69,40 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
     ], check=True, timeout=300)
 
 
+def build_motion_smoke_scene_plan(context):
+    """Explicit diagnostic fixture from real phrase IDs, not an AI decision.
+
+    Exposes the end-to-end motion FFmpeg path when an AI editorial plan does
+    not request a graphic. This mode is never used in normal Auto Edit.
+    """
+    phrases = context.phrases
+    if len(phrases) < 3:
+        raise ValueError("Motion smoke test requires at least three timed speech phrases")
+    middle = len(phrases) // 2
+    def beat(first, last, mode, template, intent):
+        return SceneBeat(
+            first_phrase_id=phrases[first].id,
+            last_phrase_id=phrases[last].id,
+            visual_mode=mode,
+            motion_template=template,
+            creative_intent=intent,
+            emphasis_phrase_id=None,
+            zoom_scale=None,
+            broll_query=None,
+            sound_cue="none",
+        )
+    plan = ScenePlanV2(
+        creative_thesis="Diagnostic only: verify phrase-timed procedural graphics, not automatic editorial choices.",
+        scenes=[
+            beat(0, middle - 1, "talking_head", "none", "Keep original presenter visible before diagnostic graphic."),
+            beat(middle, middle, "graphic_overlay", "keyword_card", "Show the exact spoken phrase in the procedural graphic renderer."),
+            beat(middle + 1, len(phrases) - 1, "talking_head", "none", "Return to presenter without changing spoken audio."),
+        ],
+        warnings=["Diagnostic motion smoke mode: graphic was explicitly selected for FFmpeg validation, not by AI."],
+    )
+    return validate_scene_plan(context, plan.model_dump(mode="json"))
+
+
 async def build_local_creative_preview(
     source: Path, output_dir: Path, *,
     style: str = "elegant",
@@ -77,6 +111,7 @@ async def build_local_creative_preview(
     api_key: str | None = None,
     model: str = "gpt-4o-mini",
     overwrite: bool = False,
+    smoke_motion: bool = False,
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -120,7 +155,12 @@ async def build_local_creative_preview(
     if not context.phrases:
         raise ValueError("Visual Analysis V2 produced no speech phrases. Cannot generate truthful kinetic captions.")
 
-    if scene_plan_path is not None:
+    if smoke_motion and scene_plan_path is not None:
+        raise ValueError("Use either --smoke-motion or --scene-plan, not both")
+    if smoke_motion:
+        scene = build_motion_smoke_scene_plan(context)
+        director_mode = "diagnostic_motion_smoke_not_ai"
+    elif scene_plan_path is not None:
         raw_plan = json.loads(Path(scene_plan_path).expanduser().read_text(encoding="utf-8"))
         scene = validate_scene_plan(context, raw_plan)
         director_mode = "provided_validated_v2_plan"
@@ -231,11 +271,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--transcript", type=Path, help="Existing STT transcript JSON with real word timestamps.")
     parser.add_argument("--scene-plan", type=Path, help="Existing validated Creative Director V2 plan JSON.")
     parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--smoke-motion", action="store_true",
+                        help="Explicit diagnostic: exercise one V2.1 graphic beat independent of AI selection.")
     parser.add_argument("--require-openai", action="store_true",
                         help="Do not silently choose deterministic planning when OpenAI is unconfigured.")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args(argv)
     api_key = load_local_environment()
+    if args.require_openai and args.smoke_motion:
+        parser.error("--require-openai cannot be combined with --smoke-motion")
     if args.require_openai and args.scene_plan is None and not api_key:
         print(f"OpenAI Creative Director is required but OPENAI_API_KEY was not found in the shell or {ENV_FILE}.", file=sys.stderr)
         return 2
@@ -244,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             args.presenter, args.output_dir, style=args.style,
             transcript_path=args.transcript, scene_plan_path=args.scene_plan,
             api_key=api_key, model=args.model,
-            overwrite=args.overwrite,
+            overwrite=args.overwrite, smoke_motion=args.smoke_motion,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
