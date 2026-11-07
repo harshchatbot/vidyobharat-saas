@@ -108,6 +108,8 @@ async def build_local_creative_preview(
         transcription_mode = "existing_local_stt"
 
     report = build_video_analysis_report(source, "local-harshverse-preview", transcript=transcript, style=style)
+    if report.media.aspect_ratio != "9:16":
+        raise ValueError("Local creative preview currently requires a 9:16 presenter; source was not modified.")
     context = build_creative_context(report)
     if not context.phrases:
         raise ValueError("Visual Analysis V2 produced no speech phrases. Cannot generate truthful kinetic captions.")
