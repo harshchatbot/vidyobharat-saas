@@ -174,6 +174,7 @@ class GuestHarshVerseWorker:
                         'deferred_beat_ids': raw['deferred_beat_ids'],
                     },
                     object_path=destination,
+                    now=datetime.now(UTC),
                 )
                 uploaded = False
                 try:
