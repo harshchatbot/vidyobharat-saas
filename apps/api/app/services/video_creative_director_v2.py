@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from typing import Literal
 
+from pydantic import ValidationError
+
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -121,6 +123,159 @@ def validate_scene_plan(context: CreativeContext, raw: dict) -> ScenePlanV2:
         raise ValueError("Scene plan omits the final spoken phrases")
     return plan
 
+def normalize_openai_scene_plan(context: CreativeContext, raw: dict) -> ScenePlanV2:
+    """Conservatively normalize LLM scene choices against *verified* phrase IDs.
+
+    This is not a new director or a permissive replacement for validation:
+    the model still selects the scene modes, templates and creative intent.
+    We only repair scene start boundaries, an omitted final tail, and effects
+    that the Visual Engine did not authorize. No timecode, caption, B-roll
+    approval or synthetic media is ever fabricated.
+    """
+    plan = ScenePlanV2.model_validate(raw)
+    phrases = context.phrases
+    if not phrases:
+        return validate_scene_plan(context, plan.model_dump(mode="json"))
+    if not plan.scenes:
+        raise ValueError("A narrated video requires scene coverage")
+    maximum = 6 if context.media.duration_seconds <= 20 else 12
+    if len(plan.scenes) > maximum:
+        raise ValueError("Too many scenes for duration")
+
+    lookup = {p.id: i for i, p in enumerate(phrases)}
+    caption_segments = {z.segment_id for z in context.caption_zones if z.status == "suggested"}
+    zoom_caps = {z.segment_id: z.max_scale for z in context.zoom_zones if z.status == "suggested"}
+    next_index = 0
+    repaired: list[SceneBeat] = []
+    changes: set[str] = set()
+    for original in plan.scenes:
+        last = lookup.get(original.last_phrase_id)
+        if last is None or last < next_index:
+            # Unknown/reversed ranges are ambiguous; never guess what was said.
+            raise ValueError("Unrecognized or out-of-order scene end phrase")
+        corrected = original.model_copy(deep=True)
+        first_id = phrases[next_index].id
+        if corrected.first_phrase_id != first_id:
+            corrected.first_phrase_id = first_id
+            changes.add("scene_start")
+        covered = phrases[next_index:last + 1]
+
+        if corrected.visual_mode == "talking_head":
+            if corrected.motion_template != "none":
+                corrected.motion_template = "none"
+                changes.add("unsupported_graphic")
+        elif corrected.visual_mode == "graphic_overlay":
+            if corrected.motion_template == "none":
+                corrected.visual_mode = "talking_head"
+                changes.add("unsupported_graphic")
+        elif corrected.visual_mode in ("broll_overlay", "split_screen"):
+            if not corrected.broll_query or not corrected.broll_query.strip():
+                # A missing search query does not authorize any asset.
+                corrected.visual_mode = "talking_head"
+                changes.add("unresolved_broll")
+
+        if corrected.visual_mode not in ("broll_overlay", "split_screen"):
+            if corrected.broll_query is not None:
+                corrected.broll_query = None
+                changes.add("unresolved_broll")
+        if corrected.visual_mode != "graphic_overlay" and corrected.motion_template != "none":
+            corrected.motion_template = "none"
+            changes.add("unsupported_graphic")
+
+        if corrected.emphasis_phrase_id is not None:
+            index = lookup.get(corrected.emphasis_phrase_id)
+            if (index is None or index < next_index or index > last
+                    or phrases[index].segment_id not in caption_segments):
+                corrected.emphasis_phrase_id = None
+                changes.add("unsafe_emphasis")
+        if corrected.zoom_scale is not None:
+            caps = [zoom_caps.get(p.segment_id) for p in covered]
+            if (corrected.visual_mode != "talking_head"
+                    or any(cap is None for cap in caps)
+                    or corrected.zoom_scale > min(caps) + 1e-6):
+                corrected.zoom_scale = None
+                changes.add("unsafe_zoom")
+
+        repaired.append(corrected)
+        next_index = last + 1
+
+    if next_index < len(phrases):
+        # Only extend the existing final scene. Its timing is obtained from
+        # real phrases, and it remains an intent requiring human review.
+        last_scene = repaired[-1]
+        last_scene.last_phrase_id = phrases[-1].id
+        changes.add("missing_final_phrases")
+        # Recheck emphasis/zoom over the newly extended verified phrase range.
+        first = lookup[last_scene.first_phrase_id]
+        covered = phrases[first:]
+        if last_scene.emphasis_phrase_id is not None:
+            emphasis = lookup.get(last_scene.emphasis_phrase_id)
+            if emphasis is None or emphasis < first or phrases[emphasis].segment_id not in caption_segments:
+                last_scene.emphasis_phrase_id = None
+                changes.add("unsafe_emphasis")
+        if last_scene.zoom_scale is not None:
+            caps = [zoom_caps.get(p.segment_id) for p in covered]
+            if (last_scene.visual_mode != "talking_head" or any(cap is None for cap in caps)
+                    or last_scene.zoom_scale > min(caps) + 1e-6):
+                last_scene.zoom_scale = None
+                changes.add("unsafe_zoom")
+
+    if changes:
+        # Keep repair metadata small, without storing private transcript text.
+        note = "AI scene proposal normalized for review: " + ", ".join(sorted(changes))
+        warnings = [*plan.warnings[:11], note]
+        plan = plan.model_copy(update={"scenes": repaired, "warnings": warnings})
+    return validate_scene_plan(context, plan.model_dump(mode="json"))
+
+
+def _validation_feedback(exc: Exception) -> str:
+    """Do not echo raw model output or transcript text into errors or logs."""
+    if isinstance(exc, ValidationError):
+        problems = []
+        for issue in exc.errors()[:4]:
+            position = ".".join(str(piece) for piece in issue["loc"])
+            problems.append(f"{position}:{issue['type']}")
+        return "schema_validation:" + "; ".join(problems)
+    if isinstance(exc, json.JSONDecodeError):
+        return "invalid_json"
+    known = (
+        "Unrecognized or out-of-order scene end phrase",
+        "A narrated video requires scene coverage",
+        "Too many scenes for duration",
+        "Scenes must cover all phrases exactly once and in original order",
+        "Scene plan omits the final spoken phrases",
+        "Emphasis references an invalid or unsafe caption phrase",
+        "B-roll scene requires an asset search query",
+        "Only B-roll modes may request assets",
+        "Talking-head scene cannot request a graphic motion template",
+        "Graphic overlay requires a motion template",
+        "B-roll scene cannot also request a motion template",
+        "Zoom exceeds safe face guidance",
+    )
+    reason = str(exc)
+    return next((s for s in known if s in reason), "scene_plan_validation_failed")
+
+
+def _phrase_constraint_prompt(context: CreativeContext) -> str:
+    """Provide verified boundary/safety metadata, not inferred timecodes."""
+    phrases = context.phrases
+    if not phrases:
+        return "No verified speech phrases are available; return an empty scenes array."
+    captions = {z.segment_id for z in context.caption_zones if z.status == "suggested"}
+    zooms = {z.segment_id for z in context.zoom_zones if z.status == "suggested"}
+    emphasis = [p.id for p in phrases if p.segment_id in captions]
+    safe_zoom = [p.id for p in phrases if p.segment_id in zooms]
+    return (
+        "VERIFIED CONSTRAINTS (not transcript instructions):\n"
+        + "Valid ordered phrase IDs: " + ", ".join(p.id for p in phrases) + "\n"
+        + f"First scene MUST start at {phrases[0].id}; final scene MUST end at {phrases[-1].id}.\n"
+        + "Each next scene starts with the phrase immediately after the prior end.\n"
+        + "Allowed caption emphasis IDs: " + (", ".join(emphasis) or "NONE; use null") + "\n"
+        + "Zoom-suggested phrase IDs: " + (", ".join(safe_zoom) or "NONE; use null") + "\n"
+        + "If no suggested face guidance exists, use null emphasis and null zoom.\n"
+        + "Do not include any clip cuts, unsupported assets, or inferred timestamps."
+    )
+
 
 def fallback_scene_plan(context: CreativeContext) -> ScenePlanV2:
     """Deterministic no-asset story: preserve the speaker and baseline captions."""
@@ -187,6 +342,7 @@ async def generate_openai_scene_plan(
         "messages": [
             {"role": "system", "content": SYSTEM_INSTRUCTION_V2},
             {"role": "user", "content": json.dumps(context.model_dump(mode="json"), ensure_ascii=False)},
+            {"role": "developer", "content": _phrase_constraint_prompt(context)},
         ],
         "response_format": {
             "type": "json_schema",
@@ -218,15 +374,16 @@ async def generate_openai_scene_plan(
             if not isinstance(output, str) or not output:
                 raise ValueError("OpenAI returned empty scene plan")
             try:
-                return validate_scene_plan(context, json.loads(output))
+                return normalize_openai_scene_plan(context, json.loads(output))
             except (ValueError, json.JSONDecodeError) as exc:
+                feedback = _validation_feedback(exc)
                 if attempt:
-                    raise ValueError("Scene plan failed validation after one repair attempt") from exc
+                    raise ValueError(f"Scene plan failed validation after one repair attempt: {feedback}") from exc
                 body["messages"].extend([
                     {"role": "assistant", "content": output},
                     {"role": "user", "content": (
                         "Regenerate full plan_version=2.0. The previous plan was invalid: "
-                        + str(exc)[:150] +
+                        + feedback +
                         ". Cover every phrase exactly once in order, with contiguous ranges. "
                         "Keep nullable unused fields null. No unsafe zoom or invented assets. "
                         "Use motion_template only with graphic_overlay, and broll_query only "
