@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import httpx
@@ -31,7 +32,9 @@ from app.services.editor_analysis_transcribe import transcribe_source
 from app.services.harshverse.creative_caption_bridge import (
     build_caption_overlays, write_caption_track,
 )
-from app.services.harshverse.render_adapter import _duration, _probe
+from app.services.harshverse.render_adapter import _duration, _probe, render as render_harshverse
+from app.services.harshverse.local_motion_plate import render_motion_plate, build_motion_render_composition
+from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
 from app.services.video_creative_director_v2 import (
@@ -140,19 +143,38 @@ async def build_local_creative_preview(
         # integration does not fabricate or auto-render B-roll/graphic plates.
         # HarshVerse's original video remains uninterrupted, with new timed
         # captions burned directly onto the original frames.
+        render_source = source
+        motion_result = None
+        render_plan, _, skipped_motions = build_motion_render_composition(composition, context)
+        motion_path = Path(temporary) / "director_motion_plate.mp4"
+        motion_result = render_motion_plate(composition, context, motion_path)
+        if motion_result is not None:
+            plate_hash = hashlib.sha256(motion_path.read_bytes()).hexdigest()
+            plate_duration = _duration(_probe(motion_path))
+            plate = AnimationPlate(asset_id="local-procedural:" + plate_hash[:24],
+                                   duration=plate_duration, sha256=plate_hash)
+            prepared = [PreparedVisual(beat_id=b.id, asset_offset=b.start)
+                        for b in render_plan.beats if b.kind == "motion_graphic"]
+            draft = compile_harshverse_draft(render_plan, plate=plate,
+                                             prepared_visuals=prepared)
+            composited = Path(temporary) / "harshverse_with_motion.mp4"
+            render_harshverse(draft.scene_plan, source, motion_path, composited)
+            render_source = composited
         staged = Path(temporary) / "captioned.mp4"
-        _burn_captions(source, captions_path, staged)
+        _burn_captions(render_source, captions_path, staged)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
 
     warnings = list(report.warnings) + list(composition.warnings) + caption_warnings
+    rendered = list(motion_result.rendered_beat_ids) if motion_result else []
     deferred = [b.id for b in composition.beats if b.kind in {
-        "motion_graphic", "broll_intent", "zoom", "sound_intent",
+        "broll_intent", "zoom", "sound_intent",
         "emoji_intent", "lut_intent", "music_intent",
     }]
+    deferred.extend(skipped_motions)
     if deferred:
-        warnings.append("Motion/asset intent beats remain unrendered until verified animation media is prepared.")
+        warnings.append("Unresolved or unsupported V2.1 intents remain unrendered; review composition JSON.")
     artifacts = {
         "analysis": "visual_analysis_v2.json",
         "context": "creative_context.json",
@@ -174,6 +196,7 @@ async def build_local_creative_preview(
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
         "captions": captions.caption_count,
         "highlighted_words": captions.word_count,
+        "rendered_motion_beat_ids": rendered,
         "deferred_beat_ids": deferred,
         "warnings": list(dict.fromkeys(warnings)),
     }
