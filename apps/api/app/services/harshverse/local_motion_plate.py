@@ -5,8 +5,10 @@ model-validated, phrase-timed V2.1 motion_graphic instructions, and renders only
 original geometric templates/faithful source words. No stock footage, network
 requests, model-generated images, fake licensing claims, or timeline mutations.
 
-The entire plate is a private intermediate. HarshVerse uses it only when a
-validated presenter_split scene has a matching prepared motion beat.
+The entire plate is a private 720x640 intermediate sized exactly for the
+upper HarshVerse split-screen panel, so labels are not center-cropped.
+HarshVerse uses it only when a validated presenter_split scene has a matching
+prepared motion beat.
 """
 from __future__ import annotations
 
@@ -201,7 +203,7 @@ def render_motion_plate(
     subtitles = path.with_suffix(".ass")
     header = (
         "[Script Info]\nScriptType: v4.00+\nWrapStyle: 2\n"
-        "PlayResX: 720\nPlayResY: 1280\n"
+        "PlayResX: 720\nPlayResY: 640\n"
         "ScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
@@ -242,7 +244,7 @@ def render_motion_plate(
     command = [
         ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i",
-        f"color=c=0x0B1727:s=720x1280:r={fps}",
+        f"color=c=0x0B1727:s=720x640:r={fps}",
         "-t", f"{composition.duration_seconds:.3f}",
         "-vf", ",".join(filters),
         "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
