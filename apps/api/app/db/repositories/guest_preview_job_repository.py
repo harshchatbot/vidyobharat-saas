@@ -204,7 +204,7 @@ class GuestPreviewJobRepository:
             if reservation.get('status') != 'active':
                 raise PreviewJobFenceError('Preview reservation is inactive')
             previous = int(reservation.get('storage_bytes', 0))
-            delta = max(0, bytes_needed - previous)
+            delta = bytes_needed - previous
             if (int(session.get('storage_bytes', 0))
                     + int(session.get('reserved_storage_bytes', 0))
                     + delta > limits.storage_bytes):
@@ -362,12 +362,31 @@ class GuestPreviewJobRepository:
             exhausted = int(job.get('attempt_count', 0)) >= max_attempts
             if not expired and not exhausted:
                 return False
+            has_orphaned_output = (
+                reservation.get('status') == 'active'
+                and int(reservation.get('storage_bytes', 0)) > 0
+            )
             if reservation.get('status') == 'active':
-                transaction.update(sr, self._release(session, reservation, commit=False, now=now))
-                transaction.update(rr, {'status': 'released', 'released_at': now})
-            status = 'expired' if expired else 'failed'
+                if has_orphaned_output:
+                    # A crashed worker may have uploaded the private preview
+                    # before losing its completion lease. Keep both storage
+                    # and processing reservations until object cleanup succeeds.
+                    released_slot = int(reservation.get('concurrent_processing', 0))
+                    transaction.update(sr, {
+                        'active_processing': max(0, int(session.get('active_processing', 0)) - released_slot),
+                        'updated_at': now,
+                    })
+                    transaction.update(rr, {
+                        'status': 'cleanup_pending', 'concurrent_processing': 0,
+                        'released_at': now,
+                    })
+                else:
+                    transaction.update(sr, self._release(session, reservation, commit=False, now=now))
+                    transaction.update(rr, {'status': 'released', 'released_at': now})
+            status = 'cleanup_pending' if has_orphaned_output else ('expired' if expired else 'failed')
             transaction.update(jr, {'status': status, 'progress_stage': status,
                                     'worker_id': None, 'fence_token': None, 'lease_expires_at': None,
+                                    'cleanup_generation': 'unknown' if has_orphaned_output else None,
                                     'error_code': 'guest_session_expired' if expired else 'attempts_exhausted',
                                     'updated_at': now})
             return True
