@@ -60,3 +60,26 @@ If a previous output exists, add `--overwrite` or use a different output directo
 - Text timing comes from the existing STT and may need human review; face samples are sparse and cannot guarantee every frame is clear.
 - A premium content-aware motion-graphics pass should consume **the saved V2.1 composition**, resolve licensed/locally-generated assets, and feed them into the existing HarshVerse adapter. Do not introduce another creative-planning engine.
 - A local preview is not authorization to publish or claim commercial rights to generated media.
+
+## Procedural motion-graphic rendering (next local backend checkpoint)
+
+The local pipeline can now render V2.1 `motion_graphic` beats with original procedural templates (`keyword_card`, `data_flow`, `human_vs_ai`, `source_stack`). It uses only source phrase text and V2.1's verified timings; no media search, licensing claims, new creative planner, or generated speech.
+
+For local runs, the existing OpenAI Creative Director is now told that **no approved B-roll or SFX library** is available. It should prefer a meaningful procedural graphic when speech justifies one, and otherwise choose talking head. If it still requests unavailable B-roll or sounds, those remain deferred. No graphics are invented just to meet a quota.
+
+Use the same command after pulling:
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python -m pytest -q \\
+  apps/api/tests/test_video_creative_director_v2.py \\
+  apps/api/tests/test_harshverse_local_motion_plate.py \\
+  apps/api/tests/test_harshverse_creative_local_runner.py
+
+PYTHONPATH=apps/api apps/api/.venv/bin/python \\
+  apps/api/scripts/render_harshverse_creative_local.py \\
+  --presenter "$HOME/Downloads/Test_Talking_Head_Harsh.mp4" \\
+  --output-dir "$HOME/Downloads/HarshVerse-Creative" \\
+  --style energetic --require-openai --overwrite
+```
+
+Inspect `rendered_motion_beat_ids` vs `deferred_beat_ids` in the JSON report. This remains a **review-only prototype**: FFmpeg rendering must be exercised and visually checked on a real Mac. Captions may overlap motion on some shots; sparse YuNet or missing face samples cannot guarantee perfect safe zones. The current plates are basic geometric explainers, not polished production-quality motion design.
