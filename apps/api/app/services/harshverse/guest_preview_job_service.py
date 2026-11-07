@@ -70,6 +70,7 @@ class GuestHarshVerseJobService:
             'animation_media_id': plate.asset_id,
             'scene_plan': asdict(draft.scene_plan),
             'deferred_beat_ids': list(draft.deferred_beat_ids),
+            'media_hashes': media_hashes,
         }
         digest = hashlib.sha256(json.dumps(
             {'payload': payload, 'media_hashes': media_hashes},
