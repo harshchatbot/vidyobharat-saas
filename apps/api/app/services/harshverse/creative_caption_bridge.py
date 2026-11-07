@@ -79,7 +79,9 @@ def build_caption_overlays(
         x = zone.x if safe else 0.5
         y = zone.y if safe else 0.84
         width = zone.width if safe else 0.82
-        accent = phrase.id in accent_ids
+        # V2.1 emphasis is permitted only while Visual Analysis still
+        # reports a suggested safe caption zone for this speech segment.
+        accent = safe and phrase.id in accent_ids
         caption_words = [
             TimelineCaptionWord(
                 text=w.text.strip(),
