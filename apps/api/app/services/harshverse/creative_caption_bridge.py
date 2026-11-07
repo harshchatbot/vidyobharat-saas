@@ -68,7 +68,7 @@ def build_caption_overlays(
             continue
         start = max(0.0, matched[0].start)
         end = min(total_duration, matched[-1].end)
-        if end <= start + 0.01:
+        if end < start + 0.1:
             continue
         zone = zones.get(phrase.segment_id)
         safe = zone is not None and zone.status == "suggested"
@@ -101,6 +101,7 @@ def build_caption_overlays(
             color="#FFFFFF",
             outline_color="#0B1220",
             x=x, y=y, width=width,
+            in_animation_duration=0.1, out_animation_duration=0.1,
         ))
     if missing_guidance:
         warnings.append("Some captions use review-only fallback placement; face safety is not established.")
