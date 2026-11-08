@@ -32,6 +32,7 @@ def build_caption_overlays(
     report: VideoAnalysisReport,
     context: CreativeContext,
     composition: CompositionPlanV21,
+    *, visual_style: str = "classic",
 ) -> tuple[list[TimelineTextOverlay], list[str]]:
     """Get source-faithful, face-guided captions with V2.1 emphasis choices.
 
@@ -74,11 +75,22 @@ def build_caption_overlays(
         safe = zone is not None and zone.status == "suggested"
         if not safe:
             missing_guidance = True
-        # Use the geometry from the existing Visual Analysis engine, not
-        # a second face-placement heuristic. Fallback is review-only.
-        x = zone.x if safe else 0.5
-        y = zone.y if safe else 0.84
-        width = zone.width if safe else 0.82
+        # Warm style reserves the lower part of the upper explainer plate
+        # for speech captions. Presenter-only shots use a lower-third caption.
+        # This is renderer layout, not a second face-detection algorithm.
+        if visual_style == "harshverse_warm":
+            midpoint = (start + end) / 2
+            on_graphic = any(
+                b.kind == "motion_graphic" and b.start <= midpoint < b.end
+                for b in composition.beats
+            )
+            x, y, width = (0.5, 0.43, 0.82) if on_graphic else (0.5, 0.83, 0.82)
+        elif visual_style == "classic":
+            x = zone.x if safe else 0.5
+            y = zone.y if safe else 0.84
+            width = zone.width if safe else 0.82
+        else:
+            raise ValueError("Unknown caption visual style")
         # V2.1 emphasis is permitted only while Visual Analysis still
         # reports a suggested safe caption zone for this speech segment.
         accent = safe and phrase.id in accent_ids
@@ -97,11 +109,11 @@ def build_caption_overlays(
             start_seconds=round(start, 3),
             duration_seconds=round(end - start, 3),
             font_family="Noto Sans Devanagari" if (report.speech.language or "").lower().startswith("hi") else "Inter",
-            font_size=49 if accent else 43,
+            font_size=(39 if visual_style == "harshverse_warm" else (49 if accent else 43)),
             bold=True,
-            outline_width=4,
-            color="#FFFFFF",
-            outline_color="#0B1220",
+            outline_width=4 if visual_style == "classic" else 3,
+            color="#FFFFFF" if visual_style == "classic" or not on_graphic else "#30302E",
+            outline_color="#0B1220" if visual_style == "classic" or not on_graphic else "#F8F3E9",
             x=x, y=y, width=width,
             in_animation_duration=0.1, out_animation_duration=0.1,
         ))
