@@ -63,7 +63,8 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
                    buddy_windows: tuple[tuple[float, float], ...] = (),
                    sfx_path: Path | None = None,
                    finish_audio: bool = False,
-                   voice_enhance: str = "off") -> None:
+                   voice_enhance: str = "off",
+                   original_audio_source: Path | None = None) -> None:
     """Final image/caption and optional ORIGINAL warm SFX mix.
 
     Original speech stays the first audio input. No cuts, ducking, timing
@@ -78,15 +79,32 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
     )
     command = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
                "-i", str(source)]
+    use_original_audio = (
+        original_audio_source is not None
+        and Path(original_audio_source).resolve() != Path(source).resolve()
+    )
+    next_input = 1
+    audio_index = 0
+    if use_original_audio:
+        original_audio_source = Path(original_audio_source)
+        if not original_audio_source.is_file():
+            raise FileNotFoundError("Original narration source does not exist")
+        command.extend(["-i", str(original_audio_source)])
+        audio_index = next_input
+        next_input += 1
     use_buddy = bool(buddy_path and buddy_windows)
     if use_buddy:
         if not buddy_path.is_file():
             raise FileNotFoundError("Warm buddy sticker is missing")
+        buddy_input_index = next_input
         command.extend(["-loop", "1", "-framerate", "30", "-i", str(buddy_path)])
+        next_input += 1
     if sfx_path is not None:
         if not sfx_path.is_file():
             raise FileNotFoundError("Original warm SFX bed is missing")
+        sfx_input_index = next_input
         command.extend(["-i", str(sfx_path)])
+        next_input += 1
 
     filters: list[str] = []
     if use_buddy:
@@ -98,20 +116,19 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
             raise ValueError("No valid buddy cameo window")
         filters.extend([
             f"[0:v]{filter_expr}[cap]",
-            f"[cap][1:v]overlay=x=W-w-36:y=150:enable='{'+'.join(intervals)}':"
+            f"[cap][{buddy_input_index}:v]overlay=x=W-w-36:y=150:enable='{'+'.join(intervals)}':"
             "shortest=1:format=auto,format=yuv420p[vout]",
         ])
     else:
         filters.append(f"[0:v]{filter_expr},format=yuv420p[vout]")
 
     clean_filter = voice_enhance_filter(voice_enhance)
-    dialogue = "[0:a:0]"
+    dialogue = f"[{audio_index}:a:0]"
     if clean_filter:
-        filters.append(f"[0:a:0]{clean_filter}[voice]")
+        filters.append(f"{dialogue}{clean_filter}[voice]")
         dialogue = "[voice]"
 
     if sfx_path is not None:
-        sfx_input_index = 2 if use_buddy else 1
         # Enhancement is applied to original dialogue *before* the SFX
         # are mixed; noise reduction never damages synthesized transitions.
         filters.append(
@@ -360,7 +377,8 @@ async def build_local_creative_preview(
         staged = Path(temporary) / "captioned.mp4"
         if visual_style == "classic":
             _burn_captions(render_source, captions_path, staged,
-                           voice_enhance=voice_enhance, finish_audio=voice_enhance != "off")
+                           voice_enhance=voice_enhance, finish_audio=voice_enhance != "off",
+                           original_audio_source=source)
         else:
             buddy = make_buddy_sticker(Path(temporary) / "harshverse_buddy.png")
             graphic_windows = [
@@ -395,7 +413,8 @@ async def build_local_creative_preview(
             _burn_captions(render_source, captions_path, staged,
                            buddy_path=buddy, buddy_windows=cameo_windows,
                            sfx_path=sfx_path, finish_audio=True,
-                           voice_enhance=voice_enhance)
+                           voice_enhance=voice_enhance,
+                           original_audio_source=source)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
