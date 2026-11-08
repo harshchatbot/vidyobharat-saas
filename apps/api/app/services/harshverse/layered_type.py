@@ -96,10 +96,12 @@ def make_editorial_title_layers(directory: Path, headline: str) -> tuple[Path, P
                         fill=PALETTE["paper"], outline=PALETTE["outline"], width=2)
     d.text((61, 88), "HARSHVERSE  /  EXPLAINED",
            fill=PALETTE["charcoal"], font=_font(16))
-    d.ellipse((55, 1170, 69, 1184), fill=PALETTE["orange"])
-    d.rounded_rectangle((76, 1153, 322, 1195), radius=12,
+    # Keep branding inside the upper mobile safe region. The lower
+    # part of the frame belongs to spoken-word captions and platform UI.
+    d.ellipse((55, 166, 69, 180), fill=PALETTE["orange"])
+    d.rounded_rectangle((76, 150, 320, 192), radius=12,
                         fill=PALETTE["paper"])
-    d.text((88, 1165), "LEARN SOMETHING NEW",
+    d.text((88, 162), "LEARN SOMETHING NEW",
            fill=PALETTE["charcoal"], font=_font(16))
     rear_path = directory / "depth_rear_title.png"
     front_path = directory / "depth_front_labels.png"
