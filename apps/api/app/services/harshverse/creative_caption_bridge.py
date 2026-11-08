@@ -109,11 +109,13 @@ def build_caption_overlays(
             start_seconds=round(start, 3),
             duration_seconds=round(end - start, 3),
             font_family="Noto Sans Devanagari" if (report.speech.language or "").lower().startswith("hi") else "Inter",
-            font_size=(39 if visual_style == "harshverse_warm" else (49 if accent else 43)),
+            font_size=(38 if visual_style == "harshverse_warm" else (49 if accent else 43)),
             bold=True,
-            outline_width=4 if visual_style == "classic" else 3,
-            color="#FFFFFF" if visual_style == "classic" or not on_graphic else "#30302E",
-            outline_color="#0B1220" if visual_style == "classic" or not on_graphic else "#F8F3E9",
+            outline_width=4 if visual_style == "classic" else 2,
+            color=("#FFFFFF" if visual_style == "classic"
+                   else "#30302E" if on_graphic else "#FFF9E9"),
+            outline_color=("#0B1220" if visual_style == "classic"
+                           else "#F8F3E9" if on_graphic else "#544439"),
             x=x, y=y, width=width,
             in_animation_duration=0.1, out_animation_duration=0.1,
         ))
@@ -132,6 +134,7 @@ def write_caption_track(
     *,
     width: int = 720,
     height: int = 1280,
+    visual_style: str = "classic",
 ) -> CaptionBridgeResult:
     """Write one ASS file using the existing editor's active-word renderer.
 
@@ -163,10 +166,32 @@ def write_caption_track(
         # highlight changes color at its source timestamp without re-animating.
         if overlay.duration_seconds >= 0.16:
             lines[0] = lines[0].replace(
-                r"{\an5", 
+                r"{\an5",
                 r"{\fad(65,0)\fscx94\fscy94\t(0,120,\fscx100\fscy100)\an5",
                 1,
             )
+        if visual_style == "harshverse_warm":
+            # The shared subtitle renderer defaults to white + neon yellow.
+            # Replace only color overrides for this opt-in brand style.
+            # ASS colors use BGR, not RGB. Never modify source text/timing.
+            raw = overlay.color.lstrip("#")
+            bgr = f"{raw[4:6]}{raw[2:4]}{raw[0:2]}".upper()
+            base = f"&H{bgr}&"
+            warm_accent = "&H5481CF&"  # RGB #CF8154
+            lines = [
+                line.replace(r"{\1c&H66E0FF&}", r"{\1c" + warm_accent + "}")
+                    .replace(r"{\1c&HFFFFFF&}", r"{\1c" + base + "}")
+                for line in lines
+            ]
+            # The ASS header is taken from the first phrase. Inject each
+            # phrase's own color explicitly, so dark text on a cream
+            # graphic doesn't inherit presenter caption white.
+            lines = [
+                line.replace(r"\an5", r"\1c" + base + r"\an5", 1)
+                for line in lines
+            ]
+        elif visual_style != "classic":
+            raise ValueError("Unknown caption render visual style")
         events.extend(lines)
     if not events:
         raise ValueError("No valid caption events were generated")
