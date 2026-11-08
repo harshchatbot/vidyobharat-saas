@@ -24,7 +24,7 @@ from typing import Any
 from app.services.video_creative_director_v21 import CompositionBeat, CompositionPlanV21
 
 _TEMPLATES = frozenset({"keyword_card", "data_flow", "human_vs_ai", "source_stack"})
-_RENDER_QUALITY = {"preview": (480, 427, 20, 16), "final": (720, 640, 30, 32)}
+_RENDER_QUALITY = {"preview": (480, 427, 16, 16), "final": (720, 640, 30, 32)}
 
 
 @dataclass(frozen=True)
@@ -193,7 +193,7 @@ def render_blender_plate(
         finally:
             staging.unlink(missing_ok=True)
     return BlenderMotionResult(
-        path=destination, render_engine="blender_eevee_3d",
+        path=destination, render_engine="blender_3d",
         rendered_beat_ids=tuple(b.id for b in beats),
         grouped_sequences=len(job["sequences"]),
     )
