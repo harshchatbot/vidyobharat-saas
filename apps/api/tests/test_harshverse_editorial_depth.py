@@ -168,3 +168,16 @@ def test_ambiguous_person_confidence_layout_fails_closed(shape):
     )
     with pytest.raises(RuntimeError, match="Unsupported person confidence mask shape"):
         _extract_person_confidence(segmentation)
+
+
+def test_editorial_topic_prefers_recorded_gpt_over_incidental_wondered():
+    assert choose_speech_keyword([
+        "Have","you","ever","wondered","how","GPT",
+        "understands","your","questions"
+    ]) == "GPT"
+    assert choose_speech_keyword([
+        "Have","you","ever","wondered","about","Chat","GPT"
+    ]) == "CHATGPT"
+    assert choose_speech_keyword([
+        "Why","did","the","model","change"
+    ]) == "MODEL"
