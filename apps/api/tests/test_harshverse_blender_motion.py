@@ -217,3 +217,44 @@ def test_adjacent_3d_beats_become_single_continuous_split_without_touching_audio
     assert continuous[0].asset_offset == 1
     assert blender.scene_plan.duration == illustrated.scene_plan.duration == 5
     assert composition.source_audio_uninterrupted
+
+
+def test_spoken_topics_and_concept_cards_come_from_verified_phrases_only():
+    from app.services.video_creative_director_v21 import CompositionBeat, CompositionPlanV21
+    beats = [
+        CompositionBeat(
+            id="graphic-0",start=1,end=2,kind="motion_graphic",
+            template="keyword_card",phrase_ids=["p1"],
+        ),
+        CompositionBeat(
+            id="graphic-1",start=2,end=3,kind="motion_graphic",
+            template="keyword_card",phrase_ids=["p2"],
+        ),
+        CompositionBeat(
+            id="graphic-2",start=3,end=4,kind="motion_graphic",
+            template="keyword_card",phrase_ids=["p3"],
+        ),
+    ]
+    plan = CompositionPlanV21(
+        duration_seconds=5,aspect_ratio="9:16",
+        beats=[CompositionBeat(
+            id="source",start=0,end=5,kind="source",
+            template="original_video_audio",
+        ),*beats],
+    )
+    job = build_blender_job(plan,beats,phrase_texts={
+        "p1":"Have you wondered how ChatGPT works",
+        "p2":"It recognizes patterns in the data",
+        "p3":"Then a model produces the response",
+    })
+    assert len(job["sequences"]) == 1
+    sequence = job["sequences"][0]
+    assert sequence["topic"] == "CHATGPT"
+    assert [card["label"] for card in sequence["concepts"]] == [
+        "CHATGPT","PATTERNS","MODEL",
+    ]
+    assert [card["at"] for card in sequence["concepts"]] == [1,2,3]
+
+    ungrounded = build_blender_job(plan,beats)
+    assert ungrounded["sequences"][0]["topic"] == ""
+    assert ungrounded["sequences"][0]["concepts"] == []
