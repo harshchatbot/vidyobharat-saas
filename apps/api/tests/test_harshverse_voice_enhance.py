@@ -79,7 +79,9 @@ def test_voice_off_keeps_original_mix_path(monkeypatch, tmp_path):
     assert "afftdn=" not in graph
     assert "acompressor=" not in graph
     assert "loudnorm=" not in graph
-    assert "0:a:0" in command
+    assert command.count("-map") == 2
+    assert command[-1].endswith(".mp4")
+    assert command[command.index("-map", command.index("-map") + 1) + 1] == "0:a:0"
 
 
 def test_final_mix_uses_original_camera_audio_not_intermediate_aac(monkeypatch, tmp_path):
@@ -122,3 +124,20 @@ def test_original_audio_input_missing_fails_before_ffmpeg(monkeypatch,tmp_path):
             src,subs,tmp_path/"out.mp4",
             original_audio_source=tmp_path/"nonexistent.mp4",
         )
+
+
+def test_classic_raw_audio_can_come_from_pristine_input(monkeypatch,tmp_path):
+    from scripts import render_harshverse_creative_local as local
+    rendered,original,subs=(tmp_path/name for name in
+                            ("rendered.mp4","original.mp4","subs.ass"))
+    for p in (rendered,original,subs):
+        p.write_bytes(b"fixture")
+    calls=[]
+    monkeypatch.setattr(local.subprocess,"run",lambda cmd,**kw:calls.append(cmd))
+    local._burn_captions(rendered,subs,tmp_path/"final.mp4",
+                         original_audio_source=original)
+    command=calls[0]
+    indexes=[i for i,item in enumerate(command) if item=="-map"]
+    assert len(indexes)==2
+    assert command[indexes[0]+1]=="[vout]"
+    assert command[indexes[1]+1]=="1:a:0"
