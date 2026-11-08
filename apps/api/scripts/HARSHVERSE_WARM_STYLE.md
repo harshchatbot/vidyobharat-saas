@@ -45,6 +45,7 @@ PYTHONPATH=apps/api apps/api/.venv/bin/python \
   --output-dir "$HOME/Downloads/HarshVerse-Warm-V1" \
   --style energetic \
   --visual-style harshverse_warm \
+  --color-grade auto \
   --require-openai \
   --overwrite
 
@@ -65,3 +66,19 @@ The previous classic renderer is still the default and should continue passing i
 8. Review the actual final MP4 before declaring production quality.
 
 Next: object-level 2.5D animation, semantic scene construction, professional transitions, and automatic frame/audio QA. Then generalize the core engine into a public CLI repo (Phase 2), and only afterward integrate the same engine into RangManch AI web (Phase 3).
+
+## Presenter color grade (added after actual preview QA)
+
+Use `--color-grade auto|warm_editorial|off`. In `auto`, the
+`harshverse_warm` pack selects `warm_editorial` and `classic` selects
+`off`. The subtle preset adds warmth in midtones, gently lifts brightness,
+increases contrast (~4.5%) and saturation (~7%). The camera source is encoded
+to a temporary graded copy **before** adding illustrations, mascot, and
+captions, so the palette assets keep their exact authored colors. Source
+audio is stream-copied. The original camera recording is not overwritten.
+
+A/B comparison using the **same source and validated scene plan**:
+pass `--color-grade off` into a separate output directory and compare with
+`--color-grade warm_editorial`. If using `--require-openai` twice, model
+plans can differ; prefer `--scene-plan` from a saved validated report for
+controlled color-only comparisons. Strong orange skin casts are a failure.
