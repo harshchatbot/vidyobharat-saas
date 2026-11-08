@@ -62,8 +62,30 @@ def build_filter(plan: ScenePlan, *, visual_style: str = "classic", face_center_
             else:
                 strings.append(f'[p{i}]scale={w}:{half}:force_original_aspect_ratio=decrease,'
                                f'pad={w}:{half}:(ow-iw)/2:(oh-ih)/2:color=0xF5F1E8[bot{i}]')
-            strings.append(a + f'scale={w}:{half}:force_original_aspect_ratio=increase,'
-                           f'crop={w}:{half},setsar=1,format=yuv420p[top{i}]')
+            if visual_style == "harshverse_warm":
+                # Warm cream reveal conceals harsh plate boundaries without
+                # trimming speech or shortening the scene. The plate remains
+                # full size and only its opacity changes for 180 ms.
+                fade = min(0.18, duration * 0.20)
+                fade_out = max(0, duration - fade)
+                strings.append(
+                    f'color=c=0xF8F3E9:s={w}x{half}:r={fps}:'
+                    f'd={duration:.6f}[cream{i}]'
+                )
+                strings.append(
+                    a + f'scale={w}:{half}:force_original_aspect_ratio=increase,'
+                    f'crop={w}:{half},setsar=1,format=yuva420p,'
+                    f'fade=t=in:st=0:d={fade:.4f}:alpha=1,'
+                    f'fade=t=out:st={fade_out:.4f}:d={fade:.4f}:alpha=1'
+                    f'[panel{i}]'
+                )
+                strings.append(
+                    f'[cream{i}][panel{i}]overlay=x=0:y=0:'
+                    f'shortest=1:format=auto,format=yuv420p[top{i}]'
+                )
+            else:
+                strings.append(a + f'scale={w}:{half}:force_original_aspect_ratio=increase,'
+                               f'crop={w}:{half},setsar=1,format=yuv420p[top{i}]')
             strings.append(f'[top{i}][bot{i}]vstack=inputs=2,format=yuv420p[s{i}]')
     labels = ''.join(f'[s{i}]' for i in range(len(plan.scenes)))
     strings.append(f'{labels}concat=n={len(plan.scenes)}:v=1:a=0,format=yuv420p[vout]')
