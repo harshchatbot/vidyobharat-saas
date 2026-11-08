@@ -92,3 +92,6 @@ apps/music-lab/.venv-ai/
 # Rangmanch Music Studio — private user uploads and generated audio
 /apps/api/data/music_studio/
 apps/music-lab/.venv-separation/
+
+# Local third-party YuNet ONNX weights (downloaded and SHA-verified separately)
+/apps/api/data/models/
