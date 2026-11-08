@@ -383,7 +383,7 @@ def main():
         scene.view_settings.view_transform = "AgX"
     except (TypeError, ValueError):
         scene.view_settings.view_transform = "Standard"
-    scene.world.color = color(C["cream"])
+    scene.world.color = color(C["cream"])[:3]
 
     bpy.ops.object.camera_add(location=(0,-2.1,19.3))
     camera = bpy.context.object
