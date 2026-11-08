@@ -193,6 +193,9 @@ def render_motion_plate(
     fps: int = 30,
     ffmpeg: str = "ffmpeg",
     visual_style: str = "classic",
+    motion_engine: str = "illustrated",
+    blender_bin: str | Path | None = None,
+    blender_quality: str = "preview",
 ) -> MotionPlateResult | None:
     """Render only original local graphic templates; does not approve export."""
     _, beats, skipped = build_motion_render_composition(composition, context, fps=fps)
@@ -200,6 +203,21 @@ def render_motion_plate(
         return None
     if visual_style not in ("classic", "harshverse_warm"):
         raise ValueError("Unknown HarshVerse visual style pack")
+    if motion_engine not in ("illustrated", "blender3d"):
+        raise ValueError("Unknown HarshVerse motion engine")
+    if motion_engine == "blender3d":
+        if visual_style != "harshverse_warm":
+            raise ValueError("Blender 3D motion requires the warm style pack")
+        from app.services.harshverse.blender_motion import render_blender_plate
+        rendered = render_blender_plate(
+            composition, beats, path,
+            blender=blender_bin, quality=blender_quality, ffmpeg=ffmpeg,
+        )
+        return MotionPlateResult(
+            path=rendered.path,
+            rendered_beat_ids=rendered.rendered_beat_ids,
+            skipped_beat_ids=tuple(skipped),
+        )
     if visual_style == "harshverse_warm":
         return _render_warm_plate(composition, beats, skipped, path, fps=fps, ffmpeg=ffmpeg)
     phrases = {p.id: p for p in context.phrases}
