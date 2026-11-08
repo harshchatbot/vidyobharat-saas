@@ -345,7 +345,7 @@ def main():
         raise ValueError("Unrecognized or unsafe Blender job contract")
     duration = float(job["duration"])
     fps = int(job["fps"])
-    if not (0 < duration <= 60 and fps in (16, 30) and 0 < len(job["sequences"]) <= 12):
+    if not (0 < duration <= 60 and fps in (24, 30) and 0 < len(job["sequences"]) <= 12):
         raise ValueError("Untrusted Blender job dimensions or duration")
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
