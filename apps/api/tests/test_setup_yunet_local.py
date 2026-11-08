@@ -20,6 +20,13 @@ def test_env_update_only_writes_yunet_key(monkeypatch, tmp_path):
     assert str(tmp_path / "model.onnx") in result
 
 
+def test_uses_pinned_dynamic_input_model_for_opencv_5():
+    assert setup._MODEL_NAME == "face_detection_yunet_2026may.onnx"
+    assert setup._MODEL_SHA256 == "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+    assert "opencv/opencv_zoo" in setup._MODEL_URL
+    assert "2026may" in setup._MODEL_URL
+
+
 def test_model_checksum_is_streamed(tmp_path):
     model = tmp_path / "fake.onnx"
     model.write_bytes(b"example-model")
