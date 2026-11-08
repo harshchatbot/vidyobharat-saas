@@ -131,6 +131,7 @@ def test_warm_burn_builds_single_combined_video_and_audio_graph(monkeypatch, tmp
     local._burn_captions(
         source, captions, tmp_path / "preview.mp4", buddy_path=buddy,
         buddy_windows=((.25, 1.3),), sfx_path=sfx,
+        finish_audio=True,
     )
     command = commands.pop()
     assert command.count("-filter_complex") == 1
@@ -138,6 +139,7 @@ def test_warm_burn_builds_single_combined_video_and_audio_graph(monkeypatch, tmp
     assert "[0:v]" in graph
     assert "[cap][1:v]overlay=" in graph
     assert "[0:a:0][2:a:0]amix=" in graph
+    assert "[mixed]loudnorm=I=-17:TP=-1.5:LRA=11[aout]" in graph
     assert command[command.index("-map") + 1] == "[vout]"
     assert "[aout]" in command
 
