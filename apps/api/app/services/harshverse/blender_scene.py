@@ -386,6 +386,25 @@ def main():
     fill.data.size = 8
     stage_background()
     ordered = sorted(job["sequences"], key=lambda s: s["start"])
+    # Calm director-style camera movement adds authentic parallax to the
+    # extruded geometry, without animating the presenter recording or
+    # introducing source cuts. Each semantic scene has a subtle push-in
+    # and lateral drift; the camera settles before the next scene.
+    for seq in ordered:
+        first = max(1, round(float(seq["start"]) * fps) + 1)
+        last = max(first + 1, round(float(seq["end"]) * fps))
+        key_positions = (
+            (first, -.09, 12.90),
+            (max(first + 1, last - 1), .09, 12.50),
+            (last, .09, 12.50),
+        )
+        for frame, offset_x, ortho in key_positions:
+            camera.location.x = offset_x
+            camera.location.y = -2.1
+            camera.location.z = 19.3
+            camera.data.ortho_scale = ortho
+            camera.keyframe_insert("location", frame=frame)
+            camera.data.keyframe_insert("ortho_scale", frame=frame)
     for i, sequence in enumerate(ordered):
         if sequence["template"] not in ("data_flow","source_stack","human_vs_ai","keyword_card"):
             raise ValueError("Invalid template in Blender render job")
