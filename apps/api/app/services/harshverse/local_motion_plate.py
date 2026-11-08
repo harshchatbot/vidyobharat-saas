@@ -212,6 +212,7 @@ def render_motion_plate(
         rendered = render_blender_plate(
             composition, beats, path,
             blender=blender_bin, quality=blender_quality, ffmpeg=ffmpeg,
+            phrase_texts={p.id: p.text for p in context.phrases},
         )
         return MotionPlateResult(
             path=rendered.path,
