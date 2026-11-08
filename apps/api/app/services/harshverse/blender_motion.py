@@ -151,7 +151,7 @@ def build_blender_job(
         # Prefer the overarching concept of the explanation, even when
         # the first phrase is 'well here's the interesting part'.
         sequence["topic"] = next(
-            (w for w in ("PATTERNS", "CHATGPT", "SALESFORCE",
+            (w for w in ("CHATGPT", "SALESFORCE", "PATTERNS",
                          "WORKFLOW", "HUMAN", "GPT", "INFORMATION")
              if w in topics),
             topics[0] if topics else "",
