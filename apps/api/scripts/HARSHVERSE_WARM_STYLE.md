@@ -198,3 +198,30 @@ approximately -18.08 LUFS integrated and -1.37 dBTP. These are already
 reasonably close to the loudness target; audible cleanup should focus on
 timbre and controlled noise, not gain alone. Single-pass loudnorm is a
 starting point and requires measured after-render QA.
+
+
+## Phase 1 video-only motion pass — buddy and visual pacing
+
+The animation is now constructed from **independent scene layers**:
+1. A fixed original warm illustrated scene background.
+2. Three consecutive object states with soft alpha entrances (no more
+   full-panel slide on each substep).
+3. One recurring original square buddy image layer, independently animated
+   with gentle idle float, a point-to-concept gesture and a brief blink.
+
+This pass modifies **video rendering only**. Existing color grading, matte
+occlusion, captions, Studio Voice and SFX settings remain selectable and do not
+receive new audio gain processing. For apples-to-apples comparison reuse the
+same validated Creative Director plan and same voice preset.
+
+Local smoke syntax check and regression suite:
+
+~~~bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python -m pytest -q   apps/api/tests/test_harshverse_warm_style.py   apps/api/tests/test_harshverse_local_motion_plate.py   apps/api/tests/test_harshverse_creative_local_runner.py
+~~~
+
+Visual QA: watch 0.25x speed around each diagram reveal, ensure the buddy
+floats without clipping, text does not overlap the new buddy position,
+and stage images no longer produce a wide slide. Compare real-time quality,
+not still-frame appeal. Stage graphics remain original **2.5D drawings**, not
+a claim of full 3D animation quality.
