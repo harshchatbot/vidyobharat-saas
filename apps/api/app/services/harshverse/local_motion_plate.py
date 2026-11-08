@@ -284,7 +284,7 @@ def _render_warm_plate(
     captions are rendered in a dedicated safe strip by the existing caption
     bridge, not painted twice inside illustrations.
     """
-    from app.services.harshverse.warm_style import make_explainer_panel
+    from app.services.harshverse.warm_style import make_explainer_panel, make_buddy_sticker
 
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -304,7 +304,7 @@ def _render_warm_plate(
             panel = path.with_name(f"{path.stem}_warm_{i:02d}_step{step}.png")
             make_explainer_panel(
                 panel, template=beat.template, ordinal=i + 1,
-                reveal_step=step,
+                reveal_step=step, include_buddy=False,
             )
             stages.append((beat,step,stage_start,stage_end,panel))
 
@@ -327,6 +327,60 @@ def _render_warm_plate(
         filters.append(
             f"{current}[{index}:v]overlay=x='{motion}':y=0:enable='{enable}':"
             f"shortest=1:eof_action=repeat{tag}"
+        )
+        current = tag
+    # The buddy is its own independently animated layer. Its same original
+    # character art is reused across every validated beat, never redrawn
+    # inconsistently by AI. Blink/point overlays briefly replace its pose.
+    # Keep it in the top right margin, away from the lower caption strip.
+    buddy_sprites = {}
+    for mood in ("curious", "point", "blink"):
+        sprite = path.with_name(f"{path.stem}_buddy_{mood}.png")
+        make_buddy_sticker(sprite, mood=mood)
+        buddy_sprites[mood] = sprite
+
+    def windows_expression(windows: list[tuple[float, float]]) -> str:
+        if not windows:
+            return "0"
+        return "+".join(
+            f"between(t\\\\,{start:.3f}\\\\,{end:.3f})"
+            for start, end in windows if end - start >= 1 / fps
+        ) or "0"
+
+    # Within each beat: point at the new idea, then return to curious.
+    # Blinks are isolated ~100 ms events, not intermittent face flicker.
+    full = [(b.start, b.end) for b in beats]
+    pointing = [
+        (b.start + .12, min(b.end - .10, b.start + .49))
+        for b in beats if b.end - b.start > .55
+    ]
+    blinking = [
+        (b.start + .82, min(b.end - .07, b.start + .94))
+        for b in beats if b.end - b.start > 1.0
+    ]
+    for mood, windows in (("curious", full), ("point", pointing),
+                          ("blink", blinking)):
+        if not windows:
+            continue
+        sprite_index = 1 + len(stages) + sum(
+            bool(earlier_windows) for earlier_mood, earlier_windows in
+            (("curious", full), ("point", pointing), ("blink", blinking))
+            if ("curious", "point", "blink").index(earlier_mood)
+            < ("curious", "point", "blink").index(mood)
+        )
+        inputs.extend(["-loop", "1", "-framerate", str(fps),
+                       "-i", str(buddy_sprites[mood])])
+        sprite_tag = f"[buddy_src_{mood}]"
+        tag = f"[buddy_{mood}]"
+        filters.append(
+            f"[{sprite_index}:v]format=rgba,scale=94:95{sprite_tag}"
+        )
+        # Gentle 2.5px idle float: independent of cards and arrows.
+        y = "126+2.5*sin(t*3.4)"
+        filters.append(
+            f"{current}{sprite_tag}overlay=x=570:y='{y}':"
+            f"enable='{windows_expression(windows)}':"
+            f"shortest=1:eof_action=repeat:format=auto{tag}"
         )
         current = tag
     filters.append(f"{current}format=yuv420p[vout]")
