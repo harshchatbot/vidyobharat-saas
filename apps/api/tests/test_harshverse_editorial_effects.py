@@ -93,3 +93,44 @@ def test_short_requested_zoom_remains_deferred():
     changed=plan.model_copy(deep=True)
     changed.beats=[shorter if b.id == zoom.id else b for b in plan.beats]
     assert camera_moves_from_composition(changed) == ()
+
+
+
+def test_final_fade_covers_all_visual_layers_but_preserves_voice(monkeypatch,tmp_path):
+    from app.services.harshverse.video_fades import (
+        render_video_fades, video_fade_filter,
+    )
+    assert "fade=t=in:st=0:d=0.350" in video_fade_filter(
+        duration=15.733, fade_seconds=.35,
+    )
+    assert "fade=t=out:st=15.383:d=0.350" in video_fade_filter(
+        duration=15.733, fade_seconds=.35,
+    )
+    with pytest.raises(ValueError,match="entire video"):
+        video_fade_filter(duration=.6,fade_seconds=.35)
+    original = tmp_path / "composited.mp4"
+    original.write_bytes(b"fixture")
+    output = tmp_path / "faded.mp4"
+    import app.services.harshverse.video_fades as module
+    calls = []
+    def fake_run(cmd,**kwargs):
+        calls.append(cmd)
+        output.write_bytes(b"faded")
+        return subprocess.CompletedProcess(cmd,0,stdout="",stderr="")
+    monkeypatch.setattr(module.subprocess,"run",fake_run)
+    render_video_fades(original,output,duration=15.733,fade_seconds=.35)
+    command=calls[0]
+    assert "fade=t=in:" in command[command.index("-vf")+1]
+    assert command[command.index("-c:a")+1] == "copy"
+    assert original.read_bytes() == b"fixture"
+    assert output.read_bytes() == b"faded"
+
+
+def test_render_camera_composition_keeps_non_zoom_beats_deferred():
+    plan = _composition()
+    moves = camera_moves_from_composition(plan)
+    assert moves
+    assert all(move.beat_id.startswith("zoom-") for move in moves)
+    # Sound, B-roll, and source events do not become fake camera effects.
+    assert not any(b.kind == "motion_graphic" and b.id in
+                   {m.beat_id for m in moves} for b in plan.beats)
