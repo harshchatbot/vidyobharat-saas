@@ -291,3 +291,20 @@ Quality gates: person remains visible, no overlapping captions, meaningful
 graphics, smooth object entrances, recognizable mascot animation, restrained
 SFX, and no speech timing cuts. This is Phase 1 only; public repo and SaaS
 must wait for quality review.
+
+### Standalone 3D scene smoke (run before full edit)
+
+This creates 2.8 seconds of original Blender 3D illustrations **without**
+transcription, source presenter footage, LLM calls, captions or audio.
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python \
+  apps/api/scripts/smoke_harshverse_blender.py \
+  --output "$HOME/Downloads/HarshVerse-3D-Smoke.mp4" \
+  --quality preview
+open "$HOME/Downloads/HarshVerse-3D-Smoke.mp4"
+```
+
+Blender rendering is still unverified in the coding environment; this
+standalone smoke isolates setup, 3D geometry, Eevee/Cycles, keyframes,
+frame naming and FFmpeg export before the full HarshVerse pipeline.
