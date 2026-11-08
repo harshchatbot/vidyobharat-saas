@@ -122,9 +122,16 @@ def build_editorial_intro_filter(*, matte: bool, start: float,
         raise ValueError("Editorial V1 supports 720x1280 only")
     window = f"between(t\\,{start:.3f}\\,{end:.3f})"
     rear_x = f"if(lt(t\\,{start + .24:.3f})\\,max(0\\,({start + .24:.3f}-t)*180)\\,0)"
-    graph = [
+    source_chain = (
         f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,"
-        f"crop={W}:{H},setsar=1,format=yuv420p,split[base][personbase]",
+        f"crop={W}:{H},setsar=1,format=yuv420p"
+    )
+    if matte:
+        source_chain += ",split[base][personbase]"
+    else:
+        source_chain += "[base]"
+    graph = [
+        source_chain,
         f"[base][1:v]overlay=x='{rear_x}':y=0:enable='{window}':"
         "format=auto[backtitle]",
     ]
