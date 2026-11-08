@@ -263,12 +263,20 @@ def build_sequence(seq, fps, index):
     root.scale = (.001, .001, .001)
     root.keyframe_insert("scale", frame=last + 1)
 
-    text(f"{kind}_section_{index}", {
+    # The headline is grounded in words already present in the validated
+    # user's transcript. If no source topic was supplied (e.g. smoke test),
+    # use an explicitly neutral illustration label instead of inventing a
+    # technical claim about the clip.
+    topic = str(seq.get("topic") or "").strip().upper()[:14]
+    heading = topic or {
         "data_flow": "HOW IT WORKS",
         "source_stack": "CONNECT THE IDEAS",
         "human_vs_ai": "HUMAN  +  AI",
         "keyword_card": "THE BIG IDEA",
-    }[kind], (0, 3.44, .31), .47, "charcoal", parent=root)
+    }[kind]
+    text(f"{kind}_section_{index}", heading, (0, 3.44, .31),
+         .55 if len(heading) <= 9 else .43,
+         "charcoal", parent=root)
 
     duration = end - start
     def timing(step):
@@ -301,7 +309,9 @@ def build_sequence(seq, fps, index):
         animate(build_node(f"AI_{index}",(2.05,.10,0),"AI","dusty_blue",family="ai"),1)
         animate(build_arrow(f"Comparison_{index}",(0,.10,0)),2)
     else:
-        animate(build_node(f"Idea_{index}",(0,.35,0),"BIG IDEA","peach"),0)
+        animate(build_node(
+            f"Idea_{index}",(0,.35,0),topic or "KEY IDEA","peach"
+        ),0)
         for i, x in enumerate((-2.2, 2.2)):
             ob = container(f"Floating_concept_{index}_{i}",(x,-1.6,.15))
             block(f"Concept_diamond_{i}",(0,0,0),(.42,.42,.44),"sunflower",
@@ -310,7 +320,7 @@ def build_sequence(seq, fps, index):
             animate(ob,i+1)
 
     # Buddy has a coherent, repeatable appearance and motions for all templates.
-    mascot = container(f"Buddy_rig_{index}", (4.50,-2.30,.15), parent=root)
+    mascot = container(f"Buddy_rig_{index}", (4.16,-2.36,.15), parent=root)
     body, arm_l, arm_r, eyes = make_buddy(mascot)
     entered = max(first, int((start + min(.22, duration * .16)) * fps))
     ease_motion(mascot, entered, min(last - 1, entered + max(2,round(.20*fps))),
@@ -379,18 +389,22 @@ def main():
     scene.frame_start = 1
     scene.frame_end = math.ceil(duration * fps)
     scene.render.filepath = str(args.frames.resolve() / "frame_######")
+    # Filmic AgX washed out the pastel miniatures in the first user MP4.
+    # A neutral Standard transform better preserves the brand's muted warm
+    # peach and dusty-blue materials without an aggressive saturation filter.
+    scene.view_settings.view_transform = "Standard"
     try:
-        scene.view_settings.view_transform = "AgX"
+        scene.view_settings.look = "Medium High Contrast"
     except (TypeError, ValueError):
-        scene.view_settings.view_transform = "Standard"
+        pass
     scene.world.color = color(C["cream"])[:3]
 
-    bpy.ops.object.camera_add(location=(0,-2.1,19.3))
+    bpy.ops.object.camera_add(location=(0,-4.1,18.5))
     camera = bpy.context.object
     direction = Vector((0,0,0)) - camera.location
     camera.rotation_euler = direction.to_track_quat("-Z","Y").to_euler()
     camera.data.type = "ORTHO"
-    camera.data.ortho_scale = 12.9
+    camera.data.ortho_scale = 10.6
     scene.camera = camera
     bpy.ops.object.light_add(type="AREA", location=(-3.8,-2.6,8.4))
     key = bpy.context.object
@@ -414,14 +428,14 @@ def main():
         first = max(1, round(float(seq["start"]) * fps) + 1)
         last = max(first + 1, round(float(seq["end"]) * fps))
         key_positions = (
-            (first, -.09, 12.90),
-            (max(first + 1, last - 1), .09, 12.50),
-            (last, .09, 12.50),
+            (first, -.13, 10.60),
+            (max(first + 1, last - 1), .13, 10.15),
+            (last, .13, 10.15),
         )
         for frame, offset_x, ortho in key_positions:
             camera.location.x = offset_x
-            camera.location.y = -2.1
-            camera.location.z = 19.3
+            camera.location.y = -4.1
+            camera.location.z = 18.5
             camera.data.ortho_scale = ortho
             camera.keyframe_insert("location", frame=frame)
             camera.data.keyframe_insert("ortho_scale", frame=frame)
