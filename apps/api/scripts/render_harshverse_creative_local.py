@@ -35,6 +35,7 @@ from app.services.harshverse.creative_caption_bridge import (
 from app.services.harshverse.render_adapter import _duration, _probe, render as render_harshverse
 from app.services.harshverse.local_motion_plate import render_motion_plate, build_motion_render_composition
 from app.services.harshverse.warm_style import make_buddy_sticker, STYLE_ID as WARM_STYLE
+from app.services.harshverse.warm_sfx import synthesize_warm_sfx
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
@@ -55,7 +56,13 @@ def _ffmpeg_filter_path(path: Path) -> str:
 def _burn_captions(source: Path, captions: Path, output: Path, *,
                    width: int = 720, height: int = 1280,
                    buddy_path: Path | None = None,
-                   buddy_windows: tuple[tuple[float, float], ...] = ()) -> None:
+                   buddy_windows: tuple[tuple[float, float], ...] = (),
+                   sfx_path: Path | None = None) -> None:
+    """Final image/caption and optional ORIGINAL warm SFX mix.
+
+    Original speech stays the first audio input. No cuts, ducking, timing
+    changes, added voice, or third-party sample assets are introduced.
+    """
     if not captions.is_file():
         raise FileNotFoundError("Timed caption track was not generated.")
     filter_expr = (
@@ -65,32 +72,50 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
     )
     command = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
                "-i", str(source)]
-    video_opts: list[str]
-    if buddy_path and buddy_windows:
+    use_buddy = bool(buddy_path and buddy_windows)
+    if use_buddy:
         if not buddy_path.is_file():
             raise FileNotFoundError("Warm buddy sticker is missing")
         command.extend(["-loop", "1", "-framerate", "30", "-i", str(buddy_path)])
+    if sfx_path is not None:
+        if not sfx_path.is_file():
+            raise FileNotFoundError("Original warm SFX bed is missing")
+        command.extend(["-i", str(sfx_path)])
+
+    filters: list[str] = []
+    if use_buddy:
         intervals = [
             f"between(t\\,{start:.3f}\\,{end:.3f})"
             for start, end in buddy_windows if end > start + .05
         ]
-        if intervals:
-            # Presenter-only cameos; avoid drawing on the diagram's own buddy.
-            command.extend([
-                "-filter_complex",
-                f"[0:v]{filter_expr}[cap];"
-                f"[cap][1:v]overlay=x=W-w-36:y=150:enable='{'+'.join(intervals)}':"
-                "shortest=1:format=auto,format=yuv420p[vout]",
-            ])
-            video_opts = ["-map", "[vout]"]
-        else:
-            video_opts = ["-vf", filter_expr, "-map", "0:v:0"]
+        if not intervals:
+            raise ValueError("No valid buddy cameo window")
+        filters.extend([
+            f"[0:v]{filter_expr}[cap]",
+            f"[cap][1:v]overlay=x=W-w-36:y=150:enable='{'+'.join(intervals)}':"
+            "shortest=1:format=auto,format=yuv420p[vout]",
+        ])
     else:
-        video_opts = ["-vf", filter_expr, "-map", "0:v:0"]
-    command += video_opts + [
-        "-map", "0:a:0", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
-        "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "192k",
-        "-movflags", "+faststart", str(output),
+        filters.append(f"[0:v]{filter_expr},format=yuv420p[vout]")
+
+    if sfx_path is not None:
+        sfx_input_index = 2 if use_buddy else 1
+        # Quiet synthesized accents preserve the existing spoken track.
+        filters.append(
+            f"[0:a:0][{sfx_input_index}:a:0]"
+            "amix=inputs=2:duration=first:dropout_transition=0:"
+            "normalize=0[aout]"
+        )
+        audio_map = "[aout]"
+    else:
+        audio_map = "0:a:0"
+
+    command += [
+        "-filter_complex", ";".join(filters),
+        "-map", "[vout]", "-map", audio_map,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+        "-pix_fmt", "yuv420p", "-r", "30",
+        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
     ]
     subprocess.run(command, check=True, timeout=300)
 
@@ -269,8 +294,19 @@ async def build_local_creative_preview(
                 and not any(start < g_end and end > g_start
                             for g_start, g_end in graphic_windows)
             )
+            original_sfx = [
+                (b.start, "whoosh" if b.template != "keyword_card" else "pop")
+                for b in composition.beats if b.kind == "motion_graphic"
+            ]
+            sfx_path = None
+            if original_sfx:
+                sfx_path, _sfx_count = synthesize_warm_sfx(
+                    Path(temporary) / "original_warm_sfx.wav",
+                    duration, original_sfx,
+                )
             _burn_captions(render_source, captions_path, staged,
-                           buddy_path=buddy, buddy_windows=cameo_windows)
+                           buddy_path=buddy, buddy_windows=cameo_windows,
+                           sfx_path=sfx_path)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
