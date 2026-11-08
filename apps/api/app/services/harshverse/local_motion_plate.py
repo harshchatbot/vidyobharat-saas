@@ -360,16 +360,13 @@ def _render_warm_plate(
         (b.start + .82, min(b.end - .07, b.start + .94))
         for b in beats if b.end - b.start > 1.0
     ]
+    next_sprite_index = 1 + len(stages)
     for mood, windows in (("curious", full), ("point", pointing),
                           ("blink", blinking)):
         if not windows:
             continue
-        sprite_index = 1 + len(stages) + sum(
-            bool(earlier_windows) for earlier_mood, earlier_windows in
-            (("curious", full), ("point", pointing), ("blink", blinking))
-            if ("curious", "point", "blink").index(earlier_mood)
-            < ("curious", "point", "blink").index(mood)
-        )
+        sprite_index = next_sprite_index
+        next_sprite_index += 1
         inputs.extend(["-loop", "1", "-framerate", str(fps),
                        "-i", str(buddy_sprites[mood])])
         sprite_tag = f"[buddy_src_{mood}]"
