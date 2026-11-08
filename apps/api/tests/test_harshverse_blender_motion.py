@@ -258,3 +258,32 @@ def test_spoken_topics_and_concept_cards_come_from_verified_phrases_only():
     ungrounded = build_blender_job(plan,beats)
     assert ungrounded["sequences"][0]["topic"] == ""
     assert ungrounded["sequences"][0]["concepts"] == []
+
+
+def test_3d_selection_rejects_transcription_contractions_and_picks_later_concepts():
+    from app.services.video_creative_director_v21 import CompositionBeat, CompositionPlanV21
+    phrases = [
+        ("p1","GPT doesn't think like a human"),
+        ("p2","It learns from books"),
+        ("p3","And recognizes patterns in information"),
+    ]
+    beats = [
+        CompositionBeat(
+            id=f"graphic-{i}", start=1+i, end=2+i,
+            kind="motion_graphic", template="keyword_card", phrase_ids=[pid],
+        )
+        for i,(pid,_) in enumerate(phrases)
+    ]
+    plan=CompositionPlanV21(
+        duration_seconds=5, aspect_ratio="9:16",
+        beats=[
+            CompositionBeat(id="source",kind="source",
+                            template="original_video_audio",start=0,end=5),
+            *beats,
+        ],
+    )
+    job=build_blender_job(plan, beats,phrase_texts=dict(phrases))
+    selected=[item["label"] for item in job["sequences"][0]["concepts"]]
+    assert selected == ["GPT", "BOOKS", "PATTERNS"]
+    assert "DOESN" not in selected
+    assert "THINK" not in selected
