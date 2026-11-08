@@ -107,3 +107,51 @@ def test_captions_use_dedicated_warm_explainer_safe_strip():
     assert overlays
     assert any(abs(item.y - .43)<.001 for item in overlays)
     assert all(item.font_size==39 for item in overlays)
+
+
+
+def test_warm_burn_builds_single_combined_video_and_audio_graph(monkeypatch, tmp_path):
+    from scripts import render_harshverse_creative_local as local
+
+    source = tmp_path / "source.mp4"
+    captions = tmp_path / "captions.ass"
+    buddy = tmp_path / "buddy.png"
+    sfx = tmp_path / "sfx.wav"
+    for path in (source, captions, buddy, sfx):
+        path.write_bytes(b"fixture")
+    commands = []
+
+    def fake_ffmpeg(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(local.subprocess, "run", fake_ffmpeg)
+    local._burn_captions(
+        source, captions, tmp_path / "preview.mp4", buddy_path=buddy,
+        buddy_windows=((.25, 1.3),), sfx_path=sfx,
+    )
+    command = commands.pop()
+    assert command.count("-filter_complex") == 1
+    graph = command[command.index("-filter_complex") + 1]
+    assert "[0:v]" in graph
+    assert "[cap][1:v]overlay=" in graph
+    assert "[0:a:0][2:a:0]amix=" in graph
+    assert command[command.index("-map") + 1] == "[vout]"
+    assert "[aout]" in command
+
+
+def test_classic_burn_uses_original_audio_and_no_buddy(monkeypatch, tmp_path):
+    from scripts import render_harshverse_creative_local as local
+    source, captions = tmp_path / "source.mp4", tmp_path / "captions.ass"
+    source.write_bytes(b"fixture")
+    captions.write_text("[Script Info]", encoding="utf-8")
+    commands = []
+    monkeypatch.setattr(
+        local.subprocess, "run",
+        lambda command, **kwargs: commands.append(command),
+    )
+    local._burn_captions(source, captions, tmp_path / "preview.mp4")
+    command = commands.pop()
+    assert "-filter_complex" in command
+    assert "amix=" not in command[command.index("-filter_complex")+1]
+    assert "0:a:0" in command
