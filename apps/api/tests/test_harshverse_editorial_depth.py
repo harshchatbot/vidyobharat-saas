@@ -81,3 +81,47 @@ def test_model_missing_fails_closed_instead_of_faking_depth(tmp_path):
         build_person_matte(
             video,tmp_path/"missing.tflite",tmp_path/"person.mkv"
         )
+
+
+def test_selfie_segmenter_accepts_one_foreground_confidence_mask():
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    mask = np.array([[.02, .94], [.75, .12]], dtype=np.float32)
+    result = SimpleNamespace(confidence_masks=[SimpleNamespace(numpy_view=lambda: mask)])
+    person = _extract_person_confidence(result)
+    assert person.shape == (2, 2)
+    assert float(person[0, 1]) == pytest.approx(.94)
+    assert float(person[1, 0]) == pytest.approx(.75)
+
+
+def test_two_class_confidence_masks_use_person_index_one():
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    bg = np.full((2, 2), .9, dtype=np.float32)
+    fg = np.full((2, 2), .1, dtype=np.float32)
+    result = SimpleNamespace(confidence_masks=[
+        SimpleNamespace(numpy_view=lambda: bg),
+        SimpleNamespace(numpy_view=lambda: fg),
+    ])
+    assert np.allclose(_extract_person_confidence(result), fg)
+
+
+def test_person_matte_rejects_absent_or_malformed_confidence_masks():
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    with pytest.raises(RuntimeError, match="expected 1"):
+        _extract_person_confidence(SimpleNamespace(confidence_masks=[]))
+    with pytest.raises(RuntimeError, match="nonempty 2D"):
+        _extract_person_confidence(SimpleNamespace(confidence_masks=[
+            SimpleNamespace(numpy_view=lambda: np.array([.1, .8]))
+        ]))
+    with pytest.raises(RuntimeError, match="Invalid person confidence"):
+        _extract_person_confidence(SimpleNamespace(confidence_masks=[
+            SimpleNamespace(numpy_view=lambda: np.array([[float("nan")]]))
+        ]))
