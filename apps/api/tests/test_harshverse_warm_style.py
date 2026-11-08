@@ -80,7 +80,7 @@ def test_original_warm_motion_ffmpeg_filters_smoke(monkeypatch, tmp_path):
         assert "-filter_complex" in command
         filter_complex = command[command.index("-filter_complex")+1]
         assert "overlay=x=" in filter_complex
-        assert "between(t" in filter_complex
+        assert "gte(t" in filter_complex
         assert "shortest=1" in filter_complex
         destination = Path(command[-1])
         destination.write_bytes(b"fake-warm-mp4")
@@ -92,7 +92,9 @@ def test_original_warm_motion_ffmpeg_filters_smoke(monkeypatch, tmp_path):
     )
     assert result is not None
     assert len(result.rendered_beat_ids)==1
-    assert (tmp_path / "warm_warm_00.png").is_file()
+    assert (tmp_path / "warm_warm_00_step1.png").is_file()
+    assert (tmp_path / "warm_warm_00_step2.png").is_file()
+    assert (tmp_path / "warm_warm_00_step3.png").is_file()
     assert captured
 
 
@@ -155,3 +157,30 @@ def test_classic_burn_uses_original_audio_and_no_buddy(monkeypatch, tmp_path):
     assert "-filter_complex" in command
     assert "amix=" not in command[command.index("-filter_complex")+1]
     assert "0:a:0" in command
+
+
+
+def test_warm_objects_are_drawn_in_three_distinct_stages(tmp_path):
+    import hashlib
+    from app.services.harshverse.warm_style import make_explainer_panel
+    outputs = []
+    for step in (1, 2, 3):
+        file = make_explainer_panel(
+            tmp_path / f"flow-{step}.jpg", template="data_flow",
+            reveal_step=step,
+        )
+        outputs.append(hashlib.sha256(file.read_bytes()).hexdigest())
+    assert len(set(outputs)) == 3
+    with pytest.raises(ValueError, match="reveal_step"):
+        make_explainer_panel(
+            tmp_path / "bad.jpg", template="data_flow", reveal_step=4
+        )
+
+
+def test_extended_original_warm_sfx_vocab(tmp_path):
+    from app.services.harshverse.warm_sfx import synthesize_warm_sfx
+    wave, cues = synthesize_warm_sfx(tmp_path / "type-and-impact.wav",3.1,[
+        (.15, "typewriter"), (1.3, "faahh"),
+    ])
+    assert wave.exists()
+    assert cues == 2
