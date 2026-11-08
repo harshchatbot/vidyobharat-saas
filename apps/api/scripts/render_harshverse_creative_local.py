@@ -234,6 +234,9 @@ async def build_local_creative_preview(
     editorial_intro: bool = False,
     person_matte_model: Path | None = None,
     voice_enhance: str = "off",
+    motion_engine: str = "illustrated",
+    blender_bin: Path | None = None,
+    blender_quality: str = "preview",
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -246,6 +249,10 @@ async def build_local_creative_preview(
         raise ValueError("Unsupported HarshVerse visual pack")
     selected_grade = resolve_color_grade(visual_style, color_grade)
     voice_enhance_filter(voice_enhance)  # validate even if no SFX
+    if motion_engine not in ("illustrated", "blender3d"):
+        raise ValueError("Unknown HarshVerse motion engine")
+    if motion_engine == "blender3d" and visual_style != WARM_STYLE:
+        raise ValueError("Blender3D requires warm style")
     if editorial_intro and visual_style != WARM_STYLE:
         raise ValueError("Editorial intro currently requires harshverse_warm style")
     if person_matte_model is not None and not editorial_intro:
@@ -352,9 +359,16 @@ async def build_local_creative_preview(
         if visual_style == "classic":
             motion_result = render_motion_plate(composition, context, motion_path)
         else:
-            motion_result = render_motion_plate(
-                composition, context, motion_path, visual_style=visual_style,
-            )
+            if motion_engine == "illustrated":
+                motion_result = render_motion_plate(
+                    composition, context, motion_path, visual_style=visual_style,
+                )
+            else:
+                motion_result = render_motion_plate(
+                    composition, context, motion_path, visual_style=visual_style,
+                    motion_engine=motion_engine,
+                    blender_bin=blender_bin, blender_quality=blender_quality,
+                )
         if motion_result is not None:
             plate_hash = hashlib.sha256(motion_path.read_bytes()).hexdigest()
             plate_duration = _duration(_probe(motion_path))
@@ -451,6 +465,8 @@ async def build_local_creative_preview(
         "transcription_mode": transcription_mode,
         "director_mode": director_mode,
         "visual_style": visual_style,
+        "motion_engine": motion_engine,
+        "blender_quality": blender_quality if motion_engine == "blender3d" else None,
         "presenter_color_grade": selected_grade,
         "voice_enhance": voice_enhance,
         "editorial_title_mode": editorial_title_mode,
@@ -500,6 +516,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="Presenter-only color grade; auto uses warm_editorial for harshverse_warm.")
     parser.add_argument("--voice-enhance", choices=("off", "natural", "studio"), default="off",
                         help="Original narration cleanup before SFX; off preserves prior behavior.")
+    parser.add_argument("--motion-engine", choices=("illustrated", "blender3d"),
+                        default="illustrated",
+                        help="Choose procedural 2.5D illustrations or independent Blender 3D scenes.")
+    parser.add_argument("--blender-bin", type=Path,
+                        help="Optional path to Blender executable for blender3d.")
+    parser.add_argument("--3d-quality", choices=("preview", "final"),
+                        default="preview", dest="blender_quality",
+                        help="Blender render resolution/frame quality; preview is less expensive.")
     parser.add_argument("--editorial-intro", action="store_true",
                         help="Add warm typography intro with optional true person depth occlusion.")
     parser.add_argument("--person-matte-model", type=Path,
@@ -525,6 +549,8 @@ def main(argv: list[str] | None = None) -> int:
             visual_style=args.visual_style, color_grade=args.color_grade,
             editorial_intro=args.editorial_intro, person_matte_model=args.person_matte_model,
             voice_enhance=args.voice_enhance,
+            motion_engine=args.motion_engine, blender_bin=args.blender_bin,
+            blender_quality=args.blender_quality,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
