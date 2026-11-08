@@ -61,7 +61,7 @@ def _extract_person_confidence(segmentation: object) -> np.ndarray:
             f"Unsupported person confidence mask shape {raw.shape}; "
             "expected HxW, HxWx1 or single packed HxWx2."
         )
-    if not person.size or person.shape[0] < 2 or person.shape[1] < 2:
+    if not person.size:
         raise RuntimeError("Person confidence mask must be a nonempty 2D image")
     if (not np.isfinite(person).all()
             or person.min() < -0.01 or person.max() > 1.01):
