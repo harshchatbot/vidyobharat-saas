@@ -192,9 +192,11 @@ def make_buddy(root):
           radius=.22, parent=body)
     block("Buddy_screen", (0, .02, .95), (1.17, 1.17, .10), "paper",
           radius=.17, parent=body)
+    eyes = []
     for x in (-.29, .29):
         eye = ball("Buddy_eye", (x, .20, 1.06), .105, "charcoal", parent=body)
         eye.scale = (1, .90, .45)
+        eyes.append(eye)
         ball("Buddy_eye_glint", (x - .025, .25, 1.135), .026, "paper", parent=body)
         ball("Buddy_cheek", (x * 1.52, -.15, 1.065), .09, "peach", parent=body)
     block("Buddy_smile", (0, -.26, 1.04), (.26, .034, .024),
@@ -210,10 +212,10 @@ def make_buddy(root):
             (sign * .37, -.88, .12), .09, "orange", parent=body)
         block(f"Buddy_foot_{sign}", (sign * .40, -.91, .11),
               (.36, .22, .13), "orange", parent=body)
-    return body, left_arm, right_arm
+    return body, left_arm, right_arm, eyes
 
 
-def keyed_pose(body, left, right, start, end, fps):
+def keyed_pose(body, left, right, eyes, start, end, fps):
     """Real 3D character animation: body bob, arm point/wave, subtle squash."""
     start_f = max(1, int(round(start * fps)) + 1)
     end_f = max(start_f + 1, int(round(end * fps)))
@@ -232,6 +234,16 @@ def keyed_pose(body, left, right, start, end, fps):
         right.rotation_euler.z = .72 if idx in (1, 2, 3) else 0
         left.keyframe_insert("rotation_euler", frame=frame)
         right.keyframe_insert("rotation_euler", frame=frame)
+    # Two brief eye squashes create a recognizable blink. The same
+    # underlying 3D eyes are animated; no replacement sticker is used.
+    for moment in (start + .55, start + 1.95):
+        if moment + .13 >= end:
+            continue
+        for offset, closed in ((-.07, False), (0, True), (.10, False)):
+            frame = max(1, int((moment + offset) * fps) + 1)
+            for eye in eyes:
+                eye.scale = (1, .90, .07 if closed else .45)
+                eye.keyframe_insert("scale", frame=frame)
 
 
 def build_sequence(seq, fps, index):
@@ -299,11 +311,11 @@ def build_sequence(seq, fps, index):
 
     # Buddy has a coherent, repeatable appearance and motions for all templates.
     mascot = container(f"Buddy_rig_{index}", (4.50,-2.30,.15), parent=root)
-    body, arm_l, arm_r = make_buddy(mascot)
+    body, arm_l, arm_r, eyes = make_buddy(mascot)
     entered = max(first, int((start + min(.22, duration * .16)) * fps))
     ease_motion(mascot, entered, min(last - 1, entered + max(2,round(.20*fps))),
                 last - 1)
-    keyed_pose(body, arm_l, arm_r, start, end, fps)
+    keyed_pose(body, arm_l, arm_r, eyes, start, end, fps)
     return root
 
 
@@ -343,10 +355,17 @@ def main():
         M[key] = mat(f"HV_{key}", value)
 
     scene = bpy.context.scene
-    try:
-        scene.render.engine = "BLENDER_EEVEE_NEXT"
-    except (TypeError, ValueError):
-        scene.render.engine = "BLENDER_EEVEE"
+    available_engines = [
+        item.identifier for item in
+        scene.render.bl_rna.properties["engine"].enum_items
+    ]
+    preferred = ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES")
+    engine = next((item for item in preferred if item in available_engines), None)
+    if engine is None:
+        raise RuntimeError("Blender install has no supported Eevee/Cycles rendering backend")
+    scene.render.engine = engine
+    if engine == "CYCLES":
+        scene.cycles.samples = min(32, int(job["samples"]))
     if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
         scene.eevee.taa_render_samples = int(job["samples"])
     scene.render.resolution_x = int(job["width"])
