@@ -34,6 +34,7 @@ from app.services.harshverse.creative_caption_bridge import (
 )
 from app.services.harshverse.render_adapter import _duration, _probe, render as render_harshverse
 from app.services.harshverse.local_motion_plate import render_motion_plate, build_motion_render_composition
+from app.services.harshverse.warm_style import make_buddy_sticker, STYLE_ID as WARM_STYLE
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
@@ -52,7 +53,9 @@ def _ffmpeg_filter_path(path: Path) -> str:
 
 
 def _burn_captions(source: Path, captions: Path, output: Path, *,
-                   width: int = 720, height: int = 1280) -> None:
+                   width: int = 720, height: int = 1280,
+                   buddy_path: Path | None = None,
+                   buddy_windows: tuple[tuple[float, float], ...] = ()) -> None:
     if not captions.is_file():
         raise FileNotFoundError("Timed caption track was not generated.")
     filter_expr = (
@@ -60,13 +63,36 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
         f"crop={width}:{height},setsar=1,"
         f"subtitles=filename='{_ffmpeg_filter_path(captions)}'"
     )
-    subprocess.run([
-        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-        "-i", str(source), "-vf", filter_expr, "-map", "0:v:0", "-map", "0:a:0",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-        "-pix_fmt", "yuv420p", "-r", "30",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
-    ], check=True, timeout=300)
+    command = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+               "-i", str(source)]
+    video_opts: list[str]
+    if buddy_path and buddy_windows:
+        if not buddy_path.is_file():
+            raise FileNotFoundError("Warm buddy sticker is missing")
+        command.extend(["-loop", "1", "-framerate", "30", "-i", str(buddy_path)])
+        intervals = [
+            f"between(t\\,{start:.3f}\\,{end:.3f})"
+            for start, end in buddy_windows if end > start + .05
+        ]
+        if intervals:
+            # Presenter-only cameos; avoid drawing on the diagram's own buddy.
+            command.extend([
+                "-filter_complex",
+                f"[0:v]{filter_expr}[cap];"
+                f"[cap][1:v]overlay=x=W-w-36:y=150:enable='{'+'.join(intervals)}':"
+                "shortest=1:format=auto,format=yuv420p[vout]",
+            ])
+            video_opts = ["-map", "[vout]"]
+        else:
+            video_opts = ["-vf", filter_expr, "-map", "0:v:0"]
+    else:
+        video_opts = ["-vf", filter_expr, "-map", "0:v:0"]
+    command += video_opts + [
+        "-map", "0:a:0", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+        "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart", str(output),
+    ]
+    subprocess.run(command, check=True, timeout=300)
 
 
 def build_motion_smoke_scene_plan(context):
@@ -112,6 +138,7 @@ async def build_local_creative_preview(
     model: str = "gpt-4o-mini",
     overwrite: bool = False,
     smoke_motion: bool = False,
+    visual_style: str = "classic",
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -120,6 +147,8 @@ async def build_local_creative_preview(
     director is used, and the output's provenance explicitly says so.
     """
     source, output_dir = Path(source).expanduser().resolve(), Path(output_dir).expanduser().resolve()
+    if visual_style not in ("classic", WARM_STYLE):
+        raise ValueError("Unsupported HarshVerse visual pack")
     if style not in ("elegant", "energetic", "cinematic"):
         raise ValueError("Unsupported editing style")
     if not source.is_file():
@@ -173,7 +202,10 @@ async def build_local_creative_preview(
         director_mode = "existing_deterministic_fallback"
 
     composition = compile_composition_v21(context, scene)
-    overlays, caption_warnings = build_caption_overlays(report, context, composition)
+    if visual_style == "classic":
+        overlays, caption_warnings = build_caption_overlays(report, context, composition)
+    else:
+        overlays, caption_warnings = build_caption_overlays(report, context, composition, visual_style=visual_style)
     if not overlays:
         raise ValueError("No source-timed caption overlays could be generated.")
 
@@ -188,7 +220,12 @@ async def build_local_creative_preview(
         motion_result = None
         render_plan, _, skipped_motions = build_motion_render_composition(composition, context)
         motion_path = Path(temporary) / "director_motion_plate.mp4"
-        motion_result = render_motion_plate(composition, context, motion_path)
+        if visual_style == "classic":
+            motion_result = render_motion_plate(composition, context, motion_path)
+        else:
+            motion_result = render_motion_plate(
+                composition, context, motion_path, visual_style=visual_style,
+            )
         if motion_result is not None:
             plate_hash = hashlib.sha256(motion_path.read_bytes()).hexdigest()
             plate_duration = _duration(_probe(motion_path))
@@ -199,10 +236,41 @@ async def build_local_creative_preview(
             draft = compile_harshverse_draft(render_plan, plate=plate,
                                              prepared_visuals=prepared)
             composited = Path(temporary) / "harshverse_with_motion.mp4"
-            render_harshverse(draft.scene_plan, source, motion_path, composited)
+            if visual_style == "classic":
+                render_harshverse(draft.scene_plan, source, motion_path, composited)
+            else:
+                centers = [
+                    sample.box.y + sample.box.height / 2
+                    for sample in report.visual.face_samples
+                ]
+                face_center = sorted(centers)[len(centers) // 2] if centers else 0.5
+                render_harshverse(
+                    draft.scene_plan, source, motion_path, composited,
+                    visual_style=visual_style, face_center_y=face_center,
+                )
             render_source = composited
         staged = Path(temporary) / "captioned.mp4"
-        _burn_captions(render_source, captions_path, staged)
+        if visual_style == "classic":
+            _burn_captions(render_source, captions_path, staged)
+        else:
+            buddy = make_buddy_sticker(Path(temporary) / "harshverse_buddy.png")
+            graphic_windows = [
+                (b.start, b.end) for b in composition.beats
+                if b.kind == "motion_graphic"
+            ]
+            # Buddy only appears in presenter shots, and is already part
+            # of original illustrated panels when graphics are active.
+            # Keep short recurring cameos rather than covering the speaker.
+            cameo_candidates = [(0.25, min(duration, 1.65)),
+                                (max(0.0, duration - 1.65), max(0.0, duration - 0.25))]
+            cameo_windows = tuple(
+                (start, end) for start, end in cameo_candidates
+                if end - start >= .3
+                and not any(start < g_end and end > g_start
+                            for g_start, g_end in graphic_windows)
+            )
+            _burn_captions(render_source, captions_path, staged,
+                           buddy_path=buddy, buddy_windows=cameo_windows)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
@@ -234,6 +302,7 @@ async def build_local_creative_preview(
         "duration_seconds": duration,
         "transcription_mode": transcription_mode,
         "director_mode": director_mode,
+        "visual_style": visual_style,
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
         "captions": captions.caption_count,
         "highlighted_words": captions.word_count,
@@ -271,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--transcript", type=Path, help="Existing STT transcript JSON with real word timestamps.")
     parser.add_argument("--scene-plan", type=Path, help="Existing validated Creative Director V2 plan JSON.")
     parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--visual-style", choices=("classic", WARM_STYLE), default="classic",
+                        help="Renderer style pack; harshverse_warm uses original illustrations and buddy.")
     parser.add_argument("--smoke-motion", action="store_true",
                         help="Explicit diagnostic: exercise one V2.1 graphic beat independent of AI selection.")
     parser.add_argument("--require-openai", action="store_true",
@@ -289,6 +360,7 @@ def main(argv: list[str] | None = None) -> int:
             transcript_path=args.transcript, scene_plan_path=args.scene_plan,
             api_key=api_key, model=args.model,
             overwrite=args.overwrite, smoke_motion=args.smoke_motion,
+            visual_style=args.visual_style,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
