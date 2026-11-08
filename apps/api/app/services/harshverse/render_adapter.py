@@ -22,8 +22,12 @@ def _duration(meta: dict) -> float:
     return float(meta['format']['duration'])
 
 
-def build_filter(plan: ScenePlan) -> str:
+def build_filter(plan: ScenePlan, *, visual_style: str = "classic", face_center_y: float = 0.5) -> str:
     """One continuous video track; source audio is mapped independently unchanged in timing."""
+    if visual_style not in ("classic", "harshverse_warm"):
+        raise ValueError("Unknown HarshVerse style")
+    if not (0 <= face_center_y <= 1):
+        raise ValueError("Invalid detected face center")
     w, h, fps = plan.width, plan.height, plan.fps
     strings: list[str] = []
     for i, scene in enumerate(plan.scenes):
@@ -45,8 +49,19 @@ def build_filter(plan: ScenePlan) -> str:
         elif scene.recipe == 'presenter_split':
             # Show FULL presenter frame (rather than cropping away the face) in lower half.
             half = h // 2
-            strings.append(f'[p{i}]scale={w}:{half}:force_original_aspect_ratio=decrease,'
-                           f'pad={w}:{half}:(ow-iw)/2:(oh-ih)/2:color=0xF5F1E8[bot{i}]')
+            if visual_style == "harshverse_warm":
+                # Portrait talking head fills the lower panel, instead of
+                # shrinking to a narrow full-body frame with wide side bars.
+                # Analysis V2 YuNet supplies a sparse face center as guidance.
+                # No face synthesis, tracking or identity recognition occurs.
+                top = max(0, min(h - half, round(face_center_y * h - half * 0.51)))
+                strings.append(
+                    f'[p{i}]crop={w}:{half}:0:{top},'
+                    f'format=yuv420p[bot{i}]'
+                )
+            else:
+                strings.append(f'[p{i}]scale={w}:{half}:force_original_aspect_ratio=decrease,'
+                               f'pad={w}:{half}:(ow-iw)/2:(oh-ih)/2:color=0xF5F1E8[bot{i}]')
             strings.append(a + f'scale={w}:{half}:force_original_aspect_ratio=increase,'
                            f'crop={w}:{half},setsar=1,format=yuv420p[top{i}]')
             strings.append(f'[top{i}][bot{i}]vstack=inputs=2,format=yuv420p[s{i}]')
@@ -56,7 +71,8 @@ def build_filter(plan: ScenePlan) -> str:
 
 
 def render(plan: ScenePlan, presenter: Path, animation: Path, output: Path,
-           *, ffmpeg: str = 'ffmpeg', ffprobe: str = 'ffprobe') -> None:
+           *, ffmpeg: str = 'ffmpeg', ffprobe: str = 'ffprobe',
+           visual_style: str = "classic", face_center_y: float = 0.5) -> None:
     presenter, animation, output = map(Path, (presenter, animation, output))
     if not presenter.is_file() or not animation.is_file():
         raise FileNotFoundError('presenter and animation videos must both exist')
@@ -70,7 +86,7 @@ def render(plan: ScenePlan, presenter: Path, animation: Path, output: Path,
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [ffmpeg, '-hide_banner', '-loglevel', 'error', '-y',
                '-i', str(presenter), '-i', str(animation),
-               '-filter_complex', build_filter(plan),
+               '-filter_complex', build_filter(plan, visual_style=visual_style, face_center_y=face_center_y),
                '-map', '[vout]', '-map', '0:a:0',
                '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
                '-r', str(plan.fps), '-c:a', 'aac', '-b:a', '192k',
