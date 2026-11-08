@@ -9,7 +9,7 @@ From repo root:
   PYTHONPATH=apps/api apps/api/.venv/bin/python apps/api/scripts/setup_yunet_local.py
   PYTHONPATH=apps/api apps/api/.venv/bin/python apps/api/scripts/setup_yunet_local.py --check-only
 
-Model: OpenCV Zoo face_detection_yunet_2023mar.onnx (MIT license, see upstream
+Model: OpenCV Zoo face_detection_yunet_2026may.onnx (MIT license, see upstream
 models/face_detection_yunet/LICENSE). No identity recognition or face storage.
 """
 from __future__ import annotations
@@ -32,15 +32,17 @@ from app.services.video_analysis_service import probe_video, detect_faces
 
 
 _API_DIR = ENV_FILE.parent
-_MODEL_NAME = "face_detection_yunet_2023mar.onnx"
+_MODEL_NAME = "face_detection_yunet_2026may.onnx"
 _MODEL_PATH = _API_DIR / "data" / "models" / _MODEL_NAME
-# Pinned revision and checksum from OpenCV's published OpenCV Zoo model.
+# Pinned dynamic-input YuNet from official OpenCV Zoo Git LFS.
+# The older 2023mar model has fixed input dims and can fail under OpenCV 5.
+# SHA256 verified against upstream commit 47534e27.
 _MODEL_URL = (
-    "https://huggingface.co/opencv/opencv_zoo/resolve/"
-    "d4938dfc9d4ec5d098bfa33e98b3f3345a236586/"
-    "models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+    "https://media.githubusercontent.com/media/opencv/opencv_zoo/"
+    "47534e27c9851bb1128ccc0102f1145e27f23f98/"
+    "models/face_detection_yunet/face_detection_yunet_2026may.onnx"
 )
-_MODEL_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+_MODEL_SHA256 = "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
 _MODEL_MAX_BYTES = 2 * 1024 * 1024
 _KEY_PATTERN = re.compile(r"^(\s*(?:export\s+)?RANGMANCH_YUNET_MODEL_PATH\s*=).*$")
 
@@ -81,8 +83,11 @@ def _validate_model(path: Path) -> str:
         detector = cv2.FaceDetectorYN_create(str(path), "", (320, 320), 0.75, 0.3, 5000)
         detector.detect(np.zeros((320, 320, 3), dtype=np.uint8))
     except Exception as exc:
+        detail = str(exc).replace("\n", " ")[:480]
         raise RuntimeError(
-            f"OpenCV {cv2.__version__} cannot load or execute the YuNet ONNX model"
+            f"OpenCV {cv2.__version__} could not run YuNet model "
+            f"{path.name} ({type(exc).__name__}: {detail}). "
+            "Check the model SHA, OpenCV backend, and ONNX version."
         ) from exc
     return cv2.__version__
 
