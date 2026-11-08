@@ -147,20 +147,27 @@ def make_buddy_sticker(path: Path, *, mood="curious") -> Path:
     return path
 
 
-def _data_flow(draw):
-    for x, tone, title in ((82,"#F2E1CB","INPUT"),(285,"#D9E4E6","PATTERNS"),(488,"#EED2B8","OUTPUT")):
+def _data_flow(draw, reveal_step=3):
+    nodes = ((82,"#F2E1CB","INPUT"),(285,"#D9E4E6","PATTERNS"),(488,"#EED2B8","OUTPUT"))
+    for i, (x, tone, title) in enumerate(nodes):
+        if i >= reveal_step:
+            continue
         _card(draw,(x,226,x+148,352),tone, radius=18)
         _rounded(draw,(x+17,245,x+58,285),10,PALETTE["paper"])
         for i in range(3):
             _line(draw,[(x+24,255+i*10),(x+48,255+i*10)],PALETTE["dusty_blue"],2)
         _text(draw,(x+18,308),title,16)
-    _arrow(draw,238,288,276,PALETTE["orange"])
-    _arrow(draw,441,288,479,PALETTE["orange"])
+    if reveal_step >= 2:
+        _arrow(draw,238,288,276,PALETTE["orange"])
+    if reveal_step >= 3:
+        _arrow(draw,441,288,479,PALETTE["orange"])
 
 
-def _source_stack(draw):
+def _source_stack(draw, reveal_step=3):
     for i,(name,tone) in enumerate((
         ("SOURCES","#D6E1E5"),("SIGNALS","#EFD6B8"),("CONTEXT","#E0E5D6"))):
+        if i >= reveal_step:
+            continue
         xx=128+i*80
         yy=175+i*57
         _card(draw,(xx,yy,xx+320,yy+78),tone,radius=18)
@@ -169,8 +176,10 @@ def _source_stack(draw):
         _line(draw,[(xx+74,yy+56),(xx+225,yy+56)],"#AAABA2",2)
 
 
-def _human_ai(draw):
-    for x,label,tone in ((97,"HUMAN","#F4D3B9"),(381,"AI","#D6E6EA")):
+def _human_ai(draw, reveal_step=3):
+    for i,(x,label,tone) in enumerate(((97,"HUMAN","#F4D3B9"),(381,"AI","#D6E6EA"))):
+        if i >= reveal_step:
+            continue
         _card(draw,(x,194,x+245,376),tone,radius=22)
         if label=="HUMAN":
             d=(x+120,264)
@@ -182,16 +191,19 @@ def _human_ai(draw):
             draw.ellipse(_rect((x+132,252,x+142,262)),fill=PALETTE["charcoal"])
             _line(draw,[(x+112,284),(x+136,284)],PALETTE["orange"],3)
         _text(draw,(x+122,333),label,19,anchor="mt")
-    _sparkle(draw,363,282,PALETTE["orange"],16)
+    if reveal_step >= 3:
+        _sparkle(draw,363,282,PALETTE["orange"],16)
 
 
-def _keyword(draw):
+def _keyword(draw, reveal_step=3):
     _card(draw,(105,189,615,384),"#F4DFC9",radius=28)
     _rounded(draw,(128,214,180,265),11,PALETTE["paper"])
     _sparkle(draw,154,238,PALETTE["orange"],13)
-    _text(draw,(200,223),"THE BIG IDEA",33)
-    _text(draw,(200,278),"explained visually",21,PALETTE["subtle"])
-    _line(draw,[(200,328),(430,328)],PALETTE["orange"],5)
+    if reveal_step >= 2:
+        _text(draw,(200,223),"THE BIG IDEA",33)
+    if reveal_step >= 3:
+        _text(draw,(200,278),"explained visually",21,PALETTE["subtle"])
+        _line(draw,[(200,328),(430,328)],PALETTE["orange"],5)
 
 
 _ILLUSTRATIONS = {
@@ -208,10 +220,13 @@ _TITLES = {
 }
 
 
-def make_explainer_panel(path: Path, *, template: str, ordinal: int=1) -> Path:
+def make_explainer_panel(path: Path, *, template: str, ordinal: int=1,
+                         reveal_step: int=3) -> Path:
     """Render one graphic panel. Source subtitles are added separately."""
     if template not in _ILLUSTRATIONS:
         raise ValueError(f"Unsupported warm explainer template: {template}")
+    if reveal_step not in (1, 2, 3):
+        raise ValueError("Warm explainer reveal_step must be 1, 2, or 3")
     image=Image.new("RGBA",(_v(720),_v(640)),PALETTE["cream"])
     d=ImageDraw.Draw(image)
     # Asymmetric soft pastel decoration plus a quiet baseline.
@@ -223,7 +238,7 @@ def make_explainer_panel(path: Path, *, template: str, ordinal: int=1) -> Path:
     _rounded(d,(49,33,63,62),6,PALETTE["orange"])
     _text(d,(79,37),f"HARSHVERSE  /  {ordinal:02d}",16,PALETTE["subtle"])
     _text(d,(48,74),_TITLES[template],30)
-    _ILLUSTRATIONS[template](d)
+    _ILLUSTRATIONS[template](d, reveal_step=reveal_step)
     # Brand buddy appears inside each explainer; never covered by captions.
     draw_buddy(image,x=543,y=315,scale=.66,mood="curious" if ordinal%2 else "surprised")
     _line(d,[(50,470),(668,470)],"#E4D9CB",2)
