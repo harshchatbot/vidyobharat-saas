@@ -125,3 +125,46 @@ def test_person_matte_rejects_absent_or_malformed_confidence_masks():
         _extract_person_confidence(SimpleNamespace(confidence_masks=[
             SimpleNamespace(numpy_view=lambda: np.array([[float("nan")]]))
         ]))
+
+
+@pytest.mark.parametrize("shape", [(5, 6), (5, 6, 1)])
+def test_mediapipe_person_confidence_accepts_grayscale_and_vec32f1(shape):
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    arr = np.full(shape, .72, dtype=np.float32)
+    segmentation = SimpleNamespace(
+        confidence_masks=[SimpleNamespace(numpy_view=lambda: arr)]
+    )
+    person = _extract_person_confidence(segmentation)
+    assert person.shape == (5, 6)
+    assert np.allclose(person, .72)
+
+
+def test_packed_two_channel_confidence_selects_foreground():
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    packed = np.zeros((5, 6, 2), dtype=np.float32)
+    packed[..., 0] = .8
+    packed[..., 1] = .2
+    segmentation = SimpleNamespace(
+        confidence_masks=[SimpleNamespace(numpy_view=lambda: packed)]
+    )
+    assert np.allclose(_extract_person_confidence(segmentation), .2)
+
+
+@pytest.mark.parametrize("shape", [(1, 5, 6), (5, 6, 3), (5, 6, 4)])
+def test_ambiguous_person_confidence_layout_fails_closed(shape):
+    import numpy as np
+    from types import SimpleNamespace
+    from app.services.harshverse.person_matte import _extract_person_confidence
+
+    arr = np.ones(shape, dtype=np.float32)
+    segmentation = SimpleNamespace(
+        confidence_masks=[SimpleNamespace(numpy_view=lambda: arr)]
+    )
+    with pytest.raises(RuntimeError, match="Unsupported person confidence mask shape"):
+        _extract_person_confidence(segmentation)
