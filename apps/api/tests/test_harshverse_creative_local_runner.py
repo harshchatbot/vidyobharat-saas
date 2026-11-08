@@ -216,3 +216,57 @@ def test_smoke_mode_requires_no_openai_and_keeps_explicit_provenance(monkeypatch
     assert smoke.scenes[1].first_phrase_id == "phrase_002"
     assert "Diagnostic" in smoke.warnings[0]
     assert validate_scene_plan(context, smoke.model_dump(mode="json")) == smoke
+
+
+
+def test_scene_plan_reuses_verified_baseline_words_without_new_stt(monkeypatch,tmp_path):
+    from app.services.video_creative_context import build_creative_context
+    report = fixture_report()
+    source=tmp_path/"original.mp4"
+    source.write_bytes(b"source")
+    baseline=tmp_path/"baseline"
+    baseline.mkdir()
+    (baseline/"creative_director_v2.json").write_text("{}")
+    (baseline/"local_preview_report.json").write_text(json.dumps({
+        "source":str(source.resolve()),
+        "duration_seconds":report.media.duration_seconds,
+    }))
+    (baseline/"visual_analysis_v2.json").write_text(report.model_dump_json())
+    saved_context=build_creative_context(report)
+    (baseline/"creative_context.json").write_text(saved_context.model_dump_json())
+    transcript=local._load_scene_plan_baseline_transcript(
+        baseline/"creative_director_v2.json",source,report.media.duration_seconds,
+    )
+    assert transcript["words"] == [
+        {"text":w.text,"start":w.start,"end":w.end}
+        for w in report.speech.words
+    ]
+    local._assert_scene_plan_phrase_alignment(
+        baseline/"creative_director_v2.json",saved_context,
+    )
+    altered=saved_context.model_copy(deep=True)
+    altered.phrases[0].text += " different words"
+    import pytest
+    with pytest.raises(ValueError,match="timings/content changed"):
+        local._assert_scene_plan_phrase_alignment(
+            baseline/"creative_director_v2.json",altered,
+        )
+
+
+def test_scene_plan_rejects_baseline_from_wrong_presenter(tmp_path):
+    source=tmp_path/"original.mp4"
+    source.write_bytes(b"same duration different file")
+    baseline=tmp_path/"baseline"
+    baseline.mkdir()
+    report=fixture_report()
+    (baseline/"local_preview_report.json").write_text(json.dumps({
+        "source":str(tmp_path/"not_this_source.mp4"),
+        "duration_seconds":report.media.duration_seconds,
+    }))
+    (baseline/"visual_analysis_v2.json").write_text(report.model_dump_json())
+    import pytest
+    with pytest.raises(ValueError,match="different source"):
+        local._load_scene_plan_baseline_transcript(
+            baseline/"creative_director_v2.json",
+            source,report.media.duration_seconds,
+        )
