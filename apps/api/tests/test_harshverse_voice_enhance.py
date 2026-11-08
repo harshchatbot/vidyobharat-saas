@@ -80,3 +80,45 @@ def test_voice_off_keeps_original_mix_path(monkeypatch, tmp_path):
     assert "acompressor=" not in graph
     assert "loudnorm=" not in graph
     assert "0:a:0" in command
+
+
+def test_final_mix_uses_original_camera_audio_not_intermediate_aac(monkeypatch, tmp_path):
+    from scripts import render_harshverse_creative_local as local
+    raw = tmp_path / "camera_original.mp4"
+    processed_video = tmp_path / "video_rendered.mp4"
+    subs = tmp_path / "captions.ass"
+    buddy = tmp_path / "buddy.png"
+    sfx = tmp_path / "sfx.wav"
+    for path in (raw, processed_video, subs, buddy, sfx):
+        path.write_bytes(b"fixture")
+    commands = []
+    monkeypatch.setattr(local.subprocess, "run", lambda cmd, **kw: commands.append(cmd))
+    local._burn_captions(
+        processed_video,subs,tmp_path/"out.mp4",
+        original_audio_source=raw, voice_enhance="studio",
+        buddy_path=buddy, buddy_windows=((.3, 1.1),),
+        sfx_path=sfx, finish_audio=True,
+    )
+    cmd = commands[0]
+    graph = cmd[cmd.index("-filter_complex")+1]
+    assert cmd[cmd.index("-i")+1] == str(processed_video)
+    assert cmd[cmd.index("-i",cmd.index("-i")+1)+1] == str(raw)
+    assert "[cap][2:v]overlay=" in graph
+    assert "[1:a:0]aresample=48000" in graph
+    assert "[voice][3:a:0]amix=" in graph
+    assert "loudnorm=I=-17" in graph
+
+
+def test_original_audio_input_missing_fails_before_ffmpeg(monkeypatch,tmp_path):
+    from scripts import render_harshverse_creative_local as local
+    src = tmp_path/"rendered.mp4"
+    subs = tmp_path/"caption.ass"
+    src.write_bytes(b"v")
+    subs.write_text("s")
+    monkeypatch.setattr(local.subprocess, "run",
+                        lambda *a, **kw: pytest.fail("Should not launch FFmpeg"))
+    with pytest.raises(FileNotFoundError, match="Original narration"):
+        local._burn_captions(
+            src,subs,tmp_path/"out.mp4",
+            original_audio_source=tmp_path/"nonexistent.mp4",
+        )
