@@ -355,15 +355,16 @@ def main():
         M[key] = mat(f"HV_{key}", value)
 
     scene = bpy.context.scene
-    available_engines = [
-        item.identifier for item in
-        scene.render.bl_rna.properties["engine"].enum_items
-    ]
-    preferred = ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES")
-    engine = next((item for item in preferred if item in available_engines), None)
+    engine = None
+    for candidate in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES"):
+        try:
+            scene.render.engine = candidate
+        except (TypeError, ValueError):
+            continue
+        engine = candidate
+        break
     if engine is None:
-        raise RuntimeError("Blender install has no supported Eevee/Cycles rendering backend")
-    scene.render.engine = engine
+        raise RuntimeError("Blender has no supported Eevee/Cycles rendering backend")
     if engine == "CYCLES":
         scene.cycles.samples = min(32, int(job["samples"]))
     if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
@@ -377,7 +378,7 @@ def main():
     scene.render.fps = fps
     scene.frame_start = 1
     scene.frame_end = math.ceil(duration * fps)
-    scene.render.filepath = str(args.frames.resolve() / "frame_")
+    scene.render.filepath = str(args.frames.resolve() / "frame_######")
     try:
         scene.view_settings.view_transform = "AgX"
     except (TypeError, ValueError):
