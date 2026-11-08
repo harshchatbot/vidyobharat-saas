@@ -301,14 +301,18 @@ def _render_warm_plate(
     current = "[0:v]"
     for i, (beat, panel) in enumerate(zip(beats, panels)):
         inputs.extend(["-loop", "1", "-framerate", str(fps), "-i", str(panel)])
-        # Fade up/down per beat without an arbitrary slide that distorts
-        # straight lines. A tiny eased horizontal reveal on graphic onset
-        # can be added in a later iteration, after frame QA.
+        # Panel artwork enters gently; narration timing is unchanged.
         start, end = beat.start, beat.end
         tag = f"[warm{i}]"
         enable = f"between(t\\,{start:.3f}\\,{end - 0.0005:.3f})"
+        # Gentle 90px ease-in over 230ms; never animate the presenter's face.
+        entrance_end = start + min(0.23, max(0.08, (end - start) * 0.3))
+        xmotion = (
+            f"if(lt(t\\,{entrance_end:.3f})\\,"
+            f"max(0\\,({entrance_end:.3f}-t)*400)\\,0)"
+        )
         filters.append(
-            f"{current}[{i + 1}:v]overlay=x=0:y=0:enable='{enable}':"
+            f"{current}[{i + 1}:v]overlay=x='{xmotion}':y=0:enable='{enable}':"
             f"shortest=1:eof_action=repeat{tag}"
         )
         current = tag
