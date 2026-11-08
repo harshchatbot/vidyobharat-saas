@@ -152,10 +152,6 @@ def ease_motion(obj, start_f: int, target_f: int, end_f: int,
         obj.scale = (0.001, 0.001, 0.001)
         obj.keyframe_insert(data_path="location", frame=leave_f)
         obj.keyframe_insert(data_path="scale", frame=leave_f)
-    if obj.animation_data and obj.animation_data.action:
-        for curve in obj.animation_data.action.fcurves:
-            for keyframe in curve.keyframe_points:
-                keyframe.interpolation = "BEZIER"
 
 
 def build_node(name, location, title, surface, *, family="card"):
@@ -341,14 +337,15 @@ def main():
         raise ValueError("Untrusted Blender job dimensions or duration")
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
-    bpy.data.materials.clear()
+    for old_mat in list(bpy.data.materials):
+        bpy.data.materials.remove(old_mat)
     for key, value in C.items():
         M[key] = mat(f"HV_{key}", value)
 
     scene = bpy.context.scene
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
-    except TypeError:
+    except (TypeError, ValueError):
         scene.render.engine = "BLENDER_EEVEE"
     if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
         scene.eevee.taa_render_samples = int(job["samples"])
@@ -364,7 +361,7 @@ def main():
     scene.render.filepath = str(args.frames.resolve() / "frame_")
     try:
         scene.view_settings.view_transform = "AgX"
-    except TypeError:
+    except (TypeError, ValueError):
         scene.view_settings.view_transform = "Standard"
     scene.world.color = color(C["cream"])
 
