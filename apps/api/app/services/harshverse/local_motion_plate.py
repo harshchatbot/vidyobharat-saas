@@ -192,11 +192,16 @@ def render_motion_plate(
     *,
     fps: int = 30,
     ffmpeg: str = "ffmpeg",
+    visual_style: str = "classic",
 ) -> MotionPlateResult | None:
     """Render only original local graphic templates; does not approve export."""
     _, beats, skipped = build_motion_render_composition(composition, context, fps=fps)
     if not beats:
         return None
+    if visual_style not in ("classic", "harshverse_warm"):
+        raise ValueError("Unknown HarshVerse visual style pack")
+    if visual_style == "harshverse_warm":
+        return _render_warm_plate(composition, beats, skipped, path, fps=fps, ffmpeg=ffmpeg)
     phrases = {p.id: p for p in context.phrases}
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,4 +265,70 @@ def render_motion_plate(
         path=path,
         rendered_beat_ids=tuple(beat.id for beat in beats),
         skipped_beat_ids=skipped,
+    )
+
+
+
+def _render_warm_plate(
+    composition: CompositionPlanV21,
+    beats: list[CompositionBeat],
+    skipped: list[str],
+    path: Path,
+    *,
+    fps: int,
+    ffmpeg: str,
+) -> MotionPlateResult:
+    """Use original 2.5D style art, never duplicate the spoken phrase as art text.
+
+    FFmpeg animates the whole illustrated plate with a restrained slide entrance;
+    captions are rendered in a dedicated safe strip by the existing caption
+    bridge, not painted twice inside illustrations.
+    """
+    from app.services.harshverse.warm_style import make_explainer_panel
+
+    path = Path(path).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    panels: list[Path] = []
+    for i, beat in enumerate(beats):
+        panel = path.with_name(f"{path.stem}_warm_{i:02d}.png")
+        make_explainer_panel(panel, template=beat.template, ordinal=i + 1)
+        panels.append(panel)
+
+    inputs: list[str] = [
+        "-f", "lavfi", "-i", f"color=c=0xF8F3E9:s=720x640:r={fps}"
+    ]
+    filters: list[str] = []
+    current = "[0:v]"
+    for i, (beat, panel) in enumerate(zip(beats, panels)):
+        inputs.extend(["-loop", "1", "-framerate", str(fps), "-i", str(panel)])
+        # Fade up/down per beat without an arbitrary slide that distorts
+        # straight lines. A tiny eased horizontal reveal on graphic onset
+        # can be added in a later iteration, after frame QA.
+        start, end = beat.start, beat.end
+        tag = f"[warm{i}]"
+        enable = f"between(t\\,{start:.3f}\\,{end - 0.0005:.3f})"
+        filters.append(
+            f"{current}[{i + 1}:v]overlay=x=0:y=0:enable='{enable}':"
+            f"shortest=1:eof_action=repeat{tag}"
+        )
+        current = tag
+    filters.append(f"{current}format=yuv420p[vout]")
+    command = [
+        ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+        *inputs, "-filter_complex", ";".join(filters),
+        "-map", "[vout]", "-an",
+        "-t", f"{composition.duration_seconds:.3f}",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(path),
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True, timeout=300)
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode("utf-8", errors="replace")[-800:] if exc.stderr else ""
+        raise RuntimeError(f"Warm motion plate FFmpeg failed: {detail}") from exc
+    if not path.is_file() or not path.stat().st_size:
+        raise RuntimeError("Warm illustrated motion plate missing")
+    return MotionPlateResult(
+        path=path, rendered_beat_ids=tuple(beat.id for beat in beats),
+        skipped_beat_ids=tuple(skipped),
     )
