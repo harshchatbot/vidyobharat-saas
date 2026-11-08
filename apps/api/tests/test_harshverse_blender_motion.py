@@ -27,9 +27,9 @@ def test_blender_job_uses_only_validated_phrase_timed_beats():
     _context, composition, beats = _beats()
     job = build_blender_job(composition, beats, quality="preview")
     assert job["contract"] == "harshverse-blender-3d-v1"
-    assert job["fps"] == 16
-    assert job["width"] == 480
-    assert job["height"] == 427
+    assert job["fps"] == 24
+    assert job["width"] == 540
+    assert job["height"] == 480
     assert job["duration"] == composition.duration_seconds
     assert job["sequences"][0]["beats"][0]["id"] == beats[0].id
     final = build_blender_job(composition, beats, quality="final")
