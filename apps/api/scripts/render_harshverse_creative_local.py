@@ -60,7 +60,8 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
                    width: int = 720, height: int = 1280,
                    buddy_path: Path | None = None,
                    buddy_windows: tuple[tuple[float, float], ...] = (),
-                   sfx_path: Path | None = None) -> None:
+                   sfx_path: Path | None = None,
+                   finish_audio: bool = False) -> None:
     """Final image/caption and optional ORIGINAL warm SFX mix.
 
     Original speech stays the first audio input. No cuts, ducking, timing
@@ -103,12 +104,19 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
 
     if sfx_path is not None:
         sfx_input_index = 2 if use_buddy else 1
-        # Quiet synthesized accents preserve the existing spoken track.
+        # Preserve actual spoken timing; no TTS or edited speech.
         filters.append(
             f"[0:a:0][{sfx_input_index}:a:0]"
             "amix=inputs=2:duration=first:dropout_transition=0:"
-            "normalize=0[aout]"
+            "normalize=0[mixed]"
         )
+        if finish_audio:
+            filters.append("[mixed]loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
+            audio_map = "[aout]"
+        else:
+            audio_map = "[mixed]"
+    elif finish_audio:
+        filters.append("[0:a:0]loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
         audio_map = "[aout]"
     else:
         audio_map = "0:a:0"
@@ -356,8 +364,11 @@ async def build_local_creative_preview(
                 and not any(start < g_end and end > g_start
                             for g_start, g_end in graphic_windows)
             )
-            original_sfx = [
-                (b.start, "whoosh" if b.template != "keyword_card" else "pop")
+            original_sfx = (
+                [(0.30, "typewriter")] if editorial_intro else []
+            ) + [
+                (b.start, "faahh" if b.template == "human_vs_ai"
+                 else "pop" if b.template == "keyword_card" else "whoosh")
                 for b in composition.beats if b.kind == "motion_graphic"
             ]
             sfx_path = None
@@ -369,7 +380,7 @@ async def build_local_creative_preview(
             rendered_buddy_cameos = len(cameo_windows)
             _burn_captions(render_source, captions_path, staged,
                            buddy_path=buddy, buddy_windows=cameo_windows,
-                           sfx_path=sfx_path)
+                           sfx_path=sfx_path, finish_audio=True)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
