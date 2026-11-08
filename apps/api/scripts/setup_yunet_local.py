@@ -96,7 +96,9 @@ def _download_pinned_model(destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file() and _sha256(destination) == _MODEL_SHA256:
         return
-    fd, tmp_name = tempfile.mkstemp(prefix=".yunet-", suffix=".part", dir=destination.parent)
+    # OpenCV DNN infers the ONNX loader from the filename extension.
+    # The temporary download must end in .onnx even before atomic promotion.
+    fd, tmp_name = tempfile.mkstemp(prefix=".yunet-", suffix=".onnx", dir=destination.parent)
     os.close(fd)
     temp = Path(tmp_name)
     try:
