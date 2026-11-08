@@ -153,8 +153,11 @@ def detect_faces(
         if width <= 0 or height <= 0:
             return "unavailable", []
         scale = min(1.0, 640.0 / max(width, height))
-        dw = max(2, int(round(width * scale / 2)) * 2)
-        dh = max(2, int(round(height * scale / 2)) * 2)
+        # Dynamic YuNet (OpenCV 5 / ONNX Runtime) needs both dimensions
+        # divisible by the model's largest feature stride (32).
+        # Always down-round so we respect the 640px decode budget.
+        dw = max(32, int(width * scale / 32) * 32)
+        dh = max(32, int(height * scale / 32) * 32)
         count = min(math.ceil(duration), MAX_FACE_SAMPLES)
         if count < 1:
             return "no_faces", []
