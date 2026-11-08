@@ -40,6 +40,7 @@ from app.services.harshverse.color_grade import resolve_color_grade, presenter_g
 from app.services.harshverse.layered_type import choose_speech_keyword, render_editorial_intro
 from app.services.harshverse.person_matte import build_person_matte
 from app.services.harshverse.editorial_effects import camera_moves_from_composition, render_camera_effects
+from app.services.harshverse.video_fades import video_fade_filter, render_video_fades
 from app.services.harshverse.voice_enhance import voice_enhance_filter
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
@@ -238,6 +239,7 @@ async def build_local_creative_preview(
     motion_engine: str = "illustrated",
     blender_bin: Path | None = None,
     blender_quality: str = "preview",
+    visual_fade_seconds: float = 0.0,
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -250,6 +252,8 @@ async def build_local_creative_preview(
         raise ValueError("Unsupported HarshVerse visual pack")
     selected_grade = resolve_color_grade(visual_style, color_grade)
     voice_enhance_filter(voice_enhance)  # validate even if no SFX
+    if not (0 <= visual_fade_seconds <= 1.5):
+        raise ValueError("Visual fade must be between 0 and 1.5 seconds")
     if motion_engine not in ("illustrated", "blender3d"):
         raise ValueError("Unknown HarshVerse motion engine")
     if motion_engine == "blender3d" and visual_style != WARM_STYLE:
@@ -274,6 +278,8 @@ async def build_local_creative_preview(
     if not any(s.get("codec_type") == "video" for s in media.get("streams", [])):
         raise ValueError("Presenter must contain video.")
     duration = _duration(media)
+    if visual_fade_seconds:
+        video_fade_filter(duration=duration,fade_seconds=visual_fade_seconds)
     if duration > 60 or duration <= 0:
         raise ValueError("Local HarshVerse V1 requires a video between 0 and 60 seconds.")
 
@@ -466,6 +472,11 @@ async def build_local_creative_preview(
                            original_audio_source=source)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
+        if visual_fade_seconds:
+            faded = Path(temporary) / "visual_fades.mp4"
+            render_video_fades(staged, faded, duration=duration,
+                               fade_seconds=visual_fade_seconds)
+            staged = faded
         staged.replace(output)
 
     warnings = list(report.warnings) + list(composition.warnings) + caption_warnings
@@ -513,6 +524,7 @@ async def build_local_creative_preview(
         "rendered_buddy_cameos": rendered_buddy_cameos,
         "rendered_motion_beat_ids": rendered,
         "rendered_camera_beat_ids": list(rendered_camera_beat_ids),
+        "rendered_visual_fade_seconds": visual_fade_seconds,
         "deferred_beat_ids": deferred,
         "warnings": list(dict.fromkeys(warnings)),
     }
@@ -552,6 +564,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Presenter-only color grade; auto uses warm_editorial for harshverse_warm.")
     parser.add_argument("--voice-enhance", choices=("off", "natural", "studio"), default="off",
                         help="Original narration cleanup before SFX; off preserves prior behavior.")
+    parser.add_argument("--visual-fade-seconds", type=float, default=0.0,
+                        help="Optional complete visual fade at start/end; leaves narration untouched.")
     parser.add_argument("--motion-engine", choices=("illustrated", "blender3d"),
                         default="illustrated",
                         help="Choose procedural 2.5D illustrations or independent Blender 3D scenes.")
@@ -587,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
             voice_enhance=args.voice_enhance,
             motion_engine=args.motion_engine, blender_bin=args.blender_bin,
             blender_quality=args.blender_quality,
+            visual_fade_seconds=args.visual_fade_seconds,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
