@@ -253,7 +253,7 @@ def test_media_stream_delete_race_is_handled_after_headers(caplog):
 
 
 def test_yunet_ffmpeg_one_pass_scales_and_normalizes_face(monkeypatch, tmp_path):
-    """16 FPS source is sampled by FFmpeg to exactly 3 portrait frames."""
+    """Source is sampled to exactly 3 portrait frames aligned to stride 32."""
     import sys
     from types import SimpleNamespace
     import numpy as np
@@ -266,15 +266,15 @@ def test_yunet_ffmpeg_one_pass_scales_and_normalizes_face(monkeypatch, tmp_path)
     def fake_run(command, **kwargs):
         calls["commands"].append(command)
         assert kwargs["check"] is True
-        assert "-vf" in command and "fps=1,scale=360:640" in command[command.index("-vf") + 1]
+        assert "-vf" in command and "fps=1,scale=352:640" in command[command.index("-vf") + 1]
         assert command[command.index("-frames:v") + 1] == "3"
-        return SimpleNamespace(stdout=bytes(360 * 640 * 3 * 3))
+        return SimpleNamespace(stdout=bytes(352 * 640 * 3 * 3))
 
     class Detector:
         def detect(self, frame):
             calls["frames"] += 1
-            assert frame.shape == (640, 360, 3)
-            return None, np.array([[90, 160, 180, 320, *([0] * 10), 0.99]], dtype=float)
+            assert frame.shape == (640, 352, 3)
+            return None, np.array([[88, 160, 176, 320, *([0] * 10), 0.99]], dtype=float)
 
     fake_cv2 = SimpleNamespace(FaceDetectorYN_create=lambda _path, _config, size, *_args: (
         calls["sizes"].append(size) or Detector()
@@ -285,7 +285,7 @@ def test_yunet_ffmpeg_one_pass_scales_and_normalizes_face(monkeypatch, tmp_path)
 
     assert status == "complete"
     assert len(calls["commands"]) == 1
-    assert calls["sizes"] == [(360, 640)]
+    assert calls["sizes"] == [(352, 640)]
     assert calls["frames"] == 3
     assert len(samples) == 3
     assert samples[0].box.x == pytest.approx(0.25)
