@@ -234,6 +234,8 @@ async def build_local_creative_preview(
     if not overlays:
         raise ValueError("No source-timed caption overlays could be generated.")
 
+    rendered_sfx_count = 0
+    rendered_buddy_cameos = 0
     with tempfile.TemporaryDirectory(prefix="rangmanch-creative-local-") as temporary:
         captions_path = Path(temporary) / "captions.ass"
         captions = write_caption_track(captions_path, overlays)
@@ -300,10 +302,11 @@ async def build_local_creative_preview(
             ]
             sfx_path = None
             if original_sfx:
-                sfx_path, _sfx_count = synthesize_warm_sfx(
+                sfx_path, rendered_sfx_count = synthesize_warm_sfx(
                     Path(temporary) / "original_warm_sfx.wav",
                     duration, original_sfx,
                 )
+            rendered_buddy_cameos = len(cameo_windows)
             _burn_captions(render_source, captions_path, staged,
                            buddy_path=buddy, buddy_windows=cameo_windows,
                            sfx_path=sfx_path)
@@ -342,6 +345,8 @@ async def build_local_creative_preview(
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
         "captions": captions.caption_count,
         "highlighted_words": captions.word_count,
+        "rendered_original_sfx_cues": rendered_sfx_count,
+        "rendered_buddy_cameos": rendered_buddy_cameos,
         "rendered_motion_beat_ids": rendered,
         "deferred_beat_ids": deferred,
         "warnings": list(dict.fromkeys(warnings)),
