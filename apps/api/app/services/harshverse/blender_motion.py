@@ -24,7 +24,7 @@ from typing import Any
 from app.services.video_creative_director_v21 import CompositionBeat, CompositionPlanV21
 
 _TEMPLATES = frozenset({"keyword_card", "data_flow", "human_vs_ai", "source_stack"})
-_RENDER_QUALITY = {"preview": (480, 427, 16, 16), "final": (720, 640, 30, 32)}
+_RENDER_QUALITY = {"preview": (540, 480, 24, 16), "final": (720, 640, 30, 32)}
 
 
 @dataclass(frozen=True)
