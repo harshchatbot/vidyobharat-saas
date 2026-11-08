@@ -288,31 +288,44 @@ def _render_warm_plate(
 
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
-    panels: list[Path] = []
+    # Rather than sliding one finished slide over the speaker, construct
+    # each illustration in ordered visual steps: first object, next object,
+    # final connection. Each stage is a reusable original art frame.
+    stages: list[tuple[CompositionBeat, int, float, float, Path]] = []
     for i, beat in enumerate(beats):
-        panel = path.with_name(f"{path.stem}_warm_{i:02d}.png")
-        make_explainer_panel(panel, template=beat.template, ordinal=i + 1)
-        panels.append(panel)
+        interval = beat.end - beat.start
+        reveal_gap = min(.29, max(.055, interval * .20))
+        for step in (1, 2, 3):
+            stage_start = beat.start + (step - 1) * reveal_gap
+            stage_end = (beat.start + step * reveal_gap
+                         if step < 3 else beat.end)
+            if stage_end <= stage_start + .015:
+                continue
+            panel = path.with_name(f"{path.stem}_warm_{i:02d}_step{step}.png")
+            make_explainer_panel(
+                panel, template=beat.template, ordinal=i + 1,
+                reveal_step=step,
+            )
+            stages.append((beat,step,stage_start,stage_end,panel))
 
     inputs: list[str] = [
         "-f", "lavfi", "-i", f"color=c=0xF8F3E9:s=720x640:r={fps}"
     ]
     filters: list[str] = []
     current = "[0:v]"
-    for i, (beat, panel) in enumerate(zip(beats, panels)):
+    for index, (beat, step, start, end, panel) in enumerate(stages, 1):
         inputs.extend(["-loop", "1", "-framerate", str(fps), "-i", str(panel)])
-        # Panel artwork enters gently; narration timing is unchanged.
-        start, end = beat.start, beat.end
-        tag = f"[warm{i}]"
-        enable = f"between(t\\,{start:.3f}\\,{end - 0.0005:.3f})"
-        # Gentle 90px ease-in over 230ms; never animate the presenter's face.
-        entrance_end = start + min(0.23, max(0.08, (end - start) * 0.3))
-        xmotion = (
-            f"if(lt(t\\,{entrance_end:.3f})\\,"
-            f"max(0\\,({entrance_end:.3f}-t)*400)\\,0)"
+        tag = f"[warm{index}]"
+        enable = f"gte(t\\,{start:.3f})*lt(t\\,{end:.3f})"
+        # Brief kinetic slide; objects appear at distinct beat-relative
+        # times, not from a generic effect spam template.
+        arrive = min(start + .15, end)
+        motion = (
+            f"if(lt(t\\,{arrive:.3f})\\,"
+            f"max(0\\,({arrive:.3f}-t)*500)\\,0)"
         )
         filters.append(
-            f"{current}[{i + 1}:v]overlay=x='{xmotion}':y=0:enable='{enable}':"
+            f"{current}[{index}:v]overlay=x='{motion}':y=0:enable='{enable}':"
             f"shortest=1:eof_action=repeat{tag}"
         )
         current = tag
