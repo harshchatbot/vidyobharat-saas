@@ -225,3 +225,69 @@ floats without clipping, text does not overlap the new buddy position,
 and stage images no longer produce a wide slide. Compare real-time quality,
 not still-frame appeal. Stage graphics remain original **2.5D drawings**, not
 a claim of full 3D animation quality.
+
+
+## Phase 1 — Optional Blender 3D motion engine (experimental)
+
+The new motion renderer is separately selectable. It creates original
+physical 3D geometry, beveled surfaces, area-light shadows, moving cameras,
+keyframed props and a consistently modeled square buddy. No third-party
+models, borrowed scene geometry, SFX or footage are bundled.
+
+Four scene recipes are supported: data_flow, source_stack, human_vs_ai, keyword_card.
+Adjacent same-template graphic beats are grouped into continuous 3D scenes
+(up to 8.5 seconds, gaps at most 0.38 seconds) without modifying original
+phrase timing. The 3D buddy has modeled arms, facial details, body bounce
+and animated blinks. A restrained 180ms cream fade softens graphic boundaries.
+
+This is genuine procedural 3D, not photorealistic generative 3D footage.
+End-to-end rendering has not yet been verified with an installed Blender
+executable; review the actual MP4 before evaluating quality.
+
+### Blender setup on Mac
+
+```bash
+brew install --cask blender
+/Applications/Blender.app/Contents/MacOS/Blender --version
+```
+
+Blender is not distributed inside the repository. A custom Blender binary
+can be set through --blender-bin or RANGMANCH_BLENDER_BIN.
+
+### Tests
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python -m pytest -q \
+  apps/api/tests/test_harshverse_blender_motion.py \
+  apps/api/tests/test_harshverse_warm_style.py \
+  apps/api/tests/test_harshverse_local_motion_plate.py \
+  apps/api/tests/test_harshverse_creative_local_runner.py
+```
+
+### Preview render, same source, same validated plan, same voice
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python \
+  apps/api/scripts/render_harshverse_creative_local.py \
+  --presenter "$HOME/Downloads/Test_Talking_Head_Harsh.mp4" \
+  --scene-plan "$HOME/Downloads/HarshVerse-Editorial-V1/creative_director_v2.json" \
+  --output-dir "$HOME/Downloads/HarshVerse-3D-Preview" \
+  --style energetic \
+  --visual-style harshverse_warm \
+  --motion-engine blender3d \
+  --3d-quality preview \
+  --color-grade warm_editorial \
+  --editorial-intro \
+  --person-matte-model apps/api/data/models/selfie_segmenter.tflite \
+  --voice-enhance studio \
+  --overwrite
+```
+
+After visually reviewing preview quality, use --3d-quality final with a
+different --output-dir. The illustrated renderer remains the default;
+Blender mode fails clearly if Blender is missing rather than mislabeling 2.5D.
+
+Quality gates: person remains visible, no overlapping captions, meaningful
+graphics, smooth object entrances, recognizable mascot animation, restrained
+SFX, and no speech timing cuts. This is Phase 1 only; public repo and SaaS
+must wait for quality review.
