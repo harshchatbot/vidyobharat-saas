@@ -120,6 +120,20 @@ def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(mon
         return ScenePlanV2.model_validate(sample(context))
     monkeypatch.setattr(local, "generate_openai_scene_plan", fake_director)
 
+    # The validated talking-head zoom is now actually rendered before
+    # motion composition. Keep this fake faithful to the new camera
+    # adapter rather than leaving its input unmocked.
+    def fake_camera(source_path, output_path, moves, **kwargs):
+        assert moves and all(m.beat_id.startswith("zoom-") for m in moves)
+        output_path.write_bytes(b"camera-zoom")
+        from app.services.harshverse.editorial_effects import CameraEffectsResult
+        return CameraEffectsResult(
+            path=output_path,
+            rendered_beat_ids=tuple(m.beat_id for m in moves),
+            fps=30, duration_seconds=kwargs["duration"],
+        )
+    monkeypatch.setattr(local, "render_camera_effects", fake_camera)
+
     def fake_plate(composition, context, path):
         graphics = [b for b in composition.beats if b.kind == "motion_graphic"]
         assert graphics
@@ -129,7 +143,7 @@ def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(mon
 
     called = []
     def fake_render(plan, presenter, plate, output):
-        assert presenter == source.resolve()
+        assert presenter.read_bytes() == b"camera-zoom"
         assert plate.read_bytes() == b"local-animation"
         assert any(s.recipe == "presenter_split" for s in plan.scenes)
         output.write_bytes(b"composited")
@@ -154,6 +168,8 @@ def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(mon
     assert called == ["motion", "captions"]
     assert result["director_mode"] == "creative_director_v2_openai"
     assert len(result["rendered_motion_beat_ids"]) == 1
+    assert result["rendered_camera_beat_ids"] == ["zoom-1"]
+    assert "zoom-1" not in result["deferred_beat_ids"]
     assert not any(beat.startswith("graphic-") for beat in result["deferred_beat_ids"])
     assert (tmp_path / "result" / "harshverse_creative_preview.mp4").read_bytes() == b"final-mp4"
 
