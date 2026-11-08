@@ -309,9 +309,12 @@ def test_yunet_no_detection_is_not_unavailable(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "cv2", SimpleNamespace(
         FaceDetectorYN_create=lambda *_args: Detector(),
     ))
-    monkeypatch.setattr(analysis.subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(
-        stdout=bytes(240 * 320 * 3 * 2),
-    ))
+    def fake_run(command, **_kwargs):
+        # 240px is rounded down to 224px to match YuNet's stride-32 input.
+        assert "fps=1,scale=224:320" in command[command.index("-vf") + 1]
+        return SimpleNamespace(stdout=bytes(224 * 320 * 3 * 2))
+
+    monkeypatch.setattr(analysis.subprocess, "run", fake_run)
     status, samples = analysis.detect_faces(tmp_path / "video.mp4", 2, 240, 320)
     assert (status, samples) == ("no_faces", [])
 
