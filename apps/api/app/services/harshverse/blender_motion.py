@@ -130,40 +130,60 @@ def build_blender_job(
             "THIS", "YOUR", "WITH", "WHAT", "THERE", "HERE",
             "BECAUSE", "ACTUALLY", "INTERESTING", "PART", "WELL",
             "JUST", "LIKE", "ABOUT", "FROM", "YOU", "HOW",
-            "DOES", "THINK", "QUESTIONS", "UNDERSTANDS",
+            "DOES", "DOESN", "DONT", "DON", "DIDN", "ISN", "AREN",
+            "THINK", "QUESTIONS", "UNDERSTANDS", "EXACTLY",
+            "AMOUNT", "ENORMOUS", "DIFFERENT", "IT", "ITS",
+            "ITSELF", "HE", "SHE", "LEARN", "LEARNS", "IS",
+            "WAS", "ARE", "AN", "OF", "TO", "NOT", "IN",
         }
-        topics = [w for w in source_words
-                  if 2 <= len(w) <= 14 and w not in stop]
+        # A curated semantic vocabulary prevents chopped contractions
+        # (e.g. DOESN from doesn't), fillers and arbitrary verbs turning
+        # into oversized on-screen labels. This is for safe visual
+        # illustration, not a replacement for exact spoken captions.
         priority = (
-            "CHATGPT", "SALESFORCE", "AGENTFORCE", "WORKFLOW",
-            "PATTERNS", "HUMAN", "MODEL", "DATA", "AI", "GPT",
+            "CHATGPT", "SALESFORCE", "AGENTFORCE", "GPT",
+            "HUMAN", "PATTERNS", "PATTERN", "BOOKS", "BOOK",
+            "SOURCES", "SOURCE", "INFORMATION", "MODEL",
+            "WORKFLOW", "DATA", "AGENT", "AI", "RESPONSE",
+            "QUESTION", "TEXT", "INPUT", "OUTPUT",
         )
-        chosen = next((w for w in priority if w in topics), None)
-        sequence["topic"] = chosen or (topics[0] if topics else "")
-        # Three semantic mini-cards selected from distinct user phrases,
-        # with their own already-validated start times. Avoid generic
-        # repeated "BIG IDEA" blocks throughout a long explanation.
+        topics = [w for w in source_words if w in priority]
+        # Prefer the overarching concept of the explanation, even when
+        # the first phrase is 'well here's the interesting part'.
+        sequence["topic"] = next(
+            (w for w in ("PATTERNS", "CHATGPT", "SALESFORCE",
+                         "WORKFLOW", "HUMAN", "GPT", "INFORMATION")
+             if w in topics),
+            topics[0] if topics else "",
+        )
+
+        # Choose meaningful visual beats across the ENTIRE narrative,
+        # not the first three phrases. Reserve later concepts such as
+        # PATTERNS and BOOKS instead of prematurely selecting DOESN.
+        # Each label's timestamp is its exact validated phrase start.
         concepts = []
-        seen = set()
+        used = set()
         for beat in sequence["beats"]:
-            matched = next((item for item in beats if item.id == beat["id"]), None)
-            if matched is None:
+            match = next((entry for entry in beats if entry.id == beat["id"]), None)
+            if match is None:
                 continue
             words = []
-            for pid in matched.phrase_ids:
+            for pid in match.phrase_ids:
                 if phrase_texts and pid in phrase_texts:
                     words.extend(re.findall(
                         r"[A-Za-z0-9]+", phrase_texts[pid].upper()
                     ))
-            valid = [w for w in words
-                     if 2 <= len(w) <= 12 and w not in stop and w not in seen]
-            candidate = next((w for w in priority if w in valid),
-                             valid[0] if valid else None)
+            candidate = next((w for w in priority if w in words and w not in used), None)
             if candidate:
                 concepts.append({"label": candidate, "at": beat["start"]})
-                seen.add(candidate)
-            if len(concepts) == 3:
-                break
+                used.add(candidate)
+        # Keep at most three distinct, important concepts, always
+        # chronological. GPT, HUMAN and PATTERNS beat generic filler.
+        salience = {w: len(priority)-i for i,w in enumerate(priority)}
+        concepts = sorted(
+            sorted(concepts, key=lambda item: -salience[item["label"]])[:3],
+            key=lambda item: item["at"],
+        )
         sequence["concepts"] = concepts
     return {
         "contract": "harshverse-blender-3d-v1",
