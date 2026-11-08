@@ -36,6 +36,7 @@ from app.services.harshverse.render_adapter import _duration, _probe, render as 
 from app.services.harshverse.local_motion_plate import render_motion_plate, build_motion_render_composition
 from app.services.harshverse.warm_style import make_buddy_sticker, STYLE_ID as WARM_STYLE
 from app.services.harshverse.warm_sfx import synthesize_warm_sfx
+from app.services.harshverse.color_grade import resolve_color_grade, presenter_grade_filter
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
@@ -120,6 +121,31 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
     subprocess.run(command, check=True, timeout=300)
 
 
+def _apply_presenter_grade(source: Path, destination: Path, grade: str) -> None:
+    """Grade only the original camera video; preserve source audio/timing.
+
+    Rendering occurs before any plates, buddy or captions exist. A separate
+    temporary input keeps the immutable user recording untouched.
+    """
+    filter_chain = presenter_grade_filter(grade)
+    if not filter_chain:
+        raise ValueError("Grade output should not be generated when disabled")
+    subprocess.run([
+        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(source), "-map", "0:v:0", "-map", "0:a:0",
+        "-vf", filter_chain,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+        "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
+        str(destination),
+    ], check=True, timeout=300)
+    if not destination.is_file() or destination.stat().st_size == 0:
+        raise RuntimeError("Presenter grade was not rendered")
+    original_duration = _duration(_probe(source))
+    graded_duration = _duration(_probe(destination))
+    if abs(original_duration - graded_duration) > .10:
+        raise RuntimeError("Presenter grade changed video duration")
+
+
 def build_motion_smoke_scene_plan(context):
     """Explicit diagnostic fixture from real phrase IDs, not an AI decision.
 
@@ -164,6 +190,7 @@ async def build_local_creative_preview(
     overwrite: bool = False,
     smoke_motion: bool = False,
     visual_style: str = "classic",
+    color_grade: str = "auto",
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -174,6 +201,7 @@ async def build_local_creative_preview(
     source, output_dir = Path(source).expanduser().resolve(), Path(output_dir).expanduser().resolve()
     if visual_style not in ("classic", WARM_STYLE):
         raise ValueError("Unsupported HarshVerse visual pack")
+    selected_grade = resolve_color_grade(visual_style, color_grade)
     if style not in ("elegant", "energetic", "cinematic"):
         raise ValueError("Unsupported editing style")
     if not source.is_file():
@@ -239,11 +267,15 @@ async def build_local_creative_preview(
     with tempfile.TemporaryDirectory(prefix="rangmanch-creative-local-") as temporary:
         captions_path = Path(temporary) / "captions.ass"
         captions = write_caption_track(captions_path, overlays)
+        graded_presenter = source
+        if selected_grade != "off":
+            graded_presenter = Path(temporary) / "presenter_graded.mp4"
+            _apply_presenter_grade(source, graded_presenter, selected_grade)
         # The V2.1 composition is a review-only specification. This initial
         # integration does not fabricate or auto-render B-roll/graphic plates.
         # HarshVerse's original video remains uninterrupted, with new timed
         # captions burned directly onto the original frames.
-        render_source = source
+        render_source = graded_presenter
         motion_result = None
         render_plan, _, skipped_motions = build_motion_render_composition(composition, context)
         motion_path = Path(temporary) / "director_motion_plate.mp4"
@@ -264,7 +296,7 @@ async def build_local_creative_preview(
                                              prepared_visuals=prepared)
             composited = Path(temporary) / "harshverse_with_motion.mp4"
             if visual_style == "classic":
-                render_harshverse(draft.scene_plan, source, motion_path, composited)
+                render_harshverse(draft.scene_plan, graded_presenter, motion_path, composited)
             else:
                 centers = [
                     sample.box.y + sample.box.height / 2
@@ -272,7 +304,7 @@ async def build_local_creative_preview(
                 ]
                 face_center = sorted(centers)[len(centers) // 2] if centers else 0.5
                 render_harshverse(
-                    draft.scene_plan, source, motion_path, composited,
+                    draft.scene_plan, graded_presenter, motion_path, composited,
                     visual_style=visual_style, face_center_y=face_center,
                 )
             render_source = composited
@@ -342,6 +374,7 @@ async def build_local_creative_preview(
         "transcription_mode": transcription_mode,
         "director_mode": director_mode,
         "visual_style": visual_style,
+        "presenter_color_grade": selected_grade,
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
         "captions": captions.caption_count,
         "highlighted_words": captions.word_count,
@@ -383,6 +416,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", default="gpt-4o-mini")
     parser.add_argument("--visual-style", choices=("classic", WARM_STYLE), default="classic",
                         help="Renderer style pack; harshverse_warm uses original illustrations and buddy.")
+    parser.add_argument("--color-grade", choices=("auto", "off", "warm_editorial"), default="auto",
+                        help="Presenter-only color grade; auto uses warm_editorial for harshverse_warm.")
     parser.add_argument("--smoke-motion", action="store_true",
                         help="Explicit diagnostic: exercise one V2.1 graphic beat independent of AI selection.")
     parser.add_argument("--require-openai", action="store_true",
@@ -401,7 +436,7 @@ def main(argv: list[str] | None = None) -> int:
             transcript_path=args.transcript, scene_plan_path=args.scene_plan,
             api_key=api_key, model=args.model,
             overwrite=args.overwrite, smoke_motion=args.smoke_motion,
-            visual_style=args.visual_style,
+            visual_style=args.visual_style, color_grade=args.color_grade,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
