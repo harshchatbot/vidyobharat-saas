@@ -39,6 +39,7 @@ from app.services.harshverse.warm_sfx import synthesize_warm_sfx
 from app.services.harshverse.color_grade import resolve_color_grade, presenter_grade_filter
 from app.services.harshverse.layered_type import choose_speech_keyword, render_editorial_intro
 from app.services.harshverse.person_matte import build_person_matte
+from app.services.harshverse.editorial_effects import camera_moves_from_composition, render_camera_effects
 from app.services.harshverse.voice_enhance import voice_enhance_filter
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
@@ -321,6 +322,7 @@ async def build_local_creative_preview(
     rendered_buddy_cameos = 0
     editorial_title_mode = "off"
     editorial_keyword = None
+    rendered_camera_beat_ids: tuple[str, ...] = ()
     with tempfile.TemporaryDirectory(prefix="rangmanch-creative-local-") as temporary:
         captions_path = Path(temporary) / "captions.ass"
         captions = write_caption_track(
@@ -330,6 +332,29 @@ async def build_local_creative_preview(
         if selected_grade != "off":
             graded_presenter = Path(temporary) / "presenter_graded.mp4"
             _apply_presenter_grade(source, graded_presenter, selected_grade)
+        zooms = camera_moves_from_composition(composition)
+        if zooms:
+            # Source-bound camera effects run before matte, 3D/2.5D
+            # graphics and captions. The final mixer always reads untouched
+            # narration directly from the original source.
+            centers_x = [
+                sample.box.x + sample.box.width / 2
+                for sample in report.visual.face_samples
+            ]
+            centers_y = [
+                sample.box.y + sample.box.height / 2
+                for sample in report.visual.face_samples
+            ]
+            zoom_output = Path(temporary) / "presenter_camera_effects.mp4"
+            camera = render_camera_effects(
+                graded_presenter, zoom_output, zooms, duration=duration,
+                face_center_x=(sorted(centers_x)[len(centers_x)//2]
+                               if centers_x else .5),
+                face_center_y=(sorted(centers_y)[len(centers_y)//2]
+                               if centers_y else .4),
+            )
+            graded_presenter = camera.path
+            rendered_camera_beat_ids = camera.rendered_beat_ids
         if editorial_intro:
             keyword = choose_speech_keyword([word.text for word in report.speech.words])
             # Sparse face boxes are NOT a person silhouette. Without a
@@ -446,9 +471,13 @@ async def build_local_creative_preview(
     warnings = list(report.warnings) + list(composition.warnings) + caption_warnings
     rendered = list(motion_result.rendered_beat_ids) if motion_result else []
     deferred = [b.id for b in composition.beats if b.kind in {
-        "broll_intent", "zoom", "sound_intent",
+        "broll_intent", "sound_intent",
         "emoji_intent", "lut_intent", "music_intent",
     }]
+    deferred.extend(
+        b.id for b in composition.beats
+        if b.kind == "zoom" and b.id not in rendered_camera_beat_ids
+    )
     deferred.extend(skipped_motions)
     if deferred:
         warnings.append("Unresolved or unsupported V2.1 intents remain unrendered; review composition JSON.")
@@ -483,6 +512,7 @@ async def build_local_creative_preview(
         "rendered_original_sfx_cues": rendered_sfx_count,
         "rendered_buddy_cameos": rendered_buddy_cameos,
         "rendered_motion_beat_ids": rendered,
+        "rendered_camera_beat_ids": list(rendered_camera_beat_ids),
         "deferred_beat_ids": deferred,
         "warnings": list(dict.fromkeys(warnings)),
     }
