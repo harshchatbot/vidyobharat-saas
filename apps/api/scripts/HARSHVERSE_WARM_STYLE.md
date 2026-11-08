@@ -160,3 +160,41 @@ text genuinely behind the speaker.
   approximately −17 LUFS output and zero clipping.
 - These original illustrations are **2.5D** and are not equivalent to
   generative cinematic 3D footage. Motion polish is an iterative task.
+
+
+## Studio Voice — optional Phase 1 original-narration enhancement
+
+The final render now accepts `--voice-enhance off|natural|studio`
+(default `off` for strict backward compatibility).
+
+- **off:** leave recorded speech unprocessed (previous behavior).
+- **natural:** gentle high-pass, mild mud removal, gentle compression.
+- **studio:** high-pass 78 Hz, restrained FFT denoise, low-mid correction,
+  a small presence lift, subtle de-essing and light compression.
+- The final output goes through a single loudness-normalization stage with
+  a target around -17 LUFS / -1.5 dBTP and 48 kHz AAC audio.
+- Voice cleanup processes the **untouched original camera audio** at the
+  last stage. It runs before synthesized transition SFX are mixed, rather
+  than repeatedly processing earlier AAC-encoded renders.
+- No third-party AI weights, cloud upload, voice conversion or new speech.
+  It cannot restore a clipped recording or completely remove room reverb.
+- Avoid aggressive gating; it often cuts consonants or syllable tails.
+
+From the repository root, add this flag to the existing render:
+
+~~~bash
+  --voice-enhance studio
+~~~
+
+For objective A/B testing, use the **same recorded presenter and validated
+`--scene-plan`** in separate output directories, once with `off` and once
+with `studio`. Otherwise two OpenAI director calls may pick different
+visual beats/SFX. Listen on headphones: check metallic noise reduction,
+over-suppressed consonants, lip sync, and whether the typewriter/whoosh
+overpowers speech.
+
+The latest uploaded finished video (before this voice enhancement) measured
+approximately -18.08 LUFS integrated and -1.37 dBTP. These are already
+reasonably close to the loudness target; audible cleanup should focus on
+timbre and controlled noise, not gain alone. Single-pass loudnorm is a
+starting point and requires measured after-render QA.
