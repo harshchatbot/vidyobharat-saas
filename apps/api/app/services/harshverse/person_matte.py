@@ -56,6 +56,8 @@ def _extract_person_confidence(segmentation: object) -> np.ndarray:
         person = raw[:, :, 1]
     elif raw.ndim == 2:
         person = raw
+    elif raw.ndim < 2:
+        raise RuntimeError("Person confidence mask must be a nonempty 2D image")
     else:
         raise RuntimeError(
             f"Unsupported person confidence mask shape {raw.shape}; "
