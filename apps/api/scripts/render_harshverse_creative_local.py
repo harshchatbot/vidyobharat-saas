@@ -284,7 +284,9 @@ async def build_local_creative_preview(
     editorial_keyword = None
     with tempfile.TemporaryDirectory(prefix="rangmanch-creative-local-") as temporary:
         captions_path = Path(temporary) / "captions.ass"
-        captions = write_caption_track(captions_path, overlays)
+        captions = write_caption_track(
+            captions_path, overlays, visual_style=visual_style
+        )
         graded_presenter = source
         if selected_grade != "off":
             graded_presenter = Path(temporary) / "presenter_graded.mp4"
