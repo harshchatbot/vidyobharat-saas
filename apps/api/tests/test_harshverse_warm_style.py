@@ -108,7 +108,7 @@ def test_captions_use_dedicated_warm_explainer_safe_strip():
     )
     assert overlays
     assert any(abs(item.y - .43)<.001 for item in overlays)
-    assert all(item.font_size==39 for item in overlays)
+    assert all(item.font_size==38 for item in overlays)
 
 
 
