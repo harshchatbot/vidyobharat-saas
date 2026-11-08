@@ -1,0 +1,83 @@
+"""HarshVerse reference-quality editorial typography/matte contract tests.
+
+The reference video is not used in unit tests, copied into the repo, or
+treated as a source of audio or graphics.
+"""
+from pathlib import Path
+import subprocess
+
+import pytest
+from PIL import Image
+
+from app.services.harshverse.layered_type import (
+    choose_speech_keyword, make_editorial_title_layers,
+    build_editorial_intro_filter, render_editorial_intro,
+)
+from app.services.harshverse.person_matte import build_person_matte
+
+
+def test_title_uses_a_genuinely_spoken_keyword_not_a_generated_claim():
+    assert choose_speech_keyword([
+        "Have", "you", "ever", "wondered", "how", "ChatGPT", "understands",
+        "your", "questions"
+    ]) == "CHATGPT"
+    assert choose_speech_keyword(["The", "workflow", "moves", "data"]) == "WORKFLOW"
+
+
+def test_safe_title_layers_have_separate_alphas(tmp_path):
+    back, front = make_editorial_title_layers(tmp_path, "CHATGPT")
+    with Image.open(back) as rear, Image.open(front) as badge:
+        assert rear.size == badge.size == (720, 1280)
+        assert rear.mode == badge.mode == "RGBA"
+        assert rear.getpixel((710, 1200))[3] == 0
+        assert badge.getpixel((710, 1200))[3] == 0
+    with pytest.raises(ValueError):
+        make_editorial_title_layers(tmp_path, "{\\drawtext:injected}")
+
+
+def test_true_subject_occlusion_has_explicit_alphamerge():
+    graph = build_editorial_intro_filter(matte=True,start=.2,end=2.25)
+    assert "split[base][personbase]" in graph
+    assert "[3:v]scale=720:1280" in graph
+    assert "alphamerge[personalpha]" in graph
+    assert "[backtitle][personalpha]overlay=" in graph
+    assert "[depth][2:v]overlay=" in graph
+
+
+def test_no_person_mask_never_claims_behind_text():
+    graph = build_editorial_intro_filter(matte=False,start=.2,end=2.25)
+    assert "alphamerge" not in graph
+    assert "split[base][personbase]" not in graph
+    assert "null[depth]" in graph
+
+
+def test_editorial_intro_render_reports_actual_mask_mode(monkeypatch,tmp_path):
+    source = tmp_path/"speaker.mp4"
+    source.write_bytes(b"video-fixture")
+    matte = tmp_path/"person.mkv"
+    matte.write_bytes(b"mask-fixture")
+    output = tmp_path/"layered.mp4"
+    def fake_run(command, **kwargs):
+        assert "-filter_complex" in command
+        assert "[3:v]" in command[command.index("-filter_complex")+1]
+        assert command[command.index("-c:a")+1] == "copy"
+        output.write_bytes(b"rendered-video")
+        return subprocess.CompletedProcess(command, 0)
+    monkeypatch.setattr(
+        "app.services.harshverse.layered_type.subprocess.run",fake_run
+    )
+    result = render_editorial_intro(
+        source,output,headline="CHATGPT",duration=15.733,matte=matte
+    )
+    assert result.mode == "subject_matte_occlusion"
+    assert result.headline == "CHATGPT"
+    assert result.path.is_file()
+
+
+def test_model_missing_fails_closed_instead_of_faking_depth(tmp_path):
+    video=tmp_path/"video.mp4"
+    video.write_bytes(b"fixture")
+    with pytest.raises(FileNotFoundError):
+        build_person_matte(
+            video,tmp_path/"missing.tflite",tmp_path/"person.mkv"
+        )
