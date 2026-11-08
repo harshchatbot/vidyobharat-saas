@@ -376,8 +376,14 @@ async def build_local_creative_preview(
                                    duration=plate_duration, sha256=plate_hash)
             prepared = [PreparedVisual(beat_id=b.id, asset_offset=b.start)
                         for b in render_plan.beats if b.kind == "motion_graphic"]
-            draft = compile_harshverse_draft(render_plan, plate=plate,
-                                             prepared_visuals=prepared)
+            if motion_engine == "blender3d":
+                draft = compile_harshverse_draft(
+                    render_plan, plate=plate, prepared_visuals=prepared,
+                    merge_adjacent_motion=True,
+                )
+            else:
+                draft = compile_harshverse_draft(render_plan, plate=plate,
+                                                 prepared_visuals=prepared)
             composited = Path(temporary) / "harshverse_with_motion.mp4"
             if visual_style == "classic":
                 render_harshverse(draft.scene_plan, graded_presenter, motion_path, composited)
