@@ -39,6 +39,7 @@ from app.services.harshverse.warm_sfx import synthesize_warm_sfx
 from app.services.harshverse.color_grade import resolve_color_grade, presenter_grade_filter
 from app.services.harshverse.layered_type import choose_speech_keyword, render_editorial_intro
 from app.services.harshverse.person_matte import build_person_matte
+from app.services.harshverse.voice_enhance import voice_enhance_filter
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
@@ -61,7 +62,8 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
                    buddy_path: Path | None = None,
                    buddy_windows: tuple[tuple[float, float], ...] = (),
                    sfx_path: Path | None = None,
-                   finish_audio: bool = False) -> None:
+                   finish_audio: bool = False,
+                   voice_enhance: str = "off") -> None:
     """Final image/caption and optional ORIGINAL warm SFX mix.
 
     Original speech stays the first audio input. No cuts, ducking, timing
@@ -102,31 +104,38 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
     else:
         filters.append(f"[0:v]{filter_expr},format=yuv420p[vout]")
 
+    clean_filter = voice_enhance_filter(voice_enhance)
+    dialogue = "[0:a:0]"
+    if clean_filter:
+        filters.append(f"[0:a:0]{clean_filter}[voice]")
+        dialogue = "[voice]"
+
     if sfx_path is not None:
         sfx_input_index = 2 if use_buddy else 1
-        # Preserve actual spoken timing; no TTS or edited speech.
+        # Enhancement is applied to original dialogue *before* the SFX
+        # are mixed; noise reduction never damages synthesized transitions.
         filters.append(
-            f"[0:a:0][{sfx_input_index}:a:0]"
+            f"{dialogue}[{sfx_input_index}:a:0]"
             "amix=inputs=2:duration=first:dropout_transition=0:"
             "normalize=0[mixed]"
         )
-        if finish_audio:
-            filters.append("[mixed]loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
-            audio_map = "[aout]"
-        else:
-            audio_map = "[mixed]"
-    elif finish_audio:
-        filters.append("[0:a:0]loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
+        mixed = "[mixed]"
+    else:
+        mixed = dialogue
+
+    if finish_audio:
+        filters.append(f"{mixed}loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
         audio_map = "[aout]"
     else:
-        audio_map = "0:a:0"
+        audio_map = mixed
 
     command += [
         "-filter_complex", ";".join(filters),
         "-map", "[vout]", "-map", audio_map,
         "-c:v", "libx264", "-preset", "medium", "-crf", "19",
         "-pix_fmt", "yuv420p", "-r", "30",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+        "-movflags", "+faststart", str(output),
     ]
     subprocess.run(command, check=True, timeout=300)
 
@@ -203,6 +212,7 @@ async def build_local_creative_preview(
     color_grade: str = "auto",
     editorial_intro: bool = False,
     person_matte_model: Path | None = None,
+    voice_enhance: str = "off",
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -214,6 +224,7 @@ async def build_local_creative_preview(
     if visual_style not in ("classic", WARM_STYLE):
         raise ValueError("Unsupported HarshVerse visual pack")
     selected_grade = resolve_color_grade(visual_style, color_grade)
+    voice_enhance_filter(voice_enhance)  # validate even if no SFX
     if editorial_intro and visual_style != WARM_STYLE:
         raise ValueError("Editorial intro currently requires harshverse_warm style")
     if person_matte_model is not None and not editorial_intro:
@@ -348,7 +359,8 @@ async def build_local_creative_preview(
             render_source = composited
         staged = Path(temporary) / "captioned.mp4"
         if visual_style == "classic":
-            _burn_captions(render_source, captions_path, staged)
+            _burn_captions(render_source, captions_path, staged,
+                           voice_enhance=voice_enhance, finish_audio=voice_enhance != "off")
         else:
             buddy = make_buddy_sticker(Path(temporary) / "harshverse_buddy.png")
             graphic_windows = [
@@ -382,7 +394,8 @@ async def build_local_creative_preview(
             rendered_buddy_cameos = len(cameo_windows)
             _burn_captions(render_source, captions_path, staged,
                            buddy_path=buddy, buddy_windows=cameo_windows,
-                           sfx_path=sfx_path, finish_audio=True)
+                           sfx_path=sfx_path, finish_audio=True,
+                           voice_enhance=voice_enhance)
         if not staged.is_file() or staged.stat().st_size == 0:
             raise RuntimeError("The captioned preview was not generated.")
         staged.replace(output)
@@ -416,6 +429,7 @@ async def build_local_creative_preview(
         "director_mode": director_mode,
         "visual_style": visual_style,
         "presenter_color_grade": selected_grade,
+        "voice_enhance": voice_enhance,
         "editorial_title_mode": editorial_title_mode,
         "editorial_keyword": editorial_keyword,
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
@@ -461,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Renderer style pack; harshverse_warm uses original illustrations and buddy.")
     parser.add_argument("--color-grade", choices=("auto", "off", "warm_editorial"), default="auto",
                         help="Presenter-only color grade; auto uses warm_editorial for harshverse_warm.")
+    parser.add_argument("--voice-enhance", choices=("off", "natural", "studio"), default="off",
+                        help="Original narration cleanup before SFX; off preserves prior behavior.")
     parser.add_argument("--editorial-intro", action="store_true",
                         help="Add warm typography intro with optional true person depth occlusion.")
     parser.add_argument("--person-matte-model", type=Path,
@@ -485,6 +501,7 @@ def main(argv: list[str] | None = None) -> int:
             overwrite=args.overwrite, smoke_motion=args.smoke_motion,
             visual_style=args.visual_style, color_grade=args.color_grade,
             editorial_intro=args.editorial_intro, person_matte_model=args.person_matte_model,
+            voice_enhance=args.voice_enhance,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
