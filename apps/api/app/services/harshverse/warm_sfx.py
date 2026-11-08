@@ -24,17 +24,18 @@ def synthesize_warm_sfx(path: Path, duration: float,
     last_cue = -3.0
     rendered = 0
     for at, kind in sorted(beats):
-        if kind not in ("whoosh", "pop", "click"):
+        if kind not in ("whoosh", "pop", "click", "faahh", "typewriter"):
             raise ValueError("Unknown original SFX")
         if not math.isfinite(at) or at < 0 or at >= duration:
             raise ValueError("Invalid original SFX timing")
         # Keep spoken-word comprehension primary. Avoid machine-gun cues.
-        if at - last_cue < 1.15 or rendered >= 4:
+        if at - last_cue < 1.05 or rendered >= 5:
             continue
         last_cue = at
         rendered += 1
         rng = random.Random(5811 + int(at * 1000))
-        length = {"whoosh": 0.33, "pop": 0.19, "click": 0.065}[kind]
+        length = {"whoosh": 0.33, "pop": 0.19, "click": 0.065,
+                  "faahh": 0.45, "typewriter": 0.30}[kind]
         n = int(length * _RATE)
         start = round(at * _RATE)
         filtered = 0.0
@@ -46,6 +47,17 @@ def synthesize_warm_sfx(path: Path, duration: float,
                 envelope = (math.sin(math.pi * progress) ** 1.65) * 0.070
                 filtered = 0.82 * filtered + 0.18 * rng.uniform(-1, 1)
                 value = envelope * filtered
+            elif kind == "faahh":
+                # Cinematic, quiet airy lift and a short warm low thud.
+                filtered = 0.89 * filtered + 0.11 * rng.uniform(-1, 1)
+                envelope = (math.sin(math.pi * progress) ** 1.8) * 0.080
+                bass = math.sin(2 * math.pi * (132 - 54 * progress) * t)
+                value = envelope * filtered + 0.026 * bass * math.exp(-10 * t)
+            elif kind == "typewriter":
+                # Three quiet mechanical key-taps in a 300 ms cue.
+                local = (t % .095)
+                envelope = math.exp(-95 * local) * (1 - math.exp(-650 * local))
+                value = .065 * rng.uniform(-1, 1) * envelope
             elif kind == "pop":
                 envelope = math.exp(-27 * t) * (1 - math.exp(-300 * t))
                 value = (0.105 * math.sin(2 * math.pi * (310 - 120 * progress) * t)
