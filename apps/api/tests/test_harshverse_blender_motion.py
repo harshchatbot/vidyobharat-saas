@@ -145,3 +145,23 @@ def test_invalid_blender_engine_never_invokes_external_subprocess():
     _context, composition, beats = _beats()
     with pytest.raises(ValueError):
         group_visual_sequences([], max_gap_seconds=1.0)
+
+
+
+def test_warm_plate_transition_maintains_source_duration():
+    from app.services.harshverse.render_adapter import build_filter
+    from app.services.harshverse.scene_plan import Scene, ScenePlan
+    plan = ScenePlan(
+        duration=4, width=720, height=1280, fps=30,
+        scenes=(Scene("presenter_hook",0,1),
+                Scene("presenter_split",1,3,asset_offset=1),
+                Scene("presenter_outro",3,4)),
+    )
+    warm = build_filter(plan,visual_style="harshverse_warm",face_center_y=.45)
+    classic = build_filter(plan)
+    assert "fade=t=in:st=0:d=0.1800:alpha=1" in warm
+    assert "fade=t=out:st=1.8200:d=0.1800:alpha=1" in warm
+    assert "color=c=0xF8F3E9:s=720x640" in warm
+    assert "concat=n=3" in warm
+    assert "fade=t=in:" not in classic
+    assert "concat=n=3" in classic
