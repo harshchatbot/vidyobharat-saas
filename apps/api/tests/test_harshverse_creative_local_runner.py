@@ -24,8 +24,12 @@ def test_local_pipeline_reuses_existing_engines(monkeypatch, tmp_path):
     monkeypatch.setattr(local, "build_video_analysis_report",
                         lambda path, media_id, *, transcript, style: fixture_report())
     output_calls = []
-    def burn(input_path, captions, output_path):
+    def burn(input_path, captions, output_path, *,
+             voice_enhance, finish_audio, original_audio_source):
         assert input_path == source.resolve()
+        assert voice_enhance == "off"
+        assert finish_audio is False
+        assert original_audio_source == source.resolve()
         assert captions.read_text(encoding="utf-8").count("Dialogue:") >= 2
         output_calls.append(input_path)
         output_path.write_bytes(b"preview-output")
@@ -132,8 +136,12 @@ def test_local_creative_pipeline_executes_v21_graphic_without_claiming_broll(mon
         called.append("motion")
     monkeypatch.setattr(local, "render_harshverse", fake_render)
 
-    def fake_captions(render_source, captions, output):
+    def fake_captions(render_source, captions, output, *,
+                      voice_enhance, finish_audio, original_audio_source):
         assert render_source.read_bytes() == b"composited"
+        assert voice_enhance == "off"
+        assert finish_audio is False
+        assert original_audio_source == source.resolve()
         assert "Dialogue:" in captions.read_text(encoding="utf-8")
         output.write_bytes(b"final-mp4")
         called.append("captions")
