@@ -25,6 +25,35 @@ class MatteResult:
     fps: int
 
 
+def _extract_person_confidence(segmentation: object) -> np.ndarray:
+    """Read the foreground *person* probability from MediaPipe selfie models.
+
+    Official MediaPipe Selfie Segmenter variants may return one foreground
+    confidence mask (person), rather than separate background/person masks.
+    Other two-channel segmenters return background at index 0 and person at 1.
+    We never infer a silhouette from face boxes, category IDs, or an empty mask.
+    """
+    masks = getattr(segmentation, "confidence_masks", None) or []
+    if len(masks) == 1:
+        # Single-channel Google SelfieSegmenter probability = person.
+        mask = masks[0]
+    elif len(masks) == 2:
+        # Multi-channel person/background model: index 1 is person.
+        mask = masks[1]
+    else:
+        raise RuntimeError(
+            f"Unsupported MediaPipe person-confidence layout: {len(masks)} masks; "
+            "expected 1 (selfie person) or 2 (background/person)."
+        )
+    person = np.asarray(mask.numpy_view(), dtype=np.float32)
+    if person.ndim != 2 or not person.size:
+        raise RuntimeError("Person confidence mask must be a nonempty 2D image")
+    if (not np.isfinite(person).all()
+            or person.min() < -0.01 or person.max() > 1.01):
+        raise RuntimeError("Invalid person confidence mask values")
+    return np.clip(person, 0, 1)
+
+
 def build_person_matte(
     video: Path, model: Path, output: Path, *,
     fps: int = 30, width: int = 360, height: int = 640,
@@ -89,9 +118,7 @@ def build_person_matte(
                 rgb = np.frombuffer(frame_data, dtype=np.uint8).reshape((height, width, 3))
                 frame = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb.copy())
                 segmentation = segmenter.segment_for_video(frame, int(round(count * 1000 / fps)))
-                if len(segmentation.confidence_masks or []) < 2:
-                    raise RuntimeError("Model does not provide background/person masks")
-                person = np.asarray(segmentation.confidence_masks[1].numpy_view(), dtype=np.float32)
+                person = _extract_person_confidence(segmentation)
                 if person.shape != (height, width):
                     person = cv2.resize(person, (width, height), interpolation=cv2.INTER_LINEAR)
                 if not np.isfinite(person).all():
