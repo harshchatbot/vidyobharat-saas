@@ -82,6 +82,10 @@ def test_original_warm_motion_ffmpeg_filters_smoke(monkeypatch, tmp_path):
         assert "overlay=x=" in filter_complex
         assert "gte(t" in filter_complex
         assert "shortest=1" in filter_complex
+        assert "fade=t=in:" in filter_complex
+        assert "buddy_src_curious" in filter_complex
+        assert "sin(t*3.4)" in filter_complex
+        assert "buddy_point" in filter_complex
         destination = Path(command[-1])
         destination.write_bytes(b"fake-warm-mp4")
         return subprocess.CompletedProcess(command, 0)
@@ -95,6 +99,8 @@ def test_original_warm_motion_ffmpeg_filters_smoke(monkeypatch, tmp_path):
     assert (tmp_path / "warm_warm_00_step1.png").is_file()
     assert (tmp_path / "warm_warm_00_step2.png").is_file()
     assert (tmp_path / "warm_warm_00_step3.png").is_file()
+    assert (tmp_path / "warm_buddy_curious.png").is_file()
+    assert (tmp_path / "warm_buddy_point.png").is_file()
     assert captured
 
 
@@ -186,3 +192,51 @@ def test_extended_original_warm_sfx_vocab(tmp_path):
     ])
     assert wave.exists()
     assert cues == 2
+
+
+@pytest.mark.parametrize("mood", ["curious", "surprised", "blink", "point"])
+def test_buddy_has_consistent_original_asset_across_reactions(tmp_path, mood):
+    path = make_buddy_sticker(tmp_path / (mood + ".png"), mood=mood)
+    with Image.open(path) as sticker:
+        assert sticker.size == (165, 166)
+        assert sticker.mode == "RGBA"
+        assert sticker.getpixel((160, 160))[3] == 0
+
+
+def test_buddy_is_not_baked_into_background_when_layering(tmp_path):
+    with_buddy = make_explainer_panel(
+        tmp_path / "with.jpg", template="source_stack",
+        ordinal=1, include_buddy=True,
+    )
+    no_buddy = make_explainer_panel(
+        tmp_path / "without.jpg", template="source_stack",
+        ordinal=1, include_buddy=False,
+    )
+    assert with_buddy.read_bytes() != no_buddy.read_bytes()
+
+
+def test_warm_graphic_layer_uses_smooth_object_fades_not_full_panel_swipe(monkeypatch, tmp_path):
+    from app.services.harshverse.local_motion_plate import render_motion_plate
+    from test_harshverse_local_motion_plate import setup
+    import app.services.harshverse.local_motion_plate as module
+
+    context, composition = setup()
+    graphs = []
+
+    def inspect(command, **kwargs):
+        graph = command[command.index("-filter_complex") + 1]
+        graphs.append(graph)
+        assert graph.count("fade=t=in:") == 3
+        assert "overlay=x=0:y=0" in graph
+        assert "format=rgba,scale=94:95" in graph
+        assert "buddy_src_point" in graph
+        Path(command[-1]).write_bytes(b"rendered")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", inspect)
+    result = render_motion_plate(
+        composition, context, tmp_path / "layered.mp4",
+        visual_style="harshverse_warm",
+    )
+    assert result is not None
+    assert graphs
