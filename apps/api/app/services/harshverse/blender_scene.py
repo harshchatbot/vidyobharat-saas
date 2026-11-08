@@ -285,9 +285,9 @@ def build_sequence(seq, fps, index):
         return (max(first, round(entered * fps) + 1),
                 max(first + 1, round((min(end - .1, entered + .35)) * fps) + 1))
 
-    def animate(prop, order):
+    def animate(prop, order, *, size=(1, 1, 1)):
         entrance, reached = timing(order)
-        ease_motion(prop, entrance, reached, last - 1)
+        ease_motion(prop, entrance, reached, last - 1, target_scale=size)
 
     if kind == "data_flow":
         for i,(x,title,tone) in enumerate((
@@ -310,8 +310,8 @@ def build_sequence(seq, fps, index):
         animate(build_arrow(f"Comparison_{index}",(0,.10,0)),2)
     else:
         animate(build_node(
-            f"Idea_{index}",(0,.70,0),topic or "KEY IDEA","peach"
-        ),0)
+            f"Idea_{index}",(0,1.08,0),topic or "KEY IDEA","peach"
+        ),0,size=(1.55,1.25,1.18))
         concepts = seq.get("concepts") or []
         if concepts:
             # Each small 3D card enters at its actual source phrase time.
@@ -331,6 +331,27 @@ def build_sequence(seq, fps, index):
                       radius=.12,parent=mini)
                 text(f"Concept_word_{index}_{i}",label,(0,-.05,.22),
                      .27 if len(label)>9 else .34,"charcoal",parent=mini)
+                # Object-led communication rather than just a row of labels.
+                # Motifs are built from original 3D geometry, never stock art.
+                if label in ("BOOK", "BOOKS", "INFORMATION", "SOURCE", "SOURCES"):
+                    for k, tone in enumerate(("peach", "paper", "dusty_blue")):
+                        book=block(
+                            f"Concept_book_{index}_{i}_{k}",
+                            (-.55 + .12*k,.33 + .14*k,.22+.13*k),
+                            (.72,.16,.17),tone,radius=.045,parent=mini,
+                        )
+                        book.rotation_euler.z=.08*k
+                elif label in ("PATTERN", "PATTERNS", "MODEL", "AI", "GPT", "CHATGPT"):
+                    for k,(a,b) in enumerate(((-.56,.25),(-.38,.51),(-.12,.29))):
+                        ball(f"Concept_neuron_{index}_{i}_{k}",
+                             (a,b,.24),.075,"orange",parent=mini)
+                    rod(f"Concept_link_{index}_{i}_a",
+                        (-.56,.25,.24),(-.38,.51,.24),.025,"dusty_blue",parent=mini)
+                    rod(f"Concept_link_{index}_{i}_b",
+                        (-.38,.51,.24),(-.12,.29,.24),.025,"dusty_blue",parent=mini)
+                else:
+                    block(f"Concept_symbol_{index}_{i}",(-.52,.32,.28),
+                          (.30,.32,.18),"paper",radius=.06,parent=mini)
                 entered = max(first, min(last-4, round(when*fps)+1))
                 reached = min(last-2, entered + max(3,round(.25*fps)))
                 ease_motion(mini,entered,reached,last-1)
