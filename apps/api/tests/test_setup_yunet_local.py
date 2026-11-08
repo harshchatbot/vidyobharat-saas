@@ -47,7 +47,31 @@ def test_download_rejects_wrong_hash_and_keeps_existing_model(monkeypatch, tmp_p
     except RuntimeError as exc:
         assert "SHA256 mismatch" in str(exc)
     assert target.read_bytes() == b"existing-file"
-    assert not list(tmp_path.glob(".yunet-*.part"))
+    assert not list(tmp_path.glob(".yunet-*.onnx"))
+
+
+def test_verified_download_keeps_onnx_suffix_for_opencv(monkeypatch, tmp_path):
+    target = tmp_path / "yunet.onnx"
+    payload = b"verified-onnx-model-fixture"
+    monkeypatch.setattr(setup, "_MODEL_SHA256", hashlib.sha256(payload).hexdigest())
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self, count): return payload
+
+    monkeypatch.setattr(setup.urllib.request, "urlopen", lambda *a, **kw: Response())
+    observed = []
+    def validate(path):
+        observed.append(path.suffix)
+        assert path.name.startswith(".yunet-")
+        assert path.read_bytes() == payload
+
+    monkeypatch.setattr(setup, "_validate_model", validate)
+    setup._download_pinned_model(target)
+    assert observed == [".onnx"]
+    assert target.read_bytes() == payload
+    assert not list(tmp_path.glob(".yunet-*.onnx"))
 
 
 def test_check_video_returns_structured_face_observations(monkeypatch, tmp_path):
