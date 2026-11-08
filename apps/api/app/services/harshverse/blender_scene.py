@@ -310,14 +310,38 @@ def build_sequence(seq, fps, index):
         animate(build_arrow(f"Comparison_{index}",(0,.10,0)),2)
     else:
         animate(build_node(
-            f"Idea_{index}",(0,.35,0),topic or "KEY IDEA","peach"
+            f"Idea_{index}",(0,.70,0),topic or "KEY IDEA","peach"
         ),0)
-        for i, x in enumerate((-2.2, 2.2)):
-            ob = container(f"Floating_concept_{index}_{i}",(x,-1.6,.15))
-            block(f"Concept_diamond_{i}",(0,0,0),(.42,.42,.44),"sunflower",
-                  radius=.06,parent=ob)
-            ob.rotation_euler.z = .78
-            animate(ob,i+1)
+        concepts = seq.get("concepts") or []
+        if concepts:
+            # Each small 3D card enters at its actual source phrase time.
+            # These replace the prior meaningless spinning diamonds and
+            # communicate genuine spoken words in one coherent scene.
+            for i, concept in enumerate(concepts[:3]):
+                label = str(concept["label"]).upper()[:12]
+                if not label.isalnum():
+                    continue
+                when = float(concept["at"])
+                x = (i - (min(3,len(concepts))-1)/2) * 2.85
+                mini = container(f"Speech_concept_{index}_{i}",
+                                 (x,-1.75,0))
+                block(f"Concept_base_{index}_{i}",(0,0,0),
+                      (2.45,.91,.27),
+                      ("dusty_blue","sage","sunflower")[i],
+                      radius=.12,parent=mini)
+                text(f"Concept_word_{index}_{i}",label,(0,-.05,.22),
+                     .27 if len(label)>9 else .34,"charcoal",parent=mini)
+                entered = max(first, min(last-4, round(when*fps)+1))
+                reached = min(last-2, entered + max(3,round(.25*fps)))
+                ease_motion(mini,entered,reached,last-1)
+        else:
+            # No phrase metadata: retain a neutral diagnostic-only element.
+            for i,x in enumerate((-2.1,2.1)):
+                ob = container(f"Diagnostic_concept_{index}_{i}",(x,-1.6,.15))
+                block(f"Diagnostic_diamond_{index}_{i}",(0,0,0),
+                      (.42,.42,.44),"sunflower",radius=.06,parent=ob)
+                ob.rotation_euler.z = .78
+                animate(ob,i+1)
 
     # Buddy has a coherent, repeatable appearance and motions for all templates.
     mascot = container(f"Buddy_rig_{index}", (4.16,-2.36,.15), parent=root)
