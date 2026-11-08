@@ -45,8 +45,23 @@ def _extract_person_confidence(segmentation: object) -> np.ndarray:
             f"Unsupported MediaPipe person-confidence layout: {len(masks)} masks; "
             "expected 1 (selfie person) or 2 (background/person)."
         )
-    person = np.asarray(mask.numpy_view(), dtype=np.float32)
-    if person.ndim != 2 or not person.size:
+    raw = np.asarray(mask.numpy_view(), dtype=np.float32)
+    # MediaPipe Image.numpy_view() returns H x W x channels, even when
+    # channels == 1 (ImageFormat.VEC32F1). The earlier ndarray.ndim == 2
+    # assumption rejected valid masks. Some models pack two confidences
+    # (background, person) into a single H x W x 2 result.
+    if raw.ndim == 3 and raw.shape[-1] == 1:
+        person = raw[:, :, 0]
+    elif raw.ndim == 3 and raw.shape[-1] == 2 and len(masks) == 1:
+        person = raw[:, :, 1]
+    elif raw.ndim == 2:
+        person = raw
+    else:
+        raise RuntimeError(
+            f"Unsupported person confidence mask shape {raw.shape}; "
+            "expected HxW, HxWx1 or single packed HxWx2."
+        )
+    if not person.size or person.shape[0] < 2 or person.shape[1] < 2:
         raise RuntimeError("Person confidence mask must be a nonempty 2D image")
     if (not np.isfinite(person).all()
             or person.min() < -0.01 or person.max() > 1.01):
