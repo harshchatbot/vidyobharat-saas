@@ -82,3 +82,81 @@ pass `--color-grade off` into a separate output directory and compare with
 `--color-grade warm_editorial`. If using `--require-openai` twice, model
 plans can differ; prefer `--scene-plan` from a saved validated report for
 controlled color-only comparisons. Strong orange skin casts are a failure.
+
+## Gemini-reference-inspired editorial motion prototype
+
+The founder-provided 10-second landscape video is used for **visual direction
+only**. We do not copy its actual frames, voice, music, SFX or mascot pixels.
+
+New opt-in flags:
+
+- `--editorial-intro`: large source-faithful headline, warm layer behind the
+  person if a real matte is available, small front-facing title label.
+- `--person-matte-model <path>`: optional official MediaPipe selfie person
+  segmentation TFLite weights, runs locally frame by frame. A YuNet face box
+  is *not* a substitute. If this flag is omitted, diagnostics will truthfully
+  report `foreground_only_no_person_matte`.
+- `--color-grade warm_editorial`: applies to original presenter footage
+  **before** typography and artwork; does not tint the buddy or illustrations.
+- Warm graphics reveal nodes, arrows and props in three timed stages rather
+  than switching one static slide. Warm SFX now include original typewriter
+  and airy faahh accents in addition to click/pop/whoosh; speaker audio
+  receives a conservative single-pass approximately −17 LUFS finish.
+
+### Set up real behind-presenter text
+
+Official Google MediaPipe person/background selfie model, **Apache 2.0**
+according to the published model card:
+
+- Google developer guide:
+  https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter
+- Model card:
+  https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Selfie%20Segmentation.pdf
+- Model binary (official):
+  https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite
+
+Install **locally only** (the binary is gitignored), inspect the license
+and file checksum before redistributing as part of a public product:
+
+~~~bash
+mkdir -p apps/api/data/models
+curl -fL --retry 3 \
+  "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite" \
+  -o apps/api/data/models/selfie_segmenter.tflite
+shasum -a 256 apps/api/data/models/selfie_segmenter.tflite
+~~~
+
+Render the same original presenter video:
+
+~~~bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python \
+  apps/api/scripts/render_harshverse_creative_local.py \
+  --presenter "$HOME/Downloads/Test_Talking_Head_Harsh.mp4" \
+  --output-dir "$HOME/Downloads/HarshVerse-Editorial-V1" \
+  --style energetic \
+  --visual-style harshverse_warm \
+  --color-grade warm_editorial \
+  --editorial-intro \
+  --person-matte-model apps/api/data/models/selfie_segmenter.tflite \
+  --require-openai --overwrite
+~~~
+
+To test without a model, omit the last `--person-matte-model ...`
+pair; this gives only front typography and must not be marketed as
+text genuinely behind the speaker.
+
+### QA before release
+
+- Check `editorial_title_mode`: must equal
+  `subject_matte_occlusion` for genuine rear/foreground layering.
+- Hair, hands and glasses may have imperfect mask edges, particularly
+  under motion; inspect keyframes before claiming professional quality.
+- The model URL uses the upstream `latest` alias. Production packaging
+  must pin exact bytes and an approved commercial redistribution manifest.
+- Intro text is chosen only from **actual recorded** word tokens; no
+  fabricated narration or claims. Creative Director plans still require
+  validator review.
+- Compare motion at real speed, listen to SFX against speech, confirm
+  approximately −17 LUFS output and zero clipping.
+- These original illustrations are **2.5D** and are not equivalent to
+  generative cinematic 3D footage. Motion polish is an iterative task.
