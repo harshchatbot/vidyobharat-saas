@@ -165,3 +165,55 @@ def test_warm_plate_transition_maintains_source_duration():
     assert "concat=n=3" in warm
     assert "fade=t=in:" not in classic
     assert "concat=n=3" in classic
+
+
+
+def test_adjacent_3d_beats_become_single_continuous_split_without_touching_audio():
+    from app.services.harshverse.composition_adapter import (
+        AnimationPlate, PreparedVisual, compile_harshverse_draft,
+    )
+    from app.services.video_creative_director_v21 import CompositionBeat, CompositionPlanV21
+    beats = [
+        CompositionBeat(
+            id="source", kind="source", template="original_video_audio",
+            start=0, end=5,
+        ),
+        CompositionBeat(
+            id="graphic-a", kind="motion_graphic", template="data_flow",
+            start=1, end=2, layout="face_safe_graphic",
+            phrase_ids=["phrase_001"], text_from_phrase_id="phrase_001",
+        ),
+        CompositionBeat(
+            id="graphic-b", kind="motion_graphic", template="data_flow",
+            start=2.12, end=3, layout="face_safe_graphic",
+            phrase_ids=["phrase_002"], text_from_phrase_id="phrase_002",
+        ),
+    ]
+    composition = CompositionPlanV21(
+        duration_seconds=5, aspect_ratio="9:16",
+        beats=beats,
+    )
+    plate = AnimationPlate(
+        asset_id="local-procedural:3d-test", duration=5, sha256="0" * 64,
+    )
+    prepared = [
+        PreparedVisual(beat_id="graphic-a", asset_offset=1),
+        PreparedVisual(beat_id="graphic-b", asset_offset=2.12),
+    ]
+    illustrated = compile_harshverse_draft(
+        composition,plate=plate,prepared_visuals=prepared,
+    )
+    blender = compile_harshverse_draft(
+        composition,plate=plate,prepared_visuals=prepared,
+        merge_adjacent_motion=True,
+    )
+    illustrated_splits = [x for x in illustrated.scene_plan.scenes
+                          if x.recipe == "presenter_split"]
+    continuous = [x for x in blender.scene_plan.scenes
+                  if x.recipe == "presenter_split"]
+    assert len(illustrated_splits) == 2
+    assert len(continuous) == 1
+    assert (continuous[0].start, continuous[0].end) == (1, 3)
+    assert continuous[0].asset_offset == 1
+    assert blender.scene_plan.duration == illustrated.scene_plan.duration == 5
+    assert composition.source_audio_uninterrupted
