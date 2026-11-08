@@ -93,6 +93,7 @@ def group_visual_sequences(
 def build_blender_job(
     composition: CompositionPlanV21, beats: list[CompositionBeat], *,
     quality: str = "preview",
+    phrase_texts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if quality not in _RENDER_QUALITY:
         raise ValueError("3D quality must be preview or final")
@@ -109,6 +110,36 @@ def build_blender_job(
     sequences = group_visual_sequences(beats)
     if len(sequences) > 12:
         raise ValueError("Too many independent 3D sequences")
+    # Labels must be backed by verified phrase IDs; do not let an LLM
+    # fabricate facts inside a rendered diagram. A missing mapping uses
+    # the neutral original template rather than guessing a caption.
+    import re
+    for sequence in sequences:
+        source_words = []
+        for beat in sequence["beats"]:
+            matched = next((item for item in beats if item.id == beat["id"]), None)
+            if matched is None:
+                continue
+            for pid in matched.phrase_ids:
+                if phrase_texts and pid in phrase_texts:
+                    source_words.extend(re.findall(
+                        r"[A-Za-z0-9]+", phrase_texts[pid].upper()
+                    ))
+        stop = {
+            "HAVE", "EVER", "WONDERED", "THE", "AND", "BUT", "THAT",
+            "THIS", "YOUR", "WITH", "WHAT", "THERE", "HERE",
+            "BECAUSE", "ACTUALLY", "INTERESTING", "PART", "WELL",
+            "JUST", "LIKE", "ABOUT", "FROM", "YOU", "HOW",
+            "DOES", "THINK", "QUESTIONS", "UNDERSTANDS",
+        }
+        topics = [w for w in source_words
+                  if 2 <= len(w) <= 14 and w not in stop]
+        priority = (
+            "CHATGPT", "SALESFORCE", "AGENTFORCE", "WORKFLOW",
+            "PATTERNS", "HUMAN", "MODEL", "DATA", "AI", "GPT",
+        )
+        chosen = next((w for w in priority if w in topics), None)
+        sequence["topic"] = chosen or (topics[0] if topics else "")
     return {
         "contract": "harshverse-blender-3d-v1",
         "duration": composition.duration_seconds,
@@ -130,6 +161,7 @@ def render_blender_plate(
     quality: str = "preview",
     ffmpeg: str = "ffmpeg",
     max_render_seconds: int = 1800,
+    phrase_texts: dict[str, str] | None = None,
 ) -> BlenderMotionResult:
     """Produce original 3D MP4 through headless Blender + reliable FFmpeg.
 
@@ -137,7 +169,9 @@ def render_blender_plate(
     the standard HarshVerse 720x640/30 fps plate. Exact source-time alignment
     is preserved with fixed-fps rendering and the source duration trim.
     """
-    job = build_blender_job(composition, beats, quality=quality)
+    job = build_blender_job(
+        composition, beats, quality=quality, phrase_texts=phrase_texts,
+    )
     executable = blender_executable(blender)
     script = Path(__file__).with_name("blender_scene.py")
     if not script.is_file():
