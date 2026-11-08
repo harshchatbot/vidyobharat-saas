@@ -75,6 +75,7 @@ def compile_harshverse_draft(
     fps: int = 30,
     width: int = 720,
     height: int = 1280,
+    merge_adjacent_motion: bool = False,
 ) -> HarshVerseDraft:
     """Create validated split-screen recipes without approving an export.
 
@@ -161,6 +162,25 @@ def compile_harshverse_draft(
             raise ValueError(f'overlapping visual beats: {beat.id}')
         if beat.end - beat.start < minimum_frame - _EPSILON:
             raise ValueError(f'visual beat shorter than one output frame: {beat.id}')
+        # The optional 3D renderer groups adjacent same-template V2.1
+        # phrases into a single cinematic scene. Without matching this
+        # here, HarshVerse would cut to the full presenter for tiny speech
+        # gaps and destroy the continuous 3D camera/character animation.
+        # This changes only picture composition. Source audio and original
+        # timestamps are untouched. Normal illustrated mode is unchanged.
+        if (merge_adjacent_motion and beat.kind == 'motion_graphic'
+                and scenes and scenes[-1].recipe == 'presenter_split'
+                and scenes[-1].title == beat.template
+                and 0 <= beat.start - cursor <= .38
+                and beat.end - scenes[-1].start <= 8.5):
+            previous = scenes[-1]
+            scenes[-1] = Scene(
+                'presenter_split', previous.start, beat.end,
+                asset_offset=previous.asset_offset,
+                title=previous.title,
+            )
+            cursor = beat.end
+            continue
         if beat.start - cursor > _EPSILON:
             if beat.start - cursor < minimum_frame - _EPSILON:
                 raise ValueError(f'source gap shorter than one output frame: {beat.id}')
