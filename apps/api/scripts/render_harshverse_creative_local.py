@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import httpx
 from dotenv import load_dotenv
@@ -222,6 +223,97 @@ def build_motion_smoke_scene_plan(context):
     return validate_scene_plan(context, plan.model_dump(mode="json"))
 
 
+def _load_scene_plan_baseline_transcript(
+    scene_plan_path: Path, source: Path, duration: float,
+) -> dict | None:
+    """Reuse the immutable transcript which the supplied edit plan used.
+
+    Re-running STT while reusing a scene plan can silently bind phrase_001
+    to different words/times. This makes overlays visibly jump out of order
+    despite unchanged source audio. Local sibling artifacts are accepted only
+    when the original source/duration match; mismatches fail closed.
+    """
+    scene_plan_path = Path(scene_plan_path).expanduser().resolve()
+    folder = scene_plan_path.parent
+    analysis_path = folder / "visual_analysis_v2.json"
+    report_path = folder / "local_preview_report.json"
+    if not analysis_path.is_file() and not report_path.is_file():
+        return None
+    if not analysis_path.is_file() or not report_path.is_file():
+        raise ValueError(
+            "Incomplete scene-plan baseline: both visual_analysis_v2.json "
+            "and local_preview_report.json are needed for safe timing reuse."
+        )
+    baseline = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(baseline, dict):
+        raise ValueError("Invalid saved scene-plan baseline report")
+    saved_source = baseline.get("source")
+    saved_duration = baseline.get("duration_seconds")
+    if (not isinstance(saved_source, str)
+            or Path(saved_source).expanduser().resolve() != source.resolve()
+            or not isinstance(saved_duration, (int, float))
+            or abs(saved_duration - duration) > .10):
+        raise ValueError(
+            "Saved scene plan belongs to a different source or duration; "
+            "refusing to reuse mismatched timestamps."
+        )
+    evidence = json.loads(analysis_path.read_text(encoding="utf-8"))
+    speech = evidence.get("speech") if isinstance(evidence, dict) else None
+    media = evidence.get("media") if isinstance(evidence, dict) else None
+    if not isinstance(speech, dict) or not isinstance(media, dict):
+        raise ValueError("Saved visual analysis lacks speech/media evidence")
+    if abs(float(media.get("duration_seconds", -1)) - duration) > .10:
+        raise ValueError("Saved analysis duration differs from source")
+    words = speech.get("words")
+    if not isinstance(words, list) or not words:
+        raise ValueError("Saved visual analysis has no timestamped spoken words")
+    extracted = []
+    previous = -1.0
+    for word in words:
+        if not isinstance(word, dict):
+            raise ValueError("Invalid saved word timestamp")
+        text_value = word.get("text")
+        start, end = word.get("start"), word.get("end")
+        if (not isinstance(text_value, str) or not text_value.strip()
+                or not isinstance(start, (int, float))
+                or not isinstance(end, (int, float))
+                or not math.isfinite(start) or not math.isfinite(end)
+                or start < 0 or end <= start or end > duration + .1
+                or start < previous - .025):
+            raise ValueError("Saved words must have ordered source timestamps")
+        extracted.append({"text": text_value, "start": start, "end": end})
+        previous = start
+    return {"language": speech.get("language"), "words": extracted}
+
+
+def _assert_scene_plan_phrase_alignment(
+    scene_plan_path: Path, context: CreativeContext,
+) -> None:
+    """Reject stale phrase IDs that match syntactically but not semantically."""
+    previous = Path(scene_plan_path).expanduser().resolve().parent / "creative_context.json"
+    if not previous.is_file():
+        return
+    record = json.loads(previous.read_text(encoding="utf-8"))
+    phrases = record.get("phrases") if isinstance(record, dict) else None
+    if not isinstance(phrases, list):
+        raise ValueError("Saved scene-plan context is invalid")
+    current = [
+        (p.id, p.text, round(p.start, 2), round(p.end, 2))
+        for p in context.phrases
+    ]
+    baseline = [
+        (p.get("id"), p.get("text"), round(float(p.get("start")), 2),
+         round(float(p.get("end")), 2))
+        for p in phrases
+    ]
+    if current != baseline:
+        raise ValueError(
+            "Scene-plan phrase timings/content changed since its original "
+            "analysis. Use the matching baseline transcript instead of "
+            "re-running STT or approving visually desynchronized effects."
+        )
+
+
 async def build_local_creative_preview(
     source: Path, output_dir: Path, *,
     style: str = "elegant",
@@ -288,6 +380,15 @@ async def build_local_creative_preview(
         if not isinstance(transcript, dict) or not isinstance(transcript.get("words"), list):
             raise ValueError("Transcript JSON must have a words array.")
         transcription_mode = "provided_word_timestamps"
+    elif scene_plan_path is not None:
+        transcript = _load_scene_plan_baseline_transcript(
+            Path(scene_plan_path), source, duration,
+        )
+        if transcript is None:
+            transcript = await transcribe_source(source)
+            transcription_mode = "existing_local_stt_no_plan_baseline"
+        else:
+            transcription_mode = "scene_plan_baseline_word_timestamps"
     else:
         transcript = await transcribe_source(source)
         transcription_mode = "existing_local_stt"
@@ -296,6 +397,8 @@ async def build_local_creative_preview(
     if report.media.aspect_ratio != "9:16":
         raise ValueError("Local creative preview currently requires a 9:16 presenter; source was not modified.")
     context = build_creative_context(report)
+    if scene_plan_path is not None:
+        _assert_scene_plan_phrase_alignment(Path(scene_plan_path), context)
     if not context.phrases:
         raise ValueError("Visual Analysis V2 produced no speech phrases. Cannot generate truthful kinetic captions.")
 
