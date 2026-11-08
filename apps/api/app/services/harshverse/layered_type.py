@@ -45,15 +45,30 @@ def choose_speech_keyword(words: list[str]) -> str:
     A semantic planner may later supply a better validated keyword. The
     deterministic path must not invent an unspoken product name or claim.
     """
-    candidates: list[str] = []
-    for word in words[:60]:
-        token = re.sub(r"[^A-Za-z0-9]", "", word).upper()
-        if 4 <= len(token) <= 16 and token not in _STOP_WORDS:
-            candidates.append(token)
-    priority = ("CHATGPT", "SALESFORCE", "AI", "AGENT", "WORKFLOW", "DATA", "MODEL")
+    tokens = [
+        re.sub(r"[^A-Za-z0-9]", "", word).upper()
+        for word in words[:60]
+    ]
+    tokens = [t for t in tokens if t]
+    # Local STT often separates spoken "Chat GPT" into two words. This
+    # alias is supported ONLY when both original adjacent words occur;
+    # the algorithm does not invent subjects from a guessed topic.
+    recorded = set(tokens)
+    if any(a == "CHAT" and b == "GPT"
+           for a, b in zip(tokens, tokens[1:])):
+        recorded.add("CHATGPT")
+    priority = (
+        "CHATGPT", "SALESFORCE", "GPT", "AGENTFORCE", "AGENT",
+        "WORKFLOW", "PATTERNS", "HUMAN", "DATA", "MODEL", "BOOKS",
+        "INFORMATION", "QUESTIONS", "AI",
+    )
     for item in priority:
-        if item in candidates:
+        if item in recorded:
             return item
+    candidates = [
+        t for t in tokens
+        if 4 <= len(t) <= 16 and t not in _STOP_WORDS
+    ]
     return candidates[0] if candidates else "HARSHVERSE"
 
 
